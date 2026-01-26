@@ -25,30 +25,36 @@ class UserController extends Controller
         return view('user.create', compact('user','roles'));
     }
 
-    public function store(Request $request)
-    {
-        $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:8',
-            'Regional' => 'required',
-            'ci' => 'required',
-        ]);
-    
-        $user = new User();
-        $user->name = $request->input('name');
-        $user->email = $request->input('email');
-        $user->password = bcrypt($request->input('password')); // Encriptar la contraseña
-        $user->Regional = $request->input('Regional');
-        $user->ci = $request->input('ci');
+   public function store(Request $request)
+{
+    $request->validate([
+        'name'   => 'required|string|max:255',
+        'email'  => 'required|email|unique:users,email',
+        'password' => 'required|min:8',
+        'ciudad' => 'required|string|max:255', // <-- antes Regional
+        'ci'     => 'required|string|max:255',
+        'roles'  => 'nullable|array',
+        'roles.*'=> 'integer|exists:roles,id',
+    ]);
 
-        $user->save();
+    $user = new User();
+    $user->name     = $request->name;
+    $user->email    = $request->email;
+    $user->password = bcrypt($request->password);
+    $user->ciudad   = $request->ciudad;   // ✅ correcto
+    $user->ci       = $request->ci;
+    $user->save();
 
-        $user->assignRole($request->input('roles'));
-        
-        return redirect()->route('users.index')
-            ->with('success', 'Usuario creado correctamente');
+    // ✅ Asignar roles por ID (convertimos a nombres)
+    if ($request->filled('roles')) {
+        $roleNames = Role::whereIn('id', $request->roles)->pluck('name')->toArray();
+        $user->syncRoles($roleNames);
     }
+
+    return redirect()->route('users.index')
+        ->with('success', 'Usuario creado correctamente');
+}
+
 
     public function show($id)
     {
@@ -66,25 +72,39 @@ class UserController extends Controller
     }
 
     public function update(Request $request, User $user)
-    {
-        $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users,email,' . $user->id, // Utiliza $user->id
-            'Regional' => 'required',
-            'ci' => 'required',
-        ]);
+{
+    $request->validate([
+        'name'   => 'required|string|max:255',
+        'email'  => 'required|email|unique:users,email,' . $user->id,
+        'ciudad' => 'required|string|max:255',
+        'ci'     => 'required|string|max:255',
+        'roles'  => 'nullable|array',
+        'roles.*'=> 'integer|exists:roles,id',
+        'password' => 'nullable|min:8',
+    ]);
 
-        $user->name = $request->input('name');
-        $user->email = $request->input('email');
-        $user->roles()->sync($request->roles);
-        $user->Regional = $request->input('Regional');
-        $user->ci = $request->input('ci');
-        
-        $user->save();
+    $user->name   = $request->name;
+    $user->email  = $request->email;
+    $user->ciudad = $request->ciudad;
+    $user->ci     = $request->ci;
 
-        return redirect()->route('users.index')
-            ->with('success', 'Usuario actualizado correctamente');
+    // password opcional en edit
+    if ($request->filled('password')) {
+        $user->password = bcrypt($request->password);
     }
+
+    $user->save();
+
+    // ✅ sincronizar roles
+    $roleNames = $request->filled('roles')
+        ? Role::whereIn('id', $request->roles)->pluck('name')->toArray()
+        : [];
+    $user->syncRoles($roleNames);
+
+    return redirect()->route('users.index')
+        ->with('success', 'Usuario actualizado correctamente');
+}
+
 
     public function destroy($id)
     {
