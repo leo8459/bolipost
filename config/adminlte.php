@@ -350,7 +350,7 @@ return [
             'submenu' => [
                 [
                     'text' => 'Consulta Correspondencia',
-                    'url' => '',
+                    'url' => 'plantilla',
                     'icon' => 'fas fa-user',
                 ],
             ],
