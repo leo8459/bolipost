@@ -1,0 +1,145 @@
+:root{
+    --agbc-azul:#34447C;
+    --agbc-dorado:#B99C46;
+}
+
+/* Primary (Azul) */
+.bg-primary{ background-color: var(--agbc-azul) !important; }
+.text-primary{ color: var(--agbc-azul) !important; }
+.border-primary{ border-color: var(--agbc-azul) !important; }
+.btn-primary{
+    background-color: var(--agbc-azul) !important;
+    border-color: var(--agbc-azul) !important;
+}
+.btn-primary:hover,
+.btn-primary:focus{
+    filter: brightness(0.95);
+}
+.btn-outline-primary{
+    color: var(--agbc-azul) !important;
+    border-color: var(--agbc-azul) !important;
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus{
+    background-color: var(--agbc-azul) !important;
+    color:#fff !important;
+}
+.badge-primary{
+    background-color: var(--agbc-azul) !important;
+}
+.page-item.active .page-link{
+    background-color: var(--agbc-azul) !important;
+    border-color: var(--agbc-azul) !important;
+}
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link{
+    background-color: var(--agbc-azul) !important;
+}
+
+/* Secondary (Dorado) */
+.bg-secondary{ background-color: var(--agbc-dorado) !important; }
+.text-secondary{ color: var(--agbc-dorado) !important; }
+.border-secondary{ border-color: var(--agbc-dorado) !important; }
+.btn-secondary{
+    background-color: var(--agbc-dorado) !important;
+    border-color: var(--agbc-dorado) !important;
+    color:#fff !important;
+}
+.btn-secondary:hover,
+.btn-secondary:focus{
+    filter: brightness(0.95);
+}
+.btn-outline-secondary{
+    color: var(--agbc-dorado) !important;
+    border-color: var(--agbc-dorado) !important;
+}
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus{
+    background-color: var(--agbc-dorado) !important;
+    color:#fff !important;
+}
+.badge-secondary{
+    background-color: var(--agbc-dorado) !important;
+}
+
+/* AdminLTE specifics */
+.navbar-primary{ background-color: var(--agbc-azul) !important; }
+.navbar-primary .navbar-nav .nav-link{ color:#fff !important; }
+.navbar-primary .navbar-nav .nav-link:hover{ color: rgba(255,255,255,0.85) !important; }
+.sidebar-dark-primary .sidebar,
+.sidebar-dark-primary{
+    background-color: var(--agbc-azul) !important;
+}
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link{
+    color:#fff !important;
+}
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-treeview > .nav-item > .nav-link{
+    color: rgba(255,255,255,0.92) !important;
+}
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-treeview > .nav-item > .nav-link .nav-icon{
+    color: rgba(255,255,255,0.92) !important;
+}
+.sidebar-dark-primary .nav-treeview > .nav-item > .nav-link.active{
+    background-color: rgba(255,255,255,0.14) !important;
+    color:#fff !important;
+}
+.sidebar-dark-primary .nav-treeview > .nav-item > .nav-link:hover{
+    background-color: rgba(255,255,255,0.1) !important;
+    color:#fff !important;
+}
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link .nav-icon{
+    color:#fff !important;
+}
+.sidebar-dark-primary .nav-header{
+    color: rgba(255,255,255,0.7) !important;
+}
+.brand-link .brand-text{
+    color:#fff !important;
+}
+.brand-link{
+    background: rgba(255,255,255,0.08) !important;
+    border-bottom: 1px solid rgba(255,255,255,0.18) !important;
+}
+.brand-link .brand-image{
+    background: rgba(255,255,255,0.12);
+    border-radius: 999px;
+    padding: 2px;
+}
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active{
+    background-color: rgba(255,255,255,0.12) !important;
+    color:#fff !important;
+}
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link:hover{
+    background-color: rgba(255,255,255,0.08) !important;
+    color:#fff !important;
+}
+/* Sidebar search */
+.sidebar .form-inline{
+    padding: 0 12px;
+}
+.sidebar .form-control-sidebar{
+    background: rgba(255,255,255,0.12) !important;
+    border: 1px solid rgba(255,255,255,0.25) !important;
+    color:#fff !important;
+}
+.sidebar .form-control-sidebar::placeholder{
+    color: rgba(255,255,255,0.7) !important;
+}
+.sidebar .btn-sidebar{
+    background: rgba(255,255,255,0.14) !important;
+    border: 1px solid rgba(255,255,255,0.25) !important;
+    color:#fff !important;
+}
+.sidebar .btn-sidebar:hover{
+    background: rgba(255,255,255,0.2) !important;
+}
+.card-primary.card-outline{
+    border-top: 3px solid var(--agbc-azul) !important;
+}
+.card-primary:not(.card-outline) > .card-header{
+    background: var(--agbc-azul) !important;
+    color:#fff !important;
+}
+.info-box .info-box-icon.bg-primary{
+    background-color: var(--agbc-azul) !important;
+}
