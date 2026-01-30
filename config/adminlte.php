@@ -353,6 +353,11 @@ return [
                     'url' => 'plantilla',
                     'icon' => 'fas fa-user',
                 ],
+                [
+                    'text' => 'Paquetes EMS',
+                    'url' => 'paquetes-ems',
+                    'icon' => 'fas fa-box',
+                ],
             ],
         ],
         [
@@ -533,3 +538,4 @@ return [
 
     'livewire' => false,
 ];
+

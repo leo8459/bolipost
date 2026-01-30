@@ -6,6 +6,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleHasPermissionController;
 use App\Http\Controllers\PlantillaController;
+use App\Http\Controllers\PaquetesEmsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -77,6 +78,13 @@ Route::middleware('auth')->group(function () {
 
     //gets
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
+    Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
 });
 
 require __DIR__ . '/auth.php';
+
+
+
+
+
+
