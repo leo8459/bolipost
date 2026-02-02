@@ -358,6 +358,31 @@ return [
                     'url' => 'paquetes-ems',
                     'icon' => 'fas fa-box',
                 ],
+                [
+                    'text' => 'Servicios',
+                    'url' => 'servicios',
+                    'icon' => 'fas fa-concierge-bell',
+                ],
+                [
+                    'text' => 'Destinos',
+                    'url' => 'destinos',
+                    'icon' => 'fas fa-map-marker-alt',
+                ],
+                [
+                    'text' => 'Pesos',
+                    'url' => 'pesos',
+                    'icon' => 'fas fa-weight-hanging',
+                ],
+                [
+                    'text' => 'Origenes',
+                    'url' => 'origenes',
+                    'icon' => 'fas fa-route',
+                ],
+                [
+                    'text' => 'Tarifario',
+                    'url' => 'tarifario',
+                    'icon' => 'fas fa-tags',
+                ],
             ],
         ],
         [

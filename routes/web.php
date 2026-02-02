@@ -7,6 +7,11 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleHasPermissionController;
 use App\Http\Controllers\PlantillaController;
 use App\Http\Controllers\PaquetesEmsController;
+use App\Http\Controllers\ServicioController;
+use App\Http\Controllers\DestinoController;
+use App\Http\Controllers\PesoController;
+use App\Http\Controllers\OrigenController;
+use App\Http\Controllers\TarifarioController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -79,6 +84,11 @@ Route::middleware('auth')->group(function () {
     //gets
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
+    Route::get('/servicios', [ServicioController::class, 'index'])->name('servicios.index');
+    Route::get('/destinos', [DestinoController::class, 'index'])->name('destinos.index');
+    Route::get('/pesos', [PesoController::class, 'index'])->name('pesos.index');
+    Route::get('/origenes', [OrigenController::class, 'index'])->name('origenes.index');
+    Route::get('/tarifario', [TarifarioController::class, 'index'])->name('tarifario.index');
 });
 
 require __DIR__ . '/auth.php';
