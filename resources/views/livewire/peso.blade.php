@@ -241,14 +241,14 @@
 
                     <div class="modal-body">
                         <div class="form-group">
-                            <label>Peso inicial (0,001 a 0,250)</label>
-                            <input type="number" step="0.001" min="0.001" max="0.250"
+                            <label>Peso inicial (min 0,001)</label>
+                            <input type="number" step="0.001" min="0.001"
                                 wire:model.defer="peso_inicial" class="form-control">
                             @error('peso_inicial') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>
                         <div class="form-group">
-                            <label>Peso final (0,001 a 0,250)</label>
-                            <input type="number" step="0.001" min="0.001" max="0.250"
+                            <label>Peso final (min 0,001)</label>
+                            <input type="number" step="0.001" min="0.001"
                                 wire:model.defer="peso_final" class="form-control">
                             @error('peso_final') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>

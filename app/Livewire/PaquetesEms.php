@@ -2,7 +2,11 @@
 
 namespace App\Livewire;
 
+use App\Models\Destino;
+use App\Models\Origen;
 use App\Models\PaqueteEms;
+use App\Models\Servicio;
+use App\Models\Tarifario;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -42,12 +46,23 @@ class PaquetesEms extends Component
     public $nombre_destinatario = '';
     public $telefono_destinatario = '';
     public $ciudad = '';
+    public $servicio_id = '';
+    public $tarifario_id = '';
+    public $destino_id = '';
+    public $is_ems = false;
+    public $user_origen_id = null;
 
     protected $paginationTheme = 'bootstrap';
+
+    public $servicios = [];
+    public $destinos = [];
 
     public function mount()
     {
         $this->setOrigenFromUser();
+        $this->servicios = Servicio::orderBy('nombre_servicio')->get();
+        $this->destinos = Destino::orderBy('nombre_destino')->get();
+        $this->setUserOrigenId();
     }
 
     public function searchPaquetes()
@@ -60,7 +75,9 @@ class PaquetesEms extends Component
     {
         $this->resetForm();
         $this->setOrigenFromUser();
+        $this->setUserOrigenId();
         $this->editingId = null;
+        $this->is_ems = false;
         $this->dispatch('openPaqueteModal');
     }
 
@@ -83,6 +100,13 @@ class PaquetesEms extends Component
         $this->nombre_destinatario = $paquete->nombre_destinatario;
         $this->telefono_destinatario = $paquete->telefono_destinatario;
         $this->ciudad = $paquete->ciudad;
+        $this->tarifario_id = $paquete->tarifario_id;
+        $this->servicio_id = optional($paquete->tarifario)->servicio_id;
+        $this->destino_id = optional($paquete->tarifario)->destino_id;
+
+        $this->refreshEmsState();
+        $this->setUserOrigenId();
+        $this->applyTarifarioMatch();
 
         $this->dispatch('openPaqueteModal');
     }
@@ -95,18 +119,37 @@ class PaquetesEms extends Component
             return;
         }
 
+        $this->setOrigenFromUser();
+
+        $this->applyTarifarioMatch();
+        if (!$this->tarifario_id) {
+            $this->addError('peso', 'No existe tarifario para este servicio, destino y peso.');
+            return;
+        }
+
+        $this->validate($this->rules());
+        $this->dispatch('openPaqueteConfirm');
+    }
+
+    public function saveConfirmed()
+    {
+        $user = Auth::user();
+        if (!$user) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
         if ($this->editingId) {
-            $this->validate($this->rules());
             $paquete = PaqueteEms::findOrFail($this->editingId);
             $paquete->update($this->payload());
             session()->flash('success', 'Paquete actualizado correctamente.');
         } else {
             $this->setOrigenFromUser();
-            $this->validate($this->rules());
             PaqueteEms::create($this->payload($user->id));
             session()->flash('success', 'Paquete creado correctamente.');
         }
 
+        $this->dispatch('closePaqueteConfirm');
         $this->dispatch('closePaqueteModal');
         $this->resetForm();
     }
@@ -135,6 +178,9 @@ class PaquetesEms extends Component
             'nombre_destinatario',
             'telefono_destinatario',
             'ciudad',
+            'servicio_id',
+            'tarifario_id',
+            'destino_id',
         ]);
 
         $this->resetValidation();
@@ -143,7 +189,7 @@ class PaquetesEms extends Component
     protected function rules()
     {
         return [
-            'origen' => 'required|string|max:255',
+            'origen' => 'nullable|string|max:255',
             'tipo_correspondencia' => 'required|string|max:255',
             'contenido' => 'required|string',
             'cantidad' => 'required|integer|min:1',
@@ -161,7 +207,9 @@ class PaquetesEms extends Component
             'telefono_remitente' => 'required|string|max:50',
             'nombre_destinatario' => 'required|string|max:255',
             'telefono_destinatario' => 'required|string|max:50',
-            'ciudad' => ['required', 'string', 'max:255', Rule::in($this->ciudades)],
+            'ciudad' => ['nullable', 'string', 'max:255'],
+            'servicio_id' => ['required', 'integer', Rule::exists('servicio', 'id')],
+            'destino_id' => ['required', 'integer', Rule::exists('destino', 'id')],
         ];
     }
 
@@ -182,6 +230,7 @@ class PaquetesEms extends Component
             'nombre_destinatario' => $this->nombre_destinatario,
             'telefono_destinatario' => $this->telefono_destinatario,
             'ciudad' => $this->ciudad,
+            'tarifario_id' => $this->tarifario_id,
         ];
 
         if ($userId !== null) {
@@ -212,6 +261,7 @@ class PaquetesEms extends Component
         ];
 
         $paquetes = PaqueteEms::query()
+            ->with(['tarifario.servicio', 'tarifario.destino', 'tarifario.peso', 'tarifario.origen'])
             ->when($q !== '', function ($query) use ($q, $columns) {
                 $query->where(function ($sub) use ($q, $columns) {
                     foreach ($columns as $column) {
@@ -233,5 +283,102 @@ class PaquetesEms extends Component
         if ($user && !empty($user->ciudad)) {
             $this->origen = $user->ciudad;
         }
+    }
+
+    protected function setUserOrigenId()
+    {
+        $this->user_origen_id = null;
+        $user = Auth::user();
+        if (!$user || empty($user->ciudad)) {
+            return;
+        }
+
+        $origen = Origen::query()
+            ->whereRaw('trim(upper(nombre_origen)) = trim(upper(?))', [$user->ciudad])
+            ->first();
+
+        if ($origen) {
+            $this->user_origen_id = $origen->id;
+        }
+    }
+
+    public function updated($name, $value)
+    {
+        if ($name === 'servicio_id') {
+            $this->tarifario_id = '';
+            $this->destino_id = '';
+            $this->peso = '';
+            $this->precio = '';
+            $this->refreshEmsState();
+            return;
+        }
+
+        if ($name === 'destino_id') {
+            if ($this->destino_id) {
+                $destino = $this->destinos->firstWhere('id', (int) $this->destino_id);
+                if ($destino) {
+                    $this->ciudad = $destino->nombre_destino;
+                }
+            }
+            $this->applyTarifarioMatch();
+            return;
+        }
+
+        if ($name === 'peso') {
+            $this->applyTarifarioMatch();
+        }
+    }
+
+    protected function refreshEmsState()
+    {
+        $this->is_ems = false;
+        if (!$this->servicio_id) {
+            return;
+        }
+
+        $servicio = $this->servicios->firstWhere('id', (int) $this->servicio_id);
+        if ($servicio && strtoupper(trim($servicio->nombre_servicio)) === 'EMS') {
+            $this->is_ems = true;
+        }
+    }
+
+    protected function applyTarifarioMatch()
+    {
+        $this->setUserOrigenId();
+
+        if (
+            !$this->servicio_id ||
+            !$this->destino_id ||
+            !$this->user_origen_id ||
+            $this->peso === '' ||
+            $this->peso === null
+        ) {
+            $this->tarifario_id = '';
+            $this->precio = '';
+            return;
+        }
+
+        $peso = (float) $this->peso;
+
+        $tarifario = Tarifario::query()
+            ->with(['peso'])
+            ->where('servicio_id', $this->servicio_id)
+            ->where('destino_id', $this->destino_id)
+            ->where('origen_id', $this->user_origen_id)
+            ->whereHas('peso', function ($query) use ($peso) {
+                $query->where('peso_inicial', '<=', $peso)
+                    ->where('peso_final', '>=', $peso);
+            })
+            ->orderBy('id')
+            ->first();
+
+        if (!$tarifario) {
+            $this->tarifario_id = '';
+            $this->precio = '';
+            return;
+        }
+
+        $this->tarifario_id = $tarifario->id;
+        $this->precio = $tarifario->precio;
     }
 }

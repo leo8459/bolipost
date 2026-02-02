@@ -214,6 +214,8 @@
                                 <th>Codigo</th>
                                 <th>Origen</th>
                                 <th>Tipo</th>
+                                <th>Servicio</th>
+                                <th>Destino</th>
                                 <th>Contenido</th>
                                 <th>Cantidad</th>
                                 <th>Peso</th>
@@ -235,6 +237,8 @@
                                     <td>{{ $paquete->codigo }}</td>
                                     <td>{{ $paquete->origen }}</td>
                                     <td>{{ $paquete->tipo_correspondencia }}</td>
+                                    <td>{{ optional(optional($paquete->tarifario)->servicio)->nombre_servicio }}</td>
+                                    <td>{{ optional(optional($paquete->tarifario)->destino)->nombre_destino }}</td>
                                     <td>{{ $paquete->contenido }}</td>
                                     <td>{{ $paquete->cantidad }}</td>
                                     <td>{{ $paquete->peso }}</td>
@@ -266,7 +270,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-5">
+                                    <td colspan="14" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -303,6 +307,29 @@
 
                             <div class="form-row">
                                 <div class="form-group col-md-6">
+                                    <label>Servicio</label>
+                                    <select wire:model.live="servicio_id" class="form-control">
+                                        <option value="">Seleccione...</option>
+                                        @foreach($servicios as $servicio)
+                                            <option value="{{ $servicio->id }}">{{ $servicio->nombre_servicio }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('servicio_id') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Destino</label>
+                                    <select wire:model.live="destino_id" class="form-control">
+                                        <option value="">Seleccione...</option>
+                                        @foreach($destinos as $destino)
+                                            <option value="{{ $destino->id }}">{{ $destino->nombre_destino }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('destino_id') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
                                     <label>Origen (automatico)</label>
                                     <input type="text" wire:model.defer="origen" class="form-control" readonly>
                                     @error('origen') <small class="text-danger">{{ $message }}</small> @enderror
@@ -330,12 +357,12 @@
                                 </div>
                                 <div class="form-group col-md-4">
                                     <label>Peso</label>
-                                    <input type="number" wire:model.defer="peso" class="form-control" step="0.01" min="0">
+                                    <input type="number" wire:model.live.debounce.300ms="peso" class="form-control" step="0.001" min="0">
                                     @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-4">
                                     <label>Precio</label>
-                                    <input type="number" wire:model.defer="precio" class="form-control" step="0.01" min="0">
+                                    <input type="number" wire:model.defer="precio" class="form-control" step="0.01" min="0" readonly>
                                     @error('precio') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -398,7 +425,7 @@
                             <div class="form-row">
                                 <div class="form-group col-md-6">
                                     <label>Ciudad destinatario</label>
-                                    <select wire:model.defer="ciudad" class="form-control">
+                                    <select wire:model.defer="ciudad" class="form-control" disabled>
                                         <option value="">Seleccione...</option>
                                         @foreach($ciudades as $ciudadOpt)
                                             <option value="{{ $ciudadOpt }}">{{ $ciudadOpt }}</option>
@@ -420,6 +447,50 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="paqueteConfirmModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar datos</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="section-block">
+                        <div class="section-title">Resumen</div>
+                        <div class="row">
+                            <div class="col-md-6 mb-2"><strong>Servicio:</strong>
+                                {{ optional($servicios->firstWhere('id', (int) $servicio_id))->nombre_servicio }}
+                            </div>
+                            <div class="col-md-6 mb-2"><strong>Destino:</strong>
+                                {{ optional($destinos->firstWhere('id', (int) $destino_id))->nombre_destino }}
+                            </div>
+                            <div class="col-md-6 mb-2"><strong>Origen:</strong> {{ $origen }}</div>
+                            <div class="col-md-6 mb-2"><strong>Tipo:</strong> {{ $tipo_correspondencia }}</div>
+                            <div class="col-md-12 mb-2"><strong>Contenido:</strong> {{ $contenido }}</div>
+                            <div class="col-md-4 mb-2"><strong>Cantidad:</strong> {{ $cantidad }}</div>
+                            <div class="col-md-4 mb-2"><strong>Peso:</strong> {{ $peso }}</div>
+                            <div class="col-md-4 mb-2"><strong>Precio:</strong> {{ $precio }}</div>
+                            <div class="col-md-6 mb-2"><strong>Codigo:</strong> {{ $codigo }}</div>
+                            <div class="col-md-6 mb-2"><strong>Ciudad:</strong> {{ $ciudad }}</div>
+                            <div class="col-md-6 mb-2"><strong>Remitente:</strong> {{ $nombre_remitente }}</div>
+                            <div class="col-md-6 mb-2"><strong>Telefono remitente:</strong> {{ $telefono_remitente }}</div>
+                            <div class="col-md-6 mb-2"><strong>Destinatario:</strong> {{ $nombre_destinatario }}</div>
+                            <div class="col-md-6 mb-2"><strong>Telefono destinatario:</strong> {{ $telefono_destinatario }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" wire:click="saveConfirmed">
+                        Confirmar y guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -429,5 +500,13 @@
 
     window.addEventListener('closePaqueteModal', () => {
         $('#paqueteModal').modal('hide');
+    });
+
+    window.addEventListener('openPaqueteConfirm', () => {
+        $('#paqueteConfirmModal').modal('show');
+    });
+
+    window.addEventListener('closePaqueteConfirm', () => {
+        $('#paqueteConfirmModal').modal('hide');
     });
 </script>

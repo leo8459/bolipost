@@ -26,11 +26,17 @@ class PaqueteEms extends Model
         'nombre_destinatario',
         'telefono_destinatario',
         'ciudad',
+        'tarifario_id',
         'user_id',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function tarifario()
+    {
+        return $this->belongsTo(Tarifario::class, 'tarifario_id');
     }
 }

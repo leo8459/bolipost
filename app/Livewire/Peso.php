@@ -78,8 +78,8 @@ class Peso extends Component
     protected function rules()
     {
         return [
-            'peso_inicial' => 'required|numeric|min:0.001|max:0.250',
-            'peso_final' => 'required|numeric|min:0.001|max:0.250|gte:peso_inicial',
+            'peso_inicial' => 'required|numeric|min:0.001',
+            'peso_final' => 'required|numeric|min:0.001|gte:peso_inicial',
         ];
     }
 
