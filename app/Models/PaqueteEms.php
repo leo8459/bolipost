@@ -1,0 +1,36 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class PaqueteEms extends Model
+{
+    use HasFactory;
+
+    protected $table = 'paquetes_ems';
+
+    protected $fillable = [
+        'origen',
+        'tipo_correspondencia',
+        'contenido',
+        'cantidad',
+        'peso',
+        'codigo',
+        'precio',
+        'nombre_remitente',
+        'nombre_envia',
+        'carnet',
+        'telefono_remitente',
+        'nombre_destinatario',
+        'telefono_destinatario',
+        'ciudad',
+        'user_id',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+}
