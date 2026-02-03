@@ -21,5 +21,11 @@ class PaqueteCerti extends Model
         'peso',
         'tipo',
         'aduana',
+        'fk_estado',
     ];
+
+    public function estado()
+    {
+        return $this->belongsTo(Estado::class, 'fk_estado');
+    }
 }

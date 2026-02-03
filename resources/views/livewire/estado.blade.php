@@ -138,7 +138,7 @@
         <div class="card card-app">
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
                 <div>
-                    <h4 class="fw-bold mb-0">Paquetes Certificados</h4>
+                    <h4 class="fw-bold mb-0">Estados</h4>
                 </div>
 
                 <div class="d-flex gap-2 align-items-center">
@@ -148,7 +148,7 @@
                         placeholder="Buscar..."
                         wire:model="search"
                     >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
+                    <button class="btn btn-outline-light2" type="button" wire:click="searchEstados">Buscar</button>
                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                 </div>
             </div>
@@ -169,7 +169,7 @@
                         @endif
                     </div>
                     <div class="muted small">
-                        Total en pagina: <strong>{{ $paquetes->count() }}</strong>
+                        Total en pagina: <strong>{{ $estados->count() }}</strong>
                     </div>
                 </div>
 
@@ -177,49 +177,33 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                <th>Codigo</th>
-                                <th>Destinatario</th>
-                                <th>Telefono</th>
-                                <th>Cuidad</th>
-                                <th>Zona</th>
-                                <th>Ventanilla</th>
-                                <th>Peso</th>
-                                <th>Tipo</th>
-                                <th>Aduana</th>
-                                <th>Estado</th>
+                                <th>Nombre</th>
+                                <th>Activo</th>
                                 <th>Creado</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($paquetes as $paquete)
+                            @forelse ($estados as $estado)
                                 <tr>
-                                    <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
-                                    <td>{{ $paquete->destinatario }}</td>
-                                    <td>{{ $paquete->telefono }}</td>
-                                    <td>{{ $paquete->cuidad }}</td>
-                                    <td>{{ $paquete->zona }}</td>
-                                    <td>{{ $paquete->ventanilla }}</td>
-                                    <td>{{ $paquete->peso }}</td>
-                                    <td>{{ $paquete->tipo }}</td>
-                                    <td>{{ $paquete->aduana }}</td>
-                                    <td>{{ optional($paquete->estado)->nombre_estado ?? 'Sin estado' }}</td>
-                                    <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
+                                    <td><span class="pill-id">{{ $estado->nombre_estado }}</span></td>
+                                    <td>{{ $estado->activo ? 'Si' : 'No' }}</td>
+                                    <td class="muted small">{{ optional($estado->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
-                                        <button wire:click="openEditModal({{ $paquete->id }})"
+                                        <button wire:click="openEditModal({{ $estado->id }})"
                                             class="btn btn-sm btn-azul">
                                             Editar
                                         </button>
-                                        <button wire:click="delete({{ $paquete->id }})"
+                                        <button wire:click="delete({{ $estado->id }})"
                                             class="btn btn-sm btn-outline-azul"
-                                            onclick="return confirm('Seguro que deseas eliminar este paquete?')">
+                                            onclick="return confirm('Seguro que deseas eliminar este estado?')">
                                             Borrar
                                         </button>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-5">
+                                    <td colspan="4" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -230,19 +214,19 @@
                 </div>
 
                 <div class="d-flex justify-content-end">
-                    {{ $paquetes->links() }}
+                    {{ $estados->links() }}
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="paqueteCertiModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
-        <div class="modal-dialog modal-lg">
+    <div class="modal fade" id="estadoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
             <div class="modal-content">
                 <form wire:submit.prevent="save">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            {{ $editingId ? 'Editar paquete certificado' : 'Nuevo paquete certificado' }}
+                            {{ $editingId ? 'Editar estado' : 'Nuevo estado' }}
                         </h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
@@ -250,62 +234,18 @@
                     </div>
 
                     <div class="modal-body">
-                        <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label>Codigo</label>
-                                <input type="text" wire:model.defer="codigo" class="form-control">
-                                @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Destinatario</label>
-                                <input type="text" wire:model.defer="destinatario" class="form-control">
-                                @error('destinatario') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Telefono</label>
-                                <input type="number" wire:model.defer="telefono" class="form-control">
-                                @error('telefono') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Cuidad</label>
-                                <input type="text" wire:model.defer="cuidad" class="form-control">
-                                @error('cuidad') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Zona</label>
-                                <input type="text" wire:model.defer="zona" class="form-control">
-                                @error('zona') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Ventanilla</label>
-                                <input type="text" wire:model.defer="ventanilla" class="form-control">
-                                @error('ventanilla') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Peso</label>
-                                <input type="number" step="0.001" min="0" wire:model.defer="peso" class="form-control">
-                                @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Tipo</label>
-                                <input type="text" wire:model.defer="tipo" class="form-control">
-                                @error('tipo') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Aduana</label>
-                                <input type="text" wire:model.defer="aduana" class="form-control">
-                                @error('aduana') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Estado</label>
-                                <select wire:model.defer="fk_estado" class="form-control">
-                                    <option value="">Seleccione</option>
-                                    @foreach ($estados as $estado)
-                                        <option value="{{ $estado->id }}">{{ $estado->nombre_estado }}</option>
-                                    @endforeach
-                                </select>
-                                @error('fk_estado') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
+                        <div class="form-group">
+                            <label>Nombre estado</label>
+                            <input type="text" wire:model.defer="nombre_estado" class="form-control">
+                            @error('nombre_estado') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+                        <div class="form-group">
+                            <label>Activo</label>
+                            <select wire:model.defer="activo" class="form-control">
+                                <option value="1">Si</option>
+                                <option value="0">No</option>
+                            </select>
+                            @error('activo') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>
                     </div>
 
@@ -322,11 +262,11 @@
 </div>
 
 <script>
-    window.addEventListener('openPaqueteCertiModal', () => {
-        $('#paqueteCertiModal').modal('show');
+    window.addEventListener('openEstadoModal', () => {
+        $('#estadoModal').modal('show');
     });
 
-    window.addEventListener('closePaqueteCertiModal', () => {
-        $('#paqueteCertiModal').modal('hide');
+    window.addEventListener('closeEstadoModal', () => {
+        $('#estadoModal').modal('hide');
     });
 </script>

@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteCerti as PaqueteCertiModel;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -23,6 +24,7 @@ class PaqueteCerti extends Component
     public $peso = '';
     public $tipo = '';
     public $aduana = '';
+    public $fk_estado = '';
 
     protected $paginationTheme = 'bootstrap';
 
@@ -53,6 +55,7 @@ class PaqueteCerti extends Component
         $this->peso = $paquete->peso;
         $this->tipo = $paquete->tipo;
         $this->aduana = $paquete->aduana;
+        $this->fk_estado = $paquete->fk_estado ? (string) $paquete->fk_estado : '';
 
         $this->dispatch('openPaqueteCertiModal');
     }
@@ -93,6 +96,7 @@ class PaqueteCerti extends Component
             'peso',
             'tipo',
             'aduana',
+            'fk_estado',
         ]);
 
         $this->resetValidation();
@@ -110,6 +114,7 @@ class PaqueteCerti extends Component
             'peso' => 'required|numeric|min:0',
             'tipo' => 'required|string|max:255',
             'aduana' => 'required|string|max:255',
+            'fk_estado' => 'required|exists:estados,id',
         ];
     }
 
@@ -125,6 +130,7 @@ class PaqueteCerti extends Component
             'peso' => $this->peso,
             'tipo' => $this->tipo,
             'aduana' => $this->aduana,
+            'fk_estado' => $this->fk_estado,
         ];
     }
 
@@ -133,6 +139,7 @@ class PaqueteCerti extends Component
         $q = trim($this->searchQuery);
 
         $paquetes = PaqueteCertiModel::query()
+            ->with('estado')
             ->when($q !== '', function ($query) use ($q) {
                 $query->where('codigo', 'ILIKE', "%{$q}%")
                     ->orWhere('destinatario', 'ILIKE', "%{$q}%")
@@ -142,13 +149,17 @@ class PaqueteCerti extends Component
                     ->orWhere('ventanilla', 'ILIKE', "%{$q}%")
                     ->orWhere('peso', 'ILIKE', "%{$q}%")
                     ->orWhere('tipo', 'ILIKE', "%{$q}%")
-                    ->orWhere('aduana', 'ILIKE', "%{$q}%");
+                    ->orWhere('aduana', 'ILIKE', "%{$q}%")
+                    ->orWhereHas('estado', function ($estadoQuery) use ($q) {
+                        $estadoQuery->where('nombre_estado', 'ILIKE', "%{$q}%");
+                    });
             })
             ->orderByDesc('id')
             ->paginate(10);
 
         return view('livewire.paquete-certi', [
             'paquetes' => $paquetes,
+            'estados' => EstadoModel::orderBy('nombre_estado')->get(),
         ]);
     }
 }

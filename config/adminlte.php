@@ -414,6 +414,17 @@ return [
             ],
         ],
         [
+            'text' => 'Configuraciones',
+            'icon' => 'fas fa-cogs',
+            'submenu' => [
+                [
+                    'text' => 'Estados',
+                    'url' => 'estados',
+                    'icon' => 'fas fa-flag',
+                ],
+            ],
+        ],
+        [
             'text' => 'Rendimiento',
             'url' => '/pulse',
 
