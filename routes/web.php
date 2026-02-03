@@ -7,6 +7,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleHasPermissionController;
 use App\Http\Controllers\PlantillaController;
 use App\Http\Controllers\PaquetesEmsController;
+use App\Http\Controllers\PaquetesEmsBoletaController;
 use App\Http\Controllers\ServicioController;
 use App\Http\Controllers\DestinoController;
 use App\Http\Controllers\PesoController;
@@ -87,6 +88,7 @@ Route::middleware('auth')->group(function () {
     //gets
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
+    Route::get('/paquetes-ems/{paquete}/boleta', [PaquetesEmsBoletaController::class, 'show'])->name('paquetes-ems.boleta');
     Route::get('/servicios', [ServicioController::class, 'index'])->name('servicios.index');
     Route::get('/destinos', [DestinoController::class, 'index'])->name('destinos.index');
     Route::get('/pesos', [PesoController::class, 'index'])->name('pesos.index');
