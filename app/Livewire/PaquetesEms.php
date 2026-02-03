@@ -168,8 +168,12 @@ class PaquetesEms extends Component
         } else {
             $this->setOrigenFromUser();
             $this->setEstadoAdmision();
-            PaqueteEms::create($this->payload($user->id));
+            $paquete = PaqueteEms::create($this->payload($user->id));
             session()->flash('success', 'Paquete creado correctamente.');
+            $this->dispatch('closePaqueteConfirm');
+            $this->dispatch('closePaqueteModal');
+            $this->resetForm();
+            return $this->redirect(route('paquetes-ems.boleta', $paquete->id), navigate: false);
         }
 
         $this->dispatch('closePaqueteConfirm');

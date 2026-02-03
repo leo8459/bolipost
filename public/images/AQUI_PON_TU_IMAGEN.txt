@@ -1,0 +1,1 @@
+Coloca aqui la imagen: logo_agbc.png (ruta: public/images/logo_agbc.png)

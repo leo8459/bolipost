@@ -257,6 +257,11 @@
                                             class="btn btn-sm btn-azul">
                                             Editar
                                         </button>
+                                        <a href="{{ route('paquetes-ems.boleta', $paquete->id) }}"
+                                           class="btn btn-sm btn-outline-azul"
+                                           target="_blank">
+                                            Reimprimir boleta
+                                        </a>
                                         <button wire:click="delete({{ $paquete->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             onclick="return confirm('Seguro que deseas eliminar este paquete?')">
@@ -525,4 +530,5 @@
     window.addEventListener('closePaqueteConfirm', () => {
         $('#paqueteConfirmModal').modal('hide');
     });
+
 </script>
