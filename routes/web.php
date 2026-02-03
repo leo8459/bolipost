@@ -14,6 +14,7 @@ use App\Http\Controllers\OrigenController;
 use App\Http\Controllers\TarifarioController;
 use App\Http\Controllers\PaquetesCertiController;
 use App\Http\Controllers\EstadoController;
+use App\Http\Controllers\VentanillaController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -94,6 +95,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/paquetes-certificados/almacen', [PaquetesCertiController::class, 'almacen'])->name('paquetes-certificados.almacen');
     Route::get('/paquetes-certificados/inventario', [PaquetesCertiController::class, 'inventario'])->name('paquetes-certificados.inventario');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
+    Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
 });
 
 require __DIR__ . '/auth.php';

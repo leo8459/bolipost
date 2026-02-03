@@ -22,10 +22,16 @@ class PaqueteCerti extends Model
         'tipo',
         'aduana',
         'fk_estado',
+        'fk_ventanilla',
     ];
 
     public function estado()
     {
         return $this->belongsTo(Estado::class, 'fk_estado');
+    }
+
+    public function ventanillaRef()
+    {
+        return $this->belongsTo(Ventanilla::class, 'fk_ventanilla');
     }
 }

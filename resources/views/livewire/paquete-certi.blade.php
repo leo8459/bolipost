@@ -202,7 +202,7 @@
                                     <td>{{ $paquete->telefono }}</td>
                                     <td>{{ $paquete->cuidad }}</td>
                                     <td>{{ $paquete->zona }}</td>
-                                    <td>{{ $paquete->ventanilla }}</td>
+                                    <td>{{ optional($paquete->ventanillaRef)->nombre_ventanilla ?? $paquete->ventanilla }}</td>
                                     <td>{{ $paquete->peso }}</td>
                                     <td>{{ $paquete->tipo }}</td>
                                     <td>{{ $paquete->aduana }}</td>
@@ -293,8 +293,13 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Ventanilla</label>
-                                <input type="text" wire:model.defer="ventanilla" class="form-control uppercase-input">
-                                @error('ventanilla') <small class="text-danger">{{ $message }}</small> @enderror
+                                <select wire:model.defer="fk_ventanilla" class="form-control uppercase-input">
+                                    <option value="">Seleccione</option>
+                                    @foreach ($ventanillas as $ventanilla)
+                                        <option value="{{ $ventanilla->id }}">{{ $ventanilla->nombre_ventanilla }}</option>
+                                    @endforeach
+                                </select>
+                                @error('fk_ventanilla') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Peso</label>

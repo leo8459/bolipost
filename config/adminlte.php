@@ -422,6 +422,11 @@ return [
                     'url' => 'estados',
                     'icon' => 'fas fa-flag',
                 ],
+                [
+                    'text' => 'Ventanillas',
+                    'url' => 'ventanillas',
+                    'icon' => 'fas fa-window-restore',
+                ],
             ],
         ],
         [
