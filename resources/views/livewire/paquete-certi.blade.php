@@ -152,10 +152,14 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
-                    @if (!$this->isInventory)
+                    @if (!$this->canReturnToVentanilla)
                         <button class="btn btn-outline-light2" type="button"
                             wire:click.prevent="bajaMasiva">
                             Baja
+                        </button>
+                        <button class="btn btn-outline-light2" type="button"
+                            wire:click.prevent="rezagoMasivo">
+                            Rezago
                         </button>
                     @endif
                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
@@ -186,7 +190,7 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                @if (!$this->isInventory)
+                                @if (!$this->canReturnToVentanilla)
                                     <th></th>
                                 @endif
                                 <th>Codigo</th>
@@ -206,7 +210,7 @@
                         <tbody>
                             @forelse ($paquetes as $paquete)
                                 <tr>
-                                    @if (!$this->isInventory)
+                                    @if (!$this->canReturnToVentanilla)
                                         <td>
                                             <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
                                         </td>
@@ -227,11 +231,11 @@
                                             class="btn btn-sm btn-azul">
                                             Editar
                                         </button>
-                                        @if ($this->isInventory)
+                                        @if ($this->canReturnToVentanilla)
                                             <button wire:click="marcarVentanilla({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
                                                 onclick="return confirm('Enviar este paquete a ventanilla?')">
-                                                Alta
+                                                {{ $this->isRezago ? 'Devuelto' : 'Alta' }}
                                             </button>
                                         @endif
                                         <button wire:click="delete({{ $paquete->id }})"
@@ -243,7 +247,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $this->isInventory ? 12 : 13 }}" class="text-center py-5">
+                                    <td colspan="{{ $this->canReturnToVentanilla ? 12 : 13 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

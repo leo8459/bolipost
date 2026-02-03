@@ -33,12 +33,23 @@ class PaqueteCerti extends Component
 
     public function mount($mode = 'almacen')
     {
-        $this->mode = $mode === 'inventario' ? 'inventario' : 'almacen';
+        $allowedModes = ['almacen', 'inventario', 'rezago'];
+        $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'almacen';
     }
 
     public function getIsInventoryProperty()
     {
         return $this->mode === 'inventario';
+    }
+
+    public function getIsRezagoProperty()
+    {
+        return $this->mode === 'rezago';
+    }
+
+    public function getCanReturnToVentanillaProperty()
+    {
+        return $this->isInventory || $this->isRezago;
     }
 
     public function searchPaquetes()
@@ -127,6 +138,27 @@ class PaqueteCerti extends Component
         session()->flash('success', 'Paquetes enviados a inventarios correctamente.');
     }
 
+    public function rezagoMasivo()
+    {
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('success', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        PaqueteCertiModel::query()
+            ->whereIn('id', $ids)
+            ->update(['fk_estado' => 6]);
+
+        $this->selectedPaquetes = [];
+        session()->flash('success', 'Paquetes enviados a rezago correctamente.');
+    }
+
     public function marcarVentanilla($id)
     {
         $paquete = PaqueteCertiModel::findOrFail($id);
@@ -200,7 +232,10 @@ class PaqueteCerti extends Component
             ->when($this->isInventory, function ($query) {
                 $query->where('fk_estado', 4);
             })
-            ->when(!$this->isInventory, function ($query) {
+            ->when($this->isRezago, function ($query) {
+                $query->where('fk_estado', 6);
+            })
+            ->when(!$this->isInventory && !$this->isRezago, function ($query) {
                 $query->where('fk_estado', 2);
             })
             ->when($q !== '', function ($query) use ($q) {

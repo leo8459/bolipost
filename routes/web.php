@@ -96,6 +96,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/tarifario', [TarifarioController::class, 'index'])->name('tarifario.index');
     Route::get('/paquetes-certificados/almacen', [PaquetesCertiController::class, 'almacen'])->name('paquetes-certificados.almacen');
     Route::get('/paquetes-certificados/inventario', [PaquetesCertiController::class, 'inventario'])->name('paquetes-certificados.inventario');
+    Route::get('/paquetes-certificados/rezago', [PaquetesCertiController::class, 'rezago'])->name('paquetes-certificados.rezago');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
 });

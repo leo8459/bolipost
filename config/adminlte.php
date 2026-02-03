@@ -380,6 +380,11 @@ return [
                     'url' => 'paquetes-certificados/inventario',
                     'icon' => 'fas fa-clipboard-list',
                 ],
+                [
+                    'text' => 'Rezago',
+                    'url' => 'paquetes-certificados/rezago',
+                    'icon' => 'fas fa-archive',
+                ],
             ],
         ],
         [
