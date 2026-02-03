@@ -74,6 +74,9 @@ class PaqueteCerti extends Component
     {
         $this->resetForm();
         $this->editingId = null;
+        if ($this->isAlmacen) {
+            $this->fk_estado = '2';
+        }
         $this->dispatch('openPaqueteCertiModal');
     }
 
@@ -105,7 +108,11 @@ class PaqueteCerti extends Component
             $paquete->update($this->payload());
             session()->flash('success', 'Paquete certificado actualizado correctamente.');
         } else {
-            PaqueteCertiModel::create($this->payload());
+            $payload = $this->payload();
+            if ($this->isAlmacen) {
+                $payload['fk_estado'] = 2;
+            }
+            PaqueteCertiModel::create($payload);
             session()->flash('success', 'Paquete certificado creado correctamente.');
         }
 

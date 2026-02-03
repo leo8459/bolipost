@@ -162,7 +162,9 @@
                             Rezago
                         </button>
                     @endif
-                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @if ($this->isAlmacen)
+                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endif
                 </div>
             </div>
 
@@ -361,12 +363,16 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Estado</label>
-                                <select wire:model.defer="fk_estado" class="form-control uppercase-input">
-                                    <option value="">Seleccione</option>
-                                    @foreach ($estados as $estado)
-                                        <option value="{{ $estado->id }}">{{ $estado->nombre_estado }}</option>
-                                    @endforeach
-                                </select>
+                                @if (!$editingId && $this->isAlmacen)
+                                    <input type="text" class="form-control uppercase-input" value="VENTANILLA" disabled>
+                                @else
+                                    <select wire:model.defer="fk_estado" class="form-control uppercase-input">
+                                        <option value="">Seleccione</option>
+                                        @foreach ($estados as $estado)
+                                            <option value="{{ $estado->id }}">{{ $estado->nombre_estado }}</option>
+                                        @endforeach
+                                    </select>
+                                @endif
                                 @error('fk_estado') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                         </div>
