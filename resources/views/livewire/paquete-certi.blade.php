@@ -206,9 +206,7 @@
                                 <th>Aduana</th>
                                 <th>Estado</th>
                                 <th>Creado</th>
-                                @if (!$this->isTodos)
-                                    <th>Acciones</th>
-                                @endif
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -230,8 +228,13 @@
                                     <td>{{ $paquete->aduana }}</td>
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? 'Sin estado' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
-                                    @if (!$this->isTodos)
-                                        <td>
+                                    <td>
+                                        @if ($this->isTodos)
+                                            <button wire:click="openEditModal({{ $paquete->id }})"
+                                                class="btn btn-sm btn-azul">
+                                                Editar
+                                            </button>
+                                        @else
                                             <button wire:click="openEditModal({{ $paquete->id }})"
                                                 class="btn btn-sm btn-azul">
                                                 Editar
@@ -255,11 +258,12 @@
                                                 Borrar
                                             </button>
                                         </td>
-                                    @endif
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $this->isAlmacen ? 13 : ($this->isTodos ? 11 : 12) }}" class="text-center py-5">
+                                    <td colspan="{{ $this->isAlmacen ? 13 : 12 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
