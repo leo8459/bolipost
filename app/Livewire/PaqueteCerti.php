@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteCerti as PaqueteCertiModel;
+use App\Models\Ventanilla as VentanillaModel;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -20,11 +21,11 @@ class PaqueteCerti extends Component
     public $telefono = '';
     public $cuidad = '';
     public $zona = '';
-    public $ventanilla = '';
     public $peso = '';
     public $tipo = '';
     public $aduana = '';
     public $fk_estado = '';
+    public $fk_ventanilla = '';
 
     protected $paginationTheme = 'bootstrap';
 
@@ -51,7 +52,7 @@ class PaqueteCerti extends Component
         $this->telefono = $paquete->telefono;
         $this->cuidad = $paquete->cuidad;
         $this->zona = $paquete->zona;
-        $this->ventanilla = $paquete->ventanilla;
+        $this->fk_ventanilla = $paquete->fk_ventanilla ? (string) $paquete->fk_ventanilla : '';
         $this->peso = $paquete->peso;
         $this->tipo = $paquete->tipo;
         $this->aduana = $paquete->aduana;
@@ -92,11 +93,11 @@ class PaqueteCerti extends Component
             'telefono',
             'cuidad',
             'zona',
-            'ventanilla',
             'peso',
             'tipo',
             'aduana',
             'fk_estado',
+            'fk_ventanilla',
         ]);
 
         $this->resetValidation();
@@ -110,11 +111,11 @@ class PaqueteCerti extends Component
             'telefono' => 'required|integer|min:0',
             'cuidad' => 'required|string|max:255',
             'zona' => 'required|string|max:255',
-            'ventanilla' => 'required|string|max:255',
             'peso' => 'required|numeric|min:0',
             'tipo' => 'required|string|max:255',
             'aduana' => 'required|string|max:255',
             'fk_estado' => 'required|exists:estados,id',
+            'fk_ventanilla' => 'required|exists:ventanilla,id',
         ];
     }
 
@@ -126,11 +127,11 @@ class PaqueteCerti extends Component
             'telefono' => $this->telefono,
             'cuidad' => $this->upper($this->cuidad),
             'zona' => $this->upper($this->zona),
-            'ventanilla' => $this->upper($this->ventanilla),
             'peso' => $this->peso,
             'tipo' => $this->upper($this->tipo),
             'aduana' => $this->upper($this->aduana),
             'fk_estado' => $this->fk_estado,
+            'fk_ventanilla' => $this->fk_ventanilla,
         ];
     }
 
@@ -144,19 +145,21 @@ class PaqueteCerti extends Component
         $q = trim($this->searchQuery);
 
         $paquetes = PaqueteCertiModel::query()
-            ->with('estado')
+            ->with(['estado', 'ventanillaRef'])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where('codigo', 'ILIKE', "%{$q}%")
                     ->orWhere('destinatario', 'ILIKE', "%{$q}%")
                     ->orWhere('telefono', 'ILIKE', "%{$q}%")
                     ->orWhere('cuidad', 'ILIKE', "%{$q}%")
                     ->orWhere('zona', 'ILIKE', "%{$q}%")
-                    ->orWhere('ventanilla', 'ILIKE', "%{$q}%")
                     ->orWhere('peso', 'ILIKE', "%{$q}%")
                     ->orWhere('tipo', 'ILIKE', "%{$q}%")
                     ->orWhere('aduana', 'ILIKE', "%{$q}%")
                     ->orWhereHas('estado', function ($estadoQuery) use ($q) {
                         $estadoQuery->where('nombre_estado', 'ILIKE', "%{$q}%");
+                    })
+                    ->orWhereHas('ventanillaRef', function ($ventanillaQuery) use ($q) {
+                        $ventanillaQuery->where('nombre_ventanilla', 'ILIKE', "%{$q}%");
                     });
             })
             ->orderByDesc('id')
@@ -165,6 +168,7 @@ class PaqueteCerti extends Component
         return view('livewire.paquete-certi', [
             'paquetes' => $paquetes,
             'estados' => EstadoModel::orderBy('nombre_estado')->get(),
+            'ventanillas' => VentanillaModel::orderBy('nombre_ventanilla')->get(),
         ]);
     }
 }
