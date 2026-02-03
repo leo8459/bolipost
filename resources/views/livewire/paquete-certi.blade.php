@@ -210,13 +210,15 @@
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         <button wire:click="openEditModal({{ $paquete->id }})"
-                                            class="btn btn-sm btn-azul">
-                                            Editar
+                                            class="btn btn-sm btn-azul"
+                                            title="Editar">
+                                            <i class="fas fa-pen"></i>
                                         </button>
                                         <button wire:click="delete({{ $paquete->id }})"
                                             class="btn btn-sm btn-outline-azul"
+                                            title="Eliminar"
                                             onclick="return confirm('Seguro que deseas eliminar este paquete?')">
-                                            Borrar
+                                            <i class="fas fa-trash"></i>
                                         </button>
                                     </td>
                                 </tr>

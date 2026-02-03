@@ -192,13 +192,15 @@
                                     <td class="muted small">{{ optional($ventanilla->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         <button wire:click="openEditModal({{ $ventanilla->id }})"
-                                            class="btn btn-sm btn-azul">
-                                            Editar
+                                            class="btn btn-sm btn-azul"
+                                            title="Editar">
+                                            <i class="fas fa-pen"></i>
                                         </button>
                                         <button wire:click="delete({{ $ventanilla->id }})"
                                             class="btn btn-sm btn-outline-azul"
+                                            title="Eliminar"
                                             onclick="return confirm('Seguro que deseas eliminar esta ventanilla?')">
-                                            Borrar
+                                            <i class="fas fa-trash"></i>
                                         </button>
                                     </td>
                                 </tr>

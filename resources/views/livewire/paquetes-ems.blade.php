@@ -254,18 +254,21 @@
                                     <td>{{ $paquete->ciudad }}</td>
                                     <td>
                                         <button wire:click="openEditModal({{ $paquete->id }})"
-                                            class="btn btn-sm btn-azul">
-                                            Editar
+                                            class="btn btn-sm btn-azul"
+                                            title="Editar">
+                                            <i class="fas fa-pen"></i>
                                         </button>
                                         <a href="{{ route('paquetes-ems.boleta', $paquete->id) }}"
                                            class="btn btn-sm btn-outline-azul"
-                                           target="_blank">
-                                            Reimprimir boleta
+                                           target="_blank"
+                                           title="Reimprimir boleta">
+                                            <i class="fas fa-print"></i>
                                         </a>
                                         <button wire:click="delete({{ $paquete->id }})"
                                             class="btn btn-sm btn-outline-azul"
+                                            title="Eliminar"
                                             onclick="return confirm('Seguro que deseas eliminar este paquete?')">
-                                            Borrar
+                                            <i class="fas fa-trash"></i>
                                         </button>
                                     </td>
                                 </tr>

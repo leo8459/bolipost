@@ -15,8 +15,8 @@
             box-sizing: border-box;
         }
         body { padding: 8mm; }
-        .boleta { position: relative; height: 70mm; width: 200mm; }
-        .boleta + .boleta { margin-top: 6mm; border-top: 1px dashed #000; padding-top: 6mm; }
+        .boleta { position: relative; height: 65mm; width: 200mm; }
+        .boleta + .boleta { margin-top: 0.1mm; border-top: 0; padding-top: 0; }
         table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9px; }
         @media print{
             html, body { width: 200mm; height: 263mm; }
