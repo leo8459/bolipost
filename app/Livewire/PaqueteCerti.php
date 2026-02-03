@@ -17,6 +17,8 @@ class PaqueteCerti extends Component
     public $searchQuery = '';
     public $editingId = null;
     public $selectedPaquetes = [];
+    public $reencaminarId = null;
+    public $reencaminarCuidad = '';
 
     public $codigo = '';
     public $destinatario = '';
@@ -106,6 +108,31 @@ class PaqueteCerti extends Component
         $paquete = PaqueteCertiModel::findOrFail($id);
         $paquete->delete();
         session()->flash('success', 'Paquete certificado eliminado correctamente.');
+    }
+
+    public function openReencaminarModal($id)
+    {
+        $paquete = PaqueteCertiModel::findOrFail($id);
+        $this->reencaminarId = $paquete->id;
+        $this->reencaminarCuidad = $paquete->cuidad;
+        $this->dispatch('openReencaminarModal');
+    }
+
+    public function saveReencaminar()
+    {
+        $this->validate([
+            'reencaminarId' => 'required|integer|exists:paquetes_certi,id',
+            'reencaminarCuidad' => 'required|string|max:255',
+        ]);
+
+        $paquete = PaqueteCertiModel::findOrFail($this->reencaminarId);
+        $paquete->update([
+            'cuidad' => $this->upper($this->reencaminarCuidad),
+        ]);
+
+        $this->reset(['reencaminarId', 'reencaminarCuidad']);
+        $this->dispatch('closeReencaminarModal');
+        session()->flash('success', 'Paquete reencaminado correctamente.');
     }
 
     public function marcarInventario($id)
