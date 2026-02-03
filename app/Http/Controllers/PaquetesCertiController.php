@@ -13,4 +13,14 @@ class PaquetesCertiController extends Controller
     {
         return view('paquetes_certi.inventario');
     }
+
+    public function rezago()
+    {
+        return view('paquetes_certi.rezago');
+    }
+
+    public function todos()
+    {
+        return view('paquetes_certi.todos');
+    }
 }

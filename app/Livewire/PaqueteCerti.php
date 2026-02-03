@@ -12,9 +12,13 @@ class PaqueteCerti extends Component
 {
     use WithPagination;
 
+    public $mode = 'almacen';
     public $search = '';
     public $searchQuery = '';
     public $editingId = null;
+    public $selectedPaquetes = [];
+    public $reencaminarId = null;
+    public $reencaminarCuidad = '';
 
     public $codigo = '';
     public $destinatario = '';
@@ -29,6 +33,37 @@ class PaqueteCerti extends Component
 
     protected $paginationTheme = 'bootstrap';
 
+    public function mount($mode = 'almacen')
+    {
+        $allowedModes = ['almacen', 'inventario', 'rezago', 'todos'];
+        $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'almacen';
+    }
+
+    public function getIsAlmacenProperty()
+    {
+        return $this->mode === 'almacen';
+    }
+
+    public function getIsInventoryProperty()
+    {
+        return $this->mode === 'inventario';
+    }
+
+    public function getIsRezagoProperty()
+    {
+        return $this->mode === 'rezago';
+    }
+
+    public function getIsTodosProperty()
+    {
+        return $this->mode === 'todos';
+    }
+
+    public function getCanReturnToVentanillaProperty()
+    {
+        return $this->isInventory || $this->isRezago;
+    }
+
     public function searchPaquetes()
     {
         $this->searchQuery = $this->search;
@@ -39,6 +74,9 @@ class PaqueteCerti extends Component
     {
         $this->resetForm();
         $this->editingId = null;
+        if ($this->isAlmacen) {
+            $this->fk_estado = '2';
+        }
         $this->dispatch('openPaqueteCertiModal');
     }
 
@@ -70,7 +108,11 @@ class PaqueteCerti extends Component
             $paquete->update($this->payload());
             session()->flash('success', 'Paquete certificado actualizado correctamente.');
         } else {
-            PaqueteCertiModel::create($this->payload());
+            $payload = $this->payload();
+            if ($this->isAlmacen) {
+                $payload['fk_estado'] = 2;
+            }
+            PaqueteCertiModel::create($payload);
             session()->flash('success', 'Paquete certificado creado correctamente.');
         }
 
@@ -83,6 +125,91 @@ class PaqueteCerti extends Component
         $paquete = PaqueteCertiModel::findOrFail($id);
         $paquete->delete();
         session()->flash('success', 'Paquete certificado eliminado correctamente.');
+    }
+
+    public function openReencaminarModal($id)
+    {
+        $paquete = PaqueteCertiModel::findOrFail($id);
+        $this->reencaminarId = $paquete->id;
+        $this->reencaminarCuidad = $paquete->cuidad;
+        $this->dispatch('openReencaminarModal');
+    }
+
+    public function saveReencaminar()
+    {
+        $this->validate([
+            'reencaminarId' => 'required|integer|exists:paquetes_certi,id',
+            'reencaminarCuidad' => 'required|string|max:255',
+        ]);
+
+        $paquete = PaqueteCertiModel::findOrFail($this->reencaminarId);
+        $paquete->update([
+            'cuidad' => $this->upper($this->reencaminarCuidad),
+        ]);
+
+        $this->reset(['reencaminarId', 'reencaminarCuidad']);
+        $this->dispatch('closeReencaminarModal');
+        session()->flash('success', 'Paquete reencaminado correctamente.');
+    }
+
+    public function marcarInventario($id)
+    {
+        $paquete = PaqueteCertiModel::findOrFail($id);
+        $paquete->update([
+            'fk_estado' => 4,
+        ]);
+        session()->flash('success', 'Paquete enviado a inventarios.');
+    }
+
+    public function bajaMasiva()
+    {
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('success', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        PaqueteCertiModel::query()
+            ->whereIn('id', $ids)
+            ->update(['fk_estado' => 4]);
+
+        $this->selectedPaquetes = [];
+        session()->flash('success', 'Paquetes enviados a inventarios correctamente.');
+    }
+
+    public function rezagoMasivo()
+    {
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('success', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        PaqueteCertiModel::query()
+            ->whereIn('id', $ids)
+            ->update(['fk_estado' => 6]);
+
+        $this->selectedPaquetes = [];
+        session()->flash('success', 'Paquetes enviados a rezago correctamente.');
+    }
+
+    public function marcarVentanilla($id)
+    {
+        $paquete = PaqueteCertiModel::findOrFail($id);
+        $paquete->update([
+            'fk_estado' => 2,
+        ]);
+        session()->flash('success', 'Paquete enviado a ventanilla.');
     }
 
     public function resetForm()
@@ -143,9 +270,25 @@ class PaqueteCerti extends Component
     public function render()
     {
         $q = trim($this->searchQuery);
+        $userCity = trim((string) optional(auth()->user())->ciudad);
 
         $paquetes = PaqueteCertiModel::query()
             ->with(['estado', 'ventanillaRef'])
+            ->when($userCity !== '', function ($query) use ($userCity) {
+                $query->whereRaw('TRIM(UPPER(cuidad)) = TRIM(UPPER(?))', [$userCity]);
+            })
+            ->when($userCity === '', function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($this->isInventory, function ($query) {
+                $query->where('fk_estado', 4);
+            })
+            ->when($this->isRezago, function ($query) {
+                $query->where('fk_estado', 6);
+            })
+            ->when($this->isAlmacen, function ($query) {
+                $query->where('fk_estado', 2);
+            })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where('codigo', 'ILIKE', "%{$q}%")
                     ->orWhere('destinatario', 'ILIKE', "%{$q}%")

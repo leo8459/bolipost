@@ -152,7 +152,19 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
-                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @if ($this->isAlmacen)
+                        <button class="btn btn-outline-light2" type="button"
+                            wire:click.prevent="bajaMasiva">
+                            Baja
+                        </button>
+                        <button class="btn btn-outline-light2" type="button"
+                            wire:click.prevent="rezagoMasivo">
+                            Rezago
+                        </button>
+                    @endif
+                    @if ($this->isAlmacen)
+                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endif
                 </div>
             </div>
 
@@ -180,6 +192,9 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
+                                @if ($this->isAlmacen)
+                                    <th></th>
+                                @endif
                                 <th>Codigo</th>
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
@@ -197,6 +212,11 @@
                         <tbody>
                             @forelse ($paquetes as $paquete)
                                 <tr>
+                                    @if ($this->isAlmacen)
+                                        <td>
+                                            <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
+                                        </td>
+                                    @endif
                                     <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
                                     <td>{{ $paquete->destinatario }}</td>
                                     <td>{{ $paquete->telefono }}</td>
@@ -210,21 +230,19 @@
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         <button wire:click="openEditModal({{ $paquete->id }})"
-                                            class="btn btn-sm btn-azul"
-                                            title="Editar">
-                                            <i class="fas fa-pen"></i>
+                                            class="btn btn-sm btn-azul">
+                                            Editar
                                         </button>
                                         <button wire:click="delete({{ $paquete->id }})"
                                             class="btn btn-sm btn-outline-azul"
-                                            title="Eliminar"
                                             onclick="return confirm('Seguro que deseas eliminar este paquete?')">
-                                            <i class="fas fa-trash"></i>
+                                            Borrar
                                         </button>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-5">
+                                    <td colspan="{{ $this->isAlmacen ? 13 : 12 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -276,9 +294,8 @@
                                 <select wire:model.defer="cuidad" class="form-control uppercase-input">
                                     <option value="">Seleccione</option>
                                     <option value="LA PAZ">LA PAZ</option>
-                                    <option value="EL ALTO">EL ALTO</option>
                                     <option value="COCHABAMBA">COCHABAMBA</option>
-                                    <option value="SANTA CRUZ DE LA SIERRA">SANTA CRUZ DE LA SIERRA</option>
+                                    <option value="SANTA CRUZ">SANTA CRUZ</option>
                                     <option value="ORURO">ORURO</option>
                                     <option value="POTOSI">POTOSI</option>
                                     <option value="SUCRE">SUCRE</option>
@@ -329,12 +346,16 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Estado</label>
-                                <select wire:model.defer="fk_estado" class="form-control uppercase-input">
-                                    <option value="">Seleccione</option>
-                                    @foreach ($estados as $estado)
-                                        <option value="{{ $estado->id }}">{{ $estado->nombre_estado }}</option>
-                                    @endforeach
-                                </select>
+                                @if (!$editingId && $this->isAlmacen)
+                                    <input type="text" class="form-control uppercase-input" value="VENTANILLA" disabled>
+                                @else
+                                    <select wire:model.defer="fk_estado" class="form-control uppercase-input">
+                                        <option value="">Seleccione</option>
+                                        @foreach ($estados as $estado)
+                                            <option value="{{ $estado->id }}">{{ $estado->nombre_estado }}</option>
+                                        @endforeach
+                                    </select>
+                                @endif
                                 @error('fk_estado') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                         </div>
@@ -345,6 +366,43 @@
                         <button type="submit" class="btn btn-primary">
                             {{ $editingId ? 'Guardar cambios' : 'Crear' }}
                         </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="reencaminarModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form wire:submit.prevent="saveReencaminar">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reencaminar paquete</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Asignar la ciudad al paquete:</label>
+                            <select wire:model.defer="reencaminarCuidad" class="form-control uppercase-input">
+                                <option value="">Seleccione</option>
+                                <option value="LA PAZ">LA PAZ</option>
+                                <option value="COCHABAMBA">COCHABAMBA</option>
+                                <option value="SANTA CRUZ">SANTA CRUZ</option>
+                                <option value="ORURO">ORURO</option>
+                                <option value="POTOSI">POTOSI</option>
+                                <option value="SUCRE">SUCRE</option>
+                                <option value="TARIJA">TARIJA</option>
+                                <option value="TRINIDAD">TRINIDAD</option>
+                                <option value="COBIJA">COBIJA</option>
+                            </select>
+                            @error('reencaminarCuidad') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar</button>
                     </div>
                 </form>
             </div>
@@ -371,5 +429,13 @@
 
     window.addEventListener('closePaqueteCertiModal', () => {
         $('#paqueteCertiModal').modal('hide');
+    });
+
+    window.addEventListener('openReencaminarModal', () => {
+        $('#reencaminarModal').modal('show');
+    });
+
+    window.addEventListener('closeReencaminarModal', () => {
+        $('#reencaminarModal').modal('hide');
     });
 </script>
