@@ -1,8 +1,8 @@
 <div>
     <style>
         :root{
-            --azul:#34447C;
-            --dorado:#B99C46;
+            --azul:#B99C46;
+            --dorado:#34447C;
             --bg:#f5f7fb;
             --line:#e5e7eb;
             --muted:#6b7280;

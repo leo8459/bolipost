@@ -1,48 +1,51 @@
 :root{
     --agbc-azul:#34447C;
     --agbc-dorado:#B99C46;
+    --agbc-azul-deep:#2c3666;
+    --agbc-gold-dark:#9f8438;
+    --agbc-gold-soft:#d2b46a;
 }
 
-/* Primary (Azul) */
-.bg-primary{ background-color: var(--agbc-azul) !important; }
-.text-primary{ color: var(--agbc-azul) !important; }
-.border-primary{ border-color: var(--agbc-azul) !important; }
+/* Primary (Dorado) */
+.bg-primary{ background-color: var(--agbc-dorado) !important; }
+.text-primary{ color: var(--agbc-dorado) !important; }
+.border-primary{ border-color: var(--agbc-dorado) !important; }
 .btn-primary{
-    background-color: var(--agbc-azul) !important;
-    border-color: var(--agbc-azul) !important;
+    background-color: var(--agbc-dorado) !important;
+    border-color: var(--agbc-dorado) !important;
 }
 .btn-primary:hover,
 .btn-primary:focus{
     filter: brightness(0.95);
 }
 .btn-outline-primary{
-    color: var(--agbc-azul) !important;
-    border-color: var(--agbc-azul) !important;
+    color: var(--agbc-dorado) !important;
+    border-color: var(--agbc-dorado) !important;
 }
 .btn-outline-primary:hover,
 .btn-outline-primary:focus{
-    background-color: var(--agbc-azul) !important;
+    background-color: var(--agbc-dorado) !important;
     color:#fff !important;
 }
 .badge-primary{
-    background-color: var(--agbc-azul) !important;
+    background-color: var(--agbc-dorado) !important;
 }
 .page-item.active .page-link{
-    background-color: var(--agbc-azul) !important;
-    border-color: var(--agbc-azul) !important;
+    background-color: var(--agbc-dorado) !important;
+    border-color: var(--agbc-dorado) !important;
 }
 .nav-pills .nav-link.active,
 .nav-pills .show > .nav-link{
-    background-color: var(--agbc-azul) !important;
+    background-color: var(--agbc-dorado) !important;
 }
 
-/* Secondary (Dorado) */
-.bg-secondary{ background-color: var(--agbc-dorado) !important; }
-.text-secondary{ color: var(--agbc-dorado) !important; }
-.border-secondary{ border-color: var(--agbc-dorado) !important; }
+/* Secondary (Azul) */
+.bg-secondary{ background-color: var(--agbc-azul) !important; }
+.text-secondary{ color: var(--agbc-azul) !important; }
+.border-secondary{ border-color: var(--agbc-azul) !important; }
 .btn-secondary{
-    background-color: var(--agbc-dorado) !important;
-    border-color: var(--agbc-dorado) !important;
+    background-color: var(--agbc-azul) !important;
+    border-color: var(--agbc-azul) !important;
     color:#fff !important;
 }
 .btn-secondary:hover,
@@ -50,25 +53,27 @@
     filter: brightness(0.95);
 }
 .btn-outline-secondary{
-    color: var(--agbc-dorado) !important;
-    border-color: var(--agbc-dorado) !important;
+    color: var(--agbc-azul) !important;
+    border-color: var(--agbc-azul) !important;
 }
 .btn-outline-secondary:hover,
 .btn-outline-secondary:focus{
-    background-color: var(--agbc-dorado) !important;
+    background-color: var(--agbc-azul) !important;
     color:#fff !important;
 }
 .badge-secondary{
-    background-color: var(--agbc-dorado) !important;
+    background-color: var(--agbc-azul) !important;
 }
 
 /* AdminLTE specifics */
-.navbar-primary{ background-color: var(--agbc-azul) !important; }
+.navbar-primary{
+    background: linear-gradient(90deg, var(--agbc-gold-dark), var(--agbc-dorado), var(--agbc-azul-deep)) !important;
+}
 .navbar-primary .navbar-nav .nav-link{ color:#fff !important; }
 .navbar-primary .navbar-nav .nav-link:hover{ color: rgba(255,255,255,0.85) !important; }
 .sidebar-dark-primary .sidebar,
 .sidebar-dark-primary{
-    background-color: var(--agbc-azul) !important;
+    background: linear-gradient(180deg, var(--agbc-azul-deep) 0%, var(--agbc-azul) 45%, #2a2f44 100%) !important;
 }
 .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link{
     color:#fff !important;
@@ -97,7 +102,7 @@
     color:#fff !important;
 }
 .brand-link{
-    background: rgba(255,255,255,0.08) !important;
+    background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(0,0,0,0.08)) !important;
     border-bottom: 1px solid rgba(255,255,255,0.18) !important;
 }
 .brand-link .brand-image{
@@ -134,12 +139,12 @@
     background: rgba(255,255,255,0.2) !important;
 }
 .card-primary.card-outline{
-    border-top: 3px solid var(--agbc-azul) !important;
+    border-top: 3px solid var(--agbc-dorado) !important;
 }
 .card-primary:not(.card-outline) > .card-header{
-    background: var(--agbc-azul) !important;
+    background: linear-gradient(90deg, var(--agbc-gold-dark), var(--agbc-dorado)) !important;
     color:#fff !important;
 }
 .info-box .info-box-icon.bg-primary{
-    background-color: var(--agbc-azul) !important;
+    background-color: var(--agbc-dorado) !important;
 }

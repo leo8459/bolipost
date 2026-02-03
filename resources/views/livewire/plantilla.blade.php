@@ -2,8 +2,8 @@
     {{-- Si no tienes bootstrap cargado en tu layout principal, agrega bootstrap ahí --}}
     <style>
         :root{
-            --azul:#34447C;
-            --dorado:#B99C46;
+            --azul:#B99C46;
+            --dorado:#34447C;
             --bg:#f5f7fb;
         }
 
