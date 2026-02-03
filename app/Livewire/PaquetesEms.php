@@ -34,12 +34,14 @@ class PaquetesEms extends Component
 
     public $origen = '';
     public $tipo_correspondencia = '';
+    public $servicio_especial = '';
     public $contenido = '';
     public $cantidad = '';
     public $peso = '';
     public $codigo = '';
     public $auto_codigo = true;
     public $precio = '';
+    public $precio_confirm = null;
     public $nombre_remitente = '';
     public $nombre_envia = '';
     public $carnet = '';
@@ -90,6 +92,7 @@ class PaquetesEms extends Component
         $this->editingId = $paquete->id;
         $this->origen = $paquete->origen;
         $this->tipo_correspondencia = $paquete->tipo_correspondencia;
+        $this->servicio_especial = $paquete->servicio_especial;
         $this->contenido = $paquete->contenido;
         $this->cantidad = $paquete->cantidad;
         $this->peso = $paquete->peso;
@@ -130,6 +133,11 @@ class PaquetesEms extends Component
             return;
         }
 
+        $this->precio_confirm = $this->precio;
+        if ($this->servicio_especial === 'IDA Y VUELTA' && $this->precio !== '') {
+            $this->precio_confirm = (string) ((float) $this->precio * 2);
+        }
+
         if ($this->auto_codigo) {
             $this->codigo = $this->generateCodigo();
         }
@@ -144,6 +152,11 @@ class PaquetesEms extends Component
         if (!$user) {
             session()->flash('error', 'Usuario no autenticado.');
             return;
+        }
+
+        $this->applyTarifarioMatch();
+        if ($this->precio_confirm !== null) {
+            $this->precio = $this->precio_confirm;
         }
 
         if ($this->editingId) {
@@ -173,12 +186,14 @@ class PaquetesEms extends Component
         $this->reset([
             'origen',
             'tipo_correspondencia',
+            'servicio_especial',
             'contenido',
             'cantidad',
             'peso',
             'codigo',
             'auto_codigo',
             'precio',
+            'precio_confirm',
             'nombre_remitente',
             'nombre_envia',
             'carnet',
@@ -199,6 +214,7 @@ class PaquetesEms extends Component
         return [
             'origen' => 'nullable|string|max:255',
             'tipo_correspondencia' => 'required|string|max:255',
+            'servicio_especial' => 'nullable|string|max:255',
             'contenido' => 'required|string',
             'cantidad' => 'required|integer|min:1',
             'peso' => 'required|numeric|min:0',
@@ -226,6 +242,7 @@ class PaquetesEms extends Component
         $payload = [
             'origen' => $this->origen,
             'tipo_correspondencia' => $this->tipo_correspondencia,
+            'servicio_especial' => $this->servicio_especial,
             'contenido' => $this->contenido,
             'cantidad' => $this->cantidad,
             'peso' => $this->peso,

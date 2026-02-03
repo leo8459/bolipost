@@ -213,6 +213,7 @@
                                 <th>Codigo</th>
                                 <th>Origen</th>
                                 <th>Tipo</th>
+                                <th>Serv. especial</th>
                                 <th>Servicio</th>
                                 <th>Destino</th>
                                 <th>Contenido</th>
@@ -231,6 +232,7 @@
                                     <td>{{ $paquete->codigo }}</td>
                                     <td>{{ $paquete->origen }}</td>
                                     <td>{{ $paquete->tipo_correspondencia }}</td>
+                                    <td>{{ $paquete->servicio_especial }}</td>
                                     <td>{{ optional(optional($paquete->tarifario)->servicio)->nombre_servicio }}</td>
                                     <td>{{ optional(optional($paquete->tarifario)->destino)->nombre_destino }}</td>
                                     <td>{{ $paquete->contenido }}</td>
@@ -264,7 +266,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="13" class="text-center py-5">
+                                    <td colspan="14" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -332,6 +334,18 @@
                                     <label>Tipo de correspondencia</label>
                                     <input type="text" wire:model.defer="tipo_correspondencia" class="form-control">
                                     @error('tipo_correspondencia') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Servicio especial</label>
+                                    <select wire:model.defer="servicio_especial" class="form-control">
+                                        <option value="">Seleccione...</option>
+                                        <option value="POR COBRAR">POR COBRAR</option>
+                                        <option value="IDA Y VUELTA">IDA Y VUELTA</option>
+                                    </select>
+                                    @error('servicio_especial') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
 
@@ -474,7 +488,7 @@
                             <div class="col-md-12 mb-2"><strong>Contenido:</strong> {{ $contenido }}</div>
                             <div class="col-md-4 mb-2"><strong>Cantidad:</strong> {{ $cantidad }}</div>
                             <div class="col-md-4 mb-2"><strong>Peso:</strong> {{ $peso }}</div>
-                            <div class="col-md-4 mb-2"><strong>Precio:</strong> {{ $precio }}</div>
+                            <div class="col-md-4 mb-2"><strong>Precio:</strong> {{ $precio_confirm ?? $precio }}</div>
                             <div class="col-md-6 mb-2"><strong>Codigo:</strong> {{ $codigo }}</div>
                             <div class="col-md-6 mb-2"><strong>Ciudad:</strong> {{ $ciudad }}</div>
                             <div class="col-md-6 mb-2"><strong>Remitente:</strong> {{ $nombre_remitente }}</div>

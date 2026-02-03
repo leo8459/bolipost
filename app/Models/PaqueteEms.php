@@ -14,6 +14,7 @@ class PaqueteEms extends Model
     protected $fillable = [
         'origen',
         'tipo_correspondencia',
+        'servicio_especial',
         'contenido',
         'cantidad',
         'peso',
