@@ -15,13 +15,4 @@ class Estado extends Model
         'nombre_estado',
         'activo',
     ];
-
-    protected $casts = [
-        'activo' => 'boolean',
-    ];
-
-    public function paquetesCerti()
-    {
-        return $this->hasMany(PaqueteCerti::class, 'fk_estado');
-    }
 }

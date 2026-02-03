@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Destino;
+use App\Models\Estado;
 use App\Models\Origen;
 use App\Models\PaqueteEms;
 use App\Models\Servicio;
@@ -54,6 +55,7 @@ class PaquetesEms extends Component
     public $destino_id = '';
     public $is_ems = false;
     public $user_origen_id = null;
+    public $estado_id = null;
 
     protected $paginationTheme = 'bootstrap';
 
@@ -165,6 +167,7 @@ class PaquetesEms extends Component
             session()->flash('success', 'Paquete actualizado correctamente.');
         } else {
             $this->setOrigenFromUser();
+            $this->setEstadoAdmision();
             PaqueteEms::create($this->payload($user->id));
             session()->flash('success', 'Paquete creado correctamente.');
         }
@@ -204,6 +207,7 @@ class PaquetesEms extends Component
             'servicio_id',
             'tarifario_id',
             'destino_id',
+            'estado_id',
         ]);
 
         $this->resetValidation();
@@ -256,6 +260,7 @@ class PaquetesEms extends Component
             'telefono_destinatario' => $this->telefono_destinatario,
             'ciudad' => $this->ciudad,
             'tarifario_id' => $this->tarifario_id,
+            'estado_id' => $this->estado_id ?? null,
         ];
 
         if ($userId !== null) {
@@ -285,8 +290,15 @@ class PaquetesEms extends Component
             'ciudad',
         ];
 
+        $estadoAdmision = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ADMISIONES'])
+            ->value('id');
+
         $paquetes = PaqueteEms::query()
             ->with(['tarifario.servicio', 'tarifario.destino', 'tarifario.peso', 'tarifario.origen'])
+            ->when($estadoAdmision, function ($query) use ($estadoAdmision) {
+                $query->where('estado_id', $estadoAdmision);
+            })
             ->when($q !== '', function ($query) use ($q, $columns) {
                 $query->where(function ($sub) use ($q, $columns) {
                     foreach ($columns as $column) {
@@ -462,5 +474,16 @@ class PaquetesEms extends Component
         }
 
         return null;
+    }
+
+    protected function setEstadoAdmision()
+    {
+        $estado = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ADMISIONES'])
+            ->first();
+
+        if ($estado) {
+            $this->estado_id = $estado->id;
+        }
     }
 }

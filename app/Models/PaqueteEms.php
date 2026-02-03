@@ -28,6 +28,7 @@ class PaqueteEms extends Model
         'telefono_destinatario',
         'ciudad',
         'tarifario_id',
+        'estado_id',
         'user_id',
     ];
 
@@ -39,5 +40,10 @@ class PaqueteEms extends Model
     public function tarifario()
     {
         return $this->belongsTo(Tarifario::class, 'tarifario_id');
+    }
+
+    public function estado()
+    {
+        return $this->belongsTo(Estado::class, 'estado_id');
     }
 }
