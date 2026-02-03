@@ -5,5 +5,5 @@
 @endsection
 
 @section('content')
-@livewire('paquete-certi')
+@livewire('paquete-certi', ['mode' => 'inventario'])
 @endsection

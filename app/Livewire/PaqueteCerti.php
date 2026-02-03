@@ -12,9 +12,11 @@ class PaqueteCerti extends Component
 {
     use WithPagination;
 
+    public $mode = 'almacen';
     public $search = '';
     public $searchQuery = '';
     public $editingId = null;
+    public $selectedPaquetes = [];
 
     public $codigo = '';
     public $destinatario = '';
@@ -28,6 +30,16 @@ class PaqueteCerti extends Component
     public $fk_ventanilla = '';
 
     protected $paginationTheme = 'bootstrap';
+
+    public function mount($mode = 'almacen')
+    {
+        $this->mode = $mode === 'inventario' ? 'inventario' : 'almacen';
+    }
+
+    public function getIsInventoryProperty()
+    {
+        return $this->mode === 'inventario';
+    }
 
     public function searchPaquetes()
     {
@@ -83,6 +95,45 @@ class PaqueteCerti extends Component
         $paquete = PaqueteCertiModel::findOrFail($id);
         $paquete->delete();
         session()->flash('success', 'Paquete certificado eliminado correctamente.');
+    }
+
+    public function marcarInventario($id)
+    {
+        $paquete = PaqueteCertiModel::findOrFail($id);
+        $paquete->update([
+            'fk_estado' => 4,
+        ]);
+        session()->flash('success', 'Paquete enviado a inventarios.');
+    }
+
+    public function bajaMasiva()
+    {
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('success', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        PaqueteCertiModel::query()
+            ->whereIn('id', $ids)
+            ->update(['fk_estado' => 4]);
+
+        $this->selectedPaquetes = [];
+        session()->flash('success', 'Paquetes enviados a inventarios correctamente.');
+    }
+
+    public function marcarVentanilla($id)
+    {
+        $paquete = PaqueteCertiModel::findOrFail($id);
+        $paquete->update([
+            'fk_estado' => 2,
+        ]);
+        session()->flash('success', 'Paquete enviado a ventanilla.');
     }
 
     public function resetForm()
@@ -146,6 +197,12 @@ class PaqueteCerti extends Component
 
         $paquetes = PaqueteCertiModel::query()
             ->with(['estado', 'ventanillaRef'])
+            ->when($this->isInventory, function ($query) {
+                $query->where('fk_estado', 4);
+            })
+            ->when(!$this->isInventory, function ($query) {
+                $query->where('fk_estado', 2);
+            })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where('codigo', 'ILIKE', "%{$q}%")
                     ->orWhere('destinatario', 'ILIKE', "%{$q}%")
