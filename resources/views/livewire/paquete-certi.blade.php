@@ -234,10 +234,12 @@
                                                 class="btn btn-sm btn-azul">
                                                 Editar
                                             </button>
-                                            <button wire:click="openReencaminarModal({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul">
-                                                Reencaminar
-                                            </button>
+                                            @if ($this->isAlmacen)
+                                                <button wire:click="openReencaminarModal({{ $paquete->id }})"
+                                                    class="btn btn-sm btn-outline-azul">
+                                                    Reencaminar
+                                                </button>
+                                            @endif
                                             @if ($this->canReturnToVentanilla)
                                                 <button wire:click="marcarVentanilla({{ $paquete->id }})"
                                                     class="btn btn-sm btn-outline-azul"
