@@ -226,9 +226,16 @@ class PaqueteCerti extends Component
     public function render()
     {
         $q = trim($this->searchQuery);
+        $userCity = trim((string) optional(auth()->user())->ciudad);
 
         $paquetes = PaqueteCertiModel::query()
             ->with(['estado', 'ventanillaRef'])
+            ->when($userCity !== '', function ($query) use ($userCity) {
+                $query->whereRaw('TRIM(UPPER(cuidad)) = TRIM(UPPER(?))', [$userCity]);
+            })
+            ->when($userCity === '', function ($query) {
+                $query->whereRaw('1 = 0');
+            })
             ->when($this->isInventory, function ($query) {
                 $query->where('fk_estado', 4);
             })
