@@ -215,9 +215,9 @@ return [
     */
 
     'sidebar_mini' => 'lg',
-    'sidebar_collapse' => true,
+    'sidebar_collapse' => false,
     'sidebar_collapse_auto_size' => false,
-    'sidebar_collapse_remember' => false,
+    'sidebar_collapse_remember' => true,
     'sidebar_collapse_remember_no_transition' => true,
     'sidebar_scrollbar_theme' => 'os-theme-light',
     'sidebar_scrollbar_auto_hide' => 'l',
@@ -353,15 +353,32 @@ return [
                     'url' => 'plantilla',
                     'icon' => 'fas fa-user',
                 ],
+            ],
+        ],
+        [
+            'text' => 'Paquetes EMS',
+            'icon' => 'fas fa-box',
+            'submenu' => [
                 [
-                    'text' => 'Paquetes EMS',
+                    'text' => 'Servicio EMS',
                     'url' => 'paquetes-ems',
                     'icon' => 'fas fa-box',
                 ],
+            ],
+        ],
+        [
+            'text' => 'Configuracion de tarifas',
+            'icon' => 'fas fa-tags',
+            'submenu' => [
                 [
                     'text' => 'Servicios',
                     'url' => 'servicios',
                     'icon' => 'fas fa-concierge-bell',
+                ],
+                [
+                    'text' => 'Origenes',
+                    'url' => 'origenes',
+                    'icon' => 'fas fa-route',
                 ],
                 [
                     'text' => 'Destinos',
@@ -372,11 +389,6 @@ return [
                     'text' => 'Pesos',
                     'url' => 'pesos',
                     'icon' => 'fas fa-weight-hanging',
-                ],
-                [
-                    'text' => 'Origenes',
-                    'url' => 'origenes',
-                    'icon' => 'fas fa-route',
                 ],
                 [
                     'text' => 'Tarifario',

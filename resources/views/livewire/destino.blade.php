@@ -177,7 +177,6 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                <th>N°</th>
                                 <th>Nombre destino</th>
                                 <th>Creado</th>
                                 <th>Acciones</th>
@@ -186,11 +185,6 @@
                         <tbody>
                             @forelse ($destinos as $destino)
                                 <tr>
-                                    <td>
-                                        <span class="pill-id">
-                                            #{{ ($destinos->firstItem() ?? 0) + $loop->index }}
-                                        </span>
-                                    </td>
                                     <td>{{ $destino->nombre_destino }}</td>
                                     <td class="muted small">{{ optional($destino->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
@@ -207,7 +201,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center py-5">
+                                    <td colspan="3" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

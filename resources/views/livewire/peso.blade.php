@@ -177,7 +177,6 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                <th>N°</th>
                                 <th>Peso inicial</th>
                                 <th>Peso final</th>
                                 <th>Creado</th>
@@ -187,11 +186,6 @@
                         <tbody>
                             @forelse ($pesos as $peso)
                                 <tr>
-                                    <td>
-                                        <span class="pill-id">
-                                            #{{ ($pesos->firstItem() ?? 0) + $loop->index }}
-                                        </span>
-                                    </td>
                                     <td>{{ $peso->peso_inicial }}</td>
                                     <td>{{ $peso->peso_final }}</td>
                                     <td class="muted small">{{ optional($peso->created_at)->format('d/m/Y H:i') }}</td>
@@ -209,7 +203,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center py-5">
+                                    <td colspan="4" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

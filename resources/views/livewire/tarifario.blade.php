@@ -177,11 +177,10 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                <th>N°</th>
                                 <th>Servicio</th>
+                                <th>Origen</th>
                                 <th>Destino</th>
                                 <th>Peso</th>
-                                <th>Origen</th>
                                 <th>Precio</th>
                                 <th>Observacion</th>
                                 <th>Creado</th>
@@ -191,19 +190,14 @@
                         <tbody>
                             @forelse ($tarifarios as $t)
                                 <tr>
-                                    <td>
-                                        <span class="pill-id">
-                                            #{{ ($tarifarios->firstItem() ?? 0) + $loop->index }}
-                                        </span>
-                                    </td>
                                     <td>{{ $t->servicio->nombre_servicio ?? '' }}</td>
+                                    <td>{{ $t->origen->nombre_origen ?? '' }}</td>
                                     <td>{{ $t->destino->nombre_destino ?? '' }}</td>
                                     <td>
                                         @if($t->peso)
                                             {{ $t->peso->peso_inicial }} - {{ $t->peso->peso_final }}
                                         @endif
                                     </td>
-                                    <td>{{ $t->origen->nombre_origen ?? '' }}</td>
                                     <td>{{ $t->precio }}</td>
                                     <td class="muted">{{ $t->observacion ?? '—' }}</td>
                                     <td class="muted small">{{ optional($t->created_at)->format('d/m/Y H:i') }}</td>
@@ -221,7 +215,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-5">
+                                    <td colspan="8" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -264,6 +258,19 @@
                                 @error('servicio_id') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
+                                <label>Origen</label>
+                                <select wire:model.defer="origen_id" class="form-control">
+                                    <option value="">Seleccione...</option>
+                                    @foreach($origenes as $o)
+                                        <option value="{{ $o->id }}">{{ $o->nombre_origen }}</option>
+                                    @endforeach
+                                </select>
+                                @error('origen_id') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
                                 <label>Destino</label>
                                 <select wire:model.defer="destino_id" class="form-control">
                                     <option value="">Seleccione...</option>
@@ -273,9 +280,6 @@
                                 </select>
                                 @error('destino_id') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
-                        </div>
-
-                        <div class="form-row">
                             <div class="form-group col-md-6">
                                 <label>Peso</label>
                                 <select wire:model.defer="peso_id" class="form-control">
@@ -287,16 +291,6 @@
                                     @endforeach
                                 </select>
                                 @error('peso_id') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Origen</label>
-                                <select wire:model.defer="origen_id" class="form-control">
-                                    <option value="">Seleccione...</option>
-                                    @foreach($origenes as $o)
-                                        <option value="{{ $o->id }}">{{ $o->nombre_origen }}</option>
-                                    @endforeach
-                                </select>
-                                @error('origen_id') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                         </div>
 

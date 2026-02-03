@@ -210,7 +210,6 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                <th>N°</th>
                                 <th>Codigo</th>
                                 <th>Origen</th>
                                 <th>Tipo</th>
@@ -229,11 +228,6 @@
                         <tbody>
                             @forelse ($paquetes as $paquete)
                                 <tr>
-                                    <td>
-                                        <span class="pill-id">
-                                            #{{ ($paquetes->firstItem() ?? 0) + $loop->index }}
-                                        </span>
-                                    </td>
                                     <td>{{ $paquete->codigo }}</td>
                                     <td>{{ $paquete->origen }}</td>
                                     <td>{{ $paquete->tipo_correspondencia }}</td>
@@ -270,7 +264,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="14" class="text-center py-5">
+                                    <td colspan="13" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -370,8 +364,16 @@
                             <div class="form-row">
                                 <div class="form-group col-md-4">
                                     <label>Codigo</label>
-                                    <input type="text" wire:model.defer="codigo" class="form-control">
+                                    <input type="text" wire:model.defer="codigo" class="form-control" @if($auto_codigo) readonly @endif>
                                     @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-8 d-flex align-items-center" style="padding-top:28px;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="autoCodigo" wire:model.live="auto_codigo">
+                                        <label class="form-check-label" for="autoCodigo">
+                                            Generar codigo automatico
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>

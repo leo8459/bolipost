@@ -38,6 +38,7 @@ class PaquetesEms extends Component
     public $cantidad = '';
     public $peso = '';
     public $codigo = '';
+    public $auto_codigo = true;
     public $precio = '';
     public $nombre_remitente = '';
     public $nombre_envia = '';
@@ -78,6 +79,7 @@ class PaquetesEms extends Component
         $this->setUserOrigenId();
         $this->editingId = null;
         $this->is_ems = false;
+        $this->auto_codigo = true;
         $this->dispatch('openPaqueteModal');
     }
 
@@ -103,6 +105,7 @@ class PaquetesEms extends Component
         $this->tarifario_id = $paquete->tarifario_id;
         $this->servicio_id = optional($paquete->tarifario)->servicio_id;
         $this->destino_id = optional($paquete->tarifario)->destino_id;
+        $this->auto_codigo = false;
 
         $this->refreshEmsState();
         $this->setUserOrigenId();
@@ -125,6 +128,10 @@ class PaquetesEms extends Component
         if (!$this->tarifario_id) {
             $this->addError('peso', 'No existe tarifario para este servicio, destino y peso.');
             return;
+        }
+
+        if ($this->auto_codigo) {
+            $this->codigo = $this->generateCodigo();
         }
 
         $this->validate($this->rules());
@@ -170,6 +177,7 @@ class PaquetesEms extends Component
             'cantidad',
             'peso',
             'codigo',
+            'auto_codigo',
             'precio',
             'nombre_remitente',
             'nombre_envia',
@@ -310,6 +318,9 @@ class PaquetesEms extends Component
             $this->peso = '';
             $this->precio = '';
             $this->refreshEmsState();
+            if ($this->auto_codigo) {
+                $this->codigo = $this->generateCodigo();
+            }
             return;
         }
 
@@ -326,6 +337,12 @@ class PaquetesEms extends Component
 
         if ($name === 'peso') {
             $this->applyTarifarioMatch();
+        }
+
+        if ($name === 'auto_codigo') {
+            if ($this->auto_codigo) {
+                $this->codigo = $this->generateCodigo();
+            }
         }
     }
 
@@ -380,5 +397,53 @@ class PaquetesEms extends Component
 
         $this->tarifario_id = $tarifario->id;
         $this->precio = $tarifario->precio;
+    }
+
+    protected function generateCodigo()
+    {
+        $prefix = $this->getCodigoPrefix();
+        if ($prefix === null) {
+            return $this->codigo;
+        }
+
+        $last = PaqueteEms::query()
+            ->where('codigo', 'like', $prefix . '%')
+            ->orderByDesc('id')
+            ->value('codigo');
+
+        $nextNumber = 1;
+        if ($last) {
+            $num = (int) substr($last, strlen($prefix), 9);
+            if ($num > 0) {
+                $nextNumber = $num + 1;
+            }
+        }
+
+        return $prefix . str_pad((string) $nextNumber, 9, '0', STR_PAD_LEFT) . 'BO';
+    }
+
+    protected function getCodigoPrefix()
+    {
+        if (!$this->servicio_id) {
+            return null;
+        }
+
+        $servicio = $this->servicios->firstWhere('id', (int) $this->servicio_id);
+        if (!$servicio) {
+            return null;
+        }
+
+        $name = strtoupper(trim($servicio->nombre_servicio));
+        if ($name === 'EMS') {
+            return 'EN';
+        }
+        if ($name === 'ENCOMIENDA') {
+            return 'CP';
+        }
+        if ($name === 'ECA') {
+            return 'EC';
+        }
+
+        return null;
     }
 }
