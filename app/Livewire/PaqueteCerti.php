@@ -121,17 +121,22 @@ class PaqueteCerti extends Component
     protected function payload()
     {
         return [
-            'codigo' => $this->codigo,
-            'destinatario' => $this->destinatario,
+            'codigo' => $this->upper($this->codigo),
+            'destinatario' => $this->upper($this->destinatario),
             'telefono' => $this->telefono,
-            'cuidad' => $this->cuidad,
-            'zona' => $this->zona,
-            'ventanilla' => $this->ventanilla,
+            'cuidad' => $this->upper($this->cuidad),
+            'zona' => $this->upper($this->zona),
+            'ventanilla' => $this->upper($this->ventanilla),
             'peso' => $this->peso,
-            'tipo' => $this->tipo,
-            'aduana' => $this->aduana,
+            'tipo' => $this->upper($this->tipo),
+            'aduana' => $this->upper($this->aduana),
             'fk_estado' => $this->fk_estado,
         ];
+    }
+
+    protected function upper($value)
+    {
+        return strtoupper(trim((string) $value));
     }
 
     public function render()
