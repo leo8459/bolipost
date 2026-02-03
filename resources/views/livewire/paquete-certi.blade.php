@@ -124,6 +124,9 @@
             border:1px solid #d1d5db;
             box-shadow:none;
         }
+        .uppercase-input{
+            text-transform: uppercase;
+        }
         .form-control:focus, select.form-control:focus{
             border-color: var(--azul);
             box-shadow:0 0 0 0.15rem rgba(52,68,124,.15);
@@ -253,12 +256,12 @@
                         <div class="form-row">
                             <div class="form-group col-md-6">
                                 <label>Codigo</label>
-                                <input type="text" wire:model.defer="codigo" class="form-control">
+                                <input type="text" wire:model.defer="codigo" class="form-control uppercase-input">
                                 @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Destinatario</label>
-                                <input type="text" wire:model.defer="destinatario" class="form-control">
+                                <input type="text" wire:model.defer="destinatario" class="form-control uppercase-input">
                                 @error('destinatario') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
@@ -268,17 +271,29 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Cuidad</label>
-                                <input type="text" wire:model.defer="cuidad" class="form-control">
+                                <select wire:model.defer="cuidad" class="form-control uppercase-input">
+                                    <option value="">Seleccione</option>
+                                    <option value="LA PAZ">LA PAZ</option>
+                                    <option value="EL ALTO">EL ALTO</option>
+                                    <option value="COCHABAMBA">COCHABAMBA</option>
+                                    <option value="SANTA CRUZ DE LA SIERRA">SANTA CRUZ DE LA SIERRA</option>
+                                    <option value="ORURO">ORURO</option>
+                                    <option value="POTOSI">POTOSI</option>
+                                    <option value="SUCRE">SUCRE</option>
+                                    <option value="TARIJA">TARIJA</option>
+                                    <option value="TRINIDAD">TRINIDAD</option>
+                                    <option value="COBIJA">COBIJA</option>
+                                </select>
                                 @error('cuidad') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Zona</label>
-                                <input type="text" wire:model.defer="zona" class="form-control">
+                                <input type="text" wire:model.defer="zona" class="form-control uppercase-input">
                                 @error('zona') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Ventanilla</label>
-                                <input type="text" wire:model.defer="ventanilla" class="form-control">
+                                <input type="text" wire:model.defer="ventanilla" class="form-control uppercase-input">
                                 @error('ventanilla') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
@@ -288,17 +303,17 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Tipo</label>
-                                <input type="text" wire:model.defer="tipo" class="form-control">
+                                <input type="text" wire:model.defer="tipo" class="form-control uppercase-input">
                                 @error('tipo') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Aduana</label>
-                                <input type="text" wire:model.defer="aduana" class="form-control">
+                                <input type="text" wire:model.defer="aduana" class="form-control uppercase-input">
                                 @error('aduana') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Estado</label>
-                                <select wire:model.defer="fk_estado" class="form-control">
+                                <select wire:model.defer="fk_estado" class="form-control uppercase-input">
                                     <option value="">Seleccione</option>
                                     @foreach ($estados as $estado)
                                         <option value="{{ $estado->id }}">{{ $estado->nombre_estado }}</option>
@@ -322,6 +337,18 @@
 </div>
 
 <script>
+    document.addEventListener('input', (event) => {
+        const target = event.target;
+        if (target && target.classList && target.classList.contains('uppercase-input') && target.tagName === 'INPUT') {
+            const start = target.selectionStart;
+            const end = target.selectionEnd;
+            target.value = target.value.toUpperCase();
+            if (start !== null && end !== null) {
+                target.setSelectionRange(start, end);
+            }
+        }
+    });
+
     window.addEventListener('openPaqueteCertiModal', () => {
         $('#paqueteCertiModal').modal('show');
     });
