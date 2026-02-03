@@ -367,6 +367,22 @@ return [
             ],
         ],
         [
+            'text' => 'Paquetes Certificados',
+            'icon' => 'fas fa-box',
+            'submenu' => [
+                [
+                    'text' => 'Almacen',
+                    'url' => 'paquetes-certificados/almacen',
+                    'icon' => 'fas fa-warehouse',
+                ],
+                [
+                    'text' => 'Inventario',
+                    'url' => 'paquetes-certificados/inventario',
+                    'icon' => 'fas fa-clipboard-list',
+                ],
+            ],
+        ],
+        [
             'text' => 'Configuracion de tarifas',
             'icon' => 'fas fa-tags',
             'submenu' => [

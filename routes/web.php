@@ -12,6 +12,7 @@ use App\Http\Controllers\DestinoController;
 use App\Http\Controllers\PesoController;
 use App\Http\Controllers\OrigenController;
 use App\Http\Controllers\TarifarioController;
+use App\Http\Controllers\PaquetesCertiController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -89,6 +90,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/pesos', [PesoController::class, 'index'])->name('pesos.index');
     Route::get('/origenes', [OrigenController::class, 'index'])->name('origenes.index');
     Route::get('/tarifario', [TarifarioController::class, 'index'])->name('tarifario.index');
+    Route::get('/paquetes-certificados/almacen', [PaquetesCertiController::class, 'almacen'])->name('paquetes-certificados.almacen');
+    Route::get('/paquetes-certificados/inventario', [PaquetesCertiController::class, 'inventario'])->name('paquetes-certificados.inventario');
 });
 
 require __DIR__ . '/auth.php';
