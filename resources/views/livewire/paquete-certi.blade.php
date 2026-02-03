@@ -303,12 +303,21 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Tipo</label>
-                                <input type="text" wire:model.defer="tipo" class="form-control uppercase-input">
+                                <select wire:model.defer="tipo" class="form-control uppercase-input">
+                                    <option value="">Seleccione</option>
+                                    <option value="PP">PP</option>
+                                    <option value="PG">PG</option>
+                                    <option value="SOBRE">SOBRE</option>
+                                </select>
                                 @error('tipo') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Aduana</label>
-                                <input type="text" wire:model.defer="aduana" class="form-control uppercase-input">
+                                <select wire:model.defer="aduana" class="form-control uppercase-input">
+                                    <option value="">Seleccione</option>
+                                    <option value="SI">SI</option>
+                                    <option value="NO">NO</option>
+                                </select>
                                 @error('aduana') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
