@@ -152,7 +152,7 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
-                    @if (!$this->canReturnToVentanilla)
+                    @if ($this->isAlmacen)
                         <button class="btn btn-outline-light2" type="button"
                             wire:click.prevent="bajaMasiva">
                             Baja
@@ -190,7 +190,7 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                @if (!$this->canReturnToVentanilla)
+                                @if ($this->isAlmacen)
                                     <th></th>
                                 @endif
                                 <th>Codigo</th>
@@ -204,13 +204,15 @@
                                 <th>Aduana</th>
                                 <th>Estado</th>
                                 <th>Creado</th>
-                                <th>Acciones</th>
+                                @if (!$this->isTodos)
+                                    <th>Acciones</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($paquetes as $paquete)
                                 <tr>
-                                    @if (!$this->canReturnToVentanilla)
+                                    @if ($this->isAlmacen)
                                         <td>
                                             <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
                                         </td>
@@ -226,32 +228,34 @@
                                     <td>{{ $paquete->aduana }}</td>
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? 'Sin estado' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
-                                    <td>
-                                        <button wire:click="openEditModal({{ $paquete->id }})"
-                                            class="btn btn-sm btn-azul">
-                                            Editar
-                                        </button>
-                                        <button wire:click="openReencaminarModal({{ $paquete->id }})"
-                                            class="btn btn-sm btn-outline-azul">
-                                            Reencaminar
-                                        </button>
-                                        @if ($this->canReturnToVentanilla)
-                                            <button wire:click="marcarVentanilla({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul"
-                                                onclick="return confirm('Enviar este paquete a ventanilla?')">
-                                                {{ $this->isRezago ? 'Devuelto' : 'Alta' }}
+                                    @if (!$this->isTodos)
+                                        <td>
+                                            <button wire:click="openEditModal({{ $paquete->id }})"
+                                                class="btn btn-sm btn-azul">
+                                                Editar
                                             </button>
-                                        @endif
-                                        <button wire:click="delete({{ $paquete->id }})"
-                                            class="btn btn-sm btn-outline-azul"
-                                            onclick="return confirm('Seguro que deseas eliminar este paquete?')">
-                                            Borrar
-                                        </button>
-                                    </td>
+                                            <button wire:click="openReencaminarModal({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul">
+                                                Reencaminar
+                                            </button>
+                                            @if ($this->canReturnToVentanilla)
+                                                <button wire:click="marcarVentanilla({{ $paquete->id }})"
+                                                    class="btn btn-sm btn-outline-azul"
+                                                    onclick="return confirm('Enviar este paquete a ventanilla?')">
+                                                    {{ $this->isRezago ? 'Devuelto' : 'Alta' }}
+                                                </button>
+                                            @endif
+                                            <button wire:click="delete({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                onclick="return confirm('Seguro que deseas eliminar este paquete?')">
+                                                Borrar
+                                            </button>
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $this->canReturnToVentanilla ? 12 : 13 }}" class="text-center py-5">
+                                    <td colspan="{{ $this->isAlmacen ? 13 : ($this->isTodos ? 11 : 12) }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

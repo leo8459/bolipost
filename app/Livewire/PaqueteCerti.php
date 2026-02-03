@@ -35,8 +35,13 @@ class PaqueteCerti extends Component
 
     public function mount($mode = 'almacen')
     {
-        $allowedModes = ['almacen', 'inventario', 'rezago'];
+        $allowedModes = ['almacen', 'inventario', 'rezago', 'todos'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'almacen';
+    }
+
+    public function getIsAlmacenProperty()
+    {
+        return $this->mode === 'almacen';
     }
 
     public function getIsInventoryProperty()
@@ -47,6 +52,11 @@ class PaqueteCerti extends Component
     public function getIsRezagoProperty()
     {
         return $this->mode === 'rezago';
+    }
+
+    public function getIsTodosProperty()
+    {
+        return $this->mode === 'todos';
     }
 
     public function getCanReturnToVentanillaProperty()
@@ -269,7 +279,7 @@ class PaqueteCerti extends Component
             ->when($this->isRezago, function ($query) {
                 $query->where('fk_estado', 6);
             })
-            ->when(!$this->isInventory && !$this->isRezago, function ($query) {
+            ->when($this->isAlmacen, function ($query) {
                 $query->where('fk_estado', 2);
             })
             ->when($q !== '', function ($query) use ($q) {

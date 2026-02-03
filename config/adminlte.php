@@ -371,6 +371,11 @@ return [
             'icon' => 'fas fa-box',
             'submenu' => [
                 [
+                    'text' => 'Todos los Paquetes',
+                    'url' => 'paquetes-certificados/todos',
+                    'icon' => 'fas fa-boxes',
+                ],
+                [
                     'text' => 'Almacen',
                     'url' => 'paquetes-certificados/almacen',
                     'icon' => 'fas fa-warehouse',
