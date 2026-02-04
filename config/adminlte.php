@@ -364,6 +364,16 @@ return [
                     'url' => 'paquetes-ems',
                     'icon' => 'fas fa-box',
                 ],
+                [
+                    'text' => 'ALMACEN EMS',
+                    'url' => 'paquetes-ems/almacen',
+                    'icon' => 'fas fa-warehouse',
+                ],
+                [
+                    'text' => 'Recibir de regional',
+                    'url' => 'paquetes-ems/recibir-regional',
+                    'icon' => 'fas fa-truck-loading',
+                ],
             ],
         ],
         [

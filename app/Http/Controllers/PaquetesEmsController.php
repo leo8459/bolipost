@@ -8,4 +8,14 @@ class PaquetesEmsController extends Controller
     {
         return view('paquetes_ems.index');
     }
+
+    public function almacen()
+    {
+        return view('paquetes_ems.almacen');
+    }
+
+    public function recibirRegional()
+    {
+        return view('paquetes_ems.recibir-regional');
+    }
 }

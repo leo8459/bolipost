@@ -1,8 +1,8 @@
 <div>
     <style>
         :root{
-            --azul:#B99C46;
-            --dorado:#34447C;
+            --azul:#34447C;
+            --dorado:#B99C46;
             --bg:#f5f7fb;
             --line:#e5e7eb;
             --muted:#6b7280;
@@ -171,24 +171,69 @@
         <div class="card card-app">
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
                 <div>
-                    <h4 class="fw-bold mb-0">Paquetes EMS</h4>
+                    <h4 class="fw-bold mb-0">
+                        @if ($this->isAlmacenEms)
+                            Paquetes ALMACEN
+                        @elseif ($this->isTransitoEms)
+                            Recibir de regional (TRANSITO)
+                        @else
+                            Paquetes EMS
+                        @endif
+                    </h4>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center">
+                <div class="d-flex gap-2 align-items-center flex-wrap">
                     <input
                         type="text"
                         class="form-control search-input"
                         placeholder="Buscar en toda la tabla..."
                         wire:model="search"
+                        wire:keydown.enter.prevent="searchPaquetes(true)"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
-                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+
+                    @if ($this->isAdmision)
+                        <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
+                            Generados hoy
+                        </button>
+
+                        <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosSinFiltroFecha">
+                            Mandar seleccionados
+                        </button>
+                    @elseif ($this->isAlmacenEms)
+                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('ALMACEN')">
+                            ALMACEN
+                        </button>
+                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('RECIBIDO')">
+                            ALMACEN RECIBIDO
+                        </button>
+
+                        @if ($almacenEstadoFiltro === 'ALMACEN')
+                            <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
+                                Manda a regional
+                            </button>
+                        @endif
+                    @elseif ($this->isTransitoEms)
+                        <button class="btn btn-outline-light2" type="button" wire:click="recibirSeleccionadosRegional">
+                            Recibir
+                        </button>
+                    @endif
+
+                    @if ($this->isAdmision)
+                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endif
                 </div>
             </div>
 
             @if (session()->has('success'))
                 <div class="alert alert-success m-3">
                     <p class="mb-0">{{ session('success') }}</p>
+                </div>
+            @endif
+
+            @if (session()->has('error'))
+                <div class="alert alert-danger m-3">
+                    <p class="mb-0">{{ session('error') }}</p>
                 </div>
             @endif
 
@@ -201,15 +246,25 @@
                             Mostrando todos los registros
                         @endif
                     </div>
-                    <div class="muted small">
-                        Total en pagina: <strong>{{ $paquetes->count() }}</strong>
-                    </div>
+                    @if ($this->canSelect)
+                        <div class="muted small">
+                            Total en pagina: <strong>{{ $paquetes->count() }}</strong> |
+                            Seleccionados: <strong>{{ count($selectedPaquetes) }}</strong>
+                        </div>
+                    @else
+                        <div class="muted small">
+                            Total en pagina: <strong>{{ $paquetes->count() }}</strong>
+                        </div>
+                    @endif
                 </div>
 
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
+                                @if ($this->canSelect)
+                                    <th></th>
+                                @endif
                                 <th>Codigo</th>
                                 <th>Origen</th>
                                 <th>Tipo</th>
@@ -229,7 +284,12 @@
                         <tbody>
                             @forelse ($paquetes as $paquete)
                                 <tr>
-                                    <td>{{ $paquete->codigo }}</td>
+                                    @if ($this->canSelect)
+                                        <td>
+                                            <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
+                                        </td>
+                                    @endif
+                                    <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
                                     <td>{{ $paquete->origen }}</td>
                                     <td>{{ $paquete->tipo_correspondencia }}</td>
                                     <td>{{ $paquete->servicio_especial }}</td>
@@ -264,17 +324,19 @@
                                            title="Reimprimir boleta">
                                             <i class="fas fa-print"></i>
                                         </a>
-                                        <button wire:click="delete({{ $paquete->id }})"
-                                            class="btn btn-sm btn-outline-azul"
-                                            title="Eliminar"
-                                            onclick="return confirm('Seguro que deseas eliminar este paquete?')">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        @if ($this->isAdmision)
+                                            <button wire:click="delete({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                title="Eliminar"
+                                                onclick="return confirm('Seguro que deseas eliminar este paquete?')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="14" class="text-center py-5">
+                                    <td colspan="{{ $this->canSelect ? 15 : 14 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -515,6 +577,47 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="regionalModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Enviar a regional</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Ciudad destino regional</label>
+                        <select wire:model.defer="regionalDestino" class="form-control">
+                            <option value="">Seleccione...</option>
+                            @foreach($ciudades as $ciudadOpt)
+                                <option value="{{ $ciudadOpt }}">{{ $ciudadOpt }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Modo de transporte</label>
+                        <select wire:model.defer="regionalTransportMode" class="form-control">
+                            <option value="TERRESTRE">TERRESTRE</option>
+                            <option value="AEREO">AEREO</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label>Nro de vuelo/transporte (opcional)</label>
+                        <input type="text" wire:model.defer="regionalTransportNumber" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosRegional">
+                        Confirmar y generar manifiesto
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -532,6 +635,14 @@
 
     window.addEventListener('closePaqueteConfirm', () => {
         $('#paqueteConfirmModal').modal('hide');
+    });
+
+    window.addEventListener('openRegionalModal', () => {
+        $('#regionalModal').modal('show');
+    });
+
+    window.addEventListener('closeRegionalModal', () => {
+        $('#regionalModal').modal('hide');
     });
 
 </script>

@@ -8,6 +8,8 @@ use App\Models\Origen;
 use App\Models\PaqueteEms;
 use App\Models\Servicio;
 use App\Models\Tarifario;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -17,9 +19,15 @@ class PaquetesEms extends Component
 {
     use WithPagination;
 
+    public $mode = 'admision';
     public $search = '';
     public $searchQuery = '';
     public $editingId = null;
+    public $selectedPaquetes = [];
+    public $almacenEstadoFiltro = 'ALMACEN';
+    public $regionalDestino = '';
+    public $regionalTransportMode = 'TERRESTRE';
+    public $regionalTransportNumber = '';
 
     public $ciudades = [
         'LA PAZ',
@@ -62,17 +70,88 @@ class PaquetesEms extends Component
     public $servicios = [];
     public $destinos = [];
 
-    public function mount()
+    public function mount($mode = 'admision')
     {
+        $allowedModes = ['admision', 'almacen_ems', 'transito_ems'];
+        $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'admision';
+        if ($this->isAlmacenEms) {
+            $this->almacenEstadoFiltro = 'ALMACEN';
+        }
         $this->setOrigenFromUser();
         $this->servicios = Servicio::orderBy('nombre_servicio')->get();
         $this->destinos = Destino::orderBy('nombre_destino')->get();
         $this->setUserOrigenId();
     }
 
-    public function searchPaquetes()
+    public function getIsAdmisionProperty()
+    {
+        return $this->mode === 'admision';
+    }
+
+    public function getIsAlmacenEmsProperty()
+    {
+        return $this->mode === 'almacen_ems';
+    }
+
+    public function getIsTransitoEmsProperty()
+    {
+        return $this->mode === 'transito_ems';
+    }
+
+    public function getCanSelectProperty()
+    {
+        return $this->isAdmision || $this->isAlmacenEms || $this->isTransitoEms;
+    }
+
+    public function setAlmacenFiltro($filtro)
+    {
+        if (!in_array($filtro, ['ALMACEN', 'RECIBIDO'], true)) {
+            return;
+        }
+
+        $this->almacenEstadoFiltro = $filtro;
+        $this->selectedPaquetes = [];
+        $this->resetPage();
+    }
+
+    public function searchPaquetes($seleccionarPorCodigo = false)
     {
         $this->searchQuery = $this->search;
+        $this->resetPage();
+
+        if (!$seleccionarPorCodigo) {
+            return;
+        }
+
+        $codigo = trim((string) $this->search);
+        if ($codigo === '') {
+            return;
+        }
+
+        $paquete = $this->basePaquetesQuery()
+            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
+            ->first(['id']);
+
+        if (!$paquete) {
+            session()->flash('error', 'No se encontro un paquete con ese codigo.');
+            $this->search = '';
+            $this->searchQuery = '';
+            return;
+        }
+
+        $actuales = collect($this->selectedPaquetes)
+            ->map(fn ($id) => (string) $id)
+            ->all();
+
+        $this->selectedPaquetes = collect($actuales)
+            ->push((string) $paquete->id)
+            ->unique()
+            ->values()
+            ->all();
+
+        session()->flash('success', 'Paquete seleccionado automaticamente por codigo.');
+        $this->search = '';
+        $this->searchQuery = '';
         $this->resetPage();
     }
 
@@ -85,6 +164,26 @@ class PaquetesEms extends Component
         $this->is_ems = false;
         $this->auto_codigo = true;
         $this->dispatch('openPaqueteModal');
+    }
+
+    public function openRegionalModal()
+    {
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('error', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $this->regionalDestino = '';
+        $this->regionalTransportMode = 'TERRESTRE';
+        $this->regionalTransportNumber = '';
+        $this->dispatch('openRegionalModal');
     }
 
     public function openEditModal($id)
@@ -168,6 +267,10 @@ class PaquetesEms extends Component
         } else {
             $this->setOrigenFromUser();
             $this->setEstadoAdmision();
+            if (!$this->estado_id) {
+                session()->flash('error', 'No existe el estado ADMISIONES en la tabla estados.');
+                return;
+            }
             $paquete = PaqueteEms::create($this->payload($user->id));
             session()->flash('success', 'Paquete creado correctamente.');
             $this->dispatch('closePaqueteConfirm');
@@ -179,6 +282,191 @@ class PaquetesEms extends Component
         $this->dispatch('closePaqueteConfirm');
         $this->dispatch('closePaqueteModal');
         $this->resetForm();
+    }
+
+    public function mandarSeleccionadosGeneradosHoy()
+    {
+        return $this->mandarSeleccionadosAlmacenEms(true);
+    }
+
+    public function mandarSeleccionadosSinFiltroFecha()
+    {
+        return $this->mandarSeleccionadosAlmacenEms(false);
+    }
+
+    public function mandarSeleccionadosRegional()
+    {
+        if (trim((string) $this->regionalDestino) === '') {
+            session()->flash('error', 'Selecciona la ciudad de destino para regional.');
+            return;
+        }
+
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('error', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $estadoTransitoEms = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['TRANSITO'])
+            ->value('id');
+
+        if (!$estadoTransitoEms) {
+            session()->flash('error', 'No existe el estado TRANSITO en la tabla estados.');
+            return;
+        }
+
+        $paquetes = PaqueteEms::query()
+            ->whereIn('id', $ids)
+            ->with(['user:id,name'])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo',
+                'origen',
+                'ciudad',
+                'cantidad',
+                'peso',
+                'nombre_remitente',
+                'user_id',
+                'created_at',
+            ]);
+
+        if ($paquetes->isEmpty()) {
+            session()->flash('error', 'No hay paquetes seleccionados para enviar.');
+            return;
+        }
+
+        $updated = PaqueteEms::query()
+            ->whereIn('id', $ids)
+            ->update([
+                'estado_id' => $estadoTransitoEms,
+                'ciudad' => $this->regionalDestino,
+            ]);
+
+        $generatedAt = now();
+        $manifiesto = 'CN33-' . $generatedAt->format('YmdHis');
+        $loggedUserName = trim((string) optional(Auth::user())->name);
+        $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
+        $pdf = Pdf::loadView('paquetes_ems.reporte-regional', [
+            'paquetes' => $paquetes,
+            'generatedAt' => $generatedAt,
+            'currentManifiesto' => $manifiesto,
+            'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
+            'destinationCity' => $this->regionalDestino,
+            'selectedTransport' => $this->regionalTransportMode,
+            'numeroVuelo' => $this->regionalTransportNumber,
+            'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
+        ])->setPaper('a4', 'portrait');
+
+        $this->selectedPaquetes = [];
+        $this->regionalDestino = '';
+        $this->dispatch('closeRegionalModal');
+
+        session()->flash('success', $updated . ' paquete(s) enviado(s) a regional (TRANSITO).');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'manifiesto-regional-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
+    public function recibirSeleccionadosRegional()
+    {
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('error', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $estadoRecibido = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['RECIBIDO'])
+            ->value('id');
+
+        if (!$estadoRecibido) {
+            session()->flash('error', 'No existe el estado RECIBIDO en la tabla estados.');
+            return;
+        }
+
+        $updated = PaqueteEms::query()
+            ->whereIn('id', $ids)
+            ->update(['estado_id' => $estadoRecibido]);
+
+        $this->selectedPaquetes = [];
+        session()->flash('success', $updated . ' paquete(s) recibido(s) en RECIBIDO.');
+    }
+
+    protected function mandarSeleccionadosAlmacenEms(bool $soloHoy)
+    {
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('error', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $estadoAlmacenEms = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ALMACEN'])
+            ->value('id');
+
+        if (!$estadoAlmacenEms) {
+            session()->flash('error', 'No existe el estado ALMACEN en la tabla estados.');
+            return;
+        }
+
+        $paquetes = PaqueteEms::query()
+            ->whereIn('id', $ids)
+            ->when($soloHoy, function ($query) {
+                $query->whereDate('created_at', now()->toDateString());
+            })
+            ->with(['user:id,name'])
+            ->orderBy('id')
+            ->get(['id', 'codigo', 'user_id', 'created_at']);
+
+        if ($paquetes->isEmpty()) {
+            session()->flash(
+                'error',
+                $soloHoy
+                    ? 'No hay paquetes seleccionados que se hayan generado hoy.'
+                    : 'No hay paquetes seleccionados para enviar.'
+            );
+            return;
+        }
+
+        PaqueteEms::query()
+            ->whereIn('id', $paquetes->pluck('id')->all())
+            ->update(['estado_id' => $estadoAlmacenEms]);
+
+        $generatedAt = now();
+        $loggedUserName = trim((string) optional(Auth::user())->name);
+        $pdf = Pdf::loadView('paquetes_ems.reporte-envio', [
+            'paquetes' => $paquetes,
+            'generatedAt' => $generatedAt,
+            'filtro' => $soloHoy ? 'GENERADOS HOY' : 'SELECCIONADOS',
+            'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
+        ])->setPaper('a4', 'portrait');
+
+        $this->selectedPaquetes = [];
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'reporte-envio-ems-' . $generatedAt->format('Ymd-His') . '.pdf');
     }
 
     public function delete($id)
@@ -276,6 +564,15 @@ class PaquetesEms extends Component
 
     public function render()
     {
+        $paquetes = $this->basePaquetesQuery()->paginate(10);
+
+        return view('livewire.paquetes-ems', [
+            'paquetes' => $paquetes,
+        ]);
+    }
+
+    protected function basePaquetesQuery(): Builder
+    {
         $q = trim($this->searchQuery);
         $columns = [
             'origen',
@@ -294,14 +591,59 @@ class PaquetesEms extends Component
             'ciudad',
         ];
 
-        $estadoAdmision = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ADMISIONES'])
-            ->value('id');
+        $estadoIds = [];
+        if ($this->isAlmacenEms) {
+            $estadoAlmacen = $this->findEstadoId('ALMACEN');
+            $estadoRecibido = $this->findEstadoId('RECIBIDO');
+            if ($estadoAlmacen) {
+                $estadoIds[] = $estadoAlmacen;
+            }
+            if ($estadoRecibido) {
+                $estadoIds[] = $estadoRecibido;
+            }
+        } elseif ($this->isTransitoEms) {
+            $estadoTransito = $this->findEstadoId('TRANSITO');
+            if ($estadoTransito) {
+                $estadoIds[] = $estadoTransito;
+            }
+        } else {
+            $estadoAdmision = $this->findEstadoId('ADMISIONES');
+            if ($estadoAdmision) {
+                $estadoIds[] = $estadoAdmision;
+            }
+        }
 
-        $paquetes = PaqueteEms::query()
+        $estadoAlmacenId = null;
+        $estadoRecibidoId = null;
+        if ($this->isAlmacenEms) {
+            $estadoAlmacenId = $this->findEstadoId('ALMACEN');
+            $estadoRecibidoId = $this->findEstadoId('RECIBIDO');
+        }
+
+        $userCity = trim((string) optional(Auth::user())->ciudad);
+
+        return PaqueteEms::query()
             ->with(['tarifario.servicio', 'tarifario.destino', 'tarifario.peso', 'tarifario.origen'])
-            ->when($estadoAdmision, function ($query) use ($estadoAdmision) {
-                $query->where('estado_id', $estadoAdmision);
+            ->when(!empty($estadoIds), function ($query) use ($estadoIds) {
+                $query->whereIn('estado_id', $estadoIds);
+            })
+            ->when(empty($estadoIds), function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($this->isAlmacenEms && $this->almacenEstadoFiltro === 'ALMACEN' && $estadoAlmacenId, function ($query) use ($estadoAlmacenId) {
+                $query->where('estado_id', $estadoAlmacenId);
+            })
+            ->when($this->isAlmacenEms && $this->almacenEstadoFiltro === 'RECIBIDO' && $estadoRecibidoId, function ($query) use ($estadoRecibidoId) {
+                $query->where('estado_id', $estadoRecibidoId);
+            })
+            ->when($userCity !== '' && $this->isAlmacenEms && $this->almacenEstadoFiltro === 'ALMACEN', function ($query) use ($userCity) {
+                $query->whereRaw('trim(upper(origen)) = trim(upper(?))', [$userCity]);
+            })
+            ->when($userCity !== '' && $this->isAlmacenEms && $this->almacenEstadoFiltro === 'RECIBIDO', function ($query) use ($userCity) {
+                $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
+            })
+            ->when($userCity === '' && $this->isAlmacenEms, function ($query) {
+                $query->whereRaw('1 = 0');
             })
             ->when($q !== '', function ($query) use ($q, $columns) {
                 $query->where(function ($sub) use ($q, $columns) {
@@ -310,12 +652,7 @@ class PaquetesEms extends Component
                     }
                 });
             })
-            ->orderByDesc('id')
-            ->paginate(10);
-
-        return view('livewire.paquetes-ems', [
-            'paquetes' => $paquetes,
-        ]);
+            ->orderByDesc('id');
     }
 
     protected function setOrigenFromUser()
@@ -482,12 +819,15 @@ class PaquetesEms extends Component
 
     protected function setEstadoAdmision()
     {
-        $estado = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ADMISIONES'])
-            ->first();
+        $this->estado_id = $this->findEstadoId('ADMISIONES');
+    }
 
-        if ($estado) {
-            $this->estado_id = $estado->id;
-        }
+    protected function findEstadoId(string $nombre): ?int
+    {
+        $id = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [strtoupper(trim($nombre))])
+            ->value('id');
+
+        return $id ? (int) $id : null;
     }
 }
