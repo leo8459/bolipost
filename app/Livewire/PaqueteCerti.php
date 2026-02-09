@@ -191,8 +191,11 @@ class PaqueteCerti extends Component
         $this->selectedPaquetes = [];
         session()->flash('success', 'Paquetes enviados a inventarios correctamente.');
 
-        return redirect()->route('paquetes-certificados.baja-pdf', [
-            'ids' => implode(',', $ids),
+        $this->resetPage();
+        $this->dispatch('$refresh');
+
+        $this->dispatch('openBajaPdf', [
+            'url' => route('paquetes-certificados.baja-pdf', ['ids' => implode(',', $ids)]),
         ]);
     }
 

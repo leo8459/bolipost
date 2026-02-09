@@ -450,4 +450,11 @@
     window.addEventListener('closeReencaminarModal', () => {
         $('#reencaminarModal').modal('hide');
     });
+
+    window.addEventListener('openBajaPdf', (event) => {
+        const url = event?.detail?.url;
+        if (url) {
+            window.open(url, '_blank');
+        }
+    });
 </script>
