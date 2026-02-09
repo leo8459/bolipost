@@ -12,6 +12,7 @@
         .special-text { text-align: center; font-size: 12px; }
         .normal-text { font-size: 12px; }
         .centro { margin-top: 0; margin-bottom: 0; margin-left: 12%; }
+        .logo { margin-left: 30px; }
         table { width: 100%; }
         table td { width: 100%; }
         p { margin: 0; padding: 0; }
@@ -19,11 +20,8 @@
 </head>
 <body>
 @foreach ($packages as $package)
-    <div class="container">
+    <div class="container" style="margin-top: 24px;">
         <div class="modal-body">
-            <div class="logo">
-                <img src="{{ public_path('images/images.png') }}" alt="" width="100" height="50">
-            </div>
             <div class="center-text">
                 <h2 class="normal-text" style="margin-top: 0;">FORMULARIO DE ENTREGA</h2>
                 <h3 class="normal-text">AGENCIA BOLIVIANA DE CORREOS</h3>
@@ -64,11 +62,8 @@
         </div>
     </div>
     @if (strtoupper((string) $package->aduana) === 'SI')
-        <div class="container">
+        <div class="container" style="margin-top: 24px;">
             <div class="modal-body">
-                <div class="logo">
-                    <img src="{{ public_path('images/images.png') }}" alt="" width="100" height="50">
-                </div>
                 <div class="center-text">
                     <h2 class="normal-text" style="margin-top: 0;">FORMULARIO DE ENTREGA</h2>
                     <h3 class="normal-text">AGENCIA BOLIVIANA DE CORREOS</h3>
