@@ -229,6 +229,15 @@ class PaqueteCerti extends Component
         session()->flash('success', 'Paquete enviado a ventanilla.');
     }
 
+    public function reimprimirPdf($id)
+    {
+        $paquete = PaqueteCertiModel::findOrFail($id);
+
+        $this->dispatch('openBajaPdf', [
+            'url' => route('paquetes-certificados.baja-pdf', ['ids' => $paquete->id]),
+        ]);
+    }
+
     public function resetForm()
     {
         $this->reset([

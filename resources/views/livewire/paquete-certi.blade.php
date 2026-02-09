@@ -234,6 +234,11 @@
                                             Editar
                                         </button>
                                         @if ($this->isInventory)
+                                            <a href="{{ route('paquetes-certificados.baja-pdf', ['ids' => $paquete->id]) }}"
+                                                class="btn btn-sm btn-outline-azul"
+                                                target="_blank" rel="noopener">
+                                                Reimprimir
+                                            </a>
                                             <button wire:click="marcarVentanilla({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
                                                 onclick="return confirm('Enviar este paquete a ventanilla?')">
