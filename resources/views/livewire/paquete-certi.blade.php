@@ -233,6 +233,13 @@
                                             class="btn btn-sm btn-azul">
                                             Editar
                                         </button>
+                                        @if ($this->isInventory)
+                                            <button wire:click="marcarVentanilla({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                onclick="return confirm('Enviar este paquete a ventanilla?')">
+                                                Alta
+                                            </button>
+                                        @endif
                                         <button wire:click="delete({{ $paquete->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             onclick="return confirm('Seguro que deseas eliminar este paquete?')">
