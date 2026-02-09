@@ -291,18 +291,23 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Cuidad</label>
-                                <select wire:model.defer="cuidad" class="form-control uppercase-input">
-                                    <option value="">Seleccione</option>
-                                    <option value="LA PAZ">LA PAZ</option>
-                                    <option value="COCHABAMBA">COCHABAMBA</option>
-                                    <option value="SANTA CRUZ">SANTA CRUZ</option>
-                                    <option value="ORURO">ORURO</option>
-                                    <option value="POTOSI">POTOSI</option>
-                                    <option value="SUCRE">SUCRE</option>
-                                    <option value="TARIJA">TARIJA</option>
-                                    <option value="TRINIDAD">TRINIDAD</option>
-                                    <option value="COBIJA">COBIJA</option>
-                                </select>
+                                @if (!$editingId)
+                                    <input type="hidden" wire:model.defer="cuidad">
+                                    <input type="text" class="form-control uppercase-input" value="{{ $cuidad }}" disabled>
+                                @else
+                                    <select wire:model.defer="cuidad" class="form-control uppercase-input">
+                                        <option value="">Seleccione</option>
+                                        <option value="LA PAZ">LA PAZ</option>
+                                        <option value="COCHABAMBA">COCHABAMBA</option>
+                                        <option value="SANTA CRUZ">SANTA CRUZ</option>
+                                        <option value="ORURO">ORURO</option>
+                                        <option value="POTOSI">POTOSI</option>
+                                        <option value="SUCRE">SUCRE</option>
+                                        <option value="TARIJA">TARIJA</option>
+                                        <option value="TRINIDAD">TRINIDAD</option>
+                                        <option value="COBIJA">COBIJA</option>
+                                    </select>
+                                @endif
                                 @error('cuidad') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">

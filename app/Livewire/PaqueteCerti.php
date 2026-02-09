@@ -74,6 +74,10 @@ class PaqueteCerti extends Component
     {
         $this->resetForm();
         $this->editingId = null;
+        $userCity = trim((string) optional(auth()->user())->ciudad);
+        if ($userCity !== '') {
+            $this->cuidad = $userCity;
+        }
         if ($this->isAlmacen) {
             $this->fk_estado = '2';
         }
@@ -109,6 +113,12 @@ class PaqueteCerti extends Component
             session()->flash('success', 'Paquete certificado actualizado correctamente.');
         } else {
             $payload = $this->payload();
+            if (empty($payload['cuidad'])) {
+                $userCity = trim((string) optional(auth()->user())->ciudad);
+                if ($userCity !== '') {
+                    $payload['cuidad'] = $this->upper($userCity);
+                }
+            }
             if ($this->isAlmacen) {
                 $payload['fk_estado'] = 2;
             }
@@ -248,12 +258,20 @@ class PaqueteCerti extends Component
 
     protected function payload()
     {
+        $ventanillaNombre = '';
+        if (!empty($this->fk_ventanilla)) {
+            $ventanillaNombre = (string) optional(
+                VentanillaModel::find($this->fk_ventanilla)
+            )->nombre_ventanilla;
+        }
+
         return [
             'codigo' => $this->upper($this->codigo),
             'destinatario' => $this->upper($this->destinatario),
             'telefono' => $this->telefono,
             'cuidad' => $this->upper($this->cuidad),
             'zona' => $this->upper($this->zona),
+            'ventanilla' => $this->upper($ventanillaNombre),
             'peso' => $this->peso,
             'tipo' => $this->upper($this->tipo),
             'aduana' => $this->upper($this->aduana),
