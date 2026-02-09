@@ -218,6 +218,13 @@ class PaqueteCerti extends Component
 
         $this->selectedPaquetes = [];
         session()->flash('success', 'Paquetes enviados a rezago correctamente.');
+
+        $this->resetPage();
+        $this->dispatch('$refresh');
+
+        $this->dispatch('openBajaPdf', [
+            'url' => route('paquetes-certificados.rezago-pdf', ['ids' => implode(',', $ids)]),
+        ]);
     }
 
     public function marcarVentanilla($id)

@@ -101,6 +101,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/paquetes-certificados/rezago', [PaquetesCertiController::class, 'rezago'])->name('paquetes-certificados.rezago');
     Route::get('/paquetes-certificados/todos', [PaquetesCertiController::class, 'todos'])->name('paquetes-certificados.todos');
     Route::get('/paquetes-certificados/baja-pdf', [PaquetesCertiController::class, 'bajaPdf'])->name('paquetes-certificados.baja-pdf');
+    Route::get('/paquetes-certificados/rezago-pdf', [PaquetesCertiController::class, 'rezagoPdf'])->name('paquetes-certificados.rezago-pdf');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
 });

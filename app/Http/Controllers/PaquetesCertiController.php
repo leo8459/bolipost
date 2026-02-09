@@ -48,4 +48,25 @@ class PaquetesCertiController extends Controller
 
         return $pdf->download('reporte-baja.pdf');
     }
+
+    public function rezagoPdf(Request $request)
+    {
+        $ids = collect(explode(',', (string) $request->query('ids')))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $packages = PaqueteCerti::query()
+            ->with(['estado', 'ventanillaRef'])
+            ->whereIn('id', $ids)
+            ->orderBy('id')
+            ->get();
+
+        $pdf = Pdf::loadView('paquetes_certi.reporte_rezago', [
+            'packages' => $packages,
+        ])->setPaper('A4');
+
+        return $pdf->download('reporte-rezago.pdf');
+    }
 }

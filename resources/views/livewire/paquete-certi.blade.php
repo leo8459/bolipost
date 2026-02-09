@@ -459,7 +459,7 @@
     });
 
     window.addEventListener('openBajaPdf', (event) => {
-        const url = event?.detail?.url;
+        const url = event?.detail?.url ?? event?.detail?.[0]?.url;
         if (url) {
             window.open(url, '_blank');
         }
