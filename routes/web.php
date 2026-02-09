@@ -16,6 +16,7 @@ use App\Http\Controllers\TarifarioController;
 use App\Http\Controllers\PaquetesCertiController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\VentanillaController;
+use App\Http\Controllers\DespachoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -104,6 +105,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/paquetes-certificados/rezago-pdf', [PaquetesCertiController::class, 'rezagoPdf'])->name('paquetes-certificados.rezago-pdf');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
+    Route::get('/despachos/abiertos', [DespachoController::class, 'index'])->name('despachos.abiertos');
 });
 
 require __DIR__ . '/auth.php';

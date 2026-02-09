@@ -403,6 +403,17 @@ return [
             ],
         ],
         [
+            'text' => 'Despachos',
+            'icon' => 'fas fa-shipping-fast',
+            'submenu' => [
+                [
+                    'text' => 'Despachos Abiertos',
+                    'url' => 'despachos/abiertos',
+                    'icon' => 'fas fa-folder-open',
+                ],
+            ],
+        ],
+        [
             'text' => 'Configuracion de tarifas',
             'icon' => 'fas fa-tags',
             'submenu' => [
