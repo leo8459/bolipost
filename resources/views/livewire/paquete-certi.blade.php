@@ -239,10 +239,12 @@
                                                 target="_blank" rel="noopener">
                                                 Reimprimir
                                             </a>
+                                        @endif
+                                        @if ($this->isInventory || $this->isRezago)
                                             <button wire:click="marcarVentanilla({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
                                                 onclick="return confirm('Enviar este paquete a ventanilla?')">
-                                                Alta
+                                                {{ $this->isRezago ? 'Devuelto' : 'Alta' }}
                                             </button>
                                         @endif
                                         <button wire:click="delete({{ $paquete->id }})"
