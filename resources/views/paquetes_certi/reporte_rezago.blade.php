@@ -8,6 +8,7 @@
     <style>
         * { margin: 0; padding: 0; }
         .title { text-align: center; font-size: 14px; margin-bottom: 10px; }
+        body { padding: 30px 30px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         th, td { border: 1px solid #000; padding: 4px 6px; }
         th { background: #f0f0f0; }
