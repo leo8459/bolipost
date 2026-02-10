@@ -280,34 +280,6 @@
                                     @error('subclase') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Nro despacho</label>
-                                    <input type="text" class="form-control" wire:model.defer="nro_despacho">
-                                    @error('nro_despacho') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Nro envase</label>
-                                    <input type="text" class="form-control" wire:model.defer="nro_envase">
-                                    @error('nro_envase') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Peso</label>
-                                    <input type="number" step="0.001" class="form-control" wire:model.defer="peso">
-                                    @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Identificador</label>
-                                    <input type="text" class="form-control" wire:model.defer="identificador">
-                                    @error('identificador') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
                         </div>
                     </div>
 

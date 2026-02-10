@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Despacho as DespachoModel;
 use App\Models\Estado as EstadoModel;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -119,6 +120,11 @@ class Despacho extends Component
 
     public function save()
     {
+        if (!$this->editingId) {
+            $this->anio = $this->getCurrentYear();
+            $this->nro_despacho = $this->getNextNroDespachoForYear($this->anio);
+        }
+
         $this->validate($this->rules());
 
         if ($this->editingId) {
@@ -172,9 +178,9 @@ class Despacho extends Component
             'categoria' => 'required|string|max:255|in:' . implode(',', array_keys($this->categorias)),
             'subclase' => 'required|string|max:255|in:' . implode(',', array_keys($this->subclases)),
             'nro_despacho' => 'required|string|max:255',
-            'nro_envase' => 'required|string|max:255',
-            'peso' => 'required|numeric|min:0.001',
-            'identificador' => 'required|string|max:255',
+            'nro_envase' => 'nullable|string|max:255',
+            'peso' => 'nullable|numeric|min:0.001',
+            'identificador' => 'nullable|string|max:255',
             'anio' => 'required|integer|min:1900|max:2100',
             'departamento' => 'required|string|max:255',
             'estado' => 'required|string|max:255',
@@ -189,9 +195,9 @@ class Despacho extends Component
             'categoria' => $this->categoria,
             'subclase' => $this->subclase,
             'nro_despacho' => $this->nro_despacho,
-            'nro_envase' => $this->nro_envase,
-            'peso' => $this->peso,
-            'identificador' => $this->identificador,
+            'nro_envase' => $this->normalizeNullable($this->nro_envase),
+            'peso' => $this->normalizeNullable($this->peso),
+            'identificador' => $this->normalizeNullable($this->identificador),
             'anio' => $this->anio,
             'departamento' => $this->departamento,
             'estado' => $this->estado,
@@ -210,6 +216,28 @@ class Despacho extends Component
     protected function getCurrentYear()
     {
         return now()->year;
+    }
+
+    protected function normalizeNullable($value)
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = is_string($value) ? trim($value) : $value;
+
+        return $trimmed === '' ? null : $trimmed;
+    }
+
+    protected function getNextNroDespachoForYear($year)
+    {
+        $max = DespachoModel::query()
+            ->where('anio', $year)
+            ->max(DB::raw('CAST(nro_despacho AS INTEGER)'));
+
+        $next = (int) $max + 1;
+
+        return str_pad((string) $next, 3, '0', STR_PAD_LEFT);
     }
 
     protected function getOforigenFromUser()
