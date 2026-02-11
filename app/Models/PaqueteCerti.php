@@ -34,4 +34,5 @@ class PaqueteCerti extends Model
     {
         return $this->belongsTo(Ventanilla::class, 'fk_ventanilla');
     }
+
 }

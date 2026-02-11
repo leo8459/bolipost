@@ -468,7 +468,18 @@
                             <div class="form-row">
                                 <div class="form-group col-md-6">
                                     <label>Nombre remitente</label>
-                                    <input type="text" wire:model.defer="nombre_remitente" class="form-control">
+                                    <input
+                                        type="text"
+                                        wire:model.live.debounce.300ms="nombre_remitente"
+                                        class="form-control"
+                                        list="remitentesEmsList"
+                                        autocomplete="off"
+                                    >
+                                    <datalist id="remitentesEmsList">
+                                        @foreach($remitenteSugerencias as $remitenteSugerido)
+                                            <option value="{{ $remitenteSugerido }}"></option>
+                                        @endforeach
+                                    </datalist>
                                     @error('nombre_remitente') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-6">
