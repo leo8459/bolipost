@@ -197,12 +197,27 @@
                                     <td>{{ $despacho->departamento }}</td>
                                     <td>{{ optional($despacho->estado)->nombre_estado }}</td>
                                     <td>
+                                        @if ((int) $despacho->fk_estado === 14)
+                                            <button wire:click="expedicion({{ $despacho->id }})"
+                                                class="btn btn-sm btn-info"
+                                                title="Expedicion"
+                                                onclick="return confirm('Cambiar estado del despacho a expedicion?')">
+                                                <i class="fas fa-paper-plane"></i>
+                                            </button>
+                                        @endif
                                         @if ((int) $despacho->fk_estado !== 14)
                                             <a href="{{ route('sacas.index', ['despacho_id' => $despacho->id]) }}"
                                                 class="btn btn-sm btn-success"
                                                 title="Asignar sacas">
                                                 <i class="fas fa-suitcase"></i>
                                             </a>
+                                        @else
+                                            <button wire:click="reaperturaSaca({{ $despacho->id }})"
+                                                class="btn btn-sm btn-warning"
+                                                title="Reapertura de saca"
+                                                onclick="return confirm('Se reaperturara el despacho y sus sacas. Continuar?')">
+                                                <i class="fas fa-unlock"></i>
+                                            </button>
                                         @endif
                                         <button wire:click="openEditModal({{ $despacho->id }})"
                                             class="btn btn-sm btn-azul"

@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Despacho as DespachoModel;
 use App\Models\Estado as EstadoModel;
+use App\Models\Saca as SacaModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -151,6 +152,31 @@ class Despacho extends Component
         $despacho = DespachoModel::findOrFail($id);
         $despacho->delete();
         session()->flash('success', 'Despacho eliminado correctamente.');
+    }
+
+    public function reaperturaSaca($id)
+    {
+        DB::transaction(function () use ($id) {
+            $despacho = DespachoModel::query()->findOrFail($id);
+
+            $despacho->update(['fk_estado' => 11]);
+
+            SacaModel::query()
+                ->where('fk_despacho', $despacho->id)
+                ->update(['fk_estado' => 16]);
+        });
+
+        session()->flash('success', 'Reapertura realizada correctamente.');
+
+        return redirect()->route('sacas.index', ['despacho_id' => $id]);
+    }
+
+    public function expedicion($id)
+    {
+        $despacho = DespachoModel::query()->findOrFail($id);
+        $despacho->update(['fk_estado' => 19]);
+
+        session()->flash('success', 'Despacho enviado a expedicion.');
     }
 
     public function resetForm()
