@@ -193,13 +193,25 @@ class Saca extends Component
         }
 
         DB::transaction(function () use ($despachoId) {
+            $totales = SacaModel::query()
+                ->where('fk_despacho', $despachoId)
+                ->selectRaw('COALESCE(SUM(paquetes), 0) as total_paquetes, COALESCE(SUM(peso), 0) as total_peso')
+                ->first();
+
+            $totalPaquetes = (int) ($totales->total_paquetes ?? 0);
+            $totalPeso = round((float) ($totales->total_peso ?? 0), 3);
+
             SacaModel::query()
                 ->where('fk_despacho', $despachoId)
                 ->update(['fk_estado' => 15]);
 
             Despacho::query()
                 ->whereKey($despachoId)
-                ->update(['fk_estado' => 14]);
+                ->update([
+                    'fk_estado' => 14,
+                    'nro_envase' => (string) $totalPaquetes,
+                    'peso' => $totalPeso,
+                ]);
         });
 
         session()->flash('success', 'Despacho cerrado correctamente.');

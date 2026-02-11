@@ -79,6 +79,12 @@
             </div>
 
             <div class="card-body">
+                @if (session()->has('success'))
+                    <div class="alert alert-success mb-3">
+                        {{ session('success') }}
+                    </div>
+                @endif
+
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="muted">
                         @if(!empty($searchQuery))
@@ -107,6 +113,7 @@
                                 <th>Anio</th>
                                 <th>Departamento</th>
                                 <th>Estado</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -123,10 +130,37 @@
                                     <td>{{ $despacho->anio }}</td>
                                     <td>{{ $despacho->departamento }}</td>
                                     <td>{{ optional($despacho->estado)->nombre_estado }}</td>
+                                    <td>
+                                        @if ((int) $despacho->fk_estado === 19)
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-danger"
+                                                wire:click="intervenirDespacho({{ $despacho->id }})"
+                                                onclick="return confirm('Cambiar este despacho a intervencion (estado 20)?')"
+                                                title="Intervenir despacho">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-warning"
+                                                wire:click="volverApertura({{ $despacho->id }})"
+                                                onclick="return confirm('Cambiar este despacho a apertura (estado 14)?')"
+                                                title="Volver a apertura">
+                                                <i class="fas fa-undo"></i>
+                                            </button>
+                                        @elseif ((int) $despacho->fk_estado === 20)
+                                            <a
+                                                href="{{ route('sacas.index', ['despacho_id' => $despacho->id]) }}"
+                                                class="btn btn-sm btn-primary"
+                                                title="Ver sacas">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-5">
+                                    <td colspan="12" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">No se encontraron despachos en expedicion.</div>
                                     </td>

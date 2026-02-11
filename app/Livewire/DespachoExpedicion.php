@@ -21,13 +21,33 @@ class DespachoExpedicion extends Component
         $this->resetPage();
     }
 
+    public function volverApertura($id)
+    {
+        $despacho = DespachoModel::query()
+            ->where('fk_estado', 19)
+            ->findOrFail($id);
+
+        $despacho->update(['fk_estado' => 14]);
+        session()->flash('success', 'Despacho devuelto a apertura.');
+    }
+
+    public function intervenirDespacho($id)
+    {
+        $despacho = DespachoModel::query()
+            ->where('fk_estado', 19)
+            ->findOrFail($id);
+
+        $despacho->update(['fk_estado' => 20]);
+        session()->flash('success', 'Despacho enviado a intervencion.');
+    }
+
     public function render()
     {
         $q = trim($this->searchQuery);
 
         $despachos = DespachoModel::query()
             ->with('estado:id,nombre_estado')
-            ->where('fk_estado', 19)
+            ->whereIn('fk_estado', [19, 20])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($inner) use ($q) {
                     $inner->where('oforigen', 'ILIKE', "%{$q}%")
