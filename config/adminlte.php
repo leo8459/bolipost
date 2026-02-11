@@ -412,6 +412,11 @@ return [
                     'icon' => 'fas fa-folder-open',
                 ],
                 [
+                    'text' => 'Despachos Expedicion',
+                    'url' => 'despachos/expedicion',
+                    'icon' => 'fas fa-paper-plane',
+                ],
+                [
                     'text' => 'Sacas',
                     'url' => 'sacas',
                     'icon' => 'fas fa-suitcase',

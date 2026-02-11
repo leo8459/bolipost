@@ -310,6 +310,7 @@ class Despacho extends Component
 
         $despachos = DespachoModel::query()
             ->with('estado:id,nombre_estado')
+            ->whereIn('fk_estado', [11, 14])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where('oforigen', 'ILIKE', "%{$q}%")
                     ->orWhere('ofdestino', 'ILIKE', "%{$q}%")

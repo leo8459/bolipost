@@ -108,6 +108,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
     Route::get('/despachos/abiertos', [DespachoController::class, 'index'])->name('despachos.abiertos');
+    Route::get('/despachos/expedicion', [DespachoController::class, 'expedicion'])->name('despachos.expedicion');
     Route::get('/sacas', [SacaController::class, 'index'])->name('sacas.index');
     Route::get('/carteros/distribucion', [CarterosController::class, 'distribucion'])->name('carteros.distribucion');
     Route::get('/carteros/asignados', [CarterosController::class, 'asignados'])->name('carteros.asignados');
