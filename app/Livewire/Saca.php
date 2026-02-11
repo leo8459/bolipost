@@ -147,8 +147,30 @@ class Saca extends Component
 
     public function delete($id)
     {
-        $saca = SacaModel::findOrFail($id);
-        $saca->delete();
+        DB::transaction(function () use ($id) {
+            $saca = SacaModel::query()
+                ->lockForUpdate()
+                ->findOrFail($id);
+
+            $deletedSequence = (int) $saca->nro_saca;
+            $saca->delete();
+
+            $sacasToReorder = SacaModel::query()
+                ->with('despacho:id,identificador')
+                ->whereRaw('CAST(nro_saca AS INTEGER) > ?', [$deletedSequence])
+                ->orderByRaw('CAST(nro_saca AS INTEGER) ASC')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($sacasToReorder as $item) {
+                $nextSequence = (int) $item->nro_saca - 1;
+                $item->nro_saca = str_pad((string) $nextSequence, 3, '0', STR_PAD_LEFT);
+                $item->identificador = $this->buildIdentificadorForModel($item);
+                $item->receptaculo = $this->buildReceptaculoForValues($item->identificador, $item->peso);
+                $item->save();
+            }
+        });
+
         session()->flash('success', 'Saca eliminada correctamente.');
     }
 
@@ -262,6 +284,20 @@ class Saca extends Component
     {
         $peso = $this->normalizeNullable($this->peso);
         $base = $this->identificador . (string) ($peso ?? '');
+
+        return preg_replace('/[^A-Za-z0-9]/', '', $base);
+    }
+
+    protected function buildIdentificadorForModel(SacaModel $saca)
+    {
+        $despachoIdentificador = optional($saca->despacho)->identificador;
+
+        return (string) $despachoIdentificador . $saca->nro_saca;
+    }
+
+    protected function buildReceptaculoForValues($identificador, $peso)
+    {
+        $base = (string) $identificador . (string) ($peso ?? '');
 
         return preg_replace('/[^A-Za-z0-9]/', '', $base);
     }
