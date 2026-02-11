@@ -128,8 +128,19 @@
     <div class="plantilla-wrap">
         <div class="card card-app">
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
+                @php
+                    $despachoTitulo = $lockedDespachoLabel;
+                    if (!$despachoTitulo && !empty($fk_despacho)) {
+                        $despachoSel = $despachos->firstWhere('id', (int) $fk_despacho);
+                        if ($despachoSel) {
+                            $despachoTitulo = $despachoSel->identificador . ' (' . $despachoSel->anio . '-' . $despachoSel->nro_despacho . ')';
+                        }
+                    }
+                @endphp
                 <div>
-                    <h4 class="fw-bold mb-0">Sacas</h4>
+                    <h4 class="fw-bold mb-0">
+                        Sacas del despacho: {{ $despachoTitulo ?: 'Sin despacho asignado' }}
+                    </h4>
                 </div>
 
                 <div class="d-flex gap-2 align-items-center">
@@ -197,6 +208,15 @@
 
                 <div class="d-flex justify-content-end">
                     {{ $sacas->links() }}
+                </div>
+
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="button"
+                        class="btn btn-danger"
+                        wire:click="cerrarDespacho"
+                        onclick="return confirm('Se cerrara el despacho y cambiara estados de sacas y despacho. Continuar?')">
+                        Cerrar despacho
+                    </button>
                 </div>
             </div>
         </div>

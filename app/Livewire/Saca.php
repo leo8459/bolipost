@@ -183,6 +183,30 @@ class Saca extends Component
         session()->flash('success', 'Saca eliminada correctamente.');
     }
 
+    public function cerrarDespacho()
+    {
+        $despachoId = $this->lockedDespachoId ?: (int) $this->fk_despacho;
+
+        if (!$despachoId) {
+            session()->flash('error', 'No hay despacho seleccionado para cerrar.');
+            return;
+        }
+
+        DB::transaction(function () use ($despachoId) {
+            SacaModel::query()
+                ->where('fk_despacho', $despachoId)
+                ->update(['fk_estado' => 15]);
+
+            Despacho::query()
+                ->whereKey($despachoId)
+                ->update(['fk_estado' => 14]);
+        });
+
+        session()->flash('success', 'Despacho cerrado correctamente.');
+
+        return redirect()->route('despachos.abiertos');
+    }
+
     public function resetForm()
     {
         $this->reset([
