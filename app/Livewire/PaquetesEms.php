@@ -6,6 +6,7 @@ use App\Models\Destino;
 use App\Models\Estado;
 use App\Models\Origen;
 use App\Models\PaqueteEms;
+use App\Models\RemitenteEms;
 use App\Models\Servicio;
 use App\Models\Tarifario;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -64,6 +65,7 @@ class PaquetesEms extends Component
     public $is_ems = false;
     public $user_origen_id = null;
     public $estado_id = null;
+    public $remitenteSugerencias = [];
 
     protected $paginationTheme = 'bootstrap';
 
@@ -263,6 +265,7 @@ class PaquetesEms extends Component
         if ($this->editingId) {
             $paquete = PaqueteEms::findOrFail($this->editingId);
             $paquete->update($this->payload());
+            $this->saveRemitenteData();
             session()->flash('success', 'Paquete actualizado correctamente.');
         } else {
             $this->setOrigenFromUser();
@@ -272,6 +275,7 @@ class PaquetesEms extends Component
                 return;
             }
             $paquete = PaqueteEms::create($this->payload($user->id));
+            $this->saveRemitenteData();
             session()->flash('success', 'Paquete creado correctamente.');
             $this->dispatch('closePaqueteConfirm');
             $this->dispatch('closePaqueteModal');
@@ -500,6 +504,7 @@ class PaquetesEms extends Component
             'tarifario_id',
             'destino_id',
             'estado_id',
+            'remitenteSugerencias',
         ]);
 
         $this->resetValidation();
@@ -714,6 +719,11 @@ class PaquetesEms extends Component
                 $this->codigo = $this->generateCodigo();
             }
         }
+
+        if ($name === 'nombre_remitente') {
+            $this->refreshRemitenteSugerencias((string) $value);
+            $this->applyRegisteredRemitente((string) $value);
+        }
     }
 
     protected function refreshEmsState()
@@ -829,5 +839,61 @@ class PaquetesEms extends Component
             ->value('id');
 
         return $id ? (int) $id : null;
+    }
+
+    protected function saveRemitenteData(): void
+    {
+        $carnet = trim((string) $this->carnet);
+        if ($carnet === '') {
+            return;
+        }
+
+        RemitenteEms::updateOrCreate(
+            ['carnet' => $carnet],
+            [
+                'nombre_remitente' => trim((string) $this->nombre_remitente),
+                'telefono_remitente' => trim((string) $this->telefono_remitente),
+                'nombre_envia' => trim((string) $this->nombre_envia),
+            ]
+        );
+    }
+
+    protected function refreshRemitenteSugerencias(string $value): void
+    {
+        $term = trim($value);
+        if ($term === '') {
+            $this->remitenteSugerencias = [];
+            return;
+        }
+
+        $this->remitenteSugerencias = RemitenteEms::query()
+            ->where('nombre_remitente', 'like', '%' . $term . '%')
+            ->orderBy('nombre_remitente')
+            ->limit(10)
+            ->pluck('nombre_remitente')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function applyRegisteredRemitente(string $value): void
+    {
+        $nombre = trim($value);
+        if ($nombre === '') {
+            return;
+        }
+
+        $remitente = RemitenteEms::query()
+            ->whereRaw('trim(upper(nombre_remitente)) = trim(upper(?))', [$nombre])
+            ->orderByDesc('updated_at')
+            ->first();
+
+        if (!$remitente) {
+            return;
+        }
+
+        $this->telefono_remitente = $remitente->telefono_remitente;
+        $this->carnet = $remitente->carnet;
+        $this->nombre_envia = $remitente->nombre_envia;
     }
 }
