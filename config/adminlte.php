@@ -414,6 +414,22 @@ return [
             ],
         ],
         [
+            'text' => 'Carteros',
+            'icon' => 'fas fa-truck',
+            'submenu' => [
+                [
+                    'text' => 'Distribucion',
+                    'url' => 'carteros/distribucion',
+                    'icon' => 'fas fa-route',
+                ],
+                [
+                    'text' => 'Asignados',
+                    'url' => 'carteros/asignados',
+                    'icon' => 'fas fa-check-circle',
+                ],
+            ],
+        ],
+        [
             'text' => 'Configuracion de tarifas',
             'icon' => 'fas fa-tags',
             'submenu' => [

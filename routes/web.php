@@ -17,6 +17,7 @@ use App\Http\Controllers\PaquetesCertiController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\VentanillaController;
 use App\Http\Controllers\DespachoController;
+use App\Http\Controllers\CarterosController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -106,6 +107,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
     Route::get('/despachos/abiertos', [DespachoController::class, 'index'])->name('despachos.abiertos');
+    Route::get('/carteros/distribucion', [CarterosController::class, 'distribucion'])->name('carteros.distribucion');
+    Route::get('/carteros/asignados', [CarterosController::class, 'asignados'])->name('carteros.asignados');
+    Route::get('/api/carteros/distribucion', [CarterosController::class, 'distribucionData'])->name('api.carteros.distribucion');
+    Route::get('/api/carteros/asignados', [CarterosController::class, 'asignadosData'])->name('api.carteros.asignados');
+    Route::get('/api/carteros/users', [CarterosController::class, 'users'])->name('api.carteros.users');
+    Route::post('/api/carteros/asignar', [CarterosController::class, 'assign'])->name('api.carteros.asignar');
 });
 
 require __DIR__ . '/auth.php';

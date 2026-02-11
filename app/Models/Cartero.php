@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Cartero extends Model
+{
+    use HasFactory;
+
+    protected $table = 'cartero';
+
+    protected $fillable = [
+        'id_paquetes_ems',
+        'id_paquetes_certi',
+        'id_estados',
+        'id_user',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'id_user');
+    }
+}
+
