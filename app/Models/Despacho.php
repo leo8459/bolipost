@@ -24,4 +24,9 @@ class Despacho extends Model
         'departamento',
         'estado',
     ];
+
+    public function sacas()
+    {
+        return $this->hasMany(Saca::class, 'fk_despacho');
+    }
 }

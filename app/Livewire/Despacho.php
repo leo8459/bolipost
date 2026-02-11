@@ -125,6 +125,8 @@ class Despacho extends Component
             $this->nro_despacho = $this->getNextNroDespachoForYear($this->anio);
         }
 
+        $this->identificador = $this->buildIdentificador();
+
         $this->validate($this->rules());
 
         if ($this->editingId) {
@@ -180,7 +182,7 @@ class Despacho extends Component
             'nro_despacho' => 'required|string|max:255',
             'nro_envase' => 'nullable|string|max:255',
             'peso' => 'nullable|numeric|min:0.001',
-            'identificador' => 'nullable|string|max:255',
+            'identificador' => 'required|string|max:255',
             'anio' => 'required|integer|min:1900|max:2100',
             'departamento' => 'required|string|max:255',
             'estado' => 'required|string|max:255',
@@ -216,6 +218,20 @@ class Despacho extends Component
     protected function getCurrentYear()
     {
         return now()->year;
+    }
+
+    protected function buildIdentificador()
+    {
+        $anioLastDigit = substr((string) $this->anio, -1);
+
+        return (string) (
+            $this->oforigen .
+            $this->ofdestino .
+            $this->categoria .
+            $this->subclase .
+            $anioLastDigit .
+            $this->nro_despacho
+        );
     }
 
     protected function normalizeNullable($value)

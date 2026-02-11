@@ -17,6 +17,7 @@ use App\Http\Controllers\PaquetesCertiController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\VentanillaController;
 use App\Http\Controllers\DespachoController;
+use App\Http\Controllers\SacaController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -106,6 +107,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
     Route::get('/despachos/abiertos', [DespachoController::class, 'index'])->name('despachos.abiertos');
+    Route::get('/sacas', [SacaController::class, 'index'])->name('sacas.index');
 });
 
 require __DIR__ . '/auth.php';
