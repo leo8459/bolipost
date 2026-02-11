@@ -27,7 +27,7 @@ class Despacho extends Component
     public $identificador = '';
     public $anio = '';
     public $departamento = '';
-    public $estado = '';
+    public $fk_estado = '';
 
     public $oficinas = [
         'BOLPZ' => 'BOLPZ - LA PAZ',
@@ -76,7 +76,7 @@ class Despacho extends Component
 
     public function mount()
     {
-        $this->estado = $this->getEstadoApertura();
+        $this->fk_estado = $this->getEstadoAperturaId();
         $this->anio = $this->getCurrentYear();
         $this->oforigen = $this->getOforigenFromUser();
         $this->departamento = $this->getDepartamentoFromUser();
@@ -91,7 +91,7 @@ class Despacho extends Component
     public function openCreateModal()
     {
         $this->resetForm();
-        $this->estado = $this->getEstadoApertura();
+        $this->fk_estado = $this->getEstadoAperturaId();
         $this->anio = $this->getCurrentYear();
         $this->oforigen = $this->getOforigenFromUser();
         $this->departamento = $this->getDepartamentoFromUser();
@@ -113,7 +113,7 @@ class Despacho extends Component
         $this->identificador = $despacho->identificador;
         $this->anio = $despacho->anio;
         $this->departamento = $despacho->departamento;
-        $this->estado = $despacho->estado;
+        $this->fk_estado = $despacho->fk_estado;
 
         $this->dispatch('openDespachoModal');
     }
@@ -134,7 +134,7 @@ class Despacho extends Component
             $despacho->update($this->payload());
             session()->flash('success', 'Despacho actualizado correctamente.');
         } else {
-            $this->estado = $this->getEstadoApertura();
+            $this->fk_estado = $this->getEstadoAperturaId();
             $this->anio = $this->getCurrentYear();
             $this->oforigen = $this->getOforigenFromUser() ?: $this->oforigen;
             $this->departamento = $this->getDepartamentoFromUser() ?: $this->departamento;
@@ -166,7 +166,7 @@ class Despacho extends Component
             'identificador',
             'anio',
             'departamento',
-            'estado',
+            'fk_estado',
         ]);
 
         $this->resetValidation();
@@ -185,7 +185,7 @@ class Despacho extends Component
             'identificador' => 'required|string|max:255',
             'anio' => 'required|integer|min:1900|max:2100',
             'departamento' => 'required|string|max:255',
-            'estado' => 'required|string|max:255',
+            'fk_estado' => 'required|integer|exists:estados,id',
         ];
     }
 
@@ -202,17 +202,17 @@ class Despacho extends Component
             'identificador' => $this->normalizeNullable($this->identificador),
             'anio' => $this->anio,
             'departamento' => $this->departamento,
-            'estado' => $this->estado,
+            'fk_estado' => $this->fk_estado,
         ];
     }
 
-    protected function getEstadoApertura()
+    protected function getEstadoAperturaId()
     {
-        $estado = EstadoModel::query()
+        $estadoId = EstadoModel::query()
             ->where('nombre_estado', 'APERTURA')
-            ->value('nombre_estado');
+            ->value('id');
 
-        return $estado ?: 'APERTURA';
+        return $estadoId ?: 11;
     }
 
     protected function getCurrentYear()
@@ -283,6 +283,7 @@ class Despacho extends Component
         $q = trim($this->searchQuery);
 
         $despachos = DespachoModel::query()
+            ->with('estado:id,nombre_estado')
             ->when($q !== '', function ($query) use ($q) {
                 $query->where('oforigen', 'ILIKE', "%{$q}%")
                     ->orWhere('ofdestino', 'ILIKE', "%{$q}%")
@@ -294,7 +295,9 @@ class Despacho extends Component
                     ->orWhere('identificador', 'ILIKE', "%{$q}%")
                     ->orWhere('anio', 'ILIKE', "%{$q}%")
                     ->orWhere('departamento', 'ILIKE', "%{$q}%")
-                    ->orWhere('estado', 'ILIKE', "%{$q}%");
+                    ->orWhereHas('estado', function ($estadoQuery) use ($q) {
+                        $estadoQuery->where('nombre_estado', 'ILIKE', "%{$q}%");
+                    });
             })
             ->orderByDesc('id')
             ->paginate(10);

@@ -22,11 +22,16 @@ class Despacho extends Model
         'identificador',
         'anio',
         'departamento',
-        'estado',
+        'fk_estado',
     ];
 
     public function sacas()
     {
         return $this->hasMany(Saca::class, 'fk_despacho');
+    }
+
+    public function estado()
+    {
+        return $this->belongsTo(Estado::class, 'fk_estado');
     }
 }

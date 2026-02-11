@@ -14,7 +14,7 @@ class Saca extends Model
     protected $fillable = [
         'nro_saca',
         'identificador',
-        'estado',
+        'fk_estado',
         'peso',
         'paquetes',
         'busqueda',
@@ -25,5 +25,10 @@ class Saca extends Model
     public function despacho()
     {
         return $this->belongsTo(Despacho::class, 'fk_despacho');
+    }
+
+    public function estado()
+    {
+        return $this->belongsTo(Estado::class, 'fk_estado');
     }
 }

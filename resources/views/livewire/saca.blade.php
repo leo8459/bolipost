@@ -142,6 +142,11 @@
             @if (session()->has('success'))
                 <div class="alert alert-success m-3 mb-0">{{ session('success') }}</div>
             @endif
+            @if ($errors->any())
+                <div class="alert alert-danger m-3 mb-0">
+                    {{ $errors->first() }}
+                </div>
+            @endif
 
             <div class="card-body">
                 <div class="table-responsive">
@@ -164,7 +169,7 @@
                                 <tr>
                                     <td>{{ $saca->nro_saca }}</td>
                                     <td>{{ $saca->identificador }}</td>
-                                    <td>{{ $saca->estado }}</td>
+                                    <td>{{ optional($saca->estado)->nombre_estado }}</td>
                                     <td>{{ $saca->peso }}</td>
                                     <td>{{ $saca->paquetes }}</td>
                                     <td>{{ $saca->busqueda }}</td>
@@ -212,27 +217,6 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Nro saca</label>
-                                    <input type="text" class="form-control" wire:model.defer="nro_saca">
-                                    @error('nro_saca') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Identificador</label>
-                                    <input type="text" class="form-control" wire:model.defer="identificador">
-                                    @error('identificador') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Estado</label>
-                                    <input type="text" class="form-control" wire:model.defer="estado">
-                                    @error('estado') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
                                     <label>Peso</label>
                                     <input type="number" step="0.001" class="form-control" wire:model.defer="peso">
                                     @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
@@ -252,27 +236,10 @@
                                     @error('busqueda') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Receptaculo</label>
-                                    <input type="text" class="form-control" wire:model.defer="receptaculo">
-                                    @error('receptaculo') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Despacho</label>
-                                    <select class="form-control" wire:model.defer="fk_despacho">
-                                        <option value="">Seleccione...</option>
-                                        @foreach($despachos as $despacho)
-                                            <option value="{{ $despacho->id }}">
-                                                {{ $despacho->identificador }} ({{ $despacho->anio }}-{{ $despacho->nro_despacho }})
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                    @error('fk_despacho') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
+                            <input type="hidden" wire:model.defer="fk_estado">
+                            <input type="hidden" wire:model.defer="fk_despacho">
+                            <input type="hidden" wire:model.defer="identificador">
+                            <input type="hidden" wire:model.defer="receptaculo">
                         </div>
                     </div>
 

@@ -195,8 +195,13 @@
                                     <td>{{ $despacho->identificador }}</td>
                                     <td>{{ $despacho->anio }}</td>
                                     <td>{{ $despacho->departamento }}</td>
-                                    <td>{{ $despacho->estado }}</td>
+                                    <td>{{ optional($despacho->estado)->nombre_estado }}</td>
                                     <td>
+                                        <a href="{{ route('sacas.index', ['despacho_id' => $despacho->id]) }}"
+                                            class="btn btn-sm btn-success"
+                                            title="Asignar sacas">
+                                            <i class="fas fa-suitcase"></i>
+                                        </a>
                                         <button wire:click="openEditModal({{ $despacho->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
