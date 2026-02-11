@@ -89,7 +89,11 @@ class Saca extends Component
 
     public function openEditModal($id)
     {
-        $saca = SacaModel::findOrFail($id);
+        $saca = SacaModel::query()
+            ->when($this->lockedDespachoId, function ($query) {
+                $query->where('fk_despacho', $this->lockedDespachoId);
+            })
+            ->findOrFail($id);
 
         $this->editingId = $saca->id;
         $this->nro_saca = $saca->nro_saca;
@@ -149,14 +153,19 @@ class Saca extends Component
     {
         DB::transaction(function () use ($id) {
             $saca = SacaModel::query()
+                ->when($this->lockedDespachoId, function ($query) {
+                    $query->where('fk_despacho', $this->lockedDespachoId);
+                })
                 ->lockForUpdate()
                 ->findOrFail($id);
 
             $deletedSequence = (int) $saca->nro_saca;
+            $deletedDespachoId = (int) $saca->fk_despacho;
             $saca->delete();
 
             $sacasToReorder = SacaModel::query()
                 ->with('despacho:id,identificador')
+                ->where('fk_despacho', $deletedDespachoId)
                 ->whereRaw('CAST(nro_saca AS INTEGER) > ?', [$deletedSequence])
                 ->orderByRaw('CAST(nro_saca AS INTEGER) ASC')
                 ->lockForUpdate()
@@ -239,7 +248,12 @@ class Saca extends Component
 
     protected function getNextNroSaca()
     {
+        if (empty($this->fk_despacho)) {
+            return '001';
+        }
+
         $max = SacaModel::query()
+            ->where('fk_despacho', $this->fk_despacho)
             ->max(DB::raw('CAST(nro_saca AS INTEGER)'));
 
         $next = (int) $max + 1;
@@ -306,10 +320,16 @@ class Saca extends Component
     {
         $q = trim($this->searchQuery);
 
-        $sacas = SacaModel::query()
+        $sacasQuery = SacaModel::query()
             ->with('despacho:id,identificador,nro_despacho,anio')
-            ->with('estado:id,nombre_estado')
-            ->when($q !== '', function ($query) use ($q) {
+            ->with('estado:id,nombre_estado');
+
+        if ($this->lockedDespachoId) {
+            $sacasQuery->where('fk_despacho', $this->lockedDespachoId);
+        }
+
+        if ($q !== '') {
+            $sacasQuery->where(function ($query) use ($q) {
                 $query->where('nro_saca', 'ILIKE', "%{$q}%")
                     ->orWhere('identificador', 'ILIKE', "%{$q}%")
                     ->orWhere('busqueda', 'ILIKE', "%{$q}%")
@@ -317,7 +337,10 @@ class Saca extends Component
                     ->orWhereHas('estado', function ($estadoQuery) use ($q) {
                         $estadoQuery->where('nombre_estado', 'ILIKE', "%{$q}%");
                     });
-            })
+            });
+        }
+
+        $sacas = $sacasQuery
             ->orderByDesc('id')
             ->paginate(10);
 
