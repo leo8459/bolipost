@@ -8,4 +8,14 @@ class DespachoController extends Controller
     {
         return view('despacho.index');
     }
+
+    public function expedicion()
+    {
+        return view('despacho.expedicion');
+    }
+
+    public function admitidos()
+    {
+        return view('despacho.admitidos');
+    }
 }

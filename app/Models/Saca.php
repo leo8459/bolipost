@@ -5,29 +5,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Despacho extends Model
+class Saca extends Model
 {
     use HasFactory;
 
-    protected $table = 'despacho';
+    protected $table = 'saca';
 
     protected $fillable = [
-        'oforigen',
-        'ofdestino',
-        'categoria',
-        'subclase',
-        'nro_despacho',
-        'nro_envase',
-        'peso',
+        'nro_saca',
         'identificador',
-        'anio',
-        'departamento',
         'fk_estado',
+        'peso',
+        'paquetes',
+        'busqueda',
+        'receptaculo',
+        'fk_despacho',
     ];
 
-    public function sacas()
+    public function despacho()
     {
-        return $this->hasMany(Saca::class, 'fk_despacho');
+        return $this->belongsTo(Despacho::class, 'fk_despacho');
     }
 
     public function estado()
