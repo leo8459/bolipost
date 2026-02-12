@@ -40,9 +40,12 @@ class DespachoAdmitido extends Component
 
     public function previewAdmitir()
     {
-        $receptaculos = $this->parseReceptaculos($this->receptaculosInput);
-        $this->receptaculosEscaneados = $receptaculos->all();
-        $this->receptaculosEscaneadosCount = $receptaculos->count();
+        $receptaculosEscaneados = $this->parseReceptaculos($this->receptaculosInput);
+        $this->receptaculosEscaneados = $receptaculosEscaneados->values()->all();
+        $this->receptaculosEscaneadosCount = $receptaculosEscaneados->count();
+
+        // Query with unique values, but keep full scanned list for UI.
+        $receptaculos = $receptaculosEscaneados->unique()->values();
 
         if ($receptaculos->isEmpty()) {
             $this->addError('receptaculosInput', 'Ingresa al menos un receptaculo.');
@@ -71,14 +74,46 @@ class DespachoAdmitido extends Component
             })
             ->values();
 
-        $encontrados = $sacas->pluck('receptaculo_normalizado')
+        $this->previewSacas = $sacas->map(function ($saca) {
+            return [
+                'id' => $saca->id,
+                'receptaculo' => $saca->receptaculo,
+                'identificador' => $saca->identificador,
+                'fk_despacho' => $saca->fk_despacho,
+                'despacho' => optional($saca->despacho)->identificador,
+            ];
+        })->values()->all();
+
+        $this->previewDespachoIds = collect($this->previewSacas)
+            ->pluck('fk_despacho')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $mostrados = $receptaculosEscaneados;
+
+        $sacasMostradas = SacaModel::query()
+            ->with('despacho:id,fk_estado')
+            ->whereIn(DB::raw($normalizedReceptaculoSql), $mostrados->all())
+            ->select('*')
+            ->selectRaw($normalizedReceptaculoSql . ' as receptaculo_normalizado')
+            ->get();
+
+        $validasMostradas = $sacasMostradas
+            ->filter(function ($saca) {
+                return (int) $saca->fk_estado === 15
+                    && (int) optional($saca->despacho)->fk_estado === 19;
+            })
+            ->values();
+
+        $encontrados = $validasMostradas->pluck('receptaculo_normalizado')
             ->filter()
             ->unique()
             ->values();
         $this->receptaculosEncontradosCount = $encontrados->count();
 
-        $this->receptaculosResultado = $receptaculos->map(function ($codigo) use ($sacasCandidatas, $sacas) {
-            $validas = $sacas->where('receptaculo_normalizado', $codigo);
+        $this->receptaculosResultado = $mostrados->map(function ($codigo) use ($sacasMostradas, $validasMostradas) {
+            $validas = $validasMostradas->where('receptaculo_normalizado', $codigo);
             if ($validas->isNotEmpty()) {
                 return [
                     'codigo' => $codigo,
@@ -87,7 +122,7 @@ class DespachoAdmitido extends Component
                 ];
             }
 
-            $candidatas = $sacasCandidatas->where('receptaculo_normalizado', $codigo);
+            $candidatas = $sacasMostradas->where('receptaculo_normalizado', $codigo);
             if ($candidatas->isEmpty()) {
                 return [
                     'codigo' => $codigo,
@@ -107,26 +142,10 @@ class DespachoAdmitido extends Component
             ];
         })->values()->all();
 
-        $this->previewSacas = $sacas->map(function ($saca) {
-            return [
-                'id' => $saca->id,
-                'receptaculo' => $saca->receptaculo,
-                'identificador' => $saca->identificador,
-                'fk_despacho' => $saca->fk_despacho,
-                'despacho' => optional($saca->despacho)->identificador,
-            ];
-        })->values()->all();
-
-        $this->previewDespachoIds = collect($this->previewSacas)
-            ->pluck('fk_despacho')
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-
         $this->receptaculosNoEncontrados = collect($this->receptaculosResultado)
             ->filter(fn ($item) => !$item['ok'])
             ->pluck('codigo')
+            ->unique()
             ->values()
             ->all();
     }
@@ -145,7 +164,9 @@ class DespachoAdmitido extends Component
             return;
         }
 
-        DB::transaction(function () use ($sacaIds, $despachoIds) {
+        $despachosActualizados = collect();
+
+        DB::transaction(function () use ($sacaIds, $despachoIds, &$despachosActualizados) {
             SacaModel::query()
                 ->whereIn('id', $sacaIds->all())
                 ->where('fk_estado', 15)
@@ -154,15 +175,30 @@ class DespachoAdmitido extends Component
                 })
                 ->update(['fk_estado' => 22]);
 
-            DespachoModel::query()
+            $despachosCompletos = DespachoModel::query()
                 ->whereIn('id', $despachoIds->all())
                 ->where('fk_estado', 19)
-                ->update(['fk_estado' => 21]);
+                ->whereDoesntHave('sacas', function ($query) {
+                    $query->where('fk_estado', '!=', 22);
+                })
+                ->pluck('id');
+
+            if ($despachosCompletos->isNotEmpty()) {
+                DespachoModel::query()
+                    ->whereIn('id', $despachosCompletos->all())
+                    ->update(['fk_estado' => 21]);
+            }
+
+            $despachosActualizados = $despachosCompletos;
         });
 
         $this->dispatch('closeAdmitirDespachoModal');
         $this->resetAdmitirForm();
-        session()->flash('success', 'Despachos admitidos correctamente.');
+        if ($despachosActualizados->isEmpty()) {
+            session()->flash('success', 'Sacas recibidas. Ningun despacho completo para cambiar a estado 21.');
+        } else {
+            session()->flash('success', 'Sacas recibidas y despachos completos cambiados a estado 21.');
+        }
     }
 
     public function resetAdmitirForm()
@@ -183,14 +219,14 @@ class DespachoAdmitido extends Component
 
     protected function parseReceptaculos($raw)
     {
-        return collect(preg_split('/[\s,;]+/', (string) $raw))
+        // One-by-one scan mode: each code must come in a new line (Enter).
+        return collect(preg_split('/\r\n|\r|\n/', strtoupper((string) $raw)))
             ->map(function ($item) {
                 $normalized = strtoupper(trim((string) $item));
                 // Receptaculo is stored as plain alphanumeric in DB.
                 return preg_replace('/[^A-Z0-9]/', '', $normalized);
             })
             ->filter(fn ($item) => $item !== '')
-            ->unique()
             ->values();
     }
 

@@ -155,12 +155,12 @@
 
                     <div class="modal-body">
                         <div class="form-group">
-                            <label>Receptaculos (separados por coma, espacio o salto de linea)</label>
+                            <label>Receptaculos (uno por linea, presiona Enter por cada escaneo)</label>
                             <textarea
                                 class="form-control"
                                 rows="4"
                                 wire:model.defer="receptaculosInput"
-                                placeholder="Ejemplo: ABC123 XYZ456"></textarea>
+                                placeholder="Ejemplo:\nBOLPZBOTJACUN6003002133\nBOLPZBOTJACUN6003004043"></textarea>
                         </div>
 
                         <div class="d-flex gap-2 mb-3">
@@ -223,6 +223,40 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            @php
+                                $despachosPreview = collect($previewSacas)
+                                    ->groupBy('fk_despacho')
+                                    ->map(function ($items) {
+                                        return [
+                                            'despacho' => $items->first()['despacho'] ?? '',
+                                            'cantidad_sacas' => $items->count(),
+                                        ];
+                                    })
+                                    ->values();
+                            @endphp
+
+                            @if($despachosPreview->isNotEmpty())
+                                <div class="mb-2 mt-3 fw-bold">Despachos a recibir</div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead>
+                                            <tr>
+                                                <th>Despacho</th>
+                                                <th>Cantidad de sacas</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($despachosPreview as $row)
+                                                <tr>
+                                                    <td>{{ $row['despacho'] }}</td>
+                                                    <td>{{ $row['cantidad_sacas'] }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
                         @endif
 
                         @if(!empty($receptaculosNoEncontrados))
