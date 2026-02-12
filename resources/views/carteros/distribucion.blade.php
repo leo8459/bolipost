@@ -5,77 +5,86 @@
 @endsection
 
 @section('content')
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title mb-0">Distribucion de Paquetes</h3>
-        </div>
-        <div class="card-body border-bottom">
-            <div class="row">
-                <div class="col-md-4 mb-2">
-                    <label for="codigo-search" class="mb-1">Buscar por codigo</label>
-                    <input type="text" id="codigo-search" class="form-control" placeholder="Escribe codigo y presiona Enter">
-                </div>
-                <div class="col-md-3 mb-2">
-                    <label for="assignment-mode" class="mb-1">Tipo de asignacion</label>
-                    <select id="assignment-mode" class="form-control">
-                        <option value="auto">Autoasignarme</option>
-                        <option value="user">Asignar a usuario</option>
-                    </select>
-                </div>
-                <div class="col-md-3 mb-2">
-                    <label for="assignee-user" class="mb-1">Usuario</label>
-                    <select id="assignee-user" class="form-control" disabled>
-                        <option value="">Selecciona usuario</option>
-                    </select>
-                </div>
-                <div class="col-md-2 mb-2 d-flex align-items-end">
-                    <button id="btn-asignar" class="btn btn-primary btn-block">Asignar</button>
+    <div class="carteros-wrap">
+        <div class="card card-carteros">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <h3 class="card-title mb-0">Distribucion de Paquetes</h3>
+                    <span class="carteros-chip">Control operativo</span>
                 </div>
             </div>
-            <div id="asignacion-msg" class="small"></div>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th style="width: 40px;">
-                                <input type="checkbox" id="check-all">
-                            </th>
-                            <th>Tipo</th>
-                            <th>Codigo</th>
-                            <th>Destinatario</th>
-                            <th>Telefono</th>
-                            <th>Ciudad</th>
-                            <th>Zona</th>
-                            <th>Peso</th>
-                            <th>Estado</th>
-                            <th>Asignado a</th>
-                            <th>Fecha</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-distribucion-body">
-                        <tr>
-                            <td colspan="11" class="text-center py-4">Cargando datos...</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div class="card-body border-bottom">
+                <div class="row">
+                    <div class="col-md-4 mb-2">
+                        <label for="codigo-search" class="mb-1">Buscar por codigo</label>
+                        <input type="text" id="codigo-search" class="form-control" placeholder="Escribe codigo y presiona Enter">
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label for="assignment-mode" class="mb-1">Tipo de asignacion</label>
+                        <select id="assignment-mode" class="form-control">
+                            <option value="auto">Autoasignarme</option>
+                            <option value="user">Asignar a usuario</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label for="assignee-user" class="mb-1">Usuario</label>
+                        <select id="assignee-user" class="form-control" disabled>
+                            <option value="">Selecciona usuario</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-2 d-flex align-items-end">
+                        <button id="btn-asignar" class="btn btn-carteros-primary btn-block">Asignar</button>
+                    </div>
+                </div>
+                <div id="asignacion-msg" class="small"></div>
             </div>
-        </div>
-        <div class="card-footer clearfix">
-            <ul class="pagination pagination-sm m-0 float-right">
-                <li class="page-item" id="prev-page-item">
-                    <a class="page-link" href="#" id="prev-page-link">Anterior</a>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link" id="page-indicator">Pagina 1 de 1</span>
-                </li>
-                <li class="page-item" id="next-page-item">
-                    <a class="page-link" href="#" id="next-page-link">Siguiente</a>
-                </li>
-            </ul>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="check-all">
+                                </th>
+                                <th>Tipo</th>
+                                <th>Codigo</th>
+                                <th>Destinatario</th>
+                                <th>Telefono</th>
+                                <th>Ciudad</th>
+                                <th>Zona</th>
+                                <th>Peso</th>
+                                <th>Estado</th>
+                                <th>Asignado a</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-distribucion-body">
+                            <tr>
+                                <td colspan="11" class="text-center py-4">Cargando datos...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer clearfix">
+                <ul class="pagination pagination-sm m-0 float-right">
+                    <li class="page-item" id="prev-page-item">
+                        <a class="page-link" href="#" id="prev-page-link">Anterior</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link" id="page-indicator">Pagina 1 de 1</span>
+                    </li>
+                    <li class="page-item" id="next-page-item">
+                        <a class="page-link" href="#" id="next-page-link">Siguiente</a>
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
+@endsection
+
+@section('css')
+    @include('carteros.partials.theme')
 @endsection
 
 @section('js')

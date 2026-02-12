@@ -5,52 +5,61 @@
 @endsection
 
 @section('content')
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title mb-0">Paquetes en Estado DOMICILIO</h3>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>Tipo</th>
-                            <th>Codigo</th>
-                            <th>Destinatario</th>
-                            <th>Telefono</th>
-                            <th>Ciudad</th>
-                            <th>Zona</th>
-                            <th>Peso</th>
-                            <th>Estado</th>
-                            <th>Asignado a</th>
-                            <th>Intento</th>
-                            <th>Recibido por</th>
-                            <th>Descripcion</th>
-                            <th>Fecha</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-domicilio-body">
-                        <tr>
-                            <td colspan="13" class="text-center py-4">Cargando datos...</td>
-                        </tr>
-                    </tbody>
-                </table>
+    <div class="carteros-wrap">
+        <div class="card card-carteros">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <h3 class="card-title mb-0">Paquetes en Estado DOMICILIO</h3>
+                    <span class="carteros-chip">Entregados</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Codigo</th>
+                                <th>Destinatario</th>
+                                <th>Telefono</th>
+                                <th>Ciudad</th>
+                                <th>Zona</th>
+                                <th>Peso</th>
+                                <th>Estado</th>
+                                <th>Asignado a</th>
+                                <th>Intento</th>
+                                <th>Recibido por</th>
+                                <th>Descripcion</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-domicilio-body">
+                            <tr>
+                                <td colspan="13" class="text-center py-4">Cargando datos...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer clearfix">
+                <ul class="pagination pagination-sm m-0 float-right">
+                    <li class="page-item" id="prev-page-item">
+                        <a class="page-link" href="#" id="prev-page-link">Anterior</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link" id="page-indicator">Pagina 1 de 1</span>
+                    </li>
+                    <li class="page-item" id="next-page-item">
+                        <a class="page-link" href="#" id="next-page-link">Siguiente</a>
+                    </li>
+                </ul>
             </div>
         </div>
-        <div class="card-footer clearfix">
-            <ul class="pagination pagination-sm m-0 float-right">
-                <li class="page-item" id="prev-page-item">
-                    <a class="page-link" href="#" id="prev-page-link">Anterior</a>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link" id="page-indicator">Pagina 1 de 1</span>
-                </li>
-                <li class="page-item" id="next-page-item">
-                    <a class="page-link" href="#" id="next-page-link">Siguiente</a>
-                </li>
-            </ul>
-        </div>
     </div>
+@endsection
+
+@section('css')
+    @include('carteros.partials.theme')
 @endsection
 
 @section('js')
@@ -147,4 +156,3 @@
         })();
     </script>
 @endsection
-
