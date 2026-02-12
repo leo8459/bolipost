@@ -332,10 +332,7 @@ class Saca extends Component
 
     protected function buildReceptaculo()
     {
-        $peso = $this->normalizeNullable($this->peso);
-        $base = $this->identificador . (string) ($peso ?? '');
-
-        return preg_replace('/[^A-Za-z0-9]/', '', $base);
+        return $this->buildReceptaculoForValues($this->identificador, $this->peso);
     }
 
     protected function buildIdentificadorForModel(SacaModel $saca)
@@ -347,9 +344,33 @@ class Saca extends Component
 
     protected function buildReceptaculoForValues($identificador, $peso)
     {
-        $base = (string) $identificador . (string) ($peso ?? '');
+        $pesoFormateado = $this->formatPesoForReceptaculo($peso);
+        $base = (string) $identificador . $pesoFormateado;
 
         return preg_replace('/[^A-Za-z0-9]/', '', $base);
+    }
+
+    protected function formatPesoForReceptaculo($peso)
+    {
+        $normalized = $this->normalizeNullable($peso);
+        if ($normalized === null) {
+            return '';
+        }
+
+        $raw = str_replace(',', '.', (string) $normalized);
+        $parts = explode('.', $raw, 2);
+
+        $entero = preg_replace('/[^0-9]/', '', $parts[0] ?? '');
+        $decimal = preg_replace('/[^0-9]/', '', $parts[1] ?? '');
+        $primerDecimal = $decimal !== '' ? substr($decimal, 0, 1) : '';
+
+        $digits = $entero . $primerDecimal;
+
+        if ($digits === '') {
+            return '';
+        }
+
+        return str_pad($digits, 3, '0', STR_PAD_LEFT);
     }
 
     public function render()

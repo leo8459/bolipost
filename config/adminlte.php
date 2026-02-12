@@ -417,6 +417,11 @@ return [
                     'icon' => 'fas fa-paper-plane',
                 ],
                 [
+                    'text' => 'Despachos Admitidos',
+                    'url' => 'despachos/admitidos',
+                    'icon' => 'fas fa-check-circle',
+                ],
+                [
                     'text' => 'Sacas',
                     'url' => 'sacas',
                     'icon' => 'fas fa-suitcase',
