@@ -211,12 +211,18 @@
                 </div>
 
                 <div class="d-flex justify-content-end mt-3">
-                    <button type="button"
-                        class="btn btn-danger"
-                        wire:click="cerrarDespacho"
-                        onclick="return confirm('Se cerrara el despacho y cambiara estados de sacas y despacho. Continuar?')">
-                        Cerrar despacho
-                    </button>
+                    @if ($canCerrarDespacho)
+                        <button type="button"
+                            class="btn btn-danger"
+                            wire:click="cerrarDespacho"
+                            onclick="return confirm('Se cerrara el despacho y cambiara estados de sacas y despacho. Continuar?')">
+                            Cerrar despacho
+                        </button>
+                    @else
+                        <button type="button" class="btn btn-danger" disabled title="{{ $cerrarDespachoError }}">
+                            Cerrar despacho
+                        </button>
+                    @endif
                 </div>
             </div>
         </div>

@@ -185,38 +185,111 @@ class Saca extends Component
 
     public function cerrarDespacho()
     {
-        $despachoId = $this->lockedDespachoId ?: (int) $this->fk_despacho;
+        $despachoId = $this->getCurrentDespachoId();
 
         if (!$despachoId) {
             session()->flash('error', 'No hay despacho seleccionado para cerrar.');
             return;
         }
 
-        DB::transaction(function () use ($despachoId) {
-            $totales = SacaModel::query()
-                ->where('fk_despacho', $despachoId)
-                ->selectRaw('COALESCE(SUM(paquetes), 0) as total_paquetes, COALESCE(SUM(peso), 0) as total_peso')
-                ->first();
+        $validationError = $this->getCerrarDespachoValidationError($despachoId);
+        if ($validationError !== null) {
+            session()->flash('error', $validationError);
+            return;
+        }
 
-            $totalPaquetes = (int) ($totales->total_paquetes ?? 0);
-            $totalPeso = round((float) ($totales->total_peso ?? 0), 3);
+        try {
+            DB::transaction(function () use ($despachoId) {
+                $sacas = SacaModel::query()
+                    ->where('fk_despacho', $despachoId)
+                    ->lockForUpdate()
+                    ->get(['fk_estado', 'paquetes', 'peso']);
 
-            SacaModel::query()
-                ->where('fk_despacho', $despachoId)
-                ->update(['fk_estado' => 15]);
+                if ($sacas->isNotEmpty() && $sacas->every(fn($item) => (int) $item->fk_estado === 15)) {
+                    throw new \RuntimeException('all_closed');
+                }
 
-            Despacho::query()
-                ->whereKey($despachoId)
-                ->update([
-                    'fk_estado' => 14,
-                    'nro_envase' => (string) $totalPaquetes,
-                    'peso' => $totalPeso,
-                ]);
-        });
+                $totalPaquetes = (int) $sacas->sum(function ($item) {
+                    return (int) ($item->paquetes ?? 0);
+                });
+                $totalPeso = round((float) $sacas->sum(function ($item) {
+                    return (float) ($item->peso ?? 0);
+                }), 3);
+
+                SacaModel::query()
+                    ->where('fk_despacho', $despachoId)
+                    ->update(['fk_estado' => 15]);
+
+                Despacho::query()
+                    ->whereKey($despachoId)
+                    ->update([
+                        'fk_estado' => 14,
+                        'nro_envase' => (string) $totalPaquetes,
+                        'peso' => $totalPeso,
+                    ]);
+            });
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() !== 'all_closed') {
+                throw $e;
+            }
+            session()->flash('error', 'No se puede cerrar: todas las sacas ya estan en estado 15.');
+            return;
+        }
 
         session()->flash('success', 'Despacho cerrado correctamente.');
 
         return redirect()->route('despachos.abiertos');
+    }
+
+    protected function getCurrentDespachoId()
+    {
+        return $this->lockedDespachoId ?: (int) $this->fk_despacho;
+    }
+
+    protected function canCerrarDespacho($despachoId)
+    {
+        return $this->getCerrarDespachoValidationError($despachoId) === null;
+    }
+
+    protected function getCerrarDespachoValidationError($despachoId)
+    {
+        if (!$despachoId) {
+            return 'No hay despacho seleccionado para cerrar.';
+        }
+
+        $totalSacas = SacaModel::query()
+            ->where('fk_despacho', $despachoId)
+            ->count();
+
+        if ($totalSacas === 0) {
+            return null;
+        }
+
+        $sacasConDatosVacios = SacaModel::query()
+            ->where('fk_despacho', $despachoId)
+            ->where(function ($query) {
+                $query->whereNull('peso')
+                    ->orWhereNull('paquetes');
+            })
+            ->count();
+
+        if ($sacasConDatosVacios > 0) {
+            return 'No se puede cerrar: todas las sacas deben tener peso y paquetes.';
+        }
+
+        $sacasNoCerradas = SacaModel::query()
+            ->where('fk_despacho', $despachoId)
+            ->where(function ($query) {
+                $query->whereNull('fk_estado')
+                    ->orWhere('fk_estado', '!=', 15);
+            })
+            ->count();
+
+        if ($sacasNoCerradas === 0) {
+            return 'No se puede cerrar: todas las sacas ya estan en estado 15.';
+        }
+
+        return null;
     }
 
     public function resetForm()
@@ -405,9 +478,15 @@ class Saca extends Component
             ->orderByDesc('id')
             ->get(['id', 'identificador', 'nro_despacho', 'anio']);
 
+        $currentDespachoId = $this->getCurrentDespachoId();
+        $cerrarDespachoError = $this->getCerrarDespachoValidationError($currentDespachoId);
+        $canCerrarDespacho = $cerrarDespachoError === null;
+
         return view('livewire.saca', [
             'sacas' => $sacas,
             'despachos' => $despachos,
+            'canCerrarDespacho' => $canCerrarDespacho,
+            'cerrarDespachoError' => $cerrarDespachoError,
         ]);
     }
 }
