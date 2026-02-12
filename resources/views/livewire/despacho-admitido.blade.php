@@ -160,12 +160,11 @@
                                 type="text"
                                 class="form-control"
                                 wire:model.defer="receptaculoScanInput"
-                                wire:keydown.enter.prevent="enqueueReceptaculo"
+                                wire:keydown.enter.prevent="scanAndSearch"
                                 placeholder="Escanea codigo y presiona Enter">
                         </div>
 
                         <div class="d-flex gap-2 mb-3">
-                            <button type="button" class="btn btn-secondary" wire:click="enqueueReceptaculo">Agregar codigo</button>
                             <button type="button" class="btn btn-info" wire:click="previewAdmitir">Buscar sacas</button>
                         </div>
 
