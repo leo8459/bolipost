@@ -48,6 +48,10 @@ class DespachoAdmitido extends Component
             return;
         }
 
+        if (in_array($codigo, $this->receptaculosEscaneados, true)) {
+            return;
+        }
+
         $this->receptaculosEscaneados[] = $codigo;
         $this->receptaculosEscaneadosCount = count($this->receptaculosEscaneados);
     }
