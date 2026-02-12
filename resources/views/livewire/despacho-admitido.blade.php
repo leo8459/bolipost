@@ -186,16 +186,14 @@
                                     </thead>
                                     <tbody>
                                         @foreach($receptaculosResultado as $item)
-                                            <tr>
-                                                <td>{{ $item['codigo'] }}</td>
-                                                <td>
-                                                    @if($item['ok'])
+                                            @if($item['ok'])
+                                                <tr>
+                                                    <td>{{ $item['codigo'] }}</td>
+                                                    <td>
                                                         <span class="text-success fw-bold">{{ $item['detalle'] }}</span>
-                                                    @else
-                                                        <span class="text-danger fw-bold">{{ $item['detalle'] }}</span>
-                                                    @endif
-                                                </td>
-                                            </tr>
+                                                    </td>
+                                                </tr>
+                                            @endif
                                         @endforeach
                                     </tbody>
                                 </table>
