@@ -155,15 +155,17 @@
 
                     <div class="modal-body">
                         <div class="form-group">
-                            <label>Receptaculos (uno por linea, presiona Enter por cada escaneo)</label>
-                            <textarea
+                            <label>Escanear receptaculo (Enter agrega y limpia)</label>
+                            <input
+                                type="text"
                                 class="form-control"
-                                rows="4"
-                                wire:model.defer="receptaculosInput"
-                                placeholder="Ejemplo:\nBOLPZBOTJACUN6003002133\nBOLPZBOTJACUN6003004043"></textarea>
+                                wire:model.defer="receptaculoScanInput"
+                                wire:keydown.enter.prevent="enqueueReceptaculo"
+                                placeholder="Escanea codigo y presiona Enter">
                         </div>
 
                         <div class="d-flex gap-2 mb-3">
+                            <button type="button" class="btn btn-secondary" wire:click="enqueueReceptaculo">Agregar codigo</button>
                             <button type="button" class="btn btn-info" wire:click="previewAdmitir">Buscar sacas</button>
                         </div>
 

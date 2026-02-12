@@ -16,6 +16,7 @@ class DespachoAdmitido extends Component
     public $search = '';
     public $searchQuery = '';
     public $receptaculosInput = '';
+    public $receptaculoScanInput = '';
     public $previewSacas = [];
     public $previewDespachoIds = [];
     public $receptaculosNoEncontrados = [];
@@ -38,9 +39,26 @@ class DespachoAdmitido extends Component
         $this->dispatch('openAdmitirDespachoModal');
     }
 
+    public function enqueueReceptaculo()
+    {
+        $codigo = $this->normalizeReceptaculo($this->receptaculoScanInput);
+        $this->receptaculoScanInput = '';
+
+        if ($codigo === '') {
+            return;
+        }
+
+        $this->receptaculosEscaneados[] = $codigo;
+        $this->receptaculosEscaneadosCount = count($this->receptaculosEscaneados);
+    }
+
     public function previewAdmitir()
     {
-        $receptaculosEscaneados = $this->parseReceptaculos($this->receptaculosInput);
+        if (!empty(trim((string) $this->receptaculoScanInput))) {
+            $this->enqueueReceptaculo();
+        }
+
+        $receptaculosEscaneados = collect($this->receptaculosEscaneados);
         $this->receptaculosEscaneados = $receptaculosEscaneados->values()->all();
         $this->receptaculosEscaneadosCount = $receptaculosEscaneados->count();
 
@@ -205,6 +223,7 @@ class DespachoAdmitido extends Component
     {
         $this->reset([
             'receptaculosInput',
+            'receptaculoScanInput',
             'previewSacas',
             'previewDespachoIds',
             'receptaculosNoEncontrados',
@@ -221,13 +240,16 @@ class DespachoAdmitido extends Component
     {
         // One-by-one scan mode: each code must come in a new line (Enter).
         return collect(preg_split('/\r\n|\r|\n/', strtoupper((string) $raw)))
-            ->map(function ($item) {
-                $normalized = strtoupper(trim((string) $item));
-                // Receptaculo is stored as plain alphanumeric in DB.
-                return preg_replace('/[^A-Z0-9]/', '', $normalized);
-            })
+            ->map(fn ($item) => $this->normalizeReceptaculo($item))
             ->filter(fn ($item) => $item !== '')
             ->values();
+    }
+
+    protected function normalizeReceptaculo($value)
+    {
+        $normalized = strtoupper(trim((string) $value));
+
+        return preg_replace('/[^A-Z0-9]/', '', $normalized);
     }
 
     public function render()
