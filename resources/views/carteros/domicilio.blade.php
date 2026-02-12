@@ -1,13 +1,13 @@
 @extends('adminlte::page')
-@section('title', 'Carteros - Asignados')
+@section('title', 'Carteros - Domicilio')
 @section('template_title')
-    Carteros - Asignados
+    Carteros - Domicilio
 @endsection
 
 @section('content')
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title mb-0">Paquetes en Estado CARTERO</h3>
+            <h3 class="card-title mb-0">Paquetes en Estado DOMICILIO</h3>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -24,12 +24,14 @@
                             <th>Estado</th>
                             <th>Asignado a</th>
                             <th>Intento</th>
+                            <th>Recibido por</th>
+                            <th>Descripcion</th>
                             <th>Fecha</th>
                         </tr>
                     </thead>
-                    <tbody id="tabla-asignados-body">
+                    <tbody id="tabla-domicilio-body">
                         <tr>
-                            <td colspan="11" class="text-center py-4">Cargando datos...</td>
+                            <td colspan="13" class="text-center py-4">Cargando datos...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -57,7 +59,7 @@
             let currentPage = 1;
             const perPage = 25;
 
-            const body = document.getElementById('tabla-asignados-body');
+            const body = document.getElementById('tabla-domicilio-body');
             const pageIndicator = document.getElementById('page-indicator');
             const prevItem = document.getElementById('prev-page-item');
             const nextItem = document.getElementById('next-page-item');
@@ -75,16 +77,16 @@
             }
 
             function setLoading() {
-                body.innerHTML = '<tr><td colspan="11" class="text-center py-4">Cargando datos...</td></tr>';
+                body.innerHTML = '<tr><td colspan="13" class="text-center py-4">Cargando datos...</td></tr>';
             }
 
             function setError() {
-                body.innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
+                body.innerHTML = '<tr><td colspan="13" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
             }
 
             function renderRows(rows) {
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="11" class="text-center py-4">No hay paquetes en estado CARTERO.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="13" class="text-center py-4">No hay paquetes en estado DOMICILIO.</td></tr>';
                     return;
                 }
 
@@ -100,6 +102,8 @@
                         '<td>' + escapeHtml(row.estado_id) + '</td>' +
                         '<td>' + escapeHtml(row.asignado_a) + '</td>' +
                         '<td>' + escapeHtml(row.intento) + '</td>' +
+                        '<td>' + escapeHtml(row.recibido_por) + '</td>' +
+                        '<td>' + escapeHtml(row.descripcion) + '</td>' +
                         '<td>' + escapeHtml(row.created_at) + '</td>' +
                         '</tr>';
                 }).join('');
@@ -116,7 +120,7 @@
             async function loadPage(page) {
                 setLoading();
                 try {
-                    const url = '{{ route('api.carteros.asignados') }}?page=' + page + '&per_page=' + perPage;
+                    const url = '{{ route('api.carteros.domicilio') }}?page=' + page + '&per_page=' + perPage;
                     const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) throw new Error('Request failed');
                     const payload = await response.json();

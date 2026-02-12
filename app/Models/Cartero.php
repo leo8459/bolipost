@@ -16,6 +16,9 @@ class Cartero extends Model
         'id_paquetes_certi',
         'id_estados',
         'id_user',
+        'intento',
+        'recibido_por',
+        'descripcion',
     ];
 
     public function user()
@@ -23,4 +26,3 @@ class Cartero extends Model
         return $this->belongsTo(User::class, 'id_user');
     }
 }
-

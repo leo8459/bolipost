@@ -109,10 +109,21 @@ Route::middleware('auth')->group(function () {
     Route::get('/despachos/abiertos', [DespachoController::class, 'index'])->name('despachos.abiertos');
     Route::get('/carteros/distribucion', [CarterosController::class, 'distribucion'])->name('carteros.distribucion');
     Route::get('/carteros/asignados', [CarterosController::class, 'asignados'])->name('carteros.asignados');
+    Route::get('/carteros/cartero', [CarterosController::class, 'cartero'])->name('carteros.cartero');
+    Route::get('/carteros/devolucion', [CarterosController::class, 'devolucion'])->name('carteros.devolucion');
+    Route::get('/carteros/domicilio', [CarterosController::class, 'domicilio'])->name('carteros.domicilio');
+    Route::get('/carteros/entrega', [CarterosController::class, 'entregaForm'])->name('carteros.entrega');
     Route::get('/api/carteros/distribucion', [CarterosController::class, 'distribucionData'])->name('api.carteros.distribucion');
     Route::get('/api/carteros/asignados', [CarterosController::class, 'asignadosData'])->name('api.carteros.asignados');
+    Route::get('/api/carteros/cartero', [CarterosController::class, 'carteroData'])->name('api.carteros.cartero');
+    Route::get('/api/carteros/devolucion', [CarterosController::class, 'devolucionData'])->name('api.carteros.devolucion');
+    Route::get('/api/carteros/domicilio', [CarterosController::class, 'domicilioData'])->name('api.carteros.domicilio');
     Route::get('/api/carteros/users', [CarterosController::class, 'users'])->name('api.carteros.users');
     Route::post('/api/carteros/asignar', [CarterosController::class, 'assign'])->name('api.carteros.asignar');
+    Route::post('/api/carteros/devolver-almacen', [CarterosController::class, 'returnToAlmacen'])->name('api.carteros.devolver-almacen');
+    Route::post('/api/carteros/aceptar-paquetes', [CarterosController::class, 'acceptPackages'])->name('api.carteros.aceptar-paquetes');
+    Route::post('/carteros/entrega', [CarterosController::class, 'deliverPackage'])->name('carteros.entrega.store');
+    Route::post('/carteros/entrega/intento', [CarterosController::class, 'addAttempt'])->name('carteros.entrega.intento');
 });
 
 require __DIR__ . '/auth.php';

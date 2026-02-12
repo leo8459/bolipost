@@ -427,6 +427,21 @@ return [
                     'url' => 'carteros/asignados',
                     'icon' => 'fas fa-check-circle',
                 ],
+                [
+                    'text' => 'Cartero',
+                    'url' => 'carteros/cartero',
+                    'icon' => 'fas fa-user-check',
+                ],
+                [
+                    'text' => 'Devolucion',
+                    'url' => 'carteros/devolucion',
+                    'icon' => 'fas fa-undo',
+                ],
+                [
+                    'text' => 'Domicilio',
+                    'url' => 'carteros/domicilio',
+                    'icon' => 'fas fa-home',
+                ],
             ],
         ],
         [

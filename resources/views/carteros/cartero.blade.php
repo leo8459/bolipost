@@ -1,13 +1,13 @@
 @extends('adminlte::page')
-@section('title', 'Carteros - Asignados')
+@section('title', 'Carteros - Cartero')
 @section('template_title')
-    Carteros - Asignados
+    Carteros - Cartero
 @endsection
 
 @section('content')
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title mb-0">Paquetes en Estado CARTERO</h3>
+            <h3 class="card-title mb-0">Paquetes en Estado CARTERO (Mis Paquetes)</h3>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -25,11 +25,12 @@
                             <th>Asignado a</th>
                             <th>Intento</th>
                             <th>Fecha</th>
+                            <th>Accion</th>
                         </tr>
                     </thead>
-                    <tbody id="tabla-asignados-body">
+                    <tbody id="tabla-cartero-body">
                         <tr>
-                            <td colspan="11" class="text-center py-4">Cargando datos...</td>
+                            <td colspan="12" class="text-center py-4">Cargando datos...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -57,7 +58,7 @@
             let currentPage = 1;
             const perPage = 25;
 
-            const body = document.getElementById('tabla-asignados-body');
+            const body = document.getElementById('tabla-cartero-body');
             const pageIndicator = document.getElementById('page-indicator');
             const prevItem = document.getElementById('prev-page-item');
             const nextItem = document.getElementById('next-page-item');
@@ -75,20 +76,21 @@
             }
 
             function setLoading() {
-                body.innerHTML = '<tr><td colspan="11" class="text-center py-4">Cargando datos...</td></tr>';
+                body.innerHTML = '<tr><td colspan="12" class="text-center py-4">Cargando datos...</td></tr>';
             }
 
             function setError() {
-                body.innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
+                body.innerHTML = '<tr><td colspan="12" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
             }
 
             function renderRows(rows) {
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="11" class="text-center py-4">No hay paquetes en estado CARTERO.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="12" class="text-center py-4">No hay paquetes en estado CARTERO para este usuario.</td></tr>';
                     return;
                 }
 
                 body.innerHTML = rows.map(function(row) {
+                    const entregaUrl = '{{ route('carteros.entrega') }}' + '?tipo_paquete=' + encodeURIComponent(row.tipo_paquete) + '&id=' + encodeURIComponent(row.id);
                     return '<tr>' +
                         '<td>' + escapeHtml(row.tipo_paquete) + '</td>' +
                         '<td>' + escapeHtml(row.codigo) + '</td>' +
@@ -101,6 +103,7 @@
                         '<td>' + escapeHtml(row.asignado_a) + '</td>' +
                         '<td>' + escapeHtml(row.intento) + '</td>' +
                         '<td>' + escapeHtml(row.created_at) + '</td>' +
+                        '<td><a href="' + entregaUrl + '" class="btn btn-sm btn-primary">Entregar correspondencia</a></td>' +
                         '</tr>';
                 }).join('');
             }
@@ -116,7 +119,7 @@
             async function loadPage(page) {
                 setLoading();
                 try {
-                    const url = '{{ route('api.carteros.asignados') }}?page=' + page + '&per_page=' + perPage;
+                    const url = '{{ route('api.carteros.cartero') }}?page=' + page + '&per_page=' + perPage;
                     const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) throw new Error('Request failed');
                     const payload = await response.json();
@@ -143,4 +146,3 @@
         })();
     </script>
 @endsection
-
