@@ -52,6 +52,12 @@ class DespachoAdmitido extends Component
         $this->receptaculosEscaneadosCount = count($this->receptaculosEscaneados);
     }
 
+    public function scanAndSearch()
+    {
+        $this->enqueueReceptaculo();
+        $this->previewAdmitir();
+    }
+
     public function previewAdmitir()
     {
         if (!empty(trim((string) $this->receptaculoScanInput))) {
