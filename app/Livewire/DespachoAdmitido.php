@@ -62,6 +62,29 @@ class DespachoAdmitido extends Component
         $this->previewAdmitir();
     }
 
+    public function removeScanned($codigo)
+    {
+        $codigo = $this->normalizeReceptaculo($codigo);
+        $this->receptaculosEscaneados = collect($this->receptaculosEscaneados)
+            ->reject(fn ($item) => $item === $codigo)
+            ->values()
+            ->all();
+
+        $this->receptaculosEscaneadosCount = count($this->receptaculosEscaneados);
+
+        if ($this->receptaculosEscaneadosCount === 0) {
+            $this->previewSacas = [];
+            $this->previewDespachoIds = [];
+            $this->receptaculosNoEncontrados = [];
+            $this->receptaculosResultado = [];
+            $this->receptaculosEncontradosCount = 0;
+            $this->resetValidation();
+            return;
+        }
+
+        $this->previewAdmitir();
+    }
+
     public function previewAdmitir()
     {
         if (!empty(trim((string) $this->receptaculoScanInput))) {
@@ -268,7 +291,7 @@ class DespachoAdmitido extends Component
 
         $despachos = DespachoModel::query()
             ->with('estado:id,nombre_estado')
-            ->where('fk_estado', 21)
+            ->whereIn('fk_estado', [19, 21])
             ->withCount([
                 'sacas as sacas_totales',
                 'sacas as sacas_recibidas' => function ($query) {

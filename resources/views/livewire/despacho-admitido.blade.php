@@ -182,6 +182,7 @@
                                         <tr>
                                             <th>Receptaculo</th>
                                             <th>Resultado</th>
+                                            <th>Accion</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -191,6 +192,15 @@
                                                     <td>{{ $item['codigo'] }}</td>
                                                     <td>
                                                         <span class="text-success fw-bold">{{ $item['detalle'] }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <button
+                                                            type="button"
+                                                            class="btn btn-sm btn-outline-danger"
+                                                            wire:click="removeScanned('{{ $item['codigo'] }}')"
+                                                            title="Quitar">
+                                                            <i class="fas fa-times"></i>
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             @endif
