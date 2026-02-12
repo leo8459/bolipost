@@ -85,6 +85,7 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
+                    <button class="btn btn-dorado" type="button" wire:click="openAdmitirModal">Admitir despachos</button>
                 </div>
             </div>
 
@@ -141,4 +142,112 @@
         </div>
     </div>
 
+    <div class="modal fade" id="admitirDespachoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form wire:submit.prevent="admitirDespachos">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Admitir despachos por receptaculo</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Receptaculos (separados por coma, espacio o salto de linea)</label>
+                            <textarea
+                                class="form-control"
+                                rows="4"
+                                wire:model.defer="receptaculosInput"
+                                placeholder="Ejemplo: ABC123 XYZ456"></textarea>
+                        </div>
+
+                        <div class="d-flex gap-2 mb-3">
+                            <button type="button" class="btn btn-info" wire:click="previewAdmitir">Buscar sacas</button>
+                        </div>
+
+                        @if($receptaculosEscaneadosCount > 0)
+                            <div class="alert alert-info py-2">
+                                Escaneados: {{ $receptaculosEscaneadosCount }} | Encontrados: {{ $receptaculosEncontradosCount }}
+                            </div>
+                        @endif
+
+                        @if(!empty($receptaculosResultado))
+                            <div class="mb-2 fw-bold">Lista escaneada</div>
+                            <div class="table-responsive mb-3">
+                                <table class="table table-sm table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Receptaculo</th>
+                                            <th>Resultado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($receptaculosResultado as $item)
+                                            <tr>
+                                                <td>{{ $item['codigo'] }}</td>
+                                                <td>
+                                                    @if($item['ok'])
+                                                        <span class="text-success fw-bold">{{ $item['detalle'] }}</span>
+                                                    @else
+                                                        <span class="text-danger fw-bold">{{ $item['detalle'] }}</span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+
+                        @if(!empty($previewSacas))
+                            <div class="mb-2 fw-bold">Sacas a recibir (saca estado 15 y despacho estado 19)</div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Receptaculo</th>
+                                            <th>Identificador saca</th>
+                                            <th>Despacho</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($previewSacas as $saca)
+                                            <tr>
+                                                <td>{{ $saca['receptaculo'] }}</td>
+                                                <td>{{ $saca['identificador'] }}</td>
+                                                <td>{{ $saca['despacho'] }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+
+                        @if(!empty($receptaculosNoEncontrados))
+                            <div class="alert alert-warning mt-3 mb-0">
+                                No encontrados o no validos por estado: {{ implode(', ', $receptaculosNoEncontrados) }}
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Recibir despachos</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+    window.addEventListener('openAdmitirDespachoModal', () => {
+        $('#admitirDespachoModal').modal('show');
+    });
+
+    window.addEventListener('closeAdmitirDespachoModal', () => {
+        $('#admitirDespachoModal').modal('hide');
+    });
+</script>

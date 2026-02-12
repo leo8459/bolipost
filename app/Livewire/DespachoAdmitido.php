@@ -20,6 +20,7 @@ class DespachoAdmitido extends Component
     public $previewDespachoIds = [];
     public $receptaculosNoEncontrados = [];
     public $receptaculosEscaneados = [];
+    public $receptaculosResultado = [];
     public $receptaculosEscaneadosCount = 0;
     public $receptaculosEncontradosCount = 0;
 
@@ -49,24 +50,62 @@ class DespachoAdmitido extends Component
             $this->previewDespachoIds = [];
             $this->receptaculosNoEncontrados = [];
             $this->receptaculosEscaneados = [];
+            $this->receptaculosResultado = [];
             $this->receptaculosEncontradosCount = 0;
             return;
         }
 
-        $sacas = SacaModel::query()
-            ->with('despacho:id,identificador,nro_despacho,anio')
-            ->where('fk_estado', 15)
-            ->whereHas('despacho', function ($query) {
-                $query->where('fk_estado', 19);
-            })
-            ->whereIn('receptaculo', $receptaculos->all())
+        $normalizedReceptaculoSql = "REGEXP_REPLACE(UPPER(COALESCE(receptaculo, '')), '[^A-Z0-9]', '', 'g')";
+
+        $sacasCandidatas = SacaModel::query()
+            ->with('despacho:id,identificador,nro_despacho,anio,fk_estado')
+            ->whereIn(DB::raw($normalizedReceptaculoSql), $receptaculos->all())
+            ->select('*')
+            ->selectRaw($normalizedReceptaculoSql . ' as receptaculo_normalizado')
             ->get();
 
-        $encontrados = $sacas->pluck('receptaculo')
+        $sacas = $sacasCandidatas
+            ->filter(function ($saca) {
+                return (int) $saca->fk_estado === 15
+                    && (int) optional($saca->despacho)->fk_estado === 19;
+            })
+            ->values();
+
+        $encontrados = $sacas->pluck('receptaculo_normalizado')
             ->filter()
             ->unique()
             ->values();
         $this->receptaculosEncontradosCount = $encontrados->count();
+
+        $this->receptaculosResultado = $receptaculos->map(function ($codigo) use ($sacasCandidatas, $sacas) {
+            $validas = $sacas->where('receptaculo_normalizado', $codigo);
+            if ($validas->isNotEmpty()) {
+                return [
+                    'codigo' => $codigo,
+                    'ok' => true,
+                    'detalle' => 'Valido para recibir',
+                ];
+            }
+
+            $candidatas = $sacasCandidatas->where('receptaculo_normalizado', $codigo);
+            if ($candidatas->isEmpty()) {
+                return [
+                    'codigo' => $codigo,
+                    'ok' => false,
+                    'detalle' => 'No encontrado',
+                ];
+            }
+
+            $primera = $candidatas->first();
+            $estadoSaca = (int) $primera->fk_estado;
+            $estadoDespacho = (int) optional($primera->despacho)->fk_estado;
+
+            return [
+                'codigo' => $codigo,
+                'ok' => false,
+                'detalle' => "No valido: saca {$estadoSaca}, despacho {$estadoDespacho}",
+            ];
+        })->values()->all();
 
         $this->previewSacas = $sacas->map(function ($saca) {
             return [
@@ -85,8 +124,9 @@ class DespachoAdmitido extends Component
             ->values()
             ->all();
 
-        $this->receptaculosNoEncontrados = $receptaculos
-            ->diff($encontrados)
+        $this->receptaculosNoEncontrados = collect($this->receptaculosResultado)
+            ->filter(fn ($item) => !$item['ok'])
+            ->pluck('codigo')
             ->values()
             ->all();
     }
@@ -109,7 +149,10 @@ class DespachoAdmitido extends Component
             SacaModel::query()
                 ->whereIn('id', $sacaIds->all())
                 ->where('fk_estado', 15)
-                ->update(['fk_estado' => 21]);
+                ->whereHas('despacho', function ($query) {
+                    $query->where('fk_estado', 19);
+                })
+                ->update(['fk_estado' => 22]);
 
             DespachoModel::query()
                 ->whereIn('id', $despachoIds->all())
@@ -130,6 +173,7 @@ class DespachoAdmitido extends Component
             'previewDespachoIds',
             'receptaculosNoEncontrados',
             'receptaculosEscaneados',
+            'receptaculosResultado',
             'receptaculosEscaneadosCount',
             'receptaculosEncontradosCount',
         ]);
@@ -160,7 +204,7 @@ class DespachoAdmitido extends Component
             ->withCount([
                 'sacas as sacas_totales',
                 'sacas as sacas_recibidas' => function ($query) {
-                    $query->where('fk_estado', 21);
+                    $query->where('fk_estado', 22);
                 },
             ])
             ->when($q !== '', function ($query) use ($q) {
