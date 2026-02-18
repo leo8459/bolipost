@@ -325,4 +325,11 @@
     window.addEventListener('closeDespachoModal', () => {
         $('#despachoModal').modal('hide');
     });
+
+    window.addEventListener('printDespachoExpedicion', (event) => {
+        const url = event.detail?.[0]?.url || event.detail?.url;
+        if (url) {
+            window.open(url, '_blank');
+        }
+    });
 </script>

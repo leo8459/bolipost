@@ -176,6 +176,10 @@ class Despacho extends Component
         $despacho = DespachoModel::query()->findOrFail($id);
         $despacho->update(['fk_estado' => 19]);
 
+        $this->dispatch('printDespachoExpedicion', [
+            'url' => route('despachos.expedicion.pdf', ['id' => $despacho->id]),
+        ]);
+
         session()->flash('success', 'Despacho enviado a expedicion.');
     }
 
