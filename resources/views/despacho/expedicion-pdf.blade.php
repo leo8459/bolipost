@@ -15,6 +15,8 @@
         .cn-code-right { text-align: right; font-size: 24px; font-weight: 800; line-height: 1; margin-bottom: 6px; }
         .title-main { margin: 0; font-size: 34px; font-weight: 800; line-height: 1.05; }
         .title-sub { margin: 4px 0 0 0; font-size: 24px; font-weight: 800; line-height: 1.1; }
+        .title-main-cn38 { margin: 0; font-size: 30px; font-weight: 800; line-height: 1.05; }
+        .title-sub-cn38 { margin: 4px 0 0 0; font-size: 22px; font-weight: 800; line-height: 1.1; }
         .special-text { text-align: center; font-size: 11px; line-height: 1.1; border: 0; }
         .section-space { margin-top: 14px; }
         .cn35-table { width: 64%; margin-bottom: 12px; }
@@ -133,13 +135,15 @@
 
     <table class="header">
         <tr>
-            <td style="width: 35%;">
-                <img src="{{ public_path('images/images.png') }}" alt="" width="140" height="45">
-                <div class="text-right"><strong>CN 38</strong></div>
+            <td style="width: 30%;">
+                <img src="{{ public_path('images/images.png') }}" alt="" width="160" height="55">
             </td>
-            <td style="width: 65%;" class="text-center">
-                <h3 style="margin:0;">Factura de Entrega</h3>
-                <div>AGENCIA BOLIVIANA DE CORREOS</div>
+            <td style="width: 40%;" class="text-center">
+                <h2 class="title-main-cn38">Factura de Entrega</h2>
+                <h3 class="title-sub-cn38">AGENCIA BOLIVIANA DE CORREOS</h3>
+            </td>
+            <td style="width: 30%;" class="text-center">
+                <div class="cn-code-right">CN 38</div>
             </td>
         </tr>
     </table>
