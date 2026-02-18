@@ -260,9 +260,7 @@
                                 @if ($this->canSelect)
                                     <th></th>
                                 @endif
-                                <th>Codigo</th>
                                 <th>Cod. especial</th>
-                                <th>Origen</th>
                                 <th>Tipo</th>
                                 <th>Serv. especial</th>
                                 <th>Servicio</th>
@@ -270,22 +268,27 @@
                                 <th>Contenido</th>
                                 <th>Cantidad</th>
                                 <th>Peso</th>
-                                <th>Precio</th>
-                                <th>Remitente</th>
-                                <th>Destinatario</th>
+                                <th>Nombre remitente</th>
+                                <th>Nombre envia</th>
+                                <th>Carnet</th>
+                                <th>Telefono remitente</th>
+                                <th>Nombre destinatario</th>
+                                <th>Telefono destinatario</th>
                                 <th>Ciudad</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($paquetes as $paquete)
+                                @php
+                                    $formulario = $paquete->formulario;
+                                @endphp
                                 <tr>
                                     @if ($this->canSelect)
                                         <td>
                                             <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
                                         </td>
                                     @endif
-                                    <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
                                     <td>
                                         @if(!empty($paquete->cod_especial))
                                             <span class="pill-id">{{ $paquete->cod_especial }}</span>
@@ -293,28 +296,20 @@
                                             <span class="muted">-</span>
                                         @endif
                                     </td>
-                                    <td>{{ $paquete->origen }}</td>
-                                    <td>{{ $paquete->tipo_correspondencia }}</td>
-                                    <td>{{ $paquete->servicio_especial }}</td>
+                                    <td>{{ $formulario->tipo_correspondencia ?? $paquete->tipo_correspondencia }}</td>
+                                    <td>{{ $formulario->servicio_especial ?? $paquete->servicio_especial }}</td>
                                     <td>{{ optional(optional($paquete->tarifario)->servicio)->nombre_servicio }}</td>
                                     <td>{{ optional(optional($paquete->tarifario)->destino)->nombre_destino }}</td>
-                                    <td>{{ $paquete->contenido }}</td>
-                                    <td>{{ $paquete->cantidad }}</td>
-                                    <td>{{ $paquete->peso }}</td>
-                                    <td>{{ $paquete->precio }}</td>
-                                    <td>
-                                        {{ $paquete->nombre_remitente }}
-                                        <div class="text-muted" style="font-size: 12px;">
-                                            {{ $paquete->telefono_remitente }}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        {{ $paquete->nombre_destinatario }}
-                                        <div class="text-muted" style="font-size: 12px;">
-                                            {{ $paquete->telefono_destinatario }}
-                                        </div>
-                                    </td>
-                                    <td>{{ $paquete->ciudad }}</td>
+                                    <td>{{ $formulario->contenido ?? $paquete->contenido }}</td>
+                                    <td>{{ $formulario->cantidad ?? $paquete->cantidad }}</td>
+                                    <td>{{ $formulario->peso ?? $paquete->peso }}</td>
+                                    <td>{{ $formulario->nombre_remitente ?? $paquete->nombre_remitente }}</td>
+                                    <td>{{ $formulario->nombre_envia ?? $paquete->nombre_envia }}</td>
+                                    <td>{{ $formulario->carnet ?? $paquete->carnet }}</td>
+                                    <td>{{ $formulario->telefono_remitente ?? $paquete->telefono_remitente }}</td>
+                                    <td>{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario }}</td>
+                                    <td>{{ $formulario->telefono_destinatario ?? $paquete->telefono_destinatario }}</td>
+                                    <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
                                     <td>
                                         <button wire:click="openEditModal({{ $paquete->id }})"
                                             class="btn btn-sm btn-azul"
@@ -339,7 +334,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $this->canSelect ? 16 : 15 }}" class="text-center py-5">
+                                    <td colspan="{{ $this->canSelect ? 17 : 16 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

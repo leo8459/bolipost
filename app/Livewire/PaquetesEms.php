@@ -6,6 +6,7 @@ use App\Models\Destino;
 use App\Models\Estado;
 use App\Models\Origen;
 use App\Models\PaqueteEms;
+use App\Models\PaqueteEmsFormulario;
 use App\Models\RemitenteEms;
 use App\Models\Servicio;
 use App\Models\Tarifario;
@@ -191,25 +192,26 @@ class PaquetesEms extends Component
 
     public function openEditModal($id)
     {
-        $paquete = PaqueteEms::findOrFail($id);
+        $paquete = PaqueteEms::query()->with('formulario')->findOrFail($id);
+        $formulario = $paquete->formulario;
 
         $this->editingId = $paquete->id;
-        $this->origen = $paquete->origen;
-        $this->tipo_correspondencia = $paquete->tipo_correspondencia;
-        $this->servicio_especial = $paquete->servicio_especial;
-        $this->contenido = $paquete->contenido;
-        $this->cantidad = $paquete->cantidad;
-        $this->peso = $paquete->peso;
-        $this->codigo = $paquete->codigo;
-        $this->precio = $paquete->precio;
-        $this->nombre_remitente = $paquete->nombre_remitente;
-        $this->nombre_envia = $paquete->nombre_envia;
-        $this->carnet = $paquete->carnet;
-        $this->telefono_remitente = $paquete->telefono_remitente;
-        $this->nombre_destinatario = $paquete->nombre_destinatario;
-        $this->telefono_destinatario = $paquete->telefono_destinatario;
-        $this->ciudad = $paquete->ciudad;
-        $this->tarifario_id = $paquete->tarifario_id;
+        $this->origen = $formulario->origen ?? $paquete->origen;
+        $this->tipo_correspondencia = $formulario->tipo_correspondencia ?? $paquete->tipo_correspondencia;
+        $this->servicio_especial = $formulario->servicio_especial ?? $paquete->servicio_especial;
+        $this->contenido = $formulario->contenido ?? $paquete->contenido;
+        $this->cantidad = $formulario->cantidad ?? $paquete->cantidad;
+        $this->peso = $formulario->peso ?? $paquete->peso;
+        $this->codigo = $formulario->codigo ?? $paquete->codigo;
+        $this->precio = $formulario->precio ?? $paquete->precio;
+        $this->nombre_remitente = $formulario->nombre_remitente ?? $paquete->nombre_remitente;
+        $this->nombre_envia = $formulario->nombre_envia ?? $paquete->nombre_envia;
+        $this->carnet = $formulario->carnet ?? $paquete->carnet;
+        $this->telefono_remitente = $formulario->telefono_remitente ?? $paquete->telefono_remitente;
+        $this->nombre_destinatario = $formulario->nombre_destinatario ?? $paquete->nombre_destinatario;
+        $this->telefono_destinatario = $formulario->telefono_destinatario ?? $paquete->telefono_destinatario;
+        $this->ciudad = $formulario->ciudad ?? $paquete->ciudad;
+        $this->tarifario_id = $formulario->tarifario_id ?? $paquete->tarifario_id;
         $this->servicio_id = optional($paquete->tarifario)->servicio_id;
         $this->destino_id = optional($paquete->tarifario)->destino_id;
         $this->auto_codigo = false;
@@ -266,6 +268,7 @@ class PaquetesEms extends Component
         if ($this->editingId) {
             $paquete = PaqueteEms::findOrFail($this->editingId);
             $paquete->update($this->payload());
+            $this->syncFormularioData($paquete);
             $this->saveRemitenteData();
             session()->flash('success', 'Paquete actualizado correctamente.');
         } else {
@@ -276,6 +279,7 @@ class PaquetesEms extends Component
                 return;
             }
             $paquete = PaqueteEms::create($this->payload($user->id));
+            $this->syncFormularioData($paquete);
             $this->saveRemitenteData();
             session()->flash('success', 'Paquete creado correctamente.');
             $this->dispatch('closePaqueteConfirm');
@@ -646,7 +650,7 @@ class PaquetesEms extends Component
         $userCity = trim((string) optional(Auth::user())->ciudad);
 
         return PaqueteEms::query()
-            ->with(['tarifario.servicio', 'tarifario.destino', 'tarifario.peso', 'tarifario.origen'])
+            ->with(['tarifario.servicio', 'tarifario.destino', 'tarifario.peso', 'tarifario.origen', 'formulario'])
             ->when(!empty($estadoIds), function ($query) use ($estadoIds) {
                 $query->whereIn('estado_id', $estadoIds);
             })
@@ -673,6 +677,21 @@ class PaquetesEms extends Component
                     foreach ($columns as $column) {
                         $sub->orWhere($column, 'like', "%{$q}%");
                     }
+                    $sub->orWhereHas('formulario', function ($formQuery) use ($q) {
+                        $formQuery
+                            ->where('tipo_correspondencia', 'like', "%{$q}%")
+                            ->orWhere('servicio_especial', 'like', "%{$q}%")
+                            ->orWhere('contenido', 'like', "%{$q}%")
+                            ->orWhere('cantidad', 'like', "%{$q}%")
+                            ->orWhere('peso', 'like', "%{$q}%")
+                            ->orWhere('nombre_remitente', 'like', "%{$q}%")
+                            ->orWhere('nombre_envia', 'like', "%{$q}%")
+                            ->orWhere('carnet', 'like', "%{$q}%")
+                            ->orWhere('telefono_remitente', 'like', "%{$q}%")
+                            ->orWhere('nombre_destinatario', 'like', "%{$q}%")
+                            ->orWhere('telefono_destinatario', 'like', "%{$q}%")
+                            ->orWhere('ciudad', 'like', "%{$q}%");
+                    });
                 });
             })
             ->orderByDesc('id');
@@ -876,6 +895,33 @@ class PaquetesEms extends Component
         );
     }
 
+    protected function syncFormularioData(PaqueteEms $paquete): void
+    {
+        PaqueteEmsFormulario::updateOrCreate(
+            ['paquete_ems_id' => $paquete->id],
+            [
+                'origen' => $this->origen,
+                'tipo_correspondencia' => $this->tipo_correspondencia,
+                'servicio_especial' => $this->servicio_especial,
+                'contenido' => $this->contenido,
+                'cantidad' => $this->cantidad,
+                'peso' => $this->peso,
+                'codigo' => $this->codigo,
+                'precio' => $this->precio,
+                'nombre_remitente' => $this->nombre_remitente,
+                'nombre_envia' => $this->nombre_envia,
+                'carnet' => $this->carnet,
+                'telefono_remitente' => $this->telefono_remitente,
+                'nombre_destinatario' => $this->nombre_destinatario,
+                'telefono_destinatario' => $this->telefono_destinatario,
+                'ciudad' => $this->ciudad,
+                'servicio_id' => $this->servicio_id ?: null,
+                'destino_id' => $this->destino_id ?: null,
+                'tarifario_id' => $this->tarifario_id ?: null,
+            ]
+        );
+    }
+
     protected function nextSpecialCodeCorrelative(): int
     {
         $specialCodes = PaqueteEms::query()
@@ -937,5 +983,46 @@ class PaquetesEms extends Component
         $this->telefono_remitente = $remitente->telefono_remitente;
         $this->carnet = $remitente->carnet;
         $this->nombre_envia = $remitente->nombre_envia;
+
+        $this->applyLastFormularioDataByRemitente($nombre);
+    }
+
+    protected function applyLastFormularioDataByRemitente(string $nombreRemitente): void
+    {
+        if ($this->editingId) {
+            return;
+        }
+
+        $formulario = PaqueteEmsFormulario::query()
+            ->whereRaw('trim(upper(nombre_remitente)) = trim(upper(?))', [$nombreRemitente])
+            ->orderByDesc('updated_at')
+            ->first();
+
+        if (!$formulario) {
+            return;
+        }
+
+        $this->tipo_correspondencia = (string) ($formulario->tipo_correspondencia ?? $this->tipo_correspondencia);
+        $this->servicio_especial = (string) ($formulario->servicio_especial ?? $this->servicio_especial);
+        $this->contenido = (string) ($formulario->contenido ?? $this->contenido);
+        $this->cantidad = $formulario->cantidad ?? $this->cantidad;
+        $this->peso = $formulario->peso ?? $this->peso;
+        $this->nombre_destinatario = (string) ($formulario->nombre_destinatario ?? $this->nombre_destinatario);
+        $this->telefono_destinatario = (string) ($formulario->telefono_destinatario ?? $this->telefono_destinatario);
+        $this->ciudad = (string) ($formulario->ciudad ?? $this->ciudad);
+
+        if (!empty($formulario->servicio_id)) {
+            $this->servicio_id = (string) $formulario->servicio_id;
+        }
+
+        if (!empty($formulario->destino_id)) {
+            $this->destino_id = (string) $formulario->destino_id;
+        }
+
+        $this->applyTarifarioMatch();
+
+        if ($this->auto_codigo) {
+            $this->codigo = $this->generateCodigo();
+        }
     }
 }

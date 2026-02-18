@@ -5,13 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class PaqueteEms extends Model
+class PaqueteEmsFormulario extends Model
 {
     use HasFactory;
 
-    protected $table = 'paquetes_ems';
+    protected $table = 'paquetes_ems_formulario';
 
     protected $fillable = [
+        'paquete_ems_id',
         'origen',
         'tipo_correspondencia',
         'servicio_especial',
@@ -19,7 +20,6 @@ class PaqueteEms extends Model
         'cantidad',
         'peso',
         'codigo',
-        'cod_especial',
         'precio',
         'nombre_remitente',
         'nombre_envia',
@@ -28,28 +28,13 @@ class PaqueteEms extends Model
         'nombre_destinatario',
         'telefono_destinatario',
         'ciudad',
+        'servicio_id',
+        'destino_id',
         'tarifario_id',
-        'estado_id',
-        'user_id',
     ];
 
-    public function user()
+    public function paquete()
     {
-        return $this->belongsTo(User::class);
-    }
-
-    public function tarifario()
-    {
-        return $this->belongsTo(Tarifario::class, 'tarifario_id');
-    }
-
-    public function estado()
-    {
-        return $this->belongsTo(Estado::class, 'estado_id');
-    }
-
-    public function formulario()
-    {
-        return $this->hasOne(PaqueteEmsFormulario::class, 'paquete_ems_id');
+        return $this->belongsTo(PaqueteEms::class, 'paquete_ems_id');
     }
 }
