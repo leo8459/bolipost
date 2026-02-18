@@ -201,7 +201,15 @@
                             Mandar seleccionados
                         </button>
                     @elseif ($this->isAlmacenEms)
-                      
+                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('TODOS')">
+                            TODOS
+                        </button>
+                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('ALMACEN')">
+                            ALMACEN
+                        </button>
+                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('RECIBIDO')">
+                            RECIBIDO
+                        </button>
 
                         @if ($almacenEstadoFiltro === 'ALMACEN')
                             <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
@@ -260,7 +268,7 @@
                                 @if ($this->canSelect)
                                     <th></th>
                                 @endif
-                                <th>Cod. especial</th>
+                                <th>Codigo</th>
                                 <th>Tipo</th>
                                 <th>Serv. especial</th>
                                 <th>Servicio</th>
@@ -289,17 +297,11 @@
                                             <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
                                         </td>
                                     @endif
-                                    <td>
-                                        @if(!empty($paquete->cod_especial))
-                                            <span class="pill-id">{{ $paquete->cod_especial }}</span>
-                                        @else
-                                            <span class="muted">-</span>
-                                        @endif
-                                    </td>
+                                    <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
                                     <td>{{ $formulario->tipo_correspondencia ?? $paquete->tipo_correspondencia }}</td>
                                     <td>{{ $formulario->servicio_especial ?? $paquete->servicio_especial }}</td>
-                                    <td>{{ optional(optional($paquete->tarifario)->servicio)->nombre_servicio }}</td>
-                                    <td>{{ optional(optional($paquete->tarifario)->destino)->nombre_destino }}</td>
+                                    <td>{{ $paquete->servicio_nombre ?? '' }}</td>
+                                    <td>{{ $paquete->destino_nombre ?? '' }}</td>
                                     <td>{{ $formulario->contenido ?? $paquete->contenido }}</td>
                                     <td>{{ $formulario->cantidad ?? $paquete->cantidad }}</td>
                                     <td>{{ $formulario->peso ?? $paquete->peso }}</td>
@@ -557,10 +559,10 @@
                         <div class="section-title">Resumen</div>
                         <div class="row">
                             <div class="col-md-6 mb-2"><strong>Servicio:</strong>
-                                {{ optional($servicios->firstWhere('id', (int) $servicio_id))->nombre_servicio }}
+                                {{ optional(collect($servicios)->firstWhere('id', (int) $servicio_id))->nombre_servicio }}
                             </div>
                             <div class="col-md-6 mb-2"><strong>Destino:</strong>
-                                {{ optional($destinos->firstWhere('id', (int) $destino_id))->nombre_destino }}
+                                {{ optional(collect($destinos)->firstWhere('id', (int) $destino_id))->nombre_destino }}
                             </div>
                             <div class="col-md-6 mb-2"><strong>Origen:</strong> {{ $origen }}</div>
                             <div class="col-md-6 mb-2"><strong>Tipo:</strong> {{ $tipo_correspondencia }}</div>

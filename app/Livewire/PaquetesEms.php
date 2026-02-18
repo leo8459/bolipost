@@ -27,7 +27,7 @@ class PaquetesEms extends Component
     public $searchQuery = '';
     public $editingId = null;
     public $selectedPaquetes = [];
-    public $almacenEstadoFiltro = 'ALMACEN';
+    public $almacenEstadoFiltro = 'TODOS';
     public $regionalDestino = '';
     public $regionalTransportMode = 'TERRESTRE';
     public $regionalTransportNumber = '';
@@ -79,12 +79,14 @@ class PaquetesEms extends Component
         $allowedModes = ['admision', 'almacen_ems', 'transito_ems'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'admision';
         if ($this->isAlmacenEms) {
-            $this->almacenEstadoFiltro = 'ALMACEN';
+            $this->almacenEstadoFiltro = 'TODOS';
         }
         $this->setOrigenFromUser();
-        $this->servicios = Servicio::orderBy('nombre_servicio')->get();
-        $this->destinos = Destino::orderBy('nombre_destino')->get();
-        $this->setUserOrigenId();
+        if ($this->isAdmision) {
+            $this->servicios = Servicio::orderBy('nombre_servicio')->get();
+            $this->destinos = Destino::orderBy('nombre_destino')->get();
+            $this->setUserOrigenId();
+        }
     }
 
     public function getIsAdmisionProperty()
@@ -109,7 +111,7 @@ class PaquetesEms extends Component
 
     public function setAlmacenFiltro($filtro)
     {
-        if (!in_array($filtro, ['ALMACEN', 'RECIBIDO'], true)) {
+        if (!in_array($filtro, ['TODOS', 'ALMACEN', 'RECIBIDO'], true)) {
             return;
         }
 
@@ -194,6 +196,13 @@ class PaquetesEms extends Component
     {
         $paquete = PaqueteEms::query()->with('formulario')->findOrFail($id);
         $formulario = $paquete->formulario;
+
+        if (empty($this->servicios)) {
+            $this->servicios = Servicio::orderBy('nombre_servicio')->get();
+        }
+        if (empty($this->destinos)) {
+            $this->destinos = Destino::orderBy('nombre_destino')->get();
+        }
 
         $this->editingId = $paquete->id;
         $this->origen = $formulario->origen ?? $paquete->origen;
@@ -590,7 +599,7 @@ class PaquetesEms extends Component
 
     public function render()
     {
-        $paquetes = $this->basePaquetesQuery()->paginate(10);
+        $paquetes = $this->basePaquetesQuery()->simplePaginate(10);
 
         return view('livewire.paquetes-ems', [
             'paquetes' => $paquetes,
@@ -650,24 +659,57 @@ class PaquetesEms extends Component
         $userCity = trim((string) optional(Auth::user())->ciudad);
 
         return PaqueteEms::query()
-            ->with(['tarifario.servicio', 'tarifario.destino', 'tarifario.peso', 'tarifario.origen', 'formulario'])
+            ->leftJoin('tarifario', 'tarifario.id', '=', 'paquetes_ems.tarifario_id')
+            ->leftJoin('servicio', 'servicio.id', '=', 'tarifario.servicio_id')
+            ->leftJoin('destino', 'destino.id', '=', 'tarifario.destino_id')
+            ->with(['formulario'])
+            ->select([
+                'paquetes_ems.*',
+                DB::raw('servicio.nombre_servicio as servicio_nombre'),
+                DB::raw('destino.nombre_destino as destino_nombre'),
+            ])
             ->when(!empty($estadoIds), function ($query) use ($estadoIds) {
-                $query->whereIn('estado_id', $estadoIds);
+                $query->whereIn('paquetes_ems.estado_id', $estadoIds);
             })
             ->when(empty($estadoIds), function ($query) {
                 $query->whereRaw('1 = 0');
             })
-            ->when($this->isAlmacenEms && $this->almacenEstadoFiltro === 'ALMACEN' && $estadoAlmacenId, function ($query) use ($estadoAlmacenId) {
-                $query->where('estado_id', $estadoAlmacenId);
-            })
-            ->when($this->isAlmacenEms && $this->almacenEstadoFiltro === 'RECIBIDO' && $estadoRecibidoId, function ($query) use ($estadoRecibidoId) {
-                $query->where('estado_id', $estadoRecibidoId);
-            })
-            ->when($userCity !== '' && $this->isAlmacenEms && $this->almacenEstadoFiltro === 'ALMACEN', function ($query) use ($userCity) {
-                $query->whereRaw('trim(upper(origen)) = trim(upper(?))', [$userCity]);
-            })
-            ->when($userCity !== '' && $this->isAlmacenEms && $this->almacenEstadoFiltro === 'RECIBIDO', function ($query) use ($userCity) {
-                $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
+            ->when($this->isAlmacenEms && $userCity !== '', function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId) {
+                $query->where(function ($sub) use ($userCity, $estadoAlmacenId, $estadoRecibidoId) {
+                    if ($this->almacenEstadoFiltro === 'ALMACEN' && $estadoAlmacenId) {
+                        $sub->where('paquetes_ems.estado_id', $estadoAlmacenId)
+                            ->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
+                        return;
+                    }
+
+                    if ($this->almacenEstadoFiltro === 'RECIBIDO' && $estadoRecibidoId) {
+                        $sub->where('paquetes_ems.estado_id', $estadoRecibidoId)
+                            ->whereRaw(
+                                'trim(upper(COALESCE(destino.nombre_destino, paquetes_ems.ciudad))) = trim(upper(?))',
+                                [$userCity]
+                            );
+                        return;
+                    }
+
+                    $sub->where(function ($q) use ($estadoAlmacenId, $userCity) {
+                        if ($estadoAlmacenId) {
+                            $q->where('paquetes_ems.estado_id', $estadoAlmacenId)
+                                ->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
+                        } else {
+                            $q->whereRaw('1 = 0');
+                        }
+                    })->orWhere(function ($q) use ($estadoRecibidoId, $userCity) {
+                        if ($estadoRecibidoId) {
+                            $q->where('paquetes_ems.estado_id', $estadoRecibidoId)
+                                ->whereRaw(
+                                    'trim(upper(COALESCE(destino.nombre_destino, paquetes_ems.ciudad))) = trim(upper(?))',
+                                    [$userCity]
+                                );
+                        } else {
+                            $q->whereRaw('1 = 0');
+                        }
+                    });
+                });
             })
             ->when($userCity === '' && $this->isAlmacenEms, function ($query) {
                 $query->whereRaw('1 = 0');
@@ -675,7 +717,7 @@ class PaquetesEms extends Component
             ->when($q !== '', function ($query) use ($q, $columns) {
                 $query->where(function ($sub) use ($q, $columns) {
                     foreach ($columns as $column) {
-                        $sub->orWhere($column, 'like', "%{$q}%");
+                        $sub->orWhere('paquetes_ems.' . $column, 'like', "%{$q}%");
                     }
                     $sub->orWhereHas('formulario', function ($formQuery) use ($q) {
                         $formQuery
@@ -692,9 +734,11 @@ class PaquetesEms extends Component
                             ->orWhere('telefono_destinatario', 'like', "%{$q}%")
                             ->orWhere('ciudad', 'like', "%{$q}%");
                     });
+                    $sub->orWhere('servicio.nombre_servicio', 'like', "%{$q}%");
+                    $sub->orWhere('destino.nombre_destino', 'like', "%{$q}%");
                 });
             })
-            ->orderByDesc('id');
+            ->orderByDesc('paquetes_ems.id');
     }
 
     protected function setOrigenFromUser()
