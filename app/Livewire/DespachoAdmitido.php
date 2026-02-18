@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Despacho as DespachoModel;
 use App\Models\Saca as SacaModel;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -12,6 +13,19 @@ use Livewire\WithPagination;
 class DespachoAdmitido extends Component
 {
     use WithPagination;
+
+    public $ciudadToOficina = [
+        'LA PAZ' => 'BOLPZ',
+        'TARIJA' => 'BOTJA',
+        'POTOSI' => 'BOPOI',
+        'PANDO' => 'BOCIJ',
+        'COCHABAMBA' => 'BOCBB',
+        'ORURO' => 'BOORU',
+        'BENI' => 'BOTDD',
+        'SUCRE' => 'BOSRE',
+        'SANTA CRUZ' => 'BOSRZ',
+        'PERU/LIMA' => 'PELIM',
+    ];
 
     public $search = '';
     public $searchQuery = '';
@@ -113,6 +127,9 @@ class DespachoAdmitido extends Component
 
         $sacasCandidatas = SacaModel::query()
             ->with('despacho:id,identificador,nro_despacho,anio,fk_estado')
+            ->whereHas('despacho', function ($query) {
+                $query->where('ofdestino', $this->getOfdestinoFromUser());
+            })
             ->whereIn(DB::raw($normalizedReceptaculoSql), $receptaculos->all())
             ->select('*')
             ->selectRaw($normalizedReceptaculoSql . ' as receptaculo_normalizado')
@@ -145,6 +162,9 @@ class DespachoAdmitido extends Component
 
         $sacasMostradas = SacaModel::query()
             ->with('despacho:id,fk_estado')
+            ->whereHas('despacho', function ($query) {
+                $query->where('ofdestino', $this->getOfdestinoFromUser());
+            })
             ->whereIn(DB::raw($normalizedReceptaculoSql), $mostrados->all())
             ->select('*')
             ->selectRaw($normalizedReceptaculoSql . ' as receptaculo_normalizado')
@@ -285,13 +305,31 @@ class DespachoAdmitido extends Component
         return preg_replace('/[^A-Z0-9]/', '', $normalized);
     }
 
+    protected function getOfdestinoFromUser()
+    {
+        $user = Auth::user();
+        if (!$user || !$user->ciudad) {
+            return '';
+        }
+
+        $ciudad = strtoupper(trim($user->ciudad));
+
+        return $this->ciudadToOficina[$ciudad] ?? '';
+    }
+
     public function render()
     {
         $q = trim($this->searchQuery);
+        $userOfdestino = $this->getOfdestinoFromUser();
 
         $despachos = DespachoModel::query()
             ->with('estado:id,nombre_estado')
             ->whereIn('fk_estado', [19, 21])
+            ->when($userOfdestino !== '', function ($query) use ($userOfdestino) {
+                $query->where('ofdestino', $userOfdestino);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
             ->withCount([
                 'sacas as sacas_totales',
                 'sacas as sacas_recibidas' => function ($query) {

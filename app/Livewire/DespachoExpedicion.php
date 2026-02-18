@@ -3,12 +3,26 @@
 namespace App\Livewire;
 
 use App\Models\Despacho as DespachoModel;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class DespachoExpedicion extends Component
 {
     use WithPagination;
+
+    public $ciudadToOficina = [
+        'LA PAZ' => 'BOLPZ',
+        'TARIJA' => 'BOTJA',
+        'POTOSI' => 'BOPOI',
+        'PANDO' => 'BOCIJ',
+        'COCHABAMBA' => 'BOCBB',
+        'ORURO' => 'BOORU',
+        'BENI' => 'BOTDD',
+        'SUCRE' => 'BOSRE',
+        'SANTA CRUZ' => 'BOSRZ',
+        'PERU/LIMA' => 'PELIM',
+    ];
 
     public $search = '';
     public $searchQuery = '';
@@ -44,10 +58,16 @@ class DespachoExpedicion extends Component
     public function render()
     {
         $q = trim($this->searchQuery);
+        $userOforigen = $this->getOforigenFromUser();
 
         $despachos = DespachoModel::query()
             ->with('estado:id,nombre_estado')
             ->whereIn('fk_estado', [19, 20])
+            ->when($userOforigen !== '', function ($query) use ($userOforigen) {
+                $query->where('oforigen', $userOforigen);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($inner) use ($q) {
                     $inner->where('oforigen', 'ILIKE', "%{$q}%")
@@ -69,5 +89,17 @@ class DespachoExpedicion extends Component
         return view('livewire.despacho-expedicion', [
             'despachos' => $despachos,
         ]);
+    }
+
+    protected function getOforigenFromUser()
+    {
+        $user = Auth::user();
+        if (!$user || !$user->ciudad) {
+            return '';
+        }
+
+        $ciudad = strtoupper(trim($user->ciudad));
+
+        return $this->ciudadToOficina[$ciudad] ?? '';
     }
 }

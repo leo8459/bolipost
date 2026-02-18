@@ -311,10 +311,16 @@ class Despacho extends Component
     public function render()
     {
         $q = trim($this->searchQuery);
+        $userOforigen = $this->getOforigenFromUser();
 
         $despachos = DespachoModel::query()
             ->with('estado:id,nombre_estado')
             ->whereIn('fk_estado', [11, 14])
+            ->when($userOforigen !== '', function ($query) use ($userOforigen) {
+                $query->where('oforigen', $userOforigen);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where('oforigen', 'ILIKE', "%{$q}%")
                     ->orWhere('ofdestino', 'ILIKE', "%{$q}%")
