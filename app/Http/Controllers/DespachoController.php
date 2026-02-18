@@ -22,6 +22,11 @@ class DespachoController extends Controller
         return view('despacho.admitidos');
     }
 
+    public function todos()
+    {
+        return view('despacho.todos');
+    }
+
     public function expedicionPdf($id)
     {
         $despacho = Despacho::query()

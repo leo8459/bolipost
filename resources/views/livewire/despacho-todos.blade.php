@@ -4,7 +4,6 @@
             --azul:#B99C46;
             --dorado:#34447C;
             --bg:#f5f7fb;
-            --line:#e5e7eb;
             --muted:#6b7280;
         }
 
@@ -42,10 +41,6 @@
             padding: 10px 14px;
             background: transparent;
         }
-        .btn-outline-light2:hover{
-            background: rgba(255,255,255,.12);
-            color:#fff;
-        }
 
         .table thead th{
             background: rgba(52,68,124,.08);
@@ -55,16 +50,15 @@
             white-space: nowrap;
         }
 
-        .muted{ color:var(--muted); }
-
         .table td{ vertical-align: middle; white-space: nowrap; }
+        .muted{ color:var(--muted); }
     </style>
 
     <div class="plantilla-wrap">
         <div class="card card-app">
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
                 <div>
-                    <h4 class="fw-bold mb-0">Despachos expedicion</h4>
+                    <h4 class="fw-bold mb-0">Todos los despachos</h4>
                 </div>
 
                 <div class="d-flex gap-2 align-items-center">
@@ -79,18 +73,12 @@
             </div>
 
             <div class="card-body">
-                @if (session()->has('success'))
-                    <div class="alert alert-success mb-3">
-                        {{ session('success') }}
-                    </div>
-                @endif
-
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="muted">
                         @if(!empty($searchQuery))
                             Resultados para: <strong>{{ $searchQuery }}</strong>
                         @else
-                            Mostrando despachos con estado expedicion
+                            Mostrando todos los estados
                         @endif
                     </div>
                     <div class="muted small">
@@ -102,74 +90,42 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
+                                <th>Identificador</th>
+                                <th>Nro despacho</th>
                                 <th>Oforigen</th>
                                 <th>Ofdestino</th>
                                 <th>Categoria</th>
                                 <th>Subclase</th>
-                                <th>Nro despacho</th>
                                 <th>Nro envase</th>
                                 <th>Peso</th>
-                                <th>Identificador</th>
                                 <th>Anio</th>
                                 <th>Departamento</th>
                                 <th>Estado</th>
-                                <th>Acciones</th>
+                                <th>Fecha creacion</th>
+                                <th>Fecha actualizacion</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($despachos as $despacho)
                                 <tr>
+                                    <td>{{ $despacho->identificador }}</td>
+                                    <td>{{ $despacho->nro_despacho }}</td>
                                     <td>{{ $despacho->oforigen }}</td>
                                     <td>{{ $despacho->ofdestino }}</td>
                                     <td>{{ $despacho->categoria }}</td>
                                     <td>{{ $despacho->subclase }}</td>
-                                    <td>{{ $despacho->nro_despacho }}</td>
                                     <td>{{ $despacho->nro_envase }}</td>
                                     <td>{{ $despacho->peso }}</td>
-                                    <td>{{ $despacho->identificador }}</td>
                                     <td>{{ $despacho->anio }}</td>
                                     <td>{{ $despacho->departamento }}</td>
                                     <td>{{ optional($despacho->estado)->nombre_estado }}</td>
-                                    <td>
-                                        <a
-                                            href="{{ route('despachos.expedicion.pdf', ['id' => $despacho->id]) }}"
-                                            target="_blank"
-                                            class="btn btn-sm btn-secondary"
-                                            title="Reimprimir CN">
-                                            <i class="fas fa-print"></i>
-                                        </a>
-                                        @if ((int) $despacho->fk_estado === 19)
-                                            <button
-                                                type="button"
-                                                class="btn btn-sm btn-danger"
-                                                wire:click="intervenirDespacho({{ $despacho->id }})"
-                                                onclick="return confirm('Cambiar este despacho a intervencion (estado 20)?')"
-                                                title="Intervenir despacho">
-                                                <i class="fas fa-exclamation-triangle"></i>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="btn btn-sm btn-warning"
-                                                wire:click="volverApertura({{ $despacho->id }})"
-                                                onclick="return confirm('Cambiar este despacho a apertura (estado 14)?')"
-                                                title="Volver a apertura">
-                                                <i class="fas fa-undo"></i>
-                                            </button>
-                                        @elseif ((int) $despacho->fk_estado === 20)
-                                            <a
-                                                href="{{ route('sacas.index', ['despacho_id' => $despacho->id]) }}"
-                                                class="btn btn-sm btn-primary"
-                                                title="Ver sacas">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
-                                        @endif
-                                    </td>
+                                    <td>{{ optional($despacho->created_at)->format('Y-m-d H:i:s') }}</td>
+                                    <td>{{ optional($despacho->updated_at)->format('Y-m-d H:i:s') }}</td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-5">
+                                    <td colspan="13" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
-                                        <div class="muted">No se encontraron despachos en expedicion.</div>
                                     </td>
                                 </tr>
                             @endforelse
@@ -184,3 +140,4 @@
         </div>
     </div>
 </div>
+

@@ -111,6 +111,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/despachos/expedicion', [DespachoController::class, 'expedicion'])->name('despachos.expedicion');
     Route::get('/despachos/{id}/expedicion-pdf', [DespachoController::class, 'expedicionPdf'])->name('despachos.expedicion.pdf');
     Route::get('/despachos/admitidos', [DespachoController::class, 'admitidos'])->name('despachos.admitidos');
+    Route::get('/despachos/todos', [DespachoController::class, 'todos'])->name('despachos.todos');
     Route::get('/sacas', [SacaController::class, 'index'])->name('sacas.index');
     Route::get('/carteros/distribucion', [CarterosController::class, 'distribucion'])->name('carteros.distribucion');
     Route::get('/carteros/asignados', [CarterosController::class, 'asignados'])->name('carteros.asignados');

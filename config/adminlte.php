@@ -422,7 +422,12 @@ return [
                     'icon' => 'fas fa-check-circle',
                 ],
                 [
-                    'text' => 'Sacas',
+                    'text' => 'Todas los Despachos',
+                    'url' => 'despachos/todos',
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Todas las Sacas',
                     'url' => 'sacas',
                     'icon' => 'fas fa-suitcase',
                 ],
