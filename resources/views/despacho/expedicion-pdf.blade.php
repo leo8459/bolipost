@@ -71,7 +71,7 @@
             <th>Destino OE</th>
             <th>Categoria</th>
             <th>Sub-Clase</th>
-            <th>AÃ±o</th>
+            <th>Año</th>
             <th>Nro. de Despacho</th>
             <th>Fecha</th>
         </tr>
@@ -237,27 +237,27 @@
             <tr>
                 <td>Cat: {{ $categoria }}</td>
                 <td>SubC: {{ $subclase }}</td>
-                <td class="text-right">{{ $siglaOrigen }} (BOA)</td>
-                <td>{{ $ciudadOrigen }}</td>
+                <td class="text-right" style="border-right-color: transparent;">{{ $siglaOrigen }} (BOA)</td>
+                <td style="border-left-color: transparent;">- {{ $ciudadOrigen }}</td>
             </tr>
             <tr>
                 <td colspan="2" class="text-center">{{ optional($despacho->created_at)->format('Y-m-d') }}</td>
-                <td colspan="2" class="text-center">AGENCIA BOLIVIANA DE CORREOS</td>
+                <td colspan="2" class="text-center" style="border-bottom-color: transparent;">AGENCIA BOLIVIANA DE CORREOS</td>
             </tr>
             <tr>
                 <td>DespNo: {{ str_pad((string) $despacho->nro_despacho, 3, '0', STR_PAD_LEFT) }}</td>
                 <td>RecNo: {{ str_pad((string) $saca->nro_saca, 3, '0', STR_PAD_LEFT) }}</td>
-                <td colspan="2" class="text-center">(AGBC)</td>
+                <td colspan="2" class="text-center" style="border-top-color: transparent;">(AGBC)</td>
             </tr>
             <tr>
                 <td>Peso: {{ $saca->peso }} Kg.</td>
                 <td>NoPaq: {{ $saca->paquetes }}</td>
-                <td colspan="2" class="text-center">{{ $saca->receptaculo }}</td>
+                <td colspan="2" class="text-center" style="border-bottom-color: transparent;">{{ $saca->receptaculo }}</td>
             </tr>
             <tr>
                 <td>Via: {{ $subclaseTranslation[$categoria] ?? $categoria }}</td>
                 <td></td>
-                <td colspan="2">
+                <td colspan="2" style="border-top-color: transparent;">
                     @if(class_exists('\DNS1D'))
                         {!! DNS1D::getBarcodeHTML($saca->receptaculo, 'C128', 1.08, 40) !!}
                     @endif
