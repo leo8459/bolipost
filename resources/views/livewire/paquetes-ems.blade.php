@@ -201,12 +201,7 @@
                             Mandar seleccionados
                         </button>
                     @elseif ($this->isAlmacenEms)
-                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('ALMACEN')">
-                            ALMACEN
-                        </button>
-                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('RECIBIDO')">
-                            ALMACEN RECIBIDO
-                        </button>
+                      
 
                         @if ($almacenEstadoFiltro === 'ALMACEN')
                             <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
@@ -266,6 +261,7 @@
                                     <th></th>
                                 @endif
                                 <th>Codigo</th>
+                                <th>Cod. especial</th>
                                 <th>Origen</th>
                                 <th>Tipo</th>
                                 <th>Serv. especial</th>
@@ -290,6 +286,13 @@
                                         </td>
                                     @endif
                                     <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
+                                    <td>
+                                        @if(!empty($paquete->cod_especial))
+                                            <span class="pill-id">{{ $paquete->cod_especial }}</span>
+                                        @else
+                                            <span class="muted">-</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $paquete->origen }}</td>
                                     <td>{{ $paquete->tipo_correspondencia }}</td>
                                     <td>{{ $paquete->servicio_especial }}</td>
@@ -336,7 +339,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $this->canSelect ? 15 : 14 }}" class="text-center py-5">
+                                    <td colspan="{{ $this->canSelect ? 16 : 15 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

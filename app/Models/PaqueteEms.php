@@ -19,6 +19,7 @@ class PaqueteEms extends Model
         'cantidad',
         'peso',
         'codigo',
+        'cod_especial',
         'precio',
         'nombre_remitente',
         'nombre_envia',

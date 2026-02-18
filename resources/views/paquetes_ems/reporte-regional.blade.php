@@ -42,8 +42,13 @@
         .table th,
         .table td {
             border: 1px solid #333;
-            padding: 5px;
+            padding: 4px;
             text-align: center;
+            font-size: 10px;
+        }
+        .barcode-img {
+            display: block;
+            margin: 0 auto 2px auto;
         }
         .footer {
             margin-top: 24px;
@@ -63,6 +68,25 @@
             width: 80%;
             border-top: 1px solid #333;
         }
+        .header-barcode {
+            margin-top: 6px;
+        }
+        .dispatch-block-title {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .manifest-list-title {
+            width: 100%;
+            text-align: center;
+            border: 1px solid #333;
+            border-top: 0;
+            margin-top: -1px;
+            margin-bottom: 8px;
+            padding: 2px 0;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
@@ -73,16 +97,30 @@
 
         <table class="table-head">
             <tr>
-                <td colspan="4" class="title">PAQUETES ENVIADOS A EMS</td>
+                <td colspan="4" class="title">AGENCIA BOLIVIANA DE CORREOS</td>
                 <td rowspan="3" style="text-align: center; vertical-align: middle; width: 25%;">
+                    @php
+                        $headerBarcodePng = null;
+                        try {
+                            $headerBarcodePng = DNS1D::getBarcodePNG($currentManifiesto, 'C128');
+                        } catch (\Throwable $e) {
+                            $headerBarcodePng = null;
+                        }
+                    @endphp
+                    <div class="dispatch-block-title">CN-33</div>
                     <div>
                         <strong>{{ $currentManifiesto }}</strong>
                     </div>
+                    @if($headerBarcodePng)
+                        <div class="header-barcode">
+                            <img src="data:image/png;base64,{{ $headerBarcodePng }}" alt="Barcode" width="150" height="30">
+                        </div>
+                    @endif
                 </td>
             </tr>
             <tr>
                 <td colspan="2" class="sub-header">BO-BOLIVIA</td>
-                <td colspan="2" class="sub-header">CN-33</td>
+                <td colspan="2" class="sub-header">LISTA DE MANIFIESTO</td>
             </tr>
             <tr>
                 <td class="field" style="width: 15%;">Oficina de Origen:</td>
@@ -109,6 +147,8 @@
             </tr>
         </table>
     </div>
+
+    <div class="manifest-list-title">Lista de manifiesto</div>
 
     <table class="table">
         <thead>

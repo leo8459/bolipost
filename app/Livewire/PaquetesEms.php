@@ -12,6 +12,7 @@ use App\Models\Tarifario;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -326,36 +327,52 @@ class PaquetesEms extends Component
             return;
         }
 
-        $paquetes = PaqueteEms::query()
-            ->whereIn('id', $ids)
-            ->with(['user:id,name'])
-            ->orderBy('id')
-            ->get([
-                'id',
-                'codigo',
-                'origen',
-                'ciudad',
-                'cantidad',
-                'peso',
-                'nombre_remitente',
-                'user_id',
-                'created_at',
-            ]);
+        $generatedAt = now();
+        $updated = 0;
+        $paquetes = collect();
+
+        $manifiesto = '';
+
+        DB::transaction(function () use ($ids, $estadoTransitoEms, &$manifiesto, &$updated, &$paquetes) {
+            $paquetes = PaqueteEms::query()
+                ->whereIn('id', $ids)
+                ->with(['user:id,name'])
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get([
+                    'id',
+                    'codigo',
+                    'cod_especial',
+                    'origen',
+                    'ciudad',
+                    'cantidad',
+                    'peso',
+                    'nombre_remitente',
+                    'user_id',
+                    'created_at',
+                ]);
+
+            if ($paquetes->isEmpty()) {
+                return;
+            }
+
+            $correlative = $this->nextSpecialCodeCorrelative();
+            $manifiesto = 'E' . str_pad((string) $correlative, 5, '0', STR_PAD_LEFT);
+
+            foreach ($paquetes as $paquete) {
+                $paquete->cod_especial = $manifiesto;
+                $paquete->estado_id = $estadoTransitoEms;
+                $paquete->ciudad = $this->regionalDestino;
+                $paquete->save();
+                $updated++;
+            }
+        });
 
         if ($paquetes->isEmpty()) {
             session()->flash('error', 'No hay paquetes seleccionados para enviar.');
             return;
         }
 
-        $updated = PaqueteEms::query()
-            ->whereIn('id', $ids)
-            ->update([
-                'estado_id' => $estadoTransitoEms,
-                'ciudad' => $this->regionalDestino,
-            ]);
-
-        $generatedAt = now();
-        $manifiesto = 'CN33-' . $generatedAt->format('YmdHis');
         $loggedUserName = trim((string) optional(Auth::user())->name);
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
         $pdf = Pdf::loadView('paquetes_ems.reporte-regional', [
@@ -594,6 +611,7 @@ class PaquetesEms extends Component
             'nombre_destinatario',
             'telefono_destinatario',
             'ciudad',
+            'cod_especial',
         ];
 
         $estadoIds = [];
@@ -856,6 +874,30 @@ class PaquetesEms extends Component
                 'nombre_envia' => trim((string) $this->nombre_envia),
             ]
         );
+    }
+
+    protected function nextSpecialCodeCorrelative(): int
+    {
+        $specialCodes = PaqueteEms::query()
+            ->whereNotNull('cod_especial')
+            ->lockForUpdate()
+            ->pluck('cod_especial');
+
+        if ($specialCodes->isEmpty()) {
+            return 1;
+        }
+
+        $maxCorrelative = 0;
+        foreach ($specialCodes as $specialCode) {
+            if (preg_match('/^E(\d{5})$/', (string) $specialCode, $matches)) {
+                $value = (int) $matches[1];
+                if ($value > $maxCorrelative) {
+                    $maxCorrelative = $value;
+                }
+            }
+        }
+
+        return $maxCorrelative + 1;
     }
 
     protected function refreshRemitenteSugerencias(string $value): void
