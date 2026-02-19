@@ -82,7 +82,7 @@ class PaquetesEms extends Component
             $this->almacenEstadoFiltro = 'TODOS';
         }
         $this->setOrigenFromUser();
-        if ($this->isAdmision) {
+        if ($this->isAdmision || $this->isAlmacenEms) {
             $this->servicios = Servicio::orderBy('nombre_servicio')->get();
             $this->destinos = Destino::orderBy('nombre_destino')->get();
             $this->setUserOrigenId();
@@ -164,11 +164,20 @@ class PaquetesEms extends Component
     public function openCreateModal()
     {
         $this->resetForm();
+        if (empty($this->servicios)) {
+            $this->servicios = Servicio::orderBy('nombre_servicio')->get();
+        }
+        if (empty($this->destinos)) {
+            $this->destinos = Destino::orderBy('nombre_destino')->get();
+        }
         $this->setOrigenFromUser();
         $this->setUserOrigenId();
         $this->editingId = null;
         $this->is_ems = false;
         $this->auto_codigo = true;
+        if ($this->isAlmacenEms) {
+            $this->tipo_correspondencia = 'OFICIAL';
+        }
         $this->dispatch('openPaqueteModal');
     }
 
@@ -241,15 +250,27 @@ class PaquetesEms extends Component
         }
 
         $this->setOrigenFromUser();
+        if ($this->isAlmacenEms) {
+            $this->tipo_correspondencia = 'OFICIAL';
+        }
 
-        $this->applyTarifarioMatch();
-        if (!$this->tarifario_id) {
-            $this->addError('peso', 'No existe tarifario para este servicio, destino y peso.');
-            return;
+        if (!$this->isCertificadoShipment()) {
+            $this->applyTarifarioMatch();
+            if (!$this->tarifario_id) {
+                $this->addError('peso', 'No existe tarifario para este servicio, destino y peso.');
+                return;
+            }
+        } else {
+            $this->tarifario_id = null;
+            $this->precio = null;
         }
 
         $this->precio_confirm = $this->precio;
-        if ($this->servicio_especial === 'IDA Y VUELTA' && $this->precio !== '') {
+        if (
+            $this->servicio_especial === 'IDA Y VUELTA' &&
+            $this->precio !== '' &&
+            $this->precio !== null
+        ) {
             $this->precio_confirm = (string) ((float) $this->precio * 2);
         }
 
@@ -269,7 +290,12 @@ class PaquetesEms extends Component
             return;
         }
 
-        $this->applyTarifarioMatch();
+        if (!$this->isCertificadoShipment()) {
+            $this->applyTarifarioMatch();
+        } else {
+            $this->tarifario_id = null;
+            $this->precio = null;
+        }
         if ($this->precio_confirm !== null) {
             $this->precio = $this->precio_confirm;
         }
@@ -282,9 +308,9 @@ class PaquetesEms extends Component
             session()->flash('success', 'Paquete actualizado correctamente.');
         } else {
             $this->setOrigenFromUser();
-            $this->setEstadoAdmision();
+            $this->setEstadoByMode();
             if (!$this->estado_id) {
-                session()->flash('error', 'No existe el estado ADMISIONES en la tabla estados.');
+                session()->flash('error', 'No se encontro el estado requerido para crear el paquete.');
                 return;
             }
             $paquete = PaqueteEms::create($this->payload($user->id));
@@ -542,6 +568,8 @@ class PaquetesEms extends Component
 
     protected function rules()
     {
+        $requiresTarifario = !$this->isCertificadoShipment();
+
         return [
             'origen' => 'nullable|string|max:255',
             'tipo_correspondencia' => 'required|string|max:255',
@@ -555,7 +583,7 @@ class PaquetesEms extends Component
                 'max:255',
                 Rule::unique('paquetes_ems', 'codigo')->ignore($this->editingId),
             ],
-            'precio' => 'required|numeric|min:0',
+            'precio' => $requiresTarifario ? 'required|numeric|min:0' : 'nullable|numeric|min:0',
             'nombre_remitente' => 'required|string|max:255',
             'nombre_envia' => 'required|string|max:255',
             'carnet' => 'required|string|max:255',
@@ -563,8 +591,12 @@ class PaquetesEms extends Component
             'nombre_destinatario' => 'required|string|max:255',
             'telefono_destinatario' => 'required|string|max:50',
             'ciudad' => ['nullable', 'string', 'max:255'],
-            'servicio_id' => ['required', 'integer', Rule::exists('servicio', 'id')],
-            'destino_id' => ['required', 'integer', Rule::exists('destino', 'id')],
+            'servicio_id' => $requiresTarifario
+                ? ['required', 'integer', Rule::exists('servicio', 'id')]
+                : ['nullable', 'integer', Rule::exists('servicio', 'id')],
+            'destino_id' => $requiresTarifario
+                ? ['required', 'integer', Rule::exists('destino', 'id')]
+                : ['nullable', 'integer', Rule::exists('destino', 'id')],
         ];
     }
 
@@ -578,7 +610,7 @@ class PaquetesEms extends Component
             'cantidad' => $this->cantidad,
             'peso' => $this->peso,
             'codigo' => $this->codigo,
-            'precio' => $this->precio,
+            'precio' => $this->precio === '' ? null : $this->precio,
             'nombre_remitente' => $this->nombre_remitente,
             'nombre_envia' => $this->nombre_envia,
             'carnet' => $this->carnet,
@@ -586,7 +618,7 @@ class PaquetesEms extends Component
             'nombre_destinatario' => $this->nombre_destinatario,
             'telefono_destinatario' => $this->telefono_destinatario,
             'ciudad' => $this->ciudad,
-            'tarifario_id' => $this->tarifario_id,
+            'tarifario_id' => $this->tarifario_id ?: null,
             'estado_id' => $this->estado_id ?? null,
         ];
 
@@ -822,6 +854,12 @@ class PaquetesEms extends Component
 
     protected function applyTarifarioMatch()
     {
+        if ($this->isCertificadoShipment()) {
+            $this->tarifario_id = null;
+            $this->precio = null;
+            return;
+        }
+
         $this->setUserOrigenId();
 
         if (
@@ -860,12 +898,19 @@ class PaquetesEms extends Component
         $this->precio = $tarifario->precio;
     }
 
+    protected function isCertificadoShipment(): bool
+    {
+        $tipo = strtoupper(trim((string) $this->tipo_correspondencia));
+        return $tipo !== '' && (str_contains($tipo, 'OFICIAL') || str_contains($tipo, 'CERTIFIC'));
+    }
+
     protected function generateCodigo()
     {
         $prefix = $this->getCodigoPrefix();
         if ($prefix === null) {
             return $this->codigo;
         }
+        $suffix = $this->getCodigoSuffix();
 
         $last = PaqueteEms::query()
             ->where('codigo', 'like', $prefix . '%')
@@ -880,11 +925,15 @@ class PaquetesEms extends Component
             }
         }
 
-        return $prefix . str_pad((string) $nextNumber, 9, '0', STR_PAD_LEFT) . 'BO';
+        return $prefix . str_pad((string) $nextNumber, 9, '0', STR_PAD_LEFT) . $suffix;
     }
 
     protected function getCodigoPrefix()
     {
+        if ($this->isAlmacenEms) {
+            return 'AG';
+        }
+
         if (!$this->servicio_id) {
             return null;
         }
@@ -908,9 +957,33 @@ class PaquetesEms extends Component
         return null;
     }
 
+    protected function getCodigoSuffix(): string
+    {
+        if ($this->isAlmacenEms) {
+            return 'BC';
+        }
+
+        return 'BO';
+    }
+
     protected function setEstadoAdmision()
     {
         $this->estado_id = $this->findEstadoId('ADMISIONES');
+    }
+
+    protected function setEstadoByMode()
+    {
+        if ($this->isAlmacenEms) {
+            $this->estado_id = $this->findEstadoId('ALMACEN');
+            return;
+        }
+
+        if ($this->isTransitoEms) {
+            $this->estado_id = $this->findEstadoId('TRANSITO');
+            return;
+        }
+
+        $this->setEstadoAdmision();
     }
 
     protected function findEstadoId(string $nombre): ?int
