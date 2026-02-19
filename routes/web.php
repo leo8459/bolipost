@@ -122,10 +122,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/carteros/distribucion', [CarterosController::class, 'distribucionData'])->name('api.carteros.distribucion');
     Route::get('/api/carteros/asignados', [CarterosController::class, 'asignadosData'])->name('api.carteros.asignados');
     Route::get('/api/carteros/cartero', [CarterosController::class, 'carteroData'])->name('api.carteros.cartero');
+    Route::get('/api/carteros/provincia', [CarterosController::class, 'provinciaData'])->name('api.carteros.provincia');
     Route::get('/api/carteros/devolucion', [CarterosController::class, 'devolucionData'])->name('api.carteros.devolucion');
     Route::get('/api/carteros/domicilio', [CarterosController::class, 'domicilioData'])->name('api.carteros.domicilio');
     Route::get('/api/carteros/users', [CarterosController::class, 'users'])->name('api.carteros.users');
     Route::post('/api/carteros/asignar', [CarterosController::class, 'assign'])->name('api.carteros.asignar');
+    Route::post('/api/carteros/registrar-guia', [CarterosController::class, 'registerGuide'])->name('api.carteros.registrar-guia');
     Route::post('/api/carteros/devolver-almacen', [CarterosController::class, 'returnToAlmacen'])->name('api.carteros.devolver-almacen');
     Route::post('/api/carteros/aceptar-paquetes', [CarterosController::class, 'acceptPackages'])->name('api.carteros.aceptar-paquetes');
     Route::post('/carteros/entrega', [CarterosController::class, 'deliverPackage'])->name('carteros.entrega.store');
