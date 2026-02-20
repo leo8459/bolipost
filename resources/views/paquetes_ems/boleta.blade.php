@@ -60,7 +60,7 @@
     $peso = $paquete->peso ?? '';
     $precio = $paquete->precio ?? '';
     $fecha = $paquete->created_at ?? now();
-    $destino = optional($paquete->tarifario->destino)->nombre_destino ?? '';
+    $destino = optional(optional($paquete->tarifario)->destino)->nombre_destino ?? '';
     $direccion = '';
 
     $marcaAgua = match ($destino) {

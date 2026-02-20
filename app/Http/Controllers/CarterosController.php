@@ -47,11 +47,12 @@ class CarterosController extends Controller
         ]);
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
-        $asignacion = $this->findAssignmentForUser(
+        $estadoProvinciaId = $this->resolveEstadoProvinciaId();
+        $asignacion = $this->findAssignmentForUserByStates(
             $data['tipo_paquete'],
             (int) $data['id'],
             (int) $request->user()->id,
-            $estadoCarteroId
+            [$estadoCarteroId, $estadoProvinciaId]
         );
 
         $paquete = $this->getPackageForType($data['tipo_paquete'], (int) $data['id']);
@@ -88,6 +89,15 @@ class CarterosController extends Controller
         return $this->combinedDataResponse(
             $request,
             $this->resolveEstadoCarteroId(),
+            (int) $request->user()->id
+        );
+    }
+
+    public function provinciaData(Request $request): JsonResponse
+    {
+        return $this->combinedDataResponse(
+            $request,
+            $this->resolveEstadoProvinciaId(),
             (int) $request->user()->id
         );
     }
@@ -363,6 +373,145 @@ class CarterosController extends Controller
         ]);
     }
 
+    public function registerGuide(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'transportadora' => ['required', 'string', 'max:255'],
+            'provincia' => ['required', 'string', 'max:255'],
+            'factura' => ['nullable', 'string', 'max:255'],
+            'precio_total' => ['nullable', 'numeric', 'min:0'],
+            'peso_total' => ['nullable', 'numeric', 'min:0'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI'],
+        ]);
+
+        $estadoCarteroId = $this->resolveEstadoCarteroId();
+        $estadoProvinciaId = $this->resolveEstadoProvinciaId();
+        $userId = (int) $request->user()->id;
+
+        $items = collect($validated['items'])
+            ->map(fn ($item) => [
+                'id' => (int) $item['id'],
+                'tipo_paquete' => (string) $item['tipo_paquete'],
+            ])
+            ->unique(fn ($item) => $item['tipo_paquete'] . '-' . $item['id'])
+            ->values();
+
+        $emsIds = $items->where('tipo_paquete', 'EMS')->pluck('id')->all();
+        $certiIds = $items->where('tipo_paquete', 'CERTI')->pluck('id')->all();
+
+        $allowedBase = Cartero::query()
+            ->where('id_user', $userId)
+            ->where('id_estados', $estadoCarteroId);
+
+        $allowedEmsIds = (clone $allowedBase)
+            ->whereNotNull('id_paquetes_ems')
+            ->pluck('id_paquetes_ems')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $allowedCertiIds = (clone $allowedBase)
+            ->whereNotNull('id_paquetes_certi')
+            ->pluck('id_paquetes_certi')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $invalidEms = collect($emsIds)->diff($allowedEmsIds)->values()->all();
+        $invalidCerti = collect($certiIds)->diff($allowedCertiIds)->values()->all();
+
+        if (!empty($invalidEms) || !empty($invalidCerti)) {
+            throw ValidationException::withMessages([
+                'items' => 'Incluiste paquetes que no pertenecen a tu bandeja CARTERO.',
+            ]);
+        }
+
+        $emsRows = PaqueteEms::query()
+            ->whereIn('id', $emsIds ?: [0])
+            ->get(['id', 'codigo', 'peso', 'precio'])
+            ->keyBy('id');
+
+        $certiRows = PaqueteCerti::query()
+            ->whereIn('id', $certiIds ?: [0])
+            ->get(['id', 'codigo'])
+            ->keyBy('id');
+
+        foreach ($items as $item) {
+            if ($item['tipo_paquete'] === 'EMS' && !isset($emsRows[$item['id']])) {
+                throw ValidationException::withMessages([
+                    'items' => 'Uno o mas paquetes EMS ya no existen.',
+                ]);
+            }
+        }
+
+        $result = DB::transaction(function () use ($validated, $userId, $items, $emsIds, $certiIds, $emsRows, $certiRows, $estadoProvinciaId) {
+            $guia = $this->nextGuideNumber();
+            $rowsToInsert = [];
+            $manualPesoTotal = $validated['peso_total'] ?? null;
+            $manualPrecioTotal = $validated['precio_total'] ?? null;
+            $lastIndex = max(0, $items->count() - 1);
+
+            foreach ($items->values() as $index => $item) {
+                if ($item['tipo_paquete'] === 'EMS') {
+                    $pkg = $emsRows[$item['id']];
+                } else {
+                    $pkg = $certiRows[$item['id']];
+                }
+
+                $rowsToInsert[] = [
+                    'guia' => $guia,
+                    'transportadora' => $validated['transportadora'],
+                    'provincia' => $validated['provincia'],
+                    'user_id' => $userId,
+                    'factura' => $validated['factura'] ?? null,
+                    'codigo' => (string) $pkg->codigo,
+                    'precio_total' => $index === $lastIndex ? $manualPrecioTotal : null,
+                    'peso_total' => $index === $lastIndex ? $manualPesoTotal : null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            DB::table('cartero_guias')->insert($rowsToInsert);
+
+            if (!empty($emsIds)) {
+                PaqueteEms::query()
+                    ->whereIn('id', $emsIds)
+                    ->update(['estado_id' => $estadoProvinciaId]);
+            }
+
+            if (!empty($certiIds)) {
+                PaqueteCerti::query()
+                    ->whereIn('id', $certiIds)
+                    ->update(['fk_estado' => $estadoProvinciaId]);
+            }
+
+            Cartero::query()
+                ->where('id_user', $userId)
+                ->where(function ($query) use ($emsIds, $certiIds) {
+                    if (!empty($emsIds)) {
+                        $query->whereIn('id_paquetes_ems', $emsIds);
+                    }
+                    if (!empty($certiIds)) {
+                        $query->orWhereIn('id_paquetes_certi', $certiIds);
+                    }
+                })
+                ->update(['id_estados' => $estadoProvinciaId]);
+
+            return [
+                'guia' => $guia,
+                'total_registros' => count($rowsToInsert),
+                'suma_peso' => $manualPesoTotal,
+                'suma_precio' => $manualPrecioTotal,
+            ];
+        });
+
+        return response()->json([
+            'message' => 'Guia registrada correctamente.',
+            'data' => $result,
+        ]);
+    }
+
     public function deliverPackage(Request $request)
     {
         $validated = $request->validate([
@@ -373,14 +522,15 @@ class CarterosController extends Controller
         ]);
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
+        $estadoProvinciaId = $this->resolveEstadoProvinciaId();
         $estadoDomicilioId = $this->resolveEstadoDomicilioId();
         $userId = (int) $request->user()->id;
 
-        $asignacion = $this->findAssignmentForUser(
+        $asignacion = $this->findAssignmentForUserByStates(
             $validated['tipo_paquete'],
             (int) $validated['id'],
             $userId,
-            $estadoCarteroId
+            [$estadoCarteroId, $estadoProvinciaId]
         );
 
         DB::transaction(function () use ($validated, $asignacion, $estadoDomicilioId) {
@@ -405,14 +555,15 @@ class CarterosController extends Controller
         ]);
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
+        $estadoProvinciaId = $this->resolveEstadoProvinciaId();
         $estadoDevolucionId = $this->resolveEstadoDevolucionId();
         $userId = (int) $request->user()->id;
 
-        $asignacion = $this->findAssignmentForUser(
+        $asignacion = $this->findAssignmentForUserByStates(
             $validated['tipo_paquete'],
             (int) $validated['id'],
             $userId,
-            $estadoCarteroId
+            [$estadoCarteroId, $estadoProvinciaId]
         );
 
         DB::transaction(function () use ($validated, $asignacion, $estadoDevolucionId) {
@@ -473,6 +624,7 @@ class CarterosController extends Controller
                 'telefono_destinatario as telefono',
                 'ciudad',
                 'peso',
+                'precio',
                 'estado_id',
                 'created_at',
             ])
@@ -493,6 +645,7 @@ class CarterosController extends Controller
                     'ciudad' => $item->ciudad,
                     'zona' => null,
                     'peso' => $item->peso,
+                    'precio' => $item->precio,
                     'estado_id' => $item->estado_id,
                     'user_id' => null,
                     'asignado_a' => null,
@@ -532,6 +685,7 @@ class CarterosController extends Controller
                     'ciudad' => $item->ciudad,
                     'zona' => $item->zona,
                     'peso' => $item->peso,
+                    'precio' => 0,
                     'estado_id' => $item->estado_id,
                     'user_id' => null,
                     'asignado_a' => null,
@@ -553,6 +707,14 @@ class CarterosController extends Controller
 
         $pageRows = $all->slice($offset, $perPage)->values();
         $pageRows = $this->attachCarteroData($pageRows);
+        $estadoNombres = Estado::query()
+            ->pluck('nombre_estado', 'id')
+            ->mapWithKeys(fn ($name, $id) => [(int) $id => (string) $name])
+            ->all();
+        $pageRows = collect($pageRows)->map(function ($row) use ($estadoNombres) {
+            $row['estado'] = $estadoNombres[(int) ($row['estado_id'] ?? 0)] ?? null;
+            return $row;
+        })->values();
 
         return response()->json([
             'data' => $pageRows,
@@ -655,11 +817,31 @@ class CarterosController extends Controller
         return $this->resolveEstadoByName('DEVOLUCION');
     }
 
+    private function resolveEstadoProvinciaId(): int
+    {
+        return $this->resolveEstadoByName('PROVINCIA');
+    }
+
     private function findAssignmentForUser(string $tipoPaquete, int $id, int $userId, int $estadoId): Cartero
     {
         return Cartero::query()
             ->where('id_user', $userId)
             ->where('id_estados', $estadoId)
+            ->where(function ($q) use ($tipoPaquete, $id) {
+                if ($tipoPaquete === 'EMS') {
+                    $q->where('id_paquetes_ems', $id);
+                } else {
+                    $q->where('id_paquetes_certi', $id);
+                }
+            })
+            ->firstOrFail();
+    }
+
+    private function findAssignmentForUserByStates(string $tipoPaquete, int $id, int $userId, array $estadoIds): Cartero
+    {
+        return Cartero::query()
+            ->where('id_user', $userId)
+            ->whereIn('id_estados', $estadoIds)
             ->where(function ($q) use ($tipoPaquete, $id) {
                 if ($tipoPaquete === 'EMS') {
                     $q->where('id_paquetes_ems', $id);
@@ -718,5 +900,27 @@ class CarterosController extends Controller
         }
 
         return (int) $estadoId;
+    }
+
+    private function nextGuideNumber(): string
+    {
+        $prefix = 'AGBC';
+
+        $last = DB::table('cartero_guias')
+            ->where('guia', 'like', $prefix . '-%')
+            ->orWhere('guia', 'like', $prefix . '%')
+            ->lockForUpdate()
+            ->orderByDesc('id')
+            ->value('guia');
+
+        $next = 1;
+        if ($last && preg_match('/^AGBC(\d{5})$/', (string) $last, $matches)) {
+            $value = (int) $matches[1];
+            if ($value > 0) {
+                $next = $value + 1;
+            }
+        }
+
+        return $prefix . str_pad((string) $next, 5, '0', STR_PAD_LEFT);
     }
 }

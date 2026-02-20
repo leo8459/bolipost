@@ -201,28 +201,16 @@
                             Mandar seleccionados
                         </button>
                     @elseif ($this->isAlmacenEms)
-                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('TODOS')">
-                            TODOS
+                        <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
+                            Manda a regional
                         </button>
-                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('ALMACEN')">
-                            ALMACEN
-                        </button>
-                        <button class="btn btn-outline-light2" type="button" wire:click="setAlmacenFiltro('RECIBIDO')">
-                            RECIBIDO
-                        </button>
-
-                        @if ($almacenEstadoFiltro === 'ALMACEN')
-                            <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
-                                Manda a regional
-                            </button>
-                        @endif
                     @elseif ($this->isTransitoEms)
                         <button class="btn btn-outline-light2" type="button" wire:click="recibirSeleccionadosRegional">
                             Recibir
                         </button>
                     @endif
 
-                    @if ($this->isAdmision)
+                    @if ($this->isAdmision || $this->isAlmacenEms)
                         <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                     @endif
                 </div>
@@ -372,16 +360,18 @@
                             <div class="section-title">Datos generales</div>
 
                             <div class="form-row">
-                                <div class="form-group col-md-6">
-                                    <label>Servicio</label>
-                                    <select wire:model.live="servicio_id" class="form-control">
-                                        <option value="">Seleccione...</option>
-                                        @foreach($servicios as $servicio)
-                                            <option value="{{ $servicio->id }}">{{ $servicio->nombre_servicio }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('servicio_id') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
+                                @if (!$this->isAlmacenEms)
+                                    <div class="form-group col-md-6">
+                                        <label>Servicio</label>
+                                        <select wire:model.live="servicio_id" class="form-control">
+                                            <option value="">Seleccione...</option>
+                                            @foreach($servicios as $servicio)
+                                                <option value="{{ $servicio->id }}">{{ $servicio->nombre_servicio }}</option>
+                                            @endforeach
+                                        </select>
+                                        @error('servicio_id') <small class="text-danger">{{ $message }}</small> @enderror
+                                    </div>
+                                @endif
                                 <div class="form-group col-md-6">
                                     <label>Destino</label>
                                     <select wire:model.live="destino_id" class="form-control">
@@ -402,8 +392,14 @@
                                 </div>
                                 <div class="form-group col-md-6">
                                     <label>Tipo de correspondencia</label>
-                                    <input type="text" wire:model.defer="tipo_correspondencia" class="form-control">
+                                    <input
+                                        type="text"
+                                        wire:model.defer="tipo_correspondencia"
+                                        class="form-control"
+                                        @if($this->isAlmacenEms) readonly @endif
+                                    >
                                     @error('tipo_correspondencia') <small class="text-danger">{{ $message }}</small> @enderror
+                                    <small class="text-muted">Si es OFICIAL, se guarda sin precio ni tarifario.</small>
                                 </div>
                             </div>
 
@@ -559,7 +555,7 @@
                         <div class="section-title">Resumen</div>
                         <div class="row">
                             <div class="col-md-6 mb-2"><strong>Servicio:</strong>
-                                {{ optional(collect($servicios)->firstWhere('id', (int) $servicio_id))->nombre_servicio }}
+                                {{ $this->isAlmacenEms ? 'OFICIAL' : optional(collect($servicios)->firstWhere('id', (int) $servicio_id))->nombre_servicio }}
                             </div>
                             <div class="col-md-6 mb-2"><strong>Destino:</strong>
                                 {{ optional(collect($destinos)->firstWhere('id', (int) $destino_id))->nombre_destino }}
