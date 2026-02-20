@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Despacho as DespachoModel;
+use App\Models\Estado as EstadoModel;
 use App\Models\Saca as SacaModel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +14,7 @@ use Livewire\WithPagination;
 class DespachoAdmitido extends Component
 {
     use WithPagination;
+    protected array $estadoIdCache = [];
 
     public $ciudadToOficina = [
         'LA PAZ' => 'BOLPZ',
@@ -137,8 +139,9 @@ class DespachoAdmitido extends Component
 
         $sacas = $sacasCandidatas
             ->filter(function ($saca) {
+                $estadoExpedicionId = $this->getEstadoIdByNombre('EXPEDICION', 19);
                 return (int) $saca->fk_estado === 15
-                    && (int) optional($saca->despacho)->fk_estado === 19;
+                    && (int) optional($saca->despacho)->fk_estado === $estadoExpedicionId;
             })
             ->values();
 
@@ -172,8 +175,9 @@ class DespachoAdmitido extends Component
 
         $validasMostradas = $sacasMostradas
             ->filter(function ($saca) {
+                $estadoExpedicionId = $this->getEstadoIdByNombre('EXPEDICION', 19);
                 return (int) $saca->fk_estado === 15
-                    && (int) optional($saca->despacho)->fk_estado === 19;
+                    && (int) optional($saca->despacho)->fk_estado === $estadoExpedicionId;
             })
             ->values();
 
@@ -236,19 +240,21 @@ class DespachoAdmitido extends Component
         }
 
         $despachosActualizados = collect();
+        $estadoExpedicionId = $this->getEstadoIdByNombre('EXPEDICION', 19);
+        $estadoIncorporacionId = $this->getEstadoIdByNombre('INCORPORACION', 21);
 
-        DB::transaction(function () use ($sacaIds, $despachoIds, &$despachosActualizados) {
+        DB::transaction(function () use ($sacaIds, $despachoIds, $estadoExpedicionId, $estadoIncorporacionId, &$despachosActualizados) {
             SacaModel::query()
                 ->whereIn('id', $sacaIds->all())
                 ->where('fk_estado', 15)
-                ->whereHas('despacho', function ($query) {
-                    $query->where('fk_estado', 19);
+                ->whereHas('despacho', function ($query) use ($estadoExpedicionId) {
+                    $query->where('fk_estado', $estadoExpedicionId);
                 })
                 ->update(['fk_estado' => 22]);
 
             $despachosCompletos = DespachoModel::query()
                 ->whereIn('id', $despachoIds->all())
-                ->where('fk_estado', 19)
+                ->where('fk_estado', $estadoExpedicionId)
                 ->whereDoesntHave('sacas', function ($query) {
                     $query->where('fk_estado', '!=', 22);
                 })
@@ -257,7 +263,7 @@ class DespachoAdmitido extends Component
             if ($despachosCompletos->isNotEmpty()) {
                 DespachoModel::query()
                     ->whereIn('id', $despachosCompletos->all())
-                    ->update(['fk_estado' => 21]);
+                    ->update(['fk_estado' => $estadoIncorporacionId]);
             }
 
             $despachosActualizados = $despachosCompletos;
@@ -317,6 +323,25 @@ class DespachoAdmitido extends Component
         return $this->ciudadToOficina[$ciudad] ?? '';
     }
 
+    protected function getEstadoIdByNombre(string $nombre, int $fallback): int
+    {
+        if (array_key_exists($nombre, $this->estadoIdCache)) {
+            return $this->estadoIdCache[$nombre];
+        }
+
+        $estadoId = (int) (EstadoModel::query()
+            ->where('nombre_estado', $nombre)
+            ->value('id') ?? 0);
+
+        if ($estadoId <= 0) {
+            $estadoId = $fallback;
+        }
+
+        $this->estadoIdCache[$nombre] = $estadoId;
+
+        return $estadoId;
+    }
+
     public function render()
     {
         $q = trim($this->searchQuery);
@@ -324,7 +349,9 @@ class DespachoAdmitido extends Component
 
         $despachos = DespachoModel::query()
             ->with('estado:id,nombre_estado')
-            ->whereIn('fk_estado', [19, 21])
+            ->whereHas('estado', function ($query) {
+                $query->whereIn('nombre_estado', ['EXPEDICION', 'INCORPORACION']);
+            })
             ->when($userOfdestino !== '', function ($query) use ($userOfdestino) {
                 $query->where('ofdestino', $userOfdestino);
             }, function ($query) {

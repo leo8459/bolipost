@@ -211,7 +211,7 @@
                         @endif
 
                         @if(!empty($previewSacas))
-                            <div class="mb-2 fw-bold">Sacas a recibir (saca estado 15 y despacho estado 19)</div>
+                            <div class="mb-2 fw-bold">Sacas a recibir (saca estado 15 y despacho estado EXPEDICION)</div>
                             <div class="table-responsive">
                                 <table class="table table-sm table-bordered">
                                     <thead>

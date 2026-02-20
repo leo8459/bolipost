@@ -197,7 +197,7 @@
                                     <td>{{ $despacho->departamento }}</td>
                                     <td>{{ optional($despacho->estado)->nombre_estado }}</td>
                                     <td>
-                                        @if ((int) $despacho->fk_estado === 14)
+                                        @if (optional($despacho->estado)->nombre_estado === 'CLAUSURA')
                                             <button wire:click="expedicion({{ $despacho->id }})"
                                                 class="btn btn-sm btn-info"
                                                 title="Expedicion"
@@ -205,7 +205,7 @@
                                                 <i class="fas fa-paper-plane"></i>
                                             </button>
                                         @endif
-                                        @if ((int) $despacho->fk_estado !== 14)
+                                        @if (optional($despacho->estado)->nombre_estado !== 'CLAUSURA')
                                             <a href="{{ route('sacas.index', ['despacho_id' => $despacho->id]) }}"
                                                 class="btn btn-sm btn-success"
                                                 title="Asignar sacas">
