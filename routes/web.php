@@ -19,6 +19,7 @@ use App\Http\Controllers\VentanillaController;
 use App\Http\Controllers\DespachoController;
 use App\Http\Controllers\SacaController;
 use App\Http\Controllers\CarterosController;
+use App\Http\Controllers\BackupController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -132,6 +133,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/carteros/aceptar-paquetes', [CarterosController::class, 'acceptPackages'])->name('api.carteros.aceptar-paquetes');
     Route::post('/carteros/entrega', [CarterosController::class, 'deliverPackage'])->name('carteros.entrega.store');
     Route::post('/carteros/entrega/intento', [CarterosController::class, 'addAttempt'])->name('carteros.entrega.intento');
+
+    Route::get('/respaldos', [BackupController::class, 'index'])->name('backups.index');
+    Route::post('/respaldos/base-datos', [BackupController::class, 'backupDatabase'])->name('backups.database');
+    Route::post('/respaldos/sistema', [BackupController::class, 'backupSystem'])->name('backups.system');
+    Route::get('/respaldos/descargar/{file}', [BackupController::class, 'download'])->name('backups.download');
 });
 
 require __DIR__ . '/auth.php';

@@ -523,6 +523,11 @@ return [
 
             'icon' => 'fas fa-user',
         ],
+        [
+            'text' => 'Respaldos',
+            'url' => '/respaldos',
+            'icon' => 'fas fa-save',
+        ],
     ],
 
     /*
