@@ -20,6 +20,7 @@ use App\Http\Controllers\DespachoController;
 use App\Http\Controllers\SacaController;
 use App\Http\Controllers\CarterosController;
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\EventoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -107,6 +108,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/paquetes-certificados/baja-pdf', [PaquetesCertiController::class, 'bajaPdf'])->name('paquetes-certificados.baja-pdf');
     Route::get('/paquetes-certificados/rezago-pdf', [PaquetesCertiController::class, 'rezagoPdf'])->name('paquetes-certificados.rezago-pdf');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
+    Route::get('/eventos', [EventoController::class, 'index'])->name('eventos.index');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
     Route::get('/despachos/abiertos', [DespachoController::class, 'index'])->name('despachos.abiertos');
     Route::get('/despachos/expedicion', [DespachoController::class, 'expedicion'])->name('despachos.expedicion');

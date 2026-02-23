@@ -505,6 +505,11 @@ return [
                     'icon' => 'fas fa-flag',
                 ],
                 [
+                    'text' => 'Eventos',
+                    'url' => 'eventos',
+                    'icon' => 'fas fa-calendar-alt',
+                ],
+                [
                     'text' => 'Ventanillas',
                     'url' => 'ventanillas',
                     'icon' => 'fas fa-window-restore',
