@@ -1,8 +1,8 @@
 <div>
     <style>
         :root{
-            --azul:#B99C46;
-            --dorado:#34447C;
+            --azul:#34447C;
+            --dorado:#B99C46;
             --bg:#f5f7fb;
             --line:#e5e7eb;
             --muted:#6b7280;
@@ -63,7 +63,7 @@
             font-weight: 800;
             border:none;
             border-radius: 12px;
-            padding: 8px 12px;
+            padding: 10px 14px;
         }
         .btn-azul:hover{ filter:brightness(.95); color:#fff; }
 
@@ -72,7 +72,7 @@
             color: var(--azul);
             font-weight: 800;
             border-radius: 12px;
-            padding: 8px 12px;
+            padding: 10px 14px;
             background:#fff;
         }
         .btn-outline-azul:hover{
@@ -88,9 +88,18 @@
             white-space: nowrap;
         }
 
+        .pill-id{
+            background: rgba(52,68,124,.12);
+            color: var(--azul);
+            font-weight: 900;
+            padding: 4px 10px;
+            border-radius: 999px;
+            display:inline-block;
+        }
+
         .muted{ color:var(--muted); }
 
-        .table td{ vertical-align: middle; white-space: nowrap; }
+        .table td{ vertical-align: middle; }
 
         .modal-content{
             border:0;
@@ -129,17 +138,17 @@
         <div class="card card-app">
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
                 <div>
-                    <h4 class="fw-bold mb-0">Despachos abiertos</h4>
+                    <h4 class="fw-bold mb-0">Eventos</h4>
                 </div>
 
                 <div class="d-flex gap-2 align-items-center">
                     <input
                         type="text"
                         class="form-control search-input"
-                        placeholder="Buscar por cualquier campo..."
+                        placeholder="Buscar..."
                         wire:model="search"
                     >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
+                    <button class="btn btn-outline-light2" type="button" wire:click="searchEventos">Buscar</button>
                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                 </div>
             </div>
@@ -160,7 +169,7 @@
                         @endif
                     </div>
                     <div class="muted small">
-                        Total en pagina: <strong>{{ $despachos->count() }}</strong>
+                        Total en pagina: <strong>{{ $eventos->count() }}</strong>
                     </div>
                 </div>
 
@@ -168,73 +177,33 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                <th>Oforigen</th>
-                                <th>Ofdestino</th>
-                                <th>Categoria</th>
-                                <th>Subclase</th>
-                                <th>Nro despacho</th>
-                                <th>Nro envase</th>
-                                <th>Peso</th>
-                                <th>Identificador</th>
-                                <th>Año</th>
-                                <th>Departamento</th>
-                                <th>Estado</th>
+                                <th>Nombre del evento</th>
+                                <th>Creado</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($despachos as $despacho)
+                            @forelse ($eventos as $evento)
                                 <tr>
-                                    <td>{{ $despacho->oforigen }}</td>
-                                    <td>{{ $despacho->ofdestino }}</td>
-                                    <td>{{ $despacho->categoria }}</td>
-                                    <td>{{ $despacho->subclase }}</td>
-                                    <td>{{ $despacho->nro_despacho }}</td>
-                                    <td>{{ $despacho->nro_envase }}</td>
-                                    <td>{{ $despacho->peso }}</td>
-                                    <td>{{ $despacho->identificador }}</td>
-                                    <td>{{ $despacho->anio }}</td>
-                                    <td>{{ $despacho->departamento }}</td>
-                                    <td>{{ optional($despacho->estado)->nombre_estado }}</td>
+                                    <td><span class="pill-id">{{ $evento->nombre_evento }}</span></td>
+                                    <td class="muted small">{{ optional($evento->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
-                                        @if (optional($despacho->estado)->nombre_estado === 'CLAUSURA')
-                                            <button wire:click="expedicion({{ $despacho->id }})"
-                                                class="btn btn-sm btn-info"
-                                                title="Expedicion"
-                                                onclick="return confirm('Cambiar estado del despacho a expedicion?')">
-                                                <i class="fas fa-paper-plane"></i>
-                                            </button>
-                                        @endif
-                                        @if (optional($despacho->estado)->nombre_estado !== 'CLAUSURA')
-                                            <a href="{{ route('sacas.index', ['despacho_id' => $despacho->id]) }}"
-                                                class="btn btn-sm btn-success"
-                                                title="Asignar sacas">
-                                                <i class="fas fa-suitcase"></i>
-                                            </a>
-                                        @else
-                                            <button wire:click="reaperturaSaca({{ $despacho->id }})"
-                                                class="btn btn-sm btn-warning"
-                                                title="Reapertura de saca"
-                                                onclick="return confirm('Se reaperturara el despacho y sus sacas. Continuar?')">
-                                                <i class="fas fa-unlock"></i>
-                                            </button>
-                                        @endif
-                                        <button wire:click="openEditModal({{ $despacho->id }})"
+                                        <button wire:click="openEditModal({{ $evento->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
-                                        <button wire:click="delete({{ $despacho->id }})"
+                                        <button wire:click="delete({{ $evento->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
-                                            onclick="return confirm('Seguro que deseas eliminar este despacho?')">
+                                            onclick="return confirm('Seguro que deseas eliminar este evento?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-5">
+                                    <td colspan="3" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -245,19 +214,19 @@
                 </div>
 
                 <div class="d-flex justify-content-end">
-                    {{ $despachos->links() }}
+                    {{ $eventos->links() }}
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="despachoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
-        <div class="modal-dialog modal-lg">
+    <div class="modal fade" id="eventoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
             <div class="modal-content">
                 <form wire:submit.prevent="save">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            {{ $editingId ? 'Editar despacho' : 'Nuevo despacho' }}
+                            {{ $editingId ? 'Editar evento' : 'Nuevo evento' }}
                         </h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
@@ -265,43 +234,10 @@
                     </div>
 
                     <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Ofdestino</label>
-                                    <select class="form-control" wire:model.defer="ofdestino">
-                                        <option value="">Seleccione...</option>
-                                        @foreach($oficinas as $key => $label)
-                                            <option value="{{ $key }}">{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('ofdestino') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Categoria</label>
-                                    <select class="form-control" wire:model.defer="categoria">
-                                        <option value="">Seleccione...</option>
-                                        @foreach($categorias as $key => $label)
-                                            <option value="{{ $key }}">{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('categoria') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Subclase</label>
-                                    <select class="form-control" wire:model.defer="subclase">
-                                        <option value="">Seleccione...</option>
-                                        @foreach($subclases as $key => $label)
-                                            <option value="{{ $key }}">{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('subclase') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
+                        <div class="form-group">
+                            <label>Nombre del evento</label>
+                            <input type="text" wire:model.defer="nombre_evento" class="form-control">
+                            @error('nombre_evento') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>
                     </div>
 
@@ -318,18 +254,12 @@
 </div>
 
 <script>
-    window.addEventListener('openDespachoModal', () => {
-        $('#despachoModal').modal('show');
+    window.addEventListener('openEventoModal', () => {
+        $('#eventoModal').modal('show');
     });
 
-    window.addEventListener('closeDespachoModal', () => {
-        $('#despachoModal').modal('hide');
-    });
-
-    window.addEventListener('printDespachoExpedicion', (event) => {
-        const url = event.detail?.[0]?.url || event.detail?.url;
-        if (url) {
-            window.open(url, '_blank');
-        }
+    window.addEventListener('closeEventoModal', () => {
+        $('#eventoModal').modal('hide');
     });
 </script>
+

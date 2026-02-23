@@ -13,6 +13,7 @@ use Livewire\WithPagination;
 class Despacho extends Component
 {
     use WithPagination;
+    protected array $estadoIdCache = [];
 
     public $search = '';
     public $searchQuery = '';
@@ -156,14 +157,17 @@ class Despacho extends Component
 
     public function reaperturaSaca($id)
     {
-        DB::transaction(function () use ($id) {
+        $estadoAperturaId = $this->getEstadoIdByNombre('APERTURA', 11);
+        $estadoSacaAperturaId = $this->getEstadoIdByNombre('ASIGNADO', 16);
+
+        DB::transaction(function () use ($id, $estadoAperturaId, $estadoSacaAperturaId) {
             $despacho = DespachoModel::query()->findOrFail($id);
 
-            $despacho->update(['fk_estado' => 11]);
+            $despacho->update(['fk_estado' => $estadoAperturaId]);
 
             SacaModel::query()
                 ->where('fk_despacho', $despacho->id)
-                ->update(['fk_estado' => 16]);
+                ->update(['fk_estado' => $estadoSacaAperturaId]);
         });
 
         session()->flash('success', 'Reapertura realizada correctamente.');
@@ -173,8 +177,15 @@ class Despacho extends Component
 
     public function expedicion($id)
     {
+        $estadoClausuraId = $this->getEstadoIdByNombre('CLAUSURA', 14);
+        $estadoExpedicionId = $this->getEstadoIdByNombre('EXPEDICION', 19);
+
         $despacho = DespachoModel::query()->findOrFail($id);
-        $despacho->update(['fk_estado' => 19]);
+        if ((int) $despacho->fk_estado !== (int) $estadoClausuraId) {
+            session()->flash('error', 'Solo despachos en CLAUSURA pueden pasar a EXPEDICION.');
+            return;
+        }
+        $despacho->update(['fk_estado' => $estadoExpedicionId]);
 
         $this->dispatch('printDespachoExpedicion', [
             'url' => route('despachos.expedicion.pdf', ['id' => $despacho->id]),
@@ -238,11 +249,26 @@ class Despacho extends Component
 
     protected function getEstadoAperturaId()
     {
-        $estadoId = EstadoModel::query()
-            ->where('nombre_estado', 'APERTURA')
-            ->value('id');
+        return $this->getEstadoIdByNombre('APERTURA', 11);
+    }
 
-        return $estadoId ?: 11;
+    protected function getEstadoIdByNombre(string $nombre, int $fallback): int
+    {
+        if (array_key_exists($nombre, $this->estadoIdCache)) {
+            return $this->estadoIdCache[$nombre];
+        }
+
+        $estadoId = (int) (EstadoModel::query()
+            ->where('nombre_estado', $nombre)
+            ->value('id') ?? 0);
+
+        if ($estadoId <= 0) {
+            $estadoId = $fallback;
+        }
+
+        $this->estadoIdCache[$nombre] = $estadoId;
+
+        return $estadoId;
     }
 
     protected function getCurrentYear()
@@ -315,7 +341,9 @@ class Despacho extends Component
 
         $despachos = DespachoModel::query()
             ->with('estado:id,nombre_estado')
-            ->whereIn('fk_estado', [11, 14])
+            ->whereHas('estado', function ($query) {
+                $query->whereIn('nombre_estado', ['APERTURA', 'CLAUSURA']);
+            })
             ->when($userOforigen !== '', function ($query) use ($userOforigen) {
                 $query->where('oforigen', $userOforigen);
             }, function ($query) {

@@ -511,6 +511,11 @@ return [
                     'icon' => 'fas fa-flag',
                 ],
                 [
+                    'text' => 'Eventos',
+                    'url' => 'eventos',
+                    'icon' => 'fas fa-calendar-alt',
+                ],
+                [
                     'text' => 'Ventanillas',
                     'url' => 'ventanillas',
                     'icon' => 'fas fa-window-restore',
@@ -528,6 +533,11 @@ return [
             'url' => '/log-viewer',
 
             'icon' => 'fas fa-user',
+        ],
+        [
+            'text' => 'Respaldos',
+            'url' => '/respaldos',
+            'icon' => 'fas fa-save',
         ],
     ],
 
