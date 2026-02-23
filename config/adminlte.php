@@ -356,14 +356,20 @@ return [
             ],
         ],
         [
-            'text' => 'Paquetes EMS',
-            'icon' => 'fas fa-box',
+            'text' => 'Admisiones',
+            'icon' => 'fas fa-inbox',
             'submenu' => [
                 [
-                    'text' => 'Servicio EMS',
+                    'text' => 'Crear Admision',
                     'url' => 'paquetes-ems',
                     'icon' => 'fas fa-box',
                 ],
+            ],
+        ],
+        [
+            'text' => 'Paquetes EMS',
+            'icon' => 'fas fa-box',
+            'submenu' => [
                 [
                     'text' => 'ALMACEN EMS',
                     'url' => 'paquetes-ems/almacen',
