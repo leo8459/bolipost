@@ -400,16 +400,27 @@ class Saca extends Component
             return true;
         }
 
-        $codEspecial = PaqueteEms::query()
+        $paquetes = PaqueteEms::query()
+            ->with('estado:id,nombre_estado')
             ->whereRaw('UPPER(cod_especial) = ?', [strtoupper($busqueda)])
-            ->value('cod_especial');
+            ->get(['id', 'cod_especial', 'estado_id']);
 
-        if (!$codEspecial) {
+        if ($paquetes->isEmpty()) {
             $this->addError('busqueda', 'El codigo no existe en paquetes_ems.cod_especial.');
             return false;
         }
 
-        $this->busqueda = $codEspecial;
+        $paquetesNoTransito = $paquetes->filter(function ($paquete) {
+            $estadoNombre = strtoupper(trim((string) optional($paquete->estado)->nombre_estado));
+            return $estadoNombre !== 'TRANSITO';
+        });
+
+        if ($paquetesNoTransito->isNotEmpty()) {
+            $this->addError('busqueda', 'Todos los paquetes con ese cod_especial deben estar en estado TRANSITO.');
+            return false;
+        }
+
+        $this->busqueda = (string) $paquetes->first()->cod_especial;
 
         return true;
     }
