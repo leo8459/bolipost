@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Despacho;
 use App\Models\Estado as EstadoModel;
+use App\Models\PaqueteEms;
 use App\Models\Saca as SacaModel;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -25,6 +26,7 @@ class Saca extends Component
     public $busqueda = '';
     public $receptaculo = '';
     public $fk_despacho = '';
+    public $codEspecialSugerencias = [];
     public $lockedDespachoId = null;
     public $lockedDespachoLabel = '';
     public $openCreateModalOnLoad = false;
@@ -104,8 +106,20 @@ class Saca extends Component
         $this->busqueda = $saca->busqueda;
         $this->receptaculo = $saca->receptaculo;
         $this->fk_despacho = $saca->fk_despacho;
+        $this->cargarSugerenciasCodEspecial($this->busqueda);
 
         $this->dispatch('openSacaModal');
+    }
+
+    public function updatedBusqueda($value)
+    {
+        $this->cargarSugerenciasCodEspecial($value);
+    }
+
+    public function seleccionarCodEspecial($codigo)
+    {
+        $this->busqueda = $codigo;
+        $this->codEspecialSugerencias = [];
     }
 
     public function save()
@@ -128,6 +142,10 @@ class Saca extends Component
         }
 
         $this->validate($this->rules());
+
+        if (!$this->normalizarBusquedaDesdeCodEspecial()) {
+            return;
+        }
 
         $generatedIdentificador = $this->buildIdentificadorFromDespacho();
         if ($generatedIdentificador === null) {
@@ -303,6 +321,7 @@ class Saca extends Component
             'busqueda',
             'receptaculo',
             'fk_despacho',
+            'codEspecialSugerencias',
         ]);
 
         $this->resetValidation();
@@ -353,6 +372,46 @@ class Saca extends Component
         }
 
         return $value === '' ? null : $value;
+    }
+
+    protected function cargarSugerenciasCodEspecial($term)
+    {
+        $term = trim((string) $term);
+        if ($term === '') {
+            $this->codEspecialSugerencias = [];
+            return;
+        }
+
+        $this->codEspecialSugerencias = PaqueteEms::query()
+            ->whereNotNull('cod_especial')
+            ->where('cod_especial', 'ILIKE', '%' . $term . '%')
+            ->orderByDesc('id')
+            ->limit(8)
+            ->pluck('cod_especial')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function normalizarBusquedaDesdeCodEspecial()
+    {
+        $busqueda = trim((string) $this->busqueda);
+        if ($busqueda === '') {
+            return true;
+        }
+
+        $codEspecial = PaqueteEms::query()
+            ->whereRaw('UPPER(cod_especial) = ?', [strtoupper($busqueda)])
+            ->value('cod_especial');
+
+        if (!$codEspecial) {
+            $this->addError('busqueda', 'El codigo no existe en paquetes_ems.cod_especial.');
+            return false;
+        }
+
+        $this->busqueda = $codEspecial;
+
+        return true;
     }
 
     protected function getNextNroSaca()
