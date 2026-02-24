@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Despacho as DespachoModel;
 use App\Models\Estado as EstadoModel;
+use App\Models\PaqueteEms;
 use App\Models\Saca as SacaModel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -150,6 +151,7 @@ class DespachoAdmitido extends Component
                 'id' => $saca->id,
                 'receptaculo' => $saca->receptaculo,
                 'identificador' => $saca->identificador,
+                'busqueda' => $saca->busqueda,
                 'fk_despacho' => $saca->fk_despacho,
                 'despacho' => optional($saca->despacho)->identificador,
             ];
@@ -233,6 +235,12 @@ class DespachoAdmitido extends Component
 
         $sacaIds = collect($this->previewSacas)->pluck('id')->filter()->values();
         $despachoIds = collect($this->previewDespachoIds)->filter()->values();
+        $codEspeciales = collect($this->previewSacas)
+            ->pluck('busqueda')
+            ->filter(fn ($item) => trim((string) $item) !== '')
+            ->map(fn ($item) => strtoupper(trim((string) $item)))
+            ->unique()
+            ->values();
 
         if ($sacaIds->isEmpty() || $despachoIds->isEmpty()) {
             $this->addError('receptaculosInput', 'No hay sacas validas para admitir.');
@@ -242,8 +250,16 @@ class DespachoAdmitido extends Component
         $despachosActualizados = collect();
         $estadoExpedicionId = $this->getEstadoIdByNombre('EXPEDICION', 19);
         $estadoIncorporacionId = $this->getEstadoIdByNombre('INCORPORACION', 21);
+        $estadoEnviadoId = (int) (EstadoModel::query()
+            ->whereRaw('TRIM(UPPER(nombre_estado)) = ?', ['ENVIADO'])
+            ->value('id') ?? 0);
 
-        DB::transaction(function () use ($sacaIds, $despachoIds, $estadoExpedicionId, $estadoIncorporacionId, &$despachosActualizados) {
+        if ($estadoEnviadoId <= 0) {
+            $this->addError('receptaculosInput', 'No existe el estado ENVIADO en la tabla estados.');
+            return;
+        }
+
+        DB::transaction(function () use ($sacaIds, $despachoIds, $codEspeciales, $estadoExpedicionId, $estadoIncorporacionId, $estadoEnviadoId, &$despachosActualizados) {
             SacaModel::query()
                 ->whereIn('id', $sacaIds->all())
                 ->where('fk_estado', 15)
@@ -251,6 +267,23 @@ class DespachoAdmitido extends Component
                     $query->where('fk_estado', $estadoExpedicionId);
                 })
                 ->update(['fk_estado' => 22]);
+
+            if ($codEspeciales->isNotEmpty()) {
+                $paqueteIds = PaqueteEms::query()
+                    ->whereNotNull('cod_especial')
+                    ->where(function ($query) use ($codEspeciales) {
+                        foreach ($codEspeciales as $codigo) {
+                            $query->orWhereRaw('TRIM(UPPER(cod_especial)) = ?', [$codigo]);
+                        }
+                    })
+                    ->pluck('id');
+
+                if ($paqueteIds->isNotEmpty()) {
+                    PaqueteEms::query()
+                        ->whereIn('id', $paqueteIds->all())
+                        ->update(['estado_id' => $estadoEnviadoId]);
+                }
+            }
 
             $despachosCompletos = DespachoModel::query()
                 ->whereIn('id', $despachoIds->all())
