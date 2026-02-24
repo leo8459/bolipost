@@ -36,6 +36,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::get('/rastreo-demo', function () {
+    return view('tracking-demo');
+})->name('tracking.demo');
+
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
