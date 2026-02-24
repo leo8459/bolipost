@@ -31,6 +31,8 @@ class PaquetesEms extends Component
     public $regionalDestino = '';
     public $regionalTransportMode = 'TERRESTRE';
     public $regionalTransportNumber = '';
+    public $showCn33Reprint = false;
+    public $cn33Despacho = '';
 
     public $ciudades = [
         'LA PAZ',
@@ -102,6 +104,11 @@ class PaquetesEms extends Component
     public function getIsTransitoEmsProperty()
     {
         return $this->mode === 'transito_ems';
+    }
+
+    public function getRegionalEstadoLabelProperty(): string
+    {
+        return $this->resolveRegionalEstado()['nombre'] ?? 'ENVIADOS';
     }
 
     public function getCanSelectProperty()
@@ -199,6 +206,75 @@ class PaquetesEms extends Component
         $this->regionalTransportMode = 'TERRESTRE';
         $this->regionalTransportNumber = '';
         $this->dispatch('openRegionalModal');
+    }
+
+    public function toggleCn33Reprint()
+    {
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $this->showCn33Reprint = !$this->showCn33Reprint;
+        if (!$this->showCn33Reprint) {
+            $this->cn33Despacho = '';
+        }
+    }
+
+    public function reimprimirCn33()
+    {
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $despacho = strtoupper(trim((string) $this->cn33Despacho));
+        if ($despacho === '') {
+            session()->flash('error', 'Ingresa el despacho (cod_especial) para reimprimir CN-33.');
+            return;
+        }
+
+        $paquetes = PaqueteEms::query()
+            ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo',
+                'cod_especial',
+                'origen',
+                'ciudad',
+                'cantidad',
+                'peso',
+                'nombre_remitente',
+                'user_id',
+                'created_at',
+                'updated_at',
+            ]);
+
+        if ($paquetes->isEmpty()) {
+            session()->flash('error', 'No se encontraron paquetes para el despacho ' . $despacho . '.');
+            return;
+        }
+
+        $generatedAt = $paquetes->first()->updated_at ?: now();
+        $loggedUserName = trim((string) optional(Auth::user())->name);
+        $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
+        $destinationCity = trim((string) optional($paquetes->first())->ciudad);
+
+        $pdf = Pdf::loadView('paquetes_ems.reporte-regional', [
+            'paquetes' => $paquetes,
+            'generatedAt' => $generatedAt,
+            'currentManifiesto' => $despacho,
+            'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
+            'destinationCity' => $destinationCity !== '' ? $destinationCity : 'N/A',
+            'selectedTransport' => 'N/A',
+            'numeroVuelo' => '-',
+            'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
+        ])->setPaper('a4', 'portrait');
+
+        session()->flash('success', 'Reimpresion CN-33 generada para despacho ' . $despacho . '.');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'cn33-' . $despacho . '-reimpresion.pdf');
     }
 
     public function openEditModal($id)
@@ -357,12 +433,12 @@ class PaquetesEms extends Component
             return;
         }
 
-        $estadoTransitoEms = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['TRANSITO'])
-            ->value('id');
+        $estadoRegional = $this->resolveRegionalEstado();
+        $estadoRegionalId = $estadoRegional['id'] ?? null;
+        $estadoRegionalNombre = $estadoRegional['nombre'] ?? null;
 
-        if (!$estadoTransitoEms) {
-            session()->flash('error', 'No existe el estado TRANSITO en la tabla estados.');
+        if (!$estadoRegionalId || !$estadoRegionalNombre) {
+            session()->flash('error', 'No existe el estado ENVIADOS ni TRANSITO en la tabla estados.');
             return;
         }
 
@@ -372,7 +448,7 @@ class PaquetesEms extends Component
 
         $manifiesto = '';
 
-        DB::transaction(function () use ($ids, $estadoTransitoEms, &$manifiesto, &$updated, &$paquetes) {
+        DB::transaction(function () use ($ids, $estadoRegionalId, &$manifiesto, &$updated, &$paquetes) {
             $paquetes = PaqueteEms::query()
                 ->whereIn('id', $ids)
                 ->with(['user:id,name'])
@@ -400,7 +476,7 @@ class PaquetesEms extends Component
 
             foreach ($paquetes as $paquete) {
                 $paquete->cod_especial = $manifiesto;
-                $paquete->estado_id = $estadoTransitoEms;
+                $paquete->estado_id = $estadoRegionalId;
                 $paquete->ciudad = $this->regionalDestino;
                 $paquete->save();
                 $updated++;
@@ -429,7 +505,7 @@ class PaquetesEms extends Component
         $this->regionalDestino = '';
         $this->dispatch('closeRegionalModal');
 
-        session()->flash('success', $updated . ' paquete(s) enviado(s) a regional (TRANSITO).');
+        session()->flash('success', $updated . ' paquete(s) enviado(s) a regional (' . $estadoRegionalNombre . ').');
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -670,9 +746,9 @@ class PaquetesEms extends Component
                 $estadoIds[] = $estadoRecibido;
             }
         } elseif ($this->isTransitoEms) {
-            $estadoTransito = $this->findEstadoId('TRANSITO');
-            if ($estadoTransito) {
-                $estadoIds[] = $estadoTransito;
+            $estadoRegionalId = $this->resolveRegionalEstado()['id'] ?? null;
+            if ($estadoRegionalId) {
+                $estadoIds[] = $estadoRegionalId;
             }
         } else {
             $estadoAdmision = $this->findEstadoId('ADMISIONES');
@@ -979,7 +1055,7 @@ class PaquetesEms extends Component
         }
 
         if ($this->isTransitoEms) {
-            $this->estado_id = $this->findEstadoId('TRANSITO');
+            $this->estado_id = $this->resolveRegionalEstado()['id'] ?? null;
             return;
         }
 
@@ -993,6 +1069,30 @@ class PaquetesEms extends Component
             ->value('id');
 
         return $id ? (int) $id : null;
+    }
+
+    protected function resolveRegionalEstado(): array
+    {
+        $enviadosId = $this->findEstadoId('ENVIADOS');
+        if ($enviadosId) {
+            return [
+                'id' => $enviadosId,
+                'nombre' => 'ENVIADOS',
+            ];
+        }
+
+        $transitoId = $this->findEstadoId('TRANSITO');
+        if ($transitoId) {
+            return [
+                'id' => $transitoId,
+                'nombre' => 'TRANSITO',
+            ];
+        }
+
+        return [
+            'id' => null,
+            'nombre' => null,
+        ];
     }
 
     protected function saveRemitenteData(): void

@@ -175,7 +175,7 @@
                         @if ($this->isAlmacenEms)
                             Paquetes ALMACEN
                         @elseif ($this->isTransitoEms)
-                            Recibir de regional (TRANSITO)
+                            Recibir de regional ({{ $this->regionalEstadoLabel }})
                         @else
                             Paquetes EMS
                         @endif
@@ -204,6 +204,9 @@
                         <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
                             Manda a regional
                         </button>
+                        <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
+                            Reimprimir CN-33
+                        </button>
                     @elseif ($this->isTransitoEms)
                         <button class="btn btn-outline-light2" type="button" wire:click="recibirSeleccionadosRegional">
                             Recibir
@@ -229,6 +232,31 @@
             @endif
 
             <div class="card-body">
+                @if ($this->isAlmacenEms && $showCn33Reprint)
+                    <div class="section-block mb-3">
+                        <div class="section-title">Reimprimir CN-33</div>
+                        <div class="form-row align-items-end">
+                            <div class="form-group col-md-6 mb-2">
+                                <label>Despacho</label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    placeholder="Ingresa cod_especial (ej: E00001)"
+                                    wire:model.defer="cn33Despacho"
+                                >
+                            </div>
+                            <div class="form-group col-md-6 mb-2 d-flex gap-2">
+                                <button class="btn btn-azul" type="button" wire:click="reimprimirCn33">
+                                    Imprimir CN-33
+                                </button>
+                                <button class="btn btn-outline-azul" type="button" wire:click="toggleCn33Reprint">
+                                    Cerrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="muted">
                         @if(!empty($searchQuery))
