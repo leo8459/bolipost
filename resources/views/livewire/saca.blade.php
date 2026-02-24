@@ -258,8 +258,19 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Busqueda</label>
-                                    <input type="text" class="form-control" wire:model.defer="busqueda">
+                                    <input type="text" class="form-control" wire:model.debounce.400ms="busqueda" placeholder="Buscar cod_especial de paquetes EMS">
                                     @error('busqueda') <small class="text-danger">{{ $message }}</small> @enderror
+                                    @if(!empty($codEspecialSugerencias))
+                                        <div class="border rounded mt-2 p-2" style="max-height: 140px; overflow-y: auto;">
+                                            @foreach($codEspecialSugerencias as $codEspecial)
+                                                <button type="button"
+                                                    class="btn btn-sm btn-light d-block text-left w-100 mb-1"
+                                                    wire:click="seleccionarCodEspecial('{{ $codEspecial }}')">
+                                                    {{ $codEspecial }}
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                             <input type="hidden" wire:model.defer="fk_estado">

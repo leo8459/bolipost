@@ -356,14 +356,20 @@ return [
             ],
         ],
         [
-            'text' => 'Paquetes EMS',
-            'icon' => 'fas fa-box',
+            'text' => 'Admisiones',
+            'icon' => 'fas fa-inbox',
             'submenu' => [
                 [
-                    'text' => 'Servicio EMS',
+                    'text' => 'Crear Admision',
                     'url' => 'paquetes-ems',
                     'icon' => 'fas fa-box',
                 ],
+            ],
+        ],
+        [
+            'text' => 'Paquetes EMS',
+            'icon' => 'fas fa-box',
+            'submenu' => [
                 [
                     'text' => 'ALMACEN EMS',
                     'url' => 'paquetes-ems/almacen',
@@ -505,6 +511,11 @@ return [
                     'icon' => 'fas fa-flag',
                 ],
                 [
+                    'text' => 'Eventos',
+                    'url' => 'eventos',
+                    'icon' => 'fas fa-calendar-alt',
+                ],
+                [
                     'text' => 'Ventanillas',
                     'url' => 'ventanillas',
                     'icon' => 'fas fa-window-restore',
@@ -522,6 +533,11 @@ return [
             'url' => '/log-viewer',
 
             'icon' => 'fas fa-user',
+        ],
+        [
+            'text' => 'Respaldos',
+            'url' => '/respaldos',
+            'icon' => 'fas fa-save',
         ],
     ],
 

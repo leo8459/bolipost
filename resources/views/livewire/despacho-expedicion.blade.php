@@ -138,7 +138,7 @@
                                             title="Reimprimir CN">
                                             <i class="fas fa-print"></i>
                                         </a>
-                                        @if ((int) $despacho->fk_estado === 19)
+                                        @if (optional($despacho->estado)->nombre_estado === 'EXPEDICION')
                                             <button
                                                 type="button"
                                                 class="btn btn-sm btn-danger"
@@ -155,7 +155,7 @@
                                                 title="Volver a apertura">
                                                 <i class="fas fa-undo"></i>
                                             </button>
-                                        @elseif ((int) $despacho->fk_estado === 20)
+                                        @elseif (optional($despacho->estado)->nombre_estado === 'INTERVENIR')
                                             <a
                                                 href="{{ route('sacas.index', ['despacho_id' => $despacho->id]) }}"
                                                 class="btn btn-sm btn-primary"
