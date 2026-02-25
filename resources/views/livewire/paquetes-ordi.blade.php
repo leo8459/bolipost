@@ -76,12 +76,9 @@
                                 <th>Codigo</th>
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
-                                <th>Ciudad</th>
-                                <th>Zona</th>
                                 <th>Peso</th>
                                 <th>Aduana</th>
                                 <th>Observaciones</th>
-                                <th>Cod. Especial</th>
                                 <th>Ventanilla</th>
                                 <th>Estado</th>
                                 <th>Creado</th>
@@ -94,12 +91,9 @@
                                     <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
                                     <td>{{ $paquete->destinatario }}</td>
                                     <td>{{ $paquete->telefono }}</td>
-                                    <td>{{ $paquete->ciudad }}</td>
-                                    <td>{{ $paquete->zona }}</td>
                                     <td>{{ $paquete->peso }}</td>
                                     <td>{{ $paquete->aduana }}</td>
                                     <td>{{ $paquete->observaciones ?? '-' }}</td>
-                                    <td>{{ $paquete->cod_especial ?? '-' }}</td>
                                     <td>{{ optional($paquete->ventanillaRef)->nombre_ventanilla ?? '-' }}</td>
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? '-' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
@@ -110,7 +104,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="13" class="text-center py-5">
+                                    <td colspan="10" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -157,7 +151,7 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Ciudad</label>
-                                <select wire:model.defer="ciudad" class="form-control uppercase-input">
+                                <select wire:model="ciudad" wire:change="changeCiudad($event.target.value)" class="form-control uppercase-input">
                                     <option value="">Seleccione</option>
                                     <option value="LA PAZ">LA PAZ</option>
                                     <option value="COCHABAMBA">COCHABAMBA</option>
@@ -170,11 +164,6 @@
                                     <option value="COBIJA">COBIJA</option>
                                 </select>
                                 @error('ciudad') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Zona</label>
-                                <input type="text" wire:model.defer="zona" class="form-control uppercase-input">
-                                @error('zona') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Peso</label>
@@ -191,13 +180,8 @@
                                 @error('aduana') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Cod. Especial</label>
-                                <input type="text" wire:model.defer="cod_especial" class="form-control uppercase-input">
-                                @error('cod_especial') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
                                 <label>Ventanilla</label>
-                                <select wire:model.defer="fk_ventanilla" class="form-control uppercase-input">
+                                <select wire:model.defer="fk_ventanilla" wire:key="ventanilla-{{ $ciudad ?: 'none' }}" class="form-control uppercase-input">
                                     <option value="">Seleccione</option>
                                     @foreach ($ventanillas as $ventanilla)
                                         <option value="{{ $ventanilla->id }}">{{ $ventanilla->nombre_ventanilla }}</option>
@@ -209,16 +193,6 @@
                                 <label>Observaciones</label>
                                 <textarea wire:model.defer="observaciones" class="form-control uppercase-input" rows="2"></textarea>
                                 @error('observaciones') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Estado</label>
-                                <select wire:model.defer="fk_estado" class="form-control uppercase-input">
-                                    <option value="">Seleccione</option>
-                                    @foreach ($estados as $estado)
-                                        <option value="{{ $estado->id }}">{{ $estado->nombre_estado }}</option>
-                                    @endforeach
-                                </select>
-                                @error('fk_estado') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                         </div>
                     </div>

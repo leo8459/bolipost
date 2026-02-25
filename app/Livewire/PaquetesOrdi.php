@@ -30,6 +30,8 @@ class PaquetesOrdi extends Component
 
     protected $paginationTheme = 'bootstrap';
 
+    private const ESTADO_CLASIFICACION = 'CLASIFICACION';
+
     public function searchPaquetes()
     {
         $this->searchQuery = $this->search;
@@ -71,6 +73,13 @@ class PaquetesOrdi extends Component
 
     public function save()
     {
+        $estadoClasificacionId = $this->getClasificacionEstadoId();
+        if (!$estadoClasificacionId) {
+            session()->flash('success', 'No existe el estado CLASIFICACION en la tabla estados.');
+            return;
+        }
+
+        $this->fk_estado = (string) $estadoClasificacionId;
         $this->validate($this->rules());
 
         if ($this->editingId) {
@@ -119,7 +128,7 @@ class PaquetesOrdi extends Component
             'destinatario' => 'required|string|max:255',
             'telefono' => 'required|string|max:30',
             'ciudad' => 'required|string|max:255',
-            'zona' => 'required|string|max:255',
+            'zona' => 'nullable|string|max:255',
             'peso' => 'required|numeric|min:0',
             'aduana' => 'required|string|max:50',
             'observaciones' => 'nullable|string|max:1000',
@@ -157,12 +166,58 @@ class PaquetesOrdi extends Component
         return strtoupper(trim((string) $value));
     }
 
+    public function updatedCiudad($value)
+    {
+        $this->ciudad = $this->upper($value);
+        $this->fk_ventanilla = '';
+        $this->resetPage();
+    }
+
+    public function changeCiudad($value)
+    {
+        $this->updatedCiudad($value);
+    }
+
+    protected function getClasificacionEstadoId(): ?int
+    {
+        $id = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [self::ESTADO_CLASIFICACION])
+            ->value('id');
+
+        return $id ? (int) $id : null;
+    }
+
+    protected function getVentanillasByCiudad()
+    {
+        $ciudad = $this->upper($this->ciudad);
+
+        return Ventanilla::query()
+            ->when($ciudad === 'LA PAZ', function ($query) {
+                $query->where(function ($sub) {
+                    $sub->whereRaw('trim(upper(nombre_ventanilla)) = ?', ['DD'])
+                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['DND']);
+                });
+            })
+            ->when($ciudad !== '' && $ciudad !== 'LA PAZ', function ($query) {
+                $query->whereRaw('trim(upper(nombre_ventanilla)) = ?', ['UNICA']);
+            })
+            ->orderBy('nombre_ventanilla')
+            ->get();
+    }
+
     public function render()
     {
         $q = trim($this->searchQuery);
+        $estadoClasificacionId = $this->getClasificacionEstadoId();
 
         $paquetes = PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
+            ->when($estadoClasificacionId, function ($query) use ($estadoClasificacionId) {
+                $query->where('fk_estado', $estadoClasificacionId);
+            })
+            ->when(!$estadoClasificacionId, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('codigo', 'ILIKE', "%{$q}%")
@@ -187,8 +242,7 @@ class PaquetesOrdi extends Component
 
         return view('livewire.paquetes-ordi', [
             'paquetes' => $paquetes,
-            'estados' => Estado::orderBy('nombre_estado')->get(),
-            'ventanillas' => Ventanilla::orderBy('nombre_ventanilla')->get(),
+            'ventanillas' => $this->getVentanillasByCiudad(),
         ]);
     }
 }
