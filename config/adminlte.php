@@ -414,6 +414,17 @@ return [
             ],
         ],
         [
+            'text' => 'Paquetes Ordinarios',
+            'icon' => 'fas fa-box-open',
+            'submenu' => [
+                [
+                    'text' => 'Clasificacion',
+                    'url' => 'paquetes-ordinarios',
+                    'icon' => 'fas fa-layer-group',
+                ],
+            ],
+        ],
+        [
             'text' => 'Despachos',
             'icon' => 'fas fa-shipping-fast',
             'submenu' => [

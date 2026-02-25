@@ -21,6 +21,7 @@ use App\Http\Controllers\SacaController;
 use App\Http\Controllers\CarterosController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\EventoController;
+use App\Http\Controllers\PaquetesOrdiController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -112,6 +113,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/paquetes-certificados/todos', [PaquetesCertiController::class, 'todos'])->name('paquetes-certificados.todos');
     Route::get('/paquetes-certificados/baja-pdf', [PaquetesCertiController::class, 'bajaPdf'])->name('paquetes-certificados.baja-pdf');
     Route::get('/paquetes-certificados/rezago-pdf', [PaquetesCertiController::class, 'rezagoPdf'])->name('paquetes-certificados.rezago-pdf');
+    Route::get('/paquetes-ordinarios', [PaquetesOrdiController::class, 'index'])->name('paquetes-ordinarios.index');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/eventos', [EventoController::class, 'index'])->name('eventos.index');
     Route::get('/eventos-ems', [EventoController::class, 'emsIndex'])->name('eventos-ems.index');
