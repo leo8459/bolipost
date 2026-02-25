@@ -108,7 +108,11 @@ class PaquetesEms extends Component
 
     public function getRegionalEstadoLabelProperty(): string
     {
-        return $this->resolveRegionalEstado()['nombre'] ?? 'ENVIADOS';
+        if ($this->isTransitoEms) {
+            return $this->resolveRegionalRecepcionEstado()['nombre'] ?? 'ENVIADO';
+        }
+
+        return $this->resolveRegionalEstado()['nombre'] ?? 'TRANSITO';
     }
 
     public function getCanSelectProperty()
@@ -438,7 +442,7 @@ class PaquetesEms extends Component
         $estadoRegionalNombre = $estadoRegional['nombre'] ?? null;
 
         if (!$estadoRegionalId || !$estadoRegionalNombre) {
-            session()->flash('error', 'No existe el estado ENVIADOS ni TRANSITO en la tabla estados.');
+            session()->flash('error', 'No existe el estado TRANSITO en la tabla estados.');
             return;
         }
 
@@ -541,6 +545,45 @@ class PaquetesEms extends Component
 
         $this->selectedPaquetes = [];
         session()->flash('success', $updated . ' paquete(s) recibido(s) en RECIBIDO.');
+    }
+
+    public function devolverAAdmisiones($id)
+    {
+        if (!$this->isAlmacenEms) {
+            session()->flash('error', 'Esta accion solo esta disponible en ALMACEN.');
+            return;
+        }
+
+        $estadoAdmision = $this->findEstadoId('ADMISIONES');
+        if (!$estadoAdmision) {
+            session()->flash('error', 'No existe el estado ADMISIONES en la tabla estados.');
+            return;
+        }
+
+        $paquete = $this->basePaquetesQuery()
+            ->where('paquetes_ems.id', (int) $id)
+            ->first(['paquetes_ems.id', 'paquetes_ems.codigo']);
+
+        if (!$paquete) {
+            session()->flash('error', 'No se encontro el paquete en el listado actual.');
+            return;
+        }
+
+        $updated = PaqueteEms::query()
+            ->whereKey((int) $id)
+            ->update(['estado_id' => $estadoAdmision]);
+
+        if (!$updated) {
+            session()->flash('error', 'No se pudo devolver el paquete a ADMISIONES.');
+            return;
+        }
+
+        $this->selectedPaquetes = collect($this->selectedPaquetes)
+            ->reject(fn ($selectedId) => (int) $selectedId === (int) $id)
+            ->values()
+            ->all();
+
+        session()->flash('success', 'Paquete ' . $paquete->codigo . ' devuelto a ADMISIONES.');
     }
 
     protected function mandarSeleccionadosAlmacenEms(bool $soloHoy)
@@ -746,7 +789,7 @@ class PaquetesEms extends Component
                 $estadoIds[] = $estadoRecibido;
             }
         } elseif ($this->isTransitoEms) {
-            $estadoRegionalId = $this->resolveRegionalEstado()['id'] ?? null;
+            $estadoRegionalId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
             if ($estadoRegionalId) {
                 $estadoIds[] = $estadoRegionalId;
             }
@@ -1073,19 +1116,45 @@ class PaquetesEms extends Component
 
     protected function resolveRegionalEstado(): array
     {
-        $enviadosId = $this->findEstadoId('ENVIADOS');
-        if ($enviadosId) {
-            return [
-                'id' => $enviadosId,
-                'nombre' => 'ENVIADOS',
-            ];
-        }
-
         $transitoId = $this->findEstadoId('TRANSITO');
         if ($transitoId) {
             return [
                 'id' => $transitoId,
                 'nombre' => 'TRANSITO',
+            ];
+        }
+
+        // Compatibilidad para instalaciones con flujo antiguo.
+        $enviadoId = $this->findEstadoId('ENVIADO');
+        if ($enviadoId) {
+            return [
+                'id' => $enviadoId,
+                'nombre' => 'ENVIADO',
+            ];
+        }
+
+        // Compatibilidad con instalaciones antiguas que usaban "ENVIADOS".
+        $enviadosLegacyId = $this->findEstadoId('ENVIADOS');
+        if ($enviadosLegacyId) {
+            return [
+                'id' => $enviadosLegacyId,
+                'nombre' => 'ENVIADOS',
+            ];
+        }
+
+        return [
+            'id' => null,
+            'nombre' => null,
+        ];
+    }
+
+    protected function resolveRegionalRecepcionEstado(): array
+    {
+        $enviadoId = $this->findEstadoId('ENVIADO');
+        if ($enviadoId) {
+            return [
+                'id' => $enviadoId,
+                'nombre' => 'ENVIADO',
             ];
         }
 

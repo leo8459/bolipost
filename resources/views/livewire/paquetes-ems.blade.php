@@ -340,6 +340,14 @@
                                            title="Reimprimir boleta">
                                             <i class="fas fa-print"></i>
                                         </a>
+                                        @if ($this->isAlmacenEms)
+                                            <button wire:click="devolverAAdmisiones({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                title="Devolver a ADMISIONES"
+                                                onclick="return confirm('Seguro que deseas devolver este paquete a ADMISIONES?')">
+                                                <i class="fas fa-undo"></i>
+                                            </button>
+                                        @endif
                                         @if ($this->isAdmision)
                                             <button wire:click="delete({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"

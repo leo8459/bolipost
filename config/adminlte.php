@@ -380,6 +380,11 @@ return [
                     'url' => 'paquetes-ems/recibir-regional',
                     'icon' => 'fas fa-truck-loading',
                 ],
+                [
+                    'text' => 'Entregados',
+                    'url' => 'paquetes-ems/entregados',
+                    'icon' => 'fas fa-check-circle',
+                ],
             ],
         ],
         [
