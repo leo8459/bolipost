@@ -27,6 +27,7 @@ class PaqueteEms extends Model
         'telefono_remitente',
         'nombre_destinatario',
         'telefono_destinatario',
+        'direccion',
         'ciudad',
         'tarifario_id',
         'estado_id',

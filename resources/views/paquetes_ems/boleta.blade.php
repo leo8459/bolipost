@@ -61,7 +61,7 @@
     $precio = $paquete->precio ?? '';
     $fecha = $paquete->created_at ?? now();
     $destino = optional(optional($paquete->tarifario)->destino)->nombre_destino ?? '';
-    $direccion = '';
+    $direccion = $paquete->direccion ?? optional($paquete->formulario)->direccion ?? '';
 
     $marcaAgua = match ($destino) {
         'SUPEREXPRESS' => 'NACIONAL SUPEREXPRESS',

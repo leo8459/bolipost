@@ -521,6 +521,11 @@ return [
                     'icon' => 'fas fa-calendar-alt',
                 ],
                 [
+                    'text' => 'Eventos EMS',
+                    'url' => 'eventos-ems',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
                     'text' => 'Ventanillas',
                     'url' => 'ventanillas',
                     'icon' => 'fas fa-window-restore',

@@ -114,6 +114,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/paquetes-certificados/rezago-pdf', [PaquetesCertiController::class, 'rezagoPdf'])->name('paquetes-certificados.rezago-pdf');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/eventos', [EventoController::class, 'index'])->name('eventos.index');
+    Route::get('/eventos-ems', [EventoController::class, 'emsIndex'])->name('eventos-ems.index');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
     Route::get('/despachos/abiertos', [DespachoController::class, 'index'])->name('despachos.abiertos');
     Route::get('/despachos/expedicion', [DespachoController::class, 'expedicion'])->name('despachos.expedicion');
