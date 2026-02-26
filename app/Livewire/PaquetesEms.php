@@ -43,6 +43,7 @@ class PaquetesEms extends Component
     public $generadosHoyCount = 0;
     public $entregaRecibidoPor = '';
     public $entregaDescripcion = '';
+    public $recibirRegionalPreview = [];
 
     public $ciudades = [
         'LA PAZ',
@@ -787,8 +788,59 @@ class PaquetesEms extends Component
         }, 'guia-entrega-ventanilla-ems-' . $generatedAt->format('Ymd-His') . '.pdf');
     }
 
+    public function openRecibirRegionalModal()
+    {
+        if (!$this->isTransitoEms) {
+            return;
+        }
+
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('error', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $paquetes = $this->basePaquetesQuery()
+            ->whereIn('paquetes_ems.id', $ids)
+            ->orderBy('paquetes_ems.id')
+            ->get(['paquetes_ems.id', 'paquetes_ems.codigo', 'paquetes_ems.nombre_remitente', 'paquetes_ems.nombre_destinatario', 'paquetes_ems.ciudad', 'paquetes_ems.peso']);
+
+        if ($paquetes->isEmpty()) {
+            session()->flash('error', 'No hay paquetes validos para recibir en este listado.');
+            return;
+        }
+
+        $this->recibirRegionalPreview = $paquetes
+            ->map(function ($paquete) {
+                $formulario = $paquete->formulario;
+
+                return [
+                    'id' => (int) $paquete->id,
+                    'codigo' => (string) $paquete->codigo,
+                    'nombre_remitente' => (string) ($formulario->nombre_remitente ?? $paquete->nombre_remitente),
+                    'nombre_destinatario' => (string) ($formulario->nombre_destinatario ?? $paquete->nombre_destinatario),
+                    'ciudad' => (string) ($formulario->ciudad ?? $paquete->ciudad),
+                    'peso' => (string) ($formulario->peso ?? $paquete->peso),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $this->dispatch('openRecibirRegionalModal');
+    }
+
     public function recibirSeleccionadosRegional()
     {
+        if (!$this->isTransitoEms) {
+            return;
+        }
+
         $ids = collect($this->selectedPaquetes)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -815,6 +867,8 @@ class PaquetesEms extends Component
             ->update(['estado_id' => $estadoRecibido]);
 
         $this->selectedPaquetes = [];
+        $this->recibirRegionalPreview = [];
+        $this->dispatch('closeRecibirRegionalModal');
         session()->flash('success', $updated . ' paquete(s) recibido(s) en RECIBIDO.');
     }
 
