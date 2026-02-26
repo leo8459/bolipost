@@ -98,6 +98,29 @@
             @enderror
         </div>
 
+        {{-- Empresa --}}
+        <div class="form-group mb-3">
+            <label for="empresa_id">Empresa (opcional)</label>
+            <select
+                id="empresa_id"
+                name="empresa_id"
+                class="form-control @error('empresa_id') is-invalid @enderror"
+            >
+                <option value="">Sin empresa</option>
+                @foreach(($empresas ?? collect()) as $empresa)
+                    <option
+                        value="{{ $empresa->id }}"
+                        {{ (string) old('empresa_id', $user->empresa_id ?? '') === (string) $empresa->id ? 'selected' : '' }}
+                    >
+                        {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
+                    </option>
+                @endforeach
+            </select>
+            @error('empresa_id')
+                <div class="invalid-feedback">{{ $message }}</div>
+            @enderror
+        </div>
+
         {{-- Roles --}}
         <h2 class="h5 mt-4">Listado de Roles</h2>
 

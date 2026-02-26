@@ -2,68 +2,68 @@
 
 namespace App\Livewire;
 
-use Livewire\Component;
-use Livewire\WithPagination;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 class Users extends Component
 {
     use WithPagination;
 
-    public $search = ''; // Campo para búsqueda
-    public $searchQuery = ''; // Campo que se actualizará al hacer clic en el botón
-    public $newPassword = ''; // Nueva contraseña
-    public $userIdBeingUpdated = null; // ID del usuario que será actualizado
+    public $search = '';
+    public $searchQuery = '';
+    public $newPassword = '';
+    public $userIdBeingUpdated = null;
 
-    protected $paginationTheme = 'bootstrap'; // Usar paginación de Bootstrap
+    protected $paginationTheme = 'bootstrap';
 
-    // Método que se ejecuta cuando se presiona el botón de búsqueda
     public function searchUsers()
     {
-        $this->searchQuery = $this->search; // Actualiza la query de búsqueda
-        $this->resetPage(); // Resetea la paginación cuando se realiza una búsqueda
+        $this->searchQuery = $this->search;
+        $this->resetPage();
     }
 
-    // Establecer el ID del usuario para cambiar la contraseña y abrir el modal
     public function setPasswordUser($userId)
     {
         $this->userIdBeingUpdated = $userId;
-        $this->dispatch('openModal'); // Disparar evento para abrir el modal
+        $this->dispatch('openModal');
     }
 
-    // Método para actualizar la contraseña del usuario
     public function updatePassword()
     {
         $this->validate([
-            'newPassword' => 'required|min:6', // Validar que la nueva contraseña tenga al menos 6 caracteres
+            'newPassword' => 'required|min:6',
         ]);
 
         $user = User::find($this->userIdBeingUpdated);
 
         if ($user) {
-            $user->password = Hash::make($this->newPassword); // Cambiar la contraseña
+            $user->password = Hash::make($this->newPassword);
             $user->save();
-            session()->flash('success', 'Contraseña actualizada correctamente.');
+            session()->flash('success', 'Contrasena actualizada correctamente.');
         } else {
             session()->flash('error', 'Usuario no encontrado.');
         }
 
-        // Limpiar el campo de la nueva contraseña y el ID del usuario
         $this->newPassword = '';
         $this->userIdBeingUpdated = null;
 
-        // Cerrar el modal después de la actualización
         $this->dispatch('closeModal');
     }
 
     public function render()
     {
-        // Obtener los usuarios con paginación y filtrados por el campo de búsqueda
         $users = User::withTrashed()
+            ->with(['empresa', 'roles'])
             ->where(function ($query) {
                 $query->where('name', 'like', '%' . $this->searchQuery . '%')
-                      ->orWhere('email', 'like', '%' . $this->searchQuery . '%');
+                    ->orWhere('email', 'like', '%' . $this->searchQuery . '%')
+                    ->orWhereHas('empresa', function ($empresaQuery) {
+                        $empresaQuery->where('nombre', 'like', '%' . $this->searchQuery . '%')
+                            ->orWhere('sigla', 'like', '%' . $this->searchQuery . '%')
+                            ->orWhere('codigo_cliente', 'like', '%' . $this->searchQuery . '%');
+                    });
             })
             ->paginate(10);
 
