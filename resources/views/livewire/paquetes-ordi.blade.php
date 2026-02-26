@@ -46,6 +46,8 @@
                             Almacen - Paquetes Ordinarios
                         @elseif ($this->isEntregado)
                             Entregado - Paquetes Ordinarios
+                        @elseif ($this->isRezago)
+                            Rezago - Paquetes Ordinarios
                         @else
                             Paquetes Ordinarios - Clasificacion
                         @endif
@@ -94,6 +96,14 @@
                             onclick="return confirm('Deseas enviar a ENTREGADO los paquetes seleccionados?')"
                         >
                             Baja de paquetes
+                        </button>
+                        <button
+                            class="btn btn-outline-light2"
+                            type="button"
+                            wire:click="rezagoPaquetes"
+                            onclick="return confirm('Deseas enviar a REZAGO los paquetes seleccionados?')"
+                        >
+                            Rezago
                         </button>
                     @endif
                 </div>
@@ -191,6 +201,15 @@
                                                 onclick="return confirm('Deseas dar de alta este paquete a ALMACEN?')"
                                             >
                                                 Alta
+                                            </button>
+                                        @endif
+                                        @if ($this->isRezago)
+                                            <button
+                                                wire:click="devolverRezagoAAlmacen({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                onclick="return confirm('Deseas devolver este paquete a ALMACEN?')"
+                                            >
+                                                Devolver
                                             </button>
                                         @endif
                                     </td>

@@ -23,4 +23,9 @@ class PaquetesOrdiController extends Controller
     {
         return view('paquetes_ordi.entregado');
     }
+
+    public function rezago()
+    {
+        return view('paquetes_ordi.rezago');
+    }
 }

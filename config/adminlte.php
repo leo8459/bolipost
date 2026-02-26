@@ -442,6 +442,11 @@ return [
                     'url' => 'paquetes-ordinarios/entregado',
                     'icon' => 'fas fa-check-circle',
                 ],
+                [
+                    'text' => 'Rezago',
+                    'url' => 'paquetes-ordinarios/rezago',
+                    'icon' => 'fas fa-archive',
+                ],
             ],
         ],
         [
