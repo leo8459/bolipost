@@ -437,6 +437,11 @@ return [
                     'url' => 'paquetes-ordinarios/almacen',
                     'icon' => 'fas fa-warehouse',
                 ],
+                [
+                    'text' => 'Entregado',
+                    'url' => 'paquetes-ordinarios/entregado',
+                    'icon' => 'fas fa-check-circle',
+                ],
             ],
         ],
         [

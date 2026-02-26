@@ -44,6 +44,8 @@
                             Despacho - Paquetes Ordinarios
                         @elseif ($this->isAlmacen)
                             Almacen - Paquetes Ordinarios
+                        @elseif ($this->isEntregado)
+                            Entregado - Paquetes Ordinarios
                         @else
                             Paquetes Ordinarios - Clasificacion
                         @endif
@@ -85,6 +87,14 @@
                         <button class="btn btn-outline-light2" type="button" wire:click="openRecibirModal">
                             Recibir paquetes
                         </button>
+                        <button
+                            class="btn btn-outline-light2"
+                            type="button"
+                            wire:click="bajaPaquetes"
+                            onclick="return confirm('Deseas enviar a ENTREGADO los paquetes seleccionados?')"
+                        >
+                            Baja de paquetes
+                        </button>
                     @endif
                 </div>
             </div>
@@ -113,7 +123,7 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                @if ($this->isClasificacion)
+                                @if ($this->isClasificacion || $this->isAlmacen)
                                     <th>
                                         <input
                                             type="checkbox"
@@ -142,7 +152,7 @@
                         <tbody>
                             @forelse ($paquetes as $paquete)
                                 <tr>
-                                    @if ($this->isClasificacion)
+                                    @if ($this->isClasificacion || $this->isAlmacen)
                                         <td>
                                             <input type="checkbox" wire:key="select-{{ $paquete->id }}" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
                                         </td>
@@ -174,11 +184,20 @@
                                                 Devolver
                                             </button>
                                         @endif
+                                        @if ($this->isEntregado)
+                                            <button
+                                                wire:click="altaAAlmacen({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                onclick="return confirm('Deseas dar de alta este paquete a ALMACEN?')"
+                                            >
+                                                Alta
+                                            </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $this->isClasificacion ? 12 : ($this->isDespacho ? 12 : 11) }}" class="text-center py-5">
+                                    <td colspan="{{ ($this->isClasificacion || $this->isAlmacen) ? 12 : ($this->isDespacho ? 12 : 11) }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

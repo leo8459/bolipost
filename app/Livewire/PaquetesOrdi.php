@@ -44,10 +44,11 @@ class PaquetesOrdi extends Component
     private const ESTADO_TRANSITO = 'TRANSITO';
     private const ESTADO_ENVIADO = 'ENVIADO';
     private const ESTADO_RECIBIDO = 'RECIBIDO';
+    private const ESTADO_ENTREGADO = 'ENTREGADO';
 
     public function mount($mode = 'clasificacion')
     {
-        $allowedModes = ['clasificacion', 'despacho', 'almacen'];
+        $allowedModes = ['clasificacion', 'despacho', 'almacen', 'entregado'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'clasificacion';
     }
 
@@ -64,6 +65,11 @@ class PaquetesOrdi extends Component
     public function getIsAlmacenProperty()
     {
         return $this->mode === 'almacen';
+    }
+
+    public function getIsEntregadoProperty()
+    {
+        return $this->mode === 'entregado';
     }
 
     public function searchPaquetes()
@@ -92,6 +98,12 @@ class PaquetesOrdi extends Component
             return;
         }
 
+        $userCity = $this->upper((string) optional(auth()->user())->ciudad);
+        if ($userCity === '') {
+            session()->flash('success', 'Tu usuario no tiene ciudad configurada.');
+            return;
+        }
+
         $codigo = $this->upper($this->codigoRecibir);
         if ($codigo === '') {
             session()->flash('success', 'Ingresa un codigo para recibir.');
@@ -107,10 +119,11 @@ class PaquetesOrdi extends Component
         $paquete = PaqueteOrdi::query()
             ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
             ->where('fk_estado', $estadoEnviadoId)
+            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
             ->first();
 
         if (!$paquete) {
-            session()->flash('success', 'El paquete no existe o no esta en estado ENVIADO.');
+            session()->flash('success', 'El paquete no existe, no esta ENVIADO o no pertenece a tu ciudad.');
             return;
         }
 
@@ -126,6 +139,12 @@ class PaquetesOrdi extends Component
     public function confirmarRecibir()
     {
         if (!$this->isAlmacen) {
+            return;
+        }
+
+        $userCity = $this->upper((string) optional(auth()->user())->ciudad);
+        if ($userCity === '') {
+            session()->flash('success', 'Tu usuario no tiene ciudad configurada.');
             return;
         }
 
@@ -151,12 +170,57 @@ class PaquetesOrdi extends Component
         PaqueteOrdi::query()
             ->whereIn('id', $ids)
             ->where('fk_estado', $estadoEnviadoId)
+            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
             ->update(['fk_estado' => $estadoRecibidoId]);
 
         $this->previewRecibirIds = [];
         $this->codigoRecibir = '';
         $this->dispatch('closeRecibirModal');
         session()->flash('success', 'Paquetes recibidos correctamente.');
+        $this->resetPage();
+    }
+
+    public function bajaPaquetes()
+    {
+        if (!$this->isAlmacen) {
+            return;
+        }
+
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('success', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
+        $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
+
+        if (!$estadoRecibidoId || !$estadoEntregadoId) {
+            session()->flash('success', 'Faltan estados RECIBIDO/ENTREGADO en la tabla estados.');
+            return;
+        }
+
+        $userCity = $this->upper((string) optional(auth()->user())->ciudad);
+        if ($userCity === '') {
+            session()->flash('success', 'Tu usuario no tiene ciudad configurada.');
+            return;
+        }
+
+        PaqueteOrdi::query()
+            ->whereIn('id', $ids)
+            ->where('fk_estado', $estadoRecibidoId)
+            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->update(['fk_estado' => $estadoEntregadoId]);
+
+        $this->selectAll = false;
+        $this->selectedPaquetes = [];
+        session()->flash('success', 'Paquetes enviados a ENTREGADO correctamente.');
         $this->resetPage();
     }
 
@@ -390,6 +454,37 @@ class PaquetesOrdi extends Component
         $this->resetPage();
     }
 
+    public function altaAAlmacen($id)
+    {
+        if (!$this->isEntregado) {
+            return;
+        }
+
+        $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
+        if (!$estadoRecibidoId) {
+            session()->flash('success', 'No existe el estado RECIBIDO en la tabla estados.');
+            return;
+        }
+
+        $userCity = $this->upper((string) optional(auth()->user())->ciudad);
+        if ($userCity === '') {
+            session()->flash('success', 'Tu usuario no tiene ciudad configurada.');
+            return;
+        }
+
+        $paquete = PaqueteOrdi::query()
+            ->where('id', $id)
+            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->firstOrFail();
+
+        $paquete->update([
+            'fk_estado' => $estadoRecibidoId,
+        ]);
+
+        session()->flash('success', 'Paquete dado de alta a ALMACEN correctamente.');
+        $this->resetPage();
+    }
+
     public function resetForm()
     {
         $this->reset([
@@ -502,7 +597,7 @@ class PaquetesOrdi extends Component
 
     public function toggleSelectAll($checked)
     {
-        if (!$this->isClasificacion) {
+        if (!$this->isClasificacion && !$this->isAlmacen) {
             return;
         }
 
@@ -520,7 +615,7 @@ class PaquetesOrdi extends Component
 
     public function updatedSelectedPaquetes()
     {
-        if (!$this->isClasificacion) {
+        if (!$this->isClasificacion && !$this->isAlmacen) {
             return;
         }
 
@@ -564,18 +659,24 @@ class PaquetesOrdi extends Component
 
     protected function ciudadesDisponibles(): array
     {
-        $estadoModoId = $this->isDespacho
-            ? $this->getEstadoIdByNombre(self::ESTADO_TRANSITO)
-            : ($this->isAlmacen
-                ? $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO)
-                : $this->getClasificacionEstadoId());
+        if ($this->isDespacho) {
+            $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
+        } elseif ($this->isAlmacen) {
+            $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
+        } elseif ($this->isEntregado) {
+            $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
+        } else {
+            $estadoModoId = $this->getClasificacionEstadoId();
+        }
+        $userCity = $this->upper((string) optional(auth()->user())->ciudad);
 
-        if (!$estadoModoId) {
+        if (!$estadoModoId || $userCity === '') {
             return [];
         }
 
         return PaqueteOrdi::query()
             ->where('fk_estado', $estadoModoId)
+            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
             ->whereNotNull('ciudad')
             ->select('ciudad')
             ->distinct()
@@ -599,11 +700,16 @@ class PaquetesOrdi extends Component
     protected function basePaquetesQuery(): Builder
     {
         $q = trim($this->searchQuery);
-        $estadoModoId = $this->isDespacho
-            ? $this->getEstadoIdByNombre(self::ESTADO_TRANSITO)
-            : ($this->isAlmacen
-                ? $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO)
-                : $this->getClasificacionEstadoId());
+        $userCity = $this->upper((string) optional(auth()->user())->ciudad);
+        if ($this->isDespacho) {
+            $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
+        } elseif ($this->isAlmacen) {
+            $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
+        } elseif ($this->isEntregado) {
+            $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
+        } else {
+            $estadoModoId = $this->getClasificacionEstadoId();
+        }
 
         return PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
@@ -611,6 +717,12 @@ class PaquetesOrdi extends Component
                 $query->where('fk_estado', $estadoModoId);
             })
             ->when(!$estadoModoId, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($userCity !== '', function ($query) use ($userCity) {
+                $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
+            })
+            ->when($userCity === '', function ($query) {
                 $query->whereRaw('1 = 0');
             })
             ->when($q !== '', function ($query) use ($q) {
