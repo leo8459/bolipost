@@ -23,6 +23,8 @@ class PaquetesOrdi extends Component
     public $selectAll = false;
     public $selectedCiudadMarcado = '';
     public $reprintCodEspecial = '';
+    public $codigoRecibir = '';
+    public $previewRecibirIds = [];
 
     public $codigo = '';
     public $destinatario = '';
@@ -39,11 +41,13 @@ class PaquetesOrdi extends Component
     protected $paginationTheme = 'bootstrap';
 
     private const ESTADO_CLASIFICACION = 'CLASIFICACION';
-    private const ESTADO_DESPACHO = 'DESPACHO';
+    private const ESTADO_TRANSITO = 'TRANSITO';
+    private const ESTADO_ENVIADO = 'ENVIADO';
+    private const ESTADO_RECIBIDO = 'RECIBIDO';
 
     public function mount($mode = 'clasificacion')
     {
-        $allowedModes = ['clasificacion', 'despacho'];
+        $allowedModes = ['clasificacion', 'despacho', 'almacen'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'clasificacion';
     }
 
@@ -57,12 +61,102 @@ class PaquetesOrdi extends Component
         return $this->mode === 'despacho';
     }
 
+    public function getIsAlmacenProperty()
+    {
+        return $this->mode === 'almacen';
+    }
+
     public function searchPaquetes()
     {
         $this->searchQuery = $this->search;
         $this->selectAll = false;
         $this->selectedPaquetes = [];
         $this->selectedCiudadMarcado = '';
+        $this->resetPage();
+    }
+
+    public function openRecibirModal()
+    {
+        if (!$this->isAlmacen) {
+            return;
+        }
+
+        $this->codigoRecibir = '';
+        $this->previewRecibirIds = [];
+        $this->dispatch('openRecibirModal');
+    }
+
+    public function addCodigoRecibir()
+    {
+        if (!$this->isAlmacen) {
+            return;
+        }
+
+        $codigo = $this->upper($this->codigoRecibir);
+        if ($codigo === '') {
+            session()->flash('success', 'Ingresa un codigo para recibir.');
+            return;
+        }
+
+        $estadoEnviadoId = $this->getEstadoIdByNombre(self::ESTADO_ENVIADO);
+        if (!$estadoEnviadoId) {
+            session()->flash('success', 'No existe el estado ENVIADO en la tabla estados.');
+            return;
+        }
+
+        $paquete = PaqueteOrdi::query()
+            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
+            ->where('fk_estado', $estadoEnviadoId)
+            ->first();
+
+        if (!$paquete) {
+            session()->flash('success', 'El paquete no existe o no esta en estado ENVIADO.');
+            return;
+        }
+
+        $this->previewRecibirIds = collect($this->previewRecibirIds)
+            ->push((int) $paquete->id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->codigoRecibir = '';
+    }
+
+    public function confirmarRecibir()
+    {
+        if (!$this->isAlmacen) {
+            return;
+        }
+
+        $ids = collect($this->previewRecibirIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('success', 'No hay paquetes en la previsualizacion.');
+            return;
+        }
+
+        $estadoEnviadoId = $this->getEstadoIdByNombre(self::ESTADO_ENVIADO);
+        $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
+
+        if (!$estadoEnviadoId || !$estadoRecibidoId) {
+            session()->flash('success', 'Faltan estados ENVIADO/RECIBIDO en la tabla estados.');
+            return;
+        }
+
+        PaqueteOrdi::query()
+            ->whereIn('id', $ids)
+            ->where('fk_estado', $estadoEnviadoId)
+            ->update(['fk_estado' => $estadoRecibidoId]);
+
+        $this->previewRecibirIds = [];
+        $this->codigoRecibir = '';
+        $this->dispatch('closeRecibirModal');
+        session()->flash('success', 'Paquetes recibidos correctamente.');
         $this->resetPage();
     }
 
@@ -139,13 +233,13 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        $estadoDespachoId = $this->getEstadoIdByNombre(self::ESTADO_DESPACHO);
-        if (!$estadoDespachoId) {
-            session()->flash('success', 'No existe el estado DESPACHO en la tabla estados.');
+        $estadoTransitoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
+        if (!$estadoTransitoId) {
+            session()->flash('success', 'No existe el estado TRANSITO en la tabla estados.');
             return;
         }
 
-        DB::transaction(function () use ($ids, $estadoDespachoId) {
+        DB::transaction(function () use ($ids, $estadoTransitoId) {
             $paquetes = PaqueteOrdi::query()
                 ->whereIn('id', $ids)
                 ->orderBy('id')
@@ -156,7 +250,7 @@ class PaquetesOrdi extends Component
             $manifiesto = 'O' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT);
 
             foreach ($paquetes as $paquete) {
-                $paquete->fk_estado = $estadoDespachoId;
+                $paquete->fk_estado = $estadoTransitoId;
                 $paquete->cod_especial = $manifiesto;
                 $paquete->save();
             }
@@ -171,7 +265,7 @@ class PaquetesOrdi extends Component
         $this->selectAll = false;
         $this->selectedPaquetes = [];
         $this->selectedCiudadMarcado = '';
-        session()->flash('success', 'Paquetes despachados correctamente.');
+        session()->flash('success', 'Paquetes enviados a TRANSITO correctamente.');
         $this->resetPage();
 
         $manifiesto = (string) optional($packages->first())->cod_especial ?: 'O00000';
@@ -471,8 +565,10 @@ class PaquetesOrdi extends Component
     protected function ciudadesDisponibles(): array
     {
         $estadoModoId = $this->isDespacho
-            ? $this->getEstadoIdByNombre(self::ESTADO_DESPACHO)
-            : $this->getClasificacionEstadoId();
+            ? $this->getEstadoIdByNombre(self::ESTADO_TRANSITO)
+            : ($this->isAlmacen
+                ? $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO)
+                : $this->getClasificacionEstadoId());
 
         if (!$estadoModoId) {
             return [];
@@ -504,8 +600,10 @@ class PaquetesOrdi extends Component
     {
         $q = trim($this->searchQuery);
         $estadoModoId = $this->isDespacho
-            ? $this->getEstadoIdByNombre(self::ESTADO_DESPACHO)
-            : $this->getClasificacionEstadoId();
+            ? $this->getEstadoIdByNombre(self::ESTADO_TRANSITO)
+            : ($this->isAlmacen
+                ? $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO)
+                : $this->getClasificacionEstadoId());
 
         return PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
@@ -540,11 +638,20 @@ class PaquetesOrdi extends Component
     public function render()
     {
         $paquetes = $this->basePaquetesQuery()->paginate(10);
+        $previewRecibirPaquetes = collect();
+        if (!empty($this->previewRecibirIds)) {
+            $previewRecibirPaquetes = PaqueteOrdi::query()
+                ->with(['estado', 'ventanillaRef'])
+                ->whereIn('id', $this->previewRecibirIds)
+                ->orderBy('id')
+                ->get();
+        }
 
         return view('livewire.paquetes-ordi', [
             'paquetes' => $paquetes,
             'ventanillas' => $this->getVentanillasByCiudad(),
             'ciudadesDisponibles' => $this->ciudadesDisponibles(),
+            'previewRecibirPaquetes' => $previewRecibirPaquetes,
         ]);
     }
 }

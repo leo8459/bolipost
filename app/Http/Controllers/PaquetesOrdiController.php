@@ -13,4 +13,9 @@ class PaquetesOrdiController extends Controller
     {
         return view('paquetes_ordi.despacho');
     }
+
+    public function almacen()
+    {
+        return view('paquetes_ordi.almacen');
+    }
 }

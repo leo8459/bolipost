@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Despacho;
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteEms;
+use App\Models\PaqueteOrdi;
 use App\Models\Saca as SacaModel;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -382,14 +383,25 @@ class Saca extends Component
             return;
         }
 
-        $this->codEspecialSugerencias = PaqueteEms::query()
+        $ems = PaqueteEms::query()
             ->whereNotNull('cod_especial')
             ->where('cod_especial', 'ILIKE', '%' . $term . '%')
             ->orderByDesc('id')
             ->limit(8)
-            ->pluck('cod_especial')
+            ->pluck('cod_especial');
+
+        $ordi = PaqueteOrdi::query()
+            ->whereNotNull('cod_especial')
+            ->where('cod_especial', 'ILIKE', '%' . $term . '%')
+            ->orderByDesc('id')
+            ->limit(8)
+            ->pluck('cod_especial');
+
+        $this->codEspecialSugerencias = $ems
+            ->merge($ordi)
             ->unique()
             ->values()
+            ->take(8)
             ->all();
     }
 
@@ -400,27 +412,38 @@ class Saca extends Component
             return true;
         }
 
-        $paquetes = PaqueteEms::query()
+        $paquetesEms = PaqueteEms::query()
             ->with('estado:id,nombre_estado')
             ->whereRaw('UPPER(cod_especial) = ?', [strtoupper($busqueda)])
             ->get(['id', 'cod_especial', 'estado_id']);
 
-        if ($paquetes->isEmpty()) {
-            $this->addError('busqueda', 'El codigo no existe en paquetes_ems.cod_especial.');
+        $paquetesOrdi = PaqueteOrdi::query()
+            ->with('estado:id,nombre_estado')
+            ->whereRaw('UPPER(cod_especial) = ?', [strtoupper($busqueda)])
+            ->get(['id', 'cod_especial', 'fk_estado']);
+
+        if ($paquetesEms->isEmpty() && $paquetesOrdi->isEmpty()) {
+            $this->addError('busqueda', 'El codigo no existe en paquetes_ems ni paquetes_ordi.');
             return false;
         }
 
-        $paquetesNoTransito = $paquetes->filter(function ($paquete) {
+        $paquetesEmsNoTransito = $paquetesEms->filter(function ($paquete) {
             $estadoNombre = strtoupper(trim((string) optional($paquete->estado)->nombre_estado));
             return $estadoNombre !== 'TRANSITO';
         });
 
-        if ($paquetesNoTransito->isNotEmpty()) {
+        $paquetesOrdiNoTransito = $paquetesOrdi->filter(function ($paquete) {
+            $estadoNombre = strtoupper(trim((string) optional($paquete->estado)->nombre_estado));
+            return $estadoNombre !== 'TRANSITO';
+        });
+
+        if ($paquetesEmsNoTransito->isNotEmpty() || $paquetesOrdiNoTransito->isNotEmpty()) {
             $this->addError('busqueda', 'Todos los paquetes con ese cod_especial deben estar en estado TRANSITO.');
             return false;
         }
 
-        $this->busqueda = (string) $paquetes->first()->cod_especial;
+        $this->busqueda = (string) optional($paquetesEms->first())->cod_especial
+            ?: (string) optional($paquetesOrdi->first())->cod_especial;
 
         return true;
     }

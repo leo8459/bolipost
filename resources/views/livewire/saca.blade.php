@@ -258,7 +258,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Busqueda</label>
-                                    <input type="text" class="form-control" wire:model.debounce.400ms="busqueda" placeholder="Buscar cod_especial de paquetes EMS">
+                                    <input type="text" class="form-control" wire:model.debounce.400ms="busqueda" placeholder="Buscar cod_especial en paquetes EMS/ORDI">
                                     @error('busqueda') <small class="text-danger">{{ $message }}</small> @enderror
                                     @if(!empty($codEspecialSugerencias))
                                         <div class="border rounded mt-2 p-2" style="max-height: 140px; overflow-y: auto;">

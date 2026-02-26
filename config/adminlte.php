@@ -432,6 +432,11 @@ return [
                     'url' => 'paquetes-ordinarios/despacho',
                     'icon' => 'fas fa-shipping-fast',
                 ],
+                [
+                    'text' => 'Almacen',
+                    'url' => 'paquetes-ordinarios/almacen',
+                    'icon' => 'fas fa-warehouse',
+                ],
             ],
         ],
         [

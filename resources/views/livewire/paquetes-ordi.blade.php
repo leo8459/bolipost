@@ -40,7 +40,13 @@
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
                 <div>
                     <h4 class="fw-bold mb-0">
-                        {{ $this->isDespacho ? 'Despacho - Paquetes Ordinarios' : 'Paquetes Ordinarios - Clasificacion' }}
+                        @if ($this->isDespacho)
+                            Despacho - Paquetes Ordinarios
+                        @elseif ($this->isAlmacen)
+                            Almacen - Paquetes Ordinarios
+                        @else
+                            Paquetes Ordinarios - Clasificacion
+                        @endif
                     </h4>
                 </div>
 
@@ -73,6 +79,11 @@
                             data-target="#reimprimirManifiestoModal"
                         >
                             Reimprimir Manifiesto
+                        </button>
+                    @endif
+                    @if ($this->isAlmacen)
+                        <button class="btn btn-outline-light2" type="button" wire:click="openRecibirModal">
+                            Recibir paquetes
                         </button>
                     @endif
                 </div>
@@ -167,7 +178,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-5">
+                                    <td colspan="{{ $this->isClasificacion ? 12 : ($this->isDespacho ? 12 : 11) }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -298,6 +309,68 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="recibirModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form wire:submit.prevent="confirmarRecibir">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Recibir paquetes (ENVIADO a RECIBIDO)</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex gap-2 align-items-center mb-3">
+                            <input
+                                type="text"
+                                class="form-control uppercase-input"
+                                placeholder="Ingrese codigo"
+                                wire:model.defer="codigoRecibir"
+                            >
+                            <button type="button" class="btn btn-outline-azul" wire:click="addCodigoRecibir">
+                                Agregar
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Codigo</th>
+                                        <th>Destinatario</th>
+                                        <th>Telefono</th>
+                                        <th>Ciudad</th>
+                                        <th>Ventanilla</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($previewRecibirPaquetes as $paquete)
+                                        <tr>
+                                            <td>{{ $paquete->codigo }}</td>
+                                            <td>{{ $paquete->destinatario }}</td>
+                                            <td>{{ $paquete->telefono }}</td>
+                                            <td>{{ $paquete->ciudad }}</td>
+                                            <td>{{ optional($paquete->ventanillaRef)->nombre_ventanilla ?? '-' }}</td>
+                                            <td>{{ optional($paquete->estado)->nombre_estado ?? '-' }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">Sin paquetes en previsualizacion</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Confirmar recepcion</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -319,5 +392,13 @@
 
     window.addEventListener('closePaqueteOrdiModal', () => {
         $('#paqueteOrdiModal').modal('hide');
+    });
+
+    window.addEventListener('openRecibirModal', () => {
+        $('#recibirModal').modal('show');
+    });
+
+    window.addEventListener('closeRecibirModal', () => {
+        $('#recibirModal').modal('hide');
     });
 </script>
