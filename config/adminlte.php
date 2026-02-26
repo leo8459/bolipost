@@ -564,6 +564,22 @@ return [
             ],
         ],
         [
+            'text' => 'CODIGOS',
+            'icon' => 'fas fa-barcode',
+            'submenu' => [
+                [
+                    'text' => 'EMREPSA',
+                    'url' => 'empresas',
+                    'icon' => 'fas fa-building',
+                ],
+                [
+                    'text' => 'Generar codigos',
+                    'url' => 'codigo-empresa',
+                    'icon' => 'fas fa-qrcode',
+                ],
+            ],
+        ],
+        [
             'text' => 'Rendimiento',
             'url' => '/pulse',
 
