@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Estado;
 use App\Models\PaqueteOrdi;
 use App\Models\Ventanilla;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -160,10 +161,44 @@ class PaquetesOrdi extends Component
             }
         });
 
+        $packages = PaqueteOrdi::query()
+            ->with(['estado', 'ventanillaRef'])
+            ->whereIn('id', $ids)
+            ->orderBy('id')
+            ->get();
+
         $this->selectAll = false;
         $this->selectedPaquetes = [];
+        $this->selectedCiudadMarcado = '';
         session()->flash('success', 'Paquetes despachados correctamente.');
         $this->resetPage();
+
+        $ciudadOrigen = $this->upper((string) optional(auth()->user())->ciudad ?: 'N/A');
+        $ciudadesDestino = $packages->pluck('ciudad')
+            ->map(fn ($city) => $this->upper($city))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $ciudadDestino = $ciudadesDestino->count() === 1
+            ? (string) $ciudadesDestino->first()
+            : ($ciudadesDestino->count() > 1 ? 'VARIOS' : 'N/A');
+
+        $manifiesto = (string) optional($packages->first())->cod_especial ?: 'O00000';
+
+        $pdf = Pdf::loadView('paquetes_ordi.manifiesto-despacho', [
+            'packages' => $packages,
+            'manifiesto' => $manifiesto,
+            'ciudadOrigen' => $ciudadOrigen,
+            'ciudadDestino' => $ciudadDestino,
+            'siglasOrigen' => $this->siglasCiudad($ciudadOrigen),
+            'siglasDestino' => $this->siglasCiudad($ciudadDestino),
+            'anioPaquete' => now()->format('Y'),
+        ])->setPaper('a4', 'landscape');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'manifiesto-clasificacion-' . $manifiesto . '.pdf');
     }
 
     protected function nextOrdinarioCorrelative(): int
@@ -180,6 +215,27 @@ class PaquetesOrdi extends Component
 
         $number = (int) substr((string) $lastCode, 1, 5);
         return $number > 0 ? $number + 1 : 1;
+    }
+
+    protected function siglasCiudad(string $ciudad): string
+    {
+        $normalized = $this->upper($ciudad);
+
+        $map = [
+            'LA PAZ' => 'LP',
+            'COCHABAMBA' => 'CB',
+            'SANTA CRUZ' => 'SC',
+            'ORURO' => 'OR',
+            'POTOSI' => 'PT',
+            'SUCRE' => 'SQ',
+            'TARIJA' => 'TJ',
+            'TRINIDAD' => 'BN',
+            'COBIJA' => 'PD',
+            'VARIOS' => 'VR',
+            'N/A' => 'NA',
+        ];
+
+        return $map[$normalized] ?? substr(str_replace(' ', '', $normalized), 0, 2);
     }
 
     public function delete($id)
