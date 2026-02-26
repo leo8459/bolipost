@@ -542,6 +542,16 @@ return [
                     'icon' => 'fas fa-clipboard-check',
                 ],
                 [
+                    'text' => 'Auditoria',
+                    'url' => 'auditoria',
+                    'icon' => 'fas fa-clipboard-list',
+                ],
+                [
+                    'text' => 'Eventos Auditoria',
+                    'url' => 'eventos-auditoria',
+                    'icon' => 'fas fa-history',
+                ],
+                [
                     'text' => 'Ventanillas',
                     'url' => 'ventanillas',
                     'icon' => 'fas fa-window-restore',
