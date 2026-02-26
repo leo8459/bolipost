@@ -12,9 +12,11 @@ class PaquetesOrdi extends Component
 {
     use WithPagination;
 
+    public $mode = 'clasificacion';
     public $search = '';
     public $searchQuery = '';
     public $editingId = null;
+    public $selectedPaquetes = [];
 
     public $codigo = '';
     public $destinatario = '';
@@ -31,6 +33,23 @@ class PaquetesOrdi extends Component
     protected $paginationTheme = 'bootstrap';
 
     private const ESTADO_CLASIFICACION = 'CLASIFICACION';
+    private const ESTADO_DESPACHO = 'DESPACHO';
+
+    public function mount($mode = 'clasificacion')
+    {
+        $allowedModes = ['clasificacion', 'despacho'];
+        $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'clasificacion';
+    }
+
+    public function getIsClasificacionProperty()
+    {
+        return $this->mode === 'clasificacion';
+    }
+
+    public function getIsDespachoProperty()
+    {
+        return $this->mode === 'despacho';
+    }
 
     public function searchPaquetes()
     {
@@ -73,13 +92,15 @@ class PaquetesOrdi extends Component
 
     public function save()
     {
-        $estadoClasificacionId = $this->getClasificacionEstadoId();
-        if (!$estadoClasificacionId) {
-            session()->flash('success', 'No existe el estado CLASIFICACION en la tabla estados.');
-            return;
+        if (!$this->editingId) {
+            $estadoClasificacionId = $this->getClasificacionEstadoId();
+            if (!$estadoClasificacionId) {
+                session()->flash('success', 'No existe el estado CLASIFICACION en la tabla estados.');
+                return;
+            }
+            $this->fk_estado = (string) $estadoClasificacionId;
         }
 
-        $this->fk_estado = (string) $estadoClasificacionId;
         $this->validate($this->rules());
 
         if ($this->editingId) {
@@ -93,6 +114,35 @@ class PaquetesOrdi extends Component
 
         $this->dispatch('closePaqueteOrdiModal');
         $this->resetForm();
+    }
+
+    public function despacharSeleccionados()
+    {
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('success', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $estadoDespachoId = $this->getEstadoIdByNombre(self::ESTADO_DESPACHO);
+        if (!$estadoDespachoId) {
+            session()->flash('success', 'No existe el estado DESPACHO en la tabla estados.');
+            return;
+        }
+
+        PaqueteOrdi::query()
+            ->whereIn('id', $ids)
+            ->update(['fk_estado' => $estadoDespachoId]);
+
+        $this->selectedPaquetes = [];
+        session()->flash('success', 'Paquetes despachados correctamente.');
+        $this->resetPage();
     }
 
     public function delete($id)
@@ -180,8 +230,13 @@ class PaquetesOrdi extends Component
 
     protected function getClasificacionEstadoId(): ?int
     {
+        return $this->getEstadoIdByNombre(self::ESTADO_CLASIFICACION);
+    }
+
+    protected function getEstadoIdByNombre(string $estado): ?int
+    {
         $id = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', [self::ESTADO_CLASIFICACION])
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [strtoupper(trim($estado))])
             ->value('id');
 
         return $id ? (int) $id : null;
@@ -208,14 +263,16 @@ class PaquetesOrdi extends Component
     public function render()
     {
         $q = trim($this->searchQuery);
-        $estadoClasificacionId = $this->getClasificacionEstadoId();
+        $estadoModoId = $this->isDespacho
+            ? $this->getEstadoIdByNombre(self::ESTADO_DESPACHO)
+            : $this->getClasificacionEstadoId();
 
         $paquetes = PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
-            ->when($estadoClasificacionId, function ($query) use ($estadoClasificacionId) {
-                $query->where('fk_estado', $estadoClasificacionId);
+            ->when($estadoModoId, function ($query) use ($estadoModoId) {
+                $query->where('fk_estado', $estadoModoId);
             })
-            ->when(!$estadoClasificacionId, function ($query) {
+            ->when(!$estadoModoId, function ($query) {
                 $query->whereRaw('1 = 0');
             })
             ->when($q !== '', function ($query) use ($q) {

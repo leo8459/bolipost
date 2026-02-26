@@ -39,13 +39,25 @@
         <div class="card card-app">
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
                 <div>
-                    <h4 class="fw-bold mb-0">Paquetes Ordinarios</h4>
+                    <h4 class="fw-bold mb-0">
+                        {{ $this->isDespacho ? 'Despacho - Paquetes Ordinarios' : 'Paquetes Ordinarios - Clasificacion' }}
+                    </h4>
                 </div>
 
                 <div class="d-flex gap-2 align-items-center">
                     <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
-                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @if ($this->isClasificacion)
+                        <button
+                            class="btn btn-outline-light2"
+                            type="button"
+                            wire:click="despacharSeleccionados"
+                            onclick="return confirm('Deseas despachar los paquetes seleccionados?')"
+                        >
+                            Despachar
+                        </button>
+                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endif
                 </div>
             </div>
 
@@ -73,6 +85,9 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
+                                @if ($this->isClasificacion)
+                                    <th></th>
+                                @endif
                                 <th>Codigo</th>
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
@@ -88,6 +103,11 @@
                         <tbody>
                             @forelse ($paquetes as $paquete)
                                 <tr>
+                                    @if ($this->isClasificacion)
+                                        <td>
+                                            <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
+                                        </td>
+                                    @endif
                                     <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
                                     <td>{{ $paquete->destinatario }}</td>
                                     <td>{{ $paquete->telefono }}</td>
@@ -104,7 +124,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-5">
+                                    <td colspan="{{ $this->isClasificacion ? 11 : 10 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
