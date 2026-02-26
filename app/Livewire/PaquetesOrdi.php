@@ -212,16 +212,41 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        PaqueteOrdi::query()
+        $idsActualizar = PaqueteOrdi::query()
             ->whereIn('id', $ids)
             ->where('fk_estado', $estadoRecibidoId)
             ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (empty($idsActualizar)) {
+            session()->flash('success', 'No hay paquetes validos para dar de baja.');
+            return;
+        }
+
+        PaqueteOrdi::query()
+            ->whereIn('id', $idsActualizar)
             ->update(['fk_estado' => $estadoEntregadoId]);
+
+        $packages = PaqueteOrdi::query()
+            ->with(['estado', 'ventanillaRef'])
+            ->whereIn('id', $idsActualizar)
+            ->orderBy('id')
+            ->get();
 
         $this->selectAll = false;
         $this->selectedPaquetes = [];
         session()->flash('success', 'Paquetes enviados a ENTREGADO correctamente.');
         $this->resetPage();
+
+        $pdf = Pdf::loadView('paquetes_ordi.reporte_baja', [
+            'packages' => $packages,
+        ])->setPaper('A4');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'reporte-baja-ordinarios-' . now()->format('Ymd-His') . '.pdf');
     }
 
     public function openCreateModal()
