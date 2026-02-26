@@ -18,6 +18,11 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.almacen');
     }
 
+    public function ventanilla()
+    {
+        return view('paquetes_ems.ventanilla');
+    }
+
     public function recibirRegional()
     {
         return view('paquetes_ems.recibir-regional');

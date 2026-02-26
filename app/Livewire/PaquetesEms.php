@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\Cartero;
 use App\Models\Destino;
 use App\Models\Estado;
 use App\Models\Origen;
@@ -25,6 +26,8 @@ class PaquetesEms extends Component
     private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 295;
     private const EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO = 297;
     private const EVENTO_ID_SACA_INTERNA_CREADA_SALIDA = 240;
+    private const EVENTO_ID_PAQUETE_ENVIADO_VENTANILLA_EMS = 312;
+    private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
 
     public $mode = 'admision';
     public $search = '';
@@ -38,6 +41,8 @@ class PaquetesEms extends Component
     public $showCn33Reprint = false;
     public $cn33Despacho = '';
     public $generadosHoyCount = 0;
+    public $entregaRecibidoPor = '';
+    public $entregaDescripcion = '';
 
     public $ciudades = [
         'LA PAZ',
@@ -84,7 +89,7 @@ class PaquetesEms extends Component
 
     public function mount($mode = 'admision')
     {
-        $allowedModes = ['admision', 'almacen_ems', 'transito_ems'];
+        $allowedModes = ['admision', 'almacen_ems', 'transito_ems', 'ventanilla_ems'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'admision';
         if ($this->isAlmacenEms) {
             $this->almacenEstadoFiltro = 'TODOS';
@@ -112,6 +117,11 @@ class PaquetesEms extends Component
         return $this->mode === 'transito_ems';
     }
 
+    public function getIsVentanillaEmsProperty()
+    {
+        return $this->mode === 'ventanilla_ems';
+    }
+
     public function getRegionalEstadoLabelProperty(): string
     {
         if ($this->isTransitoEms) {
@@ -123,7 +133,7 @@ class PaquetesEms extends Component
 
     public function getCanSelectProperty()
     {
-        return $this->isAdmision || $this->isAlmacenEms || $this->isTransitoEms;
+        return $this->isAdmision || $this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms;
     }
 
     public function setAlmacenFiltro($filtro)
@@ -569,6 +579,214 @@ class PaquetesEms extends Component
         }, 'manifiesto-regional-' . $generatedAt->format('Ymd-His') . '.pdf');
     }
 
+    public function mandarSeleccionadosVentanillaEms()
+    {
+        if (!$this->isAlmacenEms) {
+            session()->flash('error', 'Esta accion solo esta disponible en ALMACEN EMS.');
+            return;
+        }
+
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('error', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $estadoVentanilla = $this->resolveVentanillaEstado();
+        $estadoVentanillaId = $estadoVentanilla['id'] ?? null;
+        if (!$estadoVentanillaId) {
+            session()->flash('error', 'No existe el estado VENTANILLA EMS (o VENTANILLA) en la tabla estados.');
+            return;
+        }
+
+        $paquetes = PaqueteEms::query()
+            ->whereIn('id', $ids)
+            ->orderBy('id')
+            ->get(['id', 'codigo']);
+
+        if ($paquetes->isEmpty()) {
+            session()->flash('error', 'No hay paquetes seleccionados para enviar.');
+            return;
+        }
+
+        $actorUserId = (int) optional(Auth::user())->id;
+        if ($actorUserId <= 0) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
+        DB::transaction(function () use ($paquetes, $estadoVentanillaId, $actorUserId) {
+            PaqueteEms::query()
+                ->whereIn('id', $paquetes->pluck('id')->all())
+                ->update(['estado_id' => $estadoVentanillaId]);
+
+            $this->registerEventosEms(
+                $paquetes,
+                $actorUserId,
+                self::EVENTO_ID_PAQUETE_ENVIADO_VENTANILLA_EMS
+            );
+        });
+
+        $updated = $paquetes->count();
+        $this->selectedPaquetes = [];
+        session()->flash('success', $updated . ' paquete(s) enviado(s) a VENTANILLA EMS.');
+
+        return $this->redirect(route('paquetes-ems.ventanilla'), navigate: false);
+    }
+
+    public function openEntregaVentanillaModal()
+    {
+        if (!$this->isVentanillaEms) {
+            return;
+        }
+
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('error', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $this->entregaRecibidoPor = '';
+        $this->entregaDescripcion = '';
+        $this->dispatch('openEntregaVentanillaModal');
+    }
+
+    public function confirmarEntregaVentanilla()
+    {
+        if (!$this->isVentanillaEms) {
+            return;
+        }
+
+        $this->validate([
+            'entregaRecibidoPor' => ['required', 'string', 'max:255'],
+            'entregaDescripcion' => ['nullable', 'string'],
+        ]);
+
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('error', 'Selecciona al menos un paquete.');
+            return;
+        }
+
+        $estadoDomicilioId = $this->findEstadoId('DOMICILIO');
+        if (!$estadoDomicilioId) {
+            session()->flash('error', 'No existe el estado DOMICILIO en la tabla estados.');
+            return;
+        }
+        $estadoDomicilioNombre = (string) (Estado::query()
+            ->where('id', $estadoDomicilioId)
+            ->value('nombre_estado') ?? 'DOMICILIO');
+
+        $eventoEntregaId = self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE;
+        $eventoExiste = DB::table('eventos')
+            ->where('id', $eventoEntregaId)
+            ->exists();
+
+        if (!$eventoExiste) {
+            session()->flash('error', 'No existe el evento con ID ' . $eventoEntregaId . ' (Paquete entregado exitosamente).');
+            return;
+        }
+
+        $actorUserId = (int) optional(Auth::user())->id;
+        if ($actorUserId <= 0) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
+        $paquetes = PaqueteEms::query()
+            ->whereIn('id', $ids)
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo',
+                'nombre_destinatario',
+                'telefono_destinatario',
+                'ciudad',
+                'direccion',
+                'peso',
+            ]);
+
+        if ($paquetes->isEmpty()) {
+            session()->flash('error', 'No hay paquetes seleccionados para entregar.');
+            return;
+        }
+        $sinCodigo = $paquetes->filter(fn ($paquete) => trim((string) $paquete->codigo) === '');
+        if ($sinCodigo->isNotEmpty()) {
+            session()->flash('error', 'Hay paquetes sin codigo. No se puede registrar el evento 316 para todos.');
+            return;
+        }
+
+        $recibidoPor = trim((string) $this->entregaRecibidoPor);
+        $descripcion = trim((string) $this->entregaDescripcion);
+        $generatedAt = now();
+        $loggedUserName = trim((string) optional(Auth::user())->name);
+        $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
+
+        DB::transaction(function () use ($paquetes, $estadoDomicilioId, $actorUserId, $eventoEntregaId, $recibidoPor, $descripcion) {
+            PaqueteEms::query()
+                ->whereIn('id', $paquetes->pluck('id')->all())
+                ->update(['estado_id' => $estadoDomicilioId]);
+
+            $this->registerEventosEms(
+                $paquetes,
+                $actorUserId,
+                $eventoEntregaId
+            );
+
+            foreach ($paquetes as $paquete) {
+                $asignacion = Cartero::query()->firstOrNew([
+                    'id_paquetes_ems' => (int) $paquete->id,
+                ]);
+                $asignacion->id_paquetes_certi = null;
+                $asignacion->id_estados = $estadoDomicilioId;
+                $asignacion->id_user = $actorUserId;
+                $asignacion->recibido_por = $recibidoPor;
+                $asignacion->descripcion = $descripcion !== '' ? $descripcion : null;
+                $asignacion->save();
+            }
+        });
+
+        $pdf = Pdf::loadView('paquetes_ems.guia-entrega', [
+            'paquetes' => $paquetes,
+            'generatedAt' => $generatedAt,
+            'estadoEntrega' => strtoupper(trim($estadoDomicilioNombre)),
+            'recibidoPor' => $recibidoPor,
+            'descripcion' => $descripcion,
+            'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
+            'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
+        ])->setPaper('a4', 'portrait');
+
+        $updated = $paquetes->count();
+        $this->selectedPaquetes = [];
+        $this->entregaRecibidoPor = '';
+        $this->entregaDescripcion = '';
+        $this->dispatch('closeEntregaVentanillaModal');
+
+        session()->flash('success', $updated . ' paquete(s) entregado(s) correctamente.');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'guia-entrega-ventanilla-ems-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
     public function recibirSeleccionadosRegional()
     {
         $ids = collect($this->selectedPaquetes)
@@ -863,6 +1081,11 @@ class PaquetesEms extends Component
             $estadoRegionalId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
             if ($estadoRegionalId) {
                 $estadoIds[] = $estadoRegionalId;
+            }
+        } elseif ($this->isVentanillaEms) {
+            $estadoVentanillaId = $this->resolveVentanillaEstado()['id'] ?? null;
+            if ($estadoVentanillaId) {
+                $estadoIds[] = $estadoVentanillaId;
             }
         } else {
             $estadoAdmision = $this->findEstadoId('ADMISIONES');
@@ -1237,6 +1460,11 @@ class PaquetesEms extends Component
             return;
         }
 
+        if ($this->isVentanillaEms) {
+            $this->estado_id = $this->resolveVentanillaEstado()['id'] ?? null;
+            return;
+        }
+
         $this->setEstadoAdmision();
     }
 
@@ -1290,6 +1518,30 @@ class PaquetesEms extends Component
             return [
                 'id' => $enviadoId,
                 'nombre' => 'ENVIADO',
+            ];
+        }
+
+        return [
+            'id' => null,
+            'nombre' => null,
+        ];
+    }
+
+    protected function resolveVentanillaEstado(): array
+    {
+        $ventanillaEmsId = $this->findEstadoId('VENTANILLA EMS');
+        if ($ventanillaEmsId) {
+            return [
+                'id' => $ventanillaEmsId,
+                'nombre' => 'VENTANILLA EMS',
+            ];
+        }
+
+        $ventanillaId = $this->findEstadoId('VENTANILLA');
+        if ($ventanillaId) {
+            return [
+                'id' => $ventanillaId,
+                'nombre' => 'VENTANILLA',
             ];
         }
 

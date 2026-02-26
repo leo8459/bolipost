@@ -99,6 +99,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
     Route::get('/paquetes-ems/almacen', [PaquetesEmsController::class, 'almacen'])->name('paquetes-ems.almacen');
+    Route::get('/paquetes-ems/ventanilla', [PaquetesEmsController::class, 'ventanilla'])->name('paquetes-ems.ventanilla');
     Route::get('/paquetes-ems/recibir-regional', [PaquetesEmsController::class, 'recibirRegional'])->name('paquetes-ems.recibir-regional');
     Route::get('/paquetes-ems/entregados', [PaquetesEmsController::class, 'entregados'])->name('paquetes-ems.entregados');
     Route::get('/paquetes-ems/{paquete}/boleta', [PaquetesEmsBoletaController::class, 'show'])->name('paquetes-ems.boleta');

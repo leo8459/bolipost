@@ -174,6 +174,8 @@
                     <h4 class="fw-bold mb-0">
                         @if ($this->isAlmacenEms)
                             Paquetes ALMACEN
+                        @elseif ($this->isVentanillaEms)
+                            Ventanilla EMS
                         @elseif ($this->isTransitoEms)
                             Recibir de regional ({{ $this->regionalEstadoLabel }})
                         @else
@@ -201,11 +203,18 @@
                             Mandar seleccionados
                         </button>
                     @elseif ($this->isAlmacenEms)
+                        <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
+                            Enviar a ventanilla EMS
+                        </button>
                         <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
                             Manda a regional
                         </button>
                         <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
                             Reimprimir CN-33
+                        </button>
+                    @elseif ($this->isVentanillaEms)
+                        <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
+                            Entregar seleccionados
                         </button>
                     @elseif ($this->isTransitoEms)
                         <button class="btn btn-outline-light2" type="button" wire:click="recibirSeleccionadosRegional">
@@ -703,6 +712,37 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="entregaVentanillaModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar entrega</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Recibido por</label>
+                        <input type="text" class="form-control" wire:model.defer="entregaRecibidoPor">
+                        @error('entregaRecibidoPor') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group mb-0">
+                        <label>Descripcion (opcional)</label>
+                        <textarea class="form-control" rows="3" wire:model.defer="entregaDescripcion"></textarea>
+                        @error('entregaDescripcion') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" wire:click="confirmarEntregaVentanilla">
+                        Confirmar entrega
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -736,6 +776,14 @@
 
     window.addEventListener('closeRegionalModal', () => {
         $('#regionalModal').modal('hide');
+    });
+
+    window.addEventListener('openEntregaVentanillaModal', () => {
+        $('#entregaVentanillaModal').modal('show');
+    });
+
+    window.addEventListener('closeEntregaVentanillaModal', () => {
+        $('#entregaVentanillaModal').modal('hide');
     });
 
 </script>

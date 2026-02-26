@@ -376,6 +376,11 @@ return [
                     'icon' => 'fas fa-warehouse',
                 ],
                 [
+                    'text' => 'VENTANILLA EMS',
+                    'url' => 'paquetes-ems/ventanilla',
+                    'icon' => 'fas fa-door-open',
+                ],
+                [
                     'text' => 'Recibir de regional',
                     'url' => 'paquetes-ems/recibir-regional',
                     'icon' => 'fas fa-truck-loading',
