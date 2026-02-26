@@ -217,7 +217,7 @@
                             Entregar seleccionados
                         </button>
                     @elseif ($this->isTransitoEms)
-                        <button class="btn btn-outline-light2" type="button" wire:click="recibirSeleccionadosRegional">
+                        <button class="btn btn-outline-light2" type="button" wire:click="openRecibirRegionalModal">
                             Recibir
                         </button>
                     @endif
@@ -743,6 +743,61 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="recibirRegionalModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar recepcion regional</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        Paquetes a recibir: <strong>{{ count($recibirRegionalPreview) }}</strong>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Codigo</th>
+                                    <th>Remitente</th>
+                                    <th>Destinatario</th>
+                                    <th>Ciudad</th>
+                                    <th>Peso</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($recibirRegionalPreview as $index => $item)
+                                    <tr>
+                                        <td>{{ $index + 1 }}</td>
+                                        <td><span class="pill-id">{{ $item['codigo'] ?: 'SIN CODIGO' }}</span></td>
+                                        <td>{{ $item['nombre_remitente'] ?: '-' }}</td>
+                                        <td>{{ $item['nombre_destinatario'] ?: '-' }}</td>
+                                        <td>{{ $item['ciudad'] ?: '-' }}</td>
+                                        <td>{{ $item['peso'] ?: '-' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">No hay paquetes seleccionados.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" wire:click="recibirSeleccionadosRegional">
+                        Confirmar recibido
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -784,6 +839,14 @@
 
     window.addEventListener('closeEntregaVentanillaModal', () => {
         $('#entregaVentanillaModal').modal('hide');
+    });
+
+    window.addEventListener('openRecibirRegionalModal', () => {
+        $('#recibirRegionalModal').modal('show');
+    });
+
+    window.addEventListener('closeRecibirRegionalModal', () => {
+        $('#recibirRegionalModal').modal('hide');
     });
 
 </script>
