@@ -196,6 +196,12 @@
                                         @endif
                                         @if ($this->isEntregado)
                                             <button
+                                                wire:click="reimprimirFormularioEntrega({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                            >
+                                                Reimprimir
+                                            </button>
+                                            <button
                                                 wire:click="altaAAlmacen({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
                                                 onclick="return confirm('Deseas dar de alta este paquete a ALMACEN?')"

@@ -560,6 +560,38 @@ class PaquetesOrdi extends Component
         $this->resetPage();
     }
 
+    public function reimprimirFormularioEntrega($id)
+    {
+        if (!$this->isEntregado) {
+            return;
+        }
+
+        $userCity = $this->upper((string) optional(auth()->user())->ciudad);
+        if ($userCity === '') {
+            session()->flash('success', 'Tu usuario no tiene ciudad configurada.');
+            return;
+        }
+
+        $paquete = PaqueteOrdi::query()
+            ->with(['estado', 'ventanillaRef'])
+            ->where('id', $id)
+            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->first();
+
+        if (!$paquete) {
+            session()->flash('success', 'No se encontro el paquete para reimprimir.');
+            return;
+        }
+
+        $pdf = Pdf::loadView('paquetes_ordi.reporte_baja', [
+            'packages' => collect([$paquete]),
+        ])->setPaper('A4');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'formulario-entrega-' . $paquete->codigo . '.pdf');
+    }
+
     public function devolverRezagoAAlmacen($id)
     {
         if (!$this->isRezago) {
