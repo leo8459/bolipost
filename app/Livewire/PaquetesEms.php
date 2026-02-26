@@ -22,6 +22,10 @@ class PaquetesEms extends Component
 {
     use WithPagination;
 
+    private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 295;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO = 297;
+    private const EVENTO_ID_SACA_INTERNA_CREADA_SALIDA = 240;
+
     public $mode = 'admision';
     public $search = '';
     public $searchQuery = '';
@@ -33,6 +37,7 @@ class PaquetesEms extends Component
     public $regionalTransportNumber = '';
     public $showCn33Reprint = false;
     public $cn33Despacho = '';
+    public $generadosHoyCount = 0;
 
     public $ciudades = [
         'LA PAZ',
@@ -62,6 +67,7 @@ class PaquetesEms extends Component
     public $telefono_remitente = '';
     public $nombre_destinatario = '';
     public $telefono_destinatario = '';
+    public $direccion = '';
     public $ciudad = '';
     public $servicio_id = '';
     public $tarifario_id = '';
@@ -308,6 +314,7 @@ class PaquetesEms extends Component
         $this->telefono_remitente = $formulario->telefono_remitente ?? $paquete->telefono_remitente;
         $this->nombre_destinatario = $formulario->nombre_destinatario ?? $paquete->nombre_destinatario;
         $this->telefono_destinatario = $formulario->telefono_destinatario ?? $paquete->telefono_destinatario;
+        $this->direccion = $formulario->direccion ?? $paquete->direccion;
         $this->ciudad = $formulario->ciudad ?? $paquete->ciudad;
         $this->tarifario_id = $formulario->tarifario_id ?? $paquete->tarifario_id;
         $this->servicio_id = optional($paquete->tarifario)->servicio_id;
@@ -393,9 +400,14 @@ class PaquetesEms extends Component
                 session()->flash('error', 'No se encontro el estado requerido para crear el paquete.');
                 return;
             }
-            $paquete = PaqueteEms::create($this->payload($user->id));
-            $this->syncFormularioData($paquete);
-            $this->saveRemitenteData();
+            $paquete = null;
+            DB::transaction(function () use ($user, &$paquete) {
+                $paquete = PaqueteEms::create($this->payload($user->id));
+                $this->syncFormularioData($paquete);
+                $this->saveRemitenteData();
+                $this->registerAdmisionEvento($paquete, (int) $user->id);
+            });
+
             session()->flash('success', 'Paquete creado correctamente.');
             $this->dispatch('closePaqueteConfirm');
             $this->dispatch('closePaqueteModal');
@@ -410,6 +422,35 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosGeneradosHoy()
     {
+        if (!$this->isAdmision) {
+            return;
+        }
+
+        $this->generadosHoyCount = count($this->idsGeneradosHoyEnAdmision());
+        $this->dispatch('openGeneradosHoyModal');
+    }
+
+    public function confirmarMandarGeneradosHoy()
+    {
+        if (!$this->isAdmision) {
+            return;
+        }
+
+        $ids = $this->idsGeneradosHoyEnAdmision();
+        $this->generadosHoyCount = count($ids);
+
+        if (empty($ids)) {
+            $this->dispatch('closeGeneradosHoyModal');
+            session()->flash('error', 'No hay paquetes generados hoy en ADMISIONES para enviar.');
+            return;
+        }
+
+        $this->selectedPaquetes = collect($ids)
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
+
+        $this->dispatch('closeGeneradosHoyModal');
         return $this->mandarSeleccionadosAlmacenEms(true);
     }
 
@@ -446,13 +487,19 @@ class PaquetesEms extends Component
             return;
         }
 
+        $actorUserId = (int) optional(Auth::user())->id;
+        if ($actorUserId <= 0) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
         $generatedAt = now();
         $updated = 0;
         $paquetes = collect();
 
         $manifiesto = '';
 
-        DB::transaction(function () use ($ids, $estadoRegionalId, &$manifiesto, &$updated, &$paquetes) {
+        DB::transaction(function () use ($ids, $estadoRegionalId, $actorUserId, &$manifiesto, &$updated, &$paquetes) {
             $paquetes = PaqueteEms::query()
                 ->whereIn('id', $ids)
                 ->with(['user:id,name'])
@@ -485,6 +532,12 @@ class PaquetesEms extends Component
                 $paquete->save();
                 $updated++;
             }
+
+            $this->registerEventosEms(
+                $paquetes,
+                $actorUserId,
+                self::EVENTO_ID_SACA_INTERNA_CREADA_SALIDA
+            );
         });
 
         if ($paquetes->isEmpty()) {
@@ -628,9 +681,23 @@ class PaquetesEms extends Component
             return;
         }
 
-        PaqueteEms::query()
-            ->whereIn('id', $paquetes->pluck('id')->all())
-            ->update(['estado_id' => $estadoAlmacenEms]);
+        $actorUserId = (int) optional(Auth::user())->id;
+        if ($actorUserId <= 0) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
+        DB::transaction(function () use ($paquetes, $estadoAlmacenEms, $actorUserId) {
+            PaqueteEms::query()
+                ->whereIn('id', $paquetes->pluck('id')->all())
+                ->update(['estado_id' => $estadoAlmacenEms]);
+
+            $this->registerEventosEms(
+                $paquetes,
+                $actorUserId,
+                self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+            );
+        });
 
         $generatedAt = now();
         $loggedUserName = trim((string) optional(Auth::user())->name);
@@ -674,6 +741,7 @@ class PaquetesEms extends Component
             'telefono_remitente',
             'nombre_destinatario',
             'telefono_destinatario',
+            'direccion',
             'ciudad',
             'servicio_id',
             'tarifario_id',
@@ -709,6 +777,7 @@ class PaquetesEms extends Component
             'telefono_remitente' => 'required|string|max:50',
             'nombre_destinatario' => 'required|string|max:255',
             'telefono_destinatario' => 'required|string|max:50',
+            'direccion' => 'nullable|string|max:255',
             'ciudad' => ['nullable', 'string', 'max:255'],
             'servicio_id' => $requiresTarifario
                 ? ['required', 'integer', Rule::exists('servicio', 'id')]
@@ -736,6 +805,7 @@ class PaquetesEms extends Component
             'telefono_remitente' => $this->telefono_remitente,
             'nombre_destinatario' => $this->nombre_destinatario,
             'telefono_destinatario' => $this->telefono_destinatario,
+            'direccion' => $this->direccion,
             'ciudad' => $this->ciudad,
             'tarifario_id' => $this->tarifario_id ?: null,
             'estado_id' => $this->estado_id ?? null,
@@ -774,6 +844,7 @@ class PaquetesEms extends Component
             'telefono_remitente',
             'nombre_destinatario',
             'telefono_destinatario',
+            'direccion',
             'ciudad',
             'cod_especial',
         ];
@@ -883,6 +954,7 @@ class PaquetesEms extends Component
                             ->orWhere('telefono_remitente', 'like', "%{$q}%")
                             ->orWhere('nombre_destinatario', 'like', "%{$q}%")
                             ->orWhere('telefono_destinatario', 'like', "%{$q}%")
+                            ->orWhere('direccion', 'like', "%{$q}%")
                             ->orWhere('ciudad', 'like', "%{$q}%");
                     });
                     $sub->orWhere('servicio.nombre_servicio', 'like', "%{$q}%");
@@ -898,6 +970,69 @@ class PaquetesEms extends Component
         if ($user && !empty($user->ciudad)) {
             $this->origen = $user->ciudad;
         }
+    }
+
+    protected function idsGeneradosHoyEnAdmision(): array
+    {
+        $estadoAdmisionId = $this->findEstadoId('ADMISIONES');
+        if (!$estadoAdmisionId) {
+            return [];
+        }
+
+        return PaqueteEms::query()
+            ->where('estado_id', $estadoAdmisionId)
+            ->whereDate('created_at', now()->toDateString())
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    protected function registerAdmisionEvento(PaqueteEms $paquete, int $userId): void
+    {
+        if (!$this->isAdmision) {
+            return;
+        }
+
+        $this->registerEventosEms(
+            [$paquete],
+            $userId,
+            self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE
+        );
+    }
+
+    protected function registerEventosEms(iterable $paquetes, int $userId, int $eventoId): void
+    {
+        if ($userId <= 0 || $eventoId <= 0) {
+            return;
+        }
+
+        $now = now();
+
+        $rows = collect($paquetes)
+            ->map(function ($paquete) use ($eventoId, $userId, $now) {
+                $codigo = trim((string) ($paquete->codigo ?? ''));
+                if ($codigo === '') {
+                    return null;
+                }
+
+                return [
+                    'codigo' => $codigo,
+                    'evento_id' => (int) $eventoId,
+                    'user_id' => $userId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        if (empty($rows)) {
+            return;
+        }
+
+        DB::table('eventos_ems')->insert($rows);
     }
 
     protected function setUserOrigenId()
@@ -1200,6 +1335,7 @@ class PaquetesEms extends Component
                 'telefono_remitente' => $this->telefono_remitente,
                 'nombre_destinatario' => $this->nombre_destinatario,
                 'telefono_destinatario' => $this->telefono_destinatario,
+                'direccion' => $this->direccion,
                 'ciudad' => $this->ciudad,
                 'servicio_id' => $this->servicio_id ?: null,
                 'destino_id' => $this->destino_id ?: null,
@@ -1295,6 +1431,7 @@ class PaquetesEms extends Component
         $this->peso = $formulario->peso ?? $this->peso;
         $this->nombre_destinatario = (string) ($formulario->nombre_destinatario ?? $this->nombre_destinatario);
         $this->telefono_destinatario = (string) ($formulario->telefono_destinatario ?? $this->telefono_destinatario);
+        $this->direccion = (string) ($formulario->direccion ?? $this->direccion);
         $this->ciudad = (string) ($formulario->ciudad ?? $this->ciudad);
 
         if (!empty($formulario->servicio_id)) {

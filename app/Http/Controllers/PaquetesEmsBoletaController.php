@@ -9,7 +9,7 @@ class PaquetesEmsBoletaController extends Controller
 {
     public function show(PaqueteEms $paquete)
     {
-        $paquete->load(['tarifario.destino', 'tarifario.servicio', 'tarifario.origen', 'tarifario.peso']);
+        $paquete->load(['tarifario.destino', 'tarifario.servicio', 'tarifario.origen', 'tarifario.peso', 'formulario']);
 
         $pdf = Pdf::loadView('paquetes_ems.boleta', [
             'paquete' => $paquete,

@@ -553,6 +553,11 @@
 
                             <div class="form-row">
                                 <div class="form-group col-md-6">
+                                    <label>Direccion destinatario</label>
+                                    <input type="text" wire:model.defer="direccion" class="form-control">
+                                    @error('direccion') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-6">
                                     <label>Ciudad destinatario</label>
                                     <select wire:model.defer="ciudad" class="form-control" disabled>
                                         <option value="">Seleccione...</option>
@@ -608,6 +613,7 @@
                             <div class="col-md-6 mb-2"><strong>Telefono remitente:</strong> {{ $telefono_remitente }}</div>
                             <div class="col-md-6 mb-2"><strong>Destinatario:</strong> {{ $nombre_destinatario }}</div>
                             <div class="col-md-6 mb-2"><strong>Telefono destinatario:</strong> {{ $telefono_destinatario }}</div>
+                            <div class="col-md-12 mb-2"><strong>Direccion destinatario:</strong> {{ $direccion }}</div>
                         </div>
                     </div>
                 </div>
@@ -615,6 +621,42 @@
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary" wire:click="saveConfirmed">
                         Confirmar y guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="generadosHoyModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Enviar generados hoy</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    @if ($generadosHoyCount > 0)
+                        <p class="mb-0">
+                            Se enviaran <strong>{{ $generadosHoyCount }}</strong> paquete(s) generados hoy desde
+                            <strong>ADMISIONES</strong> a <strong>ALMACEN EMS</strong>.
+                        </p>
+                    @else
+                        <p class="mb-0 text-muted">
+                            No hay paquetes generados hoy en ADMISIONES para enviar.
+                        </p>
+                    @endif
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        wire:click="confirmarMandarGeneradosHoy"
+                        @if($generadosHoyCount <= 0) disabled @endif
+                    >
+                        Confirmar envio
                     </button>
                 </div>
             </div>
@@ -678,6 +720,14 @@
 
     window.addEventListener('closePaqueteConfirm', () => {
         $('#paqueteConfirmModal').modal('hide');
+    });
+
+    window.addEventListener('openGeneradosHoyModal', () => {
+        $('#generadosHoyModal').modal('show');
+    });
+
+    window.addEventListener('closeGeneradosHoyModal', () => {
+        $('#generadosHoyModal').modal('hide');
     });
 
     window.addEventListener('openRegionalModal', () => {

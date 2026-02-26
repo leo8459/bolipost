@@ -97,7 +97,7 @@ class Evento extends Component
                 $query->where('nombre_evento', 'ILIKE', "%{$q}%");
             })
             ->orderByDesc('id')
-            ->paginate(10);
+            ->paginate(100);
 
         return view('livewire.evento', [
             'eventos' => $eventos,

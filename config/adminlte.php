@@ -414,6 +414,17 @@ return [
             ],
         ],
         [
+            'text' => 'Paquetes Ordinarios',
+            'icon' => 'fas fa-box-open',
+            'submenu' => [
+                [
+                    'text' => 'Clasificacion',
+                    'url' => 'paquetes-ordinarios',
+                    'icon' => 'fas fa-layer-group',
+                ],
+            ],
+        ],
+        [
             'text' => 'Despachos',
             'icon' => 'fas fa-shipping-fast',
             'submenu' => [
@@ -519,6 +530,11 @@ return [
                     'text' => 'Eventos',
                     'url' => 'eventos',
                     'icon' => 'fas fa-calendar-alt',
+                ],
+                [
+                    'text' => 'Eventos EMS',
+                    'url' => 'eventos-ems',
+                    'icon' => 'fas fa-clipboard-check',
                 ],
                 [
                     'text' => 'Ventanillas',
