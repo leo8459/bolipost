@@ -5,6 +5,8 @@ namespace App\Livewire;
 use App\Models\Estado;
 use App\Models\PaqueteOrdi;
 use App\Models\Ventanilla;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -17,6 +19,8 @@ class PaquetesOrdi extends Component
     public $searchQuery = '';
     public $editingId = null;
     public $selectedPaquetes = [];
+    public $selectAll = false;
+    public $selectedCiudadMarcado = '';
 
     public $codigo = '';
     public $destinatario = '';
@@ -54,6 +58,9 @@ class PaquetesOrdi extends Component
     public function searchPaquetes()
     {
         $this->searchQuery = $this->search;
+        $this->selectAll = false;
+        $this->selectedPaquetes = [];
+        $this->selectedCiudadMarcado = '';
         $this->resetPage();
     }
 
@@ -136,13 +143,43 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        PaqueteOrdi::query()
-            ->whereIn('id', $ids)
-            ->update(['fk_estado' => $estadoDespachoId]);
+        DB::transaction(function () use ($ids, $estadoDespachoId) {
+            $paquetes = PaqueteOrdi::query()
+                ->whereIn('id', $ids)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
 
+            $correlativo = $this->nextOrdinarioCorrelative();
+
+            foreach ($paquetes as $paquete) {
+                $paquete->fk_estado = $estadoDespachoId;
+                $paquete->cod_especial = 'O' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT);
+                $paquete->save();
+                $correlativo++;
+            }
+        });
+
+        $this->selectAll = false;
         $this->selectedPaquetes = [];
         session()->flash('success', 'Paquetes despachados correctamente.');
         $this->resetPage();
+    }
+
+    protected function nextOrdinarioCorrelative(): int
+    {
+        $lastCode = PaqueteOrdi::query()
+            ->whereRaw("cod_especial ~ '^O[0-9]{5}$'")
+            ->lockForUpdate()
+            ->orderByDesc('cod_especial')
+            ->value('cod_especial');
+
+        if (!$lastCode) {
+            return 1;
+        }
+
+        $number = (int) substr((string) $lastCode, 1, 5);
+        return $number > 0 ? $number + 1 : 1;
     }
 
     public function delete($id)
@@ -150,6 +187,23 @@ class PaquetesOrdi extends Component
         $paquete = PaqueteOrdi::findOrFail($id);
         $paquete->delete();
         session()->flash('success', 'Paquete ordinario eliminado correctamente.');
+    }
+
+    public function devolverAClasificacion($id)
+    {
+        $estadoClasificacionId = $this->getClasificacionEstadoId();
+        if (!$estadoClasificacionId) {
+            session()->flash('success', 'No existe el estado CLASIFICACION en la tabla estados.');
+            return;
+        }
+
+        $paquete = PaqueteOrdi::findOrFail($id);
+        $paquete->update([
+            'fk_estado' => $estadoClasificacionId,
+        ]);
+
+        session()->flash('success', 'Paquete devuelto a CLASIFICACION correctamente.');
+        $this->resetPage();
     }
 
     public function resetForm()
@@ -220,6 +274,8 @@ class PaquetesOrdi extends Component
     {
         $this->ciudad = $this->upper($value);
         $this->fk_ventanilla = '';
+        $this->selectAll = false;
+        $this->selectedPaquetes = [];
         $this->resetPage();
     }
 
@@ -260,14 +316,108 @@ class PaquetesOrdi extends Component
             ->get();
     }
 
-    public function render()
+    public function toggleSelectAll($checked)
+    {
+        if (!$this->isClasificacion) {
+            return;
+        }
+
+        if ((bool) $checked) {
+            $this->selectedPaquetes = collect($this->allFilteredPaqueteIds())
+                ->map(fn ($id) => (string) $id)
+                ->all();
+            $this->selectAll = true;
+            return;
+        }
+
+        $this->selectAll = false;
+        $this->selectedPaquetes = [];
+    }
+
+    public function updatedSelectedPaquetes()
+    {
+        if (!$this->isClasificacion) {
+            return;
+        }
+
+        $allIds = $this->allFilteredPaqueteIds();
+        if (empty($allIds)) {
+            $this->selectAll = false;
+            return;
+        }
+
+        $selected = collect($this->selectedPaquetes)
+            ->map(fn ($id) => (int) $id);
+
+        $this->selectAll = collect($allIds)->every(
+            fn ($id) => $selected->contains((int) $id)
+        );
+    }
+
+    public function updatedSelectedCiudadMarcado($value)
+    {
+        if (!$this->isClasificacion) {
+            return;
+        }
+
+        $ciudad = $this->upper($value);
+        $this->selectedCiudadMarcado = $ciudad;
+
+        if ($ciudad === '') {
+            $this->selectAll = false;
+            $this->selectedPaquetes = [];
+            return;
+        }
+
+        $this->selectedPaquetes = $this->basePaquetesQuery()
+            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$ciudad])
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+
+        $this->updatedSelectedPaquetes();
+    }
+
+    protected function ciudadesDisponibles(): array
+    {
+        $estadoModoId = $this->isDespacho
+            ? $this->getEstadoIdByNombre(self::ESTADO_DESPACHO)
+            : $this->getClasificacionEstadoId();
+
+        if (!$estadoModoId) {
+            return [];
+        }
+
+        return PaqueteOrdi::query()
+            ->where('fk_estado', $estadoModoId)
+            ->whereNotNull('ciudad')
+            ->select('ciudad')
+            ->distinct()
+            ->orderBy('ciudad')
+            ->pluck('ciudad')
+            ->map(fn ($ciudad) => $this->upper($ciudad))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function allFilteredPaqueteIds(): array
+    {
+        return $this->basePaquetesQuery()
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    protected function basePaquetesQuery(): Builder
     {
         $q = trim($this->searchQuery);
         $estadoModoId = $this->isDespacho
             ? $this->getEstadoIdByNombre(self::ESTADO_DESPACHO)
             : $this->getClasificacionEstadoId();
 
-        $paquetes = PaqueteOrdi::query()
+        return PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
             ->when($estadoModoId, function ($query) use ($estadoModoId) {
                 $query->where('fk_estado', $estadoModoId);
@@ -294,12 +444,17 @@ class PaquetesOrdi extends Component
                         });
                 });
             })
-            ->orderByDesc('id')
-            ->paginate(10);
+            ->orderByDesc('id');
+    }
+
+    public function render()
+    {
+        $paquetes = $this->basePaquetesQuery()->paginate(10);
 
         return view('livewire.paquetes-ordi', [
             'paquetes' => $paquetes,
             'ventanillas' => $this->getVentanillasByCiudad(),
+            'ciudadesDisponibles' => $this->ciudadesDisponibles(),
         ]);
     }
 }
