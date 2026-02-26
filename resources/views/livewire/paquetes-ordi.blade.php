@@ -64,6 +64,17 @@
                         </button>
                         <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                     @endif
+                    @if ($this->isDespacho)
+                        <button
+                            class="btn btn-outline-light2"
+                            type="button"
+                            wire:click="$set('reprintCodEspecial', '')"
+                            data-toggle="modal"
+                            data-target="#reimprimirManifiestoModal"
+                        >
+                            Reimprimir Manifiesto
+                        </button>
+                    @endif
                 </div>
             </div>
 
@@ -252,6 +263,36 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-primary">{{ $editingId ? 'Guardar cambios' : 'Crear' }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="reimprimirManifiestoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form wire:submit.prevent="reimprimirManifiesto">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reimprimir manifiesto</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group mb-0">
+                            <label>Ingrese el cod_especial</label>
+                            <input
+                                type="text"
+                                class="form-control uppercase-input"
+                                placeholder="Ejemplo: O00001"
+                                wire:model.defer="reprintCodEspecial"
+                            >
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Reimprimir</button>
                     </div>
                 </form>
             </div>

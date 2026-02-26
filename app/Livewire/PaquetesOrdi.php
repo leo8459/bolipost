@@ -22,6 +22,7 @@ class PaquetesOrdi extends Component
     public $selectedPaquetes = [];
     public $selectAll = false;
     public $selectedCiudadMarcado = '';
+    public $reprintCodEspecial = '';
 
     public $codigo = '';
     public $destinatario = '';
@@ -152,12 +153,12 @@ class PaquetesOrdi extends Component
                 ->get();
 
             $correlativo = $this->nextOrdinarioCorrelative();
+            $manifiesto = 'O' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT);
 
             foreach ($paquetes as $paquete) {
                 $paquete->fk_estado = $estadoDespachoId;
-                $paquete->cod_especial = 'O' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT);
+                $paquete->cod_especial = $manifiesto;
                 $paquete->save();
-                $correlativo++;
             }
         });
 
@@ -173,32 +174,37 @@ class PaquetesOrdi extends Component
         session()->flash('success', 'Paquetes despachados correctamente.');
         $this->resetPage();
 
-        $ciudadOrigen = $this->upper((string) optional(auth()->user())->ciudad ?: 'N/A');
-        $ciudadesDestino = $packages->pluck('ciudad')
-            ->map(fn ($city) => $this->upper($city))
-            ->filter()
-            ->unique()
-            ->values();
-
-        $ciudadDestino = $ciudadesDestino->count() === 1
-            ? (string) $ciudadesDestino->first()
-            : ($ciudadesDestino->count() > 1 ? 'VARIOS' : 'N/A');
-
         $manifiesto = (string) optional($packages->first())->cod_especial ?: 'O00000';
 
-        $pdf = Pdf::loadView('paquetes_ordi.manifiesto-despacho', [
-            'packages' => $packages,
-            'manifiesto' => $manifiesto,
-            'ciudadOrigen' => $ciudadOrigen,
-            'ciudadDestino' => $ciudadDestino,
-            'siglasOrigen' => $this->siglasCiudad($ciudadOrigen),
-            'siglasDestino' => $this->siglasCiudad($ciudadDestino),
-            'anioPaquete' => now()->format('Y'),
-        ])->setPaper('a4', 'landscape');
+        return $this->buildManifiestoResponse($packages, $manifiesto);
+    }
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'manifiesto-clasificacion-' . $manifiesto . '.pdf');
+    public function reimprimirManifiesto()
+    {
+        if (!$this->isDespacho) {
+            return;
+        }
+
+        $codigo = $this->upper($this->reprintCodEspecial);
+        if ($codigo === '') {
+            session()->flash('success', 'Ingresa un cod_especial para reimprimir.');
+            return;
+        }
+
+        $packages = PaqueteOrdi::query()
+            ->with(['estado', 'ventanillaRef'])
+            ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$codigo])
+            ->orderBy('id')
+            ->get();
+
+        if ($packages->isEmpty()) {
+            session()->flash('success', 'No se encontraron paquetes con ese cod_especial.');
+            return;
+        }
+
+        $this->reprintCodEspecial = '';
+
+        return $this->buildManifiestoResponse($packages, $codigo);
     }
 
     protected function nextOrdinarioCorrelative(): int
@@ -236,6 +242,34 @@ class PaquetesOrdi extends Component
         ];
 
         return $map[$normalized] ?? substr(str_replace(' ', '', $normalized), 0, 2);
+    }
+
+    protected function buildManifiestoResponse($packages, string $manifiesto)
+    {
+        $ciudadOrigen = $this->upper((string) optional(auth()->user())->ciudad ?: 'N/A');
+        $ciudadesDestino = $packages->pluck('ciudad')
+            ->map(fn ($city) => $this->upper($city))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $ciudadDestino = $ciudadesDestino->count() === 1
+            ? (string) $ciudadesDestino->first()
+            : ($ciudadesDestino->count() > 1 ? 'VARIOS' : 'N/A');
+
+        $pdf = Pdf::loadView('paquetes_ordi.manifiesto-despacho', [
+            'packages' => $packages,
+            'manifiesto' => $manifiesto,
+            'ciudadOrigen' => $ciudadOrigen,
+            'ciudadDestino' => $ciudadDestino,
+            'siglasOrigen' => $this->siglasCiudad($ciudadOrigen),
+            'siglasDestino' => $this->siglasCiudad($ciudadDestino),
+            'anioPaquete' => now()->format('Y'),
+        ])->setPaper('a4', 'landscape');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'manifiesto-clasificacion-' . $manifiesto . '.pdf');
     }
 
     public function delete($id)
