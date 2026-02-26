@@ -14,6 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class CarterosController extends Controller
 {
+    private const EVENTO_ID_PAQUETE_CAMINO_ENTREGA_FISICA = 184;
+    private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
+    private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
+
     public function distribucion()
     {
         return view('carteros.distribucion');
@@ -139,6 +143,17 @@ class CarterosController extends Controller
             ]);
         }
 
+        $eventoId = self::EVENTO_ID_PAQUETE_CAMINO_ENTREGA_FISICA;
+        $eventoExiste = DB::table('eventos')
+            ->where('id', $eventoId)
+            ->exists();
+
+        if (!$eventoExiste) {
+            throw ValidationException::withMessages([
+                'items' => "No existe el evento con ID {$eventoId} (Paquete en camino para entrega fisica.).",
+            ]);
+        }
+
         $estadoAsignadoId = $this->resolveEstadoCarteroId();
 
         $emsIds = collect($validated['items'])
@@ -166,7 +181,8 @@ class CarterosController extends Controller
             $emsIds,
             $certiIds,
             $estadoAsignadoId,
-            $assigneeUserId
+            $assigneeUserId,
+            $eventoId
         ) {
             if (!empty($emsIds)) {
                 $updatedEms = PaqueteEms::query()
@@ -181,6 +197,28 @@ class CarterosController extends Controller
                     $asignacion->id_estados = $estadoAsignadoId;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
+                }
+
+                $emsCodigos = PaqueteEms::query()
+                    ->whereIn('id', $emsIds)
+                    ->pluck('codigo')
+                    ->map(fn ($codigo) => trim((string) $codigo))
+                    ->filter(fn ($codigo) => $codigo !== '')
+                    ->values();
+
+                if ($emsCodigos->isNotEmpty()) {
+                    $now = now();
+                    $rows = $emsCodigos->map(function ($codigo) use ($eventoId, $assigneeUserId, $now) {
+                        return [
+                            'codigo' => $codigo,
+                            'evento_id' => $eventoId,
+                            'user_id' => $assigneeUserId,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    })->all();
+
+                    DB::table('eventos_ems')->insert($rows);
                 }
             }
 
@@ -525,6 +563,19 @@ class CarterosController extends Controller
         $estadoProvinciaId = $this->resolveEstadoProvinciaId();
         $estadoDomicilioId = $this->resolveEstadoDomicilioId();
         $userId = (int) $request->user()->id;
+        $eventoEntregaId = self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE;
+
+        if ($validated['tipo_paquete'] === 'EMS') {
+            $eventoExiste = DB::table('eventos')
+                ->where('id', $eventoEntregaId)
+                ->exists();
+
+            if (!$eventoExiste) {
+                throw ValidationException::withMessages([
+                    'id' => "No existe el evento con ID {$eventoEntregaId} (Paquete entregado exitosamente.).",
+                ]);
+            }
+        }
 
         $asignacion = $this->findAssignmentForUserByStates(
             $validated['tipo_paquete'],
@@ -533,12 +584,28 @@ class CarterosController extends Controller
             [$estadoCarteroId, $estadoProvinciaId]
         );
 
-        DB::transaction(function () use ($validated, $asignacion, $estadoDomicilioId) {
+        DB::transaction(function () use ($validated, $asignacion, $estadoDomicilioId, $userId, $eventoEntregaId) {
             $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoDomicilioId);
             $asignacion->id_estados = $estadoDomicilioId;
             $asignacion->recibido_por = $validated['recibido_por'];
             $asignacion->descripcion = $validated['descripcion'] ?? null;
             $asignacion->save();
+
+            if ($validated['tipo_paquete'] === 'EMS') {
+                $codigo = trim((string) PaqueteEms::query()
+                    ->where('id', (int) $validated['id'])
+                    ->value('codigo'));
+
+                if ($codigo !== '') {
+                    DB::table('eventos_ems')->insert([
+                        'codigo' => $codigo,
+                        'evento_id' => $eventoEntregaId,
+                        'user_id' => $userId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
         });
 
         return redirect()
@@ -558,6 +625,19 @@ class CarterosController extends Controller
         $estadoProvinciaId = $this->resolveEstadoProvinciaId();
         $estadoDevolucionId = $this->resolveEstadoDevolucionId();
         $userId = (int) $request->user()->id;
+        $eventoIntentoId = self::EVENTO_ID_INTENTO_FALLIDO_ENTREGA;
+
+        if ($validated['tipo_paquete'] === 'EMS') {
+            $eventoExiste = DB::table('eventos')
+                ->where('id', $eventoIntentoId)
+                ->exists();
+
+            if (!$eventoExiste) {
+                throw ValidationException::withMessages([
+                    'id' => "No existe el evento con ID {$eventoIntentoId} (Intento fallido de entrega del paquete.).",
+                ]);
+            }
+        }
 
         $asignacion = $this->findAssignmentForUserByStates(
             $validated['tipo_paquete'],
@@ -566,12 +646,28 @@ class CarterosController extends Controller
             [$estadoCarteroId, $estadoProvinciaId]
         );
 
-        DB::transaction(function () use ($validated, $asignacion, $estadoDevolucionId) {
+        DB::transaction(function () use ($validated, $asignacion, $estadoDevolucionId, $userId, $eventoIntentoId) {
             $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoDevolucionId);
             $asignacion->intento = ((int) $asignacion->intento) + 1;
             $asignacion->id_estados = $estadoDevolucionId;
             $asignacion->descripcion = $validated['descripcion'] ?? $asignacion->descripcion;
             $asignacion->save();
+
+            if ($validated['tipo_paquete'] === 'EMS') {
+                $codigo = trim((string) PaqueteEms::query()
+                    ->where('id', (int) $validated['id'])
+                    ->value('codigo'));
+
+                if ($codigo !== '') {
+                    DB::table('eventos_ems')->insert([
+                        'codigo' => $codigo,
+                        'evento_id' => $eventoIntentoId,
+                        'user_id' => $userId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
         });
 
         return redirect()
