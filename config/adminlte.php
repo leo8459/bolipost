@@ -427,6 +427,11 @@ return [
                     'url' => 'paquetes-ordinarios',
                     'icon' => 'fas fa-layer-group',
                 ],
+                [
+                    'text' => 'Despacho',
+                    'url' => 'paquetes-ordinarios/despacho',
+                    'icon' => 'fas fa-shipping-fast',
+                ],
             ],
         ],
         [

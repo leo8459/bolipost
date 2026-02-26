@@ -115,6 +115,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/paquetes-certificados/baja-pdf', [PaquetesCertiController::class, 'bajaPdf'])->name('paquetes-certificados.baja-pdf');
     Route::get('/paquetes-certificados/rezago-pdf', [PaquetesCertiController::class, 'rezagoPdf'])->name('paquetes-certificados.rezago-pdf');
     Route::get('/paquetes-ordinarios', [PaquetesOrdiController::class, 'index'])->name('paquetes-ordinarios.index');
+    Route::get('/paquetes-ordinarios/despacho', [PaquetesOrdiController::class, 'despacho'])->name('paquetes-ordinarios.despacho');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/eventos', [EventoController::class, 'index'])->name('eventos.index');
     Route::get('/eventos-ems', [EventoController::class, 'emsIndex'])->name('eventos-ems.index');

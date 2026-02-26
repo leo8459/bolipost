@@ -8,4 +8,9 @@ class PaquetesOrdiController extends Controller
     {
         return view('paquetes_ordi.index');
     }
+
+    public function despacho()
+    {
+        return view('paquetes_ordi.despacho');
+    }
 }
