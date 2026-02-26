@@ -34,7 +34,7 @@
                 <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#eab312_0%,#fecb34_50%,#eab312_100%)]"></div>
                 {{ $slot }}
             </div>
-            <p class="mt-4 text-xs text-[#123c76]/65 text-center">Sistema institucional de seguimiento y operaciones postales</p>
+           
         </div>
     </body>
 </html>
