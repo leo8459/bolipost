@@ -107,6 +107,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/paquetes-ems/ventanilla', [PaquetesEmsController::class, 'ventanilla'])->name('paquetes-ems.ventanilla');
     Route::get('/paquetes-ems/recibir-regional', [PaquetesEmsController::class, 'recibirRegional'])->name('paquetes-ems.recibir-regional');
     Route::get('/paquetes-ems/entregados', [PaquetesEmsController::class, 'entregados'])->name('paquetes-ems.entregados');
+    Route::get('/paquetes-ems/registro-rapido-contrato', [PaquetesEmsController::class, 'createRegistroRapidoContrato'])->name('paquetes-ems.contrato-rapido.create');
+    Route::post('/paquetes-ems/registro-rapido-contrato', [PaquetesEmsController::class, 'storeRegistroRapidoContrato'])->name('paquetes-ems.contrato-rapido.store');
     Route::get('/paquetes-ems/{paquete}/boleta', [PaquetesEmsBoletaController::class, 'show'])->name('paquetes-ems.boleta');
     Route::get('/servicios', [ServicioController::class, 'index'])->name('servicios.index');
     Route::get('/destinos', [DestinoController::class, 'index'])->name('destinos.index');

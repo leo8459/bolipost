@@ -276,9 +276,9 @@
                             Mandar seleccionados
                         </button>
                     @elseif ($this->isAlmacenEms)
-                        <button class="btn btn-outline-light2" type="button" wire:click="openContratoRegistrarModal">
+                        <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
                             Registrar contrato
-                        </button>
+                        </a>
                         <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
                             Anadir peso contrato
                         </button>
