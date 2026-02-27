@@ -3,7 +3,9 @@
 namespace App\Livewire;
 
 use App\Models\Cartero;
+use App\Models\CodigoEmpresa;
 use App\Models\Destino;
+use App\Models\Empresa;
 use App\Models\Estado;
 use App\Models\Origen;
 use App\Models\PaqueteEms;
@@ -48,6 +50,10 @@ class PaquetesEms extends Component
     public $contratoDestino = '';
     public $contratoPesoContratoId = null;
     public $contratoPesoResumen = null;
+    public $registroContratoCodigo = '';
+    public $registroContratoOrigen = '';
+    public $registroContratoDestino = '';
+    public $registroContratoPeso = '';
     public $showCn33Reprint = false;
     public $cn33Despacho = '';
     public $generadosHoyCount = 0;
@@ -334,6 +340,121 @@ class PaquetesEms extends Component
         $this->dispatch('openRegionalContratoModal');
     }
 
+    public function openContratoRegistrarModal()
+    {
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $user = Auth::user();
+        $origen = strtoupper(trim((string) optional($user)->ciudad));
+        if ($origen === '') {
+            $origen = strtoupper(trim((string) optional($user)->name));
+        }
+
+        $this->registroContratoCodigo = '';
+        $this->registroContratoOrigen = $origen;
+        $this->registroContratoDestino = '';
+        $this->registroContratoPeso = '';
+        $this->resetValidation([
+            'registroContratoCodigo',
+            'registroContratoDestino',
+            'registroContratoPeso',
+        ]);
+
+        $this->dispatch('openContratoRegistrarModal');
+    }
+
+    public function registrarContratoRapido()
+    {
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'registroContratoCodigo' => 'required|string|max:50',
+            'registroContratoDestino' => ['required', 'string', Rule::in($this->ciudades)],
+            'registroContratoPeso' => 'required|numeric|min:0.001',
+        ], [], [
+            'registroContratoCodigo' => 'codigo',
+            'registroContratoDestino' => 'destino',
+            'registroContratoPeso' => 'peso',
+        ]);
+
+        $user = Auth::user();
+        if (!$user) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
+        $codigo = strtoupper(trim((string) $validated['registroContratoCodigo']));
+        $codigo = preg_replace('/\s+/', '', $codigo) ?: '';
+        if ($codigo === '') {
+            $this->addError('registroContratoCodigo', 'Ingresa un codigo valido.');
+            return;
+        }
+
+        $codigoExistente = RecojoContrato::query()
+            ->whereRaw('trim(upper(codigo)) = ?', [$codigo])
+            ->exists();
+        if ($codigoExistente) {
+            $this->addError('registroContratoCodigo', 'Ese codigo ya esta registrado en contratos.');
+            return;
+        }
+
+        $estadoAlmacenId = $this->findEstadoId('ALMACEN');
+        if (!$estadoAlmacenId) {
+            session()->flash('error', 'No existe el estado ALMACEN en la tabla estados.');
+            return;
+        }
+
+        $origen = strtoupper(trim((string) ($user->ciudad ?? '')));
+        if ($origen === '') {
+            $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
+        }
+
+        $destino = strtoupper(trim((string) $validated['registroContratoDestino']));
+        $peso = (float) $validated['registroContratoPeso'];
+        $empresaId = $this->resolveEmpresaIdByCodigoContrato($codigo);
+
+        $contrato = RecojoContrato::query()->create([
+            'user_id' => (int) $user->id,
+            'empresa_id' => $empresaId,
+            'codigo' => $codigo,
+            'cod_especial' => null,
+            'estados_id' => (int) $estadoAlmacenId,
+            'origen' => $origen,
+            'destino' => $destino,
+            'nombre_r' => 'SIN REMITENTE',
+            'telefono_r' => '-',
+            'contenido' => 'CONTRATO',
+            'direccion_r' => 'SIN DIRECCION',
+            'nombre_d' => 'SIN DESTINATARIO',
+            'telefono_d' => null,
+            'direccion_d' => 'SIN DIRECCION',
+            'mapa' => null,
+            'provincia' => null,
+            'peso' => $peso,
+            'fecha_recojo' => now()->toDateString(),
+            'observacion' => 'REGISTRO RAPIDO DESDE ALMACEN EMS',
+            'justificacion' => null,
+            'imagen' => null,
+        ]);
+
+        $this->selectedContratos = collect($this->selectedContratos)
+            ->map(fn ($id) => (string) $id)
+            ->push((string) $contrato->id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->dispatch('closeContratoRegistrarModal');
+        session()->flash(
+            'success',
+            'Contrato registrado correctamente en ALMACEN.' . ($empresaId ? ' Empresa detectada y asignada.' : ' No se detecto empresa por codigo.')
+        );
+    }
+
     public function openContratoPesoModal()
     {
         if (!$this->isAlmacenEms) {
@@ -482,6 +603,37 @@ class PaquetesEms extends Component
             ->all();
 
         $this->resetValidation(['contratoPesoContratoId']);
+    }
+
+    protected function resolveEmpresaIdByCodigoContrato(string $codigo): ?int
+    {
+        $codigoNormalizado = strtoupper(trim((string) $codigo));
+        if ($codigoNormalizado === '') {
+            return null;
+        }
+
+        $empresaIdPorCodigo = CodigoEmpresa::query()
+            ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+            ->value('empresa_id');
+
+        if (!empty($empresaIdPorCodigo)) {
+            return (int) $empresaIdPorCodigo;
+        }
+
+        if (preg_match('/^C([A-Z0-9]+)A\d{5}BO$/', $codigoNormalizado, $matches)) {
+            $codigoCliente = strtoupper(trim((string) ($matches[1] ?? '')));
+            if ($codigoCliente !== '') {
+                $empresaIdPorCliente = Empresa::query()
+                    ->whereRaw('trim(upper(codigo_cliente)) = ?', [$codigoCliente])
+                    ->value('id');
+
+                if (!empty($empresaIdPorCliente)) {
+                    return (int) $empresaIdPorCliente;
+                }
+            }
+        }
+
+        return null;
     }
 
     public function toggleCn33Reprint()
@@ -1571,6 +1723,7 @@ class PaquetesEms extends Component
         return RecojoContrato::query()
             ->with([
                 'estadoRegistro:id,nombre_estado',
+                'empresa:id,nombre,sigla',
                 'user:id,name,empresa_id',
                 'user.empresa:id,nombre,sigla',
             ])
@@ -1601,6 +1754,10 @@ class PaquetesEms extends Component
                             $userQuery->where('name', 'like', "%{$q}%");
                         })
                         ->orWhereHas('user.empresa', function ($empresaQuery) use ($q) {
+                            $empresaQuery->where('nombre', 'like', "%{$q}%")
+                                ->orWhere('sigla', 'like', "%{$q}%");
+                        })
+                        ->orWhereHas('empresa', function ($empresaQuery) use ($q) {
                             $empresaQuery->where('nombre', 'like', "%{$q}%")
                                 ->orWhere('sigla', 'like', "%{$q}%");
                         });

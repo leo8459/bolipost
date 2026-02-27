@@ -130,9 +130,11 @@ class RecojoController extends Controller
         DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $estadoSolicitudId, &$contrato) {
             $correlativo = $this->nextCorrelativo((int) $empresa->id, $codigoCliente);
             $codigo = $this->buildCodigo($codigoCliente, $correlativo);
+            $empresaIdDetectada = $this->resolveEmpresaIdByCodigo($codigo) ?? (int) $empresa->id;
 
             $contrato = Recojo::query()->create([
                 'user_id' => (int) $user->id,
+                'empresa_id' => $empresaIdDetectada,
                 'codigo' => $codigo,
                 'cod_especial' => null,
                 'estados_id' => $estadoSolicitudId,
@@ -246,5 +248,33 @@ class RecojoController extends Controller
     protected function buildCodigo(string $codigoCliente, int $correlativo): string
     {
         return 'C' . $codigoCliente . 'A' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT) . 'BO';
+    }
+
+    protected function resolveEmpresaIdByCodigo(string $codigo): ?int
+    {
+        $codigoNormalizado = strtoupper(trim($codigo));
+
+        $empresaIdPorCodigo = CodigoEmpresa::query()
+            ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+            ->value('empresa_id');
+
+        if (!empty($empresaIdPorCodigo)) {
+            return (int) $empresaIdPorCodigo;
+        }
+
+        if (preg_match('/^C([A-Z0-9]+)A\d{5}BO$/', $codigoNormalizado, $matches)) {
+            $codigoCliente = strtoupper(trim((string) ($matches[1] ?? '')));
+            if ($codigoCliente !== '') {
+                $empresaIdPorCliente = Empresa::query()
+                    ->whereRaw('trim(upper(codigo_cliente)) = ?', [$codigoCliente])
+                    ->value('id');
+
+                if (!empty($empresaIdPorCliente)) {
+                    return (int) $empresaIdPorCliente;
+                }
+            }
+        }
+
+        return null;
     }
 }

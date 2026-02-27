@@ -106,8 +106,10 @@
                                     <td>{{ $recojo->nombre_r }}</td>
                                     <td>{{ $recojo->nombre_d }}</td>
                                     <td>
-                                        {{ optional(optional($recojo->user)->empresa)->nombre ?? '-' }}
-                                        @if(!empty(optional(optional($recojo->user)->empresa)->sigla))
+                                        {{ optional($recojo->empresa)->nombre ?? optional(optional($recojo->user)->empresa)->nombre ?? '-' }}
+                                        @if(!empty(optional($recojo->empresa)->sigla))
+                                            ({{ optional($recojo->empresa)->sigla }})
+                                        @elseif(!empty(optional(optional($recojo->user)->empresa)->sigla))
                                             ({{ optional(optional($recojo->user)->empresa)->sigla }})
                                         @endif
                                     </td>

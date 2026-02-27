@@ -129,6 +129,7 @@ class RecojoRecogerEnvios extends Component
 
         $recojos = RecojoModel::query()
             ->with([
+                'empresa:id,nombre,sigla',
                 'user:id,name,ciudad,empresa_id',
                 'user.empresa:id,nombre,sigla',
                 'estadoRegistro:id,nombre_estado',
@@ -152,6 +153,10 @@ class RecojoRecogerEnvios extends Component
                         ->orWhere('telefono_r', 'like', "%{$q}%")
                         ->orWhere('telefono_d', 'like', "%{$q}%")
                         ->orWhereHas('user.empresa', function ($empresaQuery) use ($q) {
+                            $empresaQuery->where('nombre', 'like', "%{$q}%")
+                                ->orWhere('sigla', 'like', "%{$q}%");
+                        })
+                        ->orWhereHas('empresa', function ($empresaQuery) use ($q) {
                             $empresaQuery->where('nombre', 'like', "%{$q}%")
                                 ->orWhere('sigla', 'like', "%{$q}%");
                         })

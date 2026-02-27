@@ -445,6 +445,9 @@
                                 Paquetes contrato en ALMACEN (misma ciudad)
                             </div>
                             <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openContratoRegistrarModal">
+                                    Registrar
+                                </button>
                                 <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openContratoPesoModal">
                                     Anadir peso
                                 </button>
@@ -491,8 +494,10 @@
                                             <td>{{ $contrato->nombre_r }}</td>
                                             <td>{{ $contrato->nombre_d }}</td>
                                             <td>
-                                                {{ optional(optional($contrato->user)->empresa)->nombre ?? '-' }}
-                                                @if(!empty(optional(optional($contrato->user)->empresa)->sigla))
+                                                {{ optional($contrato->empresa)->nombre ?? optional(optional($contrato->user)->empresa)->nombre ?? '-' }}
+                                                @if(!empty(optional($contrato->empresa)->sigla))
+                                                    ({{ optional($contrato->empresa)->sigla }})
+                                                @elseif(!empty(optional(optional($contrato->user)->empresa)->sigla))
                                                     ({{ optional(optional($contrato->user)->empresa)->sigla }})
                                                 @endif
                                             </td>
@@ -899,6 +904,65 @@
         </div>
     </div>
 
+    <div class="modal fade" id="contratoRegistrarModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Registrar contrato rapido</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Codigo</label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            wire:model.defer="registroContratoCodigo"
+                            placeholder="Ej: C0007A02011BO"
+                        >
+                        @error('registroContratoCodigo') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="form-group">
+                        <label>Origen (usuario logueado)</label>
+                        <input type="text" class="form-control" wire:model="registroContratoOrigen" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Destino</label>
+                        <select class="form-control" wire:model.defer="registroContratoDestino">
+                            <option value="">Seleccione...</option>
+                            @foreach($ciudades as $ciudadOpt)
+                                <option value="{{ $ciudadOpt }}">{{ $ciudadOpt }}</option>
+                            @endforeach
+                        </select>
+                        @error('registroContratoDestino') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="form-group mb-0">
+                        <label>Peso</label>
+                        <input
+                            type="number"
+                            class="form-control"
+                            wire:model.defer="registroContratoPeso"
+                            step="0.001"
+                            min="0.001"
+                        >
+                        @error('registroContratoPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" wire:click="registrarContratoRapido">
+                        Registrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="contratoPesoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
@@ -1085,6 +1149,14 @@
 
     window.addEventListener('closeRegionalContratoModal', () => {
         $('#regionalContratoModal').modal('hide');
+    });
+
+    window.addEventListener('openContratoRegistrarModal', () => {
+        $('#contratoRegistrarModal').modal('show');
+    });
+
+    window.addEventListener('closeContratoRegistrarModal', () => {
+        $('#contratoRegistrarModal').modal('hide');
     });
 
     window.addEventListener('openContratoPesoModal', () => {

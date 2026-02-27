@@ -4,6 +4,8 @@ namespace App\Livewire;
 
 use App\Models\Recojo as RecojoModel;
 use App\Models\Estado as EstadoModel;
+use App\Models\CodigoEmpresa as CodigoEmpresaModel;
+use App\Models\Empresa as EmpresaModel;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -187,6 +189,7 @@ class Recojo extends Component
 
         return [
             'user_id' => (int) $this->user_id,
+            'empresa_id' => $this->resolveEmpresaIdByCodigo($this->codigo),
             'codigo' => $this->normalizeUpper($this->codigo),
             'cod_especial' => $this->nullIfEmpty($this->normalizeUpper($this->cod_especial)),
             'estados_id' => $estadoId,
@@ -236,12 +239,44 @@ class Recojo extends Component
         return !empty($id) ? (int) $id : null;
     }
 
+    protected function resolveEmpresaIdByCodigo($codigo): ?int
+    {
+        $codigoNormalizado = strtoupper(trim((string) $codigo));
+        if ($codigoNormalizado === '') {
+            return null;
+        }
+
+        $empresaIdPorCodigo = CodigoEmpresaModel::query()
+            ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+            ->value('empresa_id');
+
+        if (!empty($empresaIdPorCodigo)) {
+            return (int) $empresaIdPorCodigo;
+        }
+
+        if (preg_match('/^C([A-Z0-9]+)A\d{5}BO$/', $codigoNormalizado, $matches)) {
+            $codigoCliente = strtoupper(trim((string) ($matches[1] ?? '')));
+            if ($codigoCliente !== '') {
+                $empresaIdPorCliente = EmpresaModel::query()
+                    ->whereRaw('trim(upper(codigo_cliente)) = ?', [$codigoCliente])
+                    ->value('id');
+
+                if (!empty($empresaIdPorCliente)) {
+                    return (int) $empresaIdPorCliente;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public function render()
     {
         $q = trim((string) $this->searchQuery);
 
         $recojos = RecojoModel::query()
             ->with([
+                'empresa:id,nombre,sigla',
                 'user:id,name,empresa_id',
                 'user.empresa:id,nombre,sigla',
                 'estadoRegistro:id,nombre_estado',
@@ -268,6 +303,10 @@ class Recojo extends Component
                             $userQuery->where('name', 'like', "%{$q}%");
                         })
                         ->orWhereHas('user.empresa', function ($empresaQuery) use ($q) {
+                            $empresaQuery->where('nombre', 'like', "%{$q}%")
+                                ->orWhere('sigla', 'like', "%{$q}%");
+                        })
+                        ->orWhereHas('empresa', function ($empresaQuery) use ($q) {
                             $empresaQuery->where('nombre', 'like', "%{$q}%")
                                 ->orWhere('sigla', 'like', "%{$q}%");
                         });
