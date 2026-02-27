@@ -6,6 +6,7 @@ use App\Models\Cartero;
 use App\Models\Estado;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
+use App\Models\Recojo as RecojoContrato;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,7 +47,7 @@ class CarterosController extends Controller
     public function entregaForm(Request $request)
     {
         $data = $request->validate([
-            'tipo_paquete' => ['required', 'in:EMS,CERTI'],
+            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO'],
             'id' => ['required', 'integer'],
         ]);
 
@@ -130,7 +131,7 @@ class CarterosController extends Controller
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
-            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO'],
         ]);
 
         $assigneeUserId = $validated['assignment_mode'] === 'auto'
@@ -172,14 +173,25 @@ class CarterosController extends Controller
             ->values()
             ->all();
 
+        $contratoIds = collect($validated['items'])
+            ->where('tipo_paquete', 'CONTRATO')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $updatedEms = 0;
         $updatedCerti = 0;
+        $updatedContrato = 0;
 
         DB::transaction(function () use (
             &$updatedEms,
             &$updatedCerti,
+            &$updatedContrato,
             $emsIds,
             $certiIds,
+            $contratoIds,
             $estadoAsignadoId,
             $assigneeUserId,
             $eventoId
@@ -194,6 +206,7 @@ class CarterosController extends Controller
                 foreach ($emsIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_ems' => $id]);
                     $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_estados = $estadoAsignadoId;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
@@ -232,6 +245,24 @@ class CarterosController extends Controller
                 foreach ($certiIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_certi' => $id]);
                     $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_estados = $estadoAsignadoId;
+                    $asignacion->id_user = $assigneeUserId;
+                    $asignacion->save();
+                }
+            }
+
+            if (!empty($contratoIds)) {
+                $updatedContrato = RecojoContrato::query()
+                    ->whereIn('id', $contratoIds)
+                    ->update([
+                        'estados_id' => $estadoAsignadoId,
+                    ]);
+
+                foreach ($contratoIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_paquetes_contrato' => $id]);
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_certi = null;
                     $asignacion->id_estados = $estadoAsignadoId;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
@@ -244,7 +275,8 @@ class CarterosController extends Controller
             'updated' => [
                 'ems' => $updatedEms,
                 'certi' => $updatedCerti,
-                'total' => $updatedEms + $updatedCerti,
+                'contrato' => $updatedContrato,
+                'total' => $updatedEms + $updatedCerti + $updatedContrato,
             ],
         ]);
     }
@@ -254,10 +286,10 @@ class CarterosController extends Controller
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
-            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO'],
         ]);
 
-        $estadoAlmacenId = 1;
+        $estadoAlmacenId = $this->resolveEstadoByName('ALMACEN');
         $actorUserId = (int) $request->user()->id;
 
         $emsIds = collect($validated['items'])
@@ -276,14 +308,25 @@ class CarterosController extends Controller
             ->values()
             ->all();
 
+        $contratoIds = collect($validated['items'])
+            ->where('tipo_paquete', 'CONTRATO')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $updatedEms = 0;
         $updatedCerti = 0;
+        $updatedContrato = 0;
 
         DB::transaction(function () use (
             &$updatedEms,
             &$updatedCerti,
+            &$updatedContrato,
             $emsIds,
             $certiIds,
+            $contratoIds,
             $estadoAlmacenId,
             $actorUserId
         ) {
@@ -297,6 +340,7 @@ class CarterosController extends Controller
                 foreach ($emsIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_ems' => $id]);
                     $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_estados = $estadoAlmacenId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -313,6 +357,24 @@ class CarterosController extends Controller
                 foreach ($certiIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_certi' => $id]);
                     $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_estados = $estadoAlmacenId;
+                    $asignacion->id_user = $actorUserId;
+                    $asignacion->save();
+                }
+            }
+
+            if (!empty($contratoIds)) {
+                $updatedContrato = RecojoContrato::query()
+                    ->whereIn('id', $contratoIds)
+                    ->update([
+                        'estados_id' => $estadoAlmacenId,
+                    ]);
+
+                foreach ($contratoIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_paquetes_contrato' => $id]);
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_certi = null;
                     $asignacion->id_estados = $estadoAlmacenId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -325,7 +387,8 @@ class CarterosController extends Controller
             'updated' => [
                 'ems' => $updatedEms,
                 'certi' => $updatedCerti,
-                'total' => $updatedEms + $updatedCerti,
+                'contrato' => $updatedContrato,
+                'total' => $updatedEms + $updatedCerti + $updatedContrato,
             ],
         ]);
     }
@@ -335,7 +398,7 @@ class CarterosController extends Controller
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
-            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO'],
         ]);
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
@@ -357,14 +420,25 @@ class CarterosController extends Controller
             ->values()
             ->all();
 
+        $contratoIds = collect($validated['items'])
+            ->where('tipo_paquete', 'CONTRATO')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $updatedEms = 0;
         $updatedCerti = 0;
+        $updatedContrato = 0;
 
         DB::transaction(function () use (
             &$updatedEms,
             &$updatedCerti,
+            &$updatedContrato,
             $emsIds,
             $certiIds,
+            $contratoIds,
             $estadoCarteroId,
             $actorUserId
         ) {
@@ -378,6 +452,7 @@ class CarterosController extends Controller
                 foreach ($emsIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_ems' => $id]);
                     $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_estados = $estadoCarteroId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -394,6 +469,24 @@ class CarterosController extends Controller
                 foreach ($certiIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_certi' => $id]);
                     $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_estados = $estadoCarteroId;
+                    $asignacion->id_user = $actorUserId;
+                    $asignacion->save();
+                }
+            }
+
+            if (!empty($contratoIds)) {
+                $updatedContrato = RecojoContrato::query()
+                    ->whereIn('id', $contratoIds)
+                    ->update([
+                        'estados_id' => $estadoCarteroId,
+                    ]);
+
+                foreach ($contratoIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_paquetes_contrato' => $id]);
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_certi = null;
                     $asignacion->id_estados = $estadoCarteroId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -406,7 +499,8 @@ class CarterosController extends Controller
             'updated' => [
                 'ems' => $updatedEms,
                 'certi' => $updatedCerti,
-                'total' => $updatedEms + $updatedCerti,
+                'contrato' => $updatedContrato,
+                'total' => $updatedEms + $updatedCerti + $updatedContrato,
             ],
         ]);
     }
@@ -421,7 +515,7 @@ class CarterosController extends Controller
             'peso_total' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
-            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO'],
         ]);
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
@@ -438,6 +532,7 @@ class CarterosController extends Controller
 
         $emsIds = $items->where('tipo_paquete', 'EMS')->pluck('id')->all();
         $certiIds = $items->where('tipo_paquete', 'CERTI')->pluck('id')->all();
+        $contratoIds = $items->where('tipo_paquete', 'CONTRATO')->pluck('id')->all();
 
         $allowedBase = Cartero::query()
             ->where('id_user', $userId)
@@ -455,10 +550,17 @@ class CarterosController extends Controller
             ->map(fn ($id) => (int) $id)
             ->all();
 
+        $allowedContratoIds = (clone $allowedBase)
+            ->whereNotNull('id_paquetes_contrato')
+            ->pluck('id_paquetes_contrato')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
         $invalidEms = collect($emsIds)->diff($allowedEmsIds)->values()->all();
         $invalidCerti = collect($certiIds)->diff($allowedCertiIds)->values()->all();
+        $invalidContrato = collect($contratoIds)->diff($allowedContratoIds)->values()->all();
 
-        if (!empty($invalidEms) || !empty($invalidCerti)) {
+        if (!empty($invalidEms) || !empty($invalidCerti) || !empty($invalidContrato)) {
             throw ValidationException::withMessages([
                 'items' => 'Incluiste paquetes que no pertenecen a tu bandeja CARTERO.',
             ]);
@@ -474,15 +576,25 @@ class CarterosController extends Controller
             ->get(['id', 'codigo'])
             ->keyBy('id');
 
+        $contratoRows = RecojoContrato::query()
+            ->whereIn('id', $contratoIds ?: [0])
+            ->get(['id', 'codigo', 'peso'])
+            ->keyBy('id');
+
         foreach ($items as $item) {
             if ($item['tipo_paquete'] === 'EMS' && !isset($emsRows[$item['id']])) {
                 throw ValidationException::withMessages([
                     'items' => 'Uno o mas paquetes EMS ya no existen.',
                 ]);
             }
+            if ($item['tipo_paquete'] === 'CONTRATO' && !isset($contratoRows[$item['id']])) {
+                throw ValidationException::withMessages([
+                    'items' => 'Uno o mas paquetes CONTRATO ya no existen.',
+                ]);
+            }
         }
 
-        $result = DB::transaction(function () use ($validated, $userId, $items, $emsIds, $certiIds, $emsRows, $certiRows, $estadoProvinciaId) {
+        $result = DB::transaction(function () use ($validated, $userId, $items, $emsIds, $certiIds, $contratoIds, $emsRows, $certiRows, $contratoRows, $estadoProvinciaId) {
             $guia = $this->nextGuideNumber();
             $rowsToInsert = [];
             $manualPesoTotal = $validated['peso_total'] ?? null;
@@ -492,6 +604,8 @@ class CarterosController extends Controller
             foreach ($items->values() as $index => $item) {
                 if ($item['tipo_paquete'] === 'EMS') {
                     $pkg = $emsRows[$item['id']];
+                } elseif ($item['tipo_paquete'] === 'CONTRATO') {
+                    $pkg = $contratoRows[$item['id']];
                 } else {
                     $pkg = $certiRows[$item['id']];
                 }
@@ -524,14 +638,23 @@ class CarterosController extends Controller
                     ->update(['fk_estado' => $estadoProvinciaId]);
             }
 
+            if (!empty($contratoIds)) {
+                RecojoContrato::query()
+                    ->whereIn('id', $contratoIds)
+                    ->update(['estados_id' => $estadoProvinciaId]);
+            }
+
             Cartero::query()
                 ->where('id_user', $userId)
-                ->where(function ($query) use ($emsIds, $certiIds) {
+                ->where(function ($query) use ($emsIds, $certiIds, $contratoIds) {
                     if (!empty($emsIds)) {
                         $query->whereIn('id_paquetes_ems', $emsIds);
                     }
                     if (!empty($certiIds)) {
                         $query->orWhereIn('id_paquetes_certi', $certiIds);
+                    }
+                    if (!empty($contratoIds)) {
+                        $query->orWhereIn('id_paquetes_contrato', $contratoIds);
                     }
                 })
                 ->update(['id_estados' => $estadoProvinciaId]);
@@ -553,7 +676,7 @@ class CarterosController extends Controller
     public function deliverPackage(Request $request)
     {
         $validated = $request->validate([
-            'tipo_paquete' => ['required', 'in:EMS,CERTI'],
+            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO'],
             'id' => ['required', 'integer'],
             'recibido_por' => ['required', 'string', 'max:255'],
             'descripcion' => ['nullable', 'string'],
@@ -616,7 +739,7 @@ class CarterosController extends Controller
     public function addAttempt(Request $request)
     {
         $validated = $request->validate([
-            'tipo_paquete' => ['required', 'in:EMS,CERTI'],
+            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO'],
             'id' => ['required', 'integer'],
             'descripcion' => ['nullable', 'string'],
         ]);
@@ -683,6 +806,7 @@ class CarterosController extends Controller
 
         $emsFilterIds = null;
         $certiFilterIds = null;
+        $contratoFilterIds = null;
 
         if ($estadoId !== null || $userId !== null) {
             $base = Cartero::query();
@@ -706,6 +830,14 @@ class CarterosController extends Controller
             $certiFilterIds = (clone $base)
                 ->whereNotNull('id_paquetes_certi')
                 ->pluck('id_paquetes_certi')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            $contratoFilterIds = (clone $base)
+                ->whereNotNull('id_paquetes_contrato')
+                ->pluck('id_paquetes_contrato')
                 ->map(fn ($id) => (int) $id)
                 ->unique()
                 ->values()
@@ -792,8 +924,52 @@ class CarterosController extends Controller
                 ];
             });
 
+        $contratos = RecojoContrato::query()
+            ->select([
+                'id',
+                'codigo',
+                'nombre_d as destinatario',
+                'telefono_d as telefono',
+                'destino as ciudad',
+                'direccion_d as zona',
+                'peso',
+                'estados_id as estado_id',
+                'created_at',
+            ])
+            ->when($codigo !== '', function ($query) use ($codigo) {
+                $query->where(function ($sub) use ($codigo) {
+                    $sub->whereRaw('LOWER(codigo) LIKE ?', ['%' . mb_strtolower($codigo) . '%'])
+                        ->orWhereRaw('LOWER(COALESCE(cod_especial, \'\')) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
+                });
+            })
+            ->when($estadoId !== null || $userId !== null, function ($query) use ($contratoFilterIds) {
+                $query->whereIn('id', $contratoFilterIds ?: [0]);
+            })
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'tipo_paquete' => 'CONTRATO',
+                    'codigo' => $item->codigo,
+                    'destinatario' => $item->destinatario,
+                    'telefono' => $item->telefono,
+                    'ciudad' => $item->ciudad,
+                    'zona' => $item->zona,
+                    'peso' => $item->peso,
+                    'precio' => 0,
+                    'estado_id' => $item->estado_id,
+                    'user_id' => null,
+                    'asignado_a' => null,
+                    'intento' => 0,
+                    'recibido_por' => null,
+                    'descripcion' => null,
+                    'created_at' => optional($item->created_at)->toDateTimeString(),
+                ];
+            });
+
         $all = $ems
             ->concat($certi)
+            ->concat($contratos)
             ->sortByDesc('created_at')
             ->values();
 
@@ -841,18 +1017,29 @@ class CarterosController extends Controller
             ->values()
             ->all();
 
-        if (empty($emsIds) && empty($certiIds)) {
+        $contratoIds = collect($rows)
+            ->where('tipo_paquete', 'CONTRATO')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($emsIds) && empty($certiIds) && empty($contratoIds)) {
             return $rows;
         }
 
         $asignaciones = Cartero::query()
             ->with('user:id,name')
-            ->where(function ($query) use ($emsIds, $certiIds) {
+            ->where(function ($query) use ($emsIds, $certiIds, $contratoIds) {
                 if (!empty($emsIds)) {
                     $query->whereIn('id_paquetes_ems', $emsIds);
                 }
                 if (!empty($certiIds)) {
                     $query->orWhereIn('id_paquetes_certi', $certiIds);
+                }
+                if (!empty($contratoIds)) {
+                    $query->orWhereIn('id_paquetes_contrato', $contratoIds);
                 }
             })
             ->orderByDesc('updated_at')
@@ -861,6 +1048,7 @@ class CarterosController extends Controller
 
         $mapEms = [];
         $mapCerti = [];
+        $mapContrato = [];
 
         foreach ($asignaciones as $a) {
             if ($a->id_paquetes_ems && !isset($mapEms[$a->id_paquetes_ems])) {
@@ -868,6 +1056,9 @@ class CarterosController extends Controller
             }
             if ($a->id_paquetes_certi && !isset($mapCerti[$a->id_paquetes_certi])) {
                 $mapCerti[$a->id_paquetes_certi] = $a;
+            }
+            if ($a->id_paquetes_contrato && !isset($mapContrato[$a->id_paquetes_contrato])) {
+                $mapContrato[$a->id_paquetes_contrato] = $a;
             }
         }
 
@@ -878,6 +1069,9 @@ class CarterosController extends Controller
             }
             if ($row['tipo_paquete'] === 'CERTI' && isset($mapCerti[$row['id']])) {
                 $asignacion = $mapCerti[$row['id']];
+            }
+            if ($row['tipo_paquete'] === 'CONTRATO' && isset($mapContrato[$row['id']])) {
+                $asignacion = $mapContrato[$row['id']];
             }
 
             if ($asignacion) {
@@ -926,6 +1120,8 @@ class CarterosController extends Controller
             ->where(function ($q) use ($tipoPaquete, $id) {
                 if ($tipoPaquete === 'EMS') {
                     $q->where('id_paquetes_ems', $id);
+                } elseif ($tipoPaquete === 'CONTRATO') {
+                    $q->where('id_paquetes_contrato', $id);
                 } else {
                     $q->where('id_paquetes_certi', $id);
                 }
@@ -941,6 +1137,8 @@ class CarterosController extends Controller
             ->where(function ($q) use ($tipoPaquete, $id) {
                 if ($tipoPaquete === 'EMS') {
                     $q->where('id_paquetes_ems', $id);
+                } elseif ($tipoPaquete === 'CONTRATO') {
+                    $q->where('id_paquetes_contrato', $id);
                 } else {
                     $q->where('id_paquetes_certi', $id);
                 }
@@ -954,6 +1152,18 @@ class CarterosController extends Controller
             $pkg = PaqueteEms::query()
                 ->where('id', $id)
                 ->firstOrFail(['id', 'codigo', 'nombre_destinatario as destinatario', 'ciudad']);
+
+            return [
+                'codigo' => $pkg->codigo,
+                'destinatario' => $pkg->destinatario,
+                'ciudad' => $pkg->ciudad,
+            ];
+        }
+
+        if ($tipoPaquete === 'CONTRATO') {
+            $pkg = RecojoContrato::query()
+                ->where('id', $id)
+                ->firstOrFail(['id', 'codigo', 'nombre_d as destinatario', 'destino as ciudad']);
 
             return [
                 'codigo' => $pkg->codigo,
@@ -977,6 +1187,11 @@ class CarterosController extends Controller
     {
         if ($tipoPaquete === 'EMS') {
             PaqueteEms::query()->where('id', $id)->update(['estado_id' => $estadoId]);
+            return;
+        }
+
+        if ($tipoPaquete === 'CONTRATO') {
+            RecojoContrato::query()->where('id', $id)->update(['estados_id' => $estadoId]);
             return;
         }
 

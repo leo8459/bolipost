@@ -132,11 +132,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/empresas', [EmpresaController::class, 'index'])->name('empresas.index');
     Route::get('/codigo-empresa', [CodigoEmpresaController::class, 'index'])->name('codigo-empresa.index');
     Route::get('/paquetes-contrato', [RecojoController::class, 'index'])->name('paquetes-contrato.index');
+    Route::get('/paquetes-contrato/recoger-envios', [RecojoController::class, 'recogerEnvios'])->name('paquetes-contrato.recoger-envios');
+    Route::get('/paquetes-contrato/almacen', [RecojoController::class, 'almacen'])->name('paquetes-contrato.almacen');
     Route::get('/paquetes-contrato/create', [RecojoController::class, 'create'])->name('paquetes-contrato.create');
     Route::post('/paquetes-contrato', [RecojoController::class, 'store'])->name('paquetes-contrato.store');
     Route::get('/paquetes-contrato/reporte-hoy', [RecojoController::class, 'reporteHoy'])->name('paquetes-contrato.reporte-hoy');
     Route::get('/paquetes-contrato/{contrato}/reporte', [RecojoController::class, 'reporte'])->name('paquetes-contrato.reporte');
-    Route::get('/recojos', [RecojoController::class, 'index'])->name('recojos.index');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
     Route::get('/despachos/abiertos', [DespachoController::class, 'index'])->name('despachos.abiertos');
     Route::get('/despachos/expedicion', [DespachoController::class, 'expedicion'])->name('despachos.expedicion');

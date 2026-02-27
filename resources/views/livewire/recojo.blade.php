@@ -42,7 +42,17 @@
     <div class="plantilla-wrap">
         <div class="card card-app">
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <h4 class="fw-bold mb-0">Paquetes Contrato</h4>
+                <div>
+                    <h4 class="fw-bold mb-0">
+                        {{ $this->isAlmacenMode ? 'Almacen contratos' : 'Paquetes Contrato' }}
+                    </h4>
+                    @if ($this->isAlmacenMode)
+                        <small class="text-white-50">
+                            Filtrado por origen del usuario: <strong>{{ $this->userCity !== '' ? $this->userCity : 'SIN CIUDAD' }}</strong>
+                            | Estado: <strong>ALMACEN</strong>
+                        </small>
+                    @endif
+                </div>
 
                 <div class="d-flex gap-2 align-items-center">
                     <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
@@ -50,7 +60,9 @@
                     <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.reporte-hoy') }}" target="_blank">
                         Imprimir generados hoy
                     </a>
-                    <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create') }}">Nuevo</a>
+                    @if (!$this->isAlmacenMode)
+                        <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create') }}">Nuevo</a>
+                    @endif
                 </div>
             </div>
 
@@ -87,6 +99,7 @@
                                 <th>Destino</th>
                                 <th>Remitente</th>
                                 <th>Destinatario</th>
+                                <th>Empresa</th>
                                 <th>Peso</th>
                                 <th>Fecha recojo</th>
                                 <th>Usuario</th>
@@ -97,11 +110,17 @@
                             @forelse ($recojos as $recojo)
                                 <tr>
                                     <td><span class="pill-id">{{ $recojo->codigo }}</span></td>
-                                    <td>{{ $recojo->estado }}</td>
+                                    <td>{{ optional($recojo->estadoRegistro)->nombre_estado ?? '-' }}</td>
                                     <td>{{ $recojo->origen }}</td>
                                     <td>{{ $recojo->destino }}</td>
                                     <td>{{ $recojo->nombre_r }}</td>
                                     <td>{{ $recojo->nombre_d }}</td>
+                                    <td>
+                                        {{ optional(optional($recojo->user)->empresa)->nombre ?? '-' }}
+                                        @if(!empty(optional(optional($recojo->user)->empresa)->sigla))
+                                            ({{ optional(optional($recojo->user)->empresa)->sigla }})
+                                        @endif
+                                    </td>
                                     <td>{{ $recojo->peso }}</td>
                                     <td>{{ optional($recojo->fecha_recojo)->format('d/m/Y') }}</td>
                                     <td>{{ optional($recojo->user)->name ?? '-' }}</td>
@@ -123,7 +142,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-5">
+                                    <td colspan="11" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -167,11 +186,6 @@
                                 <label>Codigo</label>
                                 <input type="text" wire:model.defer="codigo" class="form-control">
                                 @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-3">
-                                <label>Estado</label>
-                                <input type="text" wire:model.defer="estado" class="form-control">
-                                @error('estado') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-3">
                                 <label>Fecha recojo</label>

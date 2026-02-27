@@ -14,7 +14,8 @@ class Recojo extends Model
     protected $fillable = [
         'user_id',
         'codigo',
-        'estado',
+        'cod_especial',
+        'estados_id',
         'origen',
         'destino',
         'nombre_r',
@@ -41,5 +42,10 @@ class Recojo extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function estadoRegistro()
+    {
+        return $this->belongsTo(Estado::class, 'estados_id');
     }
 }

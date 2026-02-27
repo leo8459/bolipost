@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Recojo as RecojoModel;
+use App\Models\Estado as EstadoModel;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -13,13 +14,17 @@ class Recojo extends Component
 {
     use WithPagination;
 
+    public $mode = 'general';
     public $search = '';
     public $searchQuery = '';
     public $editingId = null;
+    public $userCity = '';
+    public $estadoAlmacenId = null;
 
     public $user_id = '';
     public $codigo = '';
-    public $estado = '';
+    public $cod_especial = '';
+    public $estados_id = null;
     public $origen = '';
     public $destino = '';
     public $nombre_r = '';
@@ -39,10 +44,20 @@ class Recojo extends Component
 
     protected $paginationTheme = 'bootstrap';
 
-    public function mount()
+    public function mount($mode = 'general')
     {
+        $this->mode = in_array($mode, ['general', 'almacen'], true) ? $mode : 'general';
         $this->fecha_recojo = now()->toDateString();
         $this->user_id = (string) optional(Auth::user())->id;
+        $this->userCity = strtoupper(trim((string) optional(Auth::user())->ciudad));
+        $this->estadoAlmacenId = (int) (EstadoModel::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ALMACEN'])
+            ->value('id') ?? 0);
+    }
+
+    public function getIsAlmacenModeProperty(): bool
+    {
+        return $this->mode === 'almacen';
     }
 
     public function searchRecojos()
@@ -65,7 +80,8 @@ class Recojo extends Component
         $this->editingId = $recojo->id;
         $this->user_id = (string) $recojo->user_id;
         $this->codigo = (string) $recojo->codigo;
-        $this->estado = (string) $recojo->estado;
+        $this->cod_especial = (string) ($recojo->cod_especial ?? '');
+        $this->estados_id = $recojo->estados_id ? (int) $recojo->estados_id : null;
         $this->origen = (string) $recojo->origen;
         $this->destino = (string) $recojo->destino;
         $this->nombre_r = (string) $recojo->nombre_r;
@@ -114,7 +130,8 @@ class Recojo extends Component
     {
         $this->reset([
             'codigo',
-            'estado',
+            'cod_especial',
+            'estados_id',
             'origen',
             'destino',
             'nombre_r',
@@ -143,7 +160,8 @@ class Recojo extends Component
         return [
             'user_id' => ['required', 'integer', Rule::exists('users', 'id')],
             'codigo' => ['required', 'string', 'max:255', Rule::unique('paquetes_contrato', 'codigo')->ignore($this->editingId)],
-            'estado' => 'required|string|max:255',
+            'cod_especial' => 'nullable|string|max:50',
+            'estados_id' => ['nullable', 'integer', Rule::exists('estados', 'id')],
             'origen' => 'required|string|max:255',
             'destino' => 'required|string|max:255',
             'nombre_r' => 'required|string|max:255',
@@ -165,10 +183,13 @@ class Recojo extends Component
 
     protected function payload()
     {
+        $estadoId = $this->estados_id ?: $this->resolveSolicitudEstadoId();
+
         return [
             'user_id' => (int) $this->user_id,
             'codigo' => $this->normalizeUpper($this->codigo),
-            'estado' => $this->normalizeUpper($this->estado),
+            'cod_especial' => $this->nullIfEmpty($this->normalizeUpper($this->cod_especial)),
+            'estados_id' => $estadoId,
             'origen' => $this->normalizeUpper($this->origen),
             'destino' => $this->normalizeUpper($this->destino),
             'nombre_r' => $this->normalizeUpper($this->nombre_r),
@@ -206,22 +227,49 @@ class Recojo extends Component
         return $clean === '' ? null : $clean;
     }
 
+    protected function resolveSolicitudEstadoId(): ?int
+    {
+        $id = EstadoModel::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
+            ->value('id');
+
+        return !empty($id) ? (int) $id : null;
+    }
+
     public function render()
     {
         $q = trim((string) $this->searchQuery);
 
         $recojos = RecojoModel::query()
-            ->with('user:id,name')
+            ->with([
+                'user:id,name,empresa_id',
+                'user.empresa:id,nombre,sigla',
+                'estadoRegistro:id,nombre_estado',
+            ])
+            ->when($this->isAlmacenMode, function ($query) {
+                $query->where('estados_id', (int) $this->estadoAlmacenId)
+                    ->when($this->userCity !== '', function ($sub) {
+                        $sub->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
+                    }, function ($sub) {
+                        $sub->whereRaw('1 = 0');
+                    });
+            })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('codigo', 'like', "%{$q}%")
-                        ->orWhere('estado', 'like', "%{$q}%")
                         ->orWhere('origen', 'like', "%{$q}%")
                         ->orWhere('destino', 'like', "%{$q}%")
                         ->orWhere('nombre_r', 'like', "%{$q}%")
                         ->orWhere('nombre_d', 'like', "%{$q}%")
+                        ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($q) {
+                            $estadoQuery->where('nombre_estado', 'like', "%{$q}%");
+                        })
                         ->orWhereHas('user', function ($userQuery) use ($q) {
                             $userQuery->where('name', 'like', "%{$q}%");
+                        })
+                        ->orWhereHas('user.empresa', function ($empresaQuery) use ($q) {
+                            $empresaQuery->where('nombre', 'like', "%{$q}%")
+                                ->orWhere('sigla', 'like', "%{$q}%");
                         });
                 });
             })

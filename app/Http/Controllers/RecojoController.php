@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CodigoEmpresa;
 use App\Models\Empresa;
+use App\Models\Estado;
 use App\Models\Recojo;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -15,6 +16,16 @@ class RecojoController extends Controller
     public function index()
     {
         return view('paquetes_contrato.index');
+    }
+
+    public function recogerEnvios()
+    {
+        return view('paquetes_contrato.recoger-envios');
+    }
+
+    public function almacen()
+    {
+        return view('paquetes_contrato.almacen');
     }
 
     public function create()
@@ -104,15 +115,27 @@ class RecojoController extends Controller
             $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
         }
 
+        $estadoSolicitudId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
+            ->value('id') ?? 0);
+
+        if ($estadoSolicitudId <= 0) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'No existe el estado SOLICITUD en la tabla estados.');
+        }
+
         $contrato = null;
-        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, &$contrato) {
+        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $estadoSolicitudId, &$contrato) {
             $correlativo = $this->nextCorrelativo((int) $empresa->id, $codigoCliente);
             $codigo = $this->buildCodigo($codigoCliente, $correlativo);
 
             $contrato = Recojo::query()->create([
                 'user_id' => (int) $user->id,
                 'codigo' => $codigo,
-                'estado' => 'CREADO',
+                'cod_especial' => null,
+                'estados_id' => $estadoSolicitudId,
                 'origen' => $origen,
                 'destino' => strtoupper(trim((string) $data['destino'])),
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),

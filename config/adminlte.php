@@ -390,11 +390,6 @@ return [
                     'url' => 'paquetes-ems/entregados',
                     'icon' => 'fas fa-check-circle',
                 ],
-                [
-                    'text' => 'Recojos',
-                    'url' => 'recojos',
-                    'icon' => 'fas fa-hand-holding-box',
-                ],
             ],
         ],
         [
@@ -601,8 +596,24 @@ return [
         ],
         [
             'text' => 'Contratos',
-            'url' => 'paquetes-contrato',
             'icon' => 'fas fa-file-contract',
+            'submenu' => [
+                [
+                    'text' => 'Gestion contratos',
+                    'url' => 'paquetes-contrato',
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Almacen contratos',
+                    'url' => 'paquetes-contrato/almacen',
+                    'icon' => 'fas fa-warehouse',
+                ],
+                [
+                    'text' => 'Recoger envios contratos',
+                    'url' => 'paquetes-contrato/recoger-envios',
+                    'icon' => 'fas fa-inbox',
+                ],
+            ],
         ],
         [
             'text' => 'Rendimiento',

@@ -21,7 +21,7 @@
                 <form method="GET" action="{{ route('paquetes-ems.entregados') }}" class="row mb-3">
                     <div class="col-md-10 mb-2 mb-md-0">
                         <input type="text" name="q" value="{{ $search }}" class="form-control"
-                            placeholder="Buscar por codigo, destinatario, telefono, ciudad, recibido por o descripcion...">
+                            placeholder="Buscar EMS/Contrato por codigo, destinatario, telefono, ciudad, recibido por o descripcion...">
                     </div>
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-primary btn-block">Buscar</button>
@@ -32,6 +32,7 @@
                     <table class="table table-striped table-hover mb-0">
                         <thead>
                             <tr>
+                                <th>Tipo</th>
                                 <th>Codigo</th>
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
@@ -46,20 +47,23 @@
                         <tbody>
                             @forelse ($paquetes as $paquete)
                                 <tr>
+                                    <td>{{ $paquete->tipo_paquete }}</td>
                                     <td>{{ $paquete->codigo }}</td>
-                                    <td>{{ $paquete->nombre_destinatario }}</td>
-                                    <td>{{ $paquete->telefono_destinatario }}</td>
+                                    <td>{{ $paquete->destinatario }}</td>
+                                    <td>{{ $paquete->telefono ?: '-' }}</td>
                                     <td>{{ $paquete->ciudad }}</td>
                                     <td>{{ $paquete->peso }}</td>
                                     <td>{{ $paquete->recibido_por ?: '-' }}</td>
                                     <td>{{ $paquete->descripcion ?: '-' }}</td>
                                     <td>{{ $paquete->asignado_a ?: '-' }}</td>
-                                    <td>{{ optional($paquete->updated_at)->format('d/m/Y H:i') }}</td>
+                                    <td>
+                                        {{ !empty($paquete->fecha_entrega) ? \Illuminate\Support\Carbon::parse($paquete->fecha_entrega)->format('d/m/Y H:i') : '-' }}
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-4">
-                                        No hay paquetes EMS en estado DOMICILIO.
+                                    <td colspan="10" class="text-center py-4">
+                                        No hay registros en estado DOMICILIO.
                                     </td>
                                 </tr>
                             @endforelse

@@ -165,6 +165,35 @@
             font-weight:700;
             color:#1f2937;
         }
+        .header-meta{
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .header-meta-label{
+            font-size: 12px;
+            color: rgba(255,255,255,.8);
+            font-weight: 700;
+            letter-spacing: .02em;
+        }
+        .header-chip{
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,.45);
+            color: #fff;
+            font-weight: 800;
+            font-size: 11px;
+            border-radius: 999px;
+            padding: 3px 10px;
+            background: rgba(255,255,255,.1);
+        }
+        .header-city{
+            font-size: 12px;
+            color: rgba(255,255,255,.85);
+            margin-left: 4px;
+        }
     </style>
 
     <div class="plantilla-wrap">
@@ -182,6 +211,32 @@
                             Paquetes EMS
                         @endif
                     </h4>
+                    @php
+                        $ciudadUsuarioHeader = strtoupper(trim((string) optional(auth()->user())->ciudad));
+                    @endphp
+                    <div class="header-meta">
+                        <span class="header-meta-label">Estados visibles:</span>
+
+                        @if ($this->isAlmacenEms)
+                            @if ($this->almacenEstadoFiltro === 'ALMACEN')
+                                <span class="header-chip">ALMACEN</span>
+                            @elseif ($this->almacenEstadoFiltro === 'RECIBIDO')
+                                <span class="header-chip">RECIBIDO</span>
+                            @else
+                                <span class="header-chip">ALMACEN</span>
+                                <span class="header-chip">RECIBIDO</span>
+                            @endif
+                            <span class="header-city">
+                                Ciudad aplicada: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
+                            </span>
+                        @elseif ($this->isVentanillaEms)
+                            <span class="header-chip">VENTANILLA EMS</span>
+                        @elseif ($this->isTransitoEms)
+                            <span class="header-chip">{{ $this->regionalEstadoLabel }}</span>
+                        @else
+                            <span class="header-chip">ADMISIONES</span>
+                        @endif
+                    </div>
                 </div>
 
                 <div class="d-flex gap-2 align-items-center flex-wrap">
@@ -382,6 +437,93 @@
                 <div class="d-flex justify-content-end">
                     {{ $paquetes->links() }}
                 </div>
+
+                @if ($this->isAlmacenEms)
+                    <div class="section-block mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="fw-bold" style="color:var(--azul);">
+                                Paquetes contrato en ALMACEN (misma ciudad)
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openRegionalContratoModal">
+                                    Manda contratos a regional
+                                </button>
+                                <div class="muted small">
+                                    Total en pagina: <strong>{{ $contratosAlmacen ? $contratosAlmacen->count() : 0 }}</strong> |
+                                    Seleccionados: <strong>{{ count($selectedContratos) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        <th>Codigo</th>
+                                        <th>Cod. especial</th>
+                                        <th>Estado</th>
+                                        <th>Origen</th>
+                                        <th>Destino</th>
+                                        <th>Remitente</th>
+                                        <th>Destinatario</th>
+                                        <th>Empresa</th>
+                                        <th>Telefono R</th>
+                                        <th>Telefono D</th>
+                                        <th>Creado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($contratosAlmacen ?? [] as $contrato)
+                                        <tr>
+                                            <td>
+                                                <input type="checkbox" value="{{ $contrato->id }}" wire:model="selectedContratos">
+                                            </td>
+                                            <td><span class="pill-id">{{ $contrato->codigo }}</span></td>
+                                            <td>{{ $contrato->cod_especial ?: '-' }}</td>
+                                            <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?? '-' }}</td>
+                                            <td>{{ $contrato->origen }}</td>
+                                            <td>{{ $contrato->destino }}</td>
+                                            <td>{{ $contrato->nombre_r }}</td>
+                                            <td>{{ $contrato->nombre_d }}</td>
+                                            <td>
+                                                {{ optional(optional($contrato->user)->empresa)->nombre ?? '-' }}
+                                                @if(!empty(optional(optional($contrato->user)->empresa)->sigla))
+                                                    ({{ optional(optional($contrato->user)->empresa)->sigla }})
+                                                @endif
+                                            </td>
+                                            <td>{{ $contrato->telefono_r }}</td>
+                                            <td>{{ $contrato->telefono_d ?: '-' }}</td>
+                                            <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') }}</td>
+                                            <td>
+                                                <a href="{{ route('paquetes-contrato.reporte', $contrato->id) }}"
+                                                   target="_blank"
+                                                   class="btn btn-sm btn-outline-azul"
+                                                   title="Reimprimir rotulo">
+                                                    <i class="fas fa-print"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="13" class="text-center py-4">
+                                                <div class="fw-bold" style="color:var(--azul);">No hay contratos en ALMACEN</div>
+                                                <div class="muted">Se muestran solo contratos en estado ALMACEN y origen de tu ciudad.</div>
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if ($contratosAlmacen)
+                            <div class="d-flex justify-content-end">
+                                {{ $contratosAlmacen->links() }}
+                            </div>
+                        @endif
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -713,6 +855,47 @@
         </div>
     </div>
 
+    <div class="modal fade" id="regionalContratoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Enviar contratos a regional</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Ciudad destino regional</label>
+                        <select wire:model.defer="regionalDestinoContrato" class="form-control">
+                            <option value="">Seleccione...</option>
+                            @foreach($ciudades as $ciudadOpt)
+                                <option value="{{ $ciudadOpt }}">{{ $ciudadOpt }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Modo de transporte</label>
+                        <select wire:model.defer="regionalTransportModeContrato" class="form-control">
+                            <option value="TERRESTRE">TERRESTRE</option>
+                            <option value="AEREO">AEREO</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label>Nro de vuelo/transporte (opcional)</label>
+                        <input type="text" wire:model.defer="regionalTransportNumberContrato" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosContratosRegional">
+                        Confirmar y generar manifiesto
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="entregaVentanillaModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
@@ -831,6 +1014,14 @@
 
     window.addEventListener('closeRegionalModal', () => {
         $('#regionalModal').modal('hide');
+    });
+
+    window.addEventListener('openRegionalContratoModal', () => {
+        $('#regionalContratoModal').modal('show');
+    });
+
+    window.addEventListener('closeRegionalContratoModal', () => {
+        $('#regionalContratoModal').modal('hide');
     });
 
     window.addEventListener('openEntregaVentanillaModal', () => {
