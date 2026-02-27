@@ -194,6 +194,24 @@
             color: rgba(255,255,255,.85);
             margin-left: 4px;
         }
+        .table-scroll-wrap{
+            max-height: 56vh;
+            overflow: auto;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background:#fff;
+        }
+        .table-scroll-wrap .table{
+            margin-bottom:0;
+        }
+        .table-scroll-wrap .table thead th{
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        .table-scroll-wrap-sm{
+            max-height: 36vh;
+        }
     </style>
 
     <div class="plantilla-wrap">
@@ -258,6 +276,12 @@
                             Mandar seleccionados
                         </button>
                     @elseif ($this->isAlmacenEms)
+                        <button class="btn btn-outline-light2" type="button" wire:click="openContratoRegistrarModal">
+                            Registrar contrato
+                        </button>
+                        <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
+                            Anadir peso contrato
+                        </button>
                         <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
                             Enviar a ventanilla EMS
                         </button>
@@ -330,9 +354,14 @@
                         @endif
                     </div>
                     @if ($this->canSelect)
+                        @php
+                            $seleccionadosTotal = $this->isAlmacenEms
+                                ? (count($selectedPaquetes) + count($selectedContratos))
+                                : count($selectedPaquetes);
+                        @endphp
                         <div class="muted small">
                             Total en pagina: <strong>{{ $paquetes->count() }}</strong> |
-                            Seleccionados: <strong>{{ count($selectedPaquetes) }}</strong>
+                            Seleccionados: <strong>{{ $seleccionadosTotal }}</strong>
                         </div>
                     @else
                         <div class="muted small">
@@ -341,110 +370,200 @@
                     @endif
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-scroll-wrap">
+                    <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
-                            <tr>
-                                @if ($this->canSelect)
+                            @if ($this->isAlmacenEms)
+                                <tr>
                                     <th></th>
-                                @endif
-                                <th>Codigo</th>
-                                <th>Tipo</th>
-                                <th>Serv. especial</th>
-                                <th>Servicio</th>
-                                <th>Destino</th>
-                                <th>Contenido</th>
-                                <th>Cantidad</th>
-                                <th>Peso</th>
-                                <th>Nombre remitente</th>
-                                <th>Nombre envia</th>
-                                <th>Carnet</th>
-                                <th>Telefono remitente</th>
-                                <th>Nombre destinatario</th>
-                                <th>Telefono destinatario</th>
-                                <th>Ciudad</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($paquetes as $paquete)
-                                @php
-                                    $formulario = $paquete->formulario;
-                                @endphp
+                                    <th>Codigo</th>
+                                    <th>Tipo</th>
+                                    <th>Servicio</th>
+                                    <th>Serv. especial</th>
+                                    <th>Destino</th>
+                                    <th>Contenido</th>
+                                    <th>Cantidad</th>
+                                    <th>Peso</th>
+                                    <th>Remitente</th>
+                                    <th>Destinatario</th>
+                                    <th>Empresa</th>
+                                    <th>Telefono R</th>
+                                    <th>Telefono D</th>
+                                    <th>Creado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            @else
                                 <tr>
                                     @if ($this->canSelect)
-                                        <td>
-                                            <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
-                                        </td>
+                                        <th></th>
                                     @endif
-                                    <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
-                                    <td>{{ $formulario->tipo_correspondencia ?? $paquete->tipo_correspondencia }}</td>
-                                    <td>{{ $formulario->servicio_especial ?? $paquete->servicio_especial }}</td>
-                                    <td>{{ $paquete->servicio_nombre ?? '' }}</td>
-                                    <td>{{ $paquete->destino_nombre ?? '' }}</td>
-                                    <td>{{ $formulario->contenido ?? $paquete->contenido }}</td>
-                                    <td>{{ $formulario->cantidad ?? $paquete->cantidad }}</td>
-                                    <td>{{ $formulario->peso ?? $paquete->peso }}</td>
-                                    <td>{{ $formulario->nombre_remitente ?? $paquete->nombre_remitente }}</td>
-                                    <td>{{ $formulario->nombre_envia ?? $paquete->nombre_envia }}</td>
-                                    <td>{{ $formulario->carnet ?? $paquete->carnet }}</td>
-                                    <td>{{ $formulario->telefono_remitente ?? $paquete->telefono_remitente }}</td>
-                                    <td>{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario }}</td>
-                                    <td>{{ $formulario->telefono_destinatario ?? $paquete->telefono_destinatario }}</td>
-                                    <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
-                                    <td>
-                                        <button wire:click="openEditModal({{ $paquete->id }})"
-                                            class="btn btn-sm btn-azul"
-                                            title="Editar">
-                                            <i class="fas fa-pen"></i>
-                                        </button>
-                                        <a href="{{ route('paquetes-ems.boleta', $paquete->id) }}"
-                                           class="btn btn-sm btn-outline-azul"
-                                           target="_blank"
-                                           title="Reimprimir boleta">
-                                            <i class="fas fa-print"></i>
-                                        </a>
-                                        @if ($this->isAlmacenEms)
-                                            <button wire:click="devolverAAdmisiones({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul"
-                                                title="Devolver a ADMISIONES"
-                                                onclick="return confirm('Seguro que deseas devolver este paquete a ADMISIONES?')">
-                                                <i class="fas fa-undo"></i>
-                                            </button>
-                                        @endif
-                                        @if ($this->isAdmision)
-                                            <button wire:click="delete({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul"
-                                                title="Eliminar"
-                                                onclick="return confirm('Seguro que deseas eliminar este paquete?')">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        @endif
-                                    </td>
+                                    <th>Codigo</th>
+                                    <th>Tipo</th>
+                                    <th>Serv. especial</th>
+                                    <th>Servicio</th>
+                                    <th>Destino</th>
+                                    <th>Contenido</th>
+                                    <th>Cantidad</th>
+                                    <th>Peso</th>
+                                    <th>Nombre remitente</th>
+                                    <th>Nombre envia</th>
+                                    <th>Carnet</th>
+                                    <th>Telefono remitente</th>
+                                    <th>Nombre destinatario</th>
+                                    <th>Telefono destinatario</th>
+                                    <th>Ciudad</th>
+                                    <th>Acciones</th>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="{{ $this->canSelect ? 17 : 16 }}" class="text-center py-5">
-                                        <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
-                                        <div class="muted">Prueba con otro texto de busqueda.</div>
-                                    </td>
-                                </tr>
-                            @endforelse
+                            @endif
+                        </thead>
+                        <tbody>
+                            @if ($this->isAlmacenEms)
+                                @forelse ($paquetes as $row)
+                                    <tr>
+                                        <td>
+                                            @if (($row->record_type ?? '') === 'EMS')
+                                                <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes">
+                                            @else
+                                                <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedContratos">
+                                            @endif
+                                        </td>
+                                        <td><span class="pill-id">{{ $row->codigo }}</span></td>
+                                        <td>{{ $row->tipo }}</td>
+                                        <td>{{ $row->servicio }}</td>
+                                        <td>{{ $row->servicio_especial }}</td>
+                                        <td>{{ $row->destino }}</td>
+                                        <td>{{ $row->contenido }}</td>
+                                        <td>{{ $row->cantidad }}</td>
+                                        <td>{{ $row->peso }}</td>
+                                        <td>{{ $row->remitente }}</td>
+                                        <td>{{ $row->destinatario }}</td>
+                                        <td>{{ $row->empresa }}</td>
+                                        <td>{{ $row->telefono_r }}</td>
+                                        <td>{{ $row->telefono_d }}</td>
+                                        <td>{{ \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') }}</td>
+                                        <td>
+                                            @if (($row->record_type ?? '') === 'EMS')
+                                                <button wire:click="openEditModal({{ $row->record_id }})"
+                                                    class="btn btn-sm btn-azul"
+                                                    title="Editar">
+                                                    <i class="fas fa-pen"></i>
+                                                </button>
+                                                <a href="{{ route('paquetes-ems.boleta', $row->record_id) }}"
+                                                   class="btn btn-sm btn-outline-azul"
+                                                   target="_blank"
+                                                   title="Reimprimir boleta">
+                                                    <i class="fas fa-print"></i>
+                                                </a>
+                                                <button wire:click="devolverAAdmisiones({{ $row->record_id }})"
+                                                    class="btn btn-sm btn-outline-azul"
+                                                    title="Devolver a ADMISIONES"
+                                                    onclick="return confirm('Seguro que deseas devolver este paquete a ADMISIONES?')">
+                                                    <i class="fas fa-undo"></i>
+                                                </button>
+                                            @else
+                                                <a href="{{ route('paquetes-contrato.reporte', $row->record_id) }}"
+                                                   target="_blank"
+                                                   class="btn btn-sm btn-outline-azul"
+                                                   title="Reimprimir rotulo">
+                                                    <i class="fas fa-print"></i>
+                                                </a>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="16" class="text-center py-5">
+                                            <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
+                                            <div class="muted">Prueba con otro texto de busqueda.</div>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            @else
+                                @forelse ($paquetes as $paquete)
+                                    @php
+                                        $formulario = $paquete->formulario;
+                                    @endphp
+                                    <tr>
+                                        @if ($this->canSelect)
+                                            <td>
+                                                <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
+                                            </td>
+                                        @endif
+                                        <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
+                                        <td>{{ $formulario->tipo_correspondencia ?? $paquete->tipo_correspondencia }}</td>
+                                        <td>{{ $formulario->servicio_especial ?? $paquete->servicio_especial }}</td>
+                                        <td>{{ $paquete->servicio_nombre ?? '' }}</td>
+                                        <td>{{ $paquete->destino_nombre ?? '' }}</td>
+                                        <td>{{ $formulario->contenido ?? $paquete->contenido }}</td>
+                                        <td>{{ $formulario->cantidad ?? $paquete->cantidad }}</td>
+                                        <td>{{ $formulario->peso ?? $paquete->peso }}</td>
+                                        <td>{{ $formulario->nombre_remitente ?? $paquete->nombre_remitente }}</td>
+                                        <td>{{ $formulario->nombre_envia ?? $paquete->nombre_envia }}</td>
+                                        <td>{{ $formulario->carnet ?? $paquete->carnet }}</td>
+                                        <td>{{ $formulario->telefono_remitente ?? $paquete->telefono_remitente }}</td>
+                                        <td>{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario }}</td>
+                                        <td>{{ $formulario->telefono_destinatario ?? $paquete->telefono_destinatario }}</td>
+                                        <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
+                                        <td>
+                                            <button wire:click="openEditModal({{ $paquete->id }})"
+                                                class="btn btn-sm btn-azul"
+                                                title="Editar">
+                                                <i class="fas fa-pen"></i>
+                                            </button>
+                                            <a href="{{ route('paquetes-ems.boleta', $paquete->id) }}"
+                                               class="btn btn-sm btn-outline-azul"
+                                               target="_blank"
+                                               title="Reimprimir boleta">
+                                                <i class="fas fa-print"></i>
+                                            </a>
+                                            @if ($this->isAdmision)
+                                                <button wire:click="delete({{ $paquete->id }})"
+                                                    class="btn btn-sm btn-outline-azul"
+                                                    title="Eliminar"
+                                                    onclick="return confirm('Seguro que deseas eliminar este paquete?')">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="{{ $this->canSelect ? 17 : 16 }}" class="text-center py-5">
+                                            <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
+                                            <div class="muted">Prueba con otro texto de busqueda.</div>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            @endif
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <div class="d-flex justify-content-end">
                     {{ $paquetes->links() }}
                 </div>
 
-                @if ($this->isAlmacenEms)
+                @if (false && $this->isAlmacenEms)
                     <div class="section-block mt-4">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <div class="fw-bold" style="color:var(--azul);">
                                 Paquetes contrato en ALMACEN (misma ciudad)
                             </div>
                             <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="muted small">Por pagina:</span>
+                                    <select class="form-control form-control-sm" style="width:95px;" wire:model.live="perPageContratos">
+                                        <option value="10">10</option>
+                                        <option value="25">25</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                        <option value="250">250</option>
+                                        <option value="500">500</option>
+                                        <option value="1000">1000</option>
+                                    </select>
+                                </div>
                                 <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openContratoRegistrarModal">
                                     Registrar
                                 </button>
@@ -461,7 +580,8 @@
                             </div>
                         </div>
 
-                        <div class="table-responsive">
+                        <div class="table-scroll-wrap table-scroll-wrap-sm">
+                            <div class="table-responsive">
                             <table class="table table-hover align-middle">
                                 <thead>
                                     <tr>
@@ -523,6 +643,7 @@
                                     @endforelse
                                 </tbody>
                             </table>
+                            </div>
                         </div>
 
                         @if ($contratosAlmacen)
