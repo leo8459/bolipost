@@ -390,6 +390,11 @@ return [
                     'url' => 'paquetes-ems/entregados',
                     'icon' => 'fas fa-check-circle',
                 ],
+                [
+                    'text' => 'Recojos',
+                    'url' => 'recojos',
+                    'icon' => 'fas fa-hand-holding-box',
+                ],
             ],
         ],
         [
@@ -593,6 +598,11 @@ return [
                     'icon' => 'fas fa-qrcode',
                 ],
             ],
+        ],
+        [
+            'text' => 'Contratos',
+            'url' => 'paquetes-contrato',
+            'icon' => 'fas fa-file-contract',
         ],
         [
             'text' => 'Rendimiento',
