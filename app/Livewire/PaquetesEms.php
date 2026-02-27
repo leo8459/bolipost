@@ -43,6 +43,11 @@ class PaquetesEms extends Component
     public $regionalDestinoContrato = '';
     public $regionalTransportModeContrato = 'TERRESTRE';
     public $regionalTransportNumberContrato = '';
+    public $contratoCodigoPeso = '';
+    public $contratoPeso = '';
+    public $contratoDestino = '';
+    public $contratoPesoContratoId = null;
+    public $contratoPesoResumen = null;
     public $showCn33Reprint = false;
     public $cn33Despacho = '';
     public $generadosHoyCount = 0;
@@ -327,6 +332,156 @@ class PaquetesEms extends Component
         $this->regionalTransportModeContrato = 'TERRESTRE';
         $this->regionalTransportNumberContrato = '';
         $this->dispatch('openRegionalContratoModal');
+    }
+
+    public function openContratoPesoModal()
+    {
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $this->contratoCodigoPeso = '';
+        $this->contratoPeso = '';
+        $this->contratoDestino = '';
+        $this->contratoPesoContratoId = null;
+        $this->contratoPesoResumen = null;
+        $this->resetValidation([
+            'contratoCodigoPeso',
+            'contratoPeso',
+            'contratoDestino',
+            'contratoPesoContratoId',
+        ]);
+
+        $this->dispatch('openContratoPesoModal');
+    }
+
+    public function buscarContratoParaPeso()
+    {
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'contratoCodigoPeso' => 'required|string|max:50',
+        ], [], [
+            'contratoCodigoPeso' => 'codigo',
+        ]);
+
+        $codigo = strtoupper(trim((string) $validated['contratoCodigoPeso']));
+        $contrato = $this->findContratoForPesoByCodigo($codigo);
+
+        if (!$contrato) {
+            $this->contratoPesoContratoId = null;
+            $this->contratoPesoResumen = null;
+            session()->flash('error', 'No se encontro un contrato en ALMACEN con ese codigo.');
+            return;
+        }
+
+        $this->hydrateContratoPesoDetectedData($contrato);
+        session()->flash('success', 'Contrato detectado. Ya puedes guardar peso y destino.');
+    }
+
+    public function guardarPesoContratoPorCodigo()
+    {
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'contratoCodigoPeso' => 'required|string|max:50',
+            'contratoPeso' => 'required|numeric|min:0.001',
+            'contratoDestino' => 'nullable|string|max:120',
+        ], [], [
+            'contratoCodigoPeso' => 'codigo',
+            'contratoPeso' => 'peso',
+            'contratoDestino' => 'destino',
+        ]);
+
+        $codigo = strtoupper(trim((string) $validated['contratoCodigoPeso']));
+        $contrato = $this->findContratoForPesoByCodigo($codigo);
+        if (!$contrato) {
+            $this->contratoPesoContratoId = null;
+            $this->contratoPesoResumen = null;
+            $this->addError('contratoCodigoPeso', 'No se encontro un contrato en ALMACEN con ese codigo.');
+            return;
+        }
+
+        $this->hydrateContratoPesoDetectedData($contrato);
+        $contrato->peso = (float) $validated['contratoPeso'];
+        $destino = trim((string) ($validated['contratoDestino'] ?? ''));
+        if ($destino !== '') {
+            $contrato->destino = strtoupper($destino);
+        }
+        $contrato->save();
+
+        $this->contratoCodigoPeso = '';
+        $this->contratoPeso = '';
+        $this->contratoDestino = '';
+        $this->contratoPesoContratoId = null;
+        $this->contratoPesoResumen = null;
+        $this->resetValidation([
+            'contratoCodigoPeso',
+            'contratoPesoContratoId',
+            'contratoPeso',
+            'contratoDestino',
+        ]);
+
+        session()->flash('success', 'Peso actualizado correctamente para contrato.');
+    }
+
+    protected function findContratoForPesoByCodigo(string $codigo): ?RecojoContrato
+    {
+        $userCity = trim((string) optional(Auth::user())->ciudad);
+        $estadoAlmacenId = $this->findEstadoId('ALMACEN');
+
+        if (!$estadoAlmacenId) {
+            return null;
+        }
+
+        return RecojoContrato::query()
+            ->when($userCity !== '', function ($query) use ($userCity) {
+                $query->whereRaw('trim(upper(origen)) = trim(upper(?))', [$userCity]);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->where('estados_id', (int) $estadoAlmacenId)
+            ->where(function ($query) use ($codigo) {
+                $query->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigo]);
+            })
+            ->first([
+                'id',
+                'codigo',
+                'cod_especial',
+                'origen',
+                'destino',
+                'peso',
+                'nombre_r',
+                'nombre_d',
+            ]);
+    }
+
+    protected function hydrateContratoPesoDetectedData(RecojoContrato $contrato): void
+    {
+        $this->contratoPesoContratoId = (int) $contrato->id;
+        $this->contratoPeso = $contrato->peso !== null ? (string) $contrato->peso : '';
+        $this->contratoDestino = (string) ($contrato->destino ?? '');
+        $this->contratoPesoResumen = [
+            'codigo' => (string) $contrato->codigo,
+            'cod_especial' => (string) ($contrato->cod_especial ?? ''),
+            'remitente' => (string) ($contrato->nombre_r ?? ''),
+            'destinatario' => (string) ($contrato->nombre_d ?? ''),
+            'origen' => (string) ($contrato->origen ?? ''),
+        ];
+
+        $this->selectedContratos = collect($this->selectedContratos)
+            ->map(fn ($id) => (string) $id)
+            ->push((string) $contrato->id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->resetValidation(['contratoPesoContratoId']);
     }
 
     public function toggleCn33Reprint()

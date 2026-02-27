@@ -445,6 +445,9 @@
                                 Paquetes contrato en ALMACEN (misma ciudad)
                             </div>
                             <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openContratoPesoModal">
+                                    Anadir peso
+                                </button>
                                 <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openRegionalContratoModal">
                                     Manda contratos a regional
                                 </button>
@@ -896,6 +899,66 @@
         </div>
     </div>
 
+    <div class="modal fade" id="contratoPesoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Anadir peso a contrato</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Codigo</label>
+                        <div class="d-flex gap-2">
+                            <input
+                                type="text"
+                                class="form-control"
+                                placeholder="Pega el codigo y presiona Enter"
+                                wire:model.defer="contratoCodigoPeso"
+                                wire:keydown.enter.prevent="buscarContratoParaPeso"
+                            >
+                            <button type="button" class="btn btn-outline-azul" wire:click="buscarContratoParaPeso">
+                                Detectar
+                            </button>
+                        </div>
+                        @error('contratoCodigoPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    @if (!empty($contratoPesoResumen))
+                        <div class="section-block mb-3">
+                            <div class="section-title">Contrato detectado</div>
+                            <div><strong>Codigo:</strong> {{ $contratoPesoResumen['codigo'] ?? '-' }}</div>
+                            <div><strong>Cod. especial:</strong> {{ ($contratoPesoResumen['cod_especial'] ?? '') !== '' ? $contratoPesoResumen['cod_especial'] : '-' }}</div>
+                            <div><strong>Origen:</strong> {{ $contratoPesoResumen['origen'] ?? '-' }}</div>
+                            <div><strong>Remitente:</strong> {{ $contratoPesoResumen['remitente'] ?? '-' }}</div>
+                            <div><strong>Destinatario:</strong> {{ $contratoPesoResumen['destinatario'] ?? '-' }}</div>
+                        </div>
+                    @endif
+
+                    <div class="form-group">
+                        <label>Peso</label>
+                        <input type="number" class="form-control" wire:model.defer="contratoPeso" step="0.001" min="0.001">
+                        @error('contratoPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="form-group mb-0">
+                        <label>Destino (opcional)</label>
+                        <input type="text" class="form-control" wire:model.defer="contratoDestino" placeholder="Solo si deseas cambiar destino">
+                        @error('contratoDestino') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" wire:click="guardarPesoContratoPorCodigo">
+                        Guardar peso
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="entregaVentanillaModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
@@ -1022,6 +1085,14 @@
 
     window.addEventListener('closeRegionalContratoModal', () => {
         $('#regionalContratoModal').modal('hide');
+    });
+
+    window.addEventListener('openContratoPesoModal', () => {
+        $('#contratoPesoModal').modal('show');
+    });
+
+    window.addEventListener('closeContratoPesoModal', () => {
+        $('#contratoPesoModal').modal('hide');
     });
 
     window.addEventListener('openEntregaVentanillaModal', () => {
