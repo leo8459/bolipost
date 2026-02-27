@@ -613,6 +613,11 @@ return [
                     'url' => 'paquetes-contrato/recoger-envios',
                     'icon' => 'fas fa-inbox',
                 ],
+                [
+                    'text' => 'Cartero contratos',
+                    'url' => 'paquetes-contrato/cartero',
+                    'icon' => 'fas fa-motorcycle',
+                ],
             ],
         ],
         [

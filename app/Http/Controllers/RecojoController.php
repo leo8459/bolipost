@@ -28,6 +28,11 @@ class RecojoController extends Controller
         return view('paquetes_contrato.almacen');
     }
 
+    public function cartero()
+    {
+        return view('paquetes_contrato.cartero');
+    }
+
     public function create()
     {
         $user = Auth::user();

@@ -134,6 +134,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/paquetes-contrato', [RecojoController::class, 'index'])->name('paquetes-contrato.index');
     Route::get('/paquetes-contrato/recoger-envios', [RecojoController::class, 'recogerEnvios'])->name('paquetes-contrato.recoger-envios');
     Route::get('/paquetes-contrato/almacen', [RecojoController::class, 'almacen'])->name('paquetes-contrato.almacen');
+    Route::get('/paquetes-contrato/cartero', [RecojoController::class, 'cartero'])->name('paquetes-contrato.cartero');
     Route::get('/paquetes-contrato/create', [RecojoController::class, 'create'])->name('paquetes-contrato.create');
     Route::post('/paquetes-contrato', [RecojoController::class, 'store'])->name('paquetes-contrato.store');
     Route::get('/paquetes-contrato/reporte-hoy', [RecojoController::class, 'reporteHoy'])->name('paquetes-contrato.reporte-hoy');
