@@ -381,6 +381,11 @@ return [
                     'icon' => 'fas fa-door-open',
                 ],
                 [
+                    'text' => 'En transito',
+                    'url' => 'paquetes-ems/en-transito',
+                    'icon' => 'fas fa-shipping-fast',
+                ],
+                [
                     'text' => 'Recibir de regional',
                     'url' => 'paquetes-ems/recibir-regional',
                     'icon' => 'fas fa-truck-loading',

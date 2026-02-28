@@ -46,6 +46,11 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.recibir-regional');
     }
 
+    public function enTransito()
+    {
+        return view('paquetes_ems.en-transito');
+    }
+
     public function entregados(Request $request)
     {
         $search = trim((string) $request->query('q', ''));

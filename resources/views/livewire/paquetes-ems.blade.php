@@ -221,6 +221,8 @@
                     <h4 class="fw-bold mb-0">
                         @if ($this->isAlmacenEms)
                             Paquetes ALMACEN
+                        @elseif ($this->isEnTransitoEms)
+                            Paquetes en transito
                         @elseif ($this->isVentanillaEms)
                             Ventanilla EMS
                         @elseif ($this->isTransitoEms)
@@ -246,6 +248,11 @@
                             @endif
                             <span class="header-city">
                                 Ciudad aplicada: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
+                            </span>
+                        @elseif ($this->isEnTransitoEms)
+                            <span class="header-chip">TRANSITO</span>
+                            <span class="header-city">
+                                Origen aplicado: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
                             </span>
                         @elseif ($this->isVentanillaEms)
                             <span class="header-chip">VENTANILLA EMS</span>
@@ -355,7 +362,7 @@
                     </div>
                     @if ($this->canSelect)
                         @php
-                            $seleccionadosTotal = $this->isAlmacenEms
+                            $seleccionadosTotal = ($this->isAlmacenEms || $this->isTransitoEms)
                                 ? (count($selectedPaquetes) + count($selectedContratos))
                                 : count($selectedPaquetes);
                         @endphp
@@ -374,9 +381,18 @@
                     <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
-                            @if ($this->isAlmacenEms)
+                            @if ($this->isEnTransitoEms)
                                 <tr>
-                                    <th></th>
+                                    <th>Codigo</th>
+                                    <th>Origen</th>
+                                    <th>Destino</th>
+                                    <th>Cod. especial</th>
+                                </tr>
+                            @elseif ($this->isAlmacenEms || $this->isTransitoEms)
+                                <tr>
+                                    @if ($this->isAlmacenEms || $this->isTransitoEms)
+                                        <th></th>
+                                    @endif
                                     <th>Codigo</th>
                                     <th>Tipo</th>
                                     <th>Servicio</th>
@@ -418,16 +434,34 @@
                             @endif
                         </thead>
                         <tbody>
-                            @if ($this->isAlmacenEms)
+                            @if ($this->isEnTransitoEms)
                                 @forelse ($paquetes as $row)
                                     <tr>
-                                        <td>
-                                            @if (($row->record_type ?? '') === 'EMS')
-                                                <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes">
-                                            @else
-                                                <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedContratos">
-                                            @endif
+                                        <td><span class="pill-id">{{ $row->codigo }}</span></td>
+                                        <td>{{ $row->origen ?: '-' }}</td>
+                                        <td>{{ $row->destino ?: '-' }}</td>
+                                        <td>{{ $row->cod_especial ?: '-' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="4" class="text-center py-5">
+                                            <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
+                                            <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
+                                    </tr>
+                                @endforelse
+                            @elseif ($this->isAlmacenEms || $this->isTransitoEms)
+                                @forelse ($paquetes as $row)
+                                    <tr>
+                                        @if ($this->isAlmacenEms || $this->isTransitoEms)
+                                            <td>
+                                                @if (($row->record_type ?? '') === 'EMS')
+                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes">
+                                                @else
+                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedContratos">
+                                                @endif
+                                            </td>
+                                        @endif
                                         <td><span class="pill-id">{{ $row->codigo }}</span></td>
                                         <td>{{ $row->tipo }}</td>
                                         <td>{{ $row->servicio }}</td>
@@ -444,23 +478,27 @@
                                         <td>{{ \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') }}</td>
                                         <td>
                                             @if (($row->record_type ?? '') === 'EMS')
-                                                <button wire:click="openEditModal({{ $row->record_id }})"
-                                                    class="btn btn-sm btn-azul"
-                                                    title="Editar">
-                                                    <i class="fas fa-pen"></i>
-                                                </button>
+                                                @if ($this->isAlmacenEms || $this->isTransitoEms)
+                                                    <button wire:click="openEditModal({{ $row->record_id }})"
+                                                        class="btn btn-sm btn-azul"
+                                                        title="Editar">
+                                                        <i class="fas fa-pen"></i>
+                                                    </button>
+                                                @endif
                                                 <a href="{{ route('paquetes-ems.boleta', $row->record_id) }}"
                                                    class="btn btn-sm btn-outline-azul"
                                                    target="_blank"
                                                    title="Reimprimir boleta">
                                                     <i class="fas fa-print"></i>
                                                 </a>
-                                                <button wire:click="devolverAAdmisiones({{ $row->record_id }})"
-                                                    class="btn btn-sm btn-outline-azul"
-                                                    title="Devolver a ADMISIONES"
-                                                    onclick="return confirm('Seguro que deseas devolver este paquete a ADMISIONES?')">
-                                                    <i class="fas fa-undo"></i>
-                                                </button>
+                                                @if ($this->isAlmacenEms)
+                                                    <button wire:click="devolverAAdmisiones({{ $row->record_id }})"
+                                                        class="btn btn-sm btn-outline-azul"
+                                                        title="Devolver a ADMISIONES"
+                                                        onclick="return confirm('Seguro que deseas devolver este paquete a ADMISIONES?')">
+                                                        <i class="fas fa-undo"></i>
+                                                    </button>
+                                                @endif
                                             @else
                                                 <a href="{{ route('paquetes-contrato.reporte', $row->record_id) }}"
                                                    target="_blank"
@@ -473,7 +511,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="16" class="text-center py-5">
+                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms) ? 16 : 15 }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -1186,7 +1224,7 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-2">
-                        Paquetes a recibir: <strong>{{ count($recibirRegionalPreview) }}</strong>
+                        Registros a recibir: <strong>{{ count($recibirRegionalPreview) }}</strong>
                     </div>
 
                     <div class="table-responsive">
@@ -1194,6 +1232,7 @@
                             <thead>
                                 <tr>
                                     <th>#</th>
+                                    <th>Tipo</th>
                                     <th>Codigo</th>
                                     <th>Remitente</th>
                                     <th>Destinatario</th>
@@ -1205,6 +1244,7 @@
                                 @forelse ($recibirRegionalPreview as $index => $item)
                                     <tr>
                                         <td>{{ $index + 1 }}</td>
+                                        <td>{{ $item['tipo'] ?? '-' }}</td>
                                         <td><span class="pill-id">{{ $item['codigo'] ?: 'SIN CODIGO' }}</span></td>
                                         <td>{{ $item['nombre_remitente'] ?: '-' }}</td>
                                         <td>{{ $item['nombre_destinatario'] ?: '-' }}</td>
@@ -1213,7 +1253,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="text-center text-muted">No hay paquetes seleccionados.</td>
+                                        <td colspan="7" class="text-center text-muted">No hay registros seleccionados.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
