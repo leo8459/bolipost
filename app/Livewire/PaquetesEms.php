@@ -1399,14 +1399,15 @@ class PaquetesEms extends Component
             return;
         }
 
-        $estadoDomicilioId = $this->findEstadoId('DOMICILIO');
-        if (!$estadoDomicilioId) {
-            session()->flash('error', 'No existe el estado DOMICILIO en la tabla estados.');
+        // La entrega por ventanilla debe marcarse como ENTREGADO, no DOMICILIO
+        $estadoEntregadoId = $this->findEstadoId('ENTREGADO');
+        if (!$estadoEntregadoId) {
+            session()->flash('error', 'No existe el estado ENTREGADO en la tabla estados.');
             return;
         }
-        $estadoDomicilioNombre = (string) (Estado::query()
-            ->where('id', $estadoDomicilioId)
-            ->value('nombre_estado') ?? 'DOMICILIO');
+        $estadoEntregadoNombre = (string) (Estado::query()
+            ->where('id', $estadoEntregadoId)
+            ->value('nombre_estado') ?? 'ENTREGADO');
 
         $eventoEntregaId = self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE;
         $eventoExiste = DB::table('eventos')
@@ -1453,10 +1454,10 @@ class PaquetesEms extends Component
         $loggedUserName = trim((string) optional(Auth::user())->name);
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
 
-        DB::transaction(function () use ($paquetes, $estadoDomicilioId, $actorUserId, $eventoEntregaId, $recibidoPor, $descripcion) {
+        DB::transaction(function () use ($paquetes, $estadoEntregadoId, $actorUserId, $eventoEntregaId, $recibidoPor, $descripcion) {
             PaqueteEms::query()
                 ->whereIn('id', $paquetes->pluck('id')->all())
-                ->update(['estado_id' => $estadoDomicilioId]);
+                ->update(['estado_id' => $estadoEntregadoId]);
 
             $this->registerEventosEms(
                 $paquetes,
@@ -1469,7 +1470,7 @@ class PaquetesEms extends Component
                     'id_paquetes_ems' => (int) $paquete->id,
                 ]);
                 $asignacion->id_paquetes_certi = null;
-                $asignacion->id_estados = $estadoDomicilioId;
+                $asignacion->id_estados = $estadoEntregadoId;
                 $asignacion->id_user = $actorUserId;
                 $asignacion->recibido_por = $recibidoPor;
                 $asignacion->descripcion = $descripcion !== '' ? $descripcion : null;
@@ -1480,7 +1481,7 @@ class PaquetesEms extends Component
         $pdf = Pdf::loadView('paquetes_ems.guia-entrega', [
             'paquetes' => $paquetes,
             'generatedAt' => $generatedAt,
-            'estadoEntrega' => strtoupper(trim($estadoDomicilioNombre)),
+            'estadoEntrega' => strtoupper(trim($estadoEntregadoNombre)),
             'recibidoPor' => $recibidoPor,
             'descripcion' => $descripcion,
             'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',

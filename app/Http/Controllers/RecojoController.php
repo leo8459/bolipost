@@ -33,6 +33,43 @@ class RecojoController extends Controller
         return view('paquetes_contrato.cartero');
     }
 
+   public function entregados()
+{
+    $empresaId = (int) (Auth::user()->empresa_id ?? 0);
+
+    // Si el usuario no tiene empresa, no mostramos nada
+    if ($empresaId <= 0) {
+        $contratos = Recojo::query()->whereRaw('1=0')->paginate(15);
+
+        return view('paquetes_contrato.entregados', compact('contratos'));
+    }
+
+    // Buscar el ID del estado ENTREGADO (sin importar mayúsculas/espacios)
+    $estadoEntregadoId = (int) (Estado::query()
+        ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
+        ->value('id') ?? 0);
+
+    // Si no existe ese estado, no mostramos nada (evita bugs silenciosos)
+    if ($estadoEntregadoId <= 0) {
+        $contratos = Recojo::query()->whereRaw('1=0')->paginate(15);
+
+        return view('paquetes_contrato.entregados', compact('contratos'));
+    }
+
+    $contratos = Recojo::query()
+        ->with([
+            'empresa:id,nombre,sigla',
+            'user:id,name,empresa_id',
+            'estadoRegistro:id,nombre_estado',
+        ])
+        ->where('empresa_id', $empresaId)                 // ✅ misma empresa
+        ->where('estados_id', $estadoEntregadoId)         // ✅ ENTREGADO
+        ->orderByDesc('id')
+        ->paginate(15);
+
+    return view('paquetes_contrato.entregados', compact('contratos'));
+}
+
     public function create()
     {
         $user = Auth::user();
