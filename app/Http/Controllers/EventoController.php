@@ -23,10 +23,5 @@ class EventoController extends Controller
     {
         return view('eventos_ordi.index');
     }
-
-    public function contratoIndex()
-    {
-        return view('eventos_contrato.index');
-    }
 }
 

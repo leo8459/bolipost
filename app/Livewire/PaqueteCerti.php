@@ -5,12 +5,20 @@ namespace App\Livewire;
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteCerti as PaqueteCertiModel;
 use App\Models\Ventanilla as VentanillaModel;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class PaqueteCerti extends Component
 {
     use WithPagination;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 168;
+    private const EVENTO_ID_CORRECCION_DATOS = 173;
+    private const EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION = 316;
+    private const EVENTO_ID_PAQUETE_RETENIDO_PUNTO_ENTREGA = 183;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_OFICINA_ENTREGA = 172;
+    private const EVENTO_ID_PAQUETE_MARCADO_ELIMINADO = 278;
 
     public $mode = 'almacen';
     public $search = '';
@@ -110,6 +118,7 @@ class PaqueteCerti extends Component
         if ($this->editingId) {
             $paquete = PaqueteCertiModel::findOrFail($this->editingId);
             $paquete->update($this->payload());
+            $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_CORRECCION_DATOS);
             session()->flash('success', 'Paquete certificado actualizado correctamente.');
         } else {
             $payload = $this->payload();
@@ -122,7 +131,8 @@ class PaqueteCerti extends Component
             if ($this->isAlmacen) {
                 $payload['fk_estado'] = 2;
             }
-            PaqueteCertiModel::create($payload);
+            $paquete = PaqueteCertiModel::create($payload);
+            $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE);
             session()->flash('success', 'Paquete certificado creado correctamente.');
         }
 
@@ -133,7 +143,9 @@ class PaqueteCerti extends Component
     public function delete($id)
     {
         $paquete = PaqueteCertiModel::findOrFail($id);
+        $codigo = (string) $paquete->codigo;
         $paquete->delete();
+        $this->registrarEventoCerti($codigo, self::EVENTO_ID_PAQUETE_MARCADO_ELIMINADO);
         session()->flash('success', 'Paquete certificado eliminado correctamente.');
     }
 
@@ -156,6 +168,7 @@ class PaqueteCerti extends Component
         $paquete->update([
             'cuidad' => $this->upper($this->reencaminarCuidad),
         ]);
+        $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_CORRECCION_DATOS);
 
         $this->reset(['reencaminarId', 'reencaminarCuidad']);
         $this->dispatch('closeReencaminarModal');
@@ -168,6 +181,7 @@ class PaqueteCerti extends Component
         $paquete->update([
             'fk_estado' => 4,
         ]);
+        $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
         session()->flash('success', 'Paquete enviado a inventarios.');
     }
 
@@ -187,6 +201,7 @@ class PaqueteCerti extends Component
         PaqueteCertiModel::query()
             ->whereIn('id', $ids)
             ->update(['fk_estado' => 4]);
+        $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
 
         $this->selectedPaquetes = [];
         session()->flash('success', 'Paquetes enviados a inventarios correctamente.');
@@ -215,6 +230,7 @@ class PaqueteCerti extends Component
         PaqueteCertiModel::query()
             ->whereIn('id', $ids)
             ->update(['fk_estado' => 6]);
+        $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_RETENIDO_PUNTO_ENTREGA);
 
         $this->selectedPaquetes = [];
         session()->flash('success', 'Paquetes enviados a rezago correctamente.');
@@ -233,6 +249,7 @@ class PaqueteCerti extends Component
         $paquete->update([
             'fk_estado' => 2,
         ]);
+        $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_RECIBIDO_OFICINA_ENTREGA);
         session()->flash('success', 'Paquete enviado a ventanilla.');
     }
 
@@ -306,6 +323,71 @@ class PaqueteCerti extends Component
     protected function upper($value)
     {
         return strtoupper(trim((string) $value));
+    }
+
+    protected function registrarEventoCertiPorIds(array $ids, int $eventoId): void
+    {
+        $ids = collect($ids)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            return;
+        }
+
+        $codigos = PaqueteCertiModel::query()
+            ->whereIn('id', $ids)
+            ->pluck('codigo')
+            ->filter(fn ($codigo) => trim((string) $codigo) !== '')
+            ->values()
+            ->all();
+
+        $this->registrarEventosCerti($codigos, $eventoId);
+    }
+
+    protected function registrarEventoCerti(string $codigo, int $eventoId): void
+    {
+        $codigo = trim($codigo);
+        if ($codigo === '') {
+            return;
+        }
+
+        $this->registrarEventosCerti([$codigo], $eventoId);
+    }
+
+    protected function registrarEventosCerti(iterable $codigos, int $eventoId): void
+    {
+        $userId = (int) optional(Auth::user())->id;
+
+        if ($eventoId <= 0 || $userId <= 0) {
+            return;
+        }
+
+        $now = now();
+        $rows = collect($codigos)
+            ->map(fn ($codigo) => trim((string) $codigo))
+            ->filter()
+            ->unique()
+            ->map(function (string $codigo) use ($eventoId, $userId, $now) {
+                return [
+                    'codigo' => $codigo,
+                    'evento_id' => $eventoId,
+                    'user_id' => $userId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            })
+            ->values()
+            ->all();
+
+        if (empty($rows)) {
+            return;
+        }
+
+        DB::table('eventos_certi')->insert($rows);
     }
 
     public function render()

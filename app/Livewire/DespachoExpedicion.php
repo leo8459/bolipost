@@ -5,12 +5,15 @@ namespace App\Livewire;
 use App\Models\Despacho as DespachoModel;
 use App\Models\Estado as EstadoModel;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class DespachoExpedicion extends Component
 {
     use WithPagination;
+    private const EVENTO_ID_DESPACHO_REABIERTO_SALIDA = 224;
+    private const EVENTO_ID_DESPACHO_ACTUALIZADO_ENTRADA = 230;
     protected array $estadoIdCache = [];
 
     public $ciudadToOficina = [
@@ -47,6 +50,7 @@ class DespachoExpedicion extends Component
             ->findOrFail($id);
 
         $despacho->update(['fk_estado' => $estadoClausuraId]);
+        $this->registrarEventoDespacho((string) $despacho->identificador, self::EVENTO_ID_DESPACHO_REABIERTO_SALIDA);
         session()->flash('success', 'Despacho devuelto a apertura.');
     }
 
@@ -60,6 +64,7 @@ class DespachoExpedicion extends Component
             ->findOrFail($id);
 
         $despacho->update(['fk_estado' => $estadoIntervenirId]);
+        $this->registrarEventoDespacho((string) $despacho->identificador, self::EVENTO_ID_DESPACHO_ACTUALIZADO_ENTRADA);
         session()->flash('success', 'Despacho enviado a intervencion.');
     }
 
@@ -130,5 +135,23 @@ class DespachoExpedicion extends Component
         $this->estadoIdCache[$nombre] = $estadoId;
 
         return $estadoId;
+    }
+
+    protected function registrarEventoDespacho(string $codigo, int $eventoId): void
+    {
+        $codigo = trim($codigo);
+        $userId = (int) optional(Auth::user())->id;
+
+        if ($codigo === '' || $eventoId <= 0 || $userId <= 0) {
+            return;
+        }
+
+        DB::table('eventos_despacho')->insert([
+            'codigo' => $codigo,
+            'evento_id' => $eventoId,
+            'user_id' => $userId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 }
