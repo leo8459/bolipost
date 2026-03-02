@@ -567,6 +567,16 @@ return [
                     'icon' => 'fas fa-clipboard-check',
                 ],
                 [
+                    'text' => 'Eventos CERTI',
+                    'url' => 'eventos-certi',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
+                    'text' => 'Eventos ORDI',
+                    'url' => 'eventos-ordi',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
                     'text' => 'Auditoria',
                     'url' => 'auditoria',
                     'icon' => 'fas fa-clipboard-list',

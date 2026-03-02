@@ -132,6 +132,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/eventos', [EventoController::class, 'index'])->name('eventos.index');
     Route::get('/eventos-ems', [EventoController::class, 'emsIndex'])->name('eventos-ems.index');
+    Route::get('/eventos-certi', [EventoController::class, 'certiIndex'])->name('eventos-certi.index');
+    Route::get('/eventos-ordi', [EventoController::class, 'ordiIndex'])->name('eventos-ordi.index');
     Route::get('/auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
     Route::get('/eventos-auditoria', [EventosAuditoriaController::class, 'index'])->name('eventos-auditoria.index');
     Route::get('/empresas', [EmpresaController::class, 'index'])->name('empresas.index');
