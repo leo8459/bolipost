@@ -1822,6 +1822,7 @@ class PaquetesEms extends Component
     protected function rules()
     {
         $requiresTarifario = !$this->isCertificadoShipment();
+        $isAlmacenOficial = $this->isAlmacenEms && $this->isCertificadoShipment();
 
         return [
             'origen' => 'nullable|string|max:255',
@@ -1838,17 +1839,17 @@ class PaquetesEms extends Component
             ],
             'precio' => $requiresTarifario ? 'required|numeric|min:0' : 'nullable|numeric|min:0',
             'nombre_remitente' => 'required|string|max:255',
-            'nombre_envia' => 'required|string|max:255',
-            'carnet' => 'required|string|max:255',
-            'telefono_remitente' => 'required|string|max:50',
+            'nombre_envia' => $isAlmacenOficial ? 'nullable|string|max:255' : 'required|string|max:255',
+            'carnet' => $isAlmacenOficial ? 'nullable|string|max:255' : 'required|string|max:255',
+            'telefono_remitente' => $isAlmacenOficial ? 'nullable|string|max:50' : 'required|string|max:50',
             'nombre_destinatario' => 'required|string|max:255',
-            'telefono_destinatario' => 'required|string|max:50',
+            'telefono_destinatario' => $isAlmacenOficial ? 'nullable|string|max:50' : 'required|string|max:50',
             'direccion' => 'nullable|string|max:255',
             'ciudad' => ['nullable', 'string', 'max:255'],
             'servicio_id' => $requiresTarifario
                 ? ['required', 'integer', Rule::exists('servicio', 'id')]
                 : ['nullable', 'integer', Rule::exists('servicio', 'id')],
-            'destino_id' => $requiresTarifario
+            'destino_id' => ($requiresTarifario || $this->isAlmacenEms)
                 ? ['required', 'integer', Rule::exists('destino', 'id')]
                 : ['nullable', 'integer', Rule::exists('destino', 'id')],
         ];
