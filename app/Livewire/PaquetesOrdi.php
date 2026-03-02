@@ -14,6 +14,14 @@ use Livewire\WithPagination;
 class PaquetesOrdi extends Component
 {
     use WithPagination;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 295;
+    private const EVENTO_ID_PAQUETE_CAMINO_UBICACION_NACIONAL = 296;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_DESTINO_TRANSITO = 310;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_UBICACION_ESPECIFICA = 313;
+    private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
+    private const EVENTO_ID_CORRECCION_DATOS = 173;
+    private const EVENTO_ID_PAQUETE_RETENIDO_PUNTO_ENTREGA = 183;
+    private const EVENTO_ID_PAQUETE_MARCADO_ELIMINADO = 278;
 
     public $mode = 'clasificacion';
     public $search = '';
@@ -173,11 +181,24 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        PaqueteOrdi::query()
+        $idsActualizar = PaqueteOrdi::query()
             ->whereIn('id', $ids)
             ->where('fk_estado', $estadoEnviadoId)
             ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (empty($idsActualizar)) {
+            session()->flash('success', 'No hay paquetes validos para recibir.');
+            return;
+        }
+
+        PaqueteOrdi::query()
+            ->whereIn('id', $idsActualizar)
             ->update(['fk_estado' => $estadoRecibidoId]);
+
+        $this->registrarEventosOrdiPorIds($idsActualizar, self::EVENTO_ID_PAQUETE_RECIBIDO_DESTINO_TRANSITO);
 
         $this->previewRecibirIds = [];
         $this->codigoRecibir = '';
@@ -235,6 +256,8 @@ class PaquetesOrdi extends Component
             ->whereIn('id', $idsActualizar)
             ->update(['fk_estado' => $estadoEntregadoId]);
 
+        $this->registrarEventosOrdiPorIds($idsActualizar, self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE);
+
         $packages = PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
             ->whereIn('id', $idsActualizar)
@@ -287,11 +310,24 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        PaqueteOrdi::query()
+        $idsActualizar = PaqueteOrdi::query()
             ->whereIn('id', $ids)
             ->where('fk_estado', $estadoRecibidoId)
             ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (empty($idsActualizar)) {
+            session()->flash('success', 'No hay paquetes validos para enviar a REZAGO.');
+            return;
+        }
+
+        PaqueteOrdi::query()
+            ->whereIn('id', $idsActualizar)
             ->update(['fk_estado' => $estadoRezagoId]);
+
+        $this->registrarEventosOrdiPorIds($idsActualizar, self::EVENTO_ID_PAQUETE_RETENIDO_PUNTO_ENTREGA);
 
         $this->selectAll = false;
         $this->selectedPaquetes = [];
@@ -348,9 +384,11 @@ class PaquetesOrdi extends Component
         if ($this->editingId) {
             $paquete = PaqueteOrdi::findOrFail($this->editingId);
             $paquete->update($this->payload());
+            $this->registrarEventoOrdi((string) $paquete->codigo, self::EVENTO_ID_CORRECCION_DATOS);
             session()->flash('success', 'Paquete ordinario actualizado correctamente.');
         } else {
-            PaqueteOrdi::create($this->payload());
+            $paquete = PaqueteOrdi::create($this->payload());
+            $this->registrarEventoOrdi((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE);
             session()->flash('success', 'Paquete ordinario creado correctamente.');
         }
 
@@ -394,6 +432,8 @@ class PaquetesOrdi extends Component
                 $paquete->save();
             }
         });
+
+        $this->registrarEventosOrdiPorIds($ids, self::EVENTO_ID_PAQUETE_CAMINO_UBICACION_NACIONAL);
 
         $packages = PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
@@ -508,7 +548,9 @@ class PaquetesOrdi extends Component
     public function delete($id)
     {
         $paquete = PaqueteOrdi::findOrFail($id);
+        $codigo = (string) $paquete->codigo;
         $paquete->delete();
+        $this->registrarEventoOrdi($codigo, self::EVENTO_ID_PAQUETE_MARCADO_ELIMINADO);
         session()->flash('success', 'Paquete ordinario eliminado correctamente.');
     }
 
@@ -524,6 +566,7 @@ class PaquetesOrdi extends Component
         $paquete->update([
             'fk_estado' => $estadoClasificacionId,
         ]);
+        $this->registrarEventoOrdi((string) $paquete->codigo, self::EVENTO_ID_CORRECCION_DATOS);
 
         session()->flash('success', 'Paquete devuelto a CLASIFICACION correctamente.');
         $this->resetPage();
@@ -555,6 +598,7 @@ class PaquetesOrdi extends Component
         $paquete->update([
             'fk_estado' => $estadoRecibidoId,
         ]);
+        $this->registrarEventoOrdi((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_RECIBIDO_UBICACION_ESPECIFICA);
 
         session()->flash('success', 'Paquete dado de alta a ALMACEN correctamente.');
         $this->resetPage();
@@ -618,6 +662,7 @@ class PaquetesOrdi extends Component
         $paquete->update([
             'fk_estado' => $estadoRecibidoId,
         ]);
+        $this->registrarEventoOrdi((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_RECIBIDO_UBICACION_ESPECIFICA);
 
         session()->flash('success', 'Paquete devuelto a ALMACEN correctamente.');
         $this->resetPage();
@@ -685,6 +730,70 @@ class PaquetesOrdi extends Component
     protected function upper($value)
     {
         return strtoupper(trim((string) $value));
+    }
+
+    protected function registrarEventosOrdiPorIds(array $ids, int $eventoId): void
+    {
+        $ids = collect($ids)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            return;
+        }
+
+        $codigos = PaqueteOrdi::query()
+            ->whereIn('id', $ids)
+            ->pluck('codigo')
+            ->filter(fn ($codigo) => trim((string) $codigo) !== '')
+            ->values()
+            ->all();
+
+        $this->registrarEventosOrdi($codigos, $eventoId);
+    }
+
+    protected function registrarEventoOrdi(string $codigo, int $eventoId): void
+    {
+        $codigo = trim($codigo);
+        if ($codigo === '') {
+            return;
+        }
+
+        $this->registrarEventosOrdi([$codigo], $eventoId);
+    }
+
+    protected function registrarEventosOrdi(iterable $codigos, int $eventoId): void
+    {
+        $userId = (int) optional(auth()->user())->id;
+        if ($eventoId <= 0 || $userId <= 0) {
+            return;
+        }
+
+        $now = now();
+        $rows = collect($codigos)
+            ->map(fn ($codigo) => trim((string) $codigo))
+            ->filter()
+            ->unique()
+            ->map(function (string $codigo) use ($eventoId, $userId, $now) {
+                return [
+                    'codigo' => $codigo,
+                    'evento_id' => $eventoId,
+                    'user_id' => $userId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            })
+            ->values()
+            ->all();
+
+        if (empty($rows)) {
+            return;
+        }
+
+        DB::table('eventos_ordi')->insert($rows);
     }
 
     public function updatedCiudad($value)
