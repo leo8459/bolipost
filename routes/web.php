@@ -20,6 +20,7 @@ use App\Http\Controllers\DespachoController;
 use App\Http\Controllers\SacaController;
 use App\Http\Controllers\CarterosController;
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\EventoController;
 use App\Http\Controllers\PaquetesOrdiController;
 use Illuminate\Support\Facades\Route;
@@ -37,11 +38,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
-});
+})->name('welcome');
 
-Route::get('/rastreo-demo', function () {
-    return view('tracking-demo');
-})->name('tracking.demo');
+Route::get('/rastreo-demo', [BusquedaController::class, 'trackingDemo'])->name('tracking.demo');
+
+Route::match(['GET', 'POST'], '/api/busqueda/ems-eventos', [BusquedaController::class, 'emsEventos'])
+    ->name('api.busqueda.ems-eventos');
 
 Route::get('/dashboard', function () {
     return view('dashboard');

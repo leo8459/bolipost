@@ -28,17 +28,21 @@
                     <p class="reveal">Este es un servicio de seguimiento de código de rastreo postal a nivel internacional y nacional de la Agencia Boliviana de Correos.</p>
                     <div class="hero-track reveal">
                         <div class="hero-track-title">Rastrea tu código</div>
-                        <form class="hero-track-form" action="{{ route('tracking.demo') }}" method="GET">
+                        <form class="hero-track-form" id="trackForm" action="{{ route('tracking.demo') }}" method="GET">
                             <input
                                 class="track-input"
                                 type="text"
                                 name="codigo"
                                 placeholder="Ingresa tu código de rastreo"
-                                value="RE700274030ES"
+                                value="{{ old('codigo', session('tracking_codigo', 'RE700274030ES')) }}"
                                 aria-label="Código de rastreo"
+                                required
                             >
                             <button class="btn btn-light hero-track-btn" type="submit">Buscar</button>
                         </form>
+                        <p class="hero-track-feedback {{ session('tracking_error') ? 'is-error' : '' }}" id="trackFeedback" role="status" aria-live="polite">
+                            {{ session('tracking_error', '') }}
+                        </p>
                         <label class="hero-captcha-label" for="captchaDemo">Verificación de seguridad</label>
                         <div class="hero-captcha-row">
                             <input
@@ -63,6 +67,10 @@
 
         <section class="band">
             <div class="container band-grid">
+                <a class="band-item" href="#resultado">
+                    <span class="band-item-title">Resultado</span>
+                    <span class="band-item-sub">Eventos por código</span>
+                </a>
                 <a class="band-item" href="#servicios">
                     <span class="band-item-title">Servicios</span>
                     <span class="band-item-sub">Envío y recojo nacional</span>
@@ -79,6 +87,26 @@
                     <span class="band-item-title">Contacto</span>
                     <span class="band-item-sub">Canales y atención oficial</span>
                 </a>
+            </div>
+        </section>
+
+        <section class="section tracking-results-section" id="resultado">
+            <div class="container">
+                <div class="heading reveal">
+                    <h2>Resultado de rastreo</h2>
+                    <p>Busca por código en la parte superior para ver los últimos eventos EMS.</p>
+                </div>
+
+                <article class="tracking-results-card reveal">
+                    <div class="tracking-results-head">
+                        <h3 id="resultsTitle">Sin búsqueda realizada</h3>
+                        <span class="tracking-total" id="resultsTotal">0 eventos</span>
+                    </div>
+                    <div class="tracking-results-empty" id="resultsEmpty">
+                        Ingresa un código y presiona buscar para cargar los eventos.
+                    </div>
+                    <div class="tracking-results-list" id="resultsList"></div>
+                </article>
             </div>
         </section>
 
@@ -283,7 +311,7 @@
             });
         }
 
-        const sectionIds = ['servicios', 'proceso', 'cumplimiento', 'contacto'];
+        const sectionIds = ['resultado', 'servicios', 'proceso', 'cumplimiento', 'contacto'];
         const headerLinks = Array.from(document.querySelectorAll('.menu a[href*="#"]'));
         const bandLinks = Array.from(document.querySelectorAll('.band-item[href^="#"]'));
         const sections = sectionIds.map((id) => document.getElementById(id)).filter(Boolean);
@@ -349,7 +377,7 @@
             setActive(initial);
             setTimeout(() => smoothTo(initial), 100);
         } else {
-            setActive('servicios');
+            setActive('resultado');
         }
         detectActiveByScroll();
 
@@ -364,7 +392,99 @@
         backToTop?.addEventListener('click', () => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
             history.replaceState(null, '', '#inicio');
-            setActive('servicios');
+            setActive('resultado');
+        });
+
+        const trackForm = document.getElementById('trackForm');
+        const trackFeedback = document.getElementById('trackFeedback');
+        const resultsTitle = document.getElementById('resultsTitle');
+        const resultsTotal = document.getElementById('resultsTotal');
+        const resultsEmpty = document.getElementById('resultsEmpty');
+        const resultsList = document.getElementById('resultsList');
+
+        const formatDate = (value) => {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return new Intl.DateTimeFormat('es-BO', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+            }).format(date);
+        };
+
+        const showFeedback = (message, type = '') => {
+            if (!trackFeedback) return;
+            trackFeedback.textContent = message;
+            trackFeedback.classList.remove('is-error', 'is-success');
+            if (type) trackFeedback.classList.add(type);
+        };
+
+        const renderResults = (codigo, eventos, emptyMessage = 'No se encontraron eventos para este código.') => {
+            if (!resultsList || !resultsEmpty || !resultsTitle || !resultsTotal) return;
+
+            resultsList.innerHTML = '';
+            resultsTitle.textContent = `Código: ${codigo}`;
+            resultsTotal.textContent = `${eventos.length} evento(s)`;
+
+            if (!eventos.length) {
+                resultsEmpty.style.display = 'block';
+                resultsEmpty.textContent = emptyMessage;
+                return;
+            }
+
+            resultsEmpty.style.display = 'none';
+            eventos.forEach((evento) => {
+                const item = document.createElement('article');
+                item.className = 'tracking-event-item';
+
+                const left = document.createElement('div');
+                const title = document.createElement('h4');
+                const created = document.createElement('p');
+                const code = document.createElement('span');
+
+                title.textContent = evento.nombre_evento ?? ('Evento #' + (evento.evento_id ?? '-'));
+                created.textContent = `Registrado: ${formatDate(evento.created_at)}`;
+                code.className = 'tracking-event-code';
+                code.textContent = evento.codigo ?? codigo;
+
+                left.appendChild(title);
+                left.appendChild(created);
+                item.appendChild(left);
+                item.appendChild(code);
+                resultsList.appendChild(item);
+            });
+        };
+
+        trackForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const input = trackForm.querySelector('input[name="codigo"]');
+            const codigo = (input?.value || '').trim().toUpperCase();
+
+            if (!codigo) {
+                showFeedback('Ingresa un código válido.', 'is-error');
+                return;
+            }
+
+            showFeedback('Buscando eventos...', '');
+
+            try {
+                const response = await fetch(`/api/busqueda/ems-eventos?codigo=${encodeURIComponent(codigo)}`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    const message = data?.message || 'No se pudo realizar la búsqueda.';
+                    throw new Error(message);
+                }
+
+                showFeedback('Paquete encontrado, redirigiendo...', 'is-success');
+                window.location.href = `${trackForm.getAttribute('action')}?codigo=${encodeURIComponent(codigo)}`;
+            } catch (error) {
+                const message = error.message || 'No existe dicho paquete';
+                renderResults(codigo, [], message);
+                showFeedback(message, 'is-error');
+            }
         });
 
     </script>

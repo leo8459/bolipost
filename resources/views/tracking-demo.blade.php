@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TrackingBo | Eventos de Rastreo</title>
+    <title>TrackingBo | Estatus de Envio</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
     <link rel="shortcut icon" href="{{ asset('favicon-32x32.png') }}">
@@ -16,116 +16,79 @@
 </head>
 <body>
     @php
-        $codigo = strtoupper((string) request('codigo', 'RE700274030ES'));
+        $ultimoNombre = $ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-'));
+        $eventoTextos = $eventos->map(fn($item) => mb_strtolower((string) ($item->nombre_evento ?? '')))->implode(' | ');
+        $tieneIncidencia = str_contains($eventoTextos, 'fall') || str_contains($eventoTextos, 'incid') || str_contains($eventoTextos, 'devuelt');
+        $fechaUltima = \Illuminate\Support\Carbon::parse($ultimoEvento->created_at);
+
+        $etapa = 2;
+        if (str_contains($eventoTextos, 'admit') || str_contains($eventoTextos, 'registr') || str_contains($eventoTextos, 'recibid')) $etapa = max($etapa, 1);
+        if (str_contains($eventoTextos, 'transit') || str_contains($eventoTextos, 'saca') || str_contains($eventoTextos, 'despach')) $etapa = max($etapa, 2);
+        if (str_contains($eventoTextos, 'oficina') || str_contains($eventoTextos, 'listo') || str_contains($eventoTextos, 'intento')) $etapa = max($etapa, 3);
+        if (str_contains($eventoTextos, 'entreg') || str_contains($eventoTextos, 'complet') || str_contains($eventoTextos, 'recepcionado')) $etapa = max($etapa, 4);
+
+        $estadoGlobal = $etapa === 4 ? 'Entregado' : 'En transito';
+        if ($tieneIncidencia && $etapa < 4) $estadoGlobal = 'En transito con incidencia';
+        $traceRows = $eventos->values()->chunk(3);
+
     @endphp
 
     @include('partials.landing-header')
 
-    <main>
-        <section class="hero">
+    <main class="track-page">
+        <section class="status-hero">
             <div class="container">
-                <div class="hero-wrap">
-                    <article class="hero-card">
-                        Su paquete <strong>{{ $codigo }}</strong> fue encontrado. Estos son sus eventos de ejemplo:
-                        <div class="hero-actions">
-                            <a class="btn btn-light" href="{{ url('/') }}#inicio">Volver a la página principal</a>
-                          
-                        </div>
-                    </article>
-                    <aside class="hero-side">
-                        <h3>Resumen de rastreo</h3>
-                        <div class="hero-side-item"><span>Estado:</span><strong class="live-state">En tránsito</strong></div>
-                        <div class="hero-side-item"><span>Último evento:</span><strong>Intento de entrega</strong></div>
-                        <div class="hero-side-item"><span>Oficina:</span><strong>BOLPBA - LA PAZ</strong></div>
-                    </aside>
-                </div>
-            </div>
-        </section>
-
-        <section class="timeline-section">
-            <div class="container">
-                <div class="timeline-head">
-                    <h1>Últimos Eventos</h1>
-                    <p>Visualización de eventos de ejemplo con estilo institucional TrackingBo.</p>
-                    <div class="timeline-note">Más reciente arriba</div>
+                <div class="hero-top">
+                    <h1>Sigue el estatus de tu envio</h1>
+                  
                 </div>
 
-                <div class="legend">
-                    <span class="legend-pill warn">Incidencia</span>
-                    <span class="legend-pill move">En tránsito</span>
-                    <span class="legend-pill ok">Completado</span>
+                <div class="meta-strip">
+                    <div><span>Numero de guia:</span> <strong>{{ str_pad((string) $ultimoEvento->id, 12, '0', STR_PAD_LEFT) }}</strong></div>
+                    <div><span>Codigo de rastreo:</span> <strong>{{ $codigo }}</strong></div>
+                    <div><span>Fecha ultima actualizacion:</span> <strong>{{ $fechaUltima->format('d/m/Y') }}</strong></div>
                 </div>
 
-                <div class="summary">
-                    <div class="summary-item">
-                        <strong>Código</strong>
-                        <span>{{ $codigo }}</span>
+                <p class="hero-help">La trazabilidad completa del envio se muestra abajo en forma de camino cronologico.</p>
+                <p class="trace-read-help">Lectura simple: comienza en <strong>Inicio</strong> y sigue la linea punteada hasta <strong>Actual</strong>.</p>
+
+                <article class="progress-panel">
+                    <div class="trace-road" id="traceList">
+                        @foreach ($traceRows as $rowIndex => $row)
+                            @php
+                                $isReverse = $rowIndex % 2 === 1;
+                                $rowEventos = $isReverse ? $row->reverse()->values() : $row->values();
+                            @endphp
+                            <div class="trace-row {{ $isReverse ? 'is-reverse' : '' }}">
+                                @foreach ($rowEventos as $evento)
+                                    @php
+                                        $isCurrent = $evento->id === $eventos->first()->id;
+                                        $isStart = $evento->id === $eventos->last()->id;
+                                        $nombre = $evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-'));
+                                    @endphp
+                                    <article class="trace-node {{ $isCurrent ? 'is-current' : '' }}">
+                                        <div class="trace-top">
+                                            <span class="trace-code">{{ $codigo }}</span>
+                                            @if ($isStart)
+                                                <span class="trace-badge trace-badge-start">Inicio</span>
+                                            @elseif ($isCurrent)
+                                                <span class="trace-badge">Actual</span>
+                                            @endif
+                                        </div>
+                                        <h3>{{ $nombre }}</h3>
+                                        <div class="trace-detail">
+                                            <span><strong>Fecha:</strong> {{ \Illuminate\Support\Carbon::parse($evento->created_at)->format('Y-m-d H:i:s') }}</span>
+                                            <span><strong>Hace:</strong> {{ \Illuminate\Support\Carbon::parse($evento->created_at)->locale('es')->diffForHumans() }}</span>
+                                        </div>
+                                    </article>
+                                @endforeach
+                            </div>
+                            @if (!$loop->last)
+                                <div class="trace-drop {{ $isReverse ? 'left' : 'right' }}"></div>
+                            @endif
+                        @endforeach
                     </div>
-                    <div class="summary-item">
-                        <strong>Estado Actual</strong>
-                        <span>En tránsito a oficina de entrega</span>
-                    </div>
-                    <div class="summary-item">
-                        <strong>Última Oficina</strong>
-                        <span>BOLPBA - LA PAZ LC/AO</span>
-                    </div>
-                </div>
-
-                <div class="timeline-skeleton" id="timelineSkeleton" aria-hidden="true">
-                    <div class="skeleton-card"></div>
-                    <div class="skeleton-card"></div>
-                    <div class="skeleton-card"></div>
-                </div>
-
-                <div class="timeline" id="timelineList">
-                    <article class="event latest">
-                        <div class="event-head">
-                            <span class="event-badge">{{ $codigo }}</span>
-                            <span class="event-status status-warn">Incidencia</span>
-                        </div>
-                        <h3 class="event-title">Intento fallido de entrega del paquete</h3>
-                        <p class="event-office">Oficina: BOLPBA - LA PAZ LC/AO</p>
-                        <p class="event-date">2026-02-10 16:31:02</p>
-                        <span class="event-time">Hace 2 horas</span>
-                        <div class="event-bar"></div>
-                    </article>
-
-                    <article class="event">
-                        <div class="event-head">
-                            <span class="event-badge">{{ $codigo }}</span>
-                            <span class="event-status status-move">En tránsito</span>
-                        </div>
-                        <h3 class="event-title">Paquete recibido en oficina de entrega (Listo para entregar)</h3>
-                        <p class="event-office">Oficina: BOLPBA - LA PAZ LC/AO</p>
-                        <p class="event-date">2026-01-22 13:19:47</p>
-                        <span class="event-time">Hace 1 día</span>
-                        <div class="event-bar"></div>
-                    </article>
-
-                    <article class="event">
-                        <div class="event-head">
-                            <span class="event-badge">{{ $codigo }}</span>
-                            <span class="event-status status-move">En tránsito</span>
-                        </div>
-                        <h3 class="event-title">Paquete recibido en oficina de entrega (Listo para entregar)</h3>
-                        <p class="event-office">Oficina: BOLPBA - LA PAZ LC/AO</p>
-                        <p class="event-date">2026-01-22 13:18:09</p>
-                        <span class="event-time">Hace 1 día</span>
-                        <div class="event-bar"></div>
-                    </article>
-
-                    <article class="event">
-                        <div class="event-head">
-                            <span class="event-badge">{{ $codigo }}</span>
-                            <span class="event-status status-ok">Completado</span>
-                        </div>
-                        <h3 class="event-title">Paquete incluido en la saca nacional</h3>
-                        <p class="event-office">Oficina: BOLPBA - PLANTA CENTRAL</p>
-                        <p class="event-date">2026-01-20 09:41:12</p>
-                        <span class="event-time">Hace 3 días</span>
-                        <div class="event-bar"></div>
-                    </article>
-                </div>
+                </article>
             </div>
         </section>
     </main>
@@ -144,28 +107,18 @@
         window.addEventListener('scroll', onScroll, { passive: true });
         onScroll();
 
-        const timeline = document.getElementById('timelineList');
-        const skeleton = document.getElementById('timelineSkeleton');
-        if (timeline && skeleton) {
-            timeline.classList.add('is-loading');
-            skeleton.classList.add('is-visible');
-            setTimeout(() => {
-                timeline.classList.remove('is-loading');
-                skeleton.classList.remove('is-visible');
-            }, 850);
-        }
-
-        const events = document.querySelectorAll('.event');
-        const eventObserver = new IntersectionObserver((entries) => {
+        const items = document.querySelectorAll('.trace-node');
+        const observer = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
                 if (!entry.isIntersecting) return;
                 entry.target.classList.add('is-in');
-                eventObserver.unobserve(entry.target);
+                observer.unobserve(entry.target);
             });
-        }, { threshold: 0.2 });
-        events.forEach((event, index) => {
-            event.style.transitionDelay = `${Math.min(index * 90, 260)}ms`;
-            eventObserver.observe(event);
+        }, { threshold: 0.15 });
+
+        items.forEach((el, i) => {
+            el.style.transitionDelay = `${Math.min(i * 45, 280)}ms`;
+            observer.observe(el);
         });
     </script>
 </body>
