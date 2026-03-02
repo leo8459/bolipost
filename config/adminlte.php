@@ -577,6 +577,11 @@ return [
                     'icon' => 'fas fa-clipboard-check',
                 ],
                 [
+                    'text' => 'Eventos Despacho',
+                    'url' => 'eventos-despacho',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
                     'text' => 'Auditoria',
                     'url' => 'auditoria',
                     'icon' => 'fas fa-clipboard-list',

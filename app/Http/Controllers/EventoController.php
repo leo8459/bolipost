@@ -23,5 +23,10 @@ class EventoController extends Controller
     {
         return view('eventos_ordi.index');
     }
+
+    public function despachoIndex()
+    {
+        return view('eventos_despacho.index');
+    }
 }
 
