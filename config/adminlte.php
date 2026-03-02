@@ -577,6 +577,11 @@ return [
                     'icon' => 'fas fa-clipboard-check',
                 ],
                 [
+                    'text' => 'Eventos CONTRATO',
+                    'url' => 'eventos-contrato',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
                     'text' => 'Auditoria',
                     'url' => 'auditoria',
                     'icon' => 'fas fa-clipboard-list',
@@ -643,6 +648,22 @@ return [
                     'text' => 'Contratos entregados',
                     'url' => 'paquetes-contrato/entregados',
                     'icon' => 'fas fa-motorcycle',
+                ],
+            ],
+        ],
+        [
+            'text' => 'AREA CONTRATOS',
+            'icon' => 'fas fa-folder-open',
+            'submenu' => [
+                [
+                    'text' => 'Todos los contratos',
+                    'url' => 'area-contratos/todos',
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Todos los entregados',
+                    'url' => 'area-contratos/entregados',
+                    'icon' => 'fas fa-check-circle',
                 ],
             ],
         ],

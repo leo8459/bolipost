@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 
 class RecojoController extends Controller
 {
+    private const EVENTO_ID_CONTRATO_CREADO = 318;
+
     public function index()
     {
         return view('paquetes_contrato.index');
@@ -168,6 +170,17 @@ class RecojoController extends Controller
                 ->with('error', 'No existe el estado SOLICITUD en la tabla estados.');
         }
 
+        $eventoExiste = DB::table('eventos')
+            ->where('id', self::EVENTO_ID_CONTRATO_CREADO)
+            ->exists();
+
+        if (!$eventoExiste) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'No existe el evento con ID ' . self::EVENTO_ID_CONTRATO_CREADO . ' en la tabla eventos.');
+        }
+
         $contrato = null;
         DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $estadoSolicitudId, &$contrato) {
             $correlativo = $this->nextCorrelativo((int) $empresa->id, $codigoCliente);
@@ -203,6 +216,14 @@ class RecojoController extends Controller
                 'codigo' => $codigo,
                 'barcode' => $codigo,
                 'empresa_id' => (int) $empresa->id,
+            ]);
+
+            DB::table('eventos_contrato')->insert([
+                'codigo' => $codigo,
+                'evento_id' => self::EVENTO_ID_CONTRATO_CREADO,
+                'user_id' => (int) $user->id,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
         });
 

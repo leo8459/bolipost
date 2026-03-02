@@ -103,7 +103,7 @@ class Estado extends Component
                 $query->where('nombre_estado', 'ILIKE', "%{$q}%");
             })
             ->orderByDesc('id')
-            ->paginate(10);
+            ->paginate(100);
 
         return view('livewire.estado', [
             'estados' => $estados,

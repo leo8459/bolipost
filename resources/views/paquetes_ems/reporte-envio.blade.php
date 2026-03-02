@@ -11,7 +11,7 @@
             font-size: 12px;
         }
         .header {
-            background: #34447C;
+            background: #20539A;
             color: #fff;
             padding: 14px 16px;
             border-radius: 8px;
@@ -35,7 +35,7 @@
             border-radius: 8px;
         }
         .meta strong {
-            color: #34447C;
+            color: #20539A;
         }
         table {
             width: 100%;
@@ -43,7 +43,7 @@
             margin-top: 10px;
         }
         th {
-            background: #B99C46;
+            background: #FECC36;
             color: #fff;
             text-align: left;
             padding: 8px;
@@ -78,7 +78,7 @@
         .firma-titulo {
             font-size: 11px;
             font-weight: 700;
-            color: #34447C;
+            color: #20539A;
         }
         .firma-nombre {
             font-size: 11px;

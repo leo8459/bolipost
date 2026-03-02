@@ -1,15 +1,15 @@
 @extends('adminlte::page')
-@section('title', 'Paquetes EMS - Entregados')
+@section('title', 'Area Contratos - Entregados')
 @section('template_title')
-    Paquetes EMS - Entregados
+    Area Contratos - Entregados
 @endsection
 
 @section('content')
-    <div class="ems-entregados-wrap">
-        <div class="card ems-entregados-card">
+    <div class="area-contratos-wrap">
+        <div class="card area-contratos-card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h3 class="card-title mb-2 mb-md-0">Entregados</h3>
-                <span class="ems-badge">Total: {{ $paquetes->total() }}</span>
+                <h3 class="card-title mb-2 mb-md-0">Contratos entregados (todos)</h3>
+                <span class="area-badge">Total: {{ $contratos->total() }}</span>
             </div>
             <div class="card-body">
                 @if (!$estadoEntregadoDisponible)
@@ -18,10 +18,10 @@
                     </div>
                 @endif
 
-                <form method="GET" action="{{ route('paquetes-ems.entregados') }}" class="row mb-3">
+                <form method="GET" action="{{ route('area-contratos.entregados') }}" class="row mb-3">
                     <div class="col-md-10 mb-2 mb-md-0">
                         <input type="text" name="q" value="{{ $search }}" class="form-control"
-                            placeholder="Buscar EMS/Contrato por codigo, destinatario, telefono, ciudad, recibido por o descripcion...">
+                            placeholder="Buscar por codigo, origen, destino, remitente, destinatario o empresa...">
                     </div>
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-primary btn-block">Buscar</button>
@@ -32,50 +32,59 @@
                     <table class="table table-striped table-hover mb-0">
                         <thead>
                             <tr>
-                                <th>Tipo</th>
                                 <th>Codigo</th>
+                                <th>Cod. especial</th>
+                                <th>Estado</th>
+                                <th>Origen</th>
+                                <th>Destino</th>
+                                <th>Remitente</th>
                                 <th>Destinatario</th>
-                                <th>Telefono</th>
-                                <th>Ciudad</th>
-                                <th>Peso</th>
-                                <th>Recibido por</th>
-                                <th>Descripcion</th>
+                                <th>Empresa</th>
                                 <th>Imagen</th>
-                                <th>Asignado a</th>
-                                <th>Fecha entrega</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($paquetes as $paquete)
+                            @forelse ($contratos as $contrato)
                                 <tr>
-                                    <td>{{ $paquete->tipo_paquete }}</td>
-                                    <td>{{ $paquete->codigo }}</td>
-                                    <td>{{ $paquete->destinatario }}</td>
-                                    <td>{{ $paquete->telefono ?: '-' }}</td>
-                                    <td>{{ $paquete->ciudad }}</td>
-                                    <td>{{ $paquete->peso }}</td>
-                                    <td>{{ $paquete->recibido_por ?: '-' }}</td>
-                                    <td>{{ $paquete->descripcion ?: '-' }}</td>
+                                    <td>{{ $contrato->codigo }}</td>
+                                    <td>{{ $contrato->cod_especial ?: '-' }}</td>
+                                    <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?? '-' }}</td>
+                                    <td>{{ $contrato->origen }}</td>
+                                    <td>{{ $contrato->destino }}</td>
+                                    <td>{{ $contrato->nombre_r }}</td>
+                                    <td>{{ $contrato->nombre_d }}</td>
                                     <td>
-                                        @if (!empty($paquete->imagen))
-                                            <a href="{{ asset('storage/' . $paquete->imagen) }}"
-                                               class="btn btn-sm btn-outline-primary"
-                                               download>
+                                        {{ optional($contrato->empresa)->nombre ?? '-' }}
+                                        @if(!empty(optional($contrato->empresa)->sigla))
+                                            ({{ optional($contrato->empresa)->sigla }})
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if (!empty($contrato->imagen))
+                                            <a href="{{ asset('storage/' . $contrato->imagen) }}"
+                                                class="btn btn-sm btn-outline-primary"
+                                                download>
                                                 Descargar
                                             </a>
                                         @else
                                             -
                                         @endif
                                     </td>
-                                    <td>{{ $paquete->asignado_a ?: '-' }}</td>
+                                    <td>{{ optional($contrato->updated_at)->format('d/m/Y H:i') }}</td>
                                     <td>
-                                        {{ !empty($paquete->fecha_entrega) ? \Illuminate\Support\Carbon::parse($paquete->fecha_entrega)->format('d/m/Y H:i') : '-' }}
+                                        <a href="{{ route('paquetes-contrato.reporte', $contrato->id) }}"
+                                            target="_blank"
+                                            class="btn btn-sm btn-outline-primary">
+                                            Reporte
+                                        </a>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
                                     <td colspan="11" class="text-center py-4">
-                                        No hay registros en estado ENTREGADO.
+                                        No hay contratos entregados.
                                     </td>
                                 </tr>
                             @endforelse
@@ -84,7 +93,7 @@
                 </div>
 
                 <div class="mt-3 d-flex justify-content-end">
-                    {{ $paquetes->links() }}
+                    {{ $contratos->links() }}
                 </div>
             </div>
         </div>
@@ -93,28 +102,28 @@
 
 @section('css')
     <style>
-        .ems-entregados-wrap {
+        .area-contratos-wrap {
             background: linear-gradient(180deg, #f8faff 0%, #f1f5fe 100%);
             border: 1px solid #e2e8f6;
             border-radius: 14px;
             padding: 14px;
         }
 
-        .ems-entregados-card {
+        .area-contratos-card {
             border: 0;
             border-radius: 12px;
             box-shadow: 0 12px 26px rgba(28, 45, 94, 0.1);
             overflow: hidden;
         }
 
-        .ems-entregados-card .card-header {
+        .area-contratos-card .card-header {
             background: linear-gradient(95deg, #20539A 0%, #43538f 100%);
             color: #fff;
             border-bottom: 0;
             padding: 0.95rem 1.1rem;
         }
 
-        .ems-badge {
+        .area-badge {
             background: rgba(185, 156, 70, 0.2);
             color: #3f3514;
             border: 1px solid rgba(185, 156, 70, 0.35);
@@ -124,7 +133,7 @@
             padding: 0.28rem 0.6rem;
         }
 
-        .ems-entregados-card .table thead th {
+        .area-contratos-card .table thead th {
             background: #edf1fb;
             color: #20539A;
             border-bottom: 1px solid #dbe2f2;
@@ -134,6 +143,5 @@
             letter-spacing: 0.35px;
             white-space: nowrap;
         }
-
     </style>
 @endsection

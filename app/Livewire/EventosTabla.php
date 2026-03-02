@@ -148,7 +148,7 @@ class EventosTabla extends Component
     protected function normalizeTipo(string $tipo): string
     {
         $tipo = strtolower(trim($tipo));
-        return in_array($tipo, ['ems', 'certi', 'ordi'], true) ? $tipo : 'ems';
+        return in_array($tipo, ['ems', 'certi', 'ordi', 'contrato'], true) ? $tipo : 'ems';
     }
 
     protected function pageConfig(): array
@@ -163,6 +163,11 @@ class EventosTabla extends Component
                 'title' => 'Eventos ORDI',
                 'singular' => 'Registro ORDI',
                 'table' => 'eventos_ordi',
+            ],
+            'contrato' => [
+                'title' => 'Eventos CONTRATO',
+                'singular' => 'Registro CONTRATO',
+                'table' => 'eventos_contrato',
             ],
             default => [
                 'title' => 'Eventos EMS',

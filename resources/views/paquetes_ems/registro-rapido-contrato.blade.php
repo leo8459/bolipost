@@ -19,7 +19,7 @@
             overflow: hidden;
         }
         .quick-header {
-            background: linear-gradient(90deg, #34447C, #2c3766);
+            background: linear-gradient(90deg, #20539A, #2c3766);
             color: #fff;
             padding: 16px 18px;
         }

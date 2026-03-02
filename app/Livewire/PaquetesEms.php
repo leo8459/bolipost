@@ -152,7 +152,7 @@ class PaquetesEms extends Component
     public function getRegionalEstadoLabelProperty(): string
     {
         if ($this->isTransitoEms) {
-            return $this->resolveRegionalRecepcionEstado()['nombre'] ?? 'ENVIADO';
+            return $this->resolveRegionalRecepcionEstado()['nombre'] ?? 'TRANSITO';
         }
 
         return $this->resolveRegionalEstado()['nombre'] ?? 'TRANSITO';
@@ -1112,7 +1112,13 @@ class PaquetesEms extends Component
             }
 
             $this->registerEventosEms(
-                $paquetes->merge($contratos),
+                $paquetes,
+                $actorUserId,
+                self::EVENTO_ID_SACA_INTERNA_CREADA_SALIDA
+            );
+
+            $this->registerEventosContrato(
+                $contratos,
                 $actorUserId,
                 self::EVENTO_ID_SACA_INTERNA_CREADA_SALIDA
             );
@@ -1246,7 +1252,7 @@ class PaquetesEms extends Component
                 $updated++;
             }
 
-            $this->registerEventosEms(
+            $this->registerEventosContrato(
                 $contratos,
                 $actorUserId,
                 self::EVENTO_ID_SACA_INTERNA_CREADA_SALIDA
@@ -1639,21 +1645,64 @@ class PaquetesEms extends Component
             return;
         }
 
-        $updatedEms = 0;
-        if (!empty($idsEms)) {
-            $updatedEms = PaqueteEms::query()
-                ->whereIn('id', $idsEms)
-                ->where('estado_id', (int) $estadoRegionalRecepcionId)
-                ->update(['estado_id' => $estadoRecibido]);
+        $actorUserId = (int) optional(Auth::user())->id;
+        if ($actorUserId <= 0) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
         }
 
-        $updatedContratos = 0;
+        $paquetesRecibir = collect();
+        if (!empty($idsEms)) {
+            $paquetesRecibir = PaqueteEms::query()
+                ->whereIn('id', $idsEms)
+                ->where('estado_id', (int) $estadoRegionalRecepcionId)
+                ->orderBy('id')
+                ->get(['id', 'codigo']);
+        }
+
+        $contratosRecibir = collect();
         if (!empty($idsContratos)) {
-            $updatedContratos = RecojoContrato::query()
+            $contratosRecibir = RecojoContrato::query()
                 ->whereIn('id', $idsContratos)
                 ->where('estados_id', (int) $estadoRegionalRecepcionId)
-                ->update(['estados_id' => $estadoRecibido]);
+                ->orderBy('id')
+                ->get(['id', 'codigo']);
         }
+
+        $updatedEms = 0;
+        $updatedContratos = 0;
+        DB::transaction(function () use (
+            $estadoRecibido,
+            $paquetesRecibir,
+            $contratosRecibir,
+            $actorUserId,
+            &$updatedEms,
+            &$updatedContratos
+        ) {
+            if ($paquetesRecibir->isNotEmpty()) {
+                $updatedEms = PaqueteEms::query()
+                    ->whereIn('id', $paquetesRecibir->pluck('id')->all())
+                    ->update(['estado_id' => $estadoRecibido]);
+
+                $this->registerEventosEms(
+                    $paquetesRecibir,
+                    $actorUserId,
+                    self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                );
+            }
+
+            if ($contratosRecibir->isNotEmpty()) {
+                $updatedContratos = RecojoContrato::query()
+                    ->whereIn('id', $contratosRecibir->pluck('id')->all())
+                    ->update(['estados_id' => $estadoRecibido]);
+
+                $this->registerEventosContrato(
+                    $contratosRecibir,
+                    $actorUserId,
+                    self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                );
+            }
+        });
 
         $updatedTotal = (int) $updatedEms + (int) $updatedContratos;
 
@@ -2436,6 +2485,40 @@ class PaquetesEms extends Component
         DB::table('eventos_ems')->insert($rows);
     }
 
+    protected function registerEventosContrato(iterable $paquetes, int $userId, int $eventoId): void
+    {
+        if ($userId <= 0 || $eventoId <= 0) {
+            return;
+        }
+
+        $now = now();
+
+        $rows = collect($paquetes)
+            ->map(function ($paquete) use ($eventoId, $userId, $now) {
+                $codigo = trim((string) ($paquete->codigo ?? ''));
+                if ($codigo === '') {
+                    return null;
+                }
+
+                return [
+                    'codigo' => $codigo,
+                    'evento_id' => (int) $eventoId,
+                    'user_id' => $userId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        if (empty($rows)) {
+            return;
+        }
+
+        DB::table('eventos_contrato')->insert($rows);
+    }
+
     protected function setUserOrigenId()
     {
         $this->user_origen_id = null;
@@ -2719,6 +2802,14 @@ class PaquetesEms extends Component
             return [
                 'id' => $enviadoId,
                 'nombre' => 'ENVIADO',
+            ];
+        }
+
+        $enviadosLegacyId = $this->findEstadoId('ENVIADOS');
+        if ($enviadosLegacyId) {
+            return [
+                'id' => $enviadosLegacyId,
+                'nombre' => 'ENVIADOS',
             ];
         }
 

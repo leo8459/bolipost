@@ -1,4 +1,4 @@
-﻿@extends('adminlte::page')
+@extends('adminlte::page')
 @section('title', 'Nuevo Contrato')
 @section('template_title')
     Nuevo Contrato
@@ -19,7 +19,7 @@
             overflow: hidden;
         }
         .contrato-header {
-            background: linear-gradient(90deg, #34447C, #2c3766);
+            background: linear-gradient(90deg, #20539A, #2c3766);
             color: #fff;
             padding: 16px 18px;
         }
@@ -34,7 +34,7 @@
             box-shadow: 0 6px 14px rgba(0,0,0,.05);
         }
         .section-title {
-            color: #34447C;
+            color: #20539A;
             font-weight: 800;
             font-size: 13px;
             letter-spacing: .03em;

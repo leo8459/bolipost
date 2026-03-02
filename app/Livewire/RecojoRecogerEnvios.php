@@ -5,11 +5,14 @@ namespace App\Livewire;
 use App\Models\Estado;
 use App\Models\Recojo as RecojoModel;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class RecojoRecogerEnvios extends Component
 {
+    private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
+
     use WithPagination;
 
     public $search = '';
@@ -34,6 +37,7 @@ class RecojoRecogerEnvios extends Component
 
     public function mandarSeleccionadosAlmacen()
     {
+        $actorUserId = (int) optional(Auth::user())->id;
         $ids = collect($this->selectedRecojos)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -52,18 +56,67 @@ class RecojoRecogerEnvios extends Component
             return;
         }
 
-        $actualizados = RecojoModel::query()
-            ->whereIn('id', $ids)
-            ->where('estados_id', (int) $this->estadoSolicitudId)
-            ->when($this->userCity !== '', function ($query) {
-                $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
-            }, function ($query) {
-                $query->whereRaw('1 = 0');
-            })
-            ->update([
-                'estados_id' => (int) $this->estadoAlmacenId,
-                'updated_at' => now(),
-            ]);
+        if ($actorUserId <= 0) {
+            session()->flash('error', 'Usuario no autenticado para registrar evento.');
+            return;
+        }
+
+        $eventoExiste = DB::table('eventos')
+            ->where('id', self::EVENTO_ID_CONTRATO_RECOGIDO)
+            ->exists();
+
+        if (!$eventoExiste) {
+            session()->flash('error', 'No existe el evento con ID ' . self::EVENTO_ID_CONTRATO_RECOGIDO . ' en la tabla eventos.');
+            return;
+        }
+
+        $actualizados = 0;
+        DB::transaction(function () use ($ids, $actorUserId, &$actualizados) {
+            $recojosActualizar = RecojoModel::query()
+                ->whereIn('id', $ids)
+                ->where('estados_id', (int) $this->estadoSolicitudId)
+                ->when($this->userCity !== '', function ($query) {
+                    $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
+                }, function ($query) {
+                    $query->whereRaw('1 = 0');
+                })
+                ->get(['id', 'codigo']);
+
+            if ($recojosActualizar->isEmpty()) {
+                $actualizados = 0;
+                return;
+            }
+
+            $idsActualizar = $recojosActualizar->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+            $actualizados = RecojoModel::query()
+                ->whereIn('id', $idsActualizar)
+                ->update([
+                    'estados_id' => (int) $this->estadoAlmacenId,
+                    'updated_at' => now(),
+                ]);
+
+            $now = now();
+            $rows = $recojosActualizar
+                ->pluck('codigo')
+                ->map(fn ($codigo) => trim((string) $codigo))
+                ->filter(fn ($codigo) => $codigo !== '')
+                ->values()
+                ->map(function ($codigo) use ($actorUserId, $now) {
+                    return [
+                        'codigo' => $codigo,
+                        'evento_id' => self::EVENTO_ID_CONTRATO_RECOGIDO,
+                        'user_id' => $actorUserId,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                })
+                ->all();
+
+            if (!empty($rows)) {
+                DB::table('eventos_contrato')->insert($rows);
+            }
+        });
 
         $this->selectedRecojos = [];
         $this->resetPage();
