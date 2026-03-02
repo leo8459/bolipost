@@ -614,11 +614,6 @@ return [
             'icon' => 'fas fa-file-contract',
             'submenu' => [
                 [
-                    'text' => 'Gestion contratos',
-                    'url' => 'paquetes-contrato',
-                    'icon' => 'fas fa-list',
-                ],
-                [
                     'text' => 'Almacen contratos',
                     'url' => 'paquetes-contrato/almacen',
                     'icon' => 'fas fa-warehouse',
@@ -633,7 +628,18 @@ return [
                     'url' => 'paquetes-contrato/cartero',
                     'icon' => 'fas fa-motorcycle',
                 ],
-                 [
+            ],
+        ],
+        [
+            'text' => 'EMPRESA',
+            'icon' => 'fas fa-building',
+            'submenu' => [
+                [
+                    'text' => 'Gestion contratos',
+                    'url' => 'paquetes-contrato',
+                    'icon' => 'fas fa-list',
+                ],
+                [
                     'text' => 'Contratos entregados',
                     'url' => 'paquetes-contrato/entregados',
                     'icon' => 'fas fa-motorcycle',
