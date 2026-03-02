@@ -14,6 +14,7 @@ class Cartero extends Model
     protected $fillable = [
         'id_paquetes_ems',
         'id_paquetes_certi',
+        'id_paquetes_contrato',
         'id_estados',
         'id_user',
         'intento',

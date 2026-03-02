@@ -33,6 +33,7 @@ class User extends Authenticatable
         'password',
         'ciudad',
         'ci',
+        'empresa_id',
     ];
 
     /**
@@ -54,4 +55,9 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id');
+    }
 }

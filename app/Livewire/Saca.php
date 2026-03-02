@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Despacho;
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteEms;
+use App\Models\PaqueteOrdi;
 use App\Models\Saca as SacaModel;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -27,6 +28,7 @@ class Saca extends Component
     public $receptaculo = '';
     public $fk_despacho = '';
     public $codEspecialSugerencias = [];
+    public $batchRows = [];
     public $lockedDespachoId = null;
     public $lockedDespachoLabel = '';
     public $openCreateModalOnLoad = false;
@@ -124,47 +126,110 @@ class Saca extends Component
 
     public function save()
     {
-        if (!$this->editingId) {
-            $this->nro_saca = $this->getNextNroSaca();
-            $estadoId = $this->getEstadoAperturaId();
-            if ($estadoId === null) {
-                $this->addError('fk_estado', 'No existe un estado valido para crear la saca.');
+        if ($this->editingId) {
+            $this->validate($this->rules());
+            if (!$this->normalizarBusquedaDesdeCodEspecial()) {
                 return;
             }
-            $this->fk_estado = (string) $estadoId;
-            if (empty($this->fk_despacho)) {
-                $this->fk_despacho = $this->getDefaultDespachoId();
-            }
-            if (empty($this->fk_despacho)) {
-                $this->addError('fk_despacho', 'No hay un despacho disponible para asociar la saca.');
+            $generatedIdentificador = $this->buildIdentificadorFromDespacho();
+            if ($generatedIdentificador === null) {
                 return;
+            }
+            $this->identificador = $generatedIdentificador;
+            $this->receptaculo = $this->buildReceptaculo();
+            $saca = SacaModel::findOrFail($this->editingId);
+            $saca->update($this->payload());
+            session()->flash('success', 'Saca actualizada correctamente.');
+        } else {
+            $this->prepareCreateDefaults();
+            if (empty($this->fk_estado) || empty($this->fk_despacho)) {
+                return;
+            }
+
+            if (!empty($this->batchRows)) {
+                DB::transaction(function () {
+                    $nextNumber = $this->getNextNroSacaNumeric();
+
+                    foreach ($this->batchRows as $row) {
+                        $this->nro_saca = str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
+                        $this->peso = $row['peso'];
+                        $this->paquetes = $row['paquetes'];
+                        $this->busqueda = $row['busqueda'];
+
+                        $generatedIdentificador = $this->buildIdentificadorFromDespacho();
+                        if ($generatedIdentificador === null) {
+                            throw new \RuntimeException('identificador_error');
+                        }
+
+                        $this->identificador = $generatedIdentificador;
+                        $this->receptaculo = $this->buildReceptaculo();
+                        SacaModel::create($this->payload());
+                        $nextNumber++;
+                    }
+                });
+
+                session()->flash('success', count($this->batchRows) . ' sacas creadas correctamente.');
+            } else {
+                $this->nro_saca = $this->getNextNroSaca();
+                $this->validate($this->rules());
+
+                if (!$this->normalizarBusquedaDesdeCodEspecial()) {
+                    return;
+                }
+
+                $generatedIdentificador = $this->buildIdentificadorFromDespacho();
+                if ($generatedIdentificador === null) {
+                    return;
+                }
+                $this->identificador = $generatedIdentificador;
+                $this->receptaculo = $this->buildReceptaculo();
+
+                SacaModel::create($this->payload());
+                session()->flash('success', 'Saca creada correctamente.');
             }
         }
 
-        $this->validate($this->rules());
+        $this->dispatch('closeSacaModal');
+        $this->resetForm();
+    }
+
+    public function addCurrentToBatch()
+    {
+        if ($this->editingId) {
+            return;
+        }
+
+        $this->prepareCreateDefaults();
+        if (empty($this->fk_estado) || empty($this->fk_despacho)) {
+            return;
+        }
+        $this->validate($this->batchRowRules());
 
         if (!$this->normalizarBusquedaDesdeCodEspecial()) {
             return;
         }
 
-        $generatedIdentificador = $this->buildIdentificadorFromDespacho();
-        if ($generatedIdentificador === null) {
+        $this->batchRows[] = [
+            'peso' => $this->normalizeNullable($this->peso),
+            'paquetes' => $this->normalizeNullable($this->paquetes),
+            'busqueda' => $this->normalizeNullable($this->busqueda),
+        ];
+
+        $this->peso = '';
+        $this->paquetes = '';
+        $this->busqueda = '';
+        $this->codEspecialSugerencias = [];
+        $this->resetValidation();
+    }
+
+    public function removeBatchRow($index)
+    {
+        if (!isset($this->batchRows[$index])) {
             return;
         }
-        $this->identificador = $generatedIdentificador;
-        $this->receptaculo = $this->buildReceptaculo();
 
-        if ($this->editingId) {
-            $saca = SacaModel::findOrFail($this->editingId);
-            $saca->update($this->payload());
-            session()->flash('success', 'Saca actualizada correctamente.');
-        } else {
-            SacaModel::create($this->payload());
-            session()->flash('success', 'Saca creada correctamente.');
-        }
-
-        $this->dispatch('closeSacaModal');
-        $this->resetForm();
+        unset($this->batchRows[$index]);
+        $this->batchRows = array_values($this->batchRows);
     }
 
     public function delete($id)
@@ -322,6 +387,7 @@ class Saca extends Component
             'receptaculo',
             'fk_despacho',
             'codEspecialSugerencias',
+            'batchRows',
         ]);
 
         $this->resetValidation();
@@ -374,6 +440,42 @@ class Saca extends Component
         return $value === '' ? null : $value;
     }
 
+    protected function prepareCreateDefaults()
+    {
+        $estadoId = $this->getEstadoAperturaId();
+        if ($estadoId === null) {
+            $this->addError('fk_estado', 'No existe un estado valido para crear la saca.');
+            return;
+        }
+
+        $this->fk_estado = (string) $estadoId;
+
+        if (empty($this->fk_despacho)) {
+            $this->fk_despacho = $this->lockedDespachoId ?: $this->getDefaultDespachoId();
+        }
+
+        if (empty($this->fk_despacho)) {
+            $this->addError('fk_despacho', 'No hay un despacho disponible para asociar la saca.');
+        }
+    }
+
+    protected function batchRowRules()
+    {
+        $fkDespachoRule = 'required|integer|exists:despacho,id';
+
+        if ($this->lockedDespachoId) {
+            $fkDespachoRule .= '|in:' . $this->lockedDespachoId;
+        }
+
+        return [
+            'fk_estado' => 'required|integer|exists:estados,id',
+            'fk_despacho' => $fkDespachoRule,
+            'peso' => 'nullable|numeric|min:0.001',
+            'paquetes' => 'nullable|integer|min:0',
+            'busqueda' => 'nullable|string|max:255',
+        ];
+    }
+
     protected function cargarSugerenciasCodEspecial($term)
     {
         $term = trim((string) $term);
@@ -382,14 +484,25 @@ class Saca extends Component
             return;
         }
 
-        $this->codEspecialSugerencias = PaqueteEms::query()
+        $ems = PaqueteEms::query()
             ->whereNotNull('cod_especial')
             ->where('cod_especial', 'ILIKE', '%' . $term . '%')
             ->orderByDesc('id')
             ->limit(8)
-            ->pluck('cod_especial')
+            ->pluck('cod_especial');
+
+        $ordi = PaqueteOrdi::query()
+            ->whereNotNull('cod_especial')
+            ->where('cod_especial', 'ILIKE', '%' . $term . '%')
+            ->orderByDesc('id')
+            ->limit(8)
+            ->pluck('cod_especial');
+
+        $this->codEspecialSugerencias = $ems
+            ->merge($ordi)
             ->unique()
             ->values()
+            ->take(8)
             ->all();
     }
 
@@ -400,44 +513,60 @@ class Saca extends Component
             return true;
         }
 
-        $paquetes = PaqueteEms::query()
+        $paquetesEms = PaqueteEms::query()
             ->with('estado:id,nombre_estado')
             ->whereRaw('UPPER(cod_especial) = ?', [strtoupper($busqueda)])
             ->get(['id', 'cod_especial', 'estado_id']);
 
-        if ($paquetes->isEmpty()) {
-            $this->addError('busqueda', 'El codigo no existe en paquetes_ems.cod_especial.');
+        $paquetesOrdi = PaqueteOrdi::query()
+            ->with('estado:id,nombre_estado')
+            ->whereRaw('UPPER(cod_especial) = ?', [strtoupper($busqueda)])
+            ->get(['id', 'cod_especial', 'fk_estado']);
+
+        if ($paquetesEms->isEmpty() && $paquetesOrdi->isEmpty()) {
+            $this->addError('busqueda', 'El codigo no existe en paquetes_ems ni paquetes_ordi.');
             return false;
         }
 
-        $paquetesNoTransito = $paquetes->filter(function ($paquete) {
+        $paquetesEmsNoTransito = $paquetesEms->filter(function ($paquete) {
             $estadoNombre = strtoupper(trim((string) optional($paquete->estado)->nombre_estado));
             return $estadoNombre !== 'TRANSITO';
         });
 
-        if ($paquetesNoTransito->isNotEmpty()) {
+        $paquetesOrdiNoTransito = $paquetesOrdi->filter(function ($paquete) {
+            $estadoNombre = strtoupper(trim((string) optional($paquete->estado)->nombre_estado));
+            return $estadoNombre !== 'TRANSITO';
+        });
+
+        if ($paquetesEmsNoTransito->isNotEmpty() || $paquetesOrdiNoTransito->isNotEmpty()) {
             $this->addError('busqueda', 'Todos los paquetes con ese cod_especial deben estar en estado TRANSITO.');
             return false;
         }
 
-        $this->busqueda = (string) $paquetes->first()->cod_especial;
+        $this->busqueda = (string) optional($paquetesEms->first())->cod_especial
+            ?: (string) optional($paquetesOrdi->first())->cod_especial;
 
         return true;
     }
 
     protected function getNextNroSaca()
     {
+        $next = $this->getNextNroSacaNumeric();
+
+        return str_pad((string) $next, 3, '0', STR_PAD_LEFT);
+    }
+
+    protected function getNextNroSacaNumeric()
+    {
         if (empty($this->fk_despacho)) {
-            return '001';
+            return 1;
         }
 
         $max = SacaModel::query()
             ->where('fk_despacho', $this->fk_despacho)
             ->max(DB::raw('CAST(nro_saca AS INTEGER)'));
 
-        $next = (int) $max + 1;
-
-        return str_pad((string) $next, 3, '0', STR_PAD_LEFT);
+        return (int) $max + 1;
     }
 
     protected function getEstadoAperturaId()

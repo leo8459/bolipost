@@ -258,7 +258,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Busqueda</label>
-                                    <input type="text" class="form-control" wire:model.debounce.400ms="busqueda" placeholder="Buscar cod_especial de paquetes EMS">
+                                    <input type="text" class="form-control" wire:model.debounce.400ms="busqueda" placeholder="Buscar cod_especial en paquetes EMS/ORDI">
                                     @error('busqueda') <small class="text-danger">{{ $message }}</small> @enderror
                                     @if(!empty($codEspecialSugerencias))
                                         <div class="border rounded mt-2 p-2" style="max-height: 140px; overflow-y: auto;">
@@ -273,11 +273,50 @@
                                     @endif
                                 </div>
                             </div>
+
+                            @if (!$editingId)
+                                <div class="col-md-12">
+                                    <button type="button" class="btn btn-outline-primary" wire:click="addCurrentToBatch">
+                                        Anadir a la lista
+                                    </button>
+                                </div>
+                            @endif
                             <input type="hidden" wire:model.defer="fk_estado">
                             <input type="hidden" wire:model.defer="fk_despacho">
                             <input type="hidden" wire:model.defer="identificador">
                             <input type="hidden" wire:model.defer="receptaculo">
                         </div>
+
+                        @if (!$editingId && !empty($batchRows))
+                            <div class="table-responsive mt-3">
+                                <table class="table table-sm table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Peso</th>
+                                            <th>Paquetes</th>
+                                            <th>Busqueda</th>
+                                            <th>Accion</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($batchRows as $index => $row)
+                                            <tr>
+                                                <td>{{ $index + 1 }}</td>
+                                                <td>{{ $row['peso'] }}</td>
+                                                <td>{{ $row['paquetes'] }}</td>
+                                                <td>{{ $row['busqueda'] }}</td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" wire:click="removeBatchRow({{ $index }})">
+                                                        Quitar
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="modal-footer">

@@ -376,6 +376,16 @@ return [
                     'icon' => 'fas fa-warehouse',
                 ],
                 [
+                    'text' => 'VENTANILLA EMS',
+                    'url' => 'paquetes-ems/ventanilla',
+                    'icon' => 'fas fa-door-open',
+                ],
+                [
+                    'text' => 'En transito',
+                    'url' => 'paquetes-ems/en-transito',
+                    'icon' => 'fas fa-shipping-fast',
+                ],
+                [
                     'text' => 'Recibir de regional',
                     'url' => 'paquetes-ems/recibir-regional',
                     'icon' => 'fas fa-truck-loading',
@@ -421,6 +431,26 @@ return [
                     'text' => 'Clasificacion',
                     'url' => 'paquetes-ordinarios',
                     'icon' => 'fas fa-layer-group',
+                ],
+                [
+                    'text' => 'Despacho',
+                    'url' => 'paquetes-ordinarios/despacho',
+                    'icon' => 'fas fa-shipping-fast',
+                ],
+                [
+                    'text' => 'Almacen',
+                    'url' => 'paquetes-ordinarios/almacen',
+                    'icon' => 'fas fa-warehouse',
+                ],
+                [
+                    'text' => 'Entregado',
+                    'url' => 'paquetes-ordinarios/entregado',
+                    'icon' => 'fas fa-check-circle',
+                ],
+                [
+                    'text' => 'Rezago',
+                    'url' => 'paquetes-ordinarios/rezago',
+                    'icon' => 'fas fa-archive',
                 ],
             ],
         ],
@@ -537,9 +567,66 @@ return [
                     'icon' => 'fas fa-clipboard-check',
                 ],
                 [
+                    'text' => 'Auditoria',
+                    'url' => 'auditoria',
+                    'icon' => 'fas fa-clipboard-list',
+                ],
+                [
+                    'text' => 'Eventos Auditoria',
+                    'url' => 'eventos-auditoria',
+                    'icon' => 'fas fa-history',
+                ],
+                [
                     'text' => 'Ventanillas',
                     'url' => 'ventanillas',
                     'icon' => 'fas fa-window-restore',
+                ],
+            ],
+        ],
+        [
+            'text' => 'CODIGOS',
+            'icon' => 'fas fa-barcode',
+            'submenu' => [
+                [
+                    'text' => 'EMREPSA',
+                    'url' => 'empresas',
+                    'icon' => 'fas fa-building',
+                ],
+                [
+                    'text' => 'Generar codigos',
+                    'url' => 'codigo-empresa',
+                    'icon' => 'fas fa-qrcode',
+                ],
+            ],
+        ],
+        [
+            'text' => 'Contratos',
+            'icon' => 'fas fa-file-contract',
+            'submenu' => [
+                [
+                    'text' => 'Gestion contratos',
+                    'url' => 'paquetes-contrato',
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Almacen contratos',
+                    'url' => 'paquetes-contrato/almacen',
+                    'icon' => 'fas fa-warehouse',
+                ],
+                [
+                    'text' => 'Recoger envios contratos',
+                    'url' => 'paquetes-contrato/recoger-envios',
+                    'icon' => 'fas fa-inbox',
+                ],
+                [
+                    'text' => 'Cartero contratos',
+                    'url' => 'paquetes-contrato/cartero',
+                    'icon' => 'fas fa-motorcycle',
+                ],
+                 [
+                    'text' => 'Contratos entregados',
+                    'url' => 'paquetes-contrato/entregados',
+                    'icon' => 'fas fa-motorcycle',
                 ],
             ],
         ],

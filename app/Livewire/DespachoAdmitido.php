@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Despacho as DespachoModel;
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteEms;
+use App\Models\PaqueteOrdi;
 use App\Models\Saca as SacaModel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -282,6 +283,21 @@ class DespachoAdmitido extends Component
                     PaqueteEms::query()
                         ->whereIn('id', $paqueteIds->all())
                         ->update(['estado_id' => $estadoEnviadoId]);
+                }
+
+                $paqueteOrdiIds = PaqueteOrdi::query()
+                    ->whereNotNull('cod_especial')
+                    ->where(function ($query) use ($codEspeciales) {
+                        foreach ($codEspeciales as $codigo) {
+                            $query->orWhereRaw('TRIM(UPPER(cod_especial)) = ?', [$codigo]);
+                        }
+                    })
+                    ->pluck('id');
+
+                if ($paqueteOrdiIds->isNotEmpty()) {
+                    PaqueteOrdi::query()
+                        ->whereIn('id', $paqueteOrdiIds->all())
+                        ->update(['fk_estado' => $estadoEnviadoId]);
                 }
             }
 

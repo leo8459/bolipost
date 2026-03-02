@@ -39,13 +39,73 @@
         <div class="card card-app">
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
                 <div>
-                    <h4 class="fw-bold mb-0">Paquetes Ordinarios</h4>
+                    <h4 class="fw-bold mb-0">
+                        @if ($this->isDespacho)
+                            Despacho - Paquetes Ordinarios
+                        @elseif ($this->isAlmacen)
+                            Almacen - Paquetes Ordinarios
+                        @elseif ($this->isEntregado)
+                            Entregado - Paquetes Ordinarios
+                        @elseif ($this->isRezago)
+                            Rezago - Paquetes Ordinarios
+                        @else
+                            Paquetes Ordinarios - Clasificacion
+                        @endif
+                    </h4>
                 </div>
 
                 <div class="d-flex gap-2 align-items-center">
                     <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
-                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @if ($this->isClasificacion)
+                        <select wire:model="selectedCiudadMarcado" class="form-control search-input" style="min-width: 180px;">
+                            <option value="">Marcar por ciudad</option>
+                            @foreach ($ciudadesDisponibles as $ciudadDisponible)
+                                <option value="{{ $ciudadDisponible }}">{{ $ciudadDisponible }}</option>
+                            @endforeach
+                        </select>
+                        <button
+                            class="btn btn-outline-light2"
+                            type="button"
+                            wire:click="despacharSeleccionados"
+                            onclick="return confirm('Deseas despachar los paquetes seleccionados?')"
+                        >
+                            Despachar
+                        </button>
+                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endif
+                    @if ($this->isDespacho)
+                        <button
+                            class="btn btn-outline-light2"
+                            type="button"
+                            wire:click="$set('reprintCodEspecial', '')"
+                            data-toggle="modal"
+                            data-target="#reimprimirManifiestoModal"
+                        >
+                            Reimprimir Manifiesto
+                        </button>
+                    @endif
+                    @if ($this->isAlmacen)
+                        <button class="btn btn-outline-light2" type="button" wire:click="openRecibirModal">
+                            Recibir paquetes
+                        </button>
+                        <button
+                            class="btn btn-outline-light2"
+                            type="button"
+                            wire:click="bajaPaquetes"
+                            onclick="return confirm('Deseas enviar a ENTREGADO los paquetes seleccionados?')"
+                        >
+                            Baja de paquetes
+                        </button>
+                        <button
+                            class="btn btn-outline-light2"
+                            type="button"
+                            wire:click="rezagoPaquetes"
+                            onclick="return confirm('Deseas enviar a REZAGO los paquetes seleccionados?')"
+                        >
+                            Rezago
+                        </button>
+                    @endif
                 </div>
             </div>
 
@@ -73,13 +133,27 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
+                                @if ($this->isClasificacion || $this->isAlmacen)
+                                    <th>
+                                        <input
+                                            type="checkbox"
+                                            wire:change="toggleSelectAll($event.target.checked)"
+                                            @checked($selectAll)
+                                            title="Marcar todos"
+                                        >
+                                    </th>
+                                @endif
                                 <th>Codigo</th>
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
+                                <th>Ciudad</th>
                                 <th>Peso</th>
                                 <th>Aduana</th>
                                 <th>Observaciones</th>
                                 <th>Ventanilla</th>
+                                @if ($this->isDespacho)
+                                    <th>Cod. Especial</th>
+                                @endif
                                 <th>Estado</th>
                                 <th>Creado</th>
                                 <th>Acciones</th>
@@ -88,23 +162,67 @@
                         <tbody>
                             @forelse ($paquetes as $paquete)
                                 <tr>
+                                    @if ($this->isClasificacion || $this->isAlmacen)
+                                        <td>
+                                            <input type="checkbox" wire:key="select-{{ $paquete->id }}" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
+                                        </td>
+                                    @endif
                                     <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
                                     <td>{{ $paquete->destinatario }}</td>
                                     <td>{{ $paquete->telefono }}</td>
+                                    <td>{{ $paquete->ciudad }}</td>
                                     <td>{{ $paquete->peso }}</td>
                                     <td>{{ $paquete->aduana }}</td>
                                     <td>{{ $paquete->observaciones ?? '-' }}</td>
                                     <td>{{ optional($paquete->ventanillaRef)->nombre_ventanilla ?? '-' }}</td>
+                                    @if ($this->isDespacho)
+                                        <td>{{ $paquete->cod_especial ?? '-' }}</td>
+                                    @endif
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? '-' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         <button wire:click="openEditModal({{ $paquete->id }})" class="btn btn-sm btn-azul">Editar</button>
-                                        <button wire:click="delete({{ $paquete->id }})" class="btn btn-sm btn-outline-azul" onclick="return confirm('Seguro que deseas eliminar este paquete?')">Borrar</button>
+                                        @if ($this->isClasificacion)
+                                            <button wire:click="delete({{ $paquete->id }})" class="btn btn-sm btn-outline-azul" onclick="return confirm('Seguro que deseas eliminar este paquete?')">Borrar</button>
+                                        @endif
+                                        @if ($this->isDespacho)
+                                            <button
+                                                wire:click="devolverAClasificacion({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                onclick="return confirm('Deseas devolver este paquete a CLASIFICACION?')"
+                                            >
+                                                Devolver
+                                            </button>
+                                        @endif
+                                        @if ($this->isEntregado)
+                                            <button
+                                                wire:click="reimprimirFormularioEntrega({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                            >
+                                                Reimprimir
+                                            </button>
+                                            <button
+                                                wire:click="altaAAlmacen({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                onclick="return confirm('Deseas dar de alta este paquete a ALMACEN?')"
+                                            >
+                                                Alta
+                                            </button>
+                                        @endif
+                                        @if ($this->isRezago)
+                                            <button
+                                                wire:click="devolverRezagoAAlmacen({{ $paquete->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                onclick="return confirm('Deseas devolver este paquete a ALMACEN?')"
+                                            >
+                                                Devolver
+                                            </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-5">
+                                    <td colspan="{{ ($this->isClasificacion || $this->isAlmacen) ? 12 : ($this->isDespacho ? 12 : 11) }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -205,6 +323,98 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="reimprimirManifiestoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form wire:submit.prevent="reimprimirManifiesto">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reimprimir manifiesto</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group mb-0">
+                            <label>Ingrese el cod_especial</label>
+                            <input
+                                type="text"
+                                class="form-control uppercase-input"
+                                placeholder="Ejemplo: O00001"
+                                wire:model.defer="reprintCodEspecial"
+                            >
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Reimprimir</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="recibirModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form wire:submit.prevent="confirmarRecibir">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Recibir paquetes (ENVIADO a RECIBIDO)</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex gap-2 align-items-center mb-3">
+                            <input
+                                type="text"
+                                class="form-control uppercase-input"
+                                placeholder="Ingrese codigo"
+                                wire:model.defer="codigoRecibir"
+                            >
+                            <button type="button" class="btn btn-outline-azul" wire:click="addCodigoRecibir">
+                                Agregar
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Codigo</th>
+                                        <th>Destinatario</th>
+                                        <th>Telefono</th>
+                                        <th>Ciudad</th>
+                                        <th>Ventanilla</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($previewRecibirPaquetes as $paquete)
+                                        <tr>
+                                            <td>{{ $paquete->codigo }}</td>
+                                            <td>{{ $paquete->destinatario }}</td>
+                                            <td>{{ $paquete->telefono }}</td>
+                                            <td>{{ $paquete->ciudad }}</td>
+                                            <td>{{ optional($paquete->ventanillaRef)->nombre_ventanilla ?? '-' }}</td>
+                                            <td>{{ optional($paquete->estado)->nombre_estado ?? '-' }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">Sin paquetes en previsualizacion</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Confirmar recepcion</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -226,5 +436,13 @@
 
     window.addEventListener('closePaqueteOrdiModal', () => {
         $('#paqueteOrdiModal').modal('hide');
+    });
+
+    window.addEventListener('openRecibirModal', () => {
+        $('#recibirModal').modal('show');
+    });
+
+    window.addEventListener('closeRecibirModal', () => {
+        $('#recibirModal').modal('hide');
     });
 </script>
