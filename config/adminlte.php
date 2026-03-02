@@ -577,6 +577,11 @@ return [
                     'icon' => 'fas fa-clipboard-check',
                 ],
                 [
+                    'text' => 'Eventos CONTRATO',
+                    'url' => 'eventos-contrato',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
                     'text' => 'Auditoria',
                     'url' => 'auditoria',
                     'icon' => 'fas fa-clipboard-list',
