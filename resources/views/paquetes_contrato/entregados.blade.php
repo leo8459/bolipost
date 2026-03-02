@@ -27,6 +27,7 @@
                                 <th>Destino</th>
                                 <th>Receptor</th>
                                 <th>Fecha registro</th>
+                                <th>Imagen</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -39,6 +40,22 @@
                                     <td>{{ $c->nombre_r }}</td>
                                     <td>{{ optional($c->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @if (!empty($c->imagen))
+                                            <div class="d-flex align-items-center" style="gap: .5rem;">
+                                                <a href="{{ asset('storage/' . $c->imagen) }}" target="_blank" rel="noopener">
+                                                    <img src="{{ asset('storage/' . $c->imagen) }}" alt="Imagen entrega" class="thumb-img">
+                                                </a>
+                                                <a href="{{ asset('storage/' . $c->imagen) }}"
+                                                   class="btn btn-sm btn-outline-azul"
+                                                   download>
+                                                    Descargar
+                                                </a>
+                                            </div>
+                                        @else
+                                            <span class="muted">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
                                         <a href="{{ route('paquetes-contrato.reporte', $c->id) }}"
                                            class="btn btn-sm btn-outline-azul"
                                            target="_blank"
@@ -49,7 +66,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center py-5">
+                                    <td colspan="7" class="text-center py-5">
                                         <div class="fw-bold text-color-main">No hay contratos entregados</div>
                                         <div class="muted">No existen registros en estado ENTREGADO para tu empresa.</div>
                                     </td>
@@ -124,6 +141,14 @@
             padding: 4px 10px;
             border-radius: 999px;
             display: inline-block;
+        }
+
+        .thumb-img {
+            width: 52px;
+            height: 52px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 1px solid rgba(52, 68, 124, .2);
         }
 
         .btn-outline-azul {

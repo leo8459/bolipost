@@ -40,6 +40,7 @@
                                 <th>Peso</th>
                                 <th>Recibido por</th>
                                 <th>Descripcion</th>
+                                <th>Imagen</th>
                                 <th>Asignado a</th>
                                 <th>Fecha entrega</th>
                             </tr>
@@ -55,6 +56,22 @@
                                     <td>{{ $paquete->peso }}</td>
                                     <td>{{ $paquete->recibido_por ?: '-' }}</td>
                                     <td>{{ $paquete->descripcion ?: '-' }}</td>
+                                    <td>
+                                        @if (!empty($paquete->imagen))
+                                            <div class="d-flex align-items-center" style="gap: .5rem;">
+                                                <a href="{{ asset('storage/' . $paquete->imagen) }}" target="_blank" rel="noopener">
+                                                    <img src="{{ asset('storage/' . $paquete->imagen) }}" alt="Imagen entrega" class="thumb-img">
+                                                </a>
+                                                <a href="{{ asset('storage/' . $paquete->imagen) }}"
+                                                   class="btn btn-sm btn-outline-primary"
+                                                   download>
+                                                    Descargar
+                                                </a>
+                                            </div>
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                     <td>{{ $paquete->asignado_a ?: '-' }}</td>
                                     <td>
                                         {{ !empty($paquete->fecha_entrega) ? \Illuminate\Support\Carbon::parse($paquete->fecha_entrega)->format('d/m/Y H:i') : '-' }}
@@ -62,7 +79,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-4">
+                                    <td colspan="11" class="text-center py-4">
                                         No hay registros en estado ENTREGADO.
                                     </td>
                                 </tr>
@@ -121,6 +138,14 @@
             text-transform: uppercase;
             letter-spacing: 0.35px;
             white-space: nowrap;
+        }
+
+        .thumb-img {
+            width: 52px;
+            height: 52px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 1px solid rgba(52, 68, 124, 0.2);
         }
     </style>
 @endsection

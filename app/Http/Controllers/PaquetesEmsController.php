@@ -73,6 +73,7 @@ class PaquetesEmsController extends Controller
                 DB::raw('paquetes_ems.updated_at as fecha_entrega'),
                 'asignacion.recibido_por',
                 'asignacion.descripcion',
+                DB::raw('COALESCE(asignacion.imagen, paquetes_ems.imagen) as imagen'),
                 'cartero_user.name as asignado_a',
             ])
             ->when($estadoEntregadoId, function ($query) use ($estadoEntregadoId) {
@@ -106,6 +107,7 @@ class PaquetesEmsController extends Controller
                 DB::raw('paquetes_contrato.updated_at as fecha_entrega'),
                 'asignacion.recibido_por',
                 'asignacion.descripcion',
+                DB::raw('COALESCE(asignacion.imagen, paquetes_contrato.imagen) as imagen'),
                 'cartero_user.name as asignado_a',
             ])
             ->when($estadoEntregadoId, function ($query) use ($estadoEntregadoId) {

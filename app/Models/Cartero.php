@@ -20,6 +20,7 @@ class Cartero extends Model
         'intento',
         'recibido_por',
         'descripcion',
+        'imagen',
     ];
 
     public function user()

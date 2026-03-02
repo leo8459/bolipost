@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class CarterosController extends Controller
@@ -680,6 +681,7 @@ class CarterosController extends Controller
             'id' => ['required', 'integer'],
             'recibido_por' => ['required', 'string', 'max:255'],
             'descripcion' => ['nullable', 'string'],
+            'foto' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
         ]);
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
@@ -707,13 +709,16 @@ class CarterosController extends Controller
             $userId,
             [$estadoCarteroId, $estadoProvinciaId]
         );
+        $imagenPath = $this->storeDeliveryPhoto($request, $asignacion->imagen ?? $asignacion->foto);
 
-        DB::transaction(function () use ($validated, $asignacion, $estadoEntregadoId, $userId, $eventoEntregaId) {
+        DB::transaction(function () use ($validated, $asignacion, $estadoEntregadoId, $userId, $eventoEntregaId, $imagenPath) {
             $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoEntregadoId);
             $asignacion->id_estados = $estadoEntregadoId;
             $asignacion->recibido_por = $validated['recibido_por'];
             $asignacion->descripcion = $validated['descripcion'] ?? null;
+            $asignacion->imagen = $imagenPath;
             $asignacion->save();
+            $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath);
 
             if ($validated['tipo_paquete'] === 'EMS') {
                 $codigo = trim((string) PaqueteEms::query()
@@ -743,6 +748,7 @@ class CarterosController extends Controller
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO'],
             'id' => ['required', 'integer'],
             'descripcion' => ['nullable', 'string'],
+            'foto' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
         ]);
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
@@ -769,13 +775,16 @@ class CarterosController extends Controller
             $userId,
             [$estadoCarteroId, $estadoProvinciaId]
         );
+        $imagenPath = $this->storeDeliveryPhoto($request, $asignacion->imagen ?? $asignacion->foto);
 
-        DB::transaction(function () use ($validated, $asignacion, $estadoDevolucionId, $userId, $eventoIntentoId) {
+        DB::transaction(function () use ($validated, $asignacion, $estadoDevolucionId, $userId, $eventoIntentoId, $imagenPath) {
             $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoDevolucionId);
             $asignacion->intento = ((int) $asignacion->intento) + 1;
             $asignacion->id_estados = $estadoDevolucionId;
             $asignacion->descripcion = $validated['descripcion'] ?? $asignacion->descripcion;
+            $asignacion->imagen = $imagenPath;
             $asignacion->save();
+            $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath);
 
             if ($validated['tipo_paquete'] === 'EMS') {
                 $codigo = trim((string) PaqueteEms::query()
@@ -1063,7 +1072,7 @@ class CarterosController extends Controller
             }
         }
 
-        return collect($rows)->map(function ($row) use ($mapEms, $mapCerti) {
+        return collect($rows)->map(function ($row) use ($mapEms, $mapCerti, $mapContrato) {
             $asignacion = null;
             if ($row['tipo_paquete'] === 'EMS' && isset($mapEms[$row['id']])) {
                 $asignacion = $mapEms[$row['id']];
@@ -1082,10 +1091,44 @@ class CarterosController extends Controller
                 $row['intento'] = (int) $asignacion->intento;
                 $row['recibido_por'] = $asignacion->recibido_por;
                 $row['descripcion'] = $asignacion->descripcion;
+                $row['imagen'] = $asignacion->imagen ?? $asignacion->foto;
+                $row['foto'] = $asignacion->imagen ?? $asignacion->foto;
             }
 
             return $row;
         })->values();
+    }
+
+    private function storeDeliveryPhoto(Request $request, ?string $currentPath = null): ?string
+    {
+        if (!$request->hasFile('foto')) {
+            return $currentPath;
+        }
+
+        $newPath = $request->file('foto')->store('carteros/entregas', 'public');
+
+        if (!empty($currentPath) && Storage::disk('public')->exists($currentPath)) {
+            Storage::disk('public')->delete($currentPath);
+        }
+
+        return $newPath;
+    }
+
+    private function updatePackageImage(string $tipoPaquete, int $id, ?string $imagePath): void
+    {
+        if (empty($imagePath)) {
+            return;
+        }
+
+        if ($tipoPaquete === 'EMS') {
+            PaqueteEms::query()->where('id', $id)->update(['imagen' => $imagePath]);
+            return;
+        }
+
+        if ($tipoPaquete === 'CONTRATO') {
+            RecojoContrato::query()->where('id', $id)->update(['imagen' => $imagePath]);
+            return;
+        }
     }
 
     private function resolveEstadoAsignadoId(): int

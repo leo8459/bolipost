@@ -32,6 +32,7 @@ class PaqueteEms extends Model
         'tarifario_id',
         'estado_id',
         'user_id',
+        'imagen',
     ];
 
     public function user()
