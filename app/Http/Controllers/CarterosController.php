@@ -684,7 +684,8 @@ class CarterosController extends Controller
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
         $estadoProvinciaId = $this->resolveEstadoProvinciaId();
-        $estadoDomicilioId = $this->resolveEstadoDomicilioId();
+        // Para entregas por cartero, marcar como ENTREGADO
+        $estadoEntregadoId = $this->resolveEstadoByName('ENTREGADO');
         $userId = (int) $request->user()->id;
         $eventoEntregaId = self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE;
 
@@ -707,9 +708,9 @@ class CarterosController extends Controller
             [$estadoCarteroId, $estadoProvinciaId]
         );
 
-        DB::transaction(function () use ($validated, $asignacion, $estadoDomicilioId, $userId, $eventoEntregaId) {
-            $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoDomicilioId);
-            $asignacion->id_estados = $estadoDomicilioId;
+        DB::transaction(function () use ($validated, $asignacion, $estadoEntregadoId, $userId, $eventoEntregaId) {
+            $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoEntregadoId);
+            $asignacion->id_estados = $estadoEntregadoId;
             $asignacion->recibido_por = $validated['recibido_por'];
             $asignacion->descripcion = $validated['descripcion'] ?? null;
             $asignacion->save();

@@ -12,9 +12,9 @@
                 <span class="ems-badge">Total: {{ $paquetes->total() }}</span>
             </div>
             <div class="card-body">
-                @if (!$estadoDomicilioDisponible)
+                @if (!$estadoEntregadoDisponible)
                     <div class="alert alert-warning">
-                        No existe el estado DOMICILIO en la tabla estados.
+                        No existe el estado ENTREGADO en la tabla estados.
                     </div>
                 @endif
 
@@ -63,7 +63,7 @@
                             @empty
                                 <tr>
                                     <td colspan="10" class="text-center py-4">
-                                        No hay registros en estado DOMICILIO.
+                                        No hay registros en estado ENTREGADO.
                                     </td>
                                 </tr>
                             @endforelse

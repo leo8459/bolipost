@@ -55,8 +55,8 @@ class PaquetesEmsController extends Controller
     {
         $search = trim((string) $request->query('q', ''));
 
-        $estadoDomicilioId = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['DOMICILIO'])
+        $estadoEntregadoId = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
             ->value('id');
 
         $emsQuery = PaqueteEms::query()
@@ -75,8 +75,8 @@ class PaquetesEmsController extends Controller
                 'asignacion.descripcion',
                 'cartero_user.name as asignado_a',
             ])
-            ->when($estadoDomicilioId, function ($query) use ($estadoDomicilioId) {
-                $query->where('paquetes_ems.estado_id', (int) $estadoDomicilioId);
+            ->when($estadoEntregadoId, function ($query) use ($estadoEntregadoId) {
+                $query->where('paquetes_ems.estado_id', (int) $estadoEntregadoId);
             }, function ($query) {
                 $query->whereRaw('1 = 0');
             })
@@ -108,8 +108,8 @@ class PaquetesEmsController extends Controller
                 'asignacion.descripcion',
                 'cartero_user.name as asignado_a',
             ])
-            ->when($estadoDomicilioId, function ($query) use ($estadoDomicilioId) {
-                $query->where('paquetes_contrato.estados_id', (int) $estadoDomicilioId);
+            ->when($estadoEntregadoId, function ($query) use ($estadoEntregadoId) {
+                $query->where('paquetes_contrato.estados_id', (int) $estadoEntregadoId);
             }, function ($query) {
                 $query->whereRaw('1 = 0');
             })
@@ -134,7 +134,7 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.entregados', [
             'paquetes' => $paquetes,
             'search' => $search,
-            'estadoDomicilioDisponible' => (bool) $estadoDomicilioId,
+            'estadoEntregadoDisponible' => (bool) $estadoEntregadoId,
         ]);
     }
 

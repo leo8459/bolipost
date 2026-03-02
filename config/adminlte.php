@@ -623,6 +623,11 @@ return [
                     'url' => 'paquetes-contrato/cartero',
                     'icon' => 'fas fa-motorcycle',
                 ],
+                 [
+                    'text' => 'Contratos entregados',
+                    'url' => 'paquetes-contrato/entregados',
+                    'icon' => 'fas fa-motorcycle',
+                ],
             ],
         ],
         [

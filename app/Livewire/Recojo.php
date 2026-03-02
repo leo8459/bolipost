@@ -270,54 +270,77 @@ class Recojo extends Component
         return null;
     }
 
-    public function render()
-    {
-        $q = trim((string) $this->searchQuery);
+   public function render()
+{
+    $q = trim((string) $this->searchQuery);
 
-        $recojos = RecojoModel::query()
-            ->with([
-                'empresa:id,nombre,sigla',
-                'user:id,name,empresa_id',
-                'user.empresa:id,nombre,sigla',
-                'estadoRegistro:id,nombre_estado',
-            ])
-            ->when($this->isAlmacenMode, function ($query) {
-                $query->where('estados_id', (int) $this->estadoAlmacenId)
-                    ->when($this->userCity !== '', function ($sub) {
-                        $sub->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
-                    }, function ($sub) {
-                        $sub->whereRaw('1 = 0');
-                    });
-            })
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($sub) use ($q) {
-                    $sub->where('codigo', 'like', "%{$q}%")
-                        ->orWhere('origen', 'like', "%{$q}%")
-                        ->orWhere('destino', 'like', "%{$q}%")
-                        ->orWhere('nombre_r', 'like', "%{$q}%")
-                        ->orWhere('nombre_d', 'like', "%{$q}%")
-                        ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($q) {
-                            $estadoQuery->where('nombre_estado', 'like', "%{$q}%");
-                        })
-                        ->orWhereHas('user', function ($userQuery) use ($q) {
-                            $userQuery->where('name', 'like', "%{$q}%");
-                        })
-                        ->orWhereHas('user.empresa', function ($empresaQuery) use ($q) {
-                            $empresaQuery->where('nombre', 'like', "%{$q}%")
-                                ->orWhere('sigla', 'like', "%{$q}%");
-                        })
-                        ->orWhereHas('empresa', function ($empresaQuery) use ($q) {
-                            $empresaQuery->where('nombre', 'like', "%{$q}%")
-                                ->orWhere('sigla', 'like', "%{$q}%");
-                        });
+    $authUser = Auth::user();
+    $authUserId = (int) ($authUser?->id ?? 0);
+    $authEmpresaId = (int) ($authUser?->empresa_id ?? 0);
+
+    $recojos = RecojoModel::query()
+        ->with([
+            'empresa:id,nombre,sigla',
+            'user:id,name,empresa_id',
+            'user.empresa:id,nombre,sigla',
+            'estadoRegistro:id,nombre_estado',
+        ])
+
+        // ✅ FILTRO PRINCIPAL: solo registros de mi empresa
+        ->when($authEmpresaId > 0, function ($query) use ($authEmpresaId) {
+            $query->where('empresa_id', $authEmpresaId);
+        }, function ($query) {
+            // si el usuario no tiene empresa_id, no mostrar nada
+            $query->whereRaw('1 = 0');
+        })
+
+        // Tu lógica existente de modos
+        ->when(!$this->isAlmacenMode, function ($query) use ($authUserId) {
+            if ($authUserId > 0) {
+                $query->where('user_id', $authUserId);
+                return;
+            }
+            $query->whereRaw('1 = 0');
+        })
+        ->when($this->isAlmacenMode, function ($query) {
+            $query->where('estados_id', (int) $this->estadoAlmacenId)
+                ->when($this->userCity !== '', function ($sub) {
+                    $sub->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
+                }, function ($sub) {
+                    $sub->whereRaw('1 = 0');
                 });
-            })
-            ->orderByDesc('id')
-            ->paginate(10);
+        })
 
-        return view('livewire.recojo', [
-            'recojos' => $recojos,
-            'users' => User::query()->orderBy('name')->get(['id', 'name']),
-        ]);
-    }
+        // Búsqueda
+        ->when($q !== '', function ($query) use ($q) {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('codigo', 'like', "%{$q}%")
+                    ->orWhere('origen', 'like', "%{$q}%")
+                    ->orWhere('destino', 'like', "%{$q}%")
+                    ->orWhere('nombre_r', 'like', "%{$q}%")
+                    ->orWhere('nombre_d', 'like', "%{$q}%")
+                    ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($q) {
+                        $estadoQuery->where('nombre_estado', 'like', "%{$q}%");
+                    })
+                    ->orWhereHas('user', function ($userQuery) use ($q) {
+                        $userQuery->where('name', 'like', "%{$q}%");
+                    })
+                    ->orWhereHas('user.empresa', function ($empresaQuery) use ($q) {
+                        $empresaQuery->where('nombre', 'like', "%{$q}%")
+                            ->orWhere('sigla', 'like', "%{$q}%");
+                    })
+                    ->orWhereHas('empresa', function ($empresaQuery) use ($q) {
+                        $empresaQuery->where('nombre', 'like', "%{$q}%")
+                            ->orWhere('sigla', 'like', "%{$q}%");
+                    });
+            });
+        })
+        ->orderByDesc('id')
+        ->paginate(10);
+
+    return view('livewire.recojo', [
+        'recojos' => $recojos,
+        'users' => User::query()->orderBy('name')->get(['id', 'name']),
+    ]);
+}
 }
