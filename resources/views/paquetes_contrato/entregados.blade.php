@@ -41,16 +41,11 @@
                                     <td>{{ optional($c->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         @if (!empty($c->imagen))
-                                            <div class="d-flex align-items-center" style="gap: .5rem;">
-                                                <a href="{{ asset('storage/' . $c->imagen) }}" target="_blank" rel="noopener">
-                                                    <img src="{{ asset('storage/' . $c->imagen) }}" alt="Imagen entrega" class="thumb-img">
-                                                </a>
-                                                <a href="{{ asset('storage/' . $c->imagen) }}"
-                                                   class="btn btn-sm btn-outline-azul"
-                                                   download>
-                                                    Descargar
-                                                </a>
-                                            </div>
+                                            <a href="{{ asset('storage/' . $c->imagen) }}"
+                                               class="btn btn-sm btn-outline-azul"
+                                               download>
+                                                Descargar
+                                            </a>
                                         @else
                                             <span class="muted">-</span>
                                         @endif
@@ -141,14 +136,6 @@
             padding: 4px 10px;
             border-radius: 999px;
             display: inline-block;
-        }
-
-        .thumb-img {
-            width: 52px;
-            height: 52px;
-            border-radius: 8px;
-            object-fit: cover;
-            border: 1px solid rgba(52, 68, 124, .2);
         }
 
         .btn-outline-azul {

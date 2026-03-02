@@ -23,6 +23,7 @@ class PaqueteCerti extends Model
         'aduana',
         'fk_estado',
         'fk_ventanilla',
+        'imagen',
     ];
 
     public function estado()

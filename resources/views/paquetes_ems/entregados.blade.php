@@ -58,16 +58,11 @@
                                     <td>{{ $paquete->descripcion ?: '-' }}</td>
                                     <td>
                                         @if (!empty($paquete->imagen))
-                                            <div class="d-flex align-items-center" style="gap: .5rem;">
-                                                <a href="{{ asset('storage/' . $paquete->imagen) }}" target="_blank" rel="noopener">
-                                                    <img src="{{ asset('storage/' . $paquete->imagen) }}" alt="Imagen entrega" class="thumb-img">
-                                                </a>
-                                                <a href="{{ asset('storage/' . $paquete->imagen) }}"
-                                                   class="btn btn-sm btn-outline-primary"
-                                                   download>
-                                                    Descargar
-                                                </a>
-                                            </div>
+                                            <a href="{{ asset('storage/' . $paquete->imagen) }}"
+                                               class="btn btn-sm btn-outline-primary"
+                                               download>
+                                                Descargar
+                                            </a>
                                         @else
                                             -
                                         @endif
@@ -140,12 +135,5 @@
             white-space: nowrap;
         }
 
-        .thumb-img {
-            width: 52px;
-            height: 52px;
-            border-radius: 8px;
-            object-fit: cover;
-            border: 1px solid rgba(52, 68, 124, 0.2);
-        }
     </style>
 @endsection

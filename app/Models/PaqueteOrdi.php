@@ -23,6 +23,7 @@ class PaqueteOrdi extends Model
         'cod_especial',
         'fk_ventanilla',
         'fk_estado',
+        'imagen',
     ];
 
     public function estado()
