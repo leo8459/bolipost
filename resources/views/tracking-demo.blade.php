@@ -49,9 +49,6 @@
                     <div><span>Fecha ultima actualizacion:</span> <strong>{{ $fechaUltima->format('d/m/Y') }}</strong></div>
                 </div>
 
-                <p class="hero-help">La trazabilidad completa del envio se muestra abajo en forma de camino cronologico.</p>
-                <p class="trace-read-help">Lectura simple: comienza en <strong>Inicio</strong> y sigue la linea punteada hasta <strong>Actual</strong>.</p>
-
                 <article class="progress-panel">
                     <div class="trace-road" id="traceList">
                         @foreach ($traceRows as $rowIndex => $row)
@@ -79,6 +76,7 @@
                                         <div class="trace-detail">
                                             <span><strong>Fecha:</strong> {{ \Illuminate\Support\Carbon::parse($evento->created_at)->format('Y-m-d H:i:s') }}</span>
                                             <span><strong>Hace:</strong> {{ \Illuminate\Support\Carbon::parse($evento->created_at)->locale('es')->diffForHumans() }}</span>
+                                            <span><strong>Servicio:</strong> {{ $evento->servicio ?? 'EMS' }}</span>
                                         </div>
                                     </article>
                                 @endforeach

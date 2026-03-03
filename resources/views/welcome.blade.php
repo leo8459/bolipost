@@ -94,7 +94,7 @@
             <div class="container">
                 <div class="heading reveal">
                     <h2>Resultado de rastreo</h2>
-                    <p>Busca por código en la parte superior para ver los últimos eventos EMS.</p>
+                    <p>Busca por código en la parte superior para ver los últimos eventos de EMS, CERTI, CONTRATO y ORDI.</p>
                 </div>
 
                 <article class="tracking-results-card reveal">
@@ -441,9 +441,10 @@
                 const title = document.createElement('h4');
                 const created = document.createElement('p');
                 const code = document.createElement('span');
+                const servicio = evento.servicio ? ` | Servicio: ${evento.servicio}` : '';
 
                 title.textContent = evento.nombre_evento ?? ('Evento #' + (evento.evento_id ?? '-'));
-                created.textContent = `Registrado: ${formatDate(evento.created_at)}`;
+                created.textContent = `Registrado: ${formatDate(evento.created_at)}${servicio}`;
                 code.className = 'tracking-event-code';
                 code.textContent = evento.codigo ?? codigo;
 

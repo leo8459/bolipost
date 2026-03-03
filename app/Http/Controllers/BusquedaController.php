@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class BusquedaController extends Controller
@@ -46,7 +47,7 @@ class BusquedaController extends Controller
 
         if ($rows->isEmpty()) {
             return response()->json([
-                'tipo' => 'ems_eventos',
+                'tipo' => 'tracking_eventos',
                 'filtro' => ['codigo' => $codigo],
                 'existe_paquete' => false,
                 'total_registros' => 0,
@@ -67,7 +68,7 @@ class BusquedaController extends Controller
             ->values();
 
         return response()->json([
-            'tipo' => 'ems_eventos',
+            'tipo' => 'tracking_eventos',
             'filtro' => ['codigo' => $codigo],
             'existe_paquete' => true,
             'total_registros' => $rows->count(),
@@ -77,20 +78,46 @@ class BusquedaController extends Controller
 
     private function obtenerEventosPorCodigo(string $codigo): Collection
     {
-        return DB::table('eventos_ems as ee')
-            ->leftJoin('eventos as e', 'e.id', '=', 'ee.evento_id')
-            ->whereRaw('TRIM(UPPER(ee.codigo)) = TRIM(UPPER(?))', [$codigo])
-            ->select([
-                'ee.id',
-                'ee.codigo',
-                'ee.evento_id',
-                'ee.user_id',
-                'ee.created_at',
-                'ee.updated_at',
-                'e.nombre_evento',
-            ])
-            ->orderByDesc('ee.created_at')
-            ->orderByDesc('ee.id')
+        $fuentes = [
+            ['tabla' => 'eventos_ems', 'servicio' => 'EMS'],
+            ['tabla' => 'eventos_certi', 'servicio' => 'CERTI'],
+            ['tabla' => 'eventos_contrato', 'servicio' => 'CONTRATO'],
+            ['tabla' => 'eventos_ordi', 'servicio' => 'ORDI'],
+        ];
+
+        $queries = collect($fuentes)
+            ->filter(fn (array $fuente) => Schema::hasTable($fuente['tabla']))
+            ->map(function (array $fuente) use ($codigo) {
+                return DB::table($fuente['tabla'] . ' as ee')
+                    ->leftJoin('eventos as e', 'e.id', '=', 'ee.evento_id')
+                    ->whereRaw('TRIM(UPPER(ee.codigo)) = TRIM(UPPER(?))', [$codigo])
+                    ->select([
+                        'ee.id',
+                        'ee.codigo',
+                        'ee.evento_id',
+                        'ee.user_id',
+                        'ee.created_at',
+                        'ee.updated_at',
+                        'e.nombre_evento',
+                        DB::raw("'" . $fuente['servicio'] . "' as servicio"),
+                        DB::raw("'" . $fuente['tabla'] . "' as tabla_origen"),
+                    ]);
+            })
+            ->values();
+
+        if ($queries->isEmpty()) {
+            return collect();
+        }
+
+        $union = $queries->first();
+        foreach ($queries->slice(1) as $query) {
+            $union->unionAll($query);
+        }
+
+        return DB::query()
+            ->fromSub($union, 'tracking')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->get();
     }
 }
