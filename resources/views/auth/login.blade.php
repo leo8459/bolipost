@@ -3,11 +3,11 @@
         <section class="px-6 py-7 sm:px-8 sm:py-8">
             <div class="rounded-xl border border-[#e8edf7] bg-[#f9fbff] p-4 mb-5">
           
-                <h2 class="mt-2 text-2xl font-bold text-[#123c76]">Iniciar sesion</h2>
-                <p class="mt-1 text-sm text-[#123c76]/75">Ingresa con tu cuenta.</p>
+                <h2 class="mt-2 text-2xl font-bold text-[#20539A]">Iniciar sesion</h2>
+                <p class="mt-1 text-sm text-[#20539A]/75">Ingresa con tu cuenta.</p>
             </div>
 
-            <x-auth-session-status class="mb-4 rounded-lg border border-[#eab312]/40 bg-[#fff7dd] px-3 py-2" :status="session('status')" />
+            <x-auth-session-status class="mb-4 rounded-lg border border-[#FECC36]/40 bg-[#fff7dd] px-3 py-2" :status="session('status')" />
 
             <form method="POST" action="{{ route('login') }}" class="space-y-4">
                 @csrf
@@ -28,7 +28,7 @@
                         <button
                             type="button"
                             id="toggle-password"
-                            class="absolute z-10 inline-flex h-8 w-8 items-center justify-center text-[#123c76]/70 hover:text-[#123c76] focus:outline-none"
+                            class="absolute z-10 inline-flex h-8 w-8 items-center justify-center text-[#20539A]/70 hover:text-[#20539A] focus:outline-none"
                             style="right: 0.75rem; top: 50%; transform: translateY(-50%);"
                             aria-label="Mostrar contrasena"
                             aria-pressed="false"
@@ -50,12 +50,12 @@
 
                 <div class="flex items-center justify-between gap-4 pt-1">
                     <label for="remember_me" class="inline-flex items-center">
-                        <input id="remember_me" type="checkbox" class="rounded border-[#dcb15f] text-[#c79706] shadow-sm focus:ring-[#fecb34]/35" name="remember">
-                        <span class="ms-2 text-sm text-[#123c76]/80">{{ __('Recordarme') }}</span>
+                        <input id="remember_me" type="checkbox" class="rounded border-[#FECC36] text-[#FECC36] shadow-sm focus:ring-[#FECC36]/35" name="remember">
+                        <span class="ms-2 text-sm text-[#20539A]/80">{{ __('Recordarme') }}</span>
                     </label>
 
                     @if (Route::has('password.request'))
-                        <a class="text-sm font-medium text-[#9f7a08] hover:text-[#7c5d02] rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#fecb34]" href="{{ route('password.request') }}">
+                        <a class="text-sm font-medium text-[#FECC36] hover:text-[#FECC36] rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FECC36]" href="{{ route('password.request') }}">
                             {{ __('Olvidaste tu contrasena?') }}
                         </a>
                     @endif
@@ -65,7 +65,7 @@
                     {{ __('Ingresar al sistema') }}
                 </x-primary-button>
 
-                <p class="pt-1 text-[11px] text-center text-[#123c76]/65">
+                <p class="pt-1 text-[11px] text-center text-[#20539A]/65">
                     Uso exclusivo de personal autorizado.
                 </p>
             </form>
@@ -92,3 +92,4 @@
         });
     </script>
 </x-guest-layout>
+

@@ -19,7 +19,7 @@
             overflow: hidden;
         }
         .quick-header {
-            background: linear-gradient(90deg, #20539A, #2c3766);
+            background: linear-gradient(90deg, #20539A, #20539A);
             color: #fff;
             padding: 16px 18px;
         }
@@ -384,3 +384,4 @@
     })();
 </script>
 @endsection
+

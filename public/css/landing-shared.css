@@ -1,8 +1,8 @@
 /* Shared styles for landing pages (welcome + tracking-demo) */
 :root {
-    --brand-yellow: #fecb34; /* Pantone 116C */
-    --brand-blue: #1a549a;
-    --brand-blue-soft: #1a549a;
+    --brand-yellow: #FECC36; /* Pantone 116C */
+    --brand-blue: #20539A;
+    --brand-blue-soft: #20539A;
 }
 
 .container {
@@ -14,14 +14,14 @@
     position: fixed;
     inset: 0 0 auto;
     z-index: 40;
-    background: linear-gradient(90deg, #fecb34 0%, #f1bc1c 100%);
+    background: linear-gradient(90deg, #FECC36 0%, #FECC36 100%);
     border-bottom: 2px solid rgba(4, 30, 66, 0.30);
     backdrop-filter: blur(10px);
     transition: background .24s cubic-bezier(.2, .75, .2, 1), border-color .24s cubic-bezier(.2, .75, .2, 1);
 }
 
 .topbar.scrolled {
-    background: linear-gradient(90deg, #f7c528 0%, #eab312 100%);
+    background: linear-gradient(90deg, #FECC36 0%, #FECC36 100%);
     border-color: rgba(4, 30, 66, 0.42);
 }
 
@@ -133,7 +133,7 @@
 
 .btn-light {
     color: #fff;
-    background: linear-gradient(95deg, #1a549a, #1a549a);
+    background: linear-gradient(95deg, #20539A, #20539A);
     border: 1px solid rgba(255, 205, 0, .28);
 }
 
@@ -151,7 +151,7 @@
 .site-footer {
     background:
         radial-gradient(540px 240px at 0% 0%, rgba(255,255,255,.45), transparent 72%),
-        linear-gradient(135deg, #fecb34 0%, #f4bf20 58%, #e7ac0f 100%);
+        linear-gradient(135deg, #FECC36 0%, #FECC36 58%, #FECC36 100%);
     color: var(--brand-blue);
     border-top: 2px solid rgba(4, 30, 66, .30);
 }
@@ -288,6 +288,7 @@
     .brand span { display: none; }
     .footer-grid { grid-template-columns: 1fr; }
 }
+
 
 
 
