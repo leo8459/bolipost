@@ -86,7 +86,7 @@ return [
     'auth_logo' => [
         'enabled' => false,
         'img' => [
-            'path' =>'images/AGBClogo.png',
+            'path' => 'images/AGBClogo.png',
             'alt' => 'Auth Logo',
             'class' => '',
             'width' => 50,
@@ -548,6 +548,47 @@ return [
             ],
         ],
         [
+            'text' => 'Eventos',
+            'icon' => 'fas fa-calendar-alt',
+            'submenu' => [
+                [
+                    'text' => 'Eventos UPU',
+                    'url' => 'eventos',
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Eventos EMS',
+                    'url' => 'eventos-ems',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
+                    'text' => 'Eventos Certificado',
+                    'url' => 'eventos-certi',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
+                    'text' => 'Eventos Ordinario',
+                    'url' => 'eventos-ordi',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
+                    'text' => 'Eventos Expediciones',
+                    'url' => 'eventos-despacho',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
+                    'text' => 'Eventos Contratos',
+                    'url' => 'eventos-contrato',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
+                    'text' => 'Eventos Auditoria',
+                    'url' => 'eventos-auditoria',
+                    'icon' => 'fas fa-history',
+                ],
+            ],
+        ],
+        [
             'text' => 'Configuraciones',
             'icon' => 'fas fa-cogs',
             'submenu' => [
@@ -557,44 +598,9 @@ return [
                     'icon' => 'fas fa-flag',
                 ],
                 [
-                    'text' => 'Eventos',
-                    'url' => 'eventos',
-                    'icon' => 'fas fa-calendar-alt',
-                ],
-                [
-                    'text' => 'Eventos EMS',
-                    'url' => 'eventos-ems',
-                    'icon' => 'fas fa-clipboard-check',
-                ],
-                [
-                    'text' => 'Eventos CERTI',
-                    'url' => 'eventos-certi',
-                    'icon' => 'fas fa-clipboard-check',
-                ],
-                [
-                    'text' => 'Eventos ORDI',
-                    'url' => 'eventos-ordi',
-                    'icon' => 'fas fa-clipboard-check',
-                ],
-                [
-                    'text' => 'Eventos Despacho',
-                    'url' => 'eventos-despacho',
-                    'icon' => 'fas fa-clipboard-check',
-                ],
-                [
-                    'text' => 'Eventos CONTRATO',
-                    'url' => 'eventos-contrato',
-                    'icon' => 'fas fa-clipboard-check',
-                ],
-                [
                     'text' => 'Auditoria',
                     'url' => 'auditoria',
                     'icon' => 'fas fa-clipboard-list',
-                ],
-                [
-                    'text' => 'Eventos Auditoria',
-                    'url' => 'eventos-auditoria',
-                    'icon' => 'fas fa-history',
                 ],
                 [
                     'text' => 'Ventanillas',
@@ -855,4 +861,3 @@ return [
 
     'livewire' => false,
 ];
-
