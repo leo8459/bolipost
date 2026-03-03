@@ -317,18 +317,6 @@ return [
             'icon' => 'fas fa-user',
         ],
         [
-            'text' => 'Consultas Informacion',
-            'icon' => 'fas fa-users',
-            // 'can'  => 'users.index',
-            'submenu' => [
-                [
-                    'text' => 'Consulta Correspondencia',
-                    'url' => 'plantilla',
-                    'icon' => 'fas fa-user',
-                ],
-            ],
-        ],
-        [
             'text' => 'Admisiones',
             'icon' => 'fas fa-inbox',
             'submenu' => [

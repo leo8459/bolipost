@@ -91,6 +91,18 @@
 .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-treeview > .nav-item > .nav-link .nav-icon{
     color: rgba(32,83,154,0.95) !important;
 }
+.sidebar-dark-primary .nav-sidebar .nav-treeview .nav-link,
+.sidebar-dark-primary .nav-sidebar .nav-treeview .nav-link p,
+.sidebar-dark-primary .nav-sidebar .nav-treeview .nav-link .nav-icon{
+    color: #111111 !important;
+    opacity: 1 !important;
+}
+.sidebar-dark-primary .nav-sidebar .nav-treeview .nav-link.disabled,
+.sidebar-dark-primary .nav-sidebar .nav-treeview .nav-link.disabled p,
+.sidebar-dark-primary .nav-sidebar .nav-treeview .nav-link.disabled .nav-icon{
+    color: #111111 !important;
+    opacity: 0.9 !important;
+}
 .sidebar-dark-primary .nav-treeview > .nav-item > .nav-link.active{
     background-color: rgba(32,83,154,0.18) !important;
     color: var(--agbc-azul) !important;
@@ -98,6 +110,11 @@
 .sidebar-dark-primary .nav-treeview > .nav-item > .nav-link:hover{
     background-color: rgba(32,83,154,0.12) !important;
     color: var(--agbc-azul) !important;
+}
+.sidebar-dark-primary .nav-treeview > .nav-item > .nav-link.active,
+.sidebar-dark-primary .nav-treeview > .nav-item > .nav-link.active p,
+.sidebar-dark-primary .nav-treeview > .nav-item > .nav-link.active .nav-icon{
+    color: #ffffff !important;
 }
 .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link .nav-icon{
     color: var(--agbc-azul) !important;
