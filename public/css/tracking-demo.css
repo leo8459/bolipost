@@ -501,18 +501,54 @@ body {
 }
 
 .history-event-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  display: grid;
+  gap: 0.36rem;
 }
 
-.history-event-meta span {
-  font-size: 0.77rem;
-  color: #486583;
-  background: #f0f5fb;
-  border: 1px solid #dde7f4;
-  border-radius: 6px;
-  padding: 0.15rem 0.42rem;
+.history-meta-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  border: 1px solid #e1eaf5;
+  border-radius: 8px;
+  background: #f7fbff;
+  padding: 0.28rem 0.48rem;
+}
+
+.history-meta-label {
+  font-size: 0.73rem;
+  color: #5f7898;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.history-meta-value {
+  font-size: 0.82rem;
+  color: #213f61;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.country-flag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  width: 16px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid #cddcf0;
+  vertical-align: middle;
+}
+
+.history-meta-row.is-date {
+  background: #f3f8ff;
+  border-color: #d8e5f7;
+}
+
+.history-meta-row.is-date .history-meta-label,
+.history-meta-row.is-date .history-meta-value {
+  color: #1f4f85;
 }
 
 @keyframes bannerShine {
@@ -559,6 +595,10 @@ body {
   .history-event-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .history-meta-row {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
   }
 }
 

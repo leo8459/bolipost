@@ -55,24 +55,75 @@
 
         $destinoLabel = str_ends_with(strtoupper($codigo), 'BO') ? 'Bolivia' : 'Internacional';
         $historial = $eventos->groupBy(fn($item) => \Illuminate\Support\Carbon::parse($item->created_at)->format('Y-m-d'));
+        $paises = [
+            'BOLIVIA' => [
+                'flag_code' => 'bo',
+                'tokens' => ['BOLIVIA', 'BOL', 'BO', 'LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'SUCRE', 'TARIJA', 'BENI', 'PANDO'],
+            ],
+            'ARGENTINA' => [
+                'flag_code' => 'ar',
+                'tokens' => ['ARGENTINA', 'ARG', 'AR', 'BUENOS AIRES', 'CORDOBA', 'MENDOZA', 'ROSARIO'],
+            ],
+            'BRASIL' => [
+                'flag_code' => 'br',
+                'tokens' => ['BRASIL', 'BRAZIL', 'BRA', 'BR', 'SAO PAULO', 'RIO DE JANEIRO', 'CURITIBA'],
+            ],
+            'CHILE' => [
+                'flag_code' => 'cl',
+                'tokens' => ['CHILE', 'CHL', 'CL', 'SANTIAGO', 'VALPARAISO', 'ANTOFAGASTA'],
+            ],
+            'PERU' => [
+                'flag_code' => 'pe',
+                'tokens' => ['PERU', 'PER', 'PE', 'LIMA', 'AREQUIPA', 'CUSCO'],
+            ],
+            'PARAGUAY' => [
+                'flag_code' => 'py',
+                'tokens' => ['PARAGUAY', 'PRY', 'PY', 'ASUNCION'],
+            ],
+            'URUGUAY' => [
+                'flag_code' => 'uy',
+                'tokens' => ['URUGUAY', 'URY', 'UY', 'MONTEVIDEO'],
+            ],
+        ];
 
-        $clasificarEvento = function (?string $nombre): array {
-            $texto = mb_strtolower((string) $nombre);
-
-            if (str_contains($texto, 'entreg') || str_contains($texto, 'recepcionado')) {
-                return ['estado' => 'Finalizado', 'clase' => 'is-done'];
-            }
-            if (str_contains($texto, 'fall') || str_contains($texto, 'incid') || str_contains($texto, 'devuelt')) {
-                return ['estado' => 'Incidencia', 'clase' => 'is-alert'];
-            }
-            if (str_contains($texto, 'aduan')) {
-                return ['estado' => 'Aduana', 'clase' => 'is-customs'];
-            }
-            if (str_contains($texto, 'transit') || str_contains($texto, 'despach') || str_contains($texto, 'saca')) {
-                return ['estado' => 'En transito', 'clase' => 'is-move'];
+        $detectarPais = function (?string $texto) use ($paises): ?string {
+            $valor = mb_strtoupper(trim((string) $texto));
+            if ($valor === '') {
+                return null;
             }
 
-            return ['estado' => 'Registrado', 'clase' => 'is-base'];
+            foreach ($paises as $pais => $cfg) {
+                foreach ($cfg['tokens'] as $token) {
+                    if (str_contains($valor, mb_strtoupper($token))) {
+                        return $pais;
+                    }
+                }
+            }
+
+            if (preg_match('/^BO[A-Z0-9]+/', $valor)) {
+                return 'BOLIVIA';
+            }
+            if (preg_match('/^AR[A-Z0-9]+/', $valor)) {
+                return 'ARGENTINA';
+            }
+            if (preg_match('/^BR[A-Z0-9]+/', $valor)) {
+                return 'BRASIL';
+            }
+            if (preg_match('/^CL[A-Z0-9]+/', $valor)) {
+                return 'CHILE';
+            }
+            if (preg_match('/^PE[A-Z0-9]+/', $valor)) {
+                return 'PERU';
+            }
+
+            return null;
+        };
+
+        $banderaDePais = function (?string $pais) use ($paises): string {
+            if (!$pais) {
+                return '';
+            }
+            return (string) ($paises[$pais]['flag_code'] ?? '');
         };
     @endphp
 
@@ -147,23 +198,44 @@
                             <div class="history-feed">
                                 @foreach ($items as $evento)
                                     @php
-                                        $detalle = $clasificarEvento((string) ($evento->nombre_evento ?? ''));
                                         $esUltimo = $loop->first && $loop->parent->first;
                                     @endphp
                                     <article class="history-event {{ $esUltimo ? 'is-latest' : '' }} reveal-item" style="--item-index: {{ $loop->iteration }};">
                                         <div class="history-event-side">
                                             <time>{{ \Illuminate\Support\Carbon::parse($evento->created_at)->format('H:i') }}</time>
-                                            <small>{{ \Illuminate\Support\Carbon::parse($evento->created_at)->locale('es')->diffForHumans() }}</small>
                                         </div>
 
                                         <div class="history-event-body">
                                             <div class="history-event-head">
                                                 <h4>{{ $evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-')) }}</h4>
-                                                <span class="event-badge {{ $detalle['clase'] }}">{{ $detalle['estado'] }}</span>
                                             </div>
                                             <div class="history-event-meta">
-                                                <span>Servicio: {{ strtoupper((string) ($evento->servicio ?? 'EMS')) }}</span>
-                                                <span>Codigo: {{ $evento->codigo ?? $codigo }}</span>
+                                                @php
+                                                    $office = trim((string) ($evento->office ?? ''));
+                                                    $nextOffice = trim((string) ($evento->next_office ?? ''));
+                                                    $paisOrigen = trim((string) ($evento->pais_origen ?? 'BOLIVIA'));
+                                                    $paisOrigenDetectado = $detectarPais($paisOrigen) ?? 'BOLIVIA';
+                                                    $banderaPaisOrigen = $banderaDePais($paisOrigenDetectado);
+                                                    $banderaOffice = $banderaDePais($detectarPais($office));
+                                                    $banderaNextOffice = $banderaDePais($detectarPais($nextOffice));
+                                                @endphp
+                                                @if ($office === '')
+                                                    <div class="history-meta-row">
+                                                        <span class="history-meta-label">Pais Origen</span>
+                                                        <span class="history-meta-value">{{ $paisOrigen }} @if($banderaPaisOrigen !== '')<img class="country-flag" src="https://flagcdn.com/16x12/{{ $banderaPaisOrigen }}.png" alt="Bandera {{ $paisOrigenDetectado }}">@endif</span>
+                                                    </div>
+                                                @else
+                                                    <div class="history-meta-row">
+                                                        <span class="history-meta-label">Oficina</span>
+                                                        <span class="history-meta-value">{{ $office }} @if($banderaOffice !== '')<img class="country-flag" src="https://flagcdn.com/16x12/{{ $banderaOffice }}.png" alt="Bandera oficina">@endif</span>
+                                                    </div>
+                                                @endif
+                                                @if ($nextOffice !== '')
+                                                    <div class="history-meta-row">
+                                                        <span class="history-meta-label">Siguiente Oficina</span>
+                                                        <span class="history-meta-value">{{ $nextOffice }} @if($banderaNextOffice !== '')<img class="country-flag" src="https://flagcdn.com/16x12/{{ $banderaNextOffice }}.png" alt="Bandera siguiente oficina">@endif</span>
+                                                    </div>
+                                                @endif
                                             </div>
                                         </div>
                                     </article>
