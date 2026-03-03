@@ -20,7 +20,6 @@ class AreaContratosController extends Controller
             ->with([
                 'estadoRegistro:id,nombre_estado',
                 'empresa:id,nombre,sigla',
-                'user:id,name',
             ])
             ->when($estadoId > 0, function ($query) use ($estadoId) {
                 $query->where('estados_id', $estadoId);
@@ -33,6 +32,8 @@ class AreaContratosController extends Controller
                         ->orWhere('destino', 'like', '%' . $search . '%')
                         ->orWhere('nombre_r', 'like', '%' . $search . '%')
                         ->orWhere('nombre_d', 'like', '%' . $search . '%')
+                        ->orWhere('direccion_r', 'like', '%' . $search . '%')
+                        ->orWhere('direccion_d', 'like', '%' . $search . '%')
                         ->orWhere('telefono_r', 'like', '%' . $search . '%')
                         ->orWhere('telefono_d', 'like', '%' . $search . '%')
                         ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($search) {
@@ -67,7 +68,6 @@ class AreaContratosController extends Controller
             ->with([
                 'estadoRegistro:id,nombre_estado',
                 'empresa:id,nombre,sigla',
-                'user:id,name',
             ])
             ->when($estadoEntregadoId > 0, function ($query) use ($estadoEntregadoId) {
                 $query->where('estados_id', $estadoEntregadoId);
@@ -82,6 +82,8 @@ class AreaContratosController extends Controller
                         ->orWhere('destino', 'like', '%' . $search . '%')
                         ->orWhere('nombre_r', 'like', '%' . $search . '%')
                         ->orWhere('nombre_d', 'like', '%' . $search . '%')
+                        ->orWhere('direccion_r', 'like', '%' . $search . '%')
+                        ->orWhere('direccion_d', 'like', '%' . $search . '%')
                         ->orWhere('telefono_r', 'like', '%' . $search . '%')
                         ->orWhere('telefono_d', 'like', '%' . $search . '%')
                         ->orWhereHas('empresa', function ($empresaQuery) use ($search) {

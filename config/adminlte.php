@@ -331,7 +331,13 @@ return [
             'text' => 'Paquetes Contratos',
             'icon' => 'fas fa-folder-open',
             'submenu' => [
-                [
+                
+                 [
+                    'text' => 'Consulta de Contratos',
+                    'icon' => 'fas fa-file-contract',
+                    'submenu' => [
+                        
+                       [
                     'text' => 'Todos los contratos',
                     'url' => 'area-contratos/todos',
                     'icon' => 'fas fa-list',
@@ -340,6 +346,8 @@ return [
                     'text' => 'Todos los entregados',
                     'url' => 'area-contratos/entregados',
                     'icon' => 'fas fa-check-circle',
+                ],
+                    ],
                 ],
                 [
                     'text' => 'Recojo Paquetes',
