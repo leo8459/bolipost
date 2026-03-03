@@ -180,7 +180,7 @@
                                 <th>Codigo</th>
                                 <th>Evento</th>
                                 <th>Usuario</th>
-                                <th>Creado</th>
+                                <th>Momento de creacion</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -190,7 +190,19 @@
                                     <td><span class="pill-id">{{ $registro->codigo }}</span></td>
                                     <td>{{ $registro->evento_nombre ?? ('#' . $registro->evento_id) }}</td>
                                     <td>{{ $registro->usuario_nombre ?? ('#' . $registro->user_id) }}</td>
-                                    <td class="muted small">{{ optional($registro->created_at)->format('d/m/Y H:i') }}</td>
+                                    <td class="muted small">
+                                        @if(!empty($registro->created_at))
+                                            @php
+                                                $creadoEn = \Illuminate\Support\Carbon::parse($registro->created_at)
+                                                    ->timezone(config('app.timezone'))
+                                                    ->locale('es');
+                                            @endphp
+                                            <div>{{ $creadoEn->format('d/m/Y H:i:s') }}</div>
+                                            <div class="text-muted">{{ $creadoEn->diffForHumans() }}</div>
+                                        @else
+                                            <span>Sin fecha</span>
+                                        @endif
+                                    </td>
                                     <td>
                                         <button wire:click="openEditModal({{ $registro->id }})"
                                             class="btn btn-sm btn-azul"
