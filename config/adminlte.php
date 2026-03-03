@@ -317,18 +317,6 @@ return [
             'icon' => 'fas fa-user',
         ],
         [
-            'text' => 'Consultas Informacion',
-            'icon' => 'fas fa-users',
-            // 'can'  => 'users.index',
-            'submenu' => [
-                [
-                    'text' => 'Consulta Correspondencia',
-                    'url' => 'plantilla',
-                    'icon' => 'fas fa-user',
-                ],
-            ],
-        ],
-        [
             'text' => 'Admisiones',
             'icon' => 'fas fa-inbox',
             'submenu' => [
@@ -336,6 +324,59 @@ return [
                     'text' => 'Crear Admision',
                     'url' => 'paquetes-ems',
                     'icon' => 'fas fa-box',
+                ],
+            ],
+        ],
+                [
+            'text' => 'Paquetes Contratos',
+            'icon' => 'fas fa-folder-open',
+            'submenu' => [
+                [
+                    'text' => 'Todos los contratos',
+                    'url' => 'area-contratos/todos',
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Todos los entregados',
+                    'url' => 'area-contratos/entregados',
+                    'icon' => 'fas fa-check-circle',
+                ],
+                [
+                    'text' => 'Recojo Paquetes',
+                    'icon' => 'fas fa-file-contract',
+                    'submenu' => [
+                        [
+                            'text' => 'Almacen contratos',
+                            'url' => 'paquetes-contrato/almacen',
+                            'icon' => 'fas fa-warehouse',
+                        ],
+                        [
+                            'text' => 'Recoger envios contratos',
+                            'url' => 'paquetes-contrato/recoger-envios',
+                            'icon' => 'fas fa-inbox',
+                        ],
+                        [
+                            'text' => 'Cartero contratos',
+                            'url' => 'paquetes-contrato/cartero',
+                            'icon' => 'fas fa-motorcycle',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Solicitud de Correspondencia',
+                    'icon' => 'fas fa-building',
+                    'submenu' => [
+                        [
+                            'text' => 'Gestion contratos',
+                            'url' => 'paquetes-contrato',
+                            'icon' => 'fas fa-list',
+                        ],
+                        [
+                            'text' => 'Contratos entregados',
+                            'url' => 'paquetes-contrato/entregados',
+                            'icon' => 'fas fa-motorcycle',
+                        ],
+                    ],
                 ],
             ],
         ],
@@ -489,7 +530,7 @@ return [
                 ],
             ],
         ],
-                [
+        [
             'text' => 'CODIGOS',
             'icon' => 'fas fa-barcode',
             'submenu' => [
@@ -622,59 +663,6 @@ return [
                             'icon' => 'fas fa-key',
                         ],
                     ],
-                ],
-            ],
-        ],
-        [
-            'text' => 'Contratos',
-            'icon' => 'fas fa-file-contract',
-            'submenu' => [
-                [
-                    'text' => 'Almacen contratos',
-                    'url' => 'paquetes-contrato/almacen',
-                    'icon' => 'fas fa-warehouse',
-                ],
-                [
-                    'text' => 'Recoger envios contratos',
-                    'url' => 'paquetes-contrato/recoger-envios',
-                    'icon' => 'fas fa-inbox',
-                ],
-                [
-                    'text' => 'Cartero contratos',
-                    'url' => 'paquetes-contrato/cartero',
-                    'icon' => 'fas fa-motorcycle',
-                ],
-            ],
-        ],
-        [
-            'text' => 'EMPRESA',
-            'icon' => 'fas fa-building',
-            'submenu' => [
-                [
-                    'text' => 'Gestion contratos',
-                    'url' => 'paquetes-contrato',
-                    'icon' => 'fas fa-list',
-                ],
-                [
-                    'text' => 'Contratos entregados',
-                    'url' => 'paquetes-contrato/entregados',
-                    'icon' => 'fas fa-motorcycle',
-                ],
-            ],
-        ],
-        [
-            'text' => 'AREA CONTRATOS',
-            'icon' => 'fas fa-folder-open',
-            'submenu' => [
-                [
-                    'text' => 'Todos los contratos',
-                    'url' => 'area-contratos/todos',
-                    'icon' => 'fas fa-list',
-                ],
-                [
-                    'text' => 'Todos los entregados',
-                    'url' => 'area-contratos/entregados',
-                    'icon' => 'fas fa-check-circle',
                 ],
             ],
         ],
