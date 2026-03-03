@@ -5,7 +5,7 @@
 <header class="topbar" id="topbar">
     <div class="container nav">
         <a class="brand" href="{{ $landingPrefix }}#inicio">
-            <img src="{{ asset('images/AGBClogo.png') }}" alt="TrackingBo">
+            <img src="{{ asset('images/AGBClogo2.png') }}" alt="Agencia Boliviana de Correos">
             <span>TrackingBo</span>
         </a>
 

@@ -33,8 +33,8 @@
                                 class="track-input"
                                 type="text"
                                 name="codigo"
-                                placeholder="Ingresa tu código de rastreo"
-                                value="{{ old('codigo', session('tracking_codigo', 'RE700274030ES')) }}"
+                                placeholder="INSERTE CODIGO"
+                                value="{{ old('codigo', session('tracking_codigo', '')) }}"
                                 aria-label="Código de rastreo"
                                 required
                             >
