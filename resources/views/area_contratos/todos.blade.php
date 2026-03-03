@@ -15,7 +15,7 @@
                 <form method="GET" action="{{ route('area-contratos.todos') }}" class="row mb-3">
                     <div class="col-md-7 mb-2 mb-md-0">
                         <input type="text" name="q" value="{{ $search }}" class="form-control"
-                            placeholder="Buscar por codigo, estado, origen, destino, remitente, destinatario o empresa...">
+                            placeholder="Buscar por codigo, estado, remitente, origen, destino, direcciones o empresa...">
                     </div>
                     <div class="col-md-3 mb-2 mb-md-0">
                         <select name="estado_id" class="form-control">
@@ -37,14 +37,14 @@
                         <thead>
                             <tr>
                                 <th>Codigo</th>
-                                <th>Cod. especial</th>
                                 <th>Estado</th>
-                                <th>Origen</th>
-                                <th>Destino</th>
                                 <th>Remitente</th>
+                                <th>Origen</th>
+                                <th>Direccion remitente</th>
                                 <th>Destinatario</th>
+                                <th>Destino</th>
+                                <th>Direccion destinatario</th>
                                 <th>Empresa</th>
-                                <th>Usuario</th>
                                 <th>Fecha</th>
                                 <th>Acciones</th>
                             </tr>
@@ -53,19 +53,19 @@
                             @forelse ($contratos as $contrato)
                                 <tr>
                                     <td>{{ $contrato->codigo }}</td>
-                                    <td>{{ $contrato->cod_especial ?: '-' }}</td>
                                     <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?? '-' }}</td>
+                                    <td>{{ $contrato->nombre_r ?: '-' }}</td>
                                     <td>{{ $contrato->origen }}</td>
+                                    <td>{{ $contrato->direccion_r ?: '-' }}</td>
+                                    <td>{{ $contrato->nombre_d ?: '-' }}</td>
                                     <td>{{ $contrato->destino }}</td>
-                                    <td>{{ $contrato->nombre_r }}</td>
-                                    <td>{{ $contrato->nombre_d }}</td>
+                                    <td>{{ $contrato->direccion_d ?: '-' }}</td>
                                     <td>
                                         {{ optional($contrato->empresa)->nombre ?? '-' }}
                                         @if(!empty(optional($contrato->empresa)->sigla))
                                             ({{ optional($contrato->empresa)->sigla }})
                                         @endif
                                     </td>
-                                    <td>{{ optional($contrato->user)->name ?? '-' }}</td>
                                     <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         <a href="{{ route('paquetes-contrato.reporte', $contrato->id) }}"
