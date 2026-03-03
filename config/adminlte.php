@@ -317,33 +317,6 @@ return [
             'icon' => 'fas fa-user',
         ],
         [
-            'text' => 'Gestion Usuarios',
-            'icon' => 'fas fa-users',
-            // 'can'  => 'users.index',
-            'submenu' => [
-                [
-                    'text' => 'Personal AGBC',
-                    'url' => 'users',
-                    'icon' => 'fas fa-user',
-                ],
-                [
-                    'text' => 'Roles',
-                    'url' => 'roles',
-                    'icon' => 'fas fa-users-cog',
-                ],
-                [
-                    'text' => 'Permisos',
-                    'url' => 'permissions',
-                    'icon' => 'fas fa-key',
-                ],
-                [
-                    'text' => 'Accesos',
-                    'url' => 'role-has-permissions',
-                    'icon' => 'fas fa-key',
-                ],
-            ],
-        ],
-        [
             'text' => 'Consultas Informacion',
             'icon' => 'fas fa-users',
             // 'can'  => 'users.index',
@@ -516,34 +489,19 @@ return [
                 ],
             ],
         ],
-        [
-            'text' => 'Configuracion de tarifas',
-            'icon' => 'fas fa-tags',
+                [
+            'text' => 'CODIGOS',
+            'icon' => 'fas fa-barcode',
             'submenu' => [
                 [
-                    'text' => 'Servicios',
-                    'url' => 'servicios',
-                    'icon' => 'fas fa-concierge-bell',
+                    'text' => 'Empresa',
+                    'url' => 'empresas',
+                    'icon' => 'fas fa-building',
                 ],
                 [
-                    'text' => 'Origenes',
-                    'url' => 'origenes',
-                    'icon' => 'fas fa-route',
-                ],
-                [
-                    'text' => 'Destinos',
-                    'url' => 'destinos',
-                    'icon' => 'fas fa-map-marker-alt',
-                ],
-                [
-                    'text' => 'Pesos',
-                    'url' => 'pesos',
-                    'icon' => 'fas fa-weight-hanging',
-                ],
-                [
-                    'text' => 'Tarifario',
-                    'url' => 'tarifario',
-                    'icon' => 'fas fa-tags',
+                    'text' => 'Generar codigos',
+                    'url' => 'codigo-empresa',
+                    'icon' => 'fas fa-qrcode',
                 ],
             ],
         ],
@@ -607,21 +565,63 @@ return [
                     'url' => 'ventanillas',
                     'icon' => 'fas fa-window-restore',
                 ],
-            ],
-        ],
-        [
-            'text' => 'CODIGOS',
-            'icon' => 'fas fa-barcode',
-            'submenu' => [
                 [
-                    'text' => 'EMREPSA',
-                    'url' => 'empresas',
-                    'icon' => 'fas fa-building',
+                    'text' => 'Configuracion de tarifas',
+                    'icon' => 'fas fa-tags',
+                    'submenu' => [
+                        [
+                            'text' => 'Servicios',
+                            'url' => 'servicios',
+                            'icon' => 'fas fa-concierge-bell',
+                        ],
+                        [
+                            'text' => 'Origenes',
+                            'url' => 'origenes',
+                            'icon' => 'fas fa-route',
+                        ],
+                        [
+                            'text' => 'Destinos',
+                            'url' => 'destinos',
+                            'icon' => 'fas fa-map-marker-alt',
+                        ],
+                        [
+                            'text' => 'Pesos',
+                            'url' => 'pesos',
+                            'icon' => 'fas fa-weight-hanging',
+                        ],
+                        [
+                            'text' => 'Tarifario',
+                            'url' => 'tarifario',
+                            'icon' => 'fas fa-tags',
+                        ],
+                    ],
                 ],
                 [
-                    'text' => 'Generar codigos',
-                    'url' => 'codigo-empresa',
-                    'icon' => 'fas fa-qrcode',
+                    'text' => 'Gestion Usuarios',
+                    'icon' => 'fas fa-users',
+                    // 'can'  => 'users.index',
+                    'submenu' => [
+                        [
+                            'text' => 'Personal AGBC',
+                            'url' => 'users',
+                            'icon' => 'fas fa-user',
+                        ],
+                        [
+                            'text' => 'Roles',
+                            'url' => 'roles',
+                            'icon' => 'fas fa-users-cog',
+                        ],
+                        [
+                            'text' => 'Permisos',
+                            'url' => 'permissions',
+                            'icon' => 'fas fa-key',
+                        ],
+                        [
+                            'text' => 'Accesos',
+                            'url' => 'role-has-permissions',
+                            'icon' => 'fas fa-key',
+                        ],
+                    ],
                 ],
             ],
         ],
