@@ -13,6 +13,12 @@ use Livewire\WithPagination;
 class Despacho extends Component
 {
     use WithPagination;
+    private const EVENTO_ID_DESPACHO_CREADO_SALIDA = 222;
+    private const EVENTO_ID_DESPACHO_CERRADO_SALIDA = 223;
+    private const EVENTO_ID_DESPACHO_REABIERTO_SALIDA = 224;
+    private const EVENTO_ID_DESPACHO_ENVIADO_EXTRANJERO = 263;
+    private const EVENTO_ID_DESPACHO_MARCADO_ELIMINADO = 228;
+    private const EVENTO_ID_DESPACHO_ACTUALIZADO_SALIDA = 229;
     protected array $estadoIdCache = [];
 
     public $search = '';
@@ -134,13 +140,15 @@ class Despacho extends Component
         if ($this->editingId) {
             $despacho = DespachoModel::findOrFail($this->editingId);
             $despacho->update($this->payload());
+            $this->registrarEventoDespacho((string) $despacho->identificador, self::EVENTO_ID_DESPACHO_ACTUALIZADO_SALIDA);
             session()->flash('success', 'Despacho actualizado correctamente.');
         } else {
             $this->fk_estado = $this->getEstadoAperturaId();
             $this->anio = $this->getCurrentYear();
             $this->oforigen = $this->getOforigenFromUser() ?: $this->oforigen;
             $this->departamento = $this->getDepartamentoFromUser() ?: $this->departamento;
-            DespachoModel::create($this->payload());
+            $despacho = DespachoModel::create($this->payload());
+            $this->registrarEventoDespacho((string) $despacho->identificador, self::EVENTO_ID_DESPACHO_CREADO_SALIDA);
             session()->flash('success', 'Despacho creado correctamente.');
         }
 
@@ -151,7 +159,9 @@ class Despacho extends Component
     public function delete($id)
     {
         $despacho = DespachoModel::findOrFail($id);
+        $identificador = (string) $despacho->identificador;
         $despacho->delete();
+        $this->registrarEventoDespacho($identificador, self::EVENTO_ID_DESPACHO_MARCADO_ELIMINADO);
         session()->flash('success', 'Despacho eliminado correctamente.');
     }
 
@@ -169,6 +179,8 @@ class Despacho extends Component
                 ->where('fk_despacho', $despacho->id)
                 ->update(['fk_estado' => $estadoSacaAperturaId]);
         });
+        $despacho = DespachoModel::query()->findOrFail($id);
+        $this->registrarEventoDespacho((string) $despacho->identificador, self::EVENTO_ID_DESPACHO_REABIERTO_SALIDA);
 
         session()->flash('success', 'Reapertura realizada correctamente.');
 
@@ -186,12 +198,23 @@ class Despacho extends Component
             return;
         }
         $despacho->update(['fk_estado' => $estadoExpedicionId]);
+        $this->registrarEventoDespacho((string) $despacho->identificador, self::EVENTO_ID_DESPACHO_ENVIADO_EXTRANJERO);
 
         $this->dispatch('printDespachoExpedicion', [
             'url' => route('despachos.expedicion.pdf', ['id' => $despacho->id]),
         ]);
 
         session()->flash('success', 'Despacho enviado a expedicion.');
+    }
+
+    public function registrarCierreDespachoEvento(int $despachoId): void
+    {
+        $despacho = DespachoModel::query()->find($despachoId);
+        if (!$despacho) {
+            return;
+        }
+
+        $this->registrarEventoDespacho((string) $despacho->identificador, self::EVENTO_ID_DESPACHO_CERRADO_SALIDA);
     }
 
     public function resetForm()
@@ -299,6 +322,24 @@ class Despacho extends Component
         $trimmed = is_string($value) ? trim($value) : $value;
 
         return $trimmed === '' ? null : $trimmed;
+    }
+
+    protected function registrarEventoDespacho(string $codigo, int $eventoId): void
+    {
+        $codigo = trim($codigo);
+        $userId = (int) optional(Auth::user())->id;
+
+        if ($codigo === '' || $eventoId <= 0 || $userId <= 0) {
+            return;
+        }
+
+        DB::table('eventos_despacho')->insert([
+            'codigo' => $codigo,
+            'evento_id' => $eventoId,
+            'user_id' => $userId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     protected function getNextNroDespachoForYear($year)

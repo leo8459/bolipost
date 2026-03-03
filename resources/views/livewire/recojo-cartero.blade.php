@@ -1,7 +1,7 @@
 <div>
     <style>
         :root{
-            --azul:#34447C;
+            --azul:#20539A;
             --bg:#f5f7fb;
             --muted:#6b7280;
             --line:#e5e7eb;

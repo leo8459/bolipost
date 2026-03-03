@@ -1,7 +1,7 @@
 <style>
     :root {
-        --carteros-primary: #34447c;
-        --carteros-secondary: #b99c46;
+        --carteros-primary: #20539A;
+        --carteros-secondary: #FECC36;
         --carteros-bg: #f3f6fc;
         --carteros-text: #1f2937;
     }

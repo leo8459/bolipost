@@ -14,6 +14,8 @@ use Illuminate\Validation\Rule;
 
 class PaquetesEmsController extends Controller
 {
+    private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
+
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
@@ -188,6 +190,17 @@ class PaquetesEmsController extends Controller
             ], 422);
         }
 
+        $eventoExiste = DB::table('eventos')
+            ->where('id', self::EVENTO_ID_CONTRATO_RECOGIDO)
+            ->exists();
+
+        if (!$eventoExiste) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No existe el evento con ID ' . self::EVENTO_ID_CONTRATO_RECOGIDO . ' en la tabla eventos.',
+            ], 422);
+        }
+
         $origen = strtoupper(trim((string) ($user->ciudad ?? '')));
         if ($origen === '') {
             $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
@@ -247,7 +260,8 @@ class PaquetesEmsController extends Controller
         }
 
         $creados = collect();
-        DB::transaction(function () use ($items, $user, $estadoAlmacenId, $origen, &$creados) {
+        $eventRows = [];
+        DB::transaction(function () use ($items, $user, $estadoAlmacenId, $origen, &$creados, &$eventRows) {
             foreach ($items as $item) {
                 $empresaId = $this->resolveEmpresaIdByCodigoContrato($item['codigo']);
                 $contrato = RecojoContrato::query()->create([
@@ -282,6 +296,22 @@ class PaquetesEmsController extends Controller
                     'destino' => (string) $contrato->destino,
                     'reporte_url' => route('paquetes-contrato.reporte', $contrato->id),
                 ]);
+
+                $codigoEvento = trim((string) $contrato->codigo);
+                if ($codigoEvento !== '') {
+                    $now = now();
+                    $eventRows[] = [
+                        'codigo' => $codigoEvento,
+                        'evento_id' => self::EVENTO_ID_CONTRATO_RECOGIDO,
+                        'user_id' => (int) $user->id,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
+
+            if (!empty($eventRows)) {
+                DB::table('eventos_contrato')->insert($eventRows);
             }
         });
 

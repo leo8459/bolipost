@@ -16,6 +16,7 @@ use Livewire\WithPagination;
 class DespachoAdmitido extends Component
 {
     use WithPagination;
+    private const EVENTO_ID_DESPACHO_ACTUALIZADO_ENTRADA = 230;
     protected array $estadoIdCache = [];
 
     public $ciudadToOficina = [
@@ -323,6 +324,7 @@ class DespachoAdmitido extends Component
         if ($despachosActualizados->isEmpty()) {
             session()->flash('success', 'Sacas recibidas. Ningun despacho completo para cambiar a estado 21.');
         } else {
+            $this->registrarEventosDespachoPorIds($despachosActualizados->all(), self::EVENTO_ID_DESPACHO_ACTUALIZADO_ENTRADA);
             session()->flash('success', 'Sacas recibidas y despachos completos cambiados a estado 21.');
         }
     }
@@ -389,6 +391,49 @@ class DespachoAdmitido extends Component
         $this->estadoIdCache[$nombre] = $estadoId;
 
         return $estadoId;
+    }
+
+    protected function registrarEventosDespachoPorIds(array $despachoIds, int $eventoId): void
+    {
+        $despachoIds = collect($despachoIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($despachoIds->isEmpty()) {
+            return;
+        }
+
+        $userId = (int) optional(Auth::user())->id;
+        if ($eventoId <= 0 || $userId <= 0) {
+            return;
+        }
+
+        $codigos = DespachoModel::query()
+            ->whereIn('id', $despachoIds->all())
+            ->pluck('identificador')
+            ->map(fn ($codigo) => trim((string) $codigo))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($codigos->isEmpty()) {
+            return;
+        }
+
+        $now = now();
+        $rows = $codigos->map(function ($codigo) use ($eventoId, $userId, $now) {
+            return [
+                'codigo' => $codigo,
+                'evento_id' => $eventoId,
+                'user_id' => $userId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        })->all();
+
+        DB::table('eventos_despacho')->insert($rows);
     }
 
     public function render()

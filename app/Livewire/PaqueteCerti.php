@@ -19,6 +19,9 @@ class PaqueteCerti extends Component
     private const EVENTO_ID_PAQUETE_RETENIDO_PUNTO_ENTREGA = 183;
     private const EVENTO_ID_PAQUETE_RECIBIDO_OFICINA_ENTREGA = 172;
     private const EVENTO_ID_PAQUETE_MARCADO_ELIMINADO = 278;
+    private const ESTADO_VENTANILLA = 'VENTANILLA';
+    private const ESTADO_ENTREGADO = 'ENTREGADO';
+    private const ESTADO_REZAGO = 'REZAGO';
 
     public $mode = 'almacen';
     public $search = '';
@@ -87,7 +90,10 @@ class PaqueteCerti extends Component
             $this->cuidad = $userCity;
         }
         if ($this->isAlmacen) {
-            $this->fk_estado = '2';
+            $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
+            if ($estadoVentanillaId) {
+                $this->fk_estado = (string) $estadoVentanillaId;
+            }
         }
         $this->dispatch('openPaqueteCertiModal');
     }
@@ -129,7 +135,12 @@ class PaqueteCerti extends Component
                 }
             }
             if ($this->isAlmacen) {
-                $payload['fk_estado'] = 2;
+                $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
+                if (!$estadoVentanillaId) {
+                    session()->flash('success', 'No existe el estado VENTANILLA en la tabla estados.');
+                    return;
+                }
+                $payload['fk_estado'] = $estadoVentanillaId;
             }
             $paquete = PaqueteCertiModel::create($payload);
             $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE);
@@ -177,12 +188,18 @@ class PaqueteCerti extends Component
 
     public function marcarInventario($id)
     {
+        $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
+        if (!$estadoEntregadoId) {
+            session()->flash('success', 'No existe el estado ENTREGADO en la tabla estados.');
+            return;
+        }
+
         $paquete = PaqueteCertiModel::findOrFail($id);
         $paquete->update([
-            'fk_estado' => 4,
+            'fk_estado' => $estadoEntregadoId,
         ]);
         $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
-        session()->flash('success', 'Paquete enviado a inventarios.');
+        session()->flash('success', 'Paquete enviado a ENTREGADO.');
     }
 
     public function bajaMasiva()
@@ -198,13 +215,19 @@ class PaqueteCerti extends Component
             return;
         }
 
+        $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
+        if (!$estadoEntregadoId) {
+            session()->flash('success', 'No existe el estado ENTREGADO en la tabla estados.');
+            return;
+        }
+
         PaqueteCertiModel::query()
             ->whereIn('id', $ids)
-            ->update(['fk_estado' => 4]);
+            ->update(['fk_estado' => $estadoEntregadoId]);
         $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
 
         $this->selectedPaquetes = [];
-        session()->flash('success', 'Paquetes enviados a inventarios correctamente.');
+        session()->flash('success', 'Paquetes enviados a ENTREGADO correctamente.');
 
         $this->resetPage();
         $this->dispatch('$refresh');
@@ -227,9 +250,15 @@ class PaqueteCerti extends Component
             return;
         }
 
+        $estadoRezagoId = $this->getEstadoIdByNombre(self::ESTADO_REZAGO);
+        if (!$estadoRezagoId) {
+            session()->flash('success', 'No existe el estado REZAGO en la tabla estados.');
+            return;
+        }
+
         PaqueteCertiModel::query()
             ->whereIn('id', $ids)
-            ->update(['fk_estado' => 6]);
+            ->update(['fk_estado' => $estadoRezagoId]);
         $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_RETENIDO_PUNTO_ENTREGA);
 
         $this->selectedPaquetes = [];
@@ -245,9 +274,15 @@ class PaqueteCerti extends Component
 
     public function marcarVentanilla($id)
     {
+        $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
+        if (!$estadoVentanillaId) {
+            session()->flash('success', 'No existe el estado VENTANILLA en la tabla estados.');
+            return;
+        }
+
         $paquete = PaqueteCertiModel::findOrFail($id);
         $paquete->update([
-            'fk_estado' => 2,
+            'fk_estado' => $estadoVentanillaId,
         ]);
         $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_RECIBIDO_OFICINA_ENTREGA);
         session()->flash('success', 'Paquete enviado a ventanilla.');
@@ -325,6 +360,15 @@ class PaqueteCerti extends Component
         return strtoupper(trim((string) $value));
     }
 
+    protected function getEstadoIdByNombre(string $nombre): ?int
+    {
+        $id = EstadoModel::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [strtoupper(trim($nombre))])
+            ->value('id');
+
+        return $id ? (int) $id : null;
+    }
+
     protected function registrarEventoCertiPorIds(array $ids, int $eventoId): void
     {
         $ids = collect($ids)
@@ -394,6 +438,9 @@ class PaqueteCerti extends Component
     {
         $q = trim($this->searchQuery);
         $userCity = trim((string) optional(auth()->user())->ciudad);
+        $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
+        $estadoRezagoId = $this->getEstadoIdByNombre(self::ESTADO_REZAGO);
+        $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
 
         $paquetes = PaqueteCertiModel::query()
             ->with(['estado', 'ventanillaRef'])
@@ -403,14 +450,26 @@ class PaqueteCerti extends Component
             ->when($userCity === '', function ($query) {
                 $query->whereRaw('1 = 0');
             })
-            ->when($this->isInventory, function ($query) {
-                $query->where('fk_estado', 4);
+            ->when($this->isInventory, function ($query) use ($estadoEntregadoId) {
+                if ($estadoEntregadoId) {
+                    $query->where('fk_estado', $estadoEntregadoId);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
             })
-            ->when($this->isRezago, function ($query) {
-                $query->where('fk_estado', 6);
+            ->when($this->isRezago, function ($query) use ($estadoRezagoId) {
+                if ($estadoRezagoId) {
+                    $query->where('fk_estado', $estadoRezagoId);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
             })
-            ->when($this->isAlmacen, function ($query) {
-                $query->where('fk_estado', 2);
+            ->when($this->isAlmacen, function ($query) use ($estadoVentanillaId) {
+                if ($estadoVentanillaId) {
+                    $query->where('fk_estado', $estadoVentanillaId);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where('codigo', 'ILIKE', "%{$q}%")

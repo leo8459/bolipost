@@ -27,6 +27,7 @@ use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\EventosAuditoriaController;
 use App\Http\Controllers\EmpresaController;
 use App\Http\Controllers\CodigoEmpresaController;
+use App\Http\Controllers\AreaContratosController;
 use App\Http\Controllers\RecojoController;
 use Illuminate\Support\Facades\Route;
 
@@ -134,6 +135,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/eventos-ems', [EventoController::class, 'emsIndex'])->name('eventos-ems.index');
     Route::get('/eventos-certi', [EventoController::class, 'certiIndex'])->name('eventos-certi.index');
     Route::get('/eventos-ordi', [EventoController::class, 'ordiIndex'])->name('eventos-ordi.index');
+    Route::get('/eventos-contrato', [EventoController::class, 'contratoIndex'])->name('eventos-contrato.index');
     Route::get('/auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
     Route::get('/eventos-auditoria', [EventosAuditoriaController::class, 'index'])->name('eventos-auditoria.index');
     Route::get('/empresas', [EmpresaController::class, 'index'])->name('empresas.index');
@@ -147,6 +149,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/paquetes-contrato', [RecojoController::class, 'store'])->name('paquetes-contrato.store');
     Route::get('/paquetes-contrato/reporte-hoy', [RecojoController::class, 'reporteHoy'])->name('paquetes-contrato.reporte-hoy');
     Route::get('/paquetes-contrato/{contrato}/reporte', [RecojoController::class, 'reporte'])->name('paquetes-contrato.reporte');
+    Route::get('/area-contratos/todos', [AreaContratosController::class, 'todos'])->name('area-contratos.todos');
+    Route::get('/area-contratos/entregados', [AreaContratosController::class, 'entregados'])->name('area-contratos.entregados');
     Route::get('/ventanillas', [VentanillaController::class, 'index'])->name('ventanillas.index');
     Route::get('/despachos/abiertos', [DespachoController::class, 'index'])->name('despachos.abiertos');
     Route::get('/despachos/expedicion', [DespachoController::class, 'expedicion'])->name('despachos.expedicion');

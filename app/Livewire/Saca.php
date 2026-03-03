@@ -14,6 +14,10 @@ use Livewire\WithPagination;
 class Saca extends Component
 {
     use WithPagination;
+    private const EVENTO_ID_SACA_CREADA_ACTUALIZADA = 271;
+    private const EVENTO_ID_SACA_INTERNA_CERRADA_SALIDA = 241;
+    private const EVENTO_ID_SACA_INTERNA_ELIMINADA = 247;
+    private const EVENTO_ID_DESPACHO_CERRADO_SALIDA = 223;
 
     public $search = '';
     public $searchQuery = '';
@@ -139,6 +143,7 @@ class Saca extends Component
             $this->receptaculo = $this->buildReceptaculo();
             $saca = SacaModel::findOrFail($this->editingId);
             $saca->update($this->payload());
+            $this->registrarEventoDespacho((string) $saca->identificador, self::EVENTO_ID_SACA_CREADA_ACTUALIZADA);
             session()->flash('success', 'Saca actualizada correctamente.');
         } else {
             $this->prepareCreateDefaults();
@@ -163,7 +168,8 @@ class Saca extends Component
 
                         $this->identificador = $generatedIdentificador;
                         $this->receptaculo = $this->buildReceptaculo();
-                        SacaModel::create($this->payload());
+                        $saca = SacaModel::create($this->payload());
+                        $this->registrarEventoDespacho((string) $saca->identificador, self::EVENTO_ID_SACA_CREADA_ACTUALIZADA);
                         $nextNumber++;
                     }
                 });
@@ -184,7 +190,8 @@ class Saca extends Component
                 $this->identificador = $generatedIdentificador;
                 $this->receptaculo = $this->buildReceptaculo();
 
-                SacaModel::create($this->payload());
+                $saca = SacaModel::create($this->payload());
+                $this->registrarEventoDespacho((string) $saca->identificador, self::EVENTO_ID_SACA_CREADA_ACTUALIZADA);
                 session()->flash('success', 'Saca creada correctamente.');
             }
         }
@@ -242,9 +249,11 @@ class Saca extends Component
                 ->lockForUpdate()
                 ->findOrFail($id);
 
+            $identificadorSaca = (string) $saca->identificador;
             $deletedSequence = (int) $saca->nro_saca;
             $deletedDespachoId = (int) $saca->fk_despacho;
             $saca->delete();
+            $this->registrarEventoDespacho($identificadorSaca, self::EVENTO_ID_SACA_INTERNA_ELIMINADA);
 
             $sacasToReorder = SacaModel::query()
                 ->with('despacho:id,identificador')
@@ -282,6 +291,7 @@ class Saca extends Component
         }
 
         try {
+            $despachoIdentificador = null;
             DB::transaction(function () use ($despachoId) {
                 $sacas = SacaModel::query()
                     ->where('fk_despacho', $despachoId)
@@ -311,6 +321,11 @@ class Saca extends Component
                         'peso' => $totalPeso,
                     ]);
             });
+            $despachoIdentificador = (string) (Despacho::query()->whereKey($despachoId)->value('identificador') ?? '');
+            if ($despachoIdentificador !== '') {
+                $this->registrarEventoDespacho($despachoIdentificador, self::EVENTO_ID_DESPACHO_CERRADO_SALIDA);
+            }
+            $this->registrarEventosSacasDeDespacho($despachoId, self::EVENTO_ID_SACA_INTERNA_CERRADA_SALIDA);
         } catch (\RuntimeException $e) {
             if ($e->getMessage() !== 'all_closed') {
                 throw $e;
@@ -643,6 +658,44 @@ class Saca extends Component
         }
 
         return str_pad($digits, 3, '0', STR_PAD_LEFT);
+    }
+
+    protected function registrarEventosSacasDeDespacho(int $despachoId, int $eventoId): void
+    {
+        if ($despachoId <= 0) {
+            return;
+        }
+
+        $identificadores = SacaModel::query()
+            ->where('fk_despacho', $despachoId)
+            ->pluck('identificador')
+            ->map(fn ($codigo) => trim((string) $codigo))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($identificadores as $codigo) {
+            $this->registrarEventoDespacho($codigo, $eventoId);
+        }
+    }
+
+    protected function registrarEventoDespacho(string $codigo, int $eventoId): void
+    {
+        $codigo = trim($codigo);
+        $userId = (int) optional(auth()->user())->id;
+
+        if ($codigo === '' || $eventoId <= 0 || $userId <= 0) {
+            return;
+        }
+
+        DB::table('eventos_despacho')->insert([
+            'codigo' => $codigo,
+            'evento_id' => $eventoId,
+            'user_id' => $userId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     public function render()

@@ -213,25 +213,7 @@ class CarterosController extends Controller
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
-                $emsCodigos = PaqueteEms::query()
-                    ->whereIn('id', $emsIds)
-                    ->pluck('codigo')
-                    ->map(fn ($codigo) => trim((string) $codigo))
-                    ->filter(fn ($codigo) => $codigo !== '')
-                    ->values();
-                if ($emsCodigos->isNotEmpty()) {
-                    $now = now();
-                    $rows = $emsCodigos->map(function ($codigo) use ($eventoId, $assigneeUserId, $now) {
-                        return [
-                            'codigo' => $codigo,
-                            'evento_id' => $eventoId,
-                            'user_id' => $assigneeUserId,
-                            'created_at' => $now,
-                            'updated_at' => $now,
-                        ];
-                    })->all();
-                    DB::table('eventos_ems')->insert($rows);
-                }
+                $this->insertEventosPorTipoDesdeIds('EMS', $emsIds, $eventoId, $assigneeUserId);
             }
             if (!empty($certiIds)) {
                 $updatedCerti = PaqueteCerti::query()
@@ -248,6 +230,7 @@ class CarterosController extends Controller
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
+                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, $eventoId, $assigneeUserId);
             }
             if (!empty($ordiIds)) {
                 $updatedOrdi = PaqueteOrdi::query()
@@ -264,6 +247,7 @@ class CarterosController extends Controller
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
+                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, $eventoId, $assigneeUserId);
             }
             if (!empty($contratoIds)) {
                 $updatedContrato = RecojoContrato::query()
@@ -280,6 +264,7 @@ class CarterosController extends Controller
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
+                $this->insertEventosPorTipoDesdeIds('CONTRATO', $contratoIds, $eventoId, $assigneeUserId);
             }
         });
         return response()->json([
@@ -669,16 +654,14 @@ class CarterosController extends Controller
         $userId = (int) $request->user()->id;
         $eventoEntregaId = self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE;
 
-        if ($validated['tipo_paquete'] === 'EMS') {
-            $eventoExiste = DB::table('eventos')
-                ->where('id', $eventoEntregaId)
-                ->exists();
+        $eventoExiste = DB::table('eventos')
+            ->where('id', $eventoEntregaId)
+            ->exists();
 
-            if (!$eventoExiste) {
-                throw ValidationException::withMessages([
-                    'id' => "No existe el evento con ID {$eventoEntregaId} (Paquete entregado exitosamente.).",
-                ]);
-            }
+        if (!$eventoExiste) {
+            throw ValidationException::withMessages([
+                'id' => "No existe el evento con ID {$eventoEntregaId} (Paquete entregado exitosamente.).",
+            ]);
         }
 
         $asignacion = $this->findAssignmentForUserByStates(
@@ -697,22 +680,7 @@ class CarterosController extends Controller
             $asignacion->imagen = $imagenPath;
             $asignacion->save();
             $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath);
-
-            if ($validated['tipo_paquete'] === 'EMS') {
-                $codigo = trim((string) PaqueteEms::query()
-                    ->where('id', (int) $validated['id'])
-                    ->value('codigo'));
-
-                if ($codigo !== '') {
-                    DB::table('eventos_ems')->insert([
-                        'codigo' => $codigo,
-                        'evento_id' => $eventoEntregaId,
-                        'user_id' => $userId,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
+            $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoEntregaId, $userId);
         });
 
         return redirect()
@@ -735,16 +703,14 @@ class CarterosController extends Controller
         $userId = (int) $request->user()->id;
         $eventoIntentoId = self::EVENTO_ID_INTENTO_FALLIDO_ENTREGA;
 
-        if ($validated['tipo_paquete'] === 'EMS') {
-            $eventoExiste = DB::table('eventos')
-                ->where('id', $eventoIntentoId)
-                ->exists();
+        $eventoExiste = DB::table('eventos')
+            ->where('id', $eventoIntentoId)
+            ->exists();
 
-            if (!$eventoExiste) {
-                throw ValidationException::withMessages([
-                    'id' => "No existe el evento con ID {$eventoIntentoId} (Intento fallido de entrega del paquete.).",
-                ]);
-            }
+        if (!$eventoExiste) {
+            throw ValidationException::withMessages([
+                'id' => "No existe el evento con ID {$eventoIntentoId} (Intento fallido de entrega del paquete.).",
+            ]);
         }
 
         $asignacion = $this->findAssignmentForUserByStates(
@@ -763,22 +729,7 @@ class CarterosController extends Controller
             $asignacion->imagen = $imagenPath;
             $asignacion->save();
             $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath);
-
-            if ($validated['tipo_paquete'] === 'EMS') {
-                $codigo = trim((string) PaqueteEms::query()
-                    ->where('id', (int) $validated['id'])
-                    ->value('codigo'));
-
-                if ($codigo !== '') {
-                    DB::table('eventos_ems')->insert([
-                        'codigo' => $codigo,
-                        'evento_id' => $eventoIntentoId,
-                        'user_id' => $userId,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
+            $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoIntentoId, $userId);
         });
 
         return redirect()
@@ -1188,6 +1139,112 @@ class CarterosController extends Controller
             RecojoContrato::query()->where('id', $id)->update(['imagen' => $imagePath]);
             return;
         }
+    }
+
+    private function insertEventosPorTipoDesdeIds(string $tipoPaquete, array $ids, int $eventoId, int $userId): void
+    {
+        $ids = collect($ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            return;
+        }
+
+        $codigos = $this->getCodigosPorTipo($tipoPaquete, $ids);
+        $this->insertEventosPorTipoYCodigos($tipoPaquete, $codigos, $eventoId, $userId);
+    }
+
+    private function insertEventoPorPaquete(string $tipoPaquete, int $id, int $eventoId, int $userId): void
+    {
+        if ($id <= 0) {
+            return;
+        }
+
+        $codigos = $this->getCodigosPorTipo($tipoPaquete, [$id]);
+        $this->insertEventosPorTipoYCodigos($tipoPaquete, $codigos, $eventoId, $userId);
+    }
+
+    private function insertEventosPorTipoYCodigos(string $tipoPaquete, iterable $codigos, int $eventoId, int $userId): void
+    {
+        $codigos = collect($codigos)
+            ->map(fn ($codigo) => trim((string) $codigo))
+            ->filter(fn ($codigo) => $codigo !== '')
+            ->values();
+
+        if ($codigos->isEmpty()) {
+            return;
+        }
+
+        $tablaEventos = $this->resolveTablaEventosPorTipo($tipoPaquete);
+        $now = now();
+
+        $rows = $codigos->map(function ($codigo) use ($eventoId, $userId, $now) {
+            return [
+                'codigo' => $codigo,
+                'evento_id' => $eventoId,
+                'user_id' => $userId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        })->all();
+
+        DB::table($tablaEventos)->insert($rows);
+    }
+
+    private function getCodigosPorTipo(string $tipoPaquete, array $ids)
+    {
+        if ($tipoPaquete === 'EMS') {
+            return PaqueteEms::query()
+                ->whereIn('id', $ids)
+                ->pluck('codigo');
+        }
+
+        if ($tipoPaquete === 'CERTI') {
+            return PaqueteCerti::query()
+                ->whereIn('id', $ids)
+                ->pluck('codigo');
+        }
+
+        if ($tipoPaquete === 'ORDI') {
+            return PaqueteOrdi::query()
+                ->whereIn('id', $ids)
+                ->pluck('codigo');
+        }
+
+        if ($tipoPaquete === 'CONTRATO') {
+            return RecojoContrato::query()
+                ->whereIn('id', $ids)
+                ->pluck('codigo');
+        }
+
+        return collect();
+    }
+
+    private function resolveTablaEventosPorTipo(string $tipoPaquete): string
+    {
+        if ($tipoPaquete === 'EMS') {
+            return 'eventos_ems';
+        }
+
+        if ($tipoPaquete === 'CERTI') {
+            return 'eventos_certi';
+        }
+
+        if ($tipoPaquete === 'ORDI') {
+            return 'eventos_ordi';
+        }
+
+        if ($tipoPaquete === 'CONTRATO') {
+            return 'eventos_contrato';
+        }
+
+        throw ValidationException::withMessages([
+            'tipo_paquete' => "Tipo de paquete no soportado para eventos: {$tipoPaquete}.",
+        ]);
     }
 
     private function resolveEstadoAsignadoId(): int
