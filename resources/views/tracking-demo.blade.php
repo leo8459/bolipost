@@ -48,83 +48,183 @@
         if ($incluyeCartero && (str_contains($eventoTextos, 'cartero') || str_contains($eventoTextos, 'distrib') || str_contains($eventoTextos, 'domicilio') || str_contains($eventoTextos, 'intento'))) {
             $pasoActual = max($pasoActual, 4);
         }
-        if (str_contains($eventoTextos, 'entreg') || str_contains($eventoTextos, 'complet') || str_contains($eventoTextos, 'recepcionado')) $pasoActual = max($pasoActual, $idxEntregado);
+
+        $entregaConfirmada = $eventos->contains(function ($item) {
+            $texto = mb_strtolower((string) ($item->nombre_evento ?? ''));
+            if ($texto === '') {
+                return false;
+            }
+
+            $exclusiones = [
+                'listo para entregar',
+                'oficina de entrega',
+                'intento fallido',
+                'no entregado',
+                'pendiente de entrega',
+            ];
+
+            foreach ($exclusiones as $palabra) {
+                if (str_contains($texto, $palabra)) {
+                    return false;
+                }
+            }
+
+            $confirmaciones = [
+                'entregado exitosamente',
+                'entregado al cliente',
+                'entregado al destinatario',
+                'entrega realizada',
+                'envio entregado',
+                'paquete entregado',
+                'recepcionado por destinatario',
+                'recibido por destinatario',
+            ];
+
+            foreach ($confirmaciones as $palabra) {
+                if (str_contains($texto, $palabra)) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+
+        if ($entregaConfirmada) $pasoActual = max($pasoActual, $idxEntregado);
 
         $estadoGlobal = $pasoActual === $idxEntregado ? 'Entregado' : 'En transito';
         if ($tieneIncidencia && $pasoActual < $idxEntregado) $estadoGlobal = 'En transito con incidencia';
 
         $destinoLabel = str_ends_with(strtoupper($codigo), 'BO') ? 'Bolivia' : 'Internacional';
         $historial = $eventos->groupBy(fn($item) => \Illuminate\Support\Carbon::parse($item->created_at)->format('Y-m-d'));
-        $paises = [
-            'BOLIVIA' => [
-                'flag_code' => 'bo',
-                'tokens' => ['BOLIVIA', 'BOL', 'BO', 'LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'SUCRE', 'TARIJA', 'BENI', 'PANDO'],
-            ],
-            'ARGENTINA' => [
-                'flag_code' => 'ar',
-                'tokens' => ['ARGENTINA', 'ARG', 'AR', 'BUENOS AIRES', 'CORDOBA', 'MENDOZA', 'ROSARIO'],
-            ],
-            'BRASIL' => [
-                'flag_code' => 'br',
-                'tokens' => ['BRASIL', 'BRAZIL', 'BRA', 'BR', 'SAO PAULO', 'RIO DE JANEIRO', 'CURITIBA'],
-            ],
-            'CHILE' => [
-                'flag_code' => 'cl',
-                'tokens' => ['CHILE', 'CHL', 'CL', 'SANTIAGO', 'VALPARAISO', 'ANTOFAGASTA'],
-            ],
-            'PERU' => [
-                'flag_code' => 'pe',
-                'tokens' => ['PERU', 'PER', 'PE', 'LIMA', 'AREQUIPA', 'CUSCO'],
-            ],
-            'PARAGUAY' => [
-                'flag_code' => 'py',
-                'tokens' => ['PARAGUAY', 'PRY', 'PY', 'ASUNCION'],
-            ],
-            'URUGUAY' => [
-                'flag_code' => 'uy',
-                'tokens' => ['URUGUAY', 'URY', 'UY', 'MONTEVIDEO'],
-            ],
-        ];
+        $normalizarIso2 = function (?string $valor): ?string {
+            $iso = strtoupper(trim((string) $valor));
+            return preg_match('/^[A-Z]{2}$/', $iso) === 1 ? $iso : null;
+        };
 
-        $detectarPais = function (?string $texto) use ($paises): ?string {
-            $valor = mb_strtoupper(trim((string) $texto));
+        $iso2DesdeOficina = function (?string $texto) use ($normalizarIso2): ?string {
+            $valor = strtoupper(trim((string) $texto));
             if ($valor === '') {
                 return null;
             }
 
-            foreach ($paises as $pais => $cfg) {
-                foreach ($cfg['tokens'] as $token) {
-                    if (str_contains($valor, mb_strtoupper($token))) {
-                        return $pais;
-                    }
-                }
-            }
-
-            if (preg_match('/^BO[A-Z0-9]+/', $valor)) {
-                return 'BOLIVIA';
-            }
-            if (preg_match('/^AR[A-Z0-9]+/', $valor)) {
-                return 'ARGENTINA';
-            }
-            if (preg_match('/^BR[A-Z0-9]+/', $valor)) {
-                return 'BRASIL';
-            }
-            if (preg_match('/^CL[A-Z0-9]+/', $valor)) {
-                return 'CHILE';
-            }
-            if (preg_match('/^PE[A-Z0-9]+/', $valor)) {
-                return 'PERU';
+            if (preg_match('/\b([A-Z]{2})[A-Z0-9]{3,}\b/', $valor, $m) === 1) {
+                return $normalizarIso2($m[1]);
             }
 
             return null;
         };
 
-        $banderaDePais = function (?string $pais) use ($paises): string {
-            if (!$pais) {
-                return '';
+        $detectarDepartamentoBolivia = function (?string $texto): ?string {
+            $valor = mb_strtoupper(trim((string) $texto));
+            if ($valor === '') {
+                return null;
             }
-            return (string) ($paises[$pais]['flag_code'] ?? '');
+
+            $mapa = [
+                'LA PAZ' => 'La Paz',
+                'ORURO' => 'Oruro',
+                'POTOSI' => 'Potosi',
+                'COCHABAMBA' => 'Cochabamba',
+                'SANTA CRUZ' => 'Santa Cruz',
+                'CHUQUISACA' => 'Chuquisaca',
+                'SUCRE' => 'Chuquisaca',
+                'TARIJA' => 'Tarija',
+                'BENI' => 'Beni',
+                'PANDO' => 'Pando',
+            ];
+
+            foreach ($mapa as $clave => $nombre) {
+                if (str_contains($valor, $clave)) {
+                    return $nombre;
+                }
+            }
+
+            return null;
         };
+
+        $contactosRegional = [
+            'La Paz' => [
+                'regional' => 'Oficina Central: La Paz',
+                'direccion' => 'Avenida Mariscal Santa Cruz Esquina Calle Oruro Edificio Telecomunicaciones',
+                'coords' => '-16.4980703,-68.1355719',
+            ],
+            'Cochabamba' => [
+                'regional' => 'Regional: Cochabamba',
+                'direccion' => 'Calle Ayacucho esquina Av. Heroinas N° 113',
+                'coords' => "17°23'34.1\"S 66°09'31.0\"W",
+            ],
+            'Santa Cruz' => [
+                'regional' => 'Regional: Santa Cruz',
+                'direccion' => 'Calle Cobija Entre Sucre y Ballivian N° 24',
+                'coords' => "17°47'00.6\"S 63°10'28.8\"W",
+            ],
+            'Oruro' => [
+                'regional' => 'Regional: Oruro',
+                'direccion' => 'Calle Presidente Montes Esquina Junin N° 1456',
+                'coords' => "17°58'07.3\"S 67°06'53.6\"W",
+            ],
+            'Potosi' => [
+                'regional' => 'Regional: Potosi',
+                'direccion' => 'Calle Hoyos Esquina Topater, Villa Imperial de Potosi',
+                'coords' => "19°35'19.3\"S 65°44'56.2\"W",
+            ],
+            'Tarija' => [
+                'regional' => 'Regional: Tarija',
+                'direccion' => 'Calle Mariscal Sucre esquina Virginio Lema N° 397',
+                'coords' => "21°32'10.0\"S 64°44'04.5\"W",
+            ],
+            'Chuquisaca' => [
+                'regional' => 'Regional: Sucre',
+                'direccion' => 'Calle Junin Esquina Ayacucho N° 699',
+                'coords' => "19°02'49.8\"S 65°15'41.0\"W",
+            ],
+            'Beni' => [
+                'regional' => 'Regional: Beni',
+                'direccion' => 'Calle Cipriano Barace N°10 Entre Manuel Limpias y Calle Sucre',
+                'coords' => "14°50'04.0\"S 64°54'11.8\"W",
+            ],
+            'Pando' => [
+                'regional' => 'Regional: Pando',
+                'direccion' => 'Av. Bruno Recua N.- 59',
+                'coords' => "11°01'03.8\"S 68°45'15.9\"W",
+            ],
+        ];
+
+        $eventoListoParaEntregar = $eventos->first(function ($item) {
+            $texto = mb_strtolower((string) ($item->nombre_evento ?? ''));
+            return str_contains($texto, 'listo para entregar')
+                || str_contains($texto, 'oficina de entrega');
+        });
+
+        $mostrarAvisoRecojo = false;
+        $mensajeAvisoRecojo = '';
+        $detalleRegionalRecojo = null;
+        $mapUrlRegionalRecojo = null;
+        if ($eventoListoParaEntregar) {
+            $oficinaAviso = trim((string) ($eventoListoParaEntregar->office ?? ''));
+            $isoOficinaAviso = $iso2DesdeOficina($oficinaAviso);
+            $esBolivia = ($isoOficinaAviso === 'BO') || str_ends_with(strtoupper($codigo), 'BO');
+
+            if ($esBolivia) {
+                $departamento = $detectarDepartamentoBolivia($oficinaAviso);
+                $mensajeAvisoRecojo = $departamento
+                    ? 'Tu paquete esta listo para entregar. Debes pasar a recoger en el departamento de ' . $departamento . '.'
+                    : 'Tu paquete esta listo para entregar. Debes pasar a recoger en tu oficina de destino en Bolivia.';
+                if ($departamento && isset($contactosRegional[$departamento])) {
+                    $detalleRegionalRecojo = $contactosRegional[$departamento];
+                } else {
+                    $detalleRegionalRecojo = $contactosRegional['La Paz'];
+                }
+                if ($detalleRegionalRecojo) {
+                    $mapQuery = trim((string) ($detalleRegionalRecojo['coords'] ?? ''));
+                    if ($mapQuery === '') {
+                        $mapQuery = trim($detalleRegionalRecojo['direccion'] . ' ' . $detalleRegionalRecojo['regional'] . ' Bolivia');
+                    }
+                    $mapUrlRegionalRecojo = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($mapQuery);
+                }
+                $mostrarAvisoRecojo = true;
+            }
+        }
     @endphp
 
     @include('partials.landing-header')
@@ -183,6 +283,30 @@
                     </ol>
                 </article>
 
+                @if ($mostrarAvisoRecojo)
+                    <article class="card pickup-notice reveal-block" style="--reveal-delay: 170ms;">
+                        <p>{{ $mensajeAvisoRecojo }}</p>
+                        @if ($detalleRegionalRecojo)
+                            <div class="pickup-contact-grid">
+                                <div class="pickup-contact-row">
+                                    <span class="pickup-contact-label">Oficina</span>
+                                    <strong>{{ $detalleRegionalRecojo['regional'] }}</strong>
+                                </div>
+                                <div class="pickup-contact-row">
+                                    <span class="pickup-contact-label">Direccion</span>
+                                    <strong>
+                                        @if ($mapUrlRegionalRecojo)
+                                            <a class="pickup-map-link" href="{{ $mapUrlRegionalRecojo }}" target="_blank" rel="noopener noreferrer">{{ $detalleRegionalRecojo['direccion'] }}</a>
+                                        @else
+                                            {{ $detalleRegionalRecojo['direccion'] }}
+                                        @endif
+                                    </strong>
+                                </div>
+                            </div>
+                        @endif
+                    </article>
+                @endif
+
                 <article class="card history-card reveal-block" style="--reveal-delay: 230ms;">
                     <div class="card-head">
                         <h2>Historial de seguimiento</h2>
@@ -213,27 +337,28 @@
                                                 @php
                                                     $office = trim((string) ($evento->office ?? ''));
                                                     $nextOffice = trim((string) ($evento->next_office ?? ''));
-                                                    $paisOrigen = trim((string) ($evento->pais_origen ?? 'BOLIVIA'));
-                                                    $paisOrigenDetectado = $detectarPais($paisOrigen) ?? 'BOLIVIA';
-                                                    $banderaPaisOrigen = $banderaDePais($paisOrigenDetectado);
-                                                    $banderaOffice = $banderaDePais($detectarPais($office));
-                                                    $banderaNextOffice = $banderaDePais($detectarPais($nextOffice));
+                                                    $paisOrigen = trim((string) ($evento->pais_origen ?? ''));
+                                                    $isoPaisOrigen = $normalizarIso2($evento->pais_origen_iso2 ?? null);
+                                                    $isoOffice = $iso2DesdeOficina($office);
+                                                    $isoNextOffice = $iso2DesdeOficina($nextOffice);
                                                 @endphp
                                                 @if ($office === '')
-                                                    <div class="history-meta-row">
-                                                        <span class="history-meta-label">Pais Origen</span>
-                                                        <span class="history-meta-value">{{ $paisOrigen }} @if($banderaPaisOrigen !== '')<img class="country-flag" src="https://flagcdn.com/16x12/{{ $banderaPaisOrigen }}.png" alt="Bandera {{ $paisOrigenDetectado }}">@endif</span>
-                                                    </div>
+                                                    @if ($paisOrigen !== '')
+                                                        <div class="history-meta-row">
+                                                            <span class="history-meta-label">Pais Origen</span>
+                                                            <span class="history-meta-value">{{ $paisOrigen }} @if($isoPaisOrigen)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoPaisOrigen) }}.png" alt="Bandera {{ $paisOrigen }}">@endif</span>
+                                                        </div>
+                                                    @endif
                                                 @else
                                                     <div class="history-meta-row">
                                                         <span class="history-meta-label">Oficina</span>
-                                                        <span class="history-meta-value">{{ $office }} @if($banderaOffice !== '')<img class="country-flag" src="https://flagcdn.com/16x12/{{ $banderaOffice }}.png" alt="Bandera oficina">@endif</span>
+                                                        <span class="history-meta-value">{{ $office }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
                                                     </div>
                                                 @endif
                                                 @if ($nextOffice !== '')
                                                     <div class="history-meta-row">
                                                         <span class="history-meta-label">Siguiente Oficina</span>
-                                                        <span class="history-meta-value">{{ $nextOffice }} @if($banderaNextOffice !== '')<img class="country-flag" src="https://flagcdn.com/16x12/{{ $banderaNextOffice }}.png" alt="Bandera siguiente oficina">@endif</span>
+                                                        <span class="history-meta-value">{{ $nextOffice }} @if($isoNextOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoNextOffice) }}.png" alt="Bandera siguiente oficina">@endif</span>
                                                     </div>
                                                 @endif
                                             </div>

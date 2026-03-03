@@ -116,7 +116,7 @@ class BusquedaController extends Controller
         return $eventosLocales
             ->merge($eventosExternos)
             ->values()
-            ->map(function ($item, $index) use ($codigo) {
+            ->map(function ($item, $index) use ($codigo, $payload) {
                 $evento = is_array($item) ? $item : (array) $item;
                 $codigoExterno = trim((string) ($evento['mailitM_FID'] ?? ''));
                 $office = trim((string) ($evento['office'] ?? ''));
@@ -139,6 +139,9 @@ class BusquedaController extends Controller
 
                 $timestamp = strtotime($createdAt);
                 $nombreNormalizado = $this->normalizarNombreEvento((string) $nombreEvento);
+                $paisOrigen = $this->resolverPaisOrigen($evento, $payload, $codigo);
+                $paisOrigenIso2 = $this->resolverPaisOrigenIso2($evento, $payload, $codigo, $paisOrigen);
+                $servicio = $this->resolverServicio($evento, $payload, $codigo);
 
                 return (object) [
                     'id' => $evento['id'] ?? null,
@@ -148,11 +151,12 @@ class BusquedaController extends Controller
                     'created_at' => $createdAt,
                     'updated_at' => $evento['updated_at'] ?? $createdAt,
                     'nombre_evento' => $nombreNormalizado,
-                    'servicio' => strtoupper((string) ($evento['servicio'] ?? $evento['tipo_servicio'] ?? 'TRACKING')),
+                    'servicio' => $servicio,
                     'tabla_origen' => $evento['tabla_origen'] ?? 'api_sqlserver',
                     'office' => $office,
                     'next_office' => $nextOffice,
-                    'pais_origen' => 'BOLIVIA',
+                    'pais_origen' => $paisOrigen,
+                    'pais_origen_iso2' => $paisOrigenIso2,
                     'condition' => trim((string) ($evento['condition'] ?? '')),
                     '_sort_ts' => $timestamp !== false ? $timestamp : (PHP_INT_MAX - (int) $index),
                     '_sort_priority' => $this->obtenerPrioridadEvento($nombreNormalizado),
@@ -256,5 +260,245 @@ class BusquedaController extends Controller
             str_contains($texto, 'recibido del cliente') => 10,
             default => 0,
         };
+    }
+
+    private function resolverPaisOrigen(array $evento, array $payload, string $codigoDefault): string
+    {
+        $candidatos = [
+            $evento['pais_origen'] ?? null,
+            $evento['country'] ?? null,
+            $evento['origin_country'] ?? null,
+            $evento['originCountry'] ?? null,
+            $evento['country_origin'] ?? null,
+            $evento['countryOrigin'] ?? null,
+            $payload['pais_origen'] ?? null,
+            $payload['country'] ?? null,
+            $payload['origin_country'] ?? null,
+            $payload['originCountry'] ?? null,
+        ];
+
+        foreach ($candidatos as $valor) {
+            $texto = trim((string) $valor);
+            if ($texto !== '') {
+                return strtoupper($texto);
+            }
+        }
+        return '';
+    }
+
+    private function paisDesdeCodigoPostal(string $codigo): ?string
+    {
+        $valor = strtoupper(trim($codigo));
+        if ($valor === '' || strlen($valor) < 2) {
+            return null;
+        }
+
+        $iso2 = substr($valor, -2);
+        $map = [
+            'AE' => 'UNITED ARAB EMIRATES',
+            'AR' => 'ARGENTINA',
+            'BO' => 'BOLIVIA',
+            'BR' => 'BRAZIL',
+            'CL' => 'CHILE',
+            'CO' => 'COLOMBIA',
+            'EC' => 'ECUADOR',
+            'ES' => 'SPAIN',
+            'PE' => 'PERU',
+            'PY' => 'PARAGUAY',
+            'UY' => 'URUGUAY',
+            'US' => 'UNITED STATES',
+        ];
+
+        return $map[$iso2] ?? null;
+    }
+
+    private function resolverPaisOrigenIso2(array $evento, array $payload, string $codigoDefault, string $paisOrigen): ?string
+    {
+        $candidatosIso = [
+            $evento['pais_origen_iso2'] ?? null,
+            $evento['country_code'] ?? null,
+            $evento['origin_country_code'] ?? null,
+            $evento['originCountryCode'] ?? null,
+            $payload['pais_origen_iso2'] ?? null,
+            $payload['country_code'] ?? null,
+            $payload['origin_country_code'] ?? null,
+            $payload['originCountryCode'] ?? null,
+        ];
+
+        foreach ($candidatosIso as $valor) {
+            $iso = strtoupper(trim((string) $valor));
+            if (preg_match('/^[A-Z]{2}$/', $iso) === 1) {
+                return $iso;
+            }
+        }
+
+        $codigo = trim((string) ($evento['mailitM_FID'] ?? ''));
+        if ($codigo === '') {
+            $codigo = trim((string) ($payload['codigo'] ?? $codigoDefault));
+        }
+
+        $isoCodigo = $this->iso2DesdeCodigoPostal($codigo);
+        if ($isoCodigo !== null) {
+            return $isoCodigo;
+        }
+
+        return $this->iso2DesdeNombrePais($paisOrigen);
+    }
+
+    private function iso2DesdeCodigoPostal(string $codigo): ?string
+    {
+        $valor = strtoupper(trim($codigo));
+        if ($valor === '' || strlen($valor) < 2) {
+            return null;
+        }
+
+        $iso2 = substr($valor, -2);
+        if (preg_match('/^[A-Z]{2}$/', $iso2) !== 1) {
+            return null;
+        }
+
+        return $iso2;
+    }
+
+    private function nombrePaisDesdeIso2(string $iso2): ?string
+    {
+        $iso = strtoupper(trim($iso2));
+        if (preg_match('/^[A-Z]{2}$/', $iso) !== 1) {
+            return null;
+        }
+
+        if (class_exists(\Locale::class)) {
+            $nombre = \Locale::getDisplayRegion('-' . $iso, 'en');
+            $nombre = trim((string) $nombre);
+            if ($nombre !== '' && strtoupper($nombre) !== $iso) {
+                return strtoupper($nombre);
+            }
+        }
+
+        $fallback = [
+            'AE' => 'UNITED ARAB EMIRATES',
+            'BO' => 'BOLIVIA',
+            'BR' => 'BRAZIL',
+            'ES' => 'SPAIN',
+            'FR' => 'FRANCE',
+            'US' => 'UNITED STATES',
+        ];
+
+        return $fallback[$iso] ?? null;
+    }
+
+    private function iso2DesdeNombrePais(string $nombrePais): ?string
+    {
+        $texto = $this->normalizarTextoPais($nombrePais);
+        if ($texto === '') {
+            return null;
+        }
+
+        // Fallback rapido para nombres comunes con variantes.
+        $alias = [
+            'UNITED ARAB EMIRATES' => 'AE',
+            'EMIRATOS ARABES UNIDOS' => 'AE',
+            'UAE' => 'AE',
+            'SPAIN' => 'ES',
+            'ESPANA' => 'ES',
+            'ESPANA ' => 'ES',
+            'BOLIVIA' => 'BO',
+            'BRAZIL' => 'BR',
+            'BRASIL' => 'BR',
+            'UNITED STATES' => 'US',
+            'ESTADOS UNIDOS' => 'US',
+        ];
+
+        if (isset($alias[$texto])) {
+            return $alias[$texto];
+        }
+
+        if (!class_exists(\ResourceBundle::class)) {
+            return null;
+        }
+
+        $locales = ['en', 'es', 'fr', 'pt', 'de', 'it'];
+        foreach ($locales as $locale) {
+            $bundle = \ResourceBundle::create($locale, 'ICUDATA-region');
+            if (!$bundle) {
+                continue;
+            }
+
+            $countries = $bundle->get('Countries');
+            if (!$countries) {
+                continue;
+            }
+
+            foreach ($countries as $iso => $label) {
+                $isoStr = strtoupper((string) $iso);
+                if (preg_match('/^[A-Z]{2}$/', $isoStr) !== 1) {
+                    continue;
+                }
+
+                $labelNorm = $this->normalizarTextoPais((string) $label);
+                if ($labelNorm === $texto) {
+                    return $isoStr;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizarTextoPais(string $texto): string
+    {
+        $valor = mb_strtoupper(trim($texto));
+        if ($valor === '') {
+            return '';
+        }
+
+        // Quitar tildes y caracteres de combinacion para comparar de forma robusta.
+        if (class_exists(\Normalizer::class)) {
+            $valor = \Normalizer::normalize($valor, \Normalizer::FORM_D) ?: $valor;
+            $valor = preg_replace('/\p{Mn}+/u', '', $valor) ?: $valor;
+        }
+
+        return preg_replace('/\s+/', ' ', $valor) ?: $valor;
+    }
+
+    private function resolverServicio(array $evento, array $payload, string $codigoDefault): string
+    {
+        $candidatos = [
+            // Priorizar el dato oficial de la API en el nivel raiz.
+            $payload['servicio'] ?? null,
+            $payload['tipo_servicio'] ?? null,
+            $payload['service'] ?? null,
+            $payload['service_type'] ?? null,
+            // Luego intentar por evento.
+            $evento['servicio'] ?? null,
+            $evento['tipo_servicio'] ?? null,
+            $evento['service'] ?? null,
+            $evento['service_type'] ?? null,
+        ];
+
+        foreach ($candidatos as $valor) {
+            $servicio = strtoupper(trim((string) $valor));
+            if ($servicio !== '') {
+                return $servicio;
+            }
+        }
+
+        $codigo = trim((string) ($evento['mailitM_FID'] ?? ''));
+        if ($codigo === '') {
+            $codigo = trim((string) ($payload['codigo'] ?? $codigoDefault));
+        }
+
+        $codigo = strtoupper($codigo);
+
+        // Clasificacion por prefijo UPU cuando la API no informa tipo_servicio.
+        if (preg_match('/^R[A-Z]\d{9}[A-Z]{2}$/', $codigo) === 1) {
+            return 'CERTIFICADAS';
+        }
+
+        if (preg_match('/^E[A-Z]\d{9}[A-Z]{2}$/', $codigo) === 1) {
+            return 'EMS';
+        }
+
+        return 'TRACKING';
     }
 }

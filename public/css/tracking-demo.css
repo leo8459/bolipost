@@ -227,6 +227,60 @@ body {
   box-shadow: 0 10px 28px rgba(16, 50, 88, 0.09);
 }
 
+.pickup-notice {
+  border-color: #b8dfc2;
+  background: linear-gradient(180deg, #f3fff6, #ecfbf0);
+  padding: 0.9rem 1rem;
+}
+
+.pickup-notice p {
+  color: #1f5b33;
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.pickup-contact-grid {
+  margin-top: 0.62rem;
+  display: grid;
+  gap: 0.36rem;
+}
+
+.pickup-contact-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 0.45rem;
+  align-items: baseline;
+  padding: 0.34rem 0.45rem;
+  border: 1px solid #d7ebdd;
+  border-radius: 8px;
+  background: #ffffffb8;
+}
+
+.pickup-contact-label {
+  font-size: 0.76rem;
+  color: #3a7250;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pickup-contact-row strong {
+  font-size: 0.85rem;
+  color: #1f4f34;
+  font-weight: 700;
+}
+
+.pickup-map-link {
+  color: #1f4f34;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.pickup-map-link:hover {
+  color: #1b3f2a;
+}
+
 .card-head {
   display: flex;
   align-items: center;
@@ -599,6 +653,10 @@ body {
   .history-meta-row {
     grid-template-columns: 1fr;
     gap: 0.15rem;
+  }
+  .pickup-contact-row {
+    grid-template-columns: 1fr;
+    gap: 0.12rem;
   }
 }
 
