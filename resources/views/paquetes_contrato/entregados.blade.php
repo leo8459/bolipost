@@ -101,7 +101,7 @@
         }
 
         .header-app {
-            background: linear-gradient(90deg, var(--azul), #2c3766);
+            background: linear-gradient(90deg, var(--azul), #20539A);
             color: #fff;
             padding: 18px 20px;
         }
@@ -161,3 +161,4 @@
         }
     </style>
 @endsection
+

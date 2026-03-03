@@ -1,8 +1,8 @@
 <div>
     <style>
         :root{
-            --azul:#FECC36;
-            --dorado:#20539A;
+            --azul:#20539A;
+            --dorado:#FECC36;
             --bg:#f5f7fb;
             --line:#e5e7eb;
             --muted:#6b7280;
@@ -22,7 +22,7 @@
         }
 
         .header-app{
-            background: linear-gradient(90deg, var(--azul), #2c3766);
+            background: linear-gradient(90deg, var(--azul), #20539A);
             color:#fff;
             padding:18px 20px;
         }
@@ -184,3 +184,4 @@
         </div>
     </div>
 </div>
+
