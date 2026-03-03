@@ -314,7 +314,7 @@ return [
         [
             'text' => 'Dashboard',
             'url' => '/dashboard',
-            'icon' => 'fas fa-user',
+            'icon' => 'fas fa-tachometer-alt',
         ],
         [
             'text' => 'Admisiones',
@@ -323,18 +323,18 @@ return [
                 [
                     'text' => 'Crear Admision',
                     'url' => 'paquetes-ems',
-                    'icon' => 'fas fa-box',
+                    'icon' => 'fas fa-plus-circle',
                 ],
             ],
         ],
                 [
             'text' => 'Paquetes Contratos',
-            'icon' => 'fas fa-folder-open',
+            'icon' => 'fas fa-file-contract',
             'submenu' => [
                 
-                 [
+                [
                     'text' => 'Consulta de Contratos',
-                    'icon' => 'fas fa-file-contract',
+                    'icon' => 'fas fa-search',
                     'submenu' => [
                         
                        [
@@ -351,7 +351,7 @@ return [
                 ],
                 [
                     'text' => 'Recojo Paquetes',
-                    'icon' => 'fas fa-file-contract',
+                    'icon' => 'fas fa-hand-holding',
                     'submenu' => [
                         [
                             'text' => 'Almacen contratos',
@@ -372,17 +372,17 @@ return [
                 ],
                 [
                     'text' => 'Solicitud de Correspondencia',
-                    'icon' => 'fas fa-building',
+                    'icon' => 'fas fa-envelope-open-text',
                     'submenu' => [
                         [
                             'text' => 'Gestion contratos',
                             'url' => 'paquetes-contrato',
-                            'icon' => 'fas fa-list',
+                            'icon' => 'fas fa-tasks',
                         ],
                         [
                             'text' => 'Contratos entregados',
                             'url' => 'paquetes-contrato/entregados',
-                            'icon' => 'fas fa-motorcycle',
+                            'icon' => 'fas fa-check-circle',
                         ],
                     ],
                 ],
@@ -421,7 +421,7 @@ return [
         ],
         [
             'text' => 'Paquetes Certificados',
-            'icon' => 'fas fa-box',
+            'icon' => 'fas fa-certificate',
             'submenu' => [
                 [
                     'text' => 'Todos los Paquetes',
@@ -561,32 +561,32 @@ return [
                 [
                     'text' => 'Eventos UPU',
                     'url' => 'eventos',
-                    'icon' => 'fas fa-list',
+                    'icon' => 'fas fa-globe',
                 ],
                 [
                     'text' => 'Eventos EMS',
                     'url' => 'eventos-ems',
-                    'icon' => 'fas fa-clipboard-check',
+                    'icon' => 'fas fa-shipping-fast',
                 ],
                 [
                     'text' => 'Eventos Certificado',
                     'url' => 'eventos-certi',
-                    'icon' => 'fas fa-clipboard-check',
+                    'icon' => 'fas fa-certificate',
                 ],
                 [
                     'text' => 'Eventos Ordinario',
                     'url' => 'eventos-ordi',
-                    'icon' => 'fas fa-clipboard-check',
+                    'icon' => 'fas fa-box-open',
                 ],
                 [
                     'text' => 'Eventos Expediciones',
                     'url' => 'eventos-despacho',
-                    'icon' => 'fas fa-clipboard-check',
+                    'icon' => 'fas fa-plane-departure',
                 ],
                 [
                     'text' => 'Eventos Contratos',
                     'url' => 'eventos-contrato',
-                    'icon' => 'fas fa-clipboard-check',
+                    'icon' => 'fas fa-file-contract',
                 ],
                 [
                     'text' => 'Eventos Auditoria',
@@ -678,13 +678,13 @@ return [
             'text' => 'Rendimiento',
             'url' => '/pulse',
 
-            'icon' => 'fas fa-user',
+            'icon' => 'fas fa-chart-line',
         ],
         [
             'text' => 'Logs',
             'url' => '/log-viewer',
 
-            'icon' => 'fas fa-user',
+            'icon' => 'fas fa-file-alt',
         ],
         [
             'text' => 'Respaldos',
