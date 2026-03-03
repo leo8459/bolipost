@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <div class="mb-4 text-sm text-[#1a549a]/85">
+    <div class="mb-4 text-sm text-[#20539A]/85">
         {{ __('Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.') }}
     </div>
 
@@ -23,3 +23,4 @@
         </div>
     </form>
 </x-guest-layout>
+

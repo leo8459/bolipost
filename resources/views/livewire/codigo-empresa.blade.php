@@ -9,7 +9,7 @@
         }
         .plantilla-wrap{ background: var(--bg); padding: 18px; border-radius: 16px; }
         .card-app{ border:0; border-radius:16px; box-shadow:0 12px 26px rgba(0,0,0,.08); overflow:hidden; }
-        .header-app{ background: linear-gradient(90deg, var(--azul), #2c3766); color:#fff; padding:18px 20px; }
+        .header-app{ background: linear-gradient(90deg, var(--azul), #20539A); color:#fff; padding:18px 20px; }
         .search-input{ border-radius:12px; border:1px solid rgba(255,255,255,.45); padding:10px 12px; background: rgba(255,255,255,.95); }
         .btn-dorado{ background: var(--dorado); color:#fff; font-weight:800; border:none; border-radius:12px; padding:10px 14px; }
         .btn-dorado:hover{ filter:brightness(.95); color:#fff; }
@@ -22,7 +22,7 @@
         .muted{ color:var(--muted); }
         .table td{ vertical-align: middle; }
         .modal-content{ border:0; border-radius:18px; box-shadow:0 20px 50px rgba(0,0,0,.2); }
-        .modal-header{ background: linear-gradient(90deg, var(--azul), #2c3766); color:#fff; border-bottom:0; padding:16px 20px; }
+        .modal-header{ background: linear-gradient(90deg, var(--azul), #20539A); color:#fff; border-bottom:0; padding:16px 20px; }
         .section-block{
             border:1px solid var(--line);
             border-radius:14px;
@@ -258,3 +258,4 @@
         $('#codigoEmpresaModal').modal('hide');
     });
 </script>
+

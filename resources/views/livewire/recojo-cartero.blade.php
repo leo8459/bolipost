@@ -8,7 +8,7 @@
         }
         .plantilla-wrap{ background: var(--bg); padding: 18px; border-radius: 16px; }
         .card-app{ border:0; border-radius:16px; box-shadow:0 12px 26px rgba(0,0,0,.08); overflow:hidden; }
-        .header-app{ background: linear-gradient(90deg, var(--azul), #2c3766); color:#fff; padding:18px 20px; }
+        .header-app{ background: linear-gradient(90deg, var(--azul), #20539A); color:#fff; padding:18px 20px; }
         .search-input{ border-radius:12px; border:1px solid rgba(255,255,255,.45); padding:10px 12px; background: rgba(255,255,255,.95); }
         .btn-outline-light2{ border:1px solid rgba(255,255,255,.7); color:#fff; font-weight:800; border-radius:12px; padding:10px 14px; background:transparent; }
         .btn-outline-light2:hover{ background: rgba(255,255,255,.12); color:#fff; }
@@ -143,4 +143,5 @@
         </div>
     </div>
 </div>
+
 

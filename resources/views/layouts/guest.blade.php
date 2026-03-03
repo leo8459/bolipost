@@ -28,13 +28,14 @@
             </div>
 
             <div
-                class="relative w-full px-6 py-5 bg-white/95 border border-[#1a549a]/20 shadow-[0_18px_40px_rgba(15,39,74,0.18)] overflow-hidden rounded-2xl backdrop-blur {{ $cardClasses }}"
+                class="relative w-full px-6 py-5 bg-white/95 border border-[#20539A]/20 shadow-[0_18px_40px_rgba(15,39,74,0.18)] overflow-hidden rounded-2xl backdrop-blur {{ $cardClasses }}"
                 style="max-width: {{ $cardMaxWidth }};"
             >
-                <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#eab312_0%,#fecb34_50%,#eab312_100%)]"></div>
+                <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#FECC36_0%,#FECC36_50%,#FECC36_100%)]"></div>
                 {{ $slot }}
             </div>
            
         </div>
     </body>
 </html>
+
