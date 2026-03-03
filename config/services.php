@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'tracking_sqlserver' => [
+        'base_url' => env('TRACKING_SQLSERVER_BASE_URL'),
+        'token' => env('TRACKING_SQLSERVER_TOKEN'),
+    ],
+
 ];
