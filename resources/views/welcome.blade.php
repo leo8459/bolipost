@@ -258,6 +258,14 @@
 
     </main>
 
+    <div class="search-loading-modal" id="searchLoadingModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="searchLoadingTitle">
+        <div class="search-loading-card" role="status" aria-live="polite">
+            <div class="search-loading-spinner" aria-hidden="true"></div>
+            <h3 id="searchLoadingTitle">Buscando tu envío...</h3>
+            <p id="searchLoadingText">Estamos consultando los eventos del código.</p>
+        </div>
+    </div>
+
     <button class="back-to-top" id="backToTop" type="button" aria-label="Subir al inicio">
         &uarr;
     </button>
@@ -401,6 +409,23 @@
         const resultsTotal = document.getElementById('resultsTotal');
         const resultsEmpty = document.getElementById('resultsEmpty');
         const resultsList = document.getElementById('resultsList');
+        const searchLoadingModal = document.getElementById('searchLoadingModal');
+        const searchLoadingText = document.getElementById('searchLoadingText');
+
+        const showLoadingModal = (message = 'Estamos consultando los eventos del código.') => {
+            if (!searchLoadingModal) return;
+            if (searchLoadingText) searchLoadingText.textContent = message;
+            searchLoadingModal.classList.add('is-open');
+            searchLoadingModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('has-loading-modal');
+        };
+
+        const hideLoadingModal = () => {
+            if (!searchLoadingModal) return;
+            searchLoadingModal.classList.remove('is-open');
+            searchLoadingModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('has-loading-modal');
+        };
 
         const formatDate = (value) => {
             if (!value) return '-';
@@ -466,7 +491,8 @@
                 return;
             }
 
-            showFeedback('Buscando eventos...', '');
+            showFeedback('', '');
+            showLoadingModal('Estamos consultando los eventos del código.');
 
             try {
                 const response = await fetch(`/api/busqueda/ems-eventos?codigo=${encodeURIComponent(codigo)}`, {
@@ -479,9 +505,10 @@
                     throw new Error(message);
                 }
 
-                showFeedback('Paquete encontrado, redirigiendo...', 'is-success');
+                showLoadingModal('Paquete encontrado. Redirigiendo al detalle...');
                 window.location.href = `${trackForm.getAttribute('action')}?codigo=${encodeURIComponent(codigo)}`;
             } catch (error) {
+                hideLoadingModal();
                 const message = error.message || 'No existe dicho paquete';
                 renderResults(codigo, [], message);
                 showFeedback(message, 'is-error');
