@@ -29,6 +29,8 @@ class Recojo extends Model
         'mapa',
         'provincia',
         'peso',
+        'precio',
+        'tarifa_contrato_id',
         'fecha_recojo',
         'observacion',
         'justificacion',
@@ -37,6 +39,7 @@ class Recojo extends Model
 
     protected $casts = [
         'peso' => 'decimal:3',
+        'precio' => 'decimal:2',
         'fecha_recojo' => 'date',
     ];
 
@@ -53,5 +56,10 @@ class Recojo extends Model
     public function estadoRegistro()
     {
         return $this->belongsTo(Estado::class, 'estados_id');
+    }
+
+    public function tarifaContrato()
+    {
+        return $this->belongsTo(TarifaContrato::class, 'tarifa_contrato_id');
     }
 }
