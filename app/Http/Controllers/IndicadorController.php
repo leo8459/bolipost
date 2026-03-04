@@ -13,6 +13,11 @@ class IndicadorController extends Controller
     private const EVENTO_CONTRATO_ENTREGADO_ID = 316;
     private const EVENTO_EMS_SOLICITUD_ID = 295;
     private const EVENTO_EMS_ENTREGADO_ID = 316;
+    private const EVENTO_CERTI_ENTREGADO_ID = 316;
+    private const EVENTO_ORDI_ENTREGADO_ID = 316;
+    private const CERTI_ORDI_GREEN_DAYS = 7;
+    private const CERTI_ORDI_YELLOW_DAYS = 15;
+    private const CERTI_ORDI_RED_DAYS = 30;
     private const DESTINOS_LARGA_DISTANCIA = [
         'SANTA CRUZ',
         'BENI',
@@ -224,9 +229,22 @@ class IndicadorController extends Controller
     {
         $search = trim((string) $request->query('q', ''));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
+        $inicioSub = DB::table('eventos_certi')
+            ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
+            ->groupBy('codigo');
+        $entregadoSub = DB::table('eventos_certi')
+            ->select('codigo', DB::raw('MIN(created_at) as entregado_evento_at'))
+            ->where('evento_id', self::EVENTO_CERTI_ENTREGADO_ID)
+            ->groupBy('codigo');
 
         $rows = DB::table('paquetes_certi')
             ->leftJoin('estados', 'estados.id', '=', 'paquetes_certi.fk_estado')
+            ->leftJoinSub($inicioSub, 'ev_inicio', function ($join) {
+                $join->on('ev_inicio.codigo', '=', 'paquetes_certi.codigo');
+            })
+            ->leftJoinSub($entregadoSub, 'ev_entregado', function ($join) {
+                $join->on('ev_entregado.codigo', '=', 'paquetes_certi.codigo');
+            })
             ->select([
                 'paquetes_certi.codigo',
                 DB::raw("coalesce(estados.nombre_estado, '-') as estado"),
@@ -239,6 +257,8 @@ class IndicadorController extends Controller
                 DB::raw("'-' as usuario"),
                 'paquetes_certi.created_at as fecha_registro',
                 'paquetes_certi.updated_at as fecha_actualizacion',
+                'ev_inicio.primer_evento_at',
+                'ev_entregado.entregado_evento_at',
             ]);
 
         $this->applyEstadoScope($rows, 'paquetes_certi.fk_estado', $estadoEntregadoId, $entregados);
@@ -253,15 +273,21 @@ class IndicadorController extends Controller
             });
         }
 
+        $rows = $rows->orderByDesc('paquetes_certi.id')->paginate(20)->withQueryString();
+        $rows->through(function ($row) use ($entregados) {
+            return $this->decorateCertiOrdiSlaRow($row, $entregados);
+        });
+
         return $this->renderListado(
-            $rows->orderByDesc('paquetes_certi.id')->paginate(20)->withQueryString(),
+            $rows,
             'Indicador Certificados - ' . ($entregados ? 'Entregados' : 'Inventario'),
             'CERTIFICADOS',
             $entregados ? 'ENTREGADOS' : 'INVENTARIO (NO ENTREGADOS)',
             $search,
             $entregados ? 'indicadores.certificados.entregados' : 'indicadores.certificados.inventario',
             (bool) $estadoEntregadoId,
-            $entregados
+            $entregados,
+            true
         );
     }
 
@@ -269,9 +295,22 @@ class IndicadorController extends Controller
     {
         $search = trim((string) $request->query('q', ''));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
+        $inicioSub = DB::table('eventos_ordi')
+            ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
+            ->groupBy('codigo');
+        $entregadoSub = DB::table('eventos_ordi')
+            ->select('codigo', DB::raw('MIN(created_at) as entregado_evento_at'))
+            ->where('evento_id', self::EVENTO_ORDI_ENTREGADO_ID)
+            ->groupBy('codigo');
 
         $rows = DB::table('paquetes_ordi')
             ->leftJoin('estados', 'estados.id', '=', 'paquetes_ordi.fk_estado')
+            ->leftJoinSub($inicioSub, 'ev_inicio', function ($join) {
+                $join->on('ev_inicio.codigo', '=', 'paquetes_ordi.codigo');
+            })
+            ->leftJoinSub($entregadoSub, 'ev_entregado', function ($join) {
+                $join->on('ev_entregado.codigo', '=', 'paquetes_ordi.codigo');
+            })
             ->select([
                 'paquetes_ordi.codigo',
                 DB::raw("coalesce(estados.nombre_estado, '-') as estado"),
@@ -284,6 +323,8 @@ class IndicadorController extends Controller
                 DB::raw("'-' as usuario"),
                 'paquetes_ordi.created_at as fecha_registro',
                 'paquetes_ordi.updated_at as fecha_actualizacion',
+                'ev_inicio.primer_evento_at',
+                'ev_entregado.entregado_evento_at',
             ]);
 
         $this->applyEstadoScope($rows, 'paquetes_ordi.fk_estado', $estadoEntregadoId, $entregados);
@@ -298,15 +339,21 @@ class IndicadorController extends Controller
             });
         }
 
+        $rows = $rows->orderByDesc('paquetes_ordi.id')->paginate(20)->withQueryString();
+        $rows->through(function ($row) use ($entregados) {
+            return $this->decorateCertiOrdiSlaRow($row, $entregados);
+        });
+
         return $this->renderListado(
-            $rows->orderByDesc('paquetes_ordi.id')->paginate(20)->withQueryString(),
+            $rows,
             'Indicador Ordinarios - ' . ($entregados ? 'Entregados' : 'Inventario'),
             'ORDINARIOS',
             $entregados ? 'ENTREGADOS' : 'INVENTARIO (NO ENTREGADOS)',
             $search,
             $entregados ? 'indicadores.ordinarios.entregados' : 'indicadores.ordinarios.inventario',
             (bool) $estadoEntregadoId,
-            $entregados
+            $entregados,
+            true
         );
     }
 
@@ -449,6 +496,54 @@ class IndicadorController extends Controller
 
         $limiteVerdeHoras = $umbrales['green'] * 24;
         $limiteAmarilloHoras = $umbrales['yellow'] * 24;
+
+        if ($horas <= $limiteVerdeHoras) {
+            $row->sla_color = 'VERDE';
+            $row->sla_color_class = 'sla-green';
+            return $row;
+        }
+
+        if ($horas <= $limiteAmarilloHoras) {
+            $row->sla_color = 'AMARILLO';
+            $row->sla_color_class = 'sla-yellow';
+            return $row;
+        }
+
+        $row->sla_color = 'ROJO';
+        $row->sla_color_class = 'sla-red';
+        return $row;
+    }
+
+    private function decorateCertiOrdiSlaRow(object $row, bool $entregados): object
+    {
+        $inicio = $this->safeCarbon($row->primer_evento_at ?? null)
+            ?? $this->safeCarbon($row->fecha_registro ?? null);
+        $fin = $entregados
+            ? ($this->safeCarbon($row->entregado_evento_at ?? null)
+                ?? $this->safeCarbon($row->fecha_actualizacion ?? null))
+            : now();
+
+        $row->sla_is_provincia = false;
+        $row->sla_green_days = self::CERTI_ORDI_GREEN_DAYS;
+        $row->sla_yellow_days = self::CERTI_ORDI_YELLOW_DAYS;
+        $row->sla_red_from_days = self::CERTI_ORDI_RED_DAYS;
+
+        if (!$inicio || !$fin || $fin->lessThan($inicio)) {
+            $row->sla_texto = '-';
+            $row->sla_color = 'SIN DATOS';
+            $row->sla_color_class = 'sla-gray';
+            return $row;
+        }
+
+        $horas = $inicio->diffInHours($fin);
+        $dias = intdiv($horas, 24);
+        $horasResto = $horas % 24;
+
+        $row->sla_total_horas = $horas;
+        $row->sla_texto = $dias . 'd ' . $horasResto . 'h';
+
+        $limiteVerdeHoras = self::CERTI_ORDI_GREEN_DAYS * 24;
+        $limiteAmarilloHoras = self::CERTI_ORDI_YELLOW_DAYS * 24;
 
         if ($horas <= $limiteVerdeHoras) {
             $row->sla_color = 'VERDE';
