@@ -1,8 +1,14 @@
 @php
-    $selectedEmpresa = (string) old('empresa_id', $tarifaContrato->empresa_id ?? '');
-    $selectedServicio = old('servicio', $tarifaContrato->servicio ?? '');
-    $selectedOrigen = old('origen', $tarifaContrato->origen ?? '');
-    $selectedDestino = old('destino', $tarifaContrato->destino ?? '');
+    $defaults = $defaults ?? [];
+    $isCreate = $isCreate ?? false;
+
+    $selectedEmpresa = (string) old('empresa_id', $tarifaContrato->empresa_id ?? ($defaults['empresa_id'] ?? ''));
+    $selectedServicio = old('servicio', $tarifaContrato->servicio ?? ($defaults['servicio'] ?? ''));
+    $selectedOrigen = old('origen', $tarifaContrato->origen ?? ($defaults['origen'] ?? ''));
+    $selectedDestino = old('destino', $tarifaContrato->destino ?? ($defaults['destino'] ?? ''));
+    $selectedProvincia = old('provincia', $tarifaContrato->provincia ?? ($defaults['provincia'] ?? ''));
+    $provinciasPorDepartamento = $provinciasPorDepartamento ?? [];
+    $provinciasDestino = $provinciasPorDepartamento[$selectedDestino] ?? [];
 @endphp
 
 <div class="box box-info padding-1">
@@ -89,7 +95,7 @@
                         min="0"
                         id="kilo"
                         name="kilo"
-                        value="{{ old('kilo', $tarifaContrato->kilo ?? '') }}"
+                        value="{{ old('kilo', $tarifaContrato->kilo ?? ($defaults['kilo'] ?? '')) }}"
                         class="form-control @error('kilo') is-invalid @enderror"
                         required
                     >
@@ -108,7 +114,7 @@
                         min="0"
                         id="kilo_extra"
                         name="kilo_extra"
-                        value="{{ old('kilo_extra', $tarifaContrato->kilo_extra ?? '') }}"
+                        value="{{ old('kilo_extra', $tarifaContrato->kilo_extra ?? ($defaults['kilo_extra'] ?? '')) }}"
                         class="form-control @error('kilo_extra') is-invalid @enderror"
                         required
                     >
@@ -129,7 +135,7 @@
                             max="100"
                             id="retencion"
                             name="retencion"
-                            value="{{ old('retencion', $tarifaContrato->retencion ?? '') }}"
+                            value="{{ old('retencion', $tarifaContrato->retencion ?? ($defaults['retencion'] ?? '')) }}"
                             class="form-control @error('retencion') is-invalid @enderror"
                             required
                         >
@@ -147,16 +153,22 @@
         <div class="row">
             <div class="col-md-6">
                 <div class="form-group mb-3">
-                    <label for="provincia">Provincia</label>
-                    <input
-                        type="text"
+                    <label for="provincia">Provincia (Opcional)</label>
+                    <select
                         id="provincia"
                         name="provincia"
-                        value="{{ old('provincia', $tarifaContrato->provincia ?? '') }}"
                         class="form-control @error('provincia') is-invalid @enderror"
-                        placeholder="Nombre de provincia"
-                        required
                     >
+                        <option value="">Seleccione...</option>
+                        @foreach($provinciasDestino as $provinciaItem)
+                            <option value="{{ $provinciaItem }}" {{ $selectedProvincia === $provinciaItem ? 'selected' : '' }}>
+                                {{ $provinciaItem }}
+                            </option>
+                        @endforeach
+                        @if($selectedProvincia !== '' && !in_array($selectedProvincia, $provinciasDestino, true))
+                            <option value="{{ $selectedProvincia }}" selected>{{ $selectedProvincia }}</option>
+                        @endif
+                    </select>
                     @error('provincia')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -172,7 +184,7 @@
                         step="1"
                         id="horas_entrega"
                         name="horas_entrega"
-                        value="{{ old('horas_entrega', $tarifaContrato->horas_entrega ?? '') }}"
+                        value="{{ old('horas_entrega', $tarifaContrato->horas_entrega ?? ($defaults['horas_entrega'] ?? '')) }}"
                         class="form-control @error('horas_entrega') is-invalid @enderror"
                         required
                     >
@@ -187,7 +199,52 @@
     <div class="box-footer mt20">
         <div class="d-flex justify-content-between">
             <a href="{{ route('tarifa-contrato.index') }}" class="btn btn-secondary">Volver</a>
-            <button type="submit" class="btn btn-primary">Guardar</button>
+            <div class="d-flex" style="gap:8px;">
+                @if($isCreate)
+                    <button type="submit" name="action" value="save_and_new" class="btn btn-info">
+                        Guardar y crear otro
+                    </button>
+                @endif
+                <button type="submit" name="action" value="save" class="btn btn-primary">Guardar</button>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        const destino = document.getElementById('destino');
+        const provincia = document.getElementById('provincia');
+        const provinciasPorDepartamento = @json($provinciasPorDepartamento);
+
+        if (!destino || !provincia) return;
+
+        const renderProvincias = (departamento, selected = '') => {
+            const key = (departamento || '').toUpperCase().trim();
+            const provincias = provinciasPorDepartamento[key] || [];
+            const selectedText = (selected || '').toUpperCase().trim();
+
+            provincia.innerHTML = '';
+            const empty = document.createElement('option');
+            empty.value = '';
+            empty.textContent = 'Seleccione...';
+            provincia.appendChild(empty);
+
+            provincias.forEach((nombre) => {
+                const option = document.createElement('option');
+                option.value = nombre;
+                option.textContent = nombre;
+                if (nombre === selectedText) {
+                    option.selected = true;
+                }
+                provincia.appendChild(option);
+            });
+        };
+
+        destino.addEventListener('change', function () {
+            renderProvincias(this.value, '');
+        });
+
+        renderProvincias(destino.value, provincia.value);
+    })();
+</script>

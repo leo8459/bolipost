@@ -6,6 +6,7 @@ use App\Models\Empresa;
 use App\Models\TarifaContrato;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -34,8 +35,68 @@ class TarifaContratoController extends Controller
         'PANDO',
     ];
 
+    private const PROVINCIAS_POR_DEPARTAMENTO = [
+        'LA PAZ' => [
+            'MURILLO', 'OMASUYOS', 'PACAJES', 'CAMACHO', 'MUNECAS', 'LARECAJA',
+            'FRANZ TAMAYO', 'INGAVI', 'LOAYZA', 'INQUISIVI', 'SUD YUNGAS',
+            'LOS ANDES', 'AROMA', 'NOR YUNGAS', 'ABEL ITURRALDE',
+            'BAUTISTA SAAVEDRA', 'MANCO KAPAC', 'GUALBERTO VILLARROEL',
+            'JOSE MANUEL PANDO', 'CARANAVI',
+        ],
+        'COCHABAMBA' => [
+            'CERCADO', 'CAMPERO', 'AYOPAYA', 'ESTEBAN ARCE', 'ARANI', 'ARQUE',
+            'CAPINOTA', 'GERMAN JORDAN', 'QUILLACOLLO', 'CHAPARE', 'TAPACARI',
+            'CARRASCO', 'MIZQUE', 'PUNATA', 'BOLIVAR', 'TIRAQUE',
+        ],
+        'SANTA CRUZ' => [
+            'ANDRES IBANEZ', 'WARNES', 'VALLEGRANDE', 'ICHILO', 'CHIQUITOS',
+            'SARA', 'CORDILLERA', 'FLORIDA', 'MANUEL MARIA CABALLERO',
+            'GUARAYOS', 'NUFLO DE CHAVEZ', 'VELASCO', 'ANGEL SANDOVAL',
+            'GERMAN BUSCH',
+        ],
+        'ORURO' => [
+            'CERCADO', 'CARANGAS', 'SAUCARI', 'SABAYA', 'LADISLAO CABRERA',
+            'LITORAL', 'POOPO', 'PANTALEON DALENCE', 'SAJAMA',
+            'SAN PEDRO DE TOTORA', 'SEBASTIAN PAGADOR', 'EDUARDO AVAROA',
+            'NOR CARANGAS', 'SUR CARANGAS', 'TOMAS BARRON',
+        ],
+        'POTOSI' => [
+            'TOMAS FRIAS', 'RAFAEL BUSTILLO', 'CORNELIO SAAVEDRA', 'CHAYANTA',
+            'CHARCAS', 'NOR CHICHAS', 'ALONSO DE IBANEZ', 'SUD CHICHAS',
+            'NOR LIPEZ', 'SUD LIPEZ', 'JOSE MARIA LINARES', 'ANTONIO QUIJARRO',
+            'DANIEL CAMPOS', 'MODESTO OMISTE', 'BILBAO RIOJA', 'ENRIQUE BALDIVIESO',
+        ],
+        'TARIJA' => [
+            'CERCADO', 'ANICETO ARCE', 'BURDETT OCONNOR', 'GRAN CHACO',
+            'JOSE MARIA AVILES', 'MENDEZ',
+        ],
+        'CHUQUISACA' => [
+            'OROPEZA', 'AZURDUY', 'ZUDANEZ', 'TOMINA', 'HERNANDO SILES',
+            'YAMPARAEZ', 'NOR CINTI', 'SUD CINTI', 'BELISARIO BOETO', 'LUIS CALVO',
+        ],
+        'BENI' => [
+            'CERCADO', 'VACA DIEZ', 'JOSE BALLIVIAN', 'YACUMA', 'MOXOS',
+            'MAMORE', 'MARBAN', 'ITENE',
+        ],
+        'PANDO' => [
+            'NICOLAS SUAREZ', 'MANURIPI', 'MADRE DE DIOS', 'ABUNA', 'FEDERICO ROMAN',
+        ],
+    ];
+
     private const IMPORT_COLUMNS = [
-        'empresa_codigo',
+        'empresa_nombre',
+        'origen',
+        'destino',
+        'servicio',
+        'kilo',
+        'kilo_extra',
+        'provincia',
+        'retencion',
+        'horas_entrega',
+    ];
+
+    private const FORM_FIELDS = [
+        'empresa_id',
         'origen',
         'destino',
         'servicio',
@@ -75,13 +136,31 @@ class TarifaContratoController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        if ($request->boolean('reset')) {
+            $request->session()->forget('tarifa_contrato_defaults');
+        }
+
+        $defaults = (array) $request->session()->get('tarifa_contrato_defaults', []);
+        $copySource = null;
+        $copyId = (int) $request->query('copy_id', 0);
+
+        if ($copyId > 0) {
+            $copySource = TarifaContrato::query()->find($copyId);
+            if ($copySource) {
+                $defaults = Arr::only($copySource->toArray(), self::FORM_FIELDS);
+            }
+        }
+
         return view('tarifa_contrato.create', [
             'tarifaContrato' => new TarifaContrato(),
             'empresas' => Empresa::query()->orderBy('nombre')->get(),
             'servicios' => self::SERVICIOS,
             'departamentos' => self::DEPARTAMENTOS,
+            'provinciasPorDepartamento' => self::PROVINCIAS_POR_DEPARTAMENTO,
+            'defaults' => $defaults,
+            'copySource' => $copySource,
         ]);
     }
 
@@ -89,6 +168,13 @@ class TarifaContratoController extends Controller
     {
         $data = $this->validateData($request);
         TarifaContrato::query()->create($data);
+
+        if ((string) $request->input('action') === 'save_and_new') {
+            return redirect()
+                ->route('tarifa-contrato.create')
+                ->with('success', 'Tarifa creada. Puedes registrar otra rapidamente.')
+                ->with('tarifa_contrato_defaults', Arr::only($data, self::FORM_FIELDS));
+        }
 
         return redirect()
             ->route('tarifa-contrato.index')
@@ -125,7 +211,11 @@ class TarifaContratoController extends Controller
 
         $header = array_shift($rows);
         $header = array_map(fn ($value) => $this->normalizeHeader($value), $header);
-        $missing = array_values(array_diff(self::IMPORT_COLUMNS, $header));
+        $usesEmpresaCodigo = in_array('empresa_codigo', $header, true) && !in_array('empresa_nombre', $header, true);
+        $requiredColumns = $usesEmpresaCodigo
+            ? array_map(fn ($col) => $col === 'empresa_nombre' ? 'empresa_codigo' : $col, self::IMPORT_COLUMNS)
+            : self::IMPORT_COLUMNS;
+        $missing = array_values(array_diff($requiredColumns, $header));
 
         if (!empty($missing)) {
             return back()
@@ -133,12 +223,28 @@ class TarifaContratoController extends Controller
                 ->withInput();
         }
 
-        $empresaCodigoMap = Empresa::query()
-            ->get(['id', 'codigo_cliente'])
-            ->mapWithKeys(function ($empresa) {
-                return [strtoupper(trim((string) $empresa->codigo_cliente)) => (int) $empresa->id];
-            })
-            ->all();
+        $empresaCodigoMap = [];
+        $empresaNombreMap = [];
+        $empresaNombreDuplicado = [];
+        $empresas = Empresa::query()->get(['id', 'codigo_cliente', 'nombre']);
+
+        foreach ($empresas as $empresa) {
+            $codigo = strtoupper(trim((string) $empresa->codigo_cliente));
+            if ($codigo !== '') {
+                $empresaCodigoMap[$codigo] = (int) $empresa->id;
+            }
+
+            $nombreKey = $this->normalizeCompanyName((string) $empresa->nombre);
+            if ($nombreKey === '') {
+                continue;
+            }
+
+            if (isset($empresaNombreMap[$nombreKey]) && $empresaNombreMap[$nombreKey] !== (int) $empresa->id) {
+                $empresaNombreDuplicado[$nombreKey] = true;
+            } else {
+                $empresaNombreMap[$nombreKey] = (int) $empresa->id;
+            }
+        }
 
         $created = 0;
         $updated = 0;
@@ -157,12 +263,37 @@ class TarifaContratoController extends Controller
                 $data[$column] = trim((string) ($row[$index] ?? ''));
             }
 
-            $empresaCodigo = strtoupper((string) ($data['empresa_codigo'] ?? ''));
-            $empresaId = $empresaCodigoMap[$empresaCodigo] ?? null;
+            $empresaId = null;
+            if ($usesEmpresaCodigo) {
+                $empresaCodigo = strtoupper((string) ($data['empresa_codigo'] ?? ''));
+                $empresaId = $empresaCodigoMap[$empresaCodigo] ?? null;
 
-            if (!$empresaId) {
-                $errors[] = "Linea {$line}: empresa_codigo '{$empresaCodigo}' no existe.";
-                continue;
+                if (!$empresaId) {
+                    $errors[] = "Linea {$line}: empresa_codigo '{$empresaCodigo}' no existe.";
+                    continue;
+                }
+            } else {
+                $empresaNombre = (string) ($data['empresa_nombre'] ?? '');
+                $empresaNombreKey = $this->normalizeCompanyName($empresaNombre);
+
+                if ($empresaNombreKey === '') {
+                    $errors[] = "Linea {$line}: empresa_nombre es obligatorio.";
+                    continue;
+                }
+
+                if (isset($empresaNombreDuplicado[$empresaNombreKey])) {
+                    $errors[] = "Linea {$line}: empresa_nombre '{$empresaNombre}' es ambiguo (duplicado).";
+                    continue;
+                }
+
+                $empresaId = $empresaNombreMap[$empresaNombreKey] ?? null;
+                if (!$empresaId) {
+                    $empresaId = $empresaCodigoMap[strtoupper($empresaNombreKey)] ?? null;
+                }
+                if (!$empresaId) {
+                    $errors[] = "Linea {$line}: empresa_nombre '{$empresaNombre}' no existe.";
+                    continue;
+                }
             }
 
             $payload = [
@@ -172,14 +303,14 @@ class TarifaContratoController extends Controller
                 'servicio' => $this->normalizeServicio((string) ($data['servicio'] ?? '')),
                 'kilo' => $this->parseDecimal($data['kilo'] ?? null),
                 'kilo_extra' => $this->parseDecimal($data['kilo_extra'] ?? null),
-                'provincia' => strtoupper((string) ($data['provincia'] ?? '')),
+                'provincia' => $this->normalizeNullableUpper($data['provincia'] ?? null),
                 'retencion' => $this->parseDecimal($data['retencion'] ?? null),
                 'horas_entrega' => $data['horas_entrega'] ?? null,
             ];
 
             $validator = Validator::make(
                 $payload,
-                $this->validationRules(),
+                $this->validationRules((string) ($payload['destino'] ?? '')),
                 [],
                 [
                     'empresa_id' => 'empresa',
@@ -237,8 +368,15 @@ class TarifaContratoController extends Controller
     {
         $filename = 'plantilla_tarifa_contrato.xlsx';
         $columns = self::IMPORT_COLUMNS;
+        $empresas = Empresa::query()
+            ->orderBy('nombre')
+            ->get(['id', 'codigo_cliente', 'nombre', 'sigla']);
+        $empresaEjemplo = (string) optional($empresas->first())->nombre;
+        if ($empresaEjemplo === '') {
+            $empresaEjemplo = 'NOMBRE EMPRESA';
+        }
         $example = [
-            'EMPRESA001',
+            $empresaEjemplo,
             'LA PAZ',
             'COCHABAMBA',
             'ENVIO NACIONAL (REGULAR)',
@@ -249,7 +387,7 @@ class TarifaContratoController extends Controller
             '48',
         ];
 
-        return response()->streamDownload(function () use ($columns, $example) {
+        return response()->streamDownload(function () use ($columns, $example, $empresas) {
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('TarifaContrato');
@@ -261,6 +399,26 @@ class TarifaContratoController extends Controller
             foreach (range('A', 'I') as $column) {
                 $sheet->getColumnDimension($column)->setAutoSize(true);
             }
+
+            $sheetEmpresas = $spreadsheet->createSheet();
+            $sheetEmpresas->setTitle('Empresas');
+            $sheetEmpresas->fromArray(['codigo_cliente', 'nombre', 'sigla', 'id'], null, 'A1');
+
+            $row = 2;
+            foreach ($empresas as $empresa) {
+                $sheetEmpresas->setCellValue("A{$row}", (string) $empresa->codigo_cliente);
+                $sheetEmpresas->setCellValue("B{$row}", (string) $empresa->nombre);
+                $sheetEmpresas->setCellValue("C{$row}", (string) $empresa->sigla);
+                $sheetEmpresas->setCellValue("D{$row}", (int) $empresa->id);
+                $row++;
+            }
+
+            $sheetEmpresas->getStyle('A1:D1')->getFont()->setBold(true);
+            foreach (range('A', 'D') as $column) {
+                $sheetEmpresas->getColumnDimension($column)->setAutoSize(true);
+            }
+
+            $spreadsheet->setActiveSheetIndex(0);
 
             $writer = new Xlsx($spreadsheet);
             $writer->save('php://output');
@@ -276,6 +434,8 @@ class TarifaContratoController extends Controller
             'empresas' => Empresa::query()->orderBy('nombre')->get(),
             'servicios' => self::SERVICIOS,
             'departamentos' => self::DEPARTAMENTOS,
+            'provinciasPorDepartamento' => self::PROVINCIAS_POR_DEPARTAMENTO,
+            'defaults' => [],
         ]);
     }
 
@@ -300,15 +460,25 @@ class TarifaContratoController extends Controller
 
     private function validateData(Request $request): array
     {
-        $data = $request->validate($this->validationRules());
+        $provincia = trim((string) $request->input('provincia'));
 
-        $data['provincia'] = strtoupper(trim((string) $data['provincia']));
+        $request->merge([
+            'origen' => strtoupper(trim((string) $request->input('origen'))),
+            'destino' => strtoupper(trim((string) $request->input('destino'))),
+            'servicio' => $this->normalizeServicio((string) $request->input('servicio')),
+            'provincia' => $provincia === '' ? null : strtoupper($provincia),
+        ]);
+
+        $data = $request->validate($this->validationRules((string) $request->input('destino')));
 
         return $data;
     }
 
-    private function validationRules(): array
+    private function validationRules(string $destino = ''): array
     {
+        $destino = strtoupper(trim($destino));
+        $provinciasDestino = self::PROVINCIAS_POR_DEPARTAMENTO[$destino] ?? [];
+
         return [
             'empresa_id' => ['required', 'integer', Rule::exists('empresa', 'id')],
             'origen' => ['required', 'string', Rule::in(self::DEPARTAMENTOS)],
@@ -316,7 +486,7 @@ class TarifaContratoController extends Controller
             'servicio' => ['required', 'string', Rule::in(self::SERVICIOS)],
             'kilo' => 'required|numeric|min:0',
             'kilo_extra' => 'required|numeric|min:0',
-            'provincia' => 'required|string|max:255',
+            'provincia' => ['nullable', 'string', 'max:255', Rule::in($provinciasDestino)],
             'retencion' => 'required|numeric|min:0|max:100',
             'horas_entrega' => 'required|integer|min:0',
         ];
@@ -325,6 +495,15 @@ class TarifaContratoController extends Controller
     private function normalizeHeader($value): string
     {
         return strtolower(trim((string) $value));
+    }
+
+    private function normalizeCompanyName(string $value): string
+    {
+        $value = trim($value);
+        $value = Str::ascii($value);
+        $value = preg_replace('/\s+/', ' ', $value) ?? $value;
+
+        return strtoupper($value);
     }
 
     private function parseDecimal($value): ?float
@@ -359,5 +538,15 @@ class TarifaContratoController extends Controller
         $value = str_replace('LOCAL (EXPRESS)', 'LOCAL(EXPRESS)', $value);
 
         return $value;
+    }
+
+    private function normalizeNullableUpper($value): ?string
+    {
+        $text = trim((string) $value);
+        if ($text === '') {
+            return null;
+        }
+
+        return strtoupper($text);
     }
 }

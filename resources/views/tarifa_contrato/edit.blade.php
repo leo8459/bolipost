@@ -26,7 +26,7 @@
                         <form method="POST" action="{{ route('tarifa-contrato.update', $tarifaContrato->id) }}" role="form">
                             @csrf
                             @method('PUT')
-                            @include('tarifa_contrato.form')
+                            @include('tarifa_contrato.form', ['isCreate' => false])
                         </form>
                     </div>
                 </div>
@@ -35,4 +35,3 @@
     </section>
     @include('footer')
 @endsection
-

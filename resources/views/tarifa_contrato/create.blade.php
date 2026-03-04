@@ -23,9 +23,22 @@
                         <span class="card-title">Crear Tarifa de Contrato</span>
                     </div>
                     <div class="card-body">
+                        @if (!empty($defaults))
+                            <div class="alert alert-info">
+                                Modo rapido activo: se precargaron datos del ultimo registro.
+                                <a href="{{ route('tarifa-contrato.create', ['reset' => 1]) }}" class="btn btn-sm btn-outline-secondary ml-2">
+                                    Limpiar precarga
+                                </a>
+                            </div>
+                        @endif
+                        @if (!empty($copySource))
+                            <div class="alert alert-warning">
+                                Copiando base desde tarifa #{{ $copySource->id }}.
+                            </div>
+                        @endif
                         <form method="POST" action="{{ route('tarifa-contrato.store') }}" role="form">
                             @csrf
-                            @include('tarifa_contrato.form')
+                            @include('tarifa_contrato.form', ['isCreate' => true])
                         </form>
                     </div>
                 </div>
@@ -34,4 +47,3 @@
     </section>
     @include('footer')
 @endsection
-
