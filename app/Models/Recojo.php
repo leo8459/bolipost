@@ -40,7 +40,7 @@ class Recojo extends Model
     protected $casts = [
         'peso' => 'decimal:3',
         'precio' => 'decimal:2',
-        'fecha_recojo' => 'date',
+        'fecha_recojo' => 'datetime',
     ];
 
     public function user()

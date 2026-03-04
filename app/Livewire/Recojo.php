@@ -7,6 +7,7 @@ use App\Models\Estado as EstadoModel;
 use App\Models\CodigoEmpresa as CodigoEmpresaModel;
 use App\Models\Empresa as EmpresaModel;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -49,7 +50,7 @@ class Recojo extends Component
     public function mount($mode = 'general')
     {
         $this->mode = in_array($mode, ['general', 'almacen'], true) ? $mode : 'general';
-        $this->fecha_recojo = now()->toDateString();
+        $this->fecha_recojo = '';
         $this->user_id = (string) optional(Auth::user())->id;
         $this->userCity = strtoupper(trim((string) optional(Auth::user())->ciudad));
         $this->estadoAlmacenId = (int) (EstadoModel::query()
@@ -96,7 +97,7 @@ class Recojo extends Component
         $this->mapa = (string) ($recojo->mapa ?? '');
         $this->provincia = (string) $recojo->provincia;
         $this->peso = (string) $recojo->peso;
-        $this->fecha_recojo = optional($recojo->fecha_recojo)->format('Y-m-d');
+        $this->fecha_recojo = optional($recojo->fecha_recojo)->format('Y-m-d\TH:i:s');
         $this->observacion = (string) ($recojo->observacion ?? '');
         $this->justificacion = (string) ($recojo->justificacion ?? '');
         $this->imagen = (string) ($recojo->imagen ?? '');
@@ -153,7 +154,7 @@ class Recojo extends Component
         ]);
 
         $this->user_id = (string) optional(Auth::user())->id;
-        $this->fecha_recojo = now()->toDateString();
+        $this->fecha_recojo = '';
         $this->resetValidation();
     }
 
@@ -176,7 +177,7 @@ class Recojo extends Component
             'mapa' => 'nullable|string|max:500',
             'provincia' => 'nullable|string|max:255',
             'peso' => 'required|numeric|min:0',
-            'fecha_recojo' => 'required|date',
+            'fecha_recojo' => 'nullable|date',
             'observacion' => 'nullable|string',
             'justificacion' => 'nullable|string',
             'imagen' => 'nullable|string|max:500',
@@ -207,7 +208,7 @@ class Recojo extends Component
                 ? strtoupper($this->nullIfEmpty($this->provincia))
                 : null,
             'peso' => $this->peso,
-            'fecha_recojo' => $this->fecha_recojo,
+            'fecha_recojo' => $this->normalizeFechaRecojo($this->fecha_recojo),
             'observacion' => $this->nullIfEmpty($this->observacion),
             'justificacion' => $this->nullIfEmpty($this->justificacion),
             'imagen' => $this->nullIfEmpty($this->imagen),
@@ -228,6 +229,16 @@ class Recojo extends Component
     {
         $clean = $this->normalize($value);
         return $clean === '' ? null : $clean;
+    }
+
+    protected function normalizeFechaRecojo($value): ?string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        return Carbon::parse($raw)->format('Y-m-d H:i:s');
     }
 
     protected function resolveSolicitudEstadoId(): ?int

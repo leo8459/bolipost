@@ -129,7 +129,7 @@
                                         @endif
                                     </td>
                                     <td>{{ $recojo->peso }}</td>
-                                    <td>{{ optional($recojo->fecha_recojo)->format('d/m/Y') }}</td>
+                                    <td>{{ optional($recojo->fecha_recojo)->format('d/m/Y H:i:s') ?? '-' }}</td>
                                     <td>{{ optional($recojo->user)->name ?? '-' }}</td>
                                     <td>
                                         <a href="{{ route('paquetes-contrato.reporte', $recojo->id) }}"
@@ -196,7 +196,7 @@
                             </div>
                             <div class="form-group col-md-3">
                                 <label>Fecha recojo</label>
-                                <input type="date" wire:model.defer="fecha_recojo" class="form-control">
+                                <input type="datetime-local" wire:model.defer="fecha_recojo" class="form-control" step="1">
                                 @error('fecha_recojo') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                         </div>

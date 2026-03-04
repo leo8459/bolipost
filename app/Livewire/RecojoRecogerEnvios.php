@@ -93,6 +93,7 @@ class RecojoRecogerEnvios extends Component
                 ->whereIn('id', $idsActualizar)
                 ->update([
                     'estados_id' => (int) $this->estadoAlmacenId,
+                    'fecha_recojo' => now(),
                     'updated_at' => now(),
                 ]);
 

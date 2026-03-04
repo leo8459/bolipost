@@ -541,7 +541,7 @@ class PaquetesEms extends Component
             'peso' => $peso,
             'precio' => null,
             'tarifa_contrato_id' => null,
-            'fecha_recojo' => now()->toDateString(),
+            'fecha_recojo' => now(),
             'observacion' => 'REGISTRO RAPIDO DESDE ALMACEN EMS',
             'justificacion' => null,
             'imagen' => null,

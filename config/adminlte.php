@@ -482,6 +482,76 @@ return [
             ],
         ],
         [
+            'text' => 'INDICADORES',
+            'icon' => 'fas fa-chart-pie',
+            'submenu' => [
+                [
+                    'text' => 'INDICADOR CONTRATOS',
+                    'icon' => 'fas fa-file-contract',
+                    'submenu' => [
+                        [
+                            'text' => 'ENTREGADOS',
+                            'url' => 'indicadores/contratos/entregados',
+                            'icon' => 'fas fa-check-circle',
+                        ],
+                        [
+                            'text' => 'INVENTARIO',
+                            'url' => 'indicadores/contratos/inventario',
+                            'icon' => 'fas fa-boxes',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'INDICADOR EMS',
+                    'icon' => 'fas fa-box',
+                    'submenu' => [
+                        [
+                            'text' => 'ENTREGADOS',
+                            'url' => 'indicadores/ems/entregados',
+                            'icon' => 'fas fa-check-circle',
+                        ],
+                        [
+                            'text' => 'INVENTARIO',
+                            'url' => 'indicadores/ems/inventario',
+                            'icon' => 'fas fa-boxes',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'INDICADOR CERTIFICADOS',
+                    'icon' => 'fas fa-certificate',
+                    'submenu' => [
+                        [
+                            'text' => 'ENTREGADOS',
+                            'url' => 'indicadores/certificados/entregados',
+                            'icon' => 'fas fa-check-circle',
+                        ],
+                        [
+                            'text' => 'INVENTARIO',
+                            'url' => 'indicadores/certificados/inventario',
+                            'icon' => 'fas fa-boxes',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'INDICADOR ORDINARIOS',
+                    'icon' => 'fas fa-box-open',
+                    'submenu' => [
+                        [
+                            'text' => 'ENTREGADOS',
+                            'url' => 'indicadores/ordinarios/entregados',
+                            'icon' => 'fas fa-check-circle',
+                        ],
+                        [
+                            'text' => 'INVENTARIO',
+                            'url' => 'indicadores/ordinarios/inventario',
+                            'icon' => 'fas fa-boxes',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        [
             'text' => 'Despachos',
             'icon' => 'fas fa-shipping-fast',
             'submenu' => [

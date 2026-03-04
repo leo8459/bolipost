@@ -282,7 +282,7 @@ class PaquetesEmsController extends Controller
                     'mapa' => null,
                     'provincia' => null,
                     'peso' => $item['peso'],
-                    'fecha_recojo' => now()->toDateString(),
+                    'fecha_recojo' => now(),
                     'observacion' => 'REGISTRO RAPIDO DESDE ALMACEN EMS',
                     'justificacion' => null,
                     'imagen' => null,
