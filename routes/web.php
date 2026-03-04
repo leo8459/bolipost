@@ -132,6 +132,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/tarifa-contrato/import', [TarifaContratoController::class, 'import'])->name('tarifa-contrato.import');
     Route::get('/tarifa-contrato/plantilla-excel', [TarifaContratoController::class, 'downloadTemplateExcel'])->name('tarifa-contrato.template-excel');
     Route::get('/importar/paquets', [ImportController::class, 'paquets'])->name('importar.paquets');
+    Route::post('/importar/paquets', [ImportController::class, 'importPaquets'])->name('importar.paquets.store');
+    Route::get('/importar/paquets/plantilla-excel', [ImportController::class, 'downloadPaquetsTemplateExcel'])->name('importar.paquets.template-excel');
     Route::post('/tarifa-contrato', [TarifaContratoController::class, 'store'])->name('tarifa-contrato.store');
     Route::get('/tarifa-contrato/{tarifaContrato}/edit', [TarifaContratoController::class, 'edit'])->name('tarifa-contrato.edit');
     Route::put('/tarifa-contrato/{tarifaContrato}', [TarifaContratoController::class, 'update'])->name('tarifa-contrato.update');
