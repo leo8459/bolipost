@@ -643,6 +643,11 @@ return [
                             'url' => 'tarifario',
                             'icon' => 'fas fa-tags',
                         ],
+                        [
+                            'text' => 'Tarifa Contrato',
+                            'url' => 'tarifa-contrato',
+                            'icon' => 'fas fa-file-invoice-dollar',
+                        ],
                     ],
                 ],
                 [
@@ -669,6 +674,34 @@ return [
                             'text' => 'Accesos',
                             'url' => 'role-has-permissions',
                             'icon' => 'fas fa-key',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'text' => 'IMPORTAR',
+            'icon' => 'fas fa-file-import',
+            'submenu' => [
+                [
+                    'text' => 'Tarifas',
+                    'icon' => 'fas fa-tags',
+                    'submenu' => [
+                        [
+                            'text' => 'IMPORTAR TARIFAS CONTRATOS',
+                            'url' => 'tarifa-contrato/import',
+                            'icon' => 'fas fa-file-excel',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Paquets',
+                    'icon' => 'fas fa-boxes',
+                    'submenu' => [
+                        [
+                            'text' => 'IMPORTAR PAQUETS',
+                            'url' => 'importar/paquets',
+                            'icon' => 'fas fa-upload',
                         ],
                     ],
                 ],
