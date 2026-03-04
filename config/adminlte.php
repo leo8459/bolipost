@@ -755,7 +755,7 @@ return [
             ],
         ],
         [
-            'text' => 'IMPORTAR',
+            'text' => 'Impotaciones',
             'icon' => 'fas fa-file-import',
             'submenu' => [
                 [
@@ -763,18 +763,18 @@ return [
                     'icon' => 'fas fa-tags',
                     'submenu' => [
                         [
-                            'text' => 'IMPORTAR TARIFAS CONTRATOS',
+                            'text' => 'Importar Tarifas',
                             'url' => 'tarifa-contrato/import',
                             'icon' => 'fas fa-file-excel',
                         ],
                     ],
                 ],
                 [
-                    'text' => 'Paquets',
+                    'text' => 'Paquetes',
                     'icon' => 'fas fa-boxes',
                     'submenu' => [
                         [
-                            'text' => 'IMPORTAR PAQUETS',
+                            'text' => 'Importacion de Paquetes',
                             'url' => 'importar/paquets',
                             'icon' => 'fas fa-upload',
                         ],
