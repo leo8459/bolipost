@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Estado;
 use App\Models\PaqueteCerti;
+use App\Models\PaqueteOrdi;
 use App\Models\Ventanilla;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +17,9 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ImportController extends Controller
 {
+    private const DESTINO_CERTI = 'CERTI';
+    private const DESTINO_ORDI = 'ORDI';
+
     private const IMPORT_COLUMNS = [
         'codigo',
         'destinatario',
@@ -26,8 +30,10 @@ class ImportController extends Controller
         'tipo',
     ];
 
-    private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 168;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE_CERTI = 168;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE_ORDI = 295;
     private const ESTADO_VENTANILLA = 'VENTANILLA';
+    private const ESTADO_CLASIFICACION = 'CLASIFICACION';
     private const CIUDADES = [
         'LA PAZ',
         'COCHABAMBA',
@@ -42,9 +48,22 @@ class ImportController extends Controller
 
     public function paquets()
     {
+        $estados = Estado::query()
+            ->orderBy('nombre_estado')
+            ->get(['id', 'nombre_estado']);
+
+        $estadoDefaultPorDestino = [
+            self::DESTINO_ORDI => $this->findEstadoIdByName($estados, self::ESTADO_CLASIFICACION),
+            self::DESTINO_CERTI => $this->findEstadoIdByName($estados, self::ESTADO_VENTANILLA),
+        ];
+
         return view('importar.paquets', [
             'columnas' => self::IMPORT_COLUMNS,
             'ciudades' => self::CIUDADES,
+            'tiposDestino' => $this->tiposDestino(),
+            'tipoDestinoPorDefecto' => self::DESTINO_ORDI,
+            'estados' => $estados,
+            'estadoDefaultPorDestino' => $estadoDefaultPorDestino,
             'ventanillas' => Ventanilla::query()->orderBy('nombre_ventanilla')->get(['id', 'nombre_ventanilla']),
             'ciudadPorDefecto' => strtoupper(trim((string) optional(Auth::user())->ciudad)),
         ]);
@@ -53,20 +72,16 @@ class ImportController extends Controller
     public function importPaquets(Request $request)
     {
         $request->validate([
+            'tipo_destino' => ['required', 'string', Rule::in(array_keys($this->tiposDestino()))],
             'archivo' => 'required|file|mimes:xlsx,xls|max:10240',
             'ciudad' => ['required', 'string', Rule::in(self::CIUDADES)],
+            'fk_estado' => 'required|integer|exists:estados,id',
             'fk_ventanilla' => 'required|integer|exists:ventanilla,id',
         ]);
 
-        $estadoVentanillaId = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', [self::ESTADO_VENTANILLA])
-            ->value('id');
-
-        if (!$estadoVentanillaId) {
-            return back()->withErrors([
-                'archivo' => 'No existe el estado VENTANILLA en la tabla estados.',
-            ])->withInput();
-        }
+        $tipoDestino = strtoupper((string) $request->input('tipo_destino'));
+        $isOrdi = $tipoDestino === self::DESTINO_ORDI;
+        $estadoId = (int) $request->integer('fk_estado');
 
         $ventanilla = Ventanilla::query()->find((int) $request->integer('fk_ventanilla'));
         if (!$ventanilla) {
@@ -109,7 +124,11 @@ class ImportController extends Controller
         $rowsToInsert = [];
         $eventRows = [];
         $userId = (int) optional(Auth::user())->id;
-        $canCreateEvento = $userId > 0 && DB::table('eventos')->where('id', self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE)->exists();
+        $eventoId = $isOrdi
+            ? self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE_ORDI
+            : self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE_CERTI;
+        $tablaEventos = $isOrdi ? 'eventos_ordi' : 'eventos_certi';
+        $canCreateEvento = $userId > 0 && DB::table('eventos')->where('id', $eventoId)->exists();
         $ciudad = $this->upper((string) $request->input('ciudad'));
         $ventanillaNombre = $this->upper((string) $ventanilla->nombre_ventanilla);
 
@@ -125,37 +144,13 @@ class ImportController extends Controller
                 $data[$column] = trim((string) ($row[$index] ?? ''));
             }
 
-            $payload = [
-                'codigo' => $this->upper((string) ($data['codigo'] ?? '')),
-                'destinatario' => $this->upper((string) ($data['destinatario'] ?? '')),
-                'telefono' => $this->parseInteger($data['telefono'] ?? null),
-                'cuidad' => $ciudad,
-                'zona' => $this->upper((string) ($data['zona'] ?? '')),
-                'ventanilla' => $ventanillaNombre,
-                'peso' => $this->parseDecimal($data['peso'] ?? null),
-                'tipo' => $this->upper((string) ($data['tipo'] ?? '')),
-                'aduana' => $this->upper((string) ($data['aduana'] ?? '')),
-                'fk_estado' => (int) $estadoVentanillaId,
-                'fk_ventanilla' => (int) $ventanilla->id,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
+            $payload = $isOrdi
+                ? $this->buildOrdiPayload($data, $ciudad, (int) $estadoId, (int) $ventanilla->id, $now)
+                : $this->buildCertiPayload($data, $ciudad, $ventanillaNombre, (int) $estadoId, (int) $ventanilla->id, $now);
 
             $validator = Validator::make(
                 $payload,
-                [
-                    'codigo' => 'required|string|max:255',
-                    'destinatario' => 'required|string|max:255',
-                    'telefono' => 'required|integer|min:0',
-                    'cuidad' => 'required|string|max:255',
-                    'zona' => 'required|string|max:255',
-                    'ventanilla' => 'required|string|max:255',
-                    'peso' => 'required|numeric|min:0',
-                    'tipo' => 'required|string|max:255',
-                    'aduana' => 'required|string|max:255',
-                    'fk_estado' => 'required|integer|exists:estados,id',
-                    'fk_ventanilla' => 'required|integer|exists:ventanilla,id',
-                ]
+                $isOrdi ? $this->ordiRules() : $this->certiRules()
             );
 
             if ($validator->fails()) {
@@ -170,7 +165,7 @@ class ImportController extends Controller
             if ($canCreateEvento) {
                 $eventRows[] = [
                     'codigo' => $valid['codigo'],
-                    'evento_id' => self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE,
+                    'evento_id' => $eventoId,
                     'user_id' => $userId,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -179,15 +174,21 @@ class ImportController extends Controller
         }
 
         if (!empty($rowsToInsert)) {
-            DB::transaction(function () use ($rowsToInsert, $eventRows) {
-                PaqueteCerti::query()->insert($rowsToInsert);
+            DB::transaction(function () use ($rowsToInsert, $eventRows, $isOrdi, $tablaEventos) {
+                if ($isOrdi) {
+                    PaqueteOrdi::query()->insert($rowsToInsert);
+                } else {
+                    PaqueteCerti::query()->insert($rowsToInsert);
+                }
+
                 if (!empty($eventRows)) {
-                    DB::table('eventos_certi')->insert($eventRows);
+                    DB::table($tablaEventos)->insert($eventRows);
                 }
             });
         }
 
-        $message = "Importacion completada. Registros creados: {$created}.";
+        $destinoTexto = $this->tiposDestino()[$tipoDestino] ?? $tipoDestino;
+        $message = "Importacion completada en {$destinoTexto}. Registros creados: {$created}.";
         $redirect = redirect()->route('importar.paquets')->with('success', $message);
 
         if (!empty($errors)) {
@@ -230,6 +231,113 @@ class ImportController extends Controller
         }, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+
+    private function buildCertiPayload(
+        array $data,
+        string $ciudad,
+        string $ventanillaNombre,
+        int $estadoId,
+        int $ventanillaId,
+        $now
+    ): array {
+        return [
+            'codigo' => $this->upper((string) ($data['codigo'] ?? '')),
+            'destinatario' => $this->upper((string) ($data['destinatario'] ?? '')),
+            'telefono' => $this->parseInteger($data['telefono'] ?? null),
+            'cuidad' => $ciudad,
+            'zona' => $this->upper((string) ($data['zona'] ?? '')),
+            'ventanilla' => $ventanillaNombre,
+            'peso' => $this->parseDecimal($data['peso'] ?? null),
+            'tipo' => $this->upper((string) ($data['tipo'] ?? '')),
+            'aduana' => $this->upper((string) ($data['aduana'] ?? '')),
+            'fk_estado' => $estadoId,
+            'fk_ventanilla' => $ventanillaId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+    }
+
+    private function buildOrdiPayload(
+        array $data,
+        string $ciudad,
+        int $estadoId,
+        int $ventanillaId,
+        $now
+    ): array {
+        $tipo = $this->upper((string) ($data['tipo'] ?? ''));
+
+        return [
+            'codigo' => $this->upper((string) ($data['codigo'] ?? '')),
+            'destinatario' => $this->upper((string) ($data['destinatario'] ?? '')),
+            'telefono' => trim((string) ($data['telefono'] ?? '')),
+            'ciudad' => $ciudad,
+            'zona' => $this->upper((string) ($data['zona'] ?? '')),
+            'peso' => $this->parseDecimal($data['peso'] ?? null),
+            'aduana' => $this->upper((string) ($data['aduana'] ?? '')),
+            'observaciones' => $tipo !== '' ? ('TIPO: ' . $tipo) : null,
+            'cod_especial' => null,
+            'fk_estado' => $estadoId,
+            'fk_ventanilla' => $ventanillaId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+    }
+
+    private function certiRules(): array
+    {
+        return [
+            'codigo' => 'required|string|max:255',
+            'destinatario' => 'required|string|max:255',
+            'telefono' => 'required|integer|min:0|max:2147483647',
+            'cuidad' => 'required|string|max:255',
+            'zona' => 'required|string|max:255',
+            'ventanilla' => 'required|string|max:255',
+            'peso' => 'required|numeric|min:0',
+            'tipo' => 'required|string|max:255',
+            'aduana' => 'required|string|max:255',
+            'fk_estado' => 'required|integer|exists:estados,id',
+            'fk_ventanilla' => 'required|integer|exists:ventanilla,id',
+            'created_at' => 'required|date',
+            'updated_at' => 'required|date',
+        ];
+    }
+
+    private function ordiRules(): array
+    {
+        return [
+            'codigo' => 'required|string|max:255',
+            'destinatario' => 'required|string|max:255',
+            'telefono' => 'required|string|max:30',
+            'ciudad' => 'required|string|max:255',
+            'zona' => 'required|string|max:255',
+            'peso' => 'required|numeric|min:0',
+            'aduana' => 'required|string|max:50',
+            'observaciones' => 'nullable|string|max:1000',
+            'cod_especial' => 'nullable|string|max:255',
+            'fk_estado' => 'required|integer|exists:estados,id',
+            'fk_ventanilla' => 'required|integer|exists:ventanilla,id',
+            'created_at' => 'required|date',
+            'updated_at' => 'required|date',
+        ];
+    }
+
+    private function tiposDestino(): array
+    {
+        return [
+            self::DESTINO_ORDI => 'PAQUETES ORDINARIOS',
+            self::DESTINO_CERTI => 'PAQUETES CERTIFICADOS',
+        ];
+    }
+
+    private function findEstadoIdByName($estados, string $nombre): ?int
+    {
+        $target = strtoupper(trim($nombre));
+        $estado = $estados->first(function ($item) use ($target) {
+            return strtoupper(trim((string) $item->nombre_estado)) === $target;
+        });
+
+        return $estado ? (int) $estado->id : null;
     }
 
     private function normalizeHeader($value): string
@@ -281,10 +389,6 @@ class ImportController extends Controller
 
         $normalized = str_replace([' ', '-', '(', ')', '+'], '', $text);
         if ($normalized === '' || !ctype_digit($normalized)) {
-            return null;
-        }
-
-        if (strlen($normalized) > 10) {
             return null;
         }
 

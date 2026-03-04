@@ -31,8 +31,30 @@
 
                         <form method="POST" action="{{ route('importar.paquets.store') }}" enctype="multipart/form-data">
                             @csrf
+                            @php
+                                $estadoDefaultInicial = $estadoDefaultPorDestino[$tipoDestinoPorDefecto] ?? '';
+                            @endphp
                             <div class="form-row">
-                                <div class="form-group col-md-4">
+                                <div class="form-group col-md-2">
+                                    <label for="tipo_destino">Destino de importacion</label>
+                                    <select
+                                        id="tipo_destino"
+                                        name="tipo_destino"
+                                        class="form-control @error('tipo_destino') is-invalid @enderror"
+                                        required
+                                    >
+                                        @foreach($tiposDestino as $codigoDestino => $nombreDestino)
+                                            <option value="{{ $codigoDestino }}" @selected(old('tipo_destino', $tipoDestinoPorDefecto) == $codigoDestino)>
+                                                {{ $nombreDestino }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('tipo_destino')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+
+                                <div class="form-group col-md-2">
                                     <label for="ciudad">Ciudad (para todos los registros)</label>
                                     <select
                                         id="ciudad"
@@ -52,7 +74,27 @@
                                     @enderror
                                 </div>
 
-                                <div class="form-group col-md-4">
+                                <div class="form-group col-md-2">
+                                    <label for="fk_estado">Estado</label>
+                                    <select
+                                        id="fk_estado"
+                                        name="fk_estado"
+                                        class="form-control @error('fk_estado') is-invalid @enderror"
+                                        required
+                                    >
+                                        <option value="">Seleccione</option>
+                                        @foreach($estados as $estado)
+                                            <option value="{{ $estado->id }}" @selected((string) old('fk_estado', $estadoDefaultInicial) === (string) $estado->id)>
+                                                {{ $estado->nombre_estado }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('fk_estado')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+
+                                <div class="form-group col-md-2">
                                     <label for="fk_ventanilla">Ventanilla</label>
                                     <select
                                         id="fk_ventanilla"
@@ -91,6 +133,11 @@
                             <div class="alert alert-info">
                                 <p class="mb-2"><strong>Columnas requeridas en la fila 1 del Excel:</strong></p>
                                 <code>{{ implode(', ', $columnas) }}</code>
+                                <hr>
+                                <p class="mb-0">
+                                    Si eliges <strong>PAQUETES ORDINARIOS</strong>, la columna <strong>TIPO</strong> se guarda en
+                                    <strong>observaciones</strong>.
+                                </p>
                             </div>
 
                             <div class="d-flex justify-content-end">
@@ -126,5 +173,40 @@
         </div>
     </section>
     @include('footer')
+@endsection
+
+@section('js')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const tipoDestino = document.getElementById('tipo_destino');
+            const estado = document.getElementById('fk_estado');
+            const defaults = @json($estadoDefaultPorDestino);
+
+            if (!tipoDestino || !estado) {
+                return;
+            }
+
+            const applyDefaultEstado = () => {
+                const current = String(estado.value || '').trim();
+                if (current !== '') {
+                    return;
+                }
+
+                const defaultEstado = defaults[tipoDestino.value];
+                if (defaultEstado) {
+                    estado.value = String(defaultEstado);
+                }
+            };
+
+            tipoDestino.addEventListener('change', function () {
+                const defaultEstado = defaults[tipoDestino.value];
+                if (defaultEstado) {
+                    estado.value = String(defaultEstado);
+                }
+            });
+
+            applyDefaultEstado();
+        });
+    </script>
 @endsection
 
