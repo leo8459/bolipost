@@ -4,8 +4,13 @@ namespace App\Livewire;
 
 use App\Models\Despacho as DespachoModel;
 use App\Models\Estado as EstadoModel;
+use App\Models\PaqueteEms;
+use App\Models\PaqueteOrdi;
+use App\Models\Recojo as RecojoModel;
+use App\Models\Saca as SacaModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -31,6 +36,13 @@ class DespachoExpedicion extends Component
 
     public $search = '';
     public $searchQuery = '';
+    public $intervencionDespachoId = null;
+    public $intervencionSacaId = '';
+    public $intervencionCodigoPaquete = '';
+    public $intervencionCodEspecial = '';
+    public $intervencionPesoDetectado = null;
+    public $intervencionFuentePaquete = '';
+    public $intervencionSacas = [];
 
     protected $paginationTheme = 'bootstrap';
 
@@ -66,6 +78,183 @@ class DespachoExpedicion extends Component
         $despacho->update(['fk_estado' => $estadoIntervenirId]);
         $this->registrarEventoDespacho((string) $despacho->identificador, self::EVENTO_ID_DESPACHO_ACTUALIZADO_ENTRADA);
         session()->flash('success', 'Despacho enviado a intervencion.');
+    }
+
+    public function openIntervencionModal($id)
+    {
+        $estadoIntervenirId = $this->getEstadoIdByNombre('INTERVENIR', 20);
+        $despacho = DespachoModel::query()
+            ->where('fk_estado', $estadoIntervenirId)
+            ->findOrFail($id);
+
+        $sacas = SacaModel::query()
+            ->where('fk_despacho', $despacho->id)
+            ->orderByRaw('CAST(nro_saca AS INTEGER) ASC')
+            ->get(['id', 'nro_saca', 'identificador', 'busqueda', 'peso']);
+
+        if ($sacas->isEmpty()) {
+            session()->flash('error', 'El despacho no tiene sacas para intervenir.');
+            return;
+        }
+
+        $this->resetIntervencionForm();
+        $this->intervencionDespachoId = (int) $despacho->id;
+        $this->intervencionSacas = $sacas->map(function ($saca) {
+            return [
+                'id' => (int) $saca->id,
+                'label' => 'Saca ' . $saca->nro_saca . ' - ' . $saca->identificador,
+                'cod_especial' => trim((string) $saca->busqueda),
+                'peso' => round((float) ($saca->peso ?? 0), 3),
+            ];
+        })->values()->all();
+
+        $this->intervencionSacaId = (string) $this->intervencionSacas[0]['id'];
+        $this->syncIntervencionCodEspecial();
+        $this->dispatch('openIntervencionModal');
+    }
+
+    public function updatedIntervencionSacaId($value)
+    {
+        $this->syncIntervencionCodEspecial();
+        $this->syncIntervencionPesoDetectado();
+    }
+
+    public function updatedIntervencionCodigoPaquete($value)
+    {
+        $this->syncIntervencionPesoDetectado();
+    }
+
+    public function registrarIntervencion()
+    {
+        $validated = $this->validate([
+            'intervencionDespachoId' => 'required|integer|exists:despacho,id',
+            'intervencionSacaId' => 'required|integer|exists:saca,id',
+            'intervencionCodigoPaquete' => 'required|string|max:255',
+        ], [
+            'intervencionSacaId.required' => 'Selecciona una saca intervenida.',
+            'intervencionCodigoPaquete.required' => 'Ingresa el codigo del paquete intervenido.',
+        ]);
+
+        $despachoId = (int) $validated['intervencionDespachoId'];
+        $sacaId = (int) $validated['intervencionSacaId'];
+        $codigoPaquete = strtoupper(trim((string) $validated['intervencionCodigoPaquete']));
+        $estadoIntervenirId = $this->getEstadoIdByNombre('INTERVENIR', 20);
+        $userOforigen = $this->getOforigenFromUser();
+
+        DB::transaction(function () use ($despachoId, $sacaId, $codigoPaquete, $estadoIntervenirId, $userOforigen) {
+            $despacho = DespachoModel::query()
+                ->lockForUpdate()
+                ->whereKey($despachoId)
+                ->where('fk_estado', $estadoIntervenirId)
+                ->first();
+
+            if (!$despacho) {
+                throw ValidationException::withMessages([
+                    'intervencionDespachoId' => 'El despacho ya no se encuentra en estado INTERVENIR.',
+                ]);
+            }
+
+            if ($userOforigen !== '' && strtoupper(trim((string) $despacho->oforigen)) !== $userOforigen) {
+                throw ValidationException::withMessages([
+                    'intervencionDespachoId' => 'No puedes intervenir un despacho de otra oficina.',
+                ]);
+            }
+
+            $saca = SacaModel::query()
+                ->lockForUpdate()
+                ->whereKey($sacaId)
+                ->where('fk_despacho', $despacho->id)
+                ->first();
+
+            if (!$saca) {
+                throw ValidationException::withMessages([
+                    'intervencionSacaId' => 'La saca seleccionada no pertenece al despacho.',
+                ]);
+            }
+
+            $codEspecial = strtoupper(trim((string) $saca->busqueda));
+            if ($codEspecial === '') {
+                throw ValidationException::withMessages([
+                    'intervencionSacaId' => 'La saca no tiene cod_especial (campo busqueda) para validar el paquete.',
+                ]);
+            }
+
+            $paqueteIntervenido = $this->resolverPaqueteIntervenido($codigoPaquete, $codEspecial);
+            if ($paqueteIntervenido === null) {
+                throw ValidationException::withMessages([
+                    'intervencionCodigoPaquete' => 'El codigo ingresado no pertenece al cod_especial de la saca.',
+                ]);
+            }
+            $pesoIntervenido = (float) $paqueteIntervenido['peso'];
+            if ($pesoIntervenido <= 0) {
+                throw ValidationException::withMessages([
+                    'intervencionCodigoPaquete' => 'El paquete encontrado no tiene un peso valido para descontar.',
+                ]);
+            }
+
+            $pesoSacaActual = round((float) ($saca->peso ?? 0), 3);
+            $pesoDespachoActual = round((float) ($despacho->peso ?? 0), 3);
+            $paquetesSacaActual = (int) ($saca->paquetes ?? 0);
+            $nroEnvaseActual = $this->parseCounterValue($despacho->nro_envase);
+
+            if ($pesoIntervenido > $pesoSacaActual) {
+                throw ValidationException::withMessages([
+                    'intervencionCodigoPaquete' => 'El peso del paquete supera el peso actual de la saca.',
+                ]);
+            }
+
+            if ($pesoIntervenido > $pesoDespachoActual) {
+                throw ValidationException::withMessages([
+                    'intervencionCodigoPaquete' => 'El peso del paquete supera el peso actual del despacho.',
+                ]);
+            }
+
+            if ($paquetesSacaActual <= 0) {
+                throw ValidationException::withMessages([
+                    'intervencionCodigoPaquete' => 'La saca no tiene paquetes disponibles para descontar.',
+                ]);
+            }
+
+            if ($nroEnvaseActual <= 0) {
+                throw ValidationException::withMessages([
+                    'intervencionCodigoPaquete' => 'El despacho no tiene nro_envase disponible para descontar.',
+                ]);
+            }
+
+            $this->actualizarEstadoPaqueteIntervenido($paqueteIntervenido, $estadoIntervenirId);
+
+            $nuevoPesoSaca = round($pesoSacaActual - $pesoIntervenido, 3);
+            $saca->update([
+                'peso' => $nuevoPesoSaca,
+                'paquetes' => $paquetesSacaActual - 1,
+                'receptaculo' => $this->buildReceptaculoForValues((string) $saca->identificador, $nuevoPesoSaca),
+            ]);
+
+            $despacho->update([
+                'peso' => round($pesoDespachoActual - $pesoIntervenido, 3),
+                'nro_envase' => (string) ($nroEnvaseActual - 1),
+                'fk_estado' => $this->getEstadoIdByNombre('EXPEDICION', 19),
+            ]);
+        });
+
+        $this->dispatch('reimprimirCnDespacho', route('despachos.expedicion.pdf', ['id' => $despachoId]));
+        $this->dispatch('closeIntervencionModal');
+        $this->resetIntervencionForm();
+        session()->flash('success', 'Intervencion registrada: peso del paquete descontado automaticamente en saca y despacho.');
+    }
+
+    public function resetIntervencionForm()
+    {
+        $this->reset([
+            'intervencionDespachoId',
+            'intervencionSacaId',
+            'intervencionCodigoPaquete',
+            'intervencionCodEspecial',
+            'intervencionPesoDetectado',
+            'intervencionFuentePaquete',
+            'intervencionSacas',
+        ]);
+        $this->resetValidation();
     }
 
     public function render()
@@ -153,5 +342,155 @@ class DespachoExpedicion extends Component
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    protected function syncIntervencionCodEspecial(): void
+    {
+        $saca = collect($this->intervencionSacas)->firstWhere('id', (int) $this->intervencionSacaId);
+        $this->intervencionCodEspecial = trim((string) ($saca['cod_especial'] ?? ''));
+    }
+
+    protected function syncIntervencionPesoDetectado(): void
+    {
+        $codigoPaquete = strtoupper(trim((string) $this->intervencionCodigoPaquete));
+        $codEspecial = strtoupper(trim((string) $this->intervencionCodEspecial));
+
+        if ($codigoPaquete === '' || $codEspecial === '') {
+            $this->intervencionPesoDetectado = null;
+            $this->intervencionFuentePaquete = '';
+            return;
+        }
+
+        $paquete = $this->resolverPaqueteIntervenido($codigoPaquete, $codEspecial);
+        if ($paquete === null) {
+            $this->intervencionPesoDetectado = null;
+            $this->intervencionFuentePaquete = '';
+            return;
+        }
+
+        $this->intervencionPesoDetectado = round((float) $paquete['peso'], 3);
+        $this->intervencionFuentePaquete = (string) $paquete['fuente'];
+    }
+
+    protected function resolverPaqueteIntervenido(string $codigoPaquete, string $codEspecial): ?array
+    {
+        if ($codigoPaquete === '' || $codEspecial === '') {
+            return null;
+        }
+
+        $hits = [];
+
+        $ems = PaqueteEms::query()
+            ->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigoPaquete])
+            ->whereRaw('TRIM(UPPER(cod_especial)) = ?', [$codEspecial])
+            ->first(['id', 'peso']);
+        if ($ems) {
+            $hits[] = [
+                'fuente' => 'EMS',
+                'tabla' => 'ems',
+                'id' => (int) $ems->id,
+                'peso' => (float) ($ems->peso ?? 0),
+            ];
+        }
+
+        $ordi = PaqueteOrdi::query()
+            ->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigoPaquete])
+            ->whereRaw('TRIM(UPPER(cod_especial)) = ?', [$codEspecial])
+            ->first(['id', 'peso']);
+        if ($ordi) {
+            $hits[] = [
+                'fuente' => 'ORDI',
+                'tabla' => 'ordi',
+                'id' => (int) $ordi->id,
+                'peso' => (float) ($ordi->peso ?? 0),
+            ];
+        }
+
+        $contrato = RecojoModel::query()
+            ->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigoPaquete])
+            ->whereRaw('TRIM(UPPER(cod_especial)) = ?', [$codEspecial])
+            ->first(['id', 'peso']);
+        if ($contrato) {
+            $hits[] = [
+                'fuente' => 'CONTRATO',
+                'tabla' => 'contrato',
+                'id' => (int) $contrato->id,
+                'peso' => (float) ($contrato->peso ?? 0),
+            ];
+        }
+
+        if (count($hits) !== 1) {
+            return null;
+        }
+
+        return $hits[0];
+    }
+
+    protected function actualizarEstadoPaqueteIntervenido(array $paqueteIntervenido, int $estadoIntervenirId): void
+    {
+        $tabla = (string) ($paqueteIntervenido['tabla'] ?? '');
+        $id = (int) ($paqueteIntervenido['id'] ?? 0);
+
+        if ($estadoIntervenirId <= 0 || $id <= 0) {
+            return;
+        }
+
+        if ($tabla === 'ems') {
+            PaqueteEms::query()->whereKey($id)->update(['estado_id' => $estadoIntervenirId]);
+            return;
+        }
+
+        if ($tabla === 'ordi') {
+            PaqueteOrdi::query()->whereKey($id)->update(['fk_estado' => $estadoIntervenirId]);
+            return;
+        }
+
+        if ($tabla === 'contrato') {
+            RecojoModel::query()->whereKey($id)->update(['estados_id' => $estadoIntervenirId]);
+        }
+    }
+
+    protected function buildReceptaculoForValues(string $identificador, $peso): string
+    {
+        $pesoFormateado = $this->formatPesoForReceptaculo($peso);
+        $base = $identificador . $pesoFormateado;
+
+        return preg_replace('/[^A-Za-z0-9]/', '', $base);
+    }
+
+    protected function formatPesoForReceptaculo($peso): string
+    {
+        if ($peso === null) {
+            return '';
+        }
+
+        $raw = str_replace(',', '.', (string) $peso);
+        $parts = explode('.', $raw, 2);
+
+        $entero = preg_replace('/[^0-9]/', '', $parts[0] ?? '');
+        $decimal = preg_replace('/[^0-9]/', '', $parts[1] ?? '');
+        $primerDecimal = $decimal !== '' ? substr($decimal, 0, 1) : '';
+
+        $digits = $entero . $primerDecimal;
+        if ($digits === '') {
+            return '';
+        }
+
+        return str_pad($digits, 3, '0', STR_PAD_LEFT);
+    }
+
+    protected function parseCounterValue($value): int
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return 0;
+        }
+
+        if (is_numeric($raw)) {
+            return max(0, (int) $raw);
+        }
+
+        $digits = preg_replace('/[^0-9]/', '', $raw);
+        return $digits === '' ? 0 : (int) $digits;
     }
 }
