@@ -29,6 +29,7 @@ use App\Http\Controllers\EmpresaController;
 use App\Http\Controllers\CodigoEmpresaController;
 use App\Http\Controllers\AreaContratosController;
 use App\Http\Controllers\RecojoController;
+use App\Http\Controllers\ZonaPaqueteController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -50,6 +51,9 @@ Route::get('/rastreo-demo', [BusquedaController::class, 'trackingDemo'])->name('
 
 Route::match(['GET', 'POST'], '/api/busqueda/ems-eventos', [BusquedaController::class, 'emsEventos'])
     ->name('api.busqueda.ems-eventos');
+
+Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
+    ->name('api.public.zona-paquete');
 
 Route::get('/dashboard', function () {
     return view('dashboard');
