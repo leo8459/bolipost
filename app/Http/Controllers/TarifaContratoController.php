@@ -9,8 +9,13 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class TarifaContratoController extends Controller
@@ -204,7 +209,12 @@ class TarifaContratoController extends Controller
             return back()->withErrors(['archivo' => 'No se pudo leer el archivo Excel.'])->withInput();
         }
 
-        $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+        $sheet = $spreadsheet->getSheetByName('TarifaContrato');
+        if (!$sheet) {
+            $sheet = $spreadsheet->getSheet(0);
+        }
+
+        $rows = $sheet->toArray(null, true, true, false);
         if (empty($rows)) {
             return back()->withErrors(['archivo' => 'El archivo esta vacio.'])->withInput();
         }
@@ -371,34 +381,56 @@ class TarifaContratoController extends Controller
         $empresas = Empresa::query()
             ->orderBy('nombre')
             ->get(['id', 'codigo_cliente', 'nombre', 'sigla']);
-        $empresaEjemplo = (string) optional($empresas->first())->nombre;
-        if ($empresaEjemplo === '') {
-            $empresaEjemplo = 'NOMBRE EMPRESA';
-        }
-        $example = [
-            $empresaEjemplo,
-            'LA PAZ',
-            'COCHABAMBA',
-            'ENVIO NACIONAL (REGULAR)',
-            '10',
-            '1.5',
-            'QUILLACOLLO',
-            '5',
-            '48',
-        ];
 
-        return response()->streamDownload(function () use ($columns, $example, $empresas) {
+        return response()->streamDownload(function () use ($columns, $empresas) {
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('TarifaContrato');
 
             $sheet->fromArray($columns, null, 'A1');
-            $sheet->fromArray([$example], null, 'A2');
 
-            $sheet->getStyle('A1:I1')->getFont()->setBold(true);
-            foreach (range('A', 'I') as $column) {
-                $sheet->getColumnDimension($column)->setAutoSize(true);
+            $sheet->getStyle('A1:I1')->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'color' => ['argb' => 'FFFFFFFF'],
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['argb' => 'FF20539A'],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['argb' => 'FF1B3E73'],
+                    ],
+                ],
+            ]);
+
+            $sheet->freezePane('A2');
+            $sheet->setAutoFilter('A1:I1');
+
+            $columnWidths = [
+                'A' => 38,
+                'B' => 18,
+                'C' => 18,
+                'D' => 34,
+                'E' => 12,
+                'F' => 12,
+                'G' => 18,
+                'H' => 12,
+                'I' => 14,
+            ];
+            foreach ($columnWidths as $column => $width) {
+                $sheet->getColumnDimension($column)->setWidth($width);
             }
+
+            $sheet->getStyle('E2:F5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('H2:H5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('I2:I5000')->getNumberFormat()->setFormatCode('0');
 
             $sheetEmpresas = $spreadsheet->createSheet();
             $sheetEmpresas->setTitle('Empresas');
@@ -413,10 +445,79 @@ class TarifaContratoController extends Controller
                 $row++;
             }
 
-            $sheetEmpresas->getStyle('A1:D1')->getFont()->setBold(true);
-            foreach (range('A', 'D') as $column) {
-                $sheetEmpresas->getColumnDimension($column)->setAutoSize(true);
+            if ($row === 2) {
+                $sheetEmpresas->setCellValue('B2', '');
             }
+
+            $sheetEmpresas->getStyle('A1:D1')->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'color' => ['argb' => 'FFFFFFFF'],
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['argb' => 'FF2E7D32'],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                ],
+            ]);
+            $sheetEmpresas->setAutoFilter('A1:D1');
+            $sheetEmpresas->freezePane('A2');
+            $sheetEmpresas->getColumnDimension('A')->setWidth(20);
+            $sheetEmpresas->getColumnDimension('B')->setWidth(46);
+            $sheetEmpresas->getColumnDimension('C')->setWidth(16);
+            $sheetEmpresas->getColumnDimension('D')->setWidth(8);
+
+            $sheetCatalogos = $spreadsheet->createSheet();
+            $sheetCatalogos->setTitle('Catalogos');
+            $sheetCatalogos->setCellValue('A1', 'SERVICIOS');
+            $sheetCatalogos->setCellValue('B1', 'DEPARTAMENTOS');
+
+            $serviceRow = 2;
+            foreach (self::SERVICIOS as $servicio) {
+                $sheetCatalogos->setCellValue("A{$serviceRow}", $servicio);
+                $serviceRow++;
+            }
+
+            $depRow = 2;
+            foreach (self::DEPARTAMENTOS as $departamento) {
+                $sheetCatalogos->setCellValue("B{$depRow}", $departamento);
+                $depRow++;
+            }
+
+            $sheetCatalogos->getStyle('A1:B1')->applyFromArray([
+                'font' => ['bold' => true],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['argb' => 'FFE3F2FD'],
+                ],
+            ]);
+            $sheetCatalogos->getColumnDimension('A')->setWidth(34);
+            $sheetCatalogos->getColumnDimension('B')->setWidth(20);
+
+            $sheetInstrucciones = $spreadsheet->createSheet();
+            $sheetInstrucciones->setTitle('Instrucciones');
+            $sheetInstrucciones->setCellValue('A1', 'INSTRUCCIONES DE USO');
+            $sheetInstrucciones->setCellValue('A3', '1) No cambies los nombres de columnas en la hoja TarifaContrato.');
+            $sheetInstrucciones->setCellValue('A4', '2) Empieza a llenar datos desde la fila 2.');
+            $sheetInstrucciones->setCellValue('A5', '3) Usa empresa_nombre igual al nombre exacto en hoja Empresas.');
+            $sheetInstrucciones->setCellValue('A6', '4) provincia es opcional.');
+            $sheetInstrucciones->setCellValue('A7', '5) origen, destino y servicio tienen listas desplegables.');
+            $sheetInstrucciones->getStyle('A1')->applyFromArray([
+                'font' => ['bold' => true, 'size' => 14],
+                'color' => ['argb' => 'FF0D47A1'],
+            ]);
+            $sheetInstrucciones->getColumnDimension('A')->setWidth(95);
+
+            $lastEmpresaRow = max(2, $row - 1);
+            $lastServiceRow = max(2, $serviceRow - 1);
+            $lastDepartamentoRow = max(2, $depRow - 1);
+
+            $this->applyListValidation($sheet, 'A2:A5000', "=Empresas!\$B\$2:\$B\${$lastEmpresaRow}");
+            $this->applyListValidation($sheet, 'B2:B5000', "=Catalogos!\$B\$2:\$B\${$lastDepartamentoRow}");
+            $this->applyListValidation($sheet, 'C2:C5000', "=Catalogos!\$B\$2:\$B\${$lastDepartamentoRow}");
+            $this->applyListValidation($sheet, 'D2:D5000', "=Catalogos!\$A\$2:\$A\${$lastServiceRow}");
 
             $spreadsheet->setActiveSheetIndex(0);
 
@@ -504,6 +605,36 @@ class TarifaContratoController extends Controller
         $value = preg_replace('/\s+/', ' ', $value) ?? $value;
 
         return strtoupper($value);
+    }
+
+    private function applyListValidation(Worksheet $sheet, string $range, string $formula): void
+    {
+        [$start, $end] = explode(':', $range);
+        $startCell = $sheet->getCell($start);
+        $validation = $startCell->getDataValidation();
+        $validation->setType(DataValidation::TYPE_LIST);
+        $validation->setAllowBlank(true);
+        $validation->setShowDropDown(true);
+        $validation->setShowErrorMessage(true);
+        $validation->setErrorTitle('Valor invalido');
+        $validation->setError('Selecciona un valor de la lista.');
+        $validation->setFormula1($formula);
+
+        [$startCol, $startRow] = $this->splitCell($start);
+        [$endCol, $endRow] = $this->splitCell($end);
+
+        for ($row = $startRow; $row <= $endRow; $row++) {
+            for ($col = $startCol; $col <= $endCol; $col++) {
+                $cell = $col . $row;
+                $sheet->getCell($cell)->setDataValidation(clone $validation);
+            }
+        }
+    }
+
+    private function splitCell(string $cell): array
+    {
+        preg_match('/^([A-Z]+)(\d+)$/', strtoupper($cell), $m);
+        return [$m[1], (int) $m[2]];
     }
 
     private function parseDecimal($value): ?float
