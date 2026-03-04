@@ -6,7 +6,7 @@
     <div class="container nav">
         <a class="brand" href="{{ $landingPrefix }}#inicio">
             <img src="{{ asset('images/AGBClogo2.png') }}" alt="Agencia Boliviana de Correos">
-            <span>TrackingBo</span>
+            <span>bolipost</span>
         </a>
 
         <ul class="menu" id="menu">

@@ -58,6 +58,23 @@
         .muted{ color:var(--muted); }
 
         .table td{ vertical-align: middle; white-space: nowrap; }
+
+        .modal-content{
+            border:0;
+            border-radius:18px;
+            box-shadow:0 20px 50px rgba(0,0,0,.2);
+        }
+        .modal-header{
+            background: linear-gradient(90deg, var(--azul), #20539A);
+            color:#fff;
+            border-bottom:0;
+            padding:16px 20px;
+        }
+        .modal-title{ font-weight:800; }
+        .modal-footer{
+            border-top:1px solid var(--line);
+            background:#fafafa;
+        }
     </style>
 
     <div class="plantilla-wrap">
@@ -82,6 +99,11 @@
                 @if (session()->has('success'))
                     <div class="alert alert-success mb-3">
                         {{ session('success') }}
+                    </div>
+                @endif
+                @if (session()->has('error'))
+                    <div class="alert alert-danger mb-3">
+                        {{ session('error') }}
                     </div>
                 @endif
 
@@ -156,12 +178,13 @@
                                                 <i class="fas fa-undo"></i>
                                             </button>
                                         @elseif (optional($despacho->estado)->nombre_estado === 'INTERVENIR')
-                                            <a
-                                                href="{{ route('sacas.index', ['despacho_id' => $despacho->id]) }}"
+                                            <button
+                                                type="button"
                                                 class="btn btn-sm btn-primary"
-                                                title="Ver sacas">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
+                                                wire:click="openIntervencionModal({{ $despacho->id }})"
+                                                title="Registrar intervencion">
+                                                <i class="fas fa-clipboard-check"></i>
+                                            </button>
                                         @endif
                                     </td>
                                 </tr>
@@ -183,5 +206,71 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="intervencionModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form wire:submit.prevent="registrarIntervencion">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Intervenir despacho</h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Saca intervenida</label>
+                            <select class="form-control" wire:model="intervencionSacaId">
+                                <option value="">Seleccionar saca</option>
+                                @foreach ($intervencionSacas as $saca)
+                                    <option value="{{ $saca['id'] }}">
+                                        {{ $saca['label'] }} | cod_especial: {{ $saca['cod_especial'] ?: '-' }} | peso: {{ $saca['peso'] }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('intervencionSacaId') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+
+                        <div class="form-group">
+                            <label>Cod especial de la saca</label>
+                            <input type="text" class="form-control" value="{{ $intervencionCodEspecial }}" readonly>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Codigo de paquete intervenido</label>
+                            <input type="text" class="form-control" wire:model.debounce.350ms="intervencionCodigoPaquete" placeholder="Ej: RR123456789BO">
+                            @error('intervencionCodigoPaquete') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+
+                        @error('intervencionDespachoId') <small class="text-danger d-block mt-2">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar intervencion</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+    window.addEventListener('openIntervencionModal', () => {
+        $('#intervencionModal').modal('show');
+    });
+
+    window.addEventListener('closeIntervencionModal', () => {
+        $('#intervencionModal').modal('hide');
+    });
+
+    window.addEventListener('reimprimirCnDespacho', (event) => {
+        const detail = event.detail;
+        const url = Array.isArray(detail) ? detail[0] : (detail?.url ?? null);
+        if (url) {
+            window.open(url, '_blank');
+        }
+    });
+</script>
 
