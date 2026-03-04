@@ -14,9 +14,9 @@ return [
     |
     */
 
-    'title' => 'adminagbc',
+    'title' => 'bolipost',
     'title_prefix' => '',
-    'title_postfix' => '| AGBC',
+    'title_postfix' => '| bolipost',
 
     /*
     |--------------------------------------------------------------------------
@@ -63,12 +63,12 @@ return [
     |
     */
 
-    'logo' => '<b>admin</b>AGBC',
-    'logo_img' => 'images/AGBClogo.png',
+    'logo' => '<b>boli</b>post',
+    'logo_img' => 'images/AGBClogo2.png',
     'logo_img_class' => 'brand-image img-circle',
     'logo_img_xl' => null,
     'logo_img_xl_class' => 'brand-image-xs',
-    'logo_img_alt' => 'adminAGBC',
+    'logo_img_alt' => 'bolipost',
 
     /*
     |--------------------------------------------------------------------------
@@ -84,10 +84,10 @@ return [
     */
 
     'auth_logo' => [
-        'enabled' => false,
+        'enabled' => true,
         'img' => [
-            'path' => 'images/AGBClogo.png',
-            'alt' => 'Auth Logo',
+            'path' => 'images/AGBClogo2.png',
+            'alt' => 'bolipost',
             'class' => '',
             'width' => 50,
             'height' => 50,
@@ -113,8 +113,8 @@ return [
         'enabled' => true,
         'mode' => 'fullscreen',
         'img' => [
-            'path' => 'images/AGBClogo.png',
-            'alt' => 'AdminLTE Preloader Image',
+            'path' => 'images/AGBClogo2.png',
+            'alt' => 'bolipost',
             'effect' => 'animation__shake',
             'width' => 60,
             'height' => 60,

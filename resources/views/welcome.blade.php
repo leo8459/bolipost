@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TrackingBo | Plataforma Empresarial Postal</title>
-    <meta name="description" content="TrackingBo ofrece rastreo postal y gestión operativa con enfoque empresarial e institucional.">
+    <title>bolipost | Plataforma Empresarial Postal</title>
+    <meta name="description" content="bolipost ofrece rastreo postal y gestión operativa con enfoque empresarial e institucional.">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
     <link rel="shortcut icon" href="{{ asset('favicon-32x32.png') }}">
@@ -60,7 +60,7 @@
                 </div>
 
                 <div class="hero-figure" id="heroFigure">
-                    <img class="hero-img reveal" src="{{ asset('images/MONITO.png') }}" alt="Operador TrackingBo">
+                    <img class="hero-img reveal" src="{{ asset('images/MONITO.png') }}" alt="Operador bolipost">
                 </div>
             </div>
         </section>
