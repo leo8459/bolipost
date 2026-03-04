@@ -265,6 +265,14 @@
             <p id="searchLoadingText">Estamos consultando los eventos del código.</p>
         </div>
     </div>
+    <div class="search-loading-modal search-error-modal" id="searchErrorModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="searchErrorTitle">
+        <div class="search-loading-card search-error-card" role="alertdialog" aria-live="assertive">
+            <div class="search-error-icon" aria-hidden="true">!</div>
+            <h3 id="searchErrorTitle">No encontramos el envío</h3>
+            <p id="searchErrorText">Verifica el código e inténtalo nuevamente.</p>
+            <button class="btn btn-light search-error-btn" id="searchErrorClose" type="button">Entendido</button>
+        </div>
+    </div>
 
     <button class="back-to-top" id="backToTop" type="button" aria-label="Subir al inicio">
         &uarr;
@@ -411,6 +419,9 @@
         const resultsList = document.getElementById('resultsList');
         const searchLoadingModal = document.getElementById('searchLoadingModal');
         const searchLoadingText = document.getElementById('searchLoadingText');
+        const searchErrorModal = document.getElementById('searchErrorModal');
+        const searchErrorText = document.getElementById('searchErrorText');
+        const searchErrorClose = document.getElementById('searchErrorClose');
 
         const showLoadingModal = (message = 'Estamos consultando los eventos del código.') => {
             if (!searchLoadingModal) return;
@@ -426,6 +437,31 @@
             searchLoadingModal.setAttribute('aria-hidden', 'true');
             document.body.classList.remove('has-loading-modal');
         };
+
+        const showErrorModal = (message = 'Verifica el código e inténtalo nuevamente.') => {
+            if (!searchErrorModal) return;
+            if (searchErrorText) searchErrorText.textContent = message;
+            searchErrorModal.classList.add('is-open');
+            searchErrorModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('has-loading-modal');
+        };
+
+        const hideErrorModal = () => {
+            if (!searchErrorModal) return;
+            searchErrorModal.classList.remove('is-open');
+            searchErrorModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('has-loading-modal');
+        };
+
+        // Evita que el modal quede "pegado" al volver con el boton atras (bfcache/historial).
+        hideLoadingModal();
+        hideErrorModal();
+        window.addEventListener('pageshow', () => { hideLoadingModal(); hideErrorModal(); });
+        window.addEventListener('popstate', () => { hideLoadingModal(); hideErrorModal(); });
+        searchErrorClose?.addEventListener('click', hideErrorModal);
+        searchErrorModal?.addEventListener('click', (e) => {
+            if (e.target === searchErrorModal) hideErrorModal();
+        });
 
         const formatDate = (value) => {
             if (!value) return '-';
@@ -487,7 +523,8 @@
             const codigo = (input?.value || '').trim().toUpperCase();
 
             if (!codigo) {
-                showFeedback('Ingresa un código válido.', 'is-error');
+                showFeedback('', '');
+                showErrorModal('Ingresa un código válido.');
                 return;
             }
 
@@ -511,7 +548,8 @@
                 hideLoadingModal();
                 const message = error.message || 'No existe dicho paquete';
                 renderResults(codigo, [], message);
-                showFeedback(message, 'is-error');
+                showFeedback('', '');
+                showErrorModal(message);
             }
         });
 
