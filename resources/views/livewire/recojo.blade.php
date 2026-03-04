@@ -61,7 +61,12 @@
                         Imprimir generados hoy
                     </a>
                     @if (!$this->isAlmacenMode)
-                        <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create') }}">Nuevo</a>
+                        <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.create-con-tarifa') }}">
+                            Crear con tarifa
+                        </a>
+                        <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create') }}">
+                            Crear sin tarifa
+                        </a>
                     @endif
                 </div>
             </div>

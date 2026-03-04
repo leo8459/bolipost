@@ -13,6 +13,7 @@ use App\Models\PaqueteEmsFormulario;
 use App\Models\Recojo as RecojoContrato;
 use App\Models\RemitenteEms;
 use App\Models\Servicio;
+use App\Models\TarifaContrato;
 use App\Models\Tarifario;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
@@ -538,11 +539,15 @@ class PaquetesEms extends Component
             'mapa' => null,
             'provincia' => null,
             'peso' => $peso,
+            'precio' => null,
+            'tarifa_contrato_id' => null,
             'fecha_recojo' => now()->toDateString(),
             'observacion' => 'REGISTRO RAPIDO DESDE ALMACEN EMS',
             'justificacion' => null,
             'imagen' => null,
         ]);
+
+        $tarifaAplicada = $this->applyTarifaContratoPricing($contrato);
 
         $this->selectedContratos = collect($this->selectedContratos)
             ->map(fn ($id) => (string) $id)
@@ -554,7 +559,9 @@ class PaquetesEms extends Component
         $this->dispatch('closeContratoRegistrarModal');
         session()->flash(
             'success',
-            'Contrato registrado correctamente en ALMACEN.' . ($empresaId ? ' Empresa detectada y asignada.' : ' No se detecto empresa por codigo.')
+            'Contrato registrado correctamente en ALMACEN.'
+            . ($empresaId ? ' Empresa detectada y asignada.' : ' No se detecto empresa por codigo.')
+            . ($tarifaAplicada ? ' Precio calculado automaticamente.' : ' Precio pendiente hasta asignar una tarifa coincidente.')
         );
     }
 
@@ -631,12 +638,19 @@ class PaquetesEms extends Component
         }
 
         $this->hydrateContratoPesoDetectedData($contrato);
-        $contrato->peso = (float) $validated['contratoPeso'];
+        $contrato->peso = round((float) $validated['contratoPeso'], 3);
         $destino = trim((string) ($validated['contratoDestino'] ?? ''));
         if ($destino !== '') {
-            $contrato->destino = strtoupper($destino);
+            $destinoNormalizado = strtoupper($destino);
+            $destinoActual = strtoupper(trim((string) $contrato->destino));
+            if ($destinoNormalizado !== $destinoActual) {
+                $contrato->destino = $destinoNormalizado;
+                // Si cambia departamento, la provincia previa puede quedar inconsistente.
+                $contrato->provincia = null;
+                $contrato->tarifa_contrato_id = null;
+            }
         }
-        $contrato->save();
+        $tarifaAplicada = $this->applyTarifaContratoPricing($contrato);
 
         $this->contratoCodigoPeso = '';
         $this->contratoPeso = '';
@@ -650,7 +664,12 @@ class PaquetesEms extends Component
             'contratoDestino',
         ]);
 
-        session()->flash('success', 'Peso actualizado correctamente para contrato.');
+        session()->flash(
+            'success',
+            $tarifaAplicada
+                ? 'Peso actualizado y precio calculado automaticamente para contrato.'
+                : 'Peso actualizado, pero no se encontro tarifa para calcular el precio automaticamente.'
+        );
     }
 
     protected function findContratoForPesoByCodigo(string $codigo): ?RecojoContrato
@@ -677,9 +696,12 @@ class PaquetesEms extends Component
                 'id',
                 'codigo',
                 'cod_especial',
+                'empresa_id',
                 'origen',
                 'destino',
+                'provincia',
                 'peso',
+                'tarifa_contrato_id',
                 'nombre_r',
                 'nombre_d',
             ]);
@@ -706,6 +728,117 @@ class PaquetesEms extends Component
             ->all();
 
         $this->resetValidation(['contratoPesoContratoId']);
+    }
+
+    protected function applyTarifaContratoPricing(RecojoContrato $contrato): bool
+    {
+        $peso = round((float) $contrato->peso, 3);
+        $contrato->peso = $peso;
+
+        $empresaId = (int) ($contrato->empresa_id ?? 0);
+        if ($peso <= 0 || $empresaId <= 0) {
+            $contrato->precio = null;
+            if ($empresaId <= 0) {
+                $contrato->tarifa_contrato_id = null;
+            }
+            $contrato->save();
+
+            return false;
+        }
+
+        $tarifa = null;
+        $tarifaIdActual = (int) ($contrato->tarifa_contrato_id ?? 0);
+        if ($tarifaIdActual > 0) {
+            $tarifa = TarifaContrato::query()
+                ->where('id', $tarifaIdActual)
+                ->where('empresa_id', $empresaId)
+                ->first();
+        }
+
+        if (!$tarifa) {
+            $tarifa = $this->resolveTarifaContratoForContrato($contrato);
+        }
+
+        if (!$tarifa) {
+            $contrato->precio = null;
+            $contrato->tarifa_contrato_id = null;
+            $contrato->save();
+
+            return false;
+        }
+
+        $contrato->tarifa_contrato_id = (int) $tarifa->id;
+        $contrato->precio = $this->calculatePrecioContrato(
+            $peso,
+            (float) $tarifa->kilo,
+            (float) $tarifa->kilo_extra
+        );
+        $contrato->save();
+
+        return true;
+    }
+
+    protected function resolveTarifaContratoForContrato(RecojoContrato $contrato): ?TarifaContrato
+    {
+        $empresaId = (int) ($contrato->empresa_id ?? 0);
+        $origen = $this->normalizeTarifaText((string) ($contrato->origen ?? ''));
+        $destino = $this->normalizeTarifaText((string) ($contrato->destino ?? ''));
+        $provincia = $this->normalizeTarifaText((string) ($contrato->provincia ?? ''));
+
+        if ($empresaId <= 0 || $origen === '' || $destino === '') {
+            return null;
+        }
+
+        $baseQuery = TarifaContrato::query()
+            ->where('empresa_id', $empresaId)
+            ->whereRaw('trim(upper(origen)) = ?', [$origen])
+            ->whereRaw('trim(upper(destino)) = ?', [$destino]);
+
+        if ($provincia !== '') {
+            $exacta = (clone $baseQuery)
+                ->whereRaw('trim(upper(provincia)) = ?', [$provincia])
+                ->orderByDesc('id')
+                ->first();
+
+            if ($exacta) {
+                return $exacta;
+            }
+        }
+
+        $sinProvincia = (clone $baseQuery)
+            ->whereNull('provincia')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($sinProvincia) {
+            return $sinProvincia;
+        }
+
+        if ((clone $baseQuery)->count() === 1) {
+            return (clone $baseQuery)->first();
+        }
+
+        return null;
+    }
+
+    protected function calculatePrecioContrato(float $peso, float $precioBaseKilo, float $precioKiloExtra): float
+    {
+        if ($peso <= 0) {
+            return 0.00;
+        }
+
+        if ($peso <= 1.0) {
+            return round($precioBaseKilo, 2);
+        }
+
+        $bloquesExtra = max(0, (int) ceil($peso - 1.0));
+
+        return round($precioBaseKilo + ($bloquesExtra * $precioKiloExtra), 2);
+    }
+
+    protected function normalizeTarifaText(string $value): string
+    {
+        return strtoupper(trim($value));
     }
 
     protected function resolveEmpresaIdByCodigoContrato(string $codigo): ?int

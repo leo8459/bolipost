@@ -375,6 +375,11 @@ return [
                     'icon' => 'fas fa-envelope-open-text',
                     'submenu' => [
                         [
+                            'text' => 'Crear con tarifa',
+                            'url' => 'paquetes-contrato/create-con-tarifa',
+                            'icon' => 'fas fa-calculator',
+                        ],
+                        [
                             'text' => 'Gestion contratos',
                             'url' => 'paquetes-contrato',
                             'icon' => 'fas fa-tasks',
