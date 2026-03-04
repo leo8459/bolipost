@@ -92,6 +92,13 @@
                                             <td>{{ $tarifa->horas_entrega }}</td>
                                             <td>
                                                 <form action="{{ route('tarifa-contrato.destroy', $tarifa->id) }}" method="POST">
+                                                    <a
+                                                        class="btn btn-sm btn-info"
+                                                        href="{{ route('tarifa-contrato.create', ['copy_id' => $tarifa->id]) }}"
+                                                        title="Duplicar"
+                                                    >
+                                                        <i class="fa fa-fw fa-copy"></i>
+                                                    </a>
                                                     <a class="btn btn-sm btn-success" href="{{ route('tarifa-contrato.edit', $tarifa->id) }}" title="Editar">
                                                         <i class="fa fa-fw fa-edit"></i>
                                                     </a>

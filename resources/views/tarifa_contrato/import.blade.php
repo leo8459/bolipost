@@ -49,6 +49,16 @@
                             <div class="alert alert-info">
                                 <p class="mb-2"><strong>Columnas requeridas en el Excel (fila 1):</strong></p>
                                 <code>{{ implode(', ', $columnas) }}</code>
+                                <p class="mt-2 mb-2">
+                                    Usa <strong>empresa_nombre</strong> para identificar la empresa por su nombre.
+                                    En la plantilla tienes la hoja <strong>Empresas</strong> con la lista registrada.
+                                </p>
+                                <p class="mt-2 mb-2">
+                                    <strong>provincia</strong> es opcional.
+                                </p>
+                                <p class="mt-2 mb-2">
+                                    La plantilla <strong>ya no incluye fila de ejemplo</strong> para evitar cargas equivocadas.
+                                </p>
                                 <hr>
                                 <p class="mb-1"><strong>Servicios permitidos:</strong></p>
                                 <ul class="mb-2">
