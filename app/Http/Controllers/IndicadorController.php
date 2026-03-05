@@ -136,6 +136,7 @@ class IndicadorController extends Controller
             });
         }
 
+        $slaResumen = $this->buildSlaResumen((clone $rows), [$this, 'decorateContratoSlaRow'], $entregados);
         $rows = $rows->orderByDesc('paquetes_contrato.id')->paginate(20)->withQueryString();
         $rows->through(function ($row) use ($entregados) {
             return $this->decorateContratoSlaRow($row, $entregados);
@@ -150,7 +151,8 @@ class IndicadorController extends Controller
             $entregados ? 'indicadores.contratos.entregados' : 'indicadores.contratos.inventario',
             (bool) $estadoEntregadoId,
             $entregados,
-            true
+            true,
+            $slaResumen
         );
     }
 
@@ -207,6 +209,7 @@ class IndicadorController extends Controller
             });
         }
 
+        $slaResumen = $this->buildSlaResumen((clone $rows), [$this, 'decorateEmsSlaRow'], $entregados);
         $rows = $rows->orderByDesc('paquetes_ems.id')->paginate(20)->withQueryString();
         $rows->through(function ($row) use ($entregados) {
             return $this->decorateEmsSlaRow($row, $entregados);
@@ -221,7 +224,8 @@ class IndicadorController extends Controller
             $entregados ? 'indicadores.ems.entregados' : 'indicadores.ems.inventario',
             (bool) $estadoEntregadoId,
             $entregados,
-            true
+            true,
+            $slaResumen
         );
     }
 
@@ -273,6 +277,7 @@ class IndicadorController extends Controller
             });
         }
 
+        $slaResumen = $this->buildSlaResumen((clone $rows), [$this, 'decorateCertiOrdiSlaRow'], $entregados);
         $rows = $rows->orderByDesc('paquetes_certi.id')->paginate(20)->withQueryString();
         $rows->through(function ($row) use ($entregados) {
             return $this->decorateCertiOrdiSlaRow($row, $entregados);
@@ -287,7 +292,8 @@ class IndicadorController extends Controller
             $entregados ? 'indicadores.certificados.entregados' : 'indicadores.certificados.inventario',
             (bool) $estadoEntregadoId,
             $entregados,
-            true
+            true,
+            $slaResumen
         );
     }
 
@@ -339,6 +345,7 @@ class IndicadorController extends Controller
             });
         }
 
+        $slaResumen = $this->buildSlaResumen((clone $rows), [$this, 'decorateCertiOrdiSlaRow'], $entregados);
         $rows = $rows->orderByDesc('paquetes_ordi.id')->paginate(20)->withQueryString();
         $rows->through(function ($row) use ($entregados) {
             return $this->decorateCertiOrdiSlaRow($row, $entregados);
@@ -353,7 +360,8 @@ class IndicadorController extends Controller
             $entregados ? 'indicadores.ordinarios.entregados' : 'indicadores.ordinarios.inventario',
             (bool) $estadoEntregadoId,
             $entregados,
-            true
+            true,
+            $slaResumen
         );
     }
 
@@ -395,7 +403,8 @@ class IndicadorController extends Controller
         string $searchRouteName,
         bool $estadoEntregadoDisponible,
         bool $isEntregados,
-        bool $showSla = false
+        bool $showSla = false,
+        array $slaResumen = []
     ) {
         return view('indicadores.listado', [
             'rows' => $rows,
@@ -407,7 +416,35 @@ class IndicadorController extends Controller
             'estadoEntregadoDisponible' => $estadoEntregadoDisponible,
             'isEntregados' => $isEntregados,
             'showSla' => $showSla,
+            'slaResumen' => $slaResumen,
         ]);
+    }
+
+    private function buildSlaResumen(Builder $query, callable $decorateRow, bool $entregados): array
+    {
+        $resumen = [
+            'correcto' => 0,
+            'retraso' => 0,
+            'rezago' => 0,
+            'sin_datos' => 0,
+        ];
+
+        foreach ($query->cursor() as $row) {
+            $row = $decorateRow($row, $entregados);
+            $color = strtoupper((string) ($row->sla_color ?? ''));
+
+            if ($color === 'VERDE') {
+                $resumen['correcto']++;
+            } elseif ($color === 'AMARILLO') {
+                $resumen['retraso']++;
+            } elseif ($color === 'ROJO') {
+                $resumen['rezago']++;
+            } else {
+                $resumen['sin_datos']++;
+            }
+        }
+
+        return $resumen;
     }
 
     private function decorateEmsSlaRow(object $row, bool $entregados): object

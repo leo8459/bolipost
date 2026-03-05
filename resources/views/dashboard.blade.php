@@ -260,6 +260,10 @@
                                 <label class="custom-control-label" for="cfg_col_pendientes">Pendientes</label>
                             </div>
                             <div class="custom-control custom-checkbox mr-4 mb-2">
+                                <input type="checkbox" class="custom-control-input" id="cfg_col_correctos" data-setting-column="correctos">
+                                <label class="custom-control-label" for="cfg_col_correctos">Correcto</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mr-4 mb-2">
                                 <input type="checkbox" class="custom-control-input" id="cfg_col_atrasados" data-setting-column="atrasados">
                                 <label class="custom-control-label" for="cfg_col_atrasados">Con retraso</label>
                             </div>
@@ -382,12 +386,17 @@
     </div>
 
     <div class="row mt-1" data-widget="alertas_operativas">
-        <div class="col-md-6">
-            <div class="alert alert-warning mb-2">
-                <strong>Entregados con retraso:</strong> {{ number_format($totales['atrasados']) }}
+        <div class="col-md-4">
+            <div class="alert alert-success mb-2">
+                <strong>Correcto:</strong> {{ number_format($totales['correctos']) }}
             </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
+            <div class="alert alert-warning mb-2">
+                <strong>En retraso:</strong> {{ number_format($totales['atrasados']) }}
+            </div>
+        </div>
+        <div class="col-md-4">
             <div class="alert alert-danger mb-2">
                 <strong>Ya en rezago:</strong> {{ number_format($totales['rezago']) }}
             </div>
@@ -438,7 +447,7 @@
                 <div class="card-header chart-header-flex">
                     <div>
                         <strong>Estado operativo por modulo</strong>
-                        <div class="chart-helper">Compara entregados, pendientes y rezago por modulo.</div>
+                        <div class="chart-helper">Compara entregados, correcto, retraso y rezago por modulo.</div>
                     </div>
                     <div class="chart-type-wrap">
                         <button type="button" class="btn btn-sm btn-outline-secondary chart-action-btn" data-chart-download="chartEstados" title="Descargar PNG">
@@ -544,6 +553,7 @@
                                 <th class="text-right" data-col="registrados">Registrados</th>
                                 <th class="text-right" data-col="entregados">Entregados</th>
                                 <th class="text-right" data-col="pendientes">Pendientes</th>
+                                <th class="text-right" data-col="correctos">Correcto</th>
                                 <th class="text-right" data-col="atrasados">Con retraso</th>
                                 <th class="text-right" data-col="rezago">Rezago</th>
                                 <th class="text-right" data-col="tasa_entrega">Tasa entrega</th>
@@ -558,6 +568,7 @@
                                     <td class="text-right" data-col="registrados">{{ number_format($fila['total']) }}</td>
                                     <td class="text-right text-success" data-col="entregados">{{ number_format($fila['entregados']) }}</td>
                                     <td class="text-right" data-col="pendientes">{{ number_format($fila['pendientes']) }}</td>
+                                    <td class="text-right text-success" data-col="correctos">{{ number_format($fila['correctos']) }}</td>
                                     <td class="text-right text-warning" data-col="atrasados">{{ number_format($fila['atrasados']) }}</td>
                                     <td class="text-right text-danger" data-col="rezago">{{ number_format($fila['rezago']) }}</td>
                                     <td class="text-right" data-col="tasa_entrega">
@@ -573,7 +584,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-4">No hay datos para los filtros seleccionados.</td>
+                                    <td colspan="10" class="text-center text-muted py-4">No hay datos para los filtros seleccionados.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -976,6 +987,7 @@
                 registrados: true,
                 entregados: true,
                 pendientes: true,
+                correctos: true,
                 atrasados: true,
                 rezago: true,
                 tasa_entrega: true,
@@ -1216,6 +1228,7 @@
                     registrados: true,
                     entregados: true,
                     pendientes: true,
+                    correctos: true,
                     atrasados: false,
                     rezago: true,
                     tasa_entrega: true,
@@ -1242,6 +1255,7 @@
                     registrados: true,
                     entregados: true,
                     pendientes: true,
+                    correctos: true,
                     atrasados: true,
                     rezago: true,
                     tasa_entrega: true,
@@ -1363,7 +1377,8 @@
             const chartType = type === 'area' ? 'line' : (type === 'bar_h' ? 'bar' : type);
             const datasets = [
                 { label: 'Entregados', data: chartEstadosData.entregados, backgroundColor: '#28a745', borderColor: '#28a745' },
-                { label: 'Pendientes', data: chartEstadosData.pendientes, backgroundColor: '#f39c12', borderColor: '#f39c12' },
+                { label: 'Correcto', data: chartEstadosData.correctos, backgroundColor: '#20c997', borderColor: '#20c997' },
+                { label: 'Retraso', data: chartEstadosData.retraso, backgroundColor: '#f39c12', borderColor: '#f39c12' },
                 { label: 'Rezago', data: chartEstadosData.rezago, backgroundColor: '#dc3545', borderColor: '#dc3545' },
             ];
 

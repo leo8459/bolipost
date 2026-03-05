@@ -9,6 +9,19 @@
         <div class="card area-contratos-card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
                 <h3 class="card-title mb-2 mb-md-0">{{ $modulo }} - {{ $filtro }}</h3>
+                @if (!empty($showSla))
+                    <div class="sla-summary-group mb-2 mb-md-0">
+                        <span class="sla-summary-pill sla-summary-green">
+                            Correcto: {{ number_format((int) ($slaResumen['correcto'] ?? 0)) }}
+                        </span>
+                        <span class="sla-summary-pill sla-summary-yellow">
+                            Retraso: {{ number_format((int) ($slaResumen['retraso'] ?? 0)) }}
+                        </span>
+                        <span class="sla-summary-pill sla-summary-red">
+                            Rezago: {{ number_format((int) ($slaResumen['rezago'] ?? 0)) }}
+                        </span>
+                    </div>
+                @endif
                 <span class="area-badge">Total: {{ $rows->total() }}</span>
             </div>
             <div class="card-body">
@@ -140,6 +153,36 @@
             font-size: 0.76rem;
             font-weight: 700;
             padding: 0.28rem 0.6rem;
+        }
+        .sla-summary-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .sla-summary-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.28rem 0.55rem;
+            font-size: 0.76rem;
+            font-weight: 700;
+            border: 1px solid transparent;
+        }
+        .sla-summary-green {
+            background: #d1fae5;
+            color: #065f46;
+            border-color: #86efac;
+        }
+        .sla-summary-yellow {
+            background: #fef3c7;
+            color: #92400e;
+            border-color: #fde68a;
+        }
+        .sla-summary-red {
+            background: #fee2e2;
+            color: #991b1b;
+            border-color: #fca5a5;
         }
 
         .area-contratos-card .table thead th {

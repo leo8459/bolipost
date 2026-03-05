@@ -14,6 +14,36 @@ use Maatwebsite\Excel\Facades\Excel;
 class DashboardController extends Controller
 {
     private const EVENTO_ENTREGADO_ID = 316;
+    private const EVENTO_EMS_SOLICITUD_ID = 295;
+    private const CERTI_ORDI_GREEN_DAYS = 7;
+    private const CERTI_ORDI_YELLOW_DAYS = 15;
+    private const DESTINOS_LARGA_DISTANCIA = [
+        'SANTA CRUZ',
+        'BENI',
+        'TARIJA',
+    ];
+    private const DESTINOS_BASE = [
+        'LA PAZ',
+        'COCHABAMBA',
+        'SANTA CRUZ',
+        'ORURO',
+        'POTOSI',
+        'TARIJA',
+        'CHUQUISACA',
+        'BENI',
+        'PANDO',
+    ];
+    private const DESTINOS_CAPITALES = [
+        'LA PAZ',
+        'COCHABAMBA',
+        'SANTA CRUZ',
+        'ORURO',
+        'POTOSI',
+        'TARIJA',
+        'SUCRE',
+        'TRINIDAD',
+        'COBIJA',
+    ];
 
     private const MODULOS = [
         'ems' => [
@@ -108,14 +138,18 @@ class DashboardController extends Controller
             $entregados = $estadoEntregadoId
                 ? (int) (clone $query)->where($config['estado_column'], $estadoEntregadoId)->count()
                 : 0;
-            $rezago = $estadoRezagoId
-                ? (int) (clone $query)->where($config['estado_column'], $estadoRezagoId)->count()
-                : 0;
+            $situacionInventario = $this->countSituacionInventarioByIndicadorLogic(
+                $moduloKey,
+                $config,
+                $estadoEntregadoId,
+                null,
+                null
+            );
+            $correctos = (int) ($situacionInventario['correcto'] ?? 0);
+            $atrasados = (int) ($situacionInventario['retraso'] ?? 0);
+            $rezago = (int) ($situacionInventario['rezago'] ?? 0);
 
             $pendientes = max(0, $total - $entregados);
-            $atrasados = $estadoEntregadoId
-                ? $this->countLateDeliveredForModulo($config, $estadoEntregadoId, $desde, $hasta)
-                : 0;
 
             $pesoTotal = (float) (clone $query)->sum(
                 DB::raw('coalesce(' . $config['peso_column'] . ', 0)')
@@ -134,6 +168,7 @@ class DashboardController extends Controller
                 'total' => $total,
                 'entregados' => $entregados,
                 'pendientes' => $pendientes,
+                'correctos' => $correctos,
                 'atrasados' => $atrasados,
                 'rezago' => $rezago,
                 'peso_total' => round($pesoTotal, 3),
@@ -146,6 +181,7 @@ class DashboardController extends Controller
             'paquetes' => (int) array_sum(array_column($resumenPorModulo, 'total')),
             'entregados' => (int) array_sum(array_column($resumenPorModulo, 'entregados')),
             'pendientes' => (int) array_sum(array_column($resumenPorModulo, 'pendientes')),
+            'correctos' => (int) array_sum(array_column($resumenPorModulo, 'correctos')),
             'atrasados' => (int) array_sum(array_column($resumenPorModulo, 'atrasados')),
             'rezago' => (int) array_sum(array_column($resumenPorModulo, 'rezago')),
             'peso_total' => round((float) array_sum(array_column($resumenPorModulo, 'peso_total')), 3),
@@ -198,6 +234,8 @@ class DashboardController extends Controller
                 'labels' => array_values(array_column($resumenPorModulo, 'label')),
                 'entregados' => array_values(array_column($resumenPorModulo, 'entregados')),
                 'pendientes' => array_values(array_column($resumenPorModulo, 'pendientes')),
+                'correctos' => array_values(array_column($resumenPorModulo, 'correctos')),
+                'retraso' => array_values(array_column($resumenPorModulo, 'atrasados')),
                 'rezago' => array_values(array_column($resumenPorModulo, 'rezago')),
             ],
             'chartVersus' => [
@@ -356,6 +394,236 @@ class DashboardController extends Controller
         $this->applyDateFilter($query, 't.created_at', $from, $to);
 
         return (int) $query->count();
+    }
+
+    private function countSituacionInventarioByIndicadorLogic(
+        string $moduloKey,
+        array $config,
+        ?int $estadoEntregadoId,
+        ?Carbon $from,
+        ?Carbon $to
+    ): array {
+        $query = null;
+        $now = now();
+        $resumen = [
+            'correcto' => 0,
+            'retraso' => 0,
+            'rezago' => 0,
+            'sin_datos' => 0,
+        ];
+
+        if ($moduloKey === 'contrato') {
+            $query = DB::table($config['table'] . ' as t')
+                ->select([
+                    't.id',
+                    't.destino',
+                    't.provincia',
+                    't.fecha_recojo',
+                    't.created_at',
+                ]);
+            $this->applyNoEntregadoScope($query, 't.estados_id', $estadoEntregadoId);
+            $this->applyDateFilter($query, 't.created_at', $from, $to);
+
+            foreach ($query->orderBy('t.id')->cursor() as $row) {
+                $inicio = $this->safeCarbonValue($row->fecha_recojo ?? null);
+                $esProvincia = trim((string) ($row->provincia ?? '')) !== '';
+                $umbral = $this->resolveEmsThresholdDays((string) ($row->destino ?? ''), $esProvincia);
+                $bucket = $this->resolveSituacionBucket($inicio, $now, (int) $umbral['green'], (int) $umbral['yellow']);
+                $resumen[$bucket]++;
+            }
+
+            return $resumen;
+        }
+
+        if ($moduloKey === 'ems') {
+            $solicitudSub = DB::table('eventos_ems')
+                ->select('codigo', DB::raw('MIN(created_at) as solicitud_at'))
+                ->where('evento_id', self::EVENTO_EMS_SOLICITUD_ID)
+                ->groupBy('codigo');
+
+            $query = DB::table($config['table'] . ' as t')
+                ->leftJoinSub($solicitudSub, 'ev_solicitud', function ($join) {
+                    $join->on('ev_solicitud.codigo', '=', 't.codigo');
+                })
+                ->select([
+                    't.id',
+                    't.ciudad as destino',
+                    't.created_at',
+                    'ev_solicitud.solicitud_at',
+                ]);
+            $this->applyNoEntregadoScope($query, 't.estado_id', $estadoEntregadoId);
+            $this->applyDateFilter($query, 't.created_at', $from, $to);
+
+            foreach ($query->orderBy('t.id')->cursor() as $row) {
+                $inicio = $this->safeCarbonValue($row->solicitud_at ?? null)
+                    ?? $this->safeCarbonValue($row->created_at ?? null);
+                $destino = (string) ($row->destino ?? '');
+                $esProvincia = $this->isEmsProvincia($destino);
+                $umbral = $this->resolveEmsThresholdDays($destino, $esProvincia);
+                $bucket = $this->resolveSituacionBucket($inicio, $now, (int) $umbral['green'], (int) $umbral['yellow']);
+                $resumen[$bucket]++;
+            }
+
+            return $resumen;
+        }
+
+        if (in_array($moduloKey, ['certi', 'ordi'], true)) {
+            $inicioSub = DB::table($config['event_table'])
+                ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
+                ->groupBy('codigo');
+
+            $query = DB::table($config['table'] . ' as t')
+                ->leftJoinSub($inicioSub, 'ev_inicio', function ($join) {
+                    $join->on('ev_inicio.codigo', '=', 't.codigo');
+                })
+                ->select([
+                    't.id',
+                    't.created_at',
+                    'ev_inicio.primer_evento_at',
+                ]);
+            $this->applyNoEntregadoScope($query, 't.' . $config['estado_column'], $estadoEntregadoId);
+            $this->applyDateFilter($query, 't.created_at', $from, $to);
+
+            foreach ($query->orderBy('t.id')->cursor() as $row) {
+                $inicio = $this->safeCarbonValue($row->primer_evento_at ?? null)
+                    ?? $this->safeCarbonValue($row->created_at ?? null);
+                $bucket = $this->resolveSituacionBucket(
+                    $inicio,
+                    $now,
+                    self::CERTI_ORDI_GREEN_DAYS,
+                    self::CERTI_ORDI_YELLOW_DAYS
+                );
+                $resumen[$bucket]++;
+            }
+
+            return $resumen;
+        }
+
+        return $resumen;
+    }
+
+    private function resolveSituacionBucket(?Carbon $inicio, Carbon $fin, int $greenDays, int $yellowDays): string
+    {
+        if (!$inicio || $fin->lessThan($inicio)) {
+            return 'sin_datos';
+        }
+
+        $horas = $inicio->diffInHours($fin);
+        if ($horas <= ($greenDays * 24)) {
+            return 'correcto';
+        }
+
+        if ($horas <= ($yellowDays * 24)) {
+            return 'retraso';
+        }
+
+        return 'rezago';
+    }
+
+    private function applyNoEntregadoScope(Builder $query, string $stateColumn, ?int $estadoEntregadoId): void
+    {
+        if (!$estadoEntregadoId) {
+            return;
+        }
+
+        $query->where(function (Builder $sub) use ($stateColumn, $estadoEntregadoId) {
+            $sub->whereNull($stateColumn)
+                ->orWhere($stateColumn, '<>', $estadoEntregadoId);
+        });
+    }
+
+    private function resolveEmsThresholdDays(string $destino, bool $esProvincia): array
+    {
+        $baseDestino = $this->resolveEmsBaseDestino($destino);
+        $verde = in_array($baseDestino, self::DESTINOS_LARGA_DISTANCIA, true) ? 2 : 1;
+        $amarillo = $verde + 1;
+
+        if ($esProvincia) {
+            $verde += 1;
+            $amarillo += 1;
+        }
+
+        return [
+            'green' => $verde,
+            'yellow' => $amarillo,
+        ];
+    }
+
+    private function resolveEmsBaseDestino(string $destino): string
+    {
+        $normalized = $this->normalizeDestino($destino);
+
+        if (str_contains($normalized, 'SANTA CRUZ')) {
+            return 'SANTA CRUZ';
+        }
+
+        if (str_contains($normalized, 'TARIJA')) {
+            return 'TARIJA';
+        }
+
+        if (str_contains($normalized, 'BENI') || str_contains($normalized, 'TRINIDAD')) {
+            return 'BENI';
+        }
+
+        foreach (self::DESTINOS_BASE as $base) {
+            if (str_contains($normalized, $base)) {
+                return $base;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function isEmsProvincia(string $destino): bool
+    {
+        $normalized = $this->normalizeDestino($destino);
+        if ($normalized === '' || $normalized === '-') {
+            return false;
+        }
+
+        if (str_contains($normalized, 'PROV')) {
+            return true;
+        }
+
+        if (in_array($normalized, self::DESTINOS_BASE, true) || in_array($normalized, self::DESTINOS_CAPITALES, true)) {
+            return false;
+        }
+
+        foreach (self::DESTINOS_BASE as $base) {
+            if ($normalized === $base) {
+                return false;
+            }
+
+            if (
+                str_starts_with($normalized, $base . ' ') ||
+                str_starts_with($normalized, $base . '-') ||
+                str_starts_with($normalized, $base . ',') ||
+                str_starts_with($normalized, $base . '/')
+            ) {
+                return true;
+            }
+        }
+
+        return true;
+    }
+
+    private function normalizeDestino(string $value): string
+    {
+        $value = strtoupper(trim($value));
+        return preg_replace('/\s+/', ' ', $value) ?? $value;
+    }
+
+    private function safeCarbonValue($value): ?Carbon
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     private function buildKpisPeriodo(array $modulosSeleccionados): array
@@ -644,7 +912,7 @@ class DashboardController extends Controller
         $resumenEjecutivo = [];
         $resumenEjecutivo[] = 'Se registraron ' . number_format((int) $totales['paquetes']) . ' envios, con una tasa de entrega global de ' . number_format((float) $totales['porcentaje_entrega'], 1) . '%.';
         $resumenEjecutivo[] = 'El modulo con mayor volumen fue ' . ($moduloMayorCarga['label'] ?? 'N/D') . ' (' . number_format((int) ($moduloMayorCarga['total'] ?? 0)) . ' registros).';
-        $resumenEjecutivo[] = 'El rezago representa ' . number_format($rezagoRatio, 1) . '% y los entregados con retraso ' . number_format($atrasoRatio, 1) . '% del total procesado.';
+        $resumenEjecutivo[] = 'El rezago representa ' . number_format($rezagoRatio, 1) . '% y el retraso en inventario ' . number_format($atrasoRatio, 1) . '% del total procesado.';
 
         $hallazgos = [];
         if ($mejorModulo) {
@@ -675,9 +943,9 @@ class DashboardController extends Controller
             $recomendaciones[] = 'Mantener el control de rezago con cortes semanales y alertas tempranas por incremento de inventario no entregado.';
         }
         if ($atrasoRatio >= 10) {
-            $recomendaciones[] = 'Revisar tiempos de ciclo por tramo (admision, despacho, ventanilla, cartero) para reducir retrasos de entrega.';
+            $recomendaciones[] = 'Revisar tiempos de ciclo operativo para reducir volumen en retraso antes de que pase a rezago.';
         } else {
-            $recomendaciones[] = 'Sostener el desempeno de tiempos de entrega con monitoreo por modulo y auditoria de excepciones.';
+            $recomendaciones[] = 'Sostener el control de tiempos con monitoreo por modulo y auditoria de excepciones.';
         }
         $recomendaciones[] = 'Alinear metas por modulo con el porcentaje de entrega objetivo y seguimiento semanal en comite operativo.';
 
