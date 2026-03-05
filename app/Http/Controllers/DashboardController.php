@@ -160,8 +160,8 @@ class DashboardController extends Controller
                 $moduloKey,
                 $config,
                 $estadoEntregadoId,
-                null,
-                null
+                $desde,
+                $hasta
             );
             $correctos = (int) ($situacionInventario['correcto'] ?? 0);
             $atrasados = (int) ($situacionInventario['retraso'] ?? 0);
@@ -296,7 +296,7 @@ class DashboardController extends Controller
     private function resolveRangoFechas(Request $request): array
     {
         $now = now();
-        $range = strtolower((string) $request->query('range', '30d'));
+        $range = strtolower((string) $request->query('range', 'all'));
         $fromInput = trim((string) $request->query('from', ''));
         $toInput = trim((string) $request->query('to', ''));
 
@@ -345,12 +345,7 @@ class DashboardController extends Controller
             ];
         }
 
-        return [
-            $now->copy()->subDays(29)->startOfDay(),
-            $now->copy()->endOfDay(),
-            'Ultimos 30 dias',
-            '30d',
-        ];
+        return [null, null, 'Todo el historial', 'all'];
     }
 
     private function safeParseDate(string $value): ?Carbon

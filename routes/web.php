@@ -34,6 +34,7 @@ use App\Http\Controllers\IndicadorController;
 use App\Http\Controllers\RecojoController;
 use App\Http\Controllers\ZonaPaqueteController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ReportesController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -68,11 +69,20 @@ Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'
 Route::get('/dashboard/export/pdf', [DashboardController::class, 'exportPdf'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard.export.pdf');
-Route::get('/reportes', [DashboardController::class, 'reportes'])
+Route::get('/reportes', [ReportesController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('reportes.index');
-Route::get('/reportes/export/pdf', [DashboardController::class, 'exportReportesPdf'])
+Route::get('/reportes/{scope}', [ReportesController::class, 'show'])
     ->middleware(['auth', 'verified'])
+    ->where('scope', 'general|contrato|ems|certi|ordi')
+    ->name('reportes.scope');
+Route::get('/reportes/{scope}/export/excel', [ReportesController::class, 'exportExcel'])
+    ->middleware(['auth', 'verified'])
+    ->where('scope', 'general|contrato|ems|certi|ordi')
+    ->name('reportes.export.excel');
+Route::get('/reportes/{scope}/export/pdf', [ReportesController::class, 'exportPdf'])
+    ->middleware(['auth', 'verified'])
+    ->where('scope', 'general|contrato|ems|certi|ordi')
     ->name('reportes.export.pdf');
 
 Route::middleware('auth')->group(function () {

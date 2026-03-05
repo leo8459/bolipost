@@ -110,7 +110,7 @@ return [
     */
 
     'preloader' => [
-        'enabled' => true,
+        'enabled' => false,
         'mode' => 'fullscreen',
         'img' => [
             'path' => 'images/AGBClogo2.png',
@@ -318,8 +318,34 @@ return [
         ],
         [
             'text' => 'Reportes',
-            'url' => '/reportes',
             'icon' => 'fas fa-file-pdf',
+            'submenu' => [
+                [
+                    'text' => 'Reporte General',
+                    'url' => '/reportes/general',
+                    'icon' => 'fas fa-layer-group',
+                ],
+                [
+                    'text' => 'Reporte Contratos',
+                    'url' => '/reportes/contrato',
+                    'icon' => 'fas fa-file-contract',
+                ],
+                [
+                    'text' => 'Reporte EMS',
+                    'url' => '/reportes/ems',
+                    'icon' => 'fas fa-box',
+                ],
+                [
+                    'text' => 'Reporte Certificados',
+                    'url' => '/reportes/certi',
+                    'icon' => 'fas fa-certificate',
+                ],
+                [
+                    'text' => 'Reporte Ordinarios',
+                    'url' => '/reportes/ordi',
+                    'icon' => 'fas fa-box-open',
+                ],
+            ],
         ],
         [
             'text' => 'Admisiones',
