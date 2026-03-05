@@ -163,6 +163,10 @@ class DashboardController extends Controller
                 'pendientes' => array_values(array_column($resumenPorModulo, 'pendientes')),
                 'rezago' => array_values(array_column($resumenPorModulo, 'rezago')),
             ],
+            'chartVersus' => [
+                'labels' => ['Entregados', 'Pendientes'],
+                'totales' => [(int) $totales['entregados'], (int) $totales['pendientes']],
+            ],
             'trendLabels' => $trendLabels,
             'trendSeries' => $trendSeries,
             'rangoTendenciaLabel' => $rangoTendenciaLabel,
