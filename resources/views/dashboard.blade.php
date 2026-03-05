@@ -8,8 +8,15 @@
             <h1 class="mb-0">Dashboard Corporativo</h1>
             <small class="text-muted">Panel administrativo de operaciones y entregas</small>
         </div>
-        <div class="text-muted mt-2 mt-md-0">
-            <strong>Rango:</strong> {{ $rangoLabel }}
+        <div class="mt-2 mt-md-0 text-md-right">
+            <div class="text-muted mb-2">
+                <strong>Rango:</strong> {{ $rangoLabel }}
+            </div>
+            <div>
+                <a href="{{ route('dashboard.export.pdf', request()->query()) }}" class="btn btn-danger btn-sm">
+                    Exportar PDF
+                </a>
+            </div>
         </div>
     </div>
 @stop
