@@ -69,6 +69,13 @@ class DashboardController extends Controller
         return view('dashboard', $data);
     }
 
+    public function reportes(Request $request)
+    {
+        $data = $this->buildDashboardData($request);
+
+        return view('reportes.index', $data);
+    }
+
     public function exportExcel(Request $request)
     {
         $data = $this->buildDashboardData($request);
@@ -82,6 +89,17 @@ class DashboardController extends Controller
         $data = $this->buildDashboardData($request);
         $pdf = Pdf::loadView('dashboard.report-pdf', $data)->setPaper('A4', 'landscape');
         $filename = 'dashboard-reporte-' . now()->format('Ymd-His') . '.pdf';
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $filename);
+    }
+
+    public function exportReportesPdf(Request $request)
+    {
+        $data = $this->buildDashboardData($request);
+        $pdf = Pdf::loadView('dashboard.report-pdf', $data)->setPaper('A4', 'landscape');
+        $filename = 'reporte-ejecutivo-' . now()->format('Ymd-His') . '.pdf';
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();

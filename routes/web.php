@@ -68,6 +68,12 @@ Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'
 Route::get('/dashboard/export/pdf', [DashboardController::class, 'exportPdf'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard.export.pdf');
+Route::get('/reportes', [DashboardController::class, 'reportes'])
+    ->middleware(['auth', 'verified'])
+    ->name('reportes.index');
+Route::get('/reportes/export/pdf', [DashboardController::class, 'exportReportesPdf'])
+    ->middleware(['auth', 'verified'])
+    ->name('reportes.export.pdf');
 
 Route::middleware('auth')->group(function () {
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
