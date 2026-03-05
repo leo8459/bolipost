@@ -33,6 +33,7 @@ use App\Http\Controllers\AreaContratosController;
 use App\Http\Controllers\IndicadorController;
 use App\Http\Controllers\RecojoController;
 use App\Http\Controllers\ZonaPaqueteController;
+use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -58,9 +59,9 @@ Route::match(['GET', 'POST'], '/api/busqueda/ems-eventos', [BusquedaController::
 Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
     ->name('api.public.zona-paquete');
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
