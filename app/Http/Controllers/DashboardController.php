@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\DashboardReportExport;
 use App\Models\Estado;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DashboardController extends Controller
 {
@@ -60,6 +63,32 @@ class DashboardController extends Controller
     ];
 
     public function index(Request $request)
+    {
+        $data = $this->buildDashboardData($request);
+
+        return view('dashboard', $data);
+    }
+
+    public function exportExcel(Request $request)
+    {
+        $data = $this->buildDashboardData($request);
+        $filename = 'dashboard-reporte-' . now()->format('Ymd-His') . '.xlsx';
+
+        return Excel::download(new DashboardReportExport($data), $filename);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $data = $this->buildDashboardData($request);
+        $pdf = Pdf::loadView('dashboard.report-pdf', $data)->setPaper('A4', 'landscape');
+        $filename = 'dashboard-reporte-' . now()->format('Ymd-His') . '.pdf';
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $filename);
+    }
+
+    private function buildDashboardData(Request $request): array
     {
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
@@ -139,8 +168,16 @@ class DashboardController extends Controller
 
         $rankingEntregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta);
         $rankingRegistradores = $this->buildRankingRegistradores($modulosSeleccionados, $desde, $hasta);
+        $insightsEjecutivos = $this->buildExecutiveInsights(
+            $totales,
+            $resumenPorModulo,
+            $trendLabels,
+            $trendSeries,
+            $rankingEntregadores,
+            $rankingRegistradores
+        );
 
-        return view('dashboard', [
+        return [
             'modulosDisponibles' => self::MODULOS,
             'modulosSeleccionados' => $modulosSeleccionados,
             'estadoEntregadoDisponible' => (bool) $estadoEntregadoId,
@@ -168,7 +205,8 @@ class DashboardController extends Controller
             'rangoTendenciaLabel' => $rangoTendenciaLabel,
             'rankingEntregadores' => $rankingEntregadores,
             'rankingRegistradores' => $rankingRegistradores,
-        ]);
+            'insightsEjecutivos' => $insightsEjecutivos,
+        ];
     }
 
     private function resolveModulosSeleccionados(Request $request): array
@@ -561,5 +599,108 @@ class DashboardController extends Controller
             ->orderByDesc($totalAlias)
             ->limit(10)
             ->get();
+    }
+
+    private function buildExecutiveInsights(
+        array $totales,
+        array $resumenPorModulo,
+        array $trendLabels,
+        array $trendSeries,
+        $rankingEntregadores,
+        $rankingRegistradores
+    ): array {
+        $modulos = array_values($resumenPorModulo);
+        $mejorModulo = collect($modulos)->sortByDesc('tasa_entrega')->first();
+        $riesgoModulo = collect($modulos)->sortByDesc(function ($fila) {
+            $base = max(1, (int) $fila['total']);
+            return (($fila['rezago'] + $fila['atrasados']) / $base);
+        })->first();
+        $moduloMayorCarga = collect($modulos)->sortByDesc('total')->first();
+
+        $topEntregador = $rankingEntregadores->first();
+        $topRegistrador = $rankingRegistradores->first();
+
+        $registrosTrend = $trendSeries['registros'] ?? [];
+        $entregasTrend = $trendSeries['entregados'] ?? [];
+        $ultimoReg = (int) ($registrosTrend[count($registrosTrend) - 1] ?? 0);
+        $anteriorReg = (int) ($registrosTrend[count($registrosTrend) - 2] ?? 0);
+        $ultimoEnt = (int) ($entregasTrend[count($entregasTrend) - 1] ?? 0);
+        $anteriorEnt = (int) ($entregasTrend[count($entregasTrend) - 2] ?? 0);
+
+        $varRegPct = $anteriorReg > 0 ? round((($ultimoReg - $anteriorReg) * 100) / $anteriorReg, 1) : null;
+        $varEntPct = $anteriorEnt > 0 ? round((($ultimoEnt - $anteriorEnt) * 100) / $anteriorEnt, 1) : null;
+
+        $rezagoRatio = $totales['paquetes'] > 0
+            ? round(($totales['rezago'] * 100) / $totales['paquetes'], 1)
+            : 0.0;
+        $atrasoRatio = $totales['paquetes'] > 0
+            ? round(($totales['atrasados'] * 100) / $totales['paquetes'], 1)
+            : 0.0;
+
+        $resumenEjecutivo = [];
+        $resumenEjecutivo[] = 'Se registraron ' . number_format((int) $totales['paquetes']) . ' envios, con una tasa de entrega global de ' . number_format((float) $totales['porcentaje_entrega'], 1) . '%.';
+        $resumenEjecutivo[] = 'El modulo con mayor volumen fue ' . ($moduloMayorCarga['label'] ?? 'N/D') . ' (' . number_format((int) ($moduloMayorCarga['total'] ?? 0)) . ' registros).';
+        $resumenEjecutivo[] = 'El rezago representa ' . number_format($rezagoRatio, 1) . '% y los entregados con retraso ' . number_format($atrasoRatio, 1) . '% del total procesado.';
+
+        $hallazgos = [];
+        if ($mejorModulo) {
+            $hallazgos[] = 'Mejor desempeno: ' . $mejorModulo['label'] . ' con ' . number_format((float) $mejorModulo['tasa_entrega'], 1) . '% de cumplimiento.';
+        }
+        if ($riesgoModulo) {
+            $base = max(1, (int) $riesgoModulo['total']);
+            $riesgoPct = round((($riesgoModulo['rezago'] + $riesgoModulo['atrasados']) * 100) / $base, 1);
+            $hallazgos[] = 'Mayor riesgo operativo: ' . $riesgoModulo['label'] . ' con ' . number_format($riesgoPct, 1) . '% entre rezago y retraso.';
+        }
+        if ($varRegPct !== null) {
+            $hallazgos[] = 'Variacion de registros del ultimo periodo: ' . ($varRegPct >= 0 ? '+' : '') . number_format($varRegPct, 1) . '%.';
+        }
+        if ($varEntPct !== null) {
+            $hallazgos[] = 'Variacion de entregas del ultimo periodo: ' . ($varEntPct >= 0 ? '+' : '') . number_format($varEntPct, 1) . '%.';
+        }
+        if ($topEntregador) {
+            $hallazgos[] = 'Top entregador: ' . $topEntregador->name . ' (' . number_format((int) $topEntregador->total_entregados) . ' entregas).';
+        }
+        if ($topRegistrador) {
+            $hallazgos[] = 'Top registrador: ' . $topRegistrador->name . ' (' . number_format((int) $topRegistrador->total_registrados) . ' registros).';
+        }
+
+        $recomendaciones = [];
+        if ($rezagoRatio >= 8) {
+            $recomendaciones[] = 'Priorizar plan de descarga de rezago en modulos criticos con ventana operativa diaria y seguimiento por responsable.';
+        } else {
+            $recomendaciones[] = 'Mantener el control de rezago con cortes semanales y alertas tempranas por incremento de inventario no entregado.';
+        }
+        if ($atrasoRatio >= 10) {
+            $recomendaciones[] = 'Revisar tiempos de ciclo por tramo (admision, despacho, ventanilla, cartero) para reducir retrasos de entrega.';
+        } else {
+            $recomendaciones[] = 'Sostener el desempeno de tiempos de entrega con monitoreo por modulo y auditoria de excepciones.';
+        }
+        $recomendaciones[] = 'Alinear metas por modulo con el porcentaje de entrega objetivo y seguimiento semanal en comite operativo.';
+
+        return [
+            'resumen_ejecutivo' => $resumenEjecutivo,
+            'hallazgos' => $hallazgos,
+            'recomendaciones' => $recomendaciones,
+            'modulo_mejor' => $mejorModulo,
+            'modulo_riesgo' => $riesgoModulo,
+            'modulo_mayor_carga' => $moduloMayorCarga,
+            'ratios' => [
+                'rezago_pct' => $rezagoRatio,
+                'atraso_pct' => $atrasoRatio,
+            ],
+            'variaciones' => [
+                'registros_pct' => $varRegPct,
+                'entregas_pct' => $varEntPct,
+            ],
+            'top' => [
+                'entregador' => $topEntregador?->name,
+                'registrador' => $topRegistrador?->name,
+            ],
+            'ultimo_periodo' => [
+                'label' => $trendLabels[count($trendLabels) - 1] ?? null,
+                'registros' => $ultimoReg,
+                'entregados' => $ultimoEnt,
+            ],
+        ];
     }
 }

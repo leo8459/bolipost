@@ -62,6 +62,12 @@ Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
+Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard.export.excel');
+Route::get('/dashboard/export/pdf', [DashboardController::class, 'exportPdf'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard.export.pdf');
 
 Route::middleware('auth')->group(function () {
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
