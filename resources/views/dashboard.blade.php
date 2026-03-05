@@ -12,11 +12,6 @@
             <div class="text-muted mb-2">
                 <strong>Rango:</strong> {{ $rangoLabel }}
             </div>
-            <div>
-                <a href="{{ route('dashboard.export.pdf', request()->query()) }}" class="btn btn-danger btn-sm">
-                    Exportar PDF
-                </a>
-            </div>
         </div>
     </div>
 @stop

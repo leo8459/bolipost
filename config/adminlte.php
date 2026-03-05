@@ -317,6 +317,11 @@ return [
             'icon' => 'fas fa-tachometer-alt',
         ],
         [
+            'text' => 'Reportes',
+            'url' => '/reportes',
+            'icon' => 'fas fa-file-pdf',
+        ],
+        [
             'text' => 'Admisiones',
             'icon' => 'fas fa-inbox',
             'submenu' => [
