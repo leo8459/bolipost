@@ -165,6 +165,22 @@
             font-weight:700;
             color:#1f2937;
         }
+        .required-star{
+            color:#dc2626;
+            font-weight:900;
+            margin-left:4px;
+        }
+        .required-note{
+            background:#fff7ed;
+            border:1px solid #fed7aa;
+            color:#9a3412;
+            border-radius:10px;
+            padding:8px 12px;
+            font-size:12px;
+            font-weight:700;
+            margin-bottom:12px;
+            display:inline-block;
+        }
         .header-meta{
             margin-top: 8px;
             display: flex;
@@ -219,7 +235,9 @@
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
                 <div>
                     <h4 class="fw-bold mb-0">
-                        @if ($this->isAlmacenEms)
+                        @if ($this->isCreateEms)
+                            Nuevo paquete EMS
+                        @elseif ($this->isAlmacenEms)
                             Paquetes ALMACEN
                         @elseif ($this->isEnTransitoEms)
                             Paquetes en transito
@@ -235,81 +253,95 @@
                         $ciudadUsuarioHeader = strtoupper(trim((string) optional(auth()->user())->ciudad));
                     @endphp
                     <div class="header-meta">
-                        <span class="header-meta-label">Estados visibles:</span>
-
-                        @if ($this->isAlmacenEms)
-                            @if ($this->almacenEstadoFiltro === 'ALMACEN')
-                                <span class="header-chip">ALMACEN</span>
-                            @elseif ($this->almacenEstadoFiltro === 'RECIBIDO')
-                                <span class="header-chip">RECIBIDO</span>
-                            @else
-                                <span class="header-chip">ALMACEN</span>
-                                <span class="header-chip">RECIBIDO</span>
-                            @endif
-                            <span class="header-city">
-                                Ciudad aplicada: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
-                            </span>
-                        @elseif ($this->isEnTransitoEms)
-                            <span class="header-chip">TRANSITO</span>
+                        @if ($this->isCreateEms)
+                            <span class="header-meta-label">Registro individual</span>
+                            <span class="header-chip">ADMISIONES</span>
                             <span class="header-city">
                                 Origen aplicado: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
                             </span>
-                        @elseif ($this->isVentanillaEms)
-                            <span class="header-chip">VENTANILLA EMS</span>
-                        @elseif ($this->isTransitoEms)
-                            <span class="header-chip">{{ $this->regionalEstadoLabel }}</span>
                         @else
-                            <span class="header-chip">ADMISIONES</span>
+                            <span class="header-meta-label">Estados visibles:</span>
+
+                            @if ($this->isAlmacenEms)
+                                @if ($this->almacenEstadoFiltro === 'ALMACEN')
+                                    <span class="header-chip">ALMACEN</span>
+                                @elseif ($this->almacenEstadoFiltro === 'RECIBIDO')
+                                    <span class="header-chip">RECIBIDO</span>
+                                @else
+                                    <span class="header-chip">ALMACEN</span>
+                                    <span class="header-chip">RECIBIDO</span>
+                                @endif
+                                <span class="header-city">
+                                    Ciudad aplicada: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
+                                </span>
+                            @elseif ($this->isEnTransitoEms)
+                                <span class="header-chip">TRANSITO</span>
+                                <span class="header-city">
+                                    Origen aplicado: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
+                                </span>
+                            @elseif ($this->isVentanillaEms)
+                                <span class="header-chip">VENTANILLA EMS</span>
+                            @elseif ($this->isTransitoEms)
+                                <span class="header-chip">{{ $this->regionalEstadoLabel }}</span>
+                            @else
+                                <span class="header-chip">ADMISIONES</span>
+                            @endif
                         @endif
                     </div>
                 </div>
 
                 <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <input
-                        type="text"
-                        class="form-control search-input"
-                        placeholder="Buscar en toda la tabla..."
-                        wire:model="search"
-                        wire:keydown.enter.prevent="searchPaquetes(true)"
-                    >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
-
-                    @if ($this->isAdmision)
-                        <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
-                            Generados hoy
-                        </button>
-
-                        <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosSinFiltroFecha">
-                            Mandar seleccionados
-                        </button>
-                    @elseif ($this->isAlmacenEms)
-                        <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
-                            Registrar contrato
+                    @if ($this->isCreateEms)
+                        <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.index') }}">
+                            Volver a Paquetes EMS
                         </a>
-                        <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
-                            Anadir peso contrato
-                        </button>
-                        <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
-                            Enviar a ventanilla EMS
-                        </button>
-                        <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
-                            Manda a regional
-                        </button>
-                        <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
-                            Reimprimir CN-33
-                        </button>
-                    @elseif ($this->isVentanillaEms)
-                        <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
-                            Entregar seleccionados
-                        </button>
-                    @elseif ($this->isTransitoEms)
-                        <button class="btn btn-outline-light2" type="button" wire:click="openRecibirRegionalModal">
-                            Recibir
-                        </button>
-                    @endif
+                    @else
+                        <input
+                            type="text"
+                            class="form-control search-input"
+                            placeholder="Buscar en toda la tabla..."
+                            wire:model="search"
+                            wire:keydown.enter.prevent="searchPaquetes(true)"
+                        >
+                        <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
 
-                    @if ($this->isAdmision || $this->isAlmacenEms)
-                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                        @if ($this->isAdmision)
+                            <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
+                                Generados hoy
+                            </button>
+
+                            <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosSinFiltroFecha">
+                                Mandar seleccionados
+                            </button>
+                        @elseif ($this->isAlmacenEms)
+                            <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
+                                Registrar contrato
+                            </a>
+                            <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
+                                Anadir peso contrato
+                            </button>
+                            <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
+                                Enviar a ventanilla EMS
+                            </button>
+                            <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
+                                Manda a regional
+                            </button>
+                            <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
+                                Reimprimir CN-33
+                            </button>
+                        @elseif ($this->isVentanillaEms)
+                            <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
+                                Entregar seleccionados
+                            </button>
+                        @elseif ($this->isTransitoEms)
+                            <button class="btn btn-outline-light2" type="button" wire:click="openRecibirRegionalModal">
+                                Recibir
+                            </button>
+                        @endif
+
+                        @if ($this->isAdmision || $this->isAlmacenEms)
+                            <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                        @endif
                     @endif
                 </div>
             </div>
@@ -327,6 +359,193 @@
             @endif
 
             <div class="card-body">
+                @if ($this->isCreateEms)
+                    <form wire:submit.prevent="save">
+                        <div class="required-note">
+                            Campos con <span class="required-star">*</span> son obligatorios.
+                        </div>
+
+                        <div class="section-block">
+                            <div class="section-title">Datos generales</div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Servicio<span class="required-star">*</span></label>
+                                    <select wire:model.live="servicio_id" class="form-control" required>
+                                        <option value="">Seleccione...</option>
+                                        @foreach($servicios as $servicio)
+                                            <option value="{{ $servicio->id }}">{{ $servicio->nombre_servicio }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('servicio_id') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Destino<span class="required-star">*</span></label>
+                                    <select wire:model.live="destino_id" class="form-control" required>
+                                        <option value="">Seleccione...</option>
+                                        @foreach($destinos as $destino)
+                                            <option value="{{ $destino->id }}">{{ $destino->nombre_destino }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('destino_id') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Origen (automatico)</label>
+                                    <input type="text" wire:model.defer="origen" class="form-control" readonly>
+                                    @error('origen') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Tipo de correspondencia</label>
+                                    <input type="text" wire:model.defer="tipo_correspondencia" class="form-control">
+                                    @error('tipo_correspondencia') <small class="text-danger">{{ $message }}</small> @enderror
+                                    <small class="text-muted">Si es OFICIAL, se guarda sin precio ni tarifario.</small>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Servicio especial</label>
+                                    <select wire:model.defer="servicio_especial" class="form-control">
+                                        <option value="">Seleccione...</option>
+                                        <option value="POR COBRAR">POR COBRAR</option>
+                                        <option value="IDA Y VUELTA">IDA Y VUELTA</option>
+                                    </select>
+                                    @error('servicio_especial') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-12">
+                                    <label>Contenido<span class="required-star">*</span></label>
+                                    <textarea wire:model.defer="contenido" class="form-control" rows="2" required></textarea>
+                                    @error('contenido') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Cantidad<span class="required-star">*</span></label>
+                                    <input type="number" wire:model.defer="cantidad" class="form-control" min="1" required>
+                                    @error('cantidad') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Peso<span class="required-star">*</span></label>
+                                    <input type="number" wire:model.live.debounce.300ms="peso" class="form-control" step="0.001" min="0" required>
+                                    @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-4">
+                                    <label>Precio</label>
+                                    <input type="number" wire:model.defer="precio" class="form-control" step="0.01" min="0" readonly>
+                                    @error('precio') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-4">
+                                    <label>Codigo<span class="required-star">*</span></label>
+                                    <input type="text" wire:model.defer="codigo" class="form-control" @if($auto_codigo) readonly @endif required>
+                                    @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-8 d-flex align-items-center" style="padding-top:28px;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="autoCodigoCreate" wire:model.live="auto_codigo">
+                                        <label class="form-check-label" for="autoCodigoCreate">
+                                            Generar codigo automatico
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section-block">
+                            <div class="section-title">Datos del remitente</div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Nombre remitente<span class="required-star">*</span></label>
+                                    <input
+                                        type="text"
+                                        wire:model.live.debounce.300ms="nombre_remitente"
+                                        class="form-control"
+                                        list="remitentesEmsListCreate"
+                                        autocomplete="off"
+                                        required
+                                    >
+                                    <datalist id="remitentesEmsListCreate">
+                                        @foreach($remitenteSugerencias as $remitenteSugerido)
+                                            <option value="{{ $remitenteSugerido }}"></option>
+                                        @endforeach
+                                    </datalist>
+                                    @error('nombre_remitente') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Telefono remitente</label>
+                                    <input type="text" wire:model.defer="telefono_remitente" class="form-control">
+                                    @error('telefono_remitente') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Carnet remitente<span class="required-star">*</span></label>
+                                    <input type="text" wire:model.defer="carnet" class="form-control" required>
+                                    @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Nombre envia</label>
+                                    <input type="text" wire:model.defer="nombre_envia" class="form-control">
+                                    @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section-block">
+                            <div class="section-title">Datos del destinatario</div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Nombre destinatario<span class="required-star">*</span></label>
+                                    <input type="text" wire:model.defer="nombre_destinatario" class="form-control" required>
+                                    @error('nombre_destinatario') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Telefono destinatario</label>
+                                    <input type="text" wire:model.defer="telefono_destinatario" class="form-control">
+                                    @error('telefono_destinatario') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Direccion destinatario<span class="required-star">*</span></label>
+                                    <input type="text" wire:model.defer="direccion" class="form-control" required>
+                                    @error('direccion') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Ciudad destinatario</label>
+                                    <select wire:model.defer="ciudad" class="form-control" disabled>
+                                        <option value="">Seleccione...</option>
+                                        @foreach($ciudades as $ciudadOpt)
+                                            <option value="{{ $ciudadOpt }}">{{ $ciudadOpt }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('ciudad') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-azul">Cancelar</a>
+                            <button type="submit" class="btn btn-dorado">Crear y continuar</button>
+                        </div>
+                    </form>
+                @else
                 @if ($this->isAlmacenEms && $showCn33Reprint)
                     <div class="section-block mb-3">
                         <div class="section-title">Reimprimir CN-33</div>
@@ -691,10 +910,12 @@
                         @endif
                     </div>
                 @endif
+                @endif
             </div>
         </div>
     </div>
 
+    @unless($this->isCreateEms)
     <div class="modal fade" id="paqueteModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -914,6 +1135,7 @@
             </div>
         </div>
     </div>
+    @endunless
 
     <div class="modal fade" id="paqueteConfirmModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog modal-lg">
@@ -955,7 +1177,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary" wire:click="saveConfirmed">
-                        Confirmar y guardar
+                        {{ $this->isCreateEms ? 'Confirmar y volver' : 'Confirmar y guardar' }}
                     </button>
                 </div>
             </div>
@@ -1362,4 +1584,3 @@
     });
 
 </script>
-

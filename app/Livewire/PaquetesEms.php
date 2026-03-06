@@ -110,7 +110,7 @@ class PaquetesEms extends Component
 
     public function mount($mode = 'admision')
     {
-        $allowedModes = ['admision', 'almacen_ems', 'en_transito_ems', 'transito_ems', 'ventanilla_ems'];
+        $allowedModes = ['admision', 'almacen_ems', 'en_transito_ems', 'transito_ems', 'ventanilla_ems', 'create_ems'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'admision';
         if ($this->isAlmacenEms) {
             $this->almacenEstadoFiltro = 'TODOS';
@@ -118,10 +118,17 @@ class PaquetesEms extends Component
             $this->perPageContratos = 50;
         }
         $this->setOrigenFromUser();
-        if ($this->isAdmision || $this->isAlmacenEms) {
+        if ($this->isAdmision || $this->isAlmacenEms || $this->isCreateEms) {
             $this->servicios = Servicio::orderBy('nombre_servicio')->get();
             $this->destinos = Destino::orderBy('nombre_destino')->get();
             $this->setUserOrigenId();
+        }
+
+        if ($this->isCreateEms) {
+            $this->resetForm();
+            $this->setOrigenFromUser();
+            $this->setUserOrigenId();
+            $this->auto_codigo = true;
         }
     }
 
@@ -148,6 +155,11 @@ class PaquetesEms extends Component
     public function getIsVentanillaEmsProperty()
     {
         return $this->mode === 'ventanilla_ems';
+    }
+
+    public function getIsCreateEmsProperty()
+    {
+        return $this->mode === 'create_ems';
     }
 
     public function getRegionalEstadoLabelProperty(): string
@@ -379,22 +391,7 @@ class PaquetesEms extends Component
 
     public function openCreateModal()
     {
-        $this->resetForm();
-        if (empty($this->servicios)) {
-            $this->servicios = Servicio::orderBy('nombre_servicio')->get();
-        }
-        if (empty($this->destinos)) {
-            $this->destinos = Destino::orderBy('nombre_destino')->get();
-        }
-        $this->setOrigenFromUser();
-        $this->setUserOrigenId();
-        $this->editingId = null;
-        $this->is_ems = false;
-        $this->auto_codigo = true;
-        if ($this->isAlmacenEms) {
-            $this->tipo_correspondencia = 'OFICIAL';
-        }
-        $this->dispatch('openPaqueteModal');
+        return $this->redirect(route('paquetes-ems.create'), navigate: false);
     }
 
     public function openRegionalModal()
@@ -1020,6 +1017,7 @@ class PaquetesEms extends Component
         }
 
         $this->validate($this->rules());
+
         $this->dispatch('openPaqueteConfirm');
     }
 
@@ -1066,6 +1064,12 @@ class PaquetesEms extends Component
             $this->dispatch('closePaqueteConfirm');
             $this->dispatch('closePaqueteModal');
             $this->resetForm();
+            if ($this->isCreateEms) {
+                $this->setOrigenFromUser();
+                $this->setUserOrigenId();
+                $this->auto_codigo = true;
+                return redirect()->route('paquetes-ems.index');
+            }
             return $this->redirect(route('paquetes-ems.boleta', $paquete->id), navigate: false);
         }
 
@@ -2005,11 +2009,10 @@ class PaquetesEms extends Component
     protected function rules()
     {
         $requiresTarifario = !$this->isCertificadoShipment();
-        $isAlmacenOficial = $this->isAlmacenEms && $this->isCertificadoShipment();
 
         return [
             'origen' => 'nullable|string|max:255',
-            'tipo_correspondencia' => 'required|string|max:255',
+            'tipo_correspondencia' => 'nullable|string|max:255',
             'servicio_especial' => 'nullable|string|max:255',
             'contenido' => 'required|string',
             'cantidad' => 'required|integer|min:1',
@@ -2020,21 +2023,17 @@ class PaquetesEms extends Component
                 'max:255',
                 Rule::unique('paquetes_ems', 'codigo')->ignore($this->editingId),
             ],
-            'precio' => $requiresTarifario ? 'required|numeric|min:0' : 'nullable|numeric|min:0',
+            'precio' => 'nullable|numeric|min:0',
             'nombre_remitente' => 'required|string|max:255',
-            'nombre_envia' => $isAlmacenOficial ? 'nullable|string|max:255' : 'required|string|max:255',
-            'carnet' => $isAlmacenOficial ? 'nullable|string|max:255' : 'required|string|max:255',
-            'telefono_remitente' => $isAlmacenOficial ? 'nullable|string|max:50' : 'required|string|max:50',
+            'nombre_envia' => 'nullable|string|max:255',
+            'carnet' => 'required|string|max:255',
+            'telefono_remitente' => 'nullable|string|max:50',
             'nombre_destinatario' => 'required|string|max:255',
-            'telefono_destinatario' => $isAlmacenOficial ? 'nullable|string|max:50' : 'required|string|max:50',
-            'direccion' => 'nullable|string|max:255',
+            'telefono_destinatario' => 'nullable|string|max:50',
+            'direccion' => 'required|string|max:255',
             'ciudad' => ['nullable', 'string', 'max:255'],
-            'servicio_id' => $requiresTarifario
-                ? ['required', 'integer', Rule::exists('servicio', 'id')]
-                : ['nullable', 'integer', Rule::exists('servicio', 'id')],
-            'destino_id' => ($requiresTarifario || $this->isAlmacenEms)
-                ? ['required', 'integer', Rule::exists('destino', 'id')]
-                : ['nullable', 'integer', Rule::exists('destino', 'id')],
+            'servicio_id' => ['required', 'integer', Rule::exists('servicio', 'id')],
+            'destino_id' => ['required', 'integer', Rule::exists('destino', 'id')],
         ];
     }
 
@@ -2072,6 +2071,14 @@ class PaquetesEms extends Component
     {
         $contratosAlmacen = null;
         $almacenRows = null;
+
+        if ($this->isCreateEms) {
+            return view('livewire.paquetes-ems', [
+                'paquetes' => collect(),
+                'almacenRows' => $almacenRows,
+                'contratosAlmacen' => $contratosAlmacen,
+            ]);
+        }
 
         if ($this->isAlmacenEms || $this->isEnTransitoEms || $this->isTransitoEms) {
             $almacenRows = $this->almacenUnificadoQuery()

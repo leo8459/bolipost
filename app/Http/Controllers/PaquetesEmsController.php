@@ -33,6 +33,11 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.index');
     }
 
+    public function create()
+    {
+        return view('paquetes_ems.create');
+    }
+
     public function almacen()
     {
         return view('paquetes_ems.almacen');
