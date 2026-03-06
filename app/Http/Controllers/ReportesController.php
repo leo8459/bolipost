@@ -70,8 +70,8 @@ class ReportesController extends Controller
         $selectedModules = $this->resolveSelectedModules($scope, $request);
         [$from, $to, $range] = $this->resolveDateRange($request);
         $search = trim((string) $request->query('q', ''));
-        $status = $this->resolveStatusFilter($request);
-        $estadoIds = $this->resolveEstadoIds($request);
+        $statuses = $this->resolveStatusFilters($request);
+        $estadoIds = [];
         $limit = $this->resolveLimit($request);
         $perPage = $this->resolvePerPage($request);
         $estadoEntregadoId = $this->resolveEstadoEntregadoId();
@@ -92,7 +92,7 @@ class ReportesController extends Controller
         }
 
         $registradosTotal = $rows->count();
-        $rows = $this->filterRowsByState($rows, $status, $estadoIds);
+        $rows = $this->filterRowsByState($rows, $statuses);
         $filteredTotal = $rows->count();
         $summary = $this->buildSummary($rows);
         $summary['registrados'] = $registradosTotal;
@@ -115,7 +115,7 @@ class ReportesController extends Controller
             'states' => Estado::query()->orderBy('nombre_estado')->get(['id', 'nombre_estado']),
             'selectedEstadoIds' => $estadoIds,
             'search' => $search,
-            'status' => $status,
+            'statuses' => $statuses,
             'from' => $from?->toDateString(),
             'to' => $to?->toDateString(),
             'range' => $range,
@@ -417,25 +417,33 @@ class ReportesController extends Controller
 
     private function filterRowsByState(
         Collection $rows,
-        string $status,
-        array $estadoIds
+        array $statuses
     ): Collection {
-        $filtered = $rows;
-
-        if ($status === 'entregado') {
-            $filtered = $filtered->where('is_entregado', true)->values();
-        } elseif ($status === 'no_entregado') {
-            $filtered = $filtered->where('is_entregado', false)->values();
+        $normalizedStatuses = array_values(array_unique(array_filter(array_map('strtolower', $statuses))));
+        if (empty($normalizedStatuses)) {
+            $normalizedStatuses = ['entregado', 'pendiente', 'rezago'];
         }
 
-        if (!empty($estadoIds)) {
-            $estadoLookup = array_fill_keys($estadoIds, true);
-            $filtered = $filtered->filter(function (array $row) use ($estadoLookup) {
-                return isset($estadoLookup[(int) ($row['estado_id'] ?? 0)]);
-            })->values();
-        }
+        $selectedMap = array_fill_keys($normalizedStatuses, true);
 
-        return $filtered->values();
+        return $rows->filter(function (array $row) use ($selectedMap) {
+            $isEntregado = (bool) ($row['is_entregado'] ?? false);
+            $bucket = (string) ($row['situacion_bucket'] ?? '');
+
+            if (isset($selectedMap['entregado']) && $isEntregado) {
+                return true;
+            }
+
+            if (isset($selectedMap['pendiente']) && !$isEntregado) {
+                return true;
+            }
+
+            if (isset($selectedMap['rezago']) && $bucket === 'rezago') {
+                return true;
+            }
+
+            return false;
+        })->values();
     }
 
     private function resolveDateRange(Request $request): array
@@ -476,10 +484,37 @@ class ReportesController extends Controller
         return [null, null, 'all'];
     }
 
-    private function resolveStatusFilter(Request $request): string
+    private function resolveStatusFilters(Request $request): array
     {
-        $status = strtolower(trim((string) $request->query('status', 'all')));
-        return in_array($status, ['all', 'entregado', 'no_entregado'], true) ? $status : 'all';
+        $requested = $request->query('statuses');
+        if ($requested === null) {
+            $legacy = strtolower(trim((string) $request->query('status', '')));
+            $legacy = $legacy === 'pendientes' ? 'pendiente' : $legacy;
+            if ($legacy !== '') {
+                $requested = [$legacy];
+            }
+        }
+
+        if ($requested === null) {
+            return ['entregado', 'pendiente', 'rezago'];
+        }
+
+        $requested = is_array($requested) ? $requested : [$requested];
+        $requested = array_values(array_unique(array_filter(array_map(
+            static fn ($value) => strtolower(trim((string) $value)),
+            $requested
+        ))));
+
+        $allowed = ['entregado', 'pendiente', 'no_entregado', 'rezago'];
+        $valid = array_values(array_filter($requested, static fn ($status) => in_array($status, $allowed, true)));
+        $valid = array_map(static fn ($status) => $status === 'no_entregado' ? 'pendiente' : $status, $valid);
+        $valid = array_values(array_unique($valid));
+
+        if (empty($valid)) {
+            return ['entregado', 'pendiente', 'rezago'];
+        }
+
+        return $valid;
     }
 
     private function resolveEstadoIds(Request $request): array

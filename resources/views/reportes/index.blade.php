@@ -6,7 +6,7 @@
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
         <div>
             <h1 class="mb-0">{{ $scopeLabel }}</h1>
-            <small class="text-muted">Panel simple para buscar paquetes, revisar estados y sacar reportes</small>
+            <small class="text-muted">Filtra, revisa y exporta. El reporte se actualiza automaticamente.</small>
         </div>
         <div class="mt-2 mt-lg-0 text-lg-right">
             <span class="badge badge-pill badge-primary mr-2">Registrados: {{ number_format($summary['registrados'] ?? 0) }}</span>
@@ -19,6 +19,7 @@
 @section('content')
     @php
         $baseScopeParams = ['scope' => $scope];
+        $selectedStatuses = $statuses ?? ['entregado', 'pendiente', 'rezago'];
         $modulesMap = [
             'contrato' => 'CONTRATOS',
             'ems' => 'EMS',
@@ -37,12 +38,20 @@
         <div class="card-body" id="reportFiltersBody">
             <form method="GET" action="{{ route('reportes.scope', $baseScopeParams) }}" id="reportFiltersForm">
                 <input type="hidden" name="range" id="reportRange" value="{{ $range ?? 'all' }}">
+                <div class="friendly-steps mb-3">
+                    <span class="step-pill"><i class="fas fa-lightbulb mr-1"></i> Usa busqueda y fechas; exporta con un clic cuando estes listo.</span>
+                </div>
                 <div class="alert alert-light border d-flex flex-column flex-md-row justify-content-between align-items-md-center py-2 mb-3">
                     <div>
                         <strong>Filtro automatico activado:</strong>
                         al cambiar fechas, estados, busqueda o modulos, el reporte se actualiza solo.
                     </div>
                     <span class="badge badge-success mt-2 mt-md-0" id="autoFilterStatus">Listo para usar</span>
+                </div>
+                <div class="quick-actions mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary mr-2 mb-2" id="presetAllHistory">Ver todo historial</button>
+                    <button type="button" class="btn btn-sm btn-outline-warning mr-2 mb-2" id="presetPendingOnly">Solo pendientes</button>
+                    <button type="button" class="btn btn-sm btn-outline-success mr-2 mb-2" id="presetDeliveredOnly">Solo entregados</button>
                 </div>
                 <div class="row">
                     <div class="col-lg-6 mb-3">
@@ -54,20 +63,54 @@
                             value="{{ $search }}"
                             placeholder="Ejemplo: RP123..., EYNAR, COCHABAMBA, GESTORA"
                         >
-                        <small class="text-muted">Puedes buscar por codigo, estado, origen/destino, remitente, destinatario, empresa o usuario.</small>
+                        <small class="text-muted">Si lo dejas vacio, se muestran todos los paquetes del rango elegido.</small>
                     </div>
 
                     <div class="col-lg-3 mb-3">
-                        <label class="font-weight-bold">Que tipo de paquetes ver</label>
-                        <select class="form-control" name="status">
-                            <option value="all" {{ $status === 'all' ? 'selected' : '' }}>Todos los paquetes</option>
-                            <option value="entregado" {{ $status === 'entregado' ? 'selected' : '' }}>Solo entregados</option>
-                            <option value="no_entregado" {{ $status === 'no_entregado' ? 'selected' : '' }}>Solo no entregados</option>
-                        </select>
+                        <label class="font-weight-bold">Estado del envio</label>
+                        <div class="border rounded p-2 h-100 d-flex flex-column justify-content-center">
+                            <div class="custom-control custom-checkbox mb-1">
+                                <input
+                                    type="checkbox"
+                                    class="custom-control-input"
+                                    id="status_entregado"
+                                    name="statuses[]"
+                                    value="entregado"
+                                    {{ in_array('entregado', $selectedStatuses, true) ? 'checked' : '' }}
+                                >
+                                <label class="custom-control-label" for="status_entregado">Entregados</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mb-1">
+                                <input
+                                    type="checkbox"
+                                    class="custom-control-input"
+                                    id="status_pendiente"
+                                    name="statuses[]"
+                                    value="pendiente"
+                                    {{ in_array('pendiente', $selectedStatuses, true) ? 'checked' : '' }}
+                                >
+                                <label class="custom-control-label" for="status_pendiente">Pendientes</label>
+                            </div>
+                            <div class="custom-control custom-checkbox">
+                                <input
+                                    type="checkbox"
+                                    class="custom-control-input"
+                                    id="status_rezago"
+                                    name="statuses[]"
+                                    value="rezago"
+                                    {{ in_array('rezago', $selectedStatuses, true) ? 'checked' : '' }}
+                                >
+                                <label class="custom-control-label" for="status_rezago">Rezagados</label>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="statusSelectAll">
+                                Marcar todos
+                            </button>
+                            <small class="text-muted mt-2">Puedes marcar uno, dos o los tres.</small>
+                        </div>
                     </div>
 
                     <div class="col-lg-3 mb-3">
-                        <label class="font-weight-bold">Cuantos registros cargar</label>
+                        <label class="font-weight-bold">Cantidad de registros</label>
                         <select class="form-control" name="limit">
                             <option value="50" {{ $limit === '50' ? 'selected' : '' }}>50</option>
                             <option value="100" {{ $limit === '100' ? 'selected' : '' }}>100</option>
@@ -89,7 +132,7 @@
                         <input type="date" class="form-control" name="to" id="reportTo" value="{{ $to }}">
                     </div>
                     <div class="col-lg-3 mb-3">
-                        <label class="font-weight-bold">Registros por pagina</label>
+                        <label class="font-weight-bold">Resultados por pagina</label>
                         <select class="form-control" name="per_page">
                             <option value="25" {{ (int) $perPage === 25 ? 'selected' : '' }}>25</option>
                             <option value="50" {{ (int) $perPage === 50 ? 'selected' : '' }}>50</option>
@@ -108,24 +151,9 @@
                     </div>
                 </div>
 
-                <div class="row">
-                    <div class="col-lg-6 mb-3">
-                        <label class="font-weight-bold">Estados del paquete (varios)</label>
-                        <select class="form-control" name="estado_ids[]" multiple size="6">
-                            @foreach($states as $estado)
-                                <option
-                                    value="{{ $estado->id }}"
-                                    {{ in_array((int) $estado->id, $selectedEstadoIds, true) ? 'selected' : '' }}
-                                >
-                                    {{ $estado->nombre_estado }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <small class="text-muted">Mantener CTRL para seleccionar varios estados al mismo tiempo.</small>
-                    </div>
-
-                    @if($scope === 'general')
-                        <div class="col-lg-6 mb-3">
+                @if($scope === 'general')
+                    <div class="row">
+                        <div class="col-12 mb-3">
                             <label class="font-weight-bold d-block">Modulos a incluir en el reporte general</label>
                             <div class="d-flex flex-wrap border rounded p-2">
                                 @foreach($modulesMap as $moduleKey => $moduleLabel)
@@ -143,15 +171,15 @@
                                 @endforeach
                             </div>
                         </div>
-                    @endif
-                </div>
+                    </div>
+                @endif
 
                 <div class="d-flex flex-wrap align-items-center">
                     <button type="submit" class="btn btn-primary mr-2 mb-2">
-                        <i class="fas fa-search mr-1"></i> Actualizar ahora
+                        <i class="fas fa-search mr-1"></i> Actualizar
                     </button>
                     <a href="{{ route('reportes.scope', $baseScopeParams) }}" class="btn btn-outline-secondary mr-2 mb-2">
-                        <i class="fas fa-undo mr-1"></i> Volver a empezar
+                        <i class="fas fa-undo mr-1"></i> Reiniciar
                     </a>
                     <button type="button" class="btn btn-outline-info quick-range mr-2 mb-2" data-days="1">Hoy</button>
                     <button type="button" class="btn btn-outline-info quick-range mr-2 mb-2" data-days="7">Ult. 7 dias</button>
@@ -339,6 +367,25 @@
         .card-filtro {
             border-top: 3px solid #20539a;
         }
+        .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .friendly-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .step-pill {
+            border: 1px solid #d9e2ef;
+            background: #f8fbff;
+            color: #2b4f7f;
+            border-radius: 999px;
+            font-size: .8rem;
+            padding: .28rem .62rem;
+            font-weight: 600;
+        }
         .small-box .icon {
             top: 10px;
             font-size: 44px;
@@ -362,9 +409,14 @@
             const rangeInput = document.getElementById('reportRange');
             const autoFilterStatus = document.getElementById('autoFilterStatus');
             const exportButtons = document.querySelectorAll('[data-export]');
+            const statusChecks = document.querySelectorAll('input[name="statuses[]"]');
+            const statusSelectAllBtn = document.getElementById('statusSelectAll');
+            const presetAllHistoryBtn = document.getElementById('presetAllHistory');
+            const presetPendingOnlyBtn = document.getElementById('presetPendingOnly');
+            const presetDeliveredOnlyBtn = document.getElementById('presetDeliveredOnly');
             const autoFields = form
                 ? form.querySelectorAll(
-                    'input[name="q"], input[name="from"], input[name="to"], select[name="status"], select[name="limit"], select[name="per_page"], select[name="estado_ids[]"], input[name="modules[]"]'
+                    'input[name="q"], input[name="from"], input[name="to"], select[name="limit"], select[name="per_page"], input[name="modules[]"], input[name="statuses[]"]'
                 )
                 : [];
             let autoSubmitTimer = null;
@@ -516,6 +568,69 @@
                 });
             }
 
+            statusChecks.forEach((checkbox) => {
+                checkbox.addEventListener('change', () => {
+                    const anyChecked = Array.from(statusChecks).some((item) => item.checked);
+                    if (!anyChecked) {
+                        checkbox.checked = true;
+                        return;
+                    }
+                    scheduleAutoSubmit(180);
+                });
+            });
+
+            if (statusSelectAllBtn) {
+                statusSelectAllBtn.addEventListener('click', () => {
+                    statusChecks.forEach((item) => {
+                        item.checked = true;
+                    });
+                    scheduleAutoSubmit(120);
+                });
+            }
+
+            const setStatuses = (enabled = []) => {
+                const map = new Set(enabled);
+                statusChecks.forEach((item) => {
+                    item.checked = map.has(item.value);
+                });
+            };
+
+            if (presetAllHistoryBtn) {
+                presetAllHistoryBtn.addEventListener('click', () => {
+                    if (!form) {
+                        return;
+                    }
+                    if (from) {
+                        from.value = '';
+                    }
+                    if (to) {
+                        to.value = '';
+                    }
+                    if (rangeInput) {
+                        rangeInput.value = 'all';
+                    }
+                    setStatuses(['entregado', 'pendiente', 'rezago']);
+                    setAutoStatus('Aplicando vista rapida...', 'badge-primary');
+                    form.submit();
+                });
+            }
+
+            if (presetPendingOnlyBtn) {
+                presetPendingOnlyBtn.addEventListener('click', () => {
+                    setStatuses(['pendiente']);
+                    setAutoStatus('Aplicando vista rapida...', 'badge-primary');
+                    scheduleAutoSubmit(120);
+                });
+            }
+
+            if (presetDeliveredOnlyBtn) {
+                presetDeliveredOnlyBtn.addEventListener('click', () => {
+                    setStatuses(['entregado']);
+                    setAutoStatus('Aplicando vista rapida...', 'badge-primary');
+                    scheduleAutoSubmit(120);
+                });
+            }
+
             exportButtons.forEach((button) => {
                 button.addEventListener('click', (event) => {
                     event.preventDefault();
@@ -534,8 +649,7 @@
             });
 
             autoFields.forEach((field) => {
-                const name = field.getAttribute('name') || '';
-                if (field.type === 'checkbox' || field.tagName === 'SELECT' || name === 'estado_ids[]') {
+                if (field.type === 'checkbox' || field.tagName === 'SELECT') {
                     field.addEventListener('change', () => scheduleAutoSubmit(240));
                     return;
                 }
