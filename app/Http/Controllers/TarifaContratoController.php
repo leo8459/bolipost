@@ -115,9 +115,55 @@ class TarifaContratoController extends Controller
     public function index(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
+        $servicio = strtoupper(trim((string) $request->query('servicio', '')));
+        $origen = strtoupper(trim((string) $request->query('origen', '')));
+        $destino = strtoupper(trim((string) $request->query('destino', '')));
+        $empresaId = (int) $request->query('empresa_id', 0);
+
+        $empresaId = $empresaId > 0 ? $empresaId : 0;
+
+        $serviciosFiltro = TarifaContrato::query()
+            ->select('servicio')
+            ->whereNotNull('servicio')
+            ->whereRaw("trim(servicio) <> ''")
+            ->distinct()
+            ->orderBy('servicio')
+            ->pluck('servicio');
+
+        $origenesFiltro = TarifaContrato::query()
+            ->select('origen')
+            ->whereNotNull('origen')
+            ->whereRaw("trim(origen) <> ''")
+            ->distinct()
+            ->orderBy('origen')
+            ->pluck('origen');
+
+        $destinosFiltro = TarifaContrato::query()
+            ->select('destino')
+            ->whereNotNull('destino')
+            ->whereRaw("trim(destino) <> ''")
+            ->distinct()
+            ->orderBy('destino')
+            ->pluck('destino');
+
+        $empresasFiltro = Empresa::query()
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'sigla']);
 
         $tarifas = TarifaContrato::query()
             ->with('empresa')
+            ->when($empresaId > 0, function ($query) use ($empresaId) {
+                $query->where('empresa_id', $empresaId);
+            })
+            ->when($servicio !== '', function ($query) use ($servicio) {
+                $query->whereRaw('trim(upper(servicio)) = ?', [$servicio]);
+            })
+            ->when($origen !== '', function ($query) use ($origen) {
+                $query->whereRaw('trim(upper(origen)) = ?', [$origen]);
+            })
+            ->when($destino !== '', function ($query) use ($destino) {
+                $query->whereRaw('trim(upper(destino)) = ?', [$destino]);
+            })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('origen', 'ILIKE', "%{$q}%")
@@ -138,6 +184,14 @@ class TarifaContratoController extends Controller
         return view('tarifa_contrato.index', [
             'tarifas' => $tarifas,
             'q' => $q,
+            'servicio' => $servicio,
+            'origen' => $origen,
+            'destino' => $destino,
+            'empresaId' => $empresaId,
+            'serviciosFiltro' => $serviciosFiltro,
+            'origenesFiltro' => $origenesFiltro,
+            'destinosFiltro' => $destinosFiltro,
+            'empresasFiltro' => $empresasFiltro,
         ]);
     }
 

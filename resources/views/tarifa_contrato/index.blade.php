@@ -46,16 +46,82 @@
 
                     <div class="card-body">
                         <form method="GET" action="{{ route('tarifa-contrato.index') }}" class="mb-3">
-                            <div class="input-group">
-                                <input
-                                    type="text"
-                                    name="q"
-                                    value="{{ $q }}"
-                                    class="form-control"
-                                    placeholder="Buscar por empresa, origen, destino, servicio o provincia"
-                                >
-                                <div class="input-group-append">
-                                    <button type="submit" class="btn btn-outline-primary">Buscar</button>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Empresa</label>
+                                        <select name="empresa_id" class="form-control">
+                                            <option value="">Todas</option>
+                                            @foreach($empresasFiltro as $empresa)
+                                                <option value="{{ $empresa->id }}" {{ (int) $empresaId === (int) $empresa->id ? 'selected' : '' }}>
+                                                    {{ $empresa->nombre }}@if(!empty($empresa->sigla)) ({{ $empresa->sigla }}) @endif
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Servicio</label>
+                                        <select name="servicio" class="form-control">
+                                            <option value="">Todos</option>
+                                            @foreach($serviciosFiltro as $itemServicio)
+                                                <option value="{{ $itemServicio }}" {{ strtoupper(trim((string) $servicio)) === strtoupper(trim((string) $itemServicio)) ? 'selected' : '' }}>
+                                                    {{ $itemServicio }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Origen</label>
+                                        <select name="origen" class="form-control">
+                                            <option value="">Todos</option>
+                                            @foreach($origenesFiltro as $itemOrigen)
+                                                <option value="{{ $itemOrigen }}" {{ strtoupper(trim((string) $origen)) === strtoupper(trim((string) $itemOrigen)) ? 'selected' : '' }}>
+                                                    {{ $itemOrigen }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Destino</label>
+                                        <select name="destino" class="form-control">
+                                            <option value="">Todos</option>
+                                            @foreach($destinosFiltro as $itemDestino)
+                                                <option value="{{ $itemDestino }}" {{ strtoupper(trim((string) $destino)) === strtoupper(trim((string) $itemDestino)) ? 'selected' : '' }}>
+                                                    {{ $itemDestino }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-9">
+                                    <div class="form-group mb-0">
+                                        <label>Busqueda general (opcional)</label>
+                                        <input
+                                            type="text"
+                                            name="q"
+                                            value="{{ $q }}"
+                                            class="form-control"
+                                            placeholder="Empresa, provincia, horas de entrega..."
+                                        >
+                                    </div>
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <div class="form-group mb-0 w-100 d-flex" style="gap:8px;">
+                                        <button type="submit" class="btn btn-outline-primary flex-fill">Filtrar</button>
+                                        <a href="{{ route('tarifa-contrato.index') }}" class="btn btn-outline-secondary flex-fill">Limpiar</a>
+                                    </div>
                                 </div>
                             </div>
                         </form>

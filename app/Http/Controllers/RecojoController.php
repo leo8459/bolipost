@@ -11,6 +11,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class RecojoController extends Controller
 {
@@ -120,6 +121,7 @@ class RecojoController extends Controller
 
             $rowsProvincias = TarifaContrato::query()
                 ->where('empresa_id', $empresaId)
+                ->whereRaw("trim(upper(servicio)) like '%INTERPROVINCIAL%'")
                 ->whereNotNull('provincia')
                 ->select('destino', 'provincia')
                 ->get();
@@ -173,7 +175,16 @@ class RecojoController extends Controller
             'destino' => 'required|string|in:' . implode(',', self::DEPARTAMENTOS),
             'direccion' => 'required|string|max:255',
             'mapa' => 'nullable|string|max:500',
-            'provincia' => 'nullable|string|max:255',
+            'provincia' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::requiredIf(function () use ($request) {
+                    return $this->normalizeServicioTarifa((string) $request->input('servicio')) === 'INTERPROVINCIAL';
+                }),
+            ],
+        ], [
+            'provincia.required' => 'La provincia es obligatoria cuando el servicio es INTERPROVINCIAL.',
         ]);
 
         $empresa = Empresa::query()->find((int) $user->empresa_id);

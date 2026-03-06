@@ -115,7 +115,7 @@
                             <div class="col-md-3">
                                 <div class="form-group">
                                     <label>Servicio<span class="required-star">*</span></label>
-                                    <select name="servicio" class="form-control" required>
+                                    <select id="servicioSelect" name="servicio" class="form-control" required>
                                         <option value="">Seleccione...</option>
                                         @foreach($serviciosTarifa as $servicio)
                                             <option value="{{ $servicio }}" {{ old('servicio') === $servicio ? 'selected' : '' }}>
@@ -192,10 +192,22 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="form-group">
-                                    <label>Provincia (opcional)</label>
-                                    <select id="provinciaSelect" name="provincia" class="form-control">
+                                    <label id="provinciaLabel">Provincia (opcional)</label>
+                                    <select id="provinciaSelect" class="form-control">
                                         <option value="">Seleccione...</option>
                                     </select>
+                                    <input type="hidden" name="provincia" id="provinciaHidden" value="{{ old('provincia') }}">
+
+                                    <div id="provinciaOtroWrap" class="mt-2" style="display:none;">
+                                        <input
+                                            id="provinciaOtroInput"
+                                            type="text"
+                                            class="form-control"
+                                            placeholder="Escribe la provincia"
+                                            value=""
+                                        >
+                                    </div>
+                                    <small id="provinciaHelp" class="text-muted">Selecciona una provincia del combo.</small>
                                 </div>
                             </div>
                             <div class="col-md-4">
@@ -229,44 +241,113 @@
 <script>
     (function () {
         const provinciasPorDestino = @json($provinciasPorDestino ?? []);
+        const servicio = document.getElementById('servicioSelect');
         const destino = document.getElementById('destinoSelect');
-        const provincia = document.getElementById('provinciaSelect');
-        const oldProvincia = @json(old('provincia', ''));
+        const provinciaSelect = document.getElementById('provinciaSelect');
+        const provinciaHidden = document.getElementById('provinciaHidden');
+        const provinciaOtroWrap = document.getElementById('provinciaOtroWrap');
+        const provinciaOtroInput = document.getElementById('provinciaOtroInput');
+        const provinciaLabel = document.getElementById('provinciaLabel');
+        const provinciaHelp = document.getElementById('provinciaHelp');
+        const form = servicio.closest('form');
+        const oldProvincia = String(@json(old('provincia', '')) || '').toUpperCase().trim();
+        const OTRO_VALUE = '__OTRO__';
 
-        if (!destino || !provincia) return;
+        if (!servicio || !destino || !provinciaSelect || !provinciaHidden || !provinciaOtroWrap || !provinciaOtroInput || !provinciaLabel || !provinciaHelp || !form) return;
 
-        const renderProvincias = (destinoValue, selectedValue = '') => {
-            const key = String(destinoValue || '').toUpperCase().trim();
-            const provincias = provinciasPorDestino[key] || [];
-            const selected = String(selectedValue || '').toUpperCase().trim();
+        const isInterprovincial = (value) => {
+            const normalized = String(value || '')
+                .toUpperCase()
+                .trim()
+                .replace(/\s+/g, ' ')
+                .replace('LOCAL (REGULAR)', 'LOCAL(REGULAR)')
+                .replace('LOCAL (EXPRESS)', 'LOCAL(EXPRESS)');
 
-            provincia.innerHTML = '';
+            return normalized === 'INTERPROVINCIAL';
+        };
+
+        const renderProvinciaOptions = (selectedProvincia = '') => {
+            const key = String(destino.value || '').toUpperCase().trim();
+            const sugerencias = provinciasPorDestino[key] || [];
+            const selected = String(selectedProvincia || '').toUpperCase().trim();
+
+            provinciaSelect.innerHTML = '';
             const empty = document.createElement('option');
             empty.value = '';
             empty.textContent = 'Seleccione...';
-            provincia.appendChild(empty);
+            provinciaSelect.appendChild(empty);
 
-            provincias.forEach((nombre) => {
+            sugerencias.forEach((provincia) => {
                 const option = document.createElement('option');
-                option.value = nombre;
-                option.textContent = nombre;
-                if (selected !== '' && nombre === selected) {
+                option.value = provincia;
+                option.textContent = provincia;
+                if (selected !== '' && selected === String(provincia).toUpperCase().trim()) {
                     option.selected = true;
                 }
-                provincia.appendChild(option);
+                provinciaSelect.appendChild(option);
             });
 
-            if (selected !== '' && !provincias.includes(selected)) {
-                const option = document.createElement('option');
-                option.value = selected;
-                option.textContent = selected;
-                option.selected = true;
-                provincia.appendChild(option);
+            const otro = document.createElement('option');
+            otro.value = OTRO_VALUE;
+            otro.textContent = 'OTRO (escribir manualmente)';
+            provinciaSelect.appendChild(otro);
+
+            if (selected !== '' && !sugerencias.map((item) => String(item).toUpperCase().trim()).includes(selected)) {
+                provinciaSelect.value = OTRO_VALUE;
+                provinciaOtroInput.value = selected;
+            } else if (selected === '') {
+                provinciaSelect.value = '';
+                provinciaOtroInput.value = '';
             }
         };
 
-        destino.addEventListener('change', () => renderProvincias(destino.value, ''));
-        renderProvincias(destino.value, oldProvincia);
+        const updateProvinciaUi = () => {
+            const required = isInterprovincial(servicio.value);
+            const isOtro = provinciaSelect.value === OTRO_VALUE;
+
+            provinciaSelect.required = required;
+            provinciaOtroWrap.style.display = isOtro ? '' : 'none';
+            provinciaOtroInput.required = required && isOtro;
+
+            if (!isOtro) {
+                provinciaOtroInput.value = '';
+            }
+
+            provinciaLabel.innerHTML = required
+                ? 'Provincia<span class="required-star">*</span>'
+                : 'Provincia (opcional)';
+            provinciaHelp.textContent = required
+                ? 'Obligatorio cuando el servicio es INTERPROVINCIAL.'
+                : 'Opcional.';
+        };
+
+        const syncProvinciaHidden = () => {
+            if (provinciaSelect.value === OTRO_VALUE) {
+                provinciaHidden.value = String(provinciaOtroInput.value || '').trim().toUpperCase();
+                return;
+            }
+            provinciaHidden.value = String(provinciaSelect.value || '').trim().toUpperCase();
+        };
+
+        servicio.addEventListener('change', () => {
+            updateProvinciaUi();
+            syncProvinciaHidden();
+        });
+        destino.addEventListener('change', () => {
+            renderProvinciaOptions('');
+            updateProvinciaUi();
+            syncProvinciaHidden();
+        });
+        provinciaSelect.addEventListener('change', () => {
+            updateProvinciaUi();
+            syncProvinciaHidden();
+        });
+        provinciaOtroInput.addEventListener('input', syncProvinciaHidden);
+        form.addEventListener('submit', syncProvinciaHidden);
+
+        renderProvinciaOptions(oldProvincia);
+        updateProvinciaUi();
+        syncProvinciaHidden();
     })();
 </script>
 @endsection

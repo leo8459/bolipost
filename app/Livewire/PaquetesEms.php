@@ -635,6 +635,7 @@ class PaquetesEms extends Component
         }
 
         $this->hydrateContratoPesoDetectedData($contrato);
+        $teniaTarifaAsignada = (int) ($contrato->tarifa_contrato_id ?? 0) > 0;
         $contrato->peso = round((float) $validated['contratoPeso'], 3);
         $destino = trim((string) ($validated['contratoDestino'] ?? ''));
         if ($destino !== '') {
@@ -647,7 +648,7 @@ class PaquetesEms extends Component
                 $contrato->tarifa_contrato_id = null;
             }
         }
-        $tarifaAplicada = $this->applyTarifaContratoPricing($contrato);
+        $tarifaAplicada = $this->applyTarifaContratoPricing($contrato, $teniaTarifaAsignada);
 
         $this->contratoCodigoPeso = '';
         $this->contratoPeso = '';
@@ -727,7 +728,7 @@ class PaquetesEms extends Component
         $this->resetValidation(['contratoPesoContratoId']);
     }
 
-    protected function applyTarifaContratoPricing(RecojoContrato $contrato): bool
+    protected function applyTarifaContratoPricing(RecojoContrato $contrato, bool $allowAutoResolve = false): bool
     {
         $peso = round((float) $contrato->peso, 3);
         $contrato->peso = $peso;
@@ -752,7 +753,7 @@ class PaquetesEms extends Component
                 ->first();
         }
 
-        if (!$tarifa) {
+        if (!$tarifa && $allowAutoResolve) {
             $tarifa = $this->resolveTarifaContratoForContrato($contrato);
         }
 
