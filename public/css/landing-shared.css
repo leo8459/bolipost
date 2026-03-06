@@ -143,13 +143,29 @@
 
 .menu-toggle {
     display: none;
-    border: 1px solid rgba(4, 30, 66, .35);
+    width: 40px;
+    height: 40px;
+    border: 1px solid rgba(4, 30, 66, .30);
     color: var(--brand-blue);
-    background: rgba(255, 255, 255, .35);
-    border-radius: 10px;
-    padding: .45rem .7rem;
-    font-size: .75rem;
-    font-weight: 700;
+    background: rgba(255, 255, 255, .60);
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 6px 14px rgba(17, 45, 84, .16);
+    cursor: pointer;
+}
+
+.menu-toggle-bars {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.menu-toggle-bars i {
+    display: block;
+    width: 16px;
+    height: 2px;
+    border-radius: 999px;
+    background: #20539A;
 }
 
 .site-footer {
@@ -216,6 +232,18 @@
 
 .footer-col li:hover { color: #1c58a7; }
 
+.footer-col a,
+.footer-col a:visited {
+    color: inherit;
+    text-decoration: none;
+}
+
+.footer-col a:hover,
+.footer-col a:focus-visible {
+    color: #1c58a7;
+    text-decoration: none;
+}
+
 .footer-brand {
     display: inline-flex;
     align-items: center;
@@ -270,11 +298,12 @@
         right: 4%;
         top: 96px;
         display: grid;
-        gap: .2rem;
-        background: linear-gradient(180deg, rgba(255, 221, 106, .98), rgba(255, 205, 0, .98));
+        gap: .45rem;
+        background: linear-gradient(180deg, rgba(255, 239, 177, .98), rgba(255, 216, 84, .98));
         border: 1px solid rgba(4, 30, 66, .22);
-        border-radius: 14px;
-        padding: .7rem;
+        border-radius: 16px;
+        padding: .7rem .65rem;
+        box-shadow: 0 16px 28px rgba(16, 42, 77, .22);
         transform-origin: top;
         transform: scaleY(0);
         opacity: 0;
@@ -286,6 +315,15 @@
         transform: scaleY(1);
         opacity: 1;
         pointer-events: auto;
+    }
+
+    .menu li a {
+        display: block;
+        padding: .45rem .6rem;
+        border-radius: 10px;
+        font-weight: 700;
+        color: #153f78;
+        background: rgba(255, 255, 255, .45);
     }
 
     .menu a::after { display: none; }

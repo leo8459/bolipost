@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>TrackingBo | Plataforma Empresarial Postal</title>
-    <meta name="description" content="TrackingBo ofrece rastreo postal y gestión operativa con enfoque empresarial e institucional.">
+    <meta name="description" content="TrackingBo ofrece rastreo postal y gesti&#xF3;n operativa con enfoque empresarial e institucional.">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
     <link rel="shortcut icon" href="{{ asset('favicon-32x32.png') }}">
@@ -23,19 +23,19 @@
         <section class="hero" id="inicio">
             <div class="container hero-grid">
                 <div>
-                    <p class="kicker reveal">¿Estás buscando tu paquete?</p>
-                    <h1 class="reveal">RASTREA TU CÓDIGO</h1>
-                    <p class="reveal">Este es un servicio de seguimiento de código de rastreo postal a nivel internacional y nacional de la Agencia Boliviana de Correos.</p>
+                    <p class="kicker reveal">&#xBF;Est&#xE1;s buscando tu paquete?</p>
+                    <h1 class="reveal">RASTREA TU C&#xD3;DIGO</h1>
+                    <p class="reveal">Este es un servicio de seguimiento de c&#xF3;digo de rastreo postal a nivel internacional y nacional de la Agencia Boliviana de Correos.</p>
                     <div class="hero-track reveal">
-                        <div class="hero-track-title">Rastrea tu código</div>
+                        <div class="hero-track-title">Rastrea tu c&#xF3;digo</div>
                         <form class="hero-track-form" id="trackForm" action="{{ route('tracking.demo') }}" method="GET">
                             <input
                                 class="track-input"
                                 type="text"
                                 name="codigo"
-                                placeholder="INSERTE CODIGO"
+                                placeholder="INSERTE C&#xD3;DIGO"
                                 value="{{ old('codigo', session('tracking_codigo', '')) }}"
-                                aria-label="Código de rastreo"
+                                aria-label="C&#xF3;digo de rastreo"
                                 required
                             >
                             <button class="btn btn-light hero-track-btn" type="submit">Buscar</button>
@@ -43,16 +43,18 @@
                         <p class="hero-track-feedback {{ session('tracking_error') ? 'is-error' : '' }}" id="trackFeedback" role="status" aria-live="polite">
                             {{ session('tracking_error', '') }}
                         </p>
-                        <label class="hero-captcha-label" for="captchaDemo">Verificación de seguridad</label>
-                        <div class="hero-captcha-row">
-                            <input
-                                id="captchaDemo"
-                                class="track-captcha-input"
-                                type="text"
-                                placeholder="Ingrese el texto"
-                                aria-label="Texto de verificación"
-                            >
-                            <div class="hero-captcha-code">6M2B9</div>
+                        <div class="hero-captcha-block" hidden>
+                            <label class="hero-captcha-label" for="captchaDemo">Verificaci&#xF3;n de seguridad</label>
+                            <div class="hero-captcha-row">
+                                <input
+                                    id="captchaDemo"
+                                    class="track-captcha-input"
+                                    type="text"
+                                    placeholder="Ingrese el texto"
+                                    aria-label="Texto de verificaci&#xF3;n"
+                                >
+                                <div class="hero-captcha-code">6M2B9</div>
+                            </div>
                         </div>
                       
                         
@@ -67,17 +69,17 @@
 
         <section class="band">
             <div class="container band-grid">
-                <a class="band-item" href="#resultado">
-                    <span class="band-item-title">Resultado</span>
-                    <span class="band-item-sub">Eventos por código</span>
+                <a class="band-item" href="#inicio">
+                    <span class="band-item-title">Rastreo</span>
+                    <span class="band-item-sub">Buscar c&#xF3;digo</span>
                 </a>
                 <a class="band-item" href="#servicios">
                     <span class="band-item-title">Servicios</span>
-                    <span class="band-item-sub">Envío y recojo nacional</span>
+                    <span class="band-item-sub">Env&#xED;o y recojo nacional</span>
                 </a>
                 <a class="band-item" href="#proceso">
                     <span class="band-item-title">Proceso</span>
-                    <span class="band-item-sub">Flujo operativo estándar</span>
+                    <span class="band-item-sub">Flujo operativo est&#xE1;ndar</span>
                 </a>
                 <a class="band-item" href="#cumplimiento">
                     <span class="band-item-title">Cumplimiento</span>
@@ -85,28 +87,8 @@
                 </a>
                 <a class="band-item" href="#contacto">
                     <span class="band-item-title">Contacto</span>
-                    <span class="band-item-sub">Canales y atención oficial</span>
+                    <span class="band-item-sub">Canales y atenci&#xF3;n oficial</span>
                 </a>
-            </div>
-        </section>
-
-        <section class="section tracking-results-section" id="resultado">
-            <div class="container">
-                <div class="heading reveal">
-                    <h2>Resultado de rastreo</h2>
-                    <p>Busca por código en la parte superior para ver los últimos eventos de EMS, CERTI, CONTRATO y ORDI.</p>
-                </div>
-
-                <article class="tracking-results-card reveal">
-                    <div class="tracking-results-head">
-                        <h3 id="resultsTitle">Sin búsqueda realizada</h3>
-                        <span class="tracking-total" id="resultsTotal">0 eventos</span>
-                    </div>
-                    <div class="tracking-results-empty" id="resultsEmpty">
-                        Ingresa un código y presiona buscar para cargar los eventos.
-                    </div>
-                    <div class="tracking-results-list" id="resultsList"></div>
-                </article>
             </div>
         </section>
 
@@ -114,16 +96,16 @@
             <div class="container">
                 <div class="reveal">
                     <div class="service-title">
-                        <h3>Enviar y Recoger Paquetes con la Agencia Boliviana de Correos: Simple y Rápido</h3>
+                        <h3>Enviar y Recoger Paquetes con la Agencia Boliviana de Correos: Simple y R&#xE1;pido</h3>
                         <div class="service-divider"></div>
                     </div>
                     <div class="service-journey">
                         <article class="service-row">
                             <div class="service-copy">
-                                <span class="service-pill">Envío de paquetes</span>
-                                <h4>Envía tus paquetes en nuestras oficinas</h4>
-                                <p>Envía tus paquetes en la Agencia Boliviana de Correos de manera sencilla. Visita nuestras oficinas cercanas, empaca bien tu paquete y proporciona la dirección del destinatario.</p>
-                                <h5>Requerimientos para el envío de paquetes:</h5>
+                                <span class="service-pill">Env&#xED;o de paquetes</span>
+                                <h4>Env&#xED;a tus paquetes en nuestras oficinas</h4>
+                                <p>Env&#xED;a tus paquetes en la Agencia Boliviana de Correos de manera sencilla. Visita nuestras oficinas cercanas, empaca bien tu paquete y proporciona la direcci&#xF3;n del destinatario.</p>
+                                <h5>Requerimientos para el env&#xED;o de paquetes:</h5>
                                 <ul class="service-list">
                                     <li>Fotocopia de C.I.</li>
                                     <li>Paquete abierto con el embalaje necesario.</li>
@@ -132,23 +114,23 @@
                                 </ul>
                             </div>
                             <div class="service-art" aria-hidden="true">
-                                <img src="{{ asset('images/carta.png') }}" alt="Ilustración de carta para envío">
+                                <img src="{{ asset('images/carta.png') }}" alt="Ilustraci&#xF3;n de carta para envio">
                             </div>
                         </article>
 
                         <article class="service-row">
                             <div class="service-art" aria-hidden="true">
-                                <img src="{{ asset('images/mano.png') }}" alt="Ilustración de mano recibiendo carta">
+                                <img src="{{ asset('images/mano.png') }}" alt="Ilustraci&#xF3;n de mano recibiendo carta">
                             </div>
                             <div class="service-copy">
                                 <span class="service-pill">Recojo de paquetes</span>
                                 <h4>Recoge tus paquetes en nuestras oficinas</h4>
-                                <p>Para recoger paquetes en la Agencia Boliviana de Correos, sigue pasos simples: ve a nuestras oficinas cuando recibas un aviso, lleva una identificación válida y el código de rastreo.</p>
+                                <p>Para recoger paquetes en la Agencia Boliviana de Correos, sigue pasos simples: ve a nuestras oficinas cuando recibas un aviso, lleva una identificaci&#xF3;n v&#xE1;lida y el c&#xF3;digo de rastreo.</p>
                                 <h5>Requerimientos para recoger tus paquetes:</h5>
                                 <ul class="service-list">
                                     <li>C.I. o pasaporte vigente.</li>
-                                    <li>Código de rastreo del envío.</li>
-                                    <li>Verificación de datos antes de la recepción final.</li>
+                                    <li>C&#xF3;digo de rastreo del env&#xED;o.</li>
+                                    <li>Verificaci&#xF3;n de datos antes de la recepci&#xF3;n final.</li>
                                 </ul>
                             </div>
                         </article>
@@ -160,30 +142,30 @@
         <section class="section alt" id="proceso">
             <div class="container">
                 <div class="heading reveal">
-                    <h2>Flujo operativo estandarizado</h2>
+                    <h2>Flujo operativo est&#xE1;ndarizado</h2>
                     <p>Proceso claro para fortalecer eficiencia, control y confianza del cliente.</p>
                 </div>
 
                 <div class="flow">
                     <article class="step reveal">
                         <span class="step-badge">Paso 1</span>
-                        <h4>Recepción</h4>
-                        <p>Registro y validación inicial del envío en ventanilla.</p>
+                        <h4>Recepci&#xF3;n</h4>
+                        <p>Registro y validaci&#xF3;n inicial del env&#xED;o en ventanilla.</p>
                     </article>
                     <article class="step reveal">
                         <span class="step-badge">Paso 2</span>
-                        <h4>Clasificación</h4>
-                        <p>Asignación de ruta y tratamiento operativo según servicio.</p>
+                        <h4>Clasificaci&#xF3;n</h4>
+                        <p>Asignaci&#xF3;n de ruta y tratamiento operativo seg&#xFA;n servicio.</p>
                     </article>
                     <article class="step reveal">
                         <span class="step-badge">Paso 3</span>
-                        <h4>Tránsito</h4>
+                        <h4>Tr&#xE1;nsito</h4>
                         <p>Monitoreo de estado durante desplazamiento y traspasos.</p>
                     </article>
                     <article class="step reveal">
                         <span class="step-badge">Paso 4</span>
                         <h4>Entrega</h4>
-                        <p>Confirmación final de recepción y cierre del ciclo logístico.</p>
+                        <p>Confirmaci&#xF3;n final de recepci&#xF3;n y cierre del ciclo log&#xED;stico.</p>
                     </article>
                 </div>
             </div>
@@ -192,64 +174,64 @@
         <section class="section compliance" id="cumplimiento">
             <div class="container">
                 <div class="compliance-title reveal">
-                    <h3>¿Sabes lo que puedes y lo que no puedes enviar por el servicio postal?</h3>
+                    <h3>&#xBF;Sabes lo que puedes y lo que no puedes enviar por el servicio postal?</h3>
                     <div class="service-divider"></div>
                 </div>
 
                 <div class="compliance-grid reveal">
                     <article class="compliance-card compliance-side compliance-danger">
-                        <h4>Artículos u Objetos Volátiles Peligrosos</h4>
+                        <h4>Art&#xED;culos u Objetos Vol&#xE1;tiles Peligrosos</h4>
                         <ul>
                             <li>EXPLOSIVOS</li>
                             <li>GASES COMPRIMIDOS</li>
-                            <li>LÍQUIDOS INFLAMABLES</li>
+                            <li>L&#xCD;QUIDOS INFLAMABLES</li>
                             <li>SUSTANCIAS COMBURENTES</li>
-                            <li>SUSTANCIAS TÓXICAS</li>
+                            <li>SUSTANCIAS T&#xD3;XICAS</li>
                             <li>MATERIALES RADIOACTIVOS</li>
                         </ul>
                         <div class="compliance-foot">
                             <span class="label">NO</span>
-                            <div class="sub">Artículos u Objetos Peligrosos</div>
+                            <div class="sub">Art&#xED;culos u Objetos Peligrosos</div>
                         </div>
                     </article>
 
                     <article class="compliance-card compliance-main compliance-allowed">
-                        <h4>Artículos u Objetos Permitidos</h4>
+                        <h4>Art&#xED;culos u Objetos Permitidos</h4>
                         <ul>
                             <li>ROPA</li>
                             <li>DOCUMENTOS CARTAS</li>
-                            <li>APARATOS ELECTRÓNICOS</li>
-                            <li>COSMÉTICOS</li>
-                            <li>ARTÍCULOS PARA EL HOGAR</li>
+                            <li>APARATOS ELECTR&#xD3;NICOS</li>
+                            <li>COSM&#xC9;TICOS</li>
+                            <li>ART&#xCD;CULOS PARA EL HOGAR</li>
                             <li>TODO LO QUE SE LE OCURRA</li>
                         </ul>
                         <div class="compliance-foot">
                             <span class="label">SI</span>
-                            <div class="sub">Artículos u Objetos Permitidos</div>
+                            <div class="sub">Art&#xED;culos u Objetos Permitidos</div>
                             <a
                                 class="btn"
                                 href="https://www.upu.int/UPU/media/upu/files/UPU/outreachAndCampaigns/Dangerous%20Goods%20Campaign/UPU_Flyer_es_web.pdf"
                                 target="_blank"
                                 rel="noopener noreferrer"
                             >
-                                Consulte Aquí
+                                Consulte Aqu&#xED;
                             </a>
                         </div>
                     </article>
 
                     <article class="compliance-card compliance-side compliance-blocked">
-                        <h4>Artículos u Objetos Peligrosos Prohibidos</h4>
+                        <h4>Art&#xED;culos u Objetos Peligrosos Prohibidos</h4>
                         <ul>
                             <li>MEDICAMENTOS</li>
                             <li>ESTRUPEFACIENTES</li>
                             <li>ANIMALES EN GENERAL</li>
                             <li>DINERO</li>
-                            <li>BATERÍAS ELÉCTRICAS</li>
+                            <li>BATER&#xCD;AS EL&#xC9;CTRICAS</li>
                             <li>ALIMENTOS PERECEDEROS</li>
                         </ul>
                         <div class="compliance-foot">
                             <span class="label">NO</span>
-                            <div class="sub">Artículos u Objetos Prohibidos</div>
+                            <div class="sub">Art&#xED;culos u Objetos Prohibidos</div>
                         </div>
                     </article>
                 </div>
@@ -261,15 +243,15 @@
     <div class="search-loading-modal" id="searchLoadingModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="searchLoadingTitle">
         <div class="search-loading-card" role="status" aria-live="polite">
             <div class="search-loading-spinner" aria-hidden="true"></div>
-            <h3 id="searchLoadingTitle">Buscando tu envío...</h3>
-            <p id="searchLoadingText">Estamos consultando los eventos del código.</p>
+            <h3 id="searchLoadingTitle">Buscando tu env&#xED;o...</h3>
+            <p id="searchLoadingText">Estamos consultando los eventos del c&#xF3;digo.</p>
         </div>
     </div>
     <div class="search-loading-modal search-error-modal" id="searchErrorModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="searchErrorTitle">
         <div class="search-loading-card search-error-card" role="alertdialog" aria-live="assertive">
             <div class="search-error-icon" aria-hidden="true">!</div>
-            <h3 id="searchErrorTitle">No encontramos el envío</h3>
-            <p id="searchErrorText">Verifica el código e inténtalo nuevamente.</p>
+            <h3 id="searchErrorTitle">No encontramos el env&#xED;o</h3>
+            <p id="searchErrorText">Verifica el c&#xF3;digo e int&#xE9;ntalo nuevamente.</p>
             <button class="btn btn-light search-error-btn" id="searchErrorClose" type="button">Entendido</button>
         </div>
     </div>
@@ -285,8 +267,8 @@
         const menuToggle = document.getElementById('menuToggle');
         const menu = document.getElementById('menu');
 
-        menuToggle?.addEventListener('click', () => menu.classList.toggle('open'));
-        menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => menu.classList.remove('open')));
+        menuToggle?.addEventListener('click', () => { const isOpen = menu.classList.toggle('open'); menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); });
+        menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { menu.classList.remove('open'); menuToggle?.setAttribute('aria-expanded', 'false'); }));
 
         const onScroll = () => topbar.classList.toggle('scrolled', window.scrollY > 8);
         window.addEventListener('scroll', onScroll, { passive: true });
@@ -327,7 +309,7 @@
             });
         }
 
-        const sectionIds = ['resultado', 'servicios', 'proceso', 'cumplimiento', 'contacto'];
+        const sectionIds = ['inicio', 'servicios', 'proceso', 'cumplimiento', 'contacto'];
         const headerLinks = Array.from(document.querySelectorAll('.menu a[href*="#"]'));
         const bandLinks = Array.from(document.querySelectorAll('.band-item[href^="#"]'));
         const sections = sectionIds.map((id) => document.getElementById(id)).filter(Boolean);
@@ -393,7 +375,7 @@
             setActive(initial);
             setTimeout(() => smoothTo(initial), 100);
         } else {
-            setActive('resultado');
+            setActive('inicio');
         }
         detectActiveByScroll();
 
@@ -408,7 +390,7 @@
         backToTop?.addEventListener('click', () => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
             history.replaceState(null, '', '#inicio');
-            setActive('resultado');
+            setActive('inicio');
         });
 
         const trackForm = document.getElementById('trackForm');
@@ -556,4 +538,6 @@
     </script>
 </body>
 </html>
+
+
 
