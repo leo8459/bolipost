@@ -1069,7 +1069,9 @@ class PaquetesEms extends Component
                 $this->setOrigenFromUser();
                 $this->setUserOrigenId();
                 $this->auto_codigo = true;
-                return redirect()->route('paquetes-ems.index');
+                return redirect()
+                    ->route('paquetes-ems.index')
+                    ->with('download_boleta_url', route('paquetes-ems.boleta', $paquete->id));
             }
             return $this->redirect(route('paquetes-ems.boleta', $paquete->id), navigate: false);
         }
