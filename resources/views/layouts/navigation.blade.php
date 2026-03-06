@@ -8,7 +8,7 @@
                     <a href="{{ route('dashboard') }}">
                         <x-application-logo class="block h-9 w-auto fill-current text-gray-800" />
                     </a>
-                    <span class="ms-2 text-lg font-semibold text-gray-800">bolipost</span>
+                    <span class="ms-2 text-lg font-semibold text-gray-800">TrackingBo</span>
                 </div>
 
                 <!-- Navigation Links -->
