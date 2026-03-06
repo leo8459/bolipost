@@ -2580,7 +2580,7 @@ class PaquetesEms extends Component
 
     protected function registerAdmisionEvento(PaqueteEms $paquete, int $userId): void
     {
-        if (!$this->isAdmision) {
+        if (!$this->isAdmision && !$this->isCreateEms) {
             return;
         }
 
