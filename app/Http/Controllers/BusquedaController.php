@@ -20,7 +20,8 @@ class BusquedaController extends Controller
         ]);
 
         $codigo = trim((string) $validated['codigo']);
-        $rows = $this->obtenerEventosPorCodigo($codigo);
+        $resultado = $this->obtenerEventosPorCodigo($codigo);
+        $rows = $resultado['eventos'];
 
         if ($rows->isEmpty()) {
             return redirect('/')
@@ -32,6 +33,7 @@ class BusquedaController extends Controller
             'codigo' => strtoupper($codigo),
             'eventos' => $rows,
             'ultimoEvento' => $rows->first(),
+            'fuenteTracking' => $resultado['fuente'],
         ]);
     }
 
@@ -44,13 +46,15 @@ class BusquedaController extends Controller
         ]);
 
         $codigo = trim((string) $validated['codigo']);
-        $rows = $this->obtenerEventosPorCodigo($codigo);
+        $resultado = $this->obtenerEventosPorCodigo($codigo);
+        $rows = $resultado['eventos'];
 
         if ($rows->isEmpty()) {
             return response()->json([
                 'tipo' => 'tracking_eventos',
                 'filtro' => ['codigo' => $codigo],
                 'existe_paquete' => false,
+                'fuente' => $resultado['fuente'],
                 'total_registros' => 0,
                 'resultado' => [],
                 'message' => 'No existe dicho paquete',
@@ -72,23 +76,45 @@ class BusquedaController extends Controller
             'tipo' => 'tracking_eventos',
             'filtro' => ['codigo' => $codigo],
             'existe_paquete' => true,
+            'fuente' => $resultado['fuente'],
             'total_registros' => $rows->count(),
             'resultado' => $agrupado,
         ]);
     }
 
-    private function obtenerEventosPorCodigo(string $codigo): Collection
+    private function obtenerEventosPorCodigo(string $codigo): array
     {
+        $eventosApi = collect();
+
         try {
             $eventosApi = $this->obtenerEventosDesdeApiSqlServer($codigo);
-            if ($eventosApi->isNotEmpty()) {
-                return $eventosApi;
-            }
         } catch (\Throwable $e) {
             report($e);
         }
 
-        return $this->obtenerEventosPorCodigoLocal($codigo);
+        // Regla de prioridad:
+        // 1) Si API trae datos -> usar solo API (aunque local tambien tenga).
+        // 2) Si API no trae datos -> intentar local.
+        if ($eventosApi->isNotEmpty()) {
+            return [
+                'eventos' => $eventosApi,
+                'fuente' => 'api',
+            ];
+        }
+
+        $eventosLocales = $this->obtenerEventosPorCodigoLocal($codigo);
+
+        if ($eventosLocales->isNotEmpty()) {
+            return [
+                'eventos' => $eventosLocales,
+                'fuente' => 'local',
+            ];
+        }
+
+        return [
+            'eventos' => collect(),
+            'fuente' => 'ninguna',
+        ];
     }
 
     private function obtenerEventosDesdeApiSqlServer(string $codigo): Collection

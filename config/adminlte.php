@@ -14,9 +14,9 @@ return [
     |
     */
 
-    'title' => 'bolipost',
+    'title' => 'TrackingBo',
     'title_prefix' => '',
-    'title_postfix' => '| bolipost',
+    'title_postfix' => '| TrackingBo',
 
     /*
     |--------------------------------------------------------------------------
@@ -63,12 +63,12 @@ return [
     |
     */
 
-    'logo' => '<b>boli</b>post',
+    'logo' => '<b>Tracking</b>Bo',
     'logo_img' => 'images/AGBClogo2.png',
     'logo_img_class' => 'brand-image img-circle',
     'logo_img_xl' => null,
     'logo_img_xl_class' => 'brand-image-xs',
-    'logo_img_alt' => 'bolipost',
+    'logo_img_alt' => 'TrackingBo',
 
     /*
     |--------------------------------------------------------------------------
@@ -87,7 +87,7 @@ return [
         'enabled' => true,
         'img' => [
             'path' => 'images/AGBClogo2.png',
-            'alt' => 'bolipost',
+            'alt' => 'TrackingBo',
             'class' => '',
             'width' => 50,
             'height' => 50,
@@ -114,7 +114,7 @@ return [
         'mode' => 'fullscreen',
         'img' => [
             'path' => 'images/AGBClogo2.png',
-            'alt' => 'bolipost',
+            'alt' => 'TrackingBo',
             'effect' => 'animation__shake',
             'width' => 60,
             'height' => 60,
