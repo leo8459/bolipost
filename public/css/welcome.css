@@ -72,8 +72,8 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 1.04fr .96fr;
-  gap: 1.8rem;
+  grid-template-columns: 1.08fr .92fr;
+  gap: 1.4rem;
   align-items: center;
   padding-bottom: 116px;
 }
@@ -97,7 +97,7 @@ a { color: inherit; text-decoration: none; }
 
 .hero p {
   color: rgba(4,30,66,.86);
-  max-width: 56ch;
+  max-width: 50ch;
   margin-bottom: 1.1rem;
 }
 
@@ -109,8 +109,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .hero-track {
-  margin: .8rem 0 1rem;
-  max-width: 610px;
+  margin: .7rem 0 .5rem;
+  max-width: 580px;
   border: 1px solid rgba(4,30,66,.22);
   border-radius: 18px;
   padding: .9rem;
@@ -132,15 +132,17 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   grid-template-columns: 1fr auto;
   gap: .5rem;
+  align-items: stretch;
   margin-bottom: .6rem;
 }
 
-.track-input,
+.hero-track-form .track-input,
 .track-captcha-input {
   width: 100%;
+  height: 52px;
   border: 1px solid rgba(4,30,66,.22);
   border-radius: 999px;
-  padding: .78rem 1rem;
+  padding: 0 1rem;
   font: inherit;
   color: #11345f;
   background: rgba(255,255,255,.88);
@@ -157,7 +159,19 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 0 0 3px rgba(255,205,0,.32);
 }
 
-.hero-track-btn { min-width: 122px; }
+.hero-track-form .hero-track-btn {
+  min-width: 140px;
+  height: 52px;
+  padding: 0 1.35rem;
+  margin: 0;
+  border: 1px solid rgba(4,30,66,.22);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  white-space: nowrap;
+}
 .hero-track-feedback {
   min-height: 1.2rem;
   margin: .2rem .1rem .4rem;
@@ -383,11 +397,20 @@ body.has-loading-modal {
 
 .hero-figure { transition: transform .18s linear; will-change: transform; }
 .hero-img {
-  width: min(380px, 92%);
+  width: min(410px, 100%);
   display: block;
-  margin: 0 auto;
+  margin: 0 0 0 auto;
   filter: drop-shadow(0 24px 40px rgba(8,20,40,.34));
   animation: floaty 4.2s ease-in-out infinite;
+}
+
+.hero-grid > div:first-child {
+  max-width: 620px;
+}
+
+.hero-figure {
+  justify-self: end;
+  align-self: end;
 }
 
 .band {
@@ -487,6 +510,9 @@ body.has-loading-modal {
   font-size: .76rem;
   font-weight: 500;
   padding-left: 1.05rem;
+  line-height: 1.2;
+  min-height: 2.4em;
+  display: block;
 }
 
 .section { padding: 84px 0; }
@@ -942,8 +968,24 @@ body.has-loading-modal {
   .service-art img { animation: none !important; }
 }
 
+@media (max-width: 1200px) {
+  .hero-grid {
+    grid-template-columns: 1fr .88fr;
+    gap: 1.1rem;
+  }
+  .hero-img { width: min(360px, 100%); }
+}
+
 @media (max-width: 1024px) {
   .hero-grid, .flow { grid-template-columns: 1fr; }
+  .hero-figure {
+    justify-self: center;
+    align-self: center;
+  }
+  .hero-img {
+    margin: .3rem auto 0;
+    width: min(360px, 90%);
+  }
   .band-grid { grid-template-columns: 1fr 1fr; padding: .8rem 0; }
   .flow::before { display: none; }
   .service-row { grid-template-columns: 1fr; }
@@ -970,14 +1012,43 @@ body.has-loading-modal {
 @media (max-width: 860px) {
   .hero-tags { display: none; }
   .hero-track-form, .hero-captcha-row { grid-template-columns: 1fr; }
-  .hero-track-btn { width: 100%; }
+  .hero-track-form .hero-track-btn { width: 100%; }
   .hero-captcha-code { width: 100%; min-width: 0; }
   .shipping-steps { grid-template-columns: 1fr 1fr; }
   .hero-kpis { grid-template-columns: 1fr; }
-  .band-grid { grid-template-columns: 1fr; }
-  .band-item-sub { padding-left: 0; }
-  .band { top: 84px; }
+  .band {
+    position: static;
+    top: auto;
+  }
+  .band-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .55rem;
+    min-height: auto;
+    padding: .65rem 0;
+  }
+  .band-item {
+    min-height: 70px;
+    padding: .52rem .62rem;
+  }
+  .band-item-title {
+    font-size: .86rem;
+    gap: .35rem;
+  }
+  .band-item-sub {
+    padding-left: .88rem;
+    min-height: auto;
+    font-size: .72rem;
+    line-height: 1.2;
+    word-break: break-word;
+  }
   .back-to-top { right: 14px; bottom: 14px; width: 42px; height: 42px; }
+}
+
+@media (max-width: 520px) {
+  .band-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 

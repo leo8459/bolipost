@@ -380,8 +380,8 @@
         const menuToggle = document.getElementById('menuToggle');
         const menu = document.getElementById('menu');
 
-        menuToggle?.addEventListener('click', () => menu.classList.toggle('open'));
-        menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => menu.classList.remove('open')));
+        menuToggle?.addEventListener('click', () => { const isOpen = menu.classList.toggle('open'); menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); });
+        menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { menu.classList.remove('open'); menuToggle?.setAttribute('aria-expanded', 'false'); }));
 
         const onScroll = () => topbar.classList.toggle('scrolled', window.scrollY > 8);
         window.addEventListener('scroll', onScroll, { passive: true });
@@ -411,3 +411,5 @@
     </script>
 </body>
 </html>
+
+

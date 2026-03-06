@@ -1,9 +1,9 @@
-<footer class="site-footer" id="contacto">
+﻿<footer class="site-footer" id="contacto">
     <div class="container footer-top">
         <div class="footer-callout">
-            <h3>Te invitamos a visitar nuestra página web de la Agencia Boliviana de Correos</h3>
-            <p>En nuestro sitio encontrarás información sobre servicios postales, institución, horarios de atención y ubicaciones de oficinas a nivel nacional.</p>
-            <a class="btn btn-light" href="https://correos.gob.bo" target="_blank" rel="noopener noreferrer">Visítame</a>
+            <h3>Te invitamos a visitar nuestra pagina web de la Agencia Boliviana de Correos</h3>
+            <p>En nuestro sitio encontraras informacion sobre servicios postales, institucion, horarios de atencion y ubicaciones de oficinas a nivel nacional.</p>
+            <a class="btn btn-light" href="https://correos.gob.bo" target="_blank" rel="noopener noreferrer">Visitar</a>
         </div>
     </div>
 
@@ -26,42 +26,42 @@
         <div class="footer-col">
             <h4>Enlaces Externos</h4>
             <ul>
-                <li>Aduana Nacional de Bolivia</li>
-                <li>Ministerio de Obras Públicas, Servicio y Vivienda</li>
-                <li>Unión Postal Universal</li>
-                <li>Unión Postal de las Américas, España y Portugal</li>
+                <li><a href="https://www.aduana.gob.bo/aduana7/" target="_blank" rel="noopener noreferrer">Aduana Nacional de Bolivia</a></li>
+                <li><a href="https://www.oopp.gob.bo/" target="_blank" rel="noopener noreferrer">Ministerio de Obras Publicas, Servicio y Vivienda</a></li>
+                <li><a href="https://www.upu.int/en/Home" target="_blank" rel="noopener noreferrer">Union Postal Universal</a></li>
+                <li><a href="https://www.upu.int/en/Home" target="_blank" rel="noopener noreferrer">Union Postal de las Americas, Espana y Portugal</a></li>
             </ul>
         </div>
 
         <div class="footer-col">
             <h4>Redes Sociales</h4>
             <ul>
-                <li>Facebook</li>
-                <li>Twitter</li>
-                <li>Instagram</li>
-                <li>TikTok</li>
+                <li><a href="https://www.facebook.com/agbc.oficial" target="_blank" rel="noopener noreferrer">Facebook</a></li>
+                <li><a href="https://x.com/AGBC_oficial" target="_blank" rel="noopener noreferrer">X (Twitter)</a></li>
+                <li><a href="https://www.instagram.com/agenciabolivianadecorreos.of/" target="_blank" rel="noopener noreferrer">Instagram</a></li>
+                <li><a href="https://www.tiktok.com/@agenciabolivianadecorreo" target="_blank" rel="noopener noreferrer">TikTok</a></li>
             </ul>
         </div>
 
         <div class="footer-col">
             <h4>Sobre Nosotros</h4>
             <ul>
-                <li>Quiénes Somos</li>
-                <li>Nuestros Servicios</li>
-                <li>Contáctanos</li>
+                <li><a href="https://correos.gob.bo/about/" target="_blank" rel="noopener noreferrer">Quienes Somos</a></li>
+                <li><a href="https://correos.gob.bo/services/" target="_blank" rel="noopener noreferrer">Nuestros Servicios</a></li>
+                <li><a href="https://correos.gob.bo/contact-us/" target="_blank" rel="noopener noreferrer">Contactanos</a></li>
             </ul>
         </div>
 
         <div class="footer-col">
             <h4>Nuestros Servicios</h4>
             <ul>
-                <li>Envío de Mensajería Urgente</li>
-                <li>Servicio Prioritario</li>
-                <li>Envíos de Correspondencia Agrupada</li>
-                <li>Mi Encomienda</li>
-                <li>Servicio de Filatelia</li>
-                <li>Servicio de Casillas</li>
-                <li>Calculadora Postal</li>
+                <li><a href="https://correos.gob.bo/ems/" target="_blank" rel="noopener noreferrer">Envio de Mensajeria Urgente</a></li>
+                <li><a href="https://correos.gob.bo/sp/" target="_blank" rel="noopener noreferrer">Servicio Prioritario</a></li>
+                <li><a href="https://correos.gob.bo/eca/" target="_blank" rel="noopener noreferrer">Envios de Correspondencia Agrupada</a></li>
+                <li><a href="https://correos.gob.bo/eca/" target="_blank" rel="noopener noreferrer">Mi Encomienda</a></li>
+                <li><a href="https://correos.gob.bo/filatelia/" target="_blank" rel="noopener noreferrer">Servicio de Filatelia</a></li>
+                <li><a href="https://correos.gob.bo/casillas/" target="_blank" rel="noopener noreferrer">Servicio de Casillas</a></li>
+                <li><a href="https://correos.gob.bo/construccion/" target="_blank" rel="noopener noreferrer">Calculadora Postal</a></li>
             </ul>
         </div>
     </div>
