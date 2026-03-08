@@ -106,8 +106,8 @@
                 <td>{{ $row['destinatario'] }}</td>
                 <td>{{ $row['empresa'] }}</td>
                 <td>{{ $row['usuario'] }}</td>
-                <td>{{ number_format((float) $row['peso'], 3, '.', '') }}</td>
-                <td>{{ number_format((float) $row['precio'], 2, '.', '') }}</td>
+                <td>{{ (float) $row['peso'] }}</td>
+                <td>{{ (float) $row['precio'] }}</td>
                 <td>{{ $row['created_at'] }}</td>
                 <td>{{ $row['updated_at'] }}</td>
             </tr>
@@ -116,11 +116,15 @@
                 <td colspan="15">Sin resultados para los filtros seleccionados.</td>
             </tr>
         @endforelse
-        <tr>
-            <td colspan="11"><strong>Totales</strong></td>
-            <td><strong>{{ number_format((float) ($totals['peso_total'] ?? 0), 3, '.', '') }}</strong></td>
-            <td><strong>{{ number_format((float) ($totals['precio_total'] ?? 0), 2, '.', '') }}</strong></td>
-            <td colspan="2"></td>
-        </tr>
     </tbody>
+</table>
+
+<table>
+    <tr><td colspan="15"></td></tr>
+    <tr>
+        <td colspan="11"><strong>Totales</strong></td>
+        <td><strong>{{ number_format((float) ($totals['peso_total'] ?? 0), 3, '.', '') }}</strong></td>
+        <td><strong>{{ number_format((float) ($totals['precio_total'] ?? 0), 2, '.', '') }}</strong></td>
+        <td colspan="2"></td>
+    </tr>
 </table>

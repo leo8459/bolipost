@@ -203,6 +203,7 @@
                     class="btn btn-success btn-sm mr-2 mb-2"
                     id="exportExcelBtn"
                     data-export="excel"
+                    data-base-url="{{ route('reportes.export.excel', $baseScopeParams) }}"
                 >
                     <i class="fas fa-file-excel mr-1"></i> Exportar Excel
                 </a>
@@ -211,6 +212,7 @@
                     class="btn btn-danger btn-sm mb-2"
                     id="exportPdfBtn"
                     data-export="pdf"
+                    data-base-url="{{ route('reportes.export.pdf', $baseScopeParams) }}"
                 >
                     <i class="fas fa-file-pdf mr-1"></i> Exportar PDF
                 </a>
@@ -491,6 +493,16 @@
                 return query ? `${baseUrl}?${query}` : baseUrl;
             };
 
+            const refreshExportLinks = () => {
+                exportButtons.forEach((button) => {
+                    const baseUrl = button.dataset.baseUrl || button.getAttribute('href') || '';
+                    if (baseUrl === '') {
+                        return;
+                    }
+                    button.setAttribute('href', buildExportUrl(baseUrl));
+                });
+            };
+
             quickButtons.forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const days = Number(btn.dataset.days || 0);
@@ -638,7 +650,7 @@
                         clearTimeout(autoSubmitTimer);
                         autoSubmitTimer = null;
                     }
-                    const baseUrl = button.getAttribute('href') || '';
+                    const baseUrl = button.dataset.baseUrl || button.getAttribute('href') || '';
                     if (baseUrl === '') {
                         return;
                     }
@@ -661,6 +673,16 @@
 
                 field.addEventListener('input', () => scheduleAutoSubmit(650));
                 field.addEventListener('change', () => scheduleAutoSubmit(240));
+            });
+
+            refreshExportLinks();
+            autoFields.forEach((field) => {
+                if (field.type === 'checkbox' || field.tagName === 'SELECT' || field.type === 'date') {
+                    field.addEventListener('change', refreshExportLinks);
+                    return;
+                }
+                field.addEventListener('input', refreshExportLinks);
+                field.addEventListener('change', refreshExportLinks);
             });
         })();
     </script>

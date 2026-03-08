@@ -45,12 +45,24 @@
                     @endif
 
                     <div class="card-body">
-                        <form method="GET" action="{{ route('tarifa-contrato.index') }}" class="mb-3">
+                        @php
+                            $empresaSeleccionada = ($empresasFiltro ?? collect())->firstWhere('id', (int) $empresaId);
+                        @endphp
+
+                        <form method="GET" action="{{ route('tarifa-contrato.index') }}" class="mb-3" id="tarifaFiltersForm">
+                            <div class="alert alert-light border d-flex flex-column flex-md-row justify-content-between align-items-md-center py-2">
+                                <div>
+                                    <strong>Filtro dinamico activado:</strong>
+                                    cambia empresa, servicio, origen, destino o busqueda y se actualiza solo.
+                                </div>
+                                <span class="badge badge-success mt-2 mt-md-0" id="tarifaAutoStatus">Listo</span>
+                            </div>
+
                             <div class="row">
                                 <div class="col-md-3">
                                     <div class="form-group">
                                         <label>Empresa</label>
-                                        <select name="empresa_id" class="form-control">
+                                        <select name="empresa_id" id="filterEmpresa" class="form-control">
                                             <option value="">Todas</option>
                                             @foreach($empresasFiltro as $empresa)
                                                 <option value="{{ $empresa->id }}" {{ (int) $empresaId === (int) $empresa->id ? 'selected' : '' }}>
@@ -64,7 +76,7 @@
                                 <div class="col-md-3">
                                     <div class="form-group">
                                         <label>Servicio</label>
-                                        <select name="servicio" class="form-control">
+                                        <select name="servicio" id="filterServicio" class="form-control">
                                             <option value="">Todos</option>
                                             @foreach($serviciosFiltro as $itemServicio)
                                                 <option value="{{ $itemServicio }}" {{ strtoupper(trim((string) $servicio)) === strtoupper(trim((string) $itemServicio)) ? 'selected' : '' }}>
@@ -78,7 +90,7 @@
                                 <div class="col-md-3">
                                     <div class="form-group">
                                         <label>Origen</label>
-                                        <select name="origen" class="form-control">
+                                        <select name="origen" id="filterOrigen" class="form-control">
                                             <option value="">Todos</option>
                                             @foreach($origenesFiltro as $itemOrigen)
                                                 <option value="{{ $itemOrigen }}" {{ strtoupper(trim((string) $origen)) === strtoupper(trim((string) $itemOrigen)) ? 'selected' : '' }}>
@@ -92,7 +104,7 @@
                                 <div class="col-md-3">
                                     <div class="form-group">
                                         <label>Destino</label>
-                                        <select name="destino" class="form-control">
+                                        <select name="destino" id="filterDestino" class="form-control">
                                             <option value="">Todos</option>
                                             @foreach($destinosFiltro as $itemDestino)
                                                 <option value="{{ $itemDestino }}" {{ strtoupper(trim((string) $destino)) === strtoupper(trim((string) $itemDestino)) ? 'selected' : '' }}>
@@ -111,6 +123,7 @@
                                         <input
                                             type="text"
                                             name="q"
+                                            id="filterSearch"
                                             value="{{ $q }}"
                                             class="form-control"
                                             placeholder="Empresa, provincia, horas de entrega..."
@@ -119,10 +132,32 @@
                                 </div>
                                 <div class="col-md-3 d-flex align-items-end">
                                     <div class="form-group mb-0 w-100 d-flex" style="gap:8px;">
-                                        <button type="submit" class="btn btn-outline-primary flex-fill">Filtrar</button>
+                                        <button type="submit" class="btn btn-outline-primary flex-fill">Filtrar ahora</button>
                                         <a href="{{ route('tarifa-contrato.index') }}" class="btn btn-outline-secondary flex-fill">Limpiar</a>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div class="small text-muted mt-2">
+                                Filtros activos:
+                                @if($empresaSeleccionada)
+                                    <span class="badge badge-info mr-1">Empresa: {{ $empresaSeleccionada->nombre }}</span>
+                                @endif
+                                @if(trim((string) $servicio) !== '')
+                                    <span class="badge badge-primary mr-1">Servicio: {{ $servicio }}</span>
+                                @endif
+                                @if(trim((string) $origen) !== '')
+                                    <span class="badge badge-secondary mr-1">Origen: {{ $origen }}</span>
+                                @endif
+                                @if(trim((string) $destino) !== '')
+                                    <span class="badge badge-dark mr-1">Destino: {{ $destino }}</span>
+                                @endif
+                                @if(trim((string) $q) !== '')
+                                    <span class="badge badge-warning mr-1">Busqueda: {{ $q }}</span>
+                                @endif
+                                @if(!$empresaSeleccionada && trim((string) $servicio) === '' && trim((string) $origen) === '' && trim((string) $destino) === '' && trim((string) $q) === '')
+                                    <span class="badge badge-light border">Ninguno</span>
+                                @endif
                             </div>
                         </form>
 
@@ -197,4 +232,59 @@
         </div>
     </section>
     @include('footer')
+@endsection
+
+@section('js')
+<script>
+    (() => {
+        const form = document.getElementById('tarifaFiltersForm');
+        const statusBadge = document.getElementById('tarifaAutoStatus');
+
+        if (!form || !statusBadge) {
+            return;
+        }
+
+        const autoFields = form.querySelectorAll(
+            'select[name="empresa_id"], select[name="servicio"], select[name="origen"], select[name="destino"]'
+        );
+        const searchField = document.getElementById('filterSearch');
+
+        let timer = null;
+        let submitting = false;
+
+        const setStatus = (text, cls) => {
+            statusBadge.textContent = text;
+            statusBadge.className = `badge ${cls} mt-2 mt-md-0`;
+        };
+
+        const scheduleSubmit = (delay = 220) => {
+            if (submitting) {
+                return;
+            }
+            if (timer) {
+                clearTimeout(timer);
+            }
+            setStatus('Cambio detectado', 'badge-info');
+            timer = setTimeout(() => {
+                submitting = true;
+                setStatus('Filtrando...', 'badge-warning');
+                form.submit();
+            }, delay);
+        };
+
+        autoFields.forEach((field) => {
+            field.addEventListener('change', () => scheduleSubmit(180));
+        });
+
+        if (searchField) {
+            searchField.addEventListener('input', () => scheduleSubmit(650));
+            searchField.addEventListener('change', () => scheduleSubmit(250));
+        }
+
+        form.addEventListener('submit', () => {
+            submitting = true;
+            setStatus('Filtrando...', 'badge-primary');
+        });
+    })();
+</script>
 @endsection
