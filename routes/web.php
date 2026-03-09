@@ -52,9 +52,9 @@ Route::get('/', function () {
     return view('welcome');
 })->name('welcome');
 
-Route::get('/rastreo-demo', [BusquedaController::class, 'trackingDemo'])->name('tracking.demo');
+Route::get('/rastreo-demo', [BusquedaController::class, 'mostrarTracking'])->name('tracking.demo');
 
-Route::match(['GET', 'POST'], '/api/busqueda/ems-eventos', [BusquedaController::class, 'emsEventos'])
+Route::match(['GET', 'POST'], '/api/busqueda/ems-eventos', [BusquedaController::class, 'consultarEventosTracking'])
     ->name('api.busqueda.ems-eventos');
 
 Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])

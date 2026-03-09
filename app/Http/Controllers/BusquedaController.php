@@ -4,26 +4,29 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class BusquedaController extends Controller
 {
-    public function trackingDemo(Request $request): View|RedirectResponse
+    private const FUENTES_LOCALES = [
+        ['tabla' => 'eventos_ems', 'servicio' => 'EMS'],
+        ['tabla' => 'eventos_certi', 'servicio' => 'CERTI'],
+        ['tabla' => 'eventos_contrato', 'servicio' => 'CONTRATO'],
+        ['tabla' => 'eventos_ordi', 'servicio' => 'ORDI'],
+    ];
+
+    public function mostrarTracking(Request $request): View|RedirectResponse
     {
-        $validated = $request->validate([
-            'codigo' => ['required', 'string', 'max:50'],
-        ]);
+        $codigo = $this->obtenerCodigoValidado($request);
+        $resultado = $this->buscarEventosPorCodigo($codigo);
+        $eventos = $resultado['eventos'];
 
-        $codigo = trim((string) $validated['codigo']);
-        $resultado = $this->obtenerEventosPorCodigo($codigo);
-        $rows = $resultado['eventos'];
-
-        if ($rows->isEmpty()) {
+        if ($eventos->isEmpty()) {
             return redirect('/')
                 ->with('tracking_error', 'Paquete no encontrado')
                 ->with('tracking_codigo', $codigo);
@@ -31,25 +34,19 @@ class BusquedaController extends Controller
 
         return view('tracking-demo', [
             'codigo' => strtoupper($codigo),
-            'eventos' => $rows,
-            'ultimoEvento' => $rows->first(),
+            'eventos' => $eventos,
+            'ultimoEvento' => $eventos->first(),
             'fuenteTracking' => $resultado['fuente'],
         ]);
     }
 
-    public function emsEventos(Request $request): JsonResponse
+    public function consultarEventosTracking(Request $request): JsonResponse
     {
-        $request->headers->set('Accept', 'application/json');
+        $codigo = $this->obtenerCodigoValidado($request);
+        $resultado = $this->buscarEventosPorCodigo($codigo);
+        $eventos = $resultado['eventos'];
 
-        $validated = $request->validate([
-            'codigo' => ['required', 'string', 'max:50'],
-        ]);
-
-        $codigo = trim((string) $validated['codigo']);
-        $resultado = $this->obtenerEventosPorCodigo($codigo);
-        $rows = $resultado['eventos'];
-
-        if ($rows->isEmpty()) {
+        if ($eventos->isEmpty()) {
             return response()->json([
                 'tipo' => 'tracking_eventos',
                 'filtro' => ['codigo' => $codigo],
@@ -61,40 +58,49 @@ class BusquedaController extends Controller
             ], 404);
         }
 
-        $agrupado = $rows
-            ->groupBy('codigo')
-            ->map(function ($eventos, $codigoAgrupado) {
-                return [
-                    'codigo' => $codigoAgrupado,
-                    'total_eventos' => $eventos->count(),
-                    'eventos' => $eventos->values(),
-                ];
-            })
-            ->values();
-
         return response()->json([
             'tipo' => 'tracking_eventos',
             'filtro' => ['codigo' => $codigo],
             'existe_paquete' => true,
             'fuente' => $resultado['fuente'],
-            'total_registros' => $rows->count(),
-            'resultado' => $agrupado,
+            'total_registros' => $eventos->count(),
+            'resultado' => $this->formatearEventosAgrupados($eventos),
         ]);
     }
 
-    private function obtenerEventosPorCodigo(string $codigo): array
+    private function obtenerCodigoValidado(Request $request): string
+    {
+        $validated = $request->validate([
+            'codigo' => ['required', 'string', 'max:50'],
+        ]);
+
+        return trim((string) $validated['codigo']);
+    }
+
+    private function formatearEventosAgrupados(Collection $eventos): Collection
+    {
+        return $eventos
+            ->groupBy('codigo')
+            ->map(function (Collection $grupo, string $codigo) {
+                return [
+                    'codigo' => $codigo,
+                    'total_eventos' => $grupo->count(),
+                    'eventos' => $grupo->values(),
+                ];
+            })
+            ->values();
+    }
+
+    private function buscarEventosPorCodigo(string $codigo): array
     {
         $eventosApi = collect();
 
         try {
-            $eventosApi = $this->obtenerEventosDesdeApiSqlServer($codigo);
+            $eventosApi = $this->consultarEventosDesdeApi($codigo);
         } catch (\Throwable $e) {
             report($e);
         }
 
-        // Regla de prioridad:
-        // 1) Si API trae datos -> usar solo API (aunque local tambien tenga).
-        // 2) Si API no trae datos -> intentar local.
         if ($eventosApi->isNotEmpty()) {
             return [
                 'eventos' => $eventosApi,
@@ -102,7 +108,7 @@ class BusquedaController extends Controller
             ];
         }
 
-        $eventosLocales = $this->obtenerEventosPorCodigoLocal($codigo);
+        $eventosLocales = $this->consultarEventosLocales($codigo);
 
         if ($eventosLocales->isNotEmpty()) {
             return [
@@ -117,7 +123,7 @@ class BusquedaController extends Controller
         ];
     }
 
-    private function obtenerEventosDesdeApiSqlServer(string $codigo): Collection
+    private function consultarEventosDesdeApi(string $codigo): Collection
     {
         $baseUrl = trim((string) config('services.tracking_sqlserver.base_url', ''));
         $token = trim((string) config('services.tracking_sqlserver.token', ''));
@@ -136,114 +142,96 @@ class BusquedaController extends Controller
         }
 
         $payload = $response->json();
-        $eventosLocales = collect(data_get($payload, 'eventos_locales', []));
-        $eventosExternos = collect(data_get($payload, 'eventos_externos', []));
+        $eventosApi = collect(data_get($payload, 'eventos_locales', []))
+            ->merge(data_get($payload, 'eventos_externos', []))
+            ->values();
 
-        return $eventosLocales
-            ->merge($eventosExternos)
-            ->values()
-            ->map(function ($item, $index) use ($codigo, $payload) {
-                $evento = is_array($item) ? $item : (array) $item;
-                $codigoExterno = trim((string) ($evento['mailitM_FID'] ?? ''));
-                $office = trim((string) ($evento['office'] ?? ''));
-                $nextOffice = trim((string) ($evento['nextOffice'] ?? ''));
-                $nombreEvento = $evento['nombre_evento']
-                    ?? $evento['eventType']
-                    ?? $evento['evento']
-                    ?? $evento['descripcion_evento']
-                    ?? $evento['descripcion']
-                    ?? 'Evento de seguimiento';
-
-                $createdAt = (string) (
-                    $evento['created_at']
-                    ?? $evento['eventDate']
-                    ?? $evento['fecha_hora']
-                    ?? $evento['fecha_registro']
-                    ?? $evento['fecha']
-                    ?? now()->toDateTimeString()
-                );
-
-                $timestamp = strtotime($createdAt);
-                $nombreNormalizado = $this->normalizarNombreEvento((string) $nombreEvento);
-                $paisOrigen = $this->resolverPaisOrigen($evento, $payload, $codigo);
-                $paisOrigenIso2 = $this->resolverPaisOrigenIso2($evento, $payload, $codigo, $paisOrigen);
-                $servicio = $this->resolverServicio($evento, $payload, $codigo);
-
-                return (object) [
-                    'id' => $evento['id'] ?? null,
-                    'codigo' => (string) ($evento['codigo'] ?? ($codigoExterno !== '' ? $codigoExterno : ($payload['codigo'] ?? $codigo))),
-                    'evento_id' => $evento['evento_id'] ?? $evento['id_evento'] ?? null,
-                    'user_id' => $evento['user_id'] ?? null,
-                    'created_at' => $createdAt,
-                    'updated_at' => $evento['updated_at'] ?? $createdAt,
-                    'nombre_evento' => $nombreNormalizado,
-                    'servicio' => $servicio,
-                    'tabla_origen' => $evento['tabla_origen'] ?? 'api_sqlserver',
-                    'office' => $office,
-                    'next_office' => $nextOffice,
-                    'pais_origen' => $paisOrigen,
-                    'pais_origen_iso2' => $paisOrigenIso2,
-                    'condition' => trim((string) ($evento['condition'] ?? '')),
-                    '_sort_ts' => $timestamp !== false ? $timestamp : (PHP_INT_MAX - (int) $index),
-                    '_sort_priority' => $this->obtenerPrioridadEvento($nombreNormalizado),
-                ];
-            })
+        return $eventosApi
+            ->map(fn ($item, $index) => $this->transformarEventoApi($item, $index, $codigo, $payload))
             ->sort(function ($a, $b) {
                 $ts = ((int) ($b->_sort_ts ?? 0)) <=> ((int) ($a->_sort_ts ?? 0));
                 if ($ts !== 0) {
                     return $ts;
                 }
 
-                $priority = ((int) ($b->_sort_priority ?? 0)) <=> ((int) ($a->_sort_priority ?? 0));
-                if ($priority !== 0) {
-                    return $priority;
-                }
-
-                return 0;
+                return ((int) ($b->_sort_priority ?? 0)) <=> ((int) ($a->_sort_priority ?? 0));
             })
             ->map(function (object $evento) {
-                unset($evento->_sort_ts);
-                unset($evento->_sort_priority);
+                unset($evento->_sort_ts, $evento->_sort_priority);
                 return $evento;
             })
             ->values();
     }
 
-    private function obtenerEventosPorCodigoLocal(string $codigo): Collection
+    private function transformarEventoApi(mixed $item, int $index, string $codigo, array $payload): object
     {
-        $fuentes = [
-            ['tabla' => 'eventos_ems', 'servicio' => 'EMS'],
-            ['tabla' => 'eventos_certi', 'servicio' => 'CERTI'],
-            ['tabla' => 'eventos_contrato', 'servicio' => 'CONTRATO'],
-            ['tabla' => 'eventos_ordi', 'servicio' => 'ORDI'],
-        ];
+        $evento = is_array($item) ? $item : (array) $item;
+        $nombreEvento = (string) (
+            $evento['nombre_evento']
+            ?? $evento['eventType']
+            ?? $evento['evento']
+            ?? $evento['descripcion_evento']
+            ?? $evento['descripcion']
+            ?? 'Evento de seguimiento'
+        );
+        $createdAt = (string) (
+            $evento['created_at']
+            ?? $evento['eventDate']
+            ?? $evento['fecha_hora']
+            ?? $evento['fecha_registro']
+            ?? $evento['fecha']
+            ?? now()->toDateTimeString()
+        );
+        $timestamp = strtotime($createdAt);
 
-        $queries = collect($fuentes)
+        return (object) [
+            'id' => $evento['id'] ?? null,
+            'codigo' => $this->obtenerCodigoEvento($evento, $payload, $codigo),
+            'evento_id' => $evento['evento_id'] ?? $evento['id_evento'] ?? null,
+            'user_id' => $evento['user_id'] ?? null,
+            'created_at' => $createdAt,
+            'updated_at' => $evento['updated_at'] ?? $createdAt,
+            'nombre_evento' => $nombreEvento,
+            'servicio' => $this->determinarServicio($evento, $payload, $codigo),
+            'tabla_origen' => $evento['tabla_origen'] ?? 'api_sqlserver',
+            'office' => trim((string) ($evento['office'] ?? '')),
+            'next_office' => trim((string) ($evento['nextOffice'] ?? '')),
+            'ciudad_origen' => null,
+            'ciudad_destino' => null,
+            'condition' => trim((string) ($evento['condition'] ?? '')),
+            '_sort_ts' => $timestamp !== false ? $timestamp : (PHP_INT_MAX - $index),
+            '_sort_priority' => $this->calcularPrioridadEvento($nombreEvento),
+        ];
+    }
+
+    private function obtenerCodigoEvento(array $evento, array $payload, string $codigoDefault): string
+    {
+        $codigoEvento = trim((string) ($evento['codigo'] ?? ''));
+        if ($codigoEvento !== '') {
+            return $codigoEvento;
+        }
+
+        $codigoExterno = trim((string) ($evento['mailitM_FID'] ?? ''));
+        if ($codigoExterno !== '') {
+            return $codigoExterno;
+        }
+
+        return (string) ($payload['codigo'] ?? $codigoDefault);
+    }
+
+    private function consultarEventosLocales(string $codigo): Collection
+    {
+        $queries = collect(self::FUENTES_LOCALES)
             ->filter(fn (array $fuente) => Schema::hasTable($fuente['tabla']))
-            ->map(function (array $fuente) use ($codigo) {
-                return DB::table($fuente['tabla'] . ' as ee')
-                    ->leftJoin('eventos as e', 'e.id', '=', 'ee.evento_id')
-                    ->whereRaw('TRIM(UPPER(ee.codigo)) = TRIM(UPPER(?))', [$codigo])
-                    ->select([
-                        'ee.id',
-                        'ee.codigo',
-                        'ee.evento_id',
-                        'ee.user_id',
-                        'ee.created_at',
-                        'ee.updated_at',
-                        'e.nombre_evento',
-                        DB::raw("'" . $fuente['servicio'] . "' as servicio"),
-                        DB::raw("'" . $fuente['tabla'] . "' as tabla_origen"),
-                    ]);
-            })
+            ->map(fn (array $fuente) => $this->construirConsultaEventosLocales($fuente, $codigo))
             ->values();
 
         if ($queries->isEmpty()) {
             return collect();
         }
 
-        $union = $queries->first();
-        foreach ($queries->slice(1) as $query) {
+        $union = $queries->shift();
+        foreach ($queries as $query) {
             $union->unionAll($query);
         }
 
@@ -254,22 +242,52 @@ class BusquedaController extends Controller
             ->get();
     }
 
-    private function normalizarNombreEvento(string $nombreEvento): string
+    private function construirConsultaEventosLocales(array $fuente, string $codigo)
     {
-        $nombre = trim($nombreEvento);
-        if ($nombre === '') {
-            return 'Evento de seguimiento';
-        }
+        $query = DB::table($fuente['tabla'] . ' as ee')
+            ->leftJoin('eventos as e', 'e.id', '=', 'ee.evento_id')
+            ->whereRaw('TRIM(UPPER(ee.codigo)) = TRIM(UPPER(?))', [$codigo]);
 
-        $reemplazos = [
-            'oficina origen de tránsito' => 'oficina de tránsito',
-            'oficina destino de tránsito' => 'oficina de tránsito',
+        $select = [
+            'ee.id',
+            'ee.codigo',
+            'ee.evento_id',
+            'ee.user_id',
+            'ee.created_at',
+            'ee.updated_at',
+            'e.nombre_evento',
+            DB::raw("'" . $fuente['servicio'] . "' as servicio"),
+            DB::raw("'" . $fuente['tabla'] . "' as tabla_origen"),
+            DB::raw('NULL as office'),
+            DB::raw('NULL as next_office'),
+            DB::raw('NULL as condition'),
         ];
 
-        return str_ireplace(array_keys($reemplazos), array_values($reemplazos), $nombre);
+        if ($fuente['tabla'] === 'eventos_ems') {
+            $query->leftJoin('paquetes_ems as p', 'p.codigo', '=', 'ee.codigo');
+            $select[] = DB::raw('p.origen as ciudad_origen');
+            $select[] = DB::raw('p.ciudad as ciudad_destino');
+        } elseif ($fuente['tabla'] === 'eventos_certi') {
+            $query->leftJoin('paquetes_certi as p', 'p.codigo', '=', 'ee.codigo');
+            $select[] = DB::raw("(SELECT u.ciudad FROM eventos_certi ec LEFT JOIN users u ON u.id = ec.user_id WHERE ec.codigo = ee.codigo ORDER BY ec.created_at ASC, ec.id ASC LIMIT 1) as ciudad_origen");
+            $select[] = DB::raw('p.cuidad as ciudad_destino');
+        } elseif ($fuente['tabla'] === 'eventos_ordi') {
+            $query->leftJoin('paquetes_ordi as p', 'p.codigo', '=', 'ee.codigo');
+            $select[] = DB::raw("(SELECT u.ciudad FROM eventos_ordi eo LEFT JOIN users u ON u.id = eo.user_id WHERE eo.codigo = ee.codigo ORDER BY eo.created_at ASC, eo.id ASC LIMIT 1) as ciudad_origen");
+            $select[] = DB::raw('p.ciudad as ciudad_destino');
+        } elseif ($fuente['tabla'] === 'eventos_contrato' && Schema::hasTable('recojos')) {
+            $query->leftJoin('recojos as r', 'r.codigo', '=', 'ee.codigo');
+            $select[] = DB::raw('r.origen as ciudad_origen');
+            $select[] = DB::raw('r.destino as ciudad_destino');
+        } else {
+            $select[] = DB::raw('NULL as ciudad_origen');
+            $select[] = DB::raw('NULL as ciudad_destino');
+        }
+
+        return $query->select($select);
     }
 
-    private function obtenerPrioridadEvento(string $nombreEvento): int
+    private function calcularPrioridadEvento(string $nombreEvento): int
     {
         $texto = mb_strtolower($nombreEvento);
 
@@ -288,214 +306,13 @@ class BusquedaController extends Controller
         };
     }
 
-    private function resolverPaisOrigen(array $evento, array $payload, string $codigoDefault): string
+    private function determinarServicio(array $evento, array $payload, string $codigoDefault): string
     {
         $candidatos = [
-            $evento['pais_origen'] ?? null,
-            $evento['country'] ?? null,
-            $evento['origin_country'] ?? null,
-            $evento['originCountry'] ?? null,
-            $evento['country_origin'] ?? null,
-            $evento['countryOrigin'] ?? null,
-            $payload['pais_origen'] ?? null,
-            $payload['country'] ?? null,
-            $payload['origin_country'] ?? null,
-            $payload['originCountry'] ?? null,
-        ];
-
-        foreach ($candidatos as $valor) {
-            $texto = trim((string) $valor);
-            if ($texto !== '') {
-                return strtoupper($texto);
-            }
-        }
-        return '';
-    }
-
-    private function paisDesdeCodigoPostal(string $codigo): ?string
-    {
-        $valor = strtoupper(trim($codigo));
-        if ($valor === '' || strlen($valor) < 2) {
-            return null;
-        }
-
-        $iso2 = substr($valor, -2);
-        $map = [
-            'AE' => 'UNITED ARAB EMIRATES',
-            'AR' => 'ARGENTINA',
-            'BO' => 'BOLIVIA',
-            'BR' => 'BRAZIL',
-            'CL' => 'CHILE',
-            'CO' => 'COLOMBIA',
-            'EC' => 'ECUADOR',
-            'ES' => 'SPAIN',
-            'PE' => 'PERU',
-            'PY' => 'PARAGUAY',
-            'UY' => 'URUGUAY',
-            'US' => 'UNITED STATES',
-        ];
-
-        return $map[$iso2] ?? null;
-    }
-
-    private function resolverPaisOrigenIso2(array $evento, array $payload, string $codigoDefault, string $paisOrigen): ?string
-    {
-        $candidatosIso = [
-            $evento['pais_origen_iso2'] ?? null,
-            $evento['country_code'] ?? null,
-            $evento['origin_country_code'] ?? null,
-            $evento['originCountryCode'] ?? null,
-            $payload['pais_origen_iso2'] ?? null,
-            $payload['country_code'] ?? null,
-            $payload['origin_country_code'] ?? null,
-            $payload['originCountryCode'] ?? null,
-        ];
-
-        foreach ($candidatosIso as $valor) {
-            $iso = strtoupper(trim((string) $valor));
-            if (preg_match('/^[A-Z]{2}$/', $iso) === 1) {
-                return $iso;
-            }
-        }
-
-        $codigo = trim((string) ($evento['mailitM_FID'] ?? ''));
-        if ($codigo === '') {
-            $codigo = trim((string) ($payload['codigo'] ?? $codigoDefault));
-        }
-
-        $isoCodigo = $this->iso2DesdeCodigoPostal($codigo);
-        if ($isoCodigo !== null) {
-            return $isoCodigo;
-        }
-
-        return $this->iso2DesdeNombrePais($paisOrigen);
-    }
-
-    private function iso2DesdeCodigoPostal(string $codigo): ?string
-    {
-        $valor = strtoupper(trim($codigo));
-        if ($valor === '' || strlen($valor) < 2) {
-            return null;
-        }
-
-        $iso2 = substr($valor, -2);
-        if (preg_match('/^[A-Z]{2}$/', $iso2) !== 1) {
-            return null;
-        }
-
-        return $iso2;
-    }
-
-    private function nombrePaisDesdeIso2(string $iso2): ?string
-    {
-        $iso = strtoupper(trim($iso2));
-        if (preg_match('/^[A-Z]{2}$/', $iso) !== 1) {
-            return null;
-        }
-
-        if (class_exists(\Locale::class)) {
-            $nombre = \Locale::getDisplayRegion('-' . $iso, 'en');
-            $nombre = trim((string) $nombre);
-            if ($nombre !== '' && strtoupper($nombre) !== $iso) {
-                return strtoupper($nombre);
-            }
-        }
-
-        $fallback = [
-            'AE' => 'UNITED ARAB EMIRATES',
-            'BO' => 'BOLIVIA',
-            'BR' => 'BRAZIL',
-            'ES' => 'SPAIN',
-            'FR' => 'FRANCE',
-            'US' => 'UNITED STATES',
-        ];
-
-        return $fallback[$iso] ?? null;
-    }
-
-    private function iso2DesdeNombrePais(string $nombrePais): ?string
-    {
-        $texto = $this->normalizarTextoPais($nombrePais);
-        if ($texto === '') {
-            return null;
-        }
-
-        // Fallback rapido para nombres comunes con variantes.
-        $alias = [
-            'UNITED ARAB EMIRATES' => 'AE',
-            'EMIRATOS ARABES UNIDOS' => 'AE',
-            'UAE' => 'AE',
-            'SPAIN' => 'ES',
-            'ESPANA' => 'ES',
-            'ESPANA ' => 'ES',
-            'BOLIVIA' => 'BO',
-            'BRAZIL' => 'BR',
-            'BRASIL' => 'BR',
-            'UNITED STATES' => 'US',
-            'ESTADOS UNIDOS' => 'US',
-        ];
-
-        if (isset($alias[$texto])) {
-            return $alias[$texto];
-        }
-
-        if (!class_exists(\ResourceBundle::class)) {
-            return null;
-        }
-
-        $locales = ['en', 'es', 'fr', 'pt', 'de', 'it'];
-        foreach ($locales as $locale) {
-            $bundle = \ResourceBundle::create($locale, 'ICUDATA-region');
-            if (!$bundle) {
-                continue;
-            }
-
-            $countries = $bundle->get('Countries');
-            if (!$countries) {
-                continue;
-            }
-
-            foreach ($countries as $iso => $label) {
-                $isoStr = strtoupper((string) $iso);
-                if (preg_match('/^[A-Z]{2}$/', $isoStr) !== 1) {
-                    continue;
-                }
-
-                $labelNorm = $this->normalizarTextoPais((string) $label);
-                if ($labelNorm === $texto) {
-                    return $isoStr;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private function normalizarTextoPais(string $texto): string
-    {
-        $valor = mb_strtoupper(trim($texto));
-        if ($valor === '') {
-            return '';
-        }
-
-        // Quitar tildes y caracteres de combinacion para comparar de forma robusta.
-        if (class_exists(\Normalizer::class)) {
-            $valor = \Normalizer::normalize($valor, \Normalizer::FORM_D) ?: $valor;
-            $valor = preg_replace('/\p{Mn}+/u', '', $valor) ?: $valor;
-        }
-
-        return preg_replace('/\s+/', ' ', $valor) ?: $valor;
-    }
-
-    private function resolverServicio(array $evento, array $payload, string $codigoDefault): string
-    {
-        $candidatos = [
-            // Priorizar el dato oficial de la API en el nivel raiz.
             $payload['servicio'] ?? null,
             $payload['tipo_servicio'] ?? null,
             $payload['service'] ?? null,
             $payload['service_type'] ?? null,
-            // Luego intentar por evento.
             $evento['servicio'] ?? null,
             $evento['tipo_servicio'] ?? null,
             $evento['service'] ?? null,
@@ -516,7 +333,6 @@ class BusquedaController extends Controller
 
         $codigo = strtoupper($codigo);
 
-        // Clasificacion por prefijo UPU cuando la API no informa tipo_servicio.
         if (preg_match('/^R[A-Z]\d{9}[A-Z]{2}$/', $codigo) === 1) {
             return 'CERTIFICADAS';
         }

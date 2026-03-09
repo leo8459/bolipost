@@ -21,6 +21,8 @@
         $tieneIncidencia = str_contains($eventoTextos, 'fall') || str_contains($eventoTextos, 'incid') || str_contains($eventoTextos, 'devuelt');
         $fechaUltima = \Illuminate\Support\Carbon::parse($ultimoEvento->created_at);
         $servicioActual = strtoupper((string) ($ultimoEvento->servicio ?? 'EMS'));
+        $origenLabel = 'Agencia Boliviana de Correos';
+        $origenIso2 = null;
 
         $primerPaso = in_array($servicioActual, ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';
         $incluyeCartero = str_contains($eventoTextos, 'cartero')
@@ -94,11 +96,73 @@
         $estadoGlobal = $pasoActual === $idxEntregado ? 'Entregado' : 'En transito';
         if ($tieneIncidencia && $pasoActual < $idxEntregado) $estadoGlobal = 'En transito con incidencia';
 
-        $destinoLabel = str_ends_with(strtoupper($codigo), 'BO') ? 'Bolivia' : 'Internacional';
-        $historial = $eventos->groupBy(fn($item) => \Illuminate\Support\Carbon::parse($item->created_at)->format('Y-m-d'));
         $normalizarIso2 = function (?string $valor): ?string {
             $iso = strtoupper(trim((string) $valor));
             return preg_match('/^[A-Z]{2}$/', $iso) === 1 ? $iso : null;
+        };
+        $iso2DesdeCodigoS10 = function (?string $valor) use ($normalizarIso2): ?string {
+            $codigo = strtoupper(trim((string) $valor));
+            if (preg_match('/^[A-Z]{2}\d{9}[A-Z]{2}$/', $codigo) !== 1) {
+                return null;
+            }
+
+            return $normalizarIso2(substr($codigo, -2));
+        };
+        $normalizarNombrePais = function (?string $valor): string {
+            $texto = mb_strtoupper(trim((string) $valor));
+            if ($texto === '') {
+                return '';
+            }
+
+            if (class_exists(\Normalizer::class)) {
+                $texto = \Normalizer::normalize($texto, \Normalizer::FORM_D) ?: $texto;
+                $texto = preg_replace('/\p{Mn}+/u', '', $texto) ?: $texto;
+            }
+
+            return preg_replace('/\s+/', ' ', $texto) ?: $texto;
+        };
+        $iso2DesdeNombrePais = function (?string $valor) use ($normalizarNombrePais, $normalizarIso2): ?string {
+            $pais = $normalizarNombrePais($valor);
+            if ($pais === '' || !class_exists(\ResourceBundle::class)) {
+                return null;
+            }
+
+            foreach (['en', 'es', 'fr', 'pt', 'de', 'it'] as $locale) {
+                $bundle = \ResourceBundle::create($locale, 'ICUDATA-region');
+                if (!$bundle) {
+                    continue;
+                }
+
+                $countries = $bundle->get('Countries');
+                if (!$countries) {
+                    continue;
+                }
+
+                foreach ($countries as $iso => $label) {
+                    $isoCode = $normalizarIso2((string) $iso);
+                    if ($isoCode === null) {
+                        continue;
+                    }
+
+                    if ($normalizarNombrePais((string) $label) === $pais) {
+                        return $isoCode;
+                    }
+                }
+            }
+
+            return null;
+        };
+        $extraerPaisDesdeOffice = function (?string $valor): string {
+            $texto = trim((string) $valor);
+            if ($texto === '') {
+                return '';
+            }
+
+            if (preg_match('/(?:pa[ií]s\s+origen|country\s*origin)\s*:\s*(.+)$/iu', $texto, $m) === 1) {
+                return trim((string) $m[1]);
+            }
+
+            return '';
         };
 
         $iso2DesdeOficina = function (?string $texto) use ($normalizarIso2): ?string {
@@ -113,6 +177,39 @@
 
             return null;
         };
+        $eventoOrigen = $eventos->first(function ($item) use ($extraerPaisDesdeOffice) {
+            return $extraerPaisDesdeOffice($item->office ?? '') !== '';
+        });
+        $ciudadOrigenLocal = trim((string) ($eventos->firstWhere('ciudad_origen')?->ciudad_origen ?? ''));
+        $ciudadDestinoLocal = trim((string) ($eventos->firstWhere('ciudad_destino')?->ciudad_destino ?? ''));
+        if ($ciudadOrigenLocal !== '') {
+            $origenLabel = ucwords(mb_strtolower($ciudadOrigenLocal));
+            $origenIso2 = 'BO';
+        } elseif ($eventoOrigen) {
+            $origenLabel = $extraerPaisDesdeOffice($eventoOrigen->office ?? '');
+            $origenIso2 = $iso2DesdeCodigoS10($eventoOrigen->codigo ?? $codigo)
+                ?? $iso2DesdeNombrePais($origenLabel);
+        } else {
+            $origenIso2 = $iso2DesdeCodigoS10($codigo);
+            if ($origenIso2 !== null) {
+                $origenLabel = $origenIso2;
+            }
+        }
+
+        $destinoIso2 = $eventos->reduce(function ($carry, $item) use ($iso2DesdeOficina) {
+            if ($carry !== null) {
+                return $carry;
+            }
+
+            return $iso2DesdeOficina($item->office ?? '') ?? $iso2DesdeOficina($item->next_office ?? '');
+        }, null);
+        $codigoIso2 = $iso2DesdeCodigoS10($codigo);
+        $esDestinoNacional = $ciudadDestinoLocal !== '' || $destinoIso2 === 'BO' || $codigoIso2 === 'BO';
+        $destinoLabel = $ciudadDestinoLocal !== ''
+            ? ucwords(mb_strtolower($ciudadDestinoLocal))
+            : ($esDestinoNacional ? 'Nacional' : ($destinoIso2 ?? 'Internacional'));
+        $destinoBanderaIso2 = $esDestinoNacional ? 'BO' : $destinoIso2;
+        $historial = $eventos->groupBy(fn($item) => \Illuminate\Support\Carbon::parse($item->created_at)->format('Y-m-d'));
 
         $detectarDepartamentoBolivia = function (?string $texto): ?string {
             $valor = mb_strtoupper(trim((string) $texto));
@@ -200,7 +297,10 @@
         $mensajeAvisoRecojo = '';
         $detalleRegionalRecojo = null;
         $mapUrlRegionalRecojo = null;
-        if ($eventoListoParaEntregar) {
+        if ($entregaConfirmada) {
+            $mensajeAvisoRecojo = 'Tu paquete ya fue entregado. No tienes acciones pendientes en oficina.';
+            $mostrarAvisoRecojo = true;
+        } elseif ($eventoListoParaEntregar) {
             $oficinaAviso = trim((string) ($eventoListoParaEntregar->office ?? ''));
             $isoOficinaAviso = $iso2DesdeOficina($oficinaAviso);
             $esBolivia = ($isoOficinaAviso === 'BO') || str_ends_with(strtoupper($codigo), 'BO');
@@ -247,11 +347,11 @@
                     <div class="status-meta">
                         <div class="meta-item meta-accent-a">
                             <small>Origen</small>
-                            <strong>Agencia Boliviana de Correos</strong>
+                            <strong><span data-country-name @if($origenIso2) data-country-iso="{{ strtolower($origenIso2) }}" @endif>{{ $origenLabel }}</span> @if($origenIso2)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($origenIso2) }}.png" alt="Bandera origen">@endif</strong>
                         </div>
                         <div class="meta-item meta-accent-b">
                             <small>Destino</small>
-                            <strong>{{ $destinoLabel }}</strong>
+                            <strong><span @if(!$esDestinoNacional && $destinoBanderaIso2) data-country-name data-country-iso="{{ strtolower($destinoBanderaIso2) }}" @endif>{{ $destinoLabel }}</span> @if($destinoBanderaIso2)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($destinoBanderaIso2) }}.png" alt="Bandera destino">@endif</strong>
                         </div>
                         <div class="meta-item meta-accent-c">
                             <small>Servicio</small>
@@ -337,19 +437,14 @@
                                                 @php
                                                     $office = trim((string) ($evento->office ?? ''));
                                                     $nextOffice = trim((string) ($evento->next_office ?? ''));
-                                                    $paisOrigen = trim((string) ($evento->pais_origen ?? ''));
-                                                    $isoPaisOrigen = $normalizarIso2($evento->pais_origen_iso2 ?? null);
-                                                    $isoOffice = $iso2DesdeOficina($office);
+                                                    $codigoEvento = trim((string) ($evento->codigo ?? $codigo));
+                                                    $paisDesdeOffice = $extraerPaisDesdeOffice($office);
+                                                    $isoOffice = $paisDesdeOffice !== ''
+                                                        ? ($iso2DesdeCodigoS10($codigoEvento) ?? $iso2DesdeNombrePais($paisDesdeOffice))
+                                                        : $iso2DesdeOficina($office);
                                                     $isoNextOffice = $iso2DesdeOficina($nextOffice);
                                                 @endphp
-                                                @if ($office === '')
-                                                    @if ($paisOrigen !== '')
-                                                        <div class="history-meta-row">
-                                                            <span class="history-meta-label">Pais Origen</span>
-                                                            <span class="history-meta-value">{{ $paisOrigen }} @if($isoPaisOrigen)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoPaisOrigen) }}.png" alt="Bandera {{ $paisOrigen }}">@endif</span>
-                                                        </div>
-                                                    @endif
-                                                @else
+                                                @if ($office !== '')
                                                     <div class="history-meta-row">
                                                         <span class="history-meta-label">Oficina</span>
                                                         <span class="history-meta-value">{{ $office }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
@@ -408,6 +503,16 @@
             });
         };
         window.setTimeout(animateProgress, 220);
+
+        if (typeof Intl !== 'undefined' && typeof Intl.DisplayNames !== 'undefined') {
+            const regionNames = new Intl.DisplayNames(['es', 'en'], { type: 'region' });
+            document.querySelectorAll('[data-country-name][data-country-iso]').forEach((el) => {
+                const iso = (el.getAttribute('data-country-iso') || '').toUpperCase();
+                if (!/^[A-Z]{2}$/.test(iso)) return;
+                const label = regionNames.of(iso);
+                if (label) el.textContent = label;
+            });
+        }
     </script>
 </body>
 </html>
