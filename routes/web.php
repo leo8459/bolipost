@@ -50,7 +50,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [BusquedaController::class, 'landing'])->name('welcome');
 
-Route::get('/rastreo-demo', [BusquedaController::class, 'mostrarTracking'])->name('tracking.demo');
+Route::redirect('/rastreo-demo', '/trackingbo', 301);
+Route::get('/trackingbo', [BusquedaController::class, 'mostrarTracking'])->name('tracking.demo');
 
 Route::match(['GET', 'POST'], '/api/busqueda/ems-eventos', [BusquedaController::class, 'consultarEventosTracking'])
     ->name('api.busqueda.ems-eventos');
