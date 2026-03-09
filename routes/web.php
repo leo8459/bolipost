@@ -48,14 +48,14 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-})->name('welcome');
+Route::get('/', [BusquedaController::class, 'landing'])->name('welcome');
 
 Route::get('/rastreo-demo', [BusquedaController::class, 'mostrarTracking'])->name('tracking.demo');
 
 Route::match(['GET', 'POST'], '/api/busqueda/ems-eventos', [BusquedaController::class, 'consultarEventosTracking'])
     ->name('api.busqueda.ems-eventos');
+Route::get('/api/busqueda/captcha', [BusquedaController::class, 'captchaTracking'])
+    ->name('api.busqueda.captcha');
 
 Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
     ->name('api.public.zona-paquete');

@@ -130,10 +130,13 @@ a { color: inherit; text-decoration: none; }
 
 .hero-track-form {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: .5rem;
-  align-items: stretch;
+  gap: .85rem;
   margin-bottom: .6rem;
+}
+
+.hero-track-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .hero-track-form .track-input,
@@ -153,6 +156,11 @@ a { color: inherit; text-decoration: none; }
 .track-input::placeholder,
 .track-captcha-input::placeholder { color: rgba(41,73,115,.68); }
 
+.track-captcha-input {
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
 .track-input:focus,
 .track-captcha-input:focus {
   border-color: rgba(4,30,66,.52);
@@ -171,6 +179,11 @@ a { color: inherit; text-decoration: none; }
   justify-content: center;
   line-height: 1;
   white-space: nowrap;
+}
+
+.hero-captcha-block {
+  display: grid;
+  gap: .55rem;
 }
 .hero-track-feedback {
   min-height: 1.2rem;
@@ -288,25 +301,38 @@ body.has-loading-modal {
 
 .hero-captcha-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: .5rem;
   align-items: center;
+}
+
+.hero-captcha-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .5rem;
+  align-items: stretch;
 }
 
 .hero-captcha-code {
   min-width: 140px;
   text-align: center;
   font-weight: 800;
-  letter-spacing: 2px;
+  letter-spacing: 6px;
   border-radius: 12px;
   padding: .55rem .9rem;
-  background: linear-gradient(120deg, rgba(255,255,255,.96), rgba(255,223,108,.9));
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.96), rgba(255,223,108,.9)),
+    repeating-linear-gradient(115deg, rgba(15,63,121,.09) 0 8px, transparent 8px 16px);
   border: 1px solid rgba(4,30,66,.24);
   color: #0f3f79;
+  font-family: "Courier New", monospace;
+  font-size: 1.15rem;
+  text-decoration: line-through rgba(214, 83, 52, .35);
+  transform: skewX(-8deg);
+  user-select: none;
 }
 
 .hero-captcha-help {
-  margin-top: .34rem;
   font-size: .74rem;
   color: rgba(26,60,106,.72);
 }
@@ -1011,7 +1037,7 @@ body.has-loading-modal {
 
 @media (max-width: 860px) {
   .hero-tags { display: none; }
-  .hero-track-form, .hero-captcha-row { grid-template-columns: 1fr; }
+  .hero-captcha-row, .hero-captcha-entry { grid-template-columns: 1fr; }
   .hero-track-form .hero-track-btn { width: 100%; }
   .hero-captcha-code { width: 100%; min-width: 0; }
   .shipping-steps { grid-template-columns: 1fr 1fr; }

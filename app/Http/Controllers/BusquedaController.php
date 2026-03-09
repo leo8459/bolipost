@@ -13,6 +13,10 @@ use Illuminate\View\View;
 
 class BusquedaController extends Controller
 {
+    private const TRACKING_CAPTCHA_SESSION_KEY = 'tracking_captcha';
+    private const TRACKING_CAPTCHA_VERIFIED_UNTIL_SESSION_KEY = 'tracking_captcha_verified_until';
+    private const TRACKING_CAPTCHA_VERIFIED_MINUTES = 5;
+
     private const FUENTES_LOCALES = [
         ['tabla' => 'eventos_ems', 'servicio' => 'EMS'],
         ['tabla' => 'eventos_certi', 'servicio' => 'CERTI'],
@@ -20,16 +24,38 @@ class BusquedaController extends Controller
         ['tabla' => 'eventos_ordi', 'servicio' => 'ORDI'],
     ];
 
+    public function landing(Request $request): View
+    {
+        $captcha = $this->obtenerOCrearCaptchaTracking($request);
+
+        return view('welcome', [
+            'captchaPregunta' => $captcha['question'],
+        ]);
+    }
+
+    public function captchaTracking(Request $request): JsonResponse
+    {
+        $captcha = $this->refrescarCaptchaTracking($request);
+
+        return response()->json([
+            'pregunta' => $captcha['question'],
+        ]);
+    }
+
     public function mostrarTracking(Request $request): View|RedirectResponse
     {
+        if ($captchaError = $this->validarCaptchaTracking($request)) {
+            return redirect('/')
+                ->with('tracking_error', $captchaError);
+        }
+
         $codigo = $this->obtenerCodigoValidado($request);
         $resultado = $this->buscarEventosPorCodigo($codigo);
         $eventos = $resultado['eventos'];
 
         if ($eventos->isEmpty()) {
             return redirect('/')
-                ->with('tracking_error', 'Paquete no encontrado')
-                ->with('tracking_codigo', $codigo);
+                ->with('tracking_error', 'Paquete no encontrado');
         }
 
         return view('tracking-demo', [
@@ -42,6 +68,13 @@ class BusquedaController extends Controller
 
     public function consultarEventosTracking(Request $request): JsonResponse
     {
+        if ($captchaError = $this->validarCaptchaTracking($request)) {
+            return response()->json([
+                'message' => $captchaError,
+                'captcha' => $this->datosCaptchaTracking($request),
+            ], 422);
+        }
+
         $codigo = $this->obtenerCodigoValidado($request);
         $resultado = $this->buscarEventosPorCodigo($codigo);
         $eventos = $resultado['eventos'];
@@ -75,6 +108,88 @@ class BusquedaController extends Controller
         ]);
 
         return trim((string) $validated['codigo']);
+    }
+
+    private function validarCaptchaTracking(Request $request): ?string
+    {
+        if ($this->captchaTrackingYaFueVerificado($request)) {
+            return null;
+        }
+
+        $captcha = $request->session()->get(self::TRACKING_CAPTCHA_SESSION_KEY);
+        $respuesta = trim((string) $request->input('captcha_answer', ''));
+
+        if (!is_array($captcha) || !array_key_exists('answer', $captcha) || $respuesta === '') {
+            $this->refrescarCaptchaTracking($request);
+
+            return 'Completa la verificacion de seguridad.';
+        }
+
+        if (!hash_equals((string) $captcha['answer'], strtoupper($respuesta))) {
+            $this->refrescarCaptchaTracking($request);
+
+            return 'La verificacion de seguridad no es correcta.';
+        }
+
+        $request->session()->put(
+            self::TRACKING_CAPTCHA_VERIFIED_UNTIL_SESSION_KEY,
+            now()->addMinutes(self::TRACKING_CAPTCHA_VERIFIED_MINUTES)->timestamp
+        );
+        $request->session()->forget(self::TRACKING_CAPTCHA_SESSION_KEY);
+
+        return null;
+    }
+
+    private function captchaTrackingYaFueVerificado(Request $request): bool
+    {
+        $verifiedUntil = (int) $request->session()->get(self::TRACKING_CAPTCHA_VERIFIED_UNTIL_SESSION_KEY, 0);
+
+        return $verifiedUntil > now()->timestamp;
+    }
+
+    private function obtenerOCrearCaptchaTracking(Request $request): array
+    {
+        $captcha = $request->session()->get(self::TRACKING_CAPTCHA_SESSION_KEY);
+
+        if (!is_array($captcha) || !array_key_exists('question', $captcha) || !array_key_exists('answer', $captcha)) {
+            $captcha = $this->refrescarCaptchaTracking($request);
+        }
+
+        return $captcha;
+    }
+
+    private function refrescarCaptchaTracking(Request $request): array
+    {
+        $captcha = $this->generarCaptchaTracking();
+
+        $request->session()->forget(self::TRACKING_CAPTCHA_VERIFIED_UNTIL_SESSION_KEY);
+        $request->session()->put(self::TRACKING_CAPTCHA_SESSION_KEY, $captcha);
+
+        return $captcha;
+    }
+
+    private function datosCaptchaTracking(Request $request): array
+    {
+        $captcha = $this->obtenerOCrearCaptchaTracking($request);
+
+        return [
+            'pregunta' => $captcha['question'],
+        ];
+    }
+
+    private function generarCaptchaTracking(): array
+    {
+        $caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $codigo = '';
+
+        for ($i = 0; $i < 5; $i++) {
+            $codigo .= $caracteres[random_int(0, strlen($caracteres) - 1)];
+        }
+
+        return [
+            'question' => $codigo,
+            'answer' => $codigo,
+        ];
     }
 
     private function formatearEventosAgrupados(Collection $eventos): Collection

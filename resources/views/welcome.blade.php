@@ -29,33 +29,43 @@
                     <div class="hero-track reveal">
                         <div class="hero-track-title">Rastrea tu c&#xF3;digo</div>
                         <form class="hero-track-form" id="trackForm" action="{{ route('tracking.demo') }}" method="GET">
-                            <input
-                                class="track-input"
-                                type="text"
-                                name="codigo"
-                                placeholder="INSERTE C&#xD3;DIGO"
-                                value="{{ old('codigo', session('tracking_codigo', '')) }}"
-                                aria-label="C&#xF3;digo de rastreo"
-                                required
-                            >
-                            <button class="btn btn-light hero-track-btn" type="submit">Buscar</button>
+                            <div class="hero-track-main">
+                                <input
+                                    class="track-input"
+                                    type="text"
+                                    name="codigo"
+                                    placeholder="INSERTE C&#xD3;DIGO"
+                                    value="{{ old('codigo', session('tracking_codigo', '')) }}"
+                                    aria-label="C&#xF3;digo de rastreo"
+                                    required
+                                >
+                            </div>
+                            <div class="hero-captcha-block">
+                                <label class="hero-captcha-label" for="captchaAnswer">Verificaci&#xF3;n de seguridad</label>
+                                <div class="hero-captcha-row">
+                                    <div class="hero-captcha-code" id="captchaQuestion">{{ $captchaPregunta }}</div>
+                                </div>
+                                <div class="hero-captcha-entry">
+                                    <input
+                                        id="captchaAnswer"
+                                        class="track-captcha-input"
+                                        type="text"
+                                        name="captcha_answer"
+                                        inputmode="text"
+                                        autocomplete="off"
+                                        autocapitalize="characters"
+                                        placeholder="ESCRIBE EL CAPTCHA"
+                                        aria-label="Respuesta del captcha"
+                                        required
+                                    >
+                                    <button class="btn btn-light hero-track-btn" type="submit">Buscar</button>
+                                </div>
+                                <p class="hero-captcha-help">Escribe los caracteres que ves en la imagen para continuar.</p>
+                            </div>
                         </form>
                         <p class="hero-track-feedback {{ session('tracking_error') ? 'is-error' : '' }}" id="trackFeedback" role="status" aria-live="polite">
                             {{ session('tracking_error', '') }}
                         </p>
-                        <div class="hero-captcha-block" hidden>
-                            <label class="hero-captcha-label" for="captchaDemo">Verificaci&#xF3;n de seguridad</label>
-                            <div class="hero-captcha-row">
-                                <input
-                                    id="captchaDemo"
-                                    class="track-captcha-input"
-                                    type="text"
-                                    placeholder="Ingrese el texto"
-                                    aria-label="Texto de verificaci&#xF3;n"
-                                >
-                                <div class="hero-captcha-code">6M2B9</div>
-                            </div>
-                        </div>
                       
                         
                     </div>
@@ -250,7 +260,7 @@
     <div class="search-loading-modal search-error-modal" id="searchErrorModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="searchErrorTitle">
         <div class="search-loading-card search-error-card" role="alertdialog" aria-live="assertive">
             <div class="search-error-icon" aria-hidden="true">!</div>
-            <h3 id="searchErrorTitle">No encontramos el env&#xED;o</h3>
+            <h3 id="searchErrorTitle">Error de b&#xFA;squeda</h3>
             <p id="searchErrorText">Verifica el c&#xF3;digo e int&#xE9;ntalo nuevamente.</p>
             <button class="btn btn-light search-error-btn" id="searchErrorClose" type="button">Entendido</button>
         </div>
@@ -395,6 +405,8 @@
 
         const trackForm = document.getElementById('trackForm');
         const trackFeedback = document.getElementById('trackFeedback');
+        const captchaAnswer = document.getElementById('captchaAnswer');
+        const captchaQuestion = document.getElementById('captchaQuestion');
         const resultsTitle = document.getElementById('resultsTitle');
         const resultsTotal = document.getElementById('resultsTotal');
         const resultsEmpty = document.getElementById('resultsEmpty');
@@ -402,6 +414,7 @@
         const searchLoadingModal = document.getElementById('searchLoadingModal');
         const searchLoadingText = document.getElementById('searchLoadingText');
         const searchErrorModal = document.getElementById('searchErrorModal');
+        const searchErrorTitle = document.getElementById('searchErrorTitle');
         const searchErrorText = document.getElementById('searchErrorText');
         const searchErrorClose = document.getElementById('searchErrorClose');
 
@@ -435,6 +448,36 @@
             document.body.classList.remove('has-loading-modal');
         };
 
+        const openErrorModal = (title = 'Error de busqueda', message = 'Verifica el codigo e intentalo nuevamente.') => {
+            if (searchErrorTitle) searchErrorTitle.textContent = title;
+            showErrorModal(message);
+        };
+
+        const updateCaptchaQuestion = (question) => {
+            if (!captchaQuestion || !question) return;
+            captchaQuestion.textContent = question;
+        };
+
+        const clearTrackingForm = () => {
+            const input = trackForm?.querySelector('input[name="codigo"]');
+            if (input) input.value = '';
+            if (captchaAnswer) captchaAnswer.value = '';
+        };
+
+        const loadCaptcha = async () => {
+            try {
+                const response = await fetch("{{ route('api.busqueda.captcha') }}", {
+                    headers: { 'Accept': 'application/json' },
+                });
+                const data = await response.json();
+                updateCaptchaQuestion(data?.pregunta || '{{ $captchaPregunta }}');
+            } catch (error) {
+                updateCaptchaQuestion('{{ $captchaPregunta }}');
+            } finally {
+                if (captchaAnswer) captchaAnswer.value = '';
+            }
+        };
+
         // Evita que el modal quede "pegado" al volver con el boton atras (bfcache/historial).
         hideLoadingModal();
         hideErrorModal();
@@ -444,7 +487,6 @@
         searchErrorModal?.addEventListener('click', (e) => {
             if (e.target === searchErrorModal) hideErrorModal();
         });
-
         const formatDate = (value) => {
             if (!value) return '-';
             const date = new Date(value);
@@ -466,11 +508,11 @@
             if (!resultsList || !resultsEmpty || !resultsTitle || !resultsTotal) return;
 
             resultsList.innerHTML = '';
-            resultsTitle.textContent = `Código: ${codigo}`;
-            resultsTotal.textContent = `${eventos.length} evento(s)`;
+            resultsTitle.textContent = codigo ? `Código: ${codigo}` : '';
+            resultsTotal.textContent = codigo ? `${eventos.length} evento(s)` : '';
 
             if (!eventos.length) {
-                resultsEmpty.style.display = 'block';
+                resultsEmpty.style.display = emptyMessage ? 'block' : 'none';
                 resultsEmpty.textContent = emptyMessage;
                 return;
             }
@@ -503,10 +545,18 @@
             event.preventDefault();
             const input = trackForm.querySelector('input[name="codigo"]');
             const codigo = (input?.value || '').trim().toUpperCase();
+            const captchaValue = (captchaAnswer?.value || '').trim();
 
             if (!codigo) {
                 showFeedback('', '');
-                showErrorModal('Ingresa un código válido.');
+                openErrorModal('Codigo invalido', 'Ingresa un codigo valido.');
+                return;
+            }
+
+            if (!captchaValue) {
+                showFeedback('', '');
+                openErrorModal('Captcha requerido', 'Escribe el captcha para continuar.');
+                captchaAnswer?.focus();
                 return;
             }
 
@@ -514,26 +564,38 @@
             showLoadingModal('Estamos consultando los eventos del código.');
 
             try {
-                const response = await fetch(`/api/busqueda/ems-eventos?codigo=${encodeURIComponent(codigo)}`, {
+                const response = await fetch(`/api/busqueda/ems-eventos?codigo=${encodeURIComponent(codigo)}&captcha_answer=${encodeURIComponent(captchaValue)}`, {
                     headers: { 'Accept': 'application/json' },
                 });
 
                 const data = await response.json();
                 if (!response.ok) {
                     const message = data?.message || 'No se pudo realizar la búsqueda.';
+                    if (data?.captcha?.pregunta) {
+                        updateCaptchaQuestion(data.captcha.pregunta);
+                    } else {
+                        await loadCaptcha();
+                    }
+                    clearTrackingForm();
                     throw new Error(message);
                 }
 
                 showLoadingModal('Paquete encontrado. Redirigiendo al detalle...');
+                clearTrackingForm();
                 window.location.href = `${trackForm.getAttribute('action')}?codigo=${encodeURIComponent(codigo)}`;
             } catch (error) {
                 hideLoadingModal();
                 const message = error.message || 'No existe dicho paquete';
-                renderResults(codigo, [], message);
+                const isCaptchaError = message.toLowerCase().includes('verificacion de seguridad');
+                renderResults('', [], '');
                 showFeedback('', '');
-                showErrorModal(message);
+                openErrorModal(isCaptchaError ? 'Captcha incorrecto' : 'No encontramos el envio', message);
             }
         });
+
+        if (!captchaQuestion?.textContent?.trim()) {
+            loadCaptcha();
+        }
 
     </script>
 </body>
