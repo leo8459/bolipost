@@ -90,6 +90,12 @@ class RecojoController extends Controller
     public function create()
     {
         $user = Auth::user();
+        if (!$user || empty($user->empresa_id)) {
+            return redirect()
+                ->route('paquetes-contrato.index')
+                ->with('error', $this->missingEmpresaMessage());
+        }
+
         $origen = strtoupper(trim((string) ($user->ciudad ?? '')));
         if ($origen === '') {
             $origen = strtoupper(trim((string) ($user->name ?? '')));
@@ -104,6 +110,12 @@ class RecojoController extends Controller
     public function createConTarifa()
     {
         $user = Auth::user();
+        if (!$user || empty($user->empresa_id)) {
+            return redirect()
+                ->route('paquetes-contrato.index')
+                ->with('error', $this->missingEmpresaMessage());
+        }
+
         $origen = strtoupper(trim((string) ($user->ciudad ?? '')));
         if ($origen === '') {
             $origen = strtoupper(trim((string) ($user->name ?? '')));
@@ -575,7 +587,7 @@ class RecojoController extends Controller
     protected function createContratoDesdePayload(array $data, User $user): Recojo
     {
         if (empty($user->empresa_id)) {
-            throw new \RuntimeException('Tu usuario no tiene empresa asignada. Asigna empresa al usuario para generar codigo.');
+            throw new \RuntimeException($this->missingEmpresaMessage());
         }
 
         $empresa = Empresa::query()->find((int) $user->empresa_id);
@@ -678,5 +690,10 @@ class RecojoController extends Controller
         }
 
         return null;
+    }
+
+    protected function missingEmpresaMessage(): string
+    {
+        return 'Entra con un usuario que tenga empresa asociada.';
     }
 }
