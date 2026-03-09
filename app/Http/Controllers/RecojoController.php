@@ -7,10 +7,12 @@ use App\Models\Empresa;
 use App\Models\Estado;
 use App\Models\Recojo;
 use App\Models\TarifaContrato;
+use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 class RecojoController extends Controller
@@ -321,120 +323,73 @@ class RecojoController extends Controller
             return redirect()->route('login');
         }
 
-        if (empty($user->empresa_id)) {
+        $data = $request->validate($this->storeRules());
+
+        try {
+            $contrato = $this->createContratoDesdePayload($data, $user);
+        } catch (\RuntimeException $exception) {
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'Tu usuario no tiene empresa asignada. Asigna empresa al usuario para generar codigo.');
+                ->with('error', $exception->getMessage());
         }
-
-        $data = $request->validate([
-            'nombre_r' => 'required|string|max:255',
-            'telefono_r' => 'required|string|max:50',
-            'contenido' => 'required|string',
-            'direccion_r' => 'required|string|max:255',
-            'nombre_d' => 'required|string|max:255',
-            'telefono_d' => 'nullable|string|max:50',
-            'destino' => 'required|string|in:' . implode(',', self::DEPARTAMENTOS),
-            'direccion' => 'required|string|max:255',
-            'mapa' => 'nullable|string|max:500',
-            'provincia' => 'nullable|string|max:255',
-        ]);
-
-        $empresa = Empresa::query()->find((int) $user->empresa_id);
-        if (!$empresa) {
-            return redirect()
-                ->back()
-                ->withInput()
-                ->with('error', 'No se encontro la empresa asociada al usuario.');
-        }
-
-        $codigoCliente = strtoupper(trim((string) $empresa->codigo_cliente));
-        $codigoCliente = preg_replace('/\s+/', '', $codigoCliente) ?: '';
-        if ($codigoCliente === '') {
-            return redirect()
-                ->back()
-                ->withInput()
-                ->with('error', 'La empresa asociada no tiene codigo_cliente valido.');
-        }
-
-        $origen = strtoupper(trim((string) ($user->ciudad ?? '')));
-        if ($origen === '') {
-            $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
-        }
-
-        $estadoSolicitudId = (int) (Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
-            ->value('id') ?? 0);
-
-        if ($estadoSolicitudId <= 0) {
-            return redirect()
-                ->back()
-                ->withInput()
-                ->with('error', 'No existe el estado SOLICITUD en la tabla estados.');
-        }
-
-        $eventoExiste = DB::table('eventos')
-            ->where('id', self::EVENTO_ID_CONTRATO_CREADO)
-            ->exists();
-
-        if (!$eventoExiste) {
-            return redirect()
-                ->back()
-                ->withInput()
-                ->with('error', 'No existe el evento con ID ' . self::EVENTO_ID_CONTRATO_CREADO . ' en la tabla eventos.');
-        }
-
-        $contrato = null;
-        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $estadoSolicitudId, &$contrato) {
-            $correlativo = $this->nextCorrelativo((int) $empresa->id, $codigoCliente);
-            $codigo = $this->buildCodigo($codigoCliente, $correlativo);
-            $empresaIdDetectada = $this->resolveEmpresaIdByCodigo($codigo) ?? (int) $empresa->id;
-
-            $contrato = Recojo::query()->create([
-                'user_id' => (int) $user->id,
-                'empresa_id' => $empresaIdDetectada,
-                'codigo' => $codigo,
-                'cod_especial' => null,
-                'estados_id' => $estadoSolicitudId,
-                'origen' => $origen,
-                'destino' => strtoupper(trim((string) $data['destino'])),
-                'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
-                'telefono_r' => trim((string) $data['telefono_r']),
-                'contenido' => trim((string) $data['contenido']),
-                'direccion_r' => strtoupper(trim((string) $data['direccion_r'])),
-                'nombre_d' => strtoupper(trim((string) $data['nombre_d'])),
-                'telefono_d' => !empty($data['telefono_d']) ? trim((string) $data['telefono_d']) : null,
-                'direccion_d' => strtoupper(trim((string) $data['direccion'])),
-                'mapa' => !empty($data['mapa']) ? trim((string) $data['mapa']) : null,
-                'provincia' => !empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null,
-                'peso' => 0,
-                'fecha_recojo' => null,
-                'observacion' => null,
-                'justificacion' => null,
-                'imagen' => null,
-            ]);
-
-            // Reservamos codigo tambien en codigo_empresa para mantener correlativo global por empresa.
-            CodigoEmpresa::query()->create([
-                'codigo' => $codigo,
-                'barcode' => $codigo,
-                'empresa_id' => (int) $empresa->id,
-            ]);
-
-            DB::table('eventos_contrato')->insert([
-                'codigo' => $codigo,
-                'evento_id' => self::EVENTO_ID_CONTRATO_CREADO,
-                'user_id' => (int) $user->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        });
 
         return redirect()
             ->route('paquetes-contrato.index')
             ->with('success', 'GUARDADO')
             ->with('download_reporte_url', route('paquetes-contrato.reporte', $contrato->id));
+    }
+
+    public function storePublic(Request $request)
+    {
+        $request->headers->set('Accept', 'application/json');
+
+        $validator = Validator::make($request->all(), array_merge($this->storeRules(), [
+            'user_id' => 'nullable|integer|exists:users,id',
+            'user_email' => 'nullable|email|exists:users,email',
+            'user_ci' => 'nullable|string|max:50',
+        ]));
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Los datos enviados no son validos.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $data = $validator->validated();
+
+        $user = $this->resolveApiUser($data);
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Los datos enviados no son validos.',
+                'errors' => [
+                    'user_id' => ['Debes enviar un usuario valido mediante user_id, user_email o user_ci.'],
+                ],
+            ], 422);
+        }
+
+        try {
+            $contrato = $this->createContratoDesdePayload($data, $user);
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'message' => 'No se pudo generar la guia.',
+                'errors' => [
+                    'general' => [$exception->getMessage()],
+                ],
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'GUARDADO',
+            'data' => [
+                'id' => $contrato->id,
+                'codigo' => $contrato->codigo,
+                'reporte_url' => route('paquetes-contrato.reporte', $contrato->id),
+            ],
+        ], 201);
     }
 
     public function reporte(Recojo $contrato)
@@ -596,6 +551,130 @@ class RecojoController extends Controller
                     return (int) $empresaIdPorCliente;
                 }
             }
+        }
+
+        return null;
+    }
+
+    protected function storeRules(): array
+    {
+        return [
+            'nombre_r' => 'required|string|max:255',
+            'telefono_r' => 'required|string|max:50',
+            'contenido' => 'required|string',
+            'direccion_r' => 'required|string|max:255',
+            'nombre_d' => 'required|string|max:255',
+            'telefono_d' => 'nullable|string|max:50',
+            'destino' => 'required|string|in:' . implode(',', self::DEPARTAMENTOS),
+            'direccion' => 'required|string|max:255',
+            'mapa' => 'nullable|string|max:500',
+            'provincia' => 'nullable|string|max:255',
+        ];
+    }
+
+    protected function createContratoDesdePayload(array $data, User $user): Recojo
+    {
+        if (empty($user->empresa_id)) {
+            throw new \RuntimeException('Tu usuario no tiene empresa asignada. Asigna empresa al usuario para generar codigo.');
+        }
+
+        $empresa = Empresa::query()->find((int) $user->empresa_id);
+        if (!$empresa) {
+            throw new \RuntimeException('No se encontro la empresa asociada al usuario.');
+        }
+
+        $codigoCliente = strtoupper(trim((string) $empresa->codigo_cliente));
+        $codigoCliente = preg_replace('/\s+/', '', $codigoCliente) ?: '';
+        if ($codigoCliente === '') {
+            throw new \RuntimeException('La empresa asociada no tiene codigo_cliente valido.');
+        }
+
+        $origen = strtoupper(trim((string) ($user->ciudad ?? '')));
+        if ($origen === '') {
+            $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
+        }
+
+        $estadoSolicitudId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
+            ->value('id') ?? 0);
+
+        if ($estadoSolicitudId <= 0) {
+            throw new \RuntimeException('No existe el estado SOLICITUD en la tabla estados.');
+        }
+
+        $eventoExiste = DB::table('eventos')
+            ->where('id', self::EVENTO_ID_CONTRATO_CREADO)
+            ->exists();
+
+        if (!$eventoExiste) {
+            throw new \RuntimeException('No existe el evento con ID ' . self::EVENTO_ID_CONTRATO_CREADO . ' en la tabla eventos.');
+        }
+
+        $contrato = null;
+        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $estadoSolicitudId, &$contrato) {
+            $correlativo = $this->nextCorrelativo((int) $empresa->id, $codigoCliente);
+            $codigo = $this->buildCodigo($codigoCliente, $correlativo);
+            $empresaIdDetectada = $this->resolveEmpresaIdByCodigo($codigo) ?? (int) $empresa->id;
+
+            $contrato = Recojo::query()->create([
+                'user_id' => (int) $user->id,
+                'empresa_id' => $empresaIdDetectada,
+                'codigo' => $codigo,
+                'cod_especial' => null,
+                'estados_id' => $estadoSolicitudId,
+                'origen' => $origen,
+                'destino' => strtoupper(trim((string) $data['destino'])),
+                'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
+                'telefono_r' => trim((string) $data['telefono_r']),
+                'contenido' => trim((string) $data['contenido']),
+                'direccion_r' => strtoupper(trim((string) $data['direccion_r'])),
+                'nombre_d' => strtoupper(trim((string) $data['nombre_d'])),
+                'telefono_d' => !empty($data['telefono_d']) ? trim((string) $data['telefono_d']) : null,
+                'direccion_d' => strtoupper(trim((string) $data['direccion'])),
+                'mapa' => !empty($data['mapa']) ? trim((string) $data['mapa']) : null,
+                'provincia' => !empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null,
+                'peso' => 0,
+                'fecha_recojo' => null,
+                'observacion' => null,
+                'justificacion' => null,
+                'imagen' => null,
+            ]);
+
+            // Reservamos codigo tambien en codigo_empresa para mantener correlativo global por empresa.
+            CodigoEmpresa::query()->create([
+                'codigo' => $codigo,
+                'barcode' => $codigo,
+                'empresa_id' => (int) $empresa->id,
+            ]);
+
+            DB::table('eventos_contrato')->insert([
+                'codigo' => $codigo,
+                'evento_id' => self::EVENTO_ID_CONTRATO_CREADO,
+                'user_id' => (int) $user->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        return $contrato;
+    }
+
+    protected function resolveApiUser(array $data): ?User
+    {
+        if (!empty($data['user_id'])) {
+            return User::query()->find((int) $data['user_id']);
+        }
+
+        if (!empty($data['user_email'])) {
+            return User::query()
+                ->where('email', trim((string) $data['user_email']))
+                ->first();
+        }
+
+        if (!empty($data['user_ci'])) {
+            return User::query()
+                ->where('ci', trim((string) $data['user_ci']))
+                ->first();
         }
 
         return null;
