@@ -33,7 +33,7 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8',
             'ciudad' => 'required|string|max:255',
-            'ci' => 'required|string|max:255',
+            'ci' => 'nullable|string|max:255',
             'empresa_id' => 'nullable|integer|exists:empresa,id',
             'roles' => 'nullable|array',
             'roles.*' => 'integer|exists:roles,id',
@@ -44,7 +44,7 @@ class UserController extends Controller
         $user->email = $request->email;
         $user->password = bcrypt($request->password);
         $user->ciudad = $request->ciudad;
-        $user->ci = $request->ci;
+        $user->ci = $request->filled('ci') ? trim((string) $request->ci) : null;
         $user->empresa_id = $request->filled('empresa_id') ? (int) $request->empresa_id : null;
         $user->save();
 
@@ -79,7 +79,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $user->id,
             'ciudad' => 'required|string|max:255',
-            'ci' => 'required|string|max:255',
+            'ci' => 'nullable|string|max:255',
             'empresa_id' => 'nullable|integer|exists:empresa,id',
             'roles' => 'nullable|array',
             'roles.*' => 'integer|exists:roles,id',
@@ -89,7 +89,9 @@ class UserController extends Controller
         $user->name = $request->name;
         $user->email = $request->email;
         $user->ciudad = $request->ciudad;
-        $user->ci = $request->ci;
+        if ($request->filled('ci')) {
+            $user->ci = trim((string) $request->ci);
+        }
         $user->empresa_id = $request->filled('empresa_id') ? (int) $request->empresa_id : null;
 
         if ($request->filled('password')) {
