@@ -41,7 +41,7 @@ return [
     ],
 
     'solicitudes_sync' => [
-        'base_url' => env('SOLICITUDES_SYNC_BASE_URL', 'http://127.0.0.1:8000'),
+        'base_url' => env('SOLICITUDES_SYNC_BASE_URL', 'https://gescon.correos.gob.bo:8459/'),
     ],
 
 ];
