@@ -30,6 +30,7 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'alias' => 'required|string|max:255|alpha_dash|unique:users,alias',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8',
             'ciudad' => 'required|string|max:255',
@@ -41,6 +42,7 @@ class UserController extends Controller
 
         $user = new User();
         $user->name = $request->name;
+        $user->alias = strtolower(trim((string) $request->alias));
         $user->email = $request->email;
         $user->password = bcrypt($request->password);
         $user->ciudad = $request->ciudad;
@@ -77,6 +79,7 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'alias' => 'required|string|max:255|alpha_dash|unique:users,alias,' . $user->id,
             'email' => 'required|email|unique:users,email,' . $user->id,
             'ciudad' => 'required|string|max:255',
             'ci' => 'nullable|string|max:255',
@@ -87,6 +90,7 @@ class UserController extends Controller
         ]);
 
         $user->name = $request->name;
+        $user->alias = strtolower(trim((string) $request->alias));
         $user->email = $request->email;
         $user->ciudad = $request->ciudad;
         if ($request->filled('ci')) {

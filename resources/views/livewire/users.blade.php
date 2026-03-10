@@ -119,7 +119,7 @@
                         wire:model="search"
                         wire:keydown.enter="searchUsers"
                         class="form-control users-search"
-                        placeholder="Buscar por nombre, email, CI o empresa"
+                        placeholder="Buscar por nombre, alias, email, CI o empresa"
                         style="min-width: 260px;"
                     >
                     <button wire:click="searchUsers" class="btn btn-outline-light2" type="button">Buscar</button>
@@ -158,6 +158,7 @@
                             <tr>
                                 <th>#</th>
                                 <th>Nombre</th>
+                                <th>Alias</th>
                                 <th>Email</th>
                                 <th>Regional</th>
                                 <th>Empresa</th>
@@ -172,6 +173,7 @@
                                 <tr>
                                     <td>{{ ($users->currentPage() - 1) * $users->perPage() + $loop->iteration }}</td>
                                     <td>{{ $user->name }}</td>
+                                    <td><span class="badge badge-primary">{{ $user->alias ?? '-' }}</span></td>
                                     <td>{{ $user->email }}</td>
                                     <td>{{ $user->ciudad }}</td>
                                     <td>
@@ -244,7 +246,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-4 users-muted">No se encontraron usuarios.</td>
+                                    <td colspan="10" class="text-center py-4 users-muted">No se encontraron usuarios.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -282,6 +284,17 @@
                                     <label>Email</label>
                                     <input type="email" wire:model.defer="email" class="form-control" placeholder="Correo electronico">
                                     @error('email') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Alias de acceso *</label>
+                                    <input type="text" wire:model.defer="alias" class="form-control" placeholder="Ej: juan_perez" required>
+                                    <small class="text-muted">Solo letras, numeros, guion y guion bajo.</small>
+                                    @error('alias') <small class="text-danger d-block">{{ $message }}</small> @enderror
                                 </div>
                             </div>
                         </div>

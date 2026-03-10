@@ -19,6 +19,7 @@ class Users extends Component
 
     public $editingId = null;
     public $name = '';
+    public $alias = '';
     public $email = '';
     public $password = '';
     public $ciudad = '';
@@ -55,6 +56,7 @@ class Users extends Component
 
         $this->editingId = $user->id;
         $this->name = (string) $user->name;
+        $this->alias = (string) $user->alias;
         $this->email = (string) $user->email;
         $this->password = '';
         $this->ciudad = (string) $user->ciudad;
@@ -75,6 +77,7 @@ class Users extends Component
             $user = User::query()->findOrFail((int) $this->editingId);
             $ciValue = trim((string) $this->ci);
             $user->name = trim($this->name);
+            $user->alias = strtolower(trim((string) $this->alias));
             $user->email = trim($this->email);
             $user->ciudad = trim($this->ciudad);
             // If CI is left empty on edit, keep existing value.
@@ -96,6 +99,7 @@ class Users extends Component
             $user = new User();
             $ciValue = trim((string) $this->ci);
             $user->name = trim($this->name);
+            $user->alias = strtolower(trim((string) $this->alias));
             $user->email = trim($this->email);
             $user->password = Hash::make($this->password);
             $user->ciudad = trim($this->ciudad);
@@ -193,6 +197,7 @@ class Users extends Component
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'min:8'],
             'ciudad' => ['required', 'string', 'max:255'],
@@ -207,6 +212,7 @@ class Users extends Component
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')->ignore((int) $this->editingId)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore((int) $this->editingId)],
             'password' => ['nullable', 'string', 'min:8'],
             'ciudad' => ['required', 'string', 'max:255'],
@@ -235,6 +241,7 @@ class Users extends Component
     {
         $this->editingId = null;
         $this->name = '';
+        $this->alias = '';
         $this->email = '';
         $this->password = '';
         $this->ciudad = '';
@@ -262,6 +269,7 @@ class Users extends Component
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($inner) use ($q) {
                     $inner->where('name', 'like', '%'.$q.'%')
+                        ->orWhere('alias', 'like', '%'.$q.'%')
                         ->orWhere('email', 'like', '%'.$q.'%')
                         ->orWhere('ci', 'like', '%'.$q.'%')
                         ->orWhereHas('empresa', function ($empresaQuery) use ($q) {

@@ -13,9 +13,9 @@
                 @csrf
 
                 <div>
-                    <x-input-label for="email" :value="__('Correo electronico')" />
-                    <x-text-input id="email" class="block mt-1 w-full h-11 rounded-lg bg-white" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
-                    <x-input-error :messages="$errors->get('email')" class="mt-2" />
+                    <x-input-label for="alias" :value="__('Alias de acceso')" />
+                    <x-text-input id="alias" class="block mt-1 w-full h-11 rounded-lg bg-white" type="text" name="alias" :value="old('alias')" required autofocus autocomplete="username" />
+                    <x-input-error :messages="$errors->get('alias')" class="mt-2" />
                 </div>
 
                 <div>

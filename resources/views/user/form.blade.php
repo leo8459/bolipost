@@ -19,6 +19,24 @@
 
         {{-- Email --}}
         <div class="form-group mb-3">
+            <label for="alias">Alias de Acceso *</label>
+            <input
+                type="text"
+                id="alias"
+                name="alias"
+                value="{{ old('alias', $user->alias ?? '') }}"
+                class="form-control @error('alias') is-invalid @enderror"
+                placeholder="Ej: juan_perez"
+                required
+            >
+            @error('alias')
+                <div class="invalid-feedback">{{ $message }}</div>
+            @enderror
+            <small class="text-muted">Solo letras, numeros, guion y guion bajo.</small>
+        </div>
+
+        {{-- Email --}}
+        <div class="form-group mb-3">
             <label for="email">Email</label>
             <input
                 type="email"
