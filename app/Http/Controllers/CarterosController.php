@@ -11,7 +11,10 @@ use App\Models\Recojo as RecojoContrato;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -671,6 +674,9 @@ class CarterosController extends Controller
             [$estadoCarteroId, $estadoProvinciaId]
         );
         $imagenPath = $this->storeDeliveryPhoto($request, $asignacion->imagen ?? $asignacion->foto);
+        $syncWarning = null;
+        $externalImage = $this->buildExternalImagePayload($request->file('foto'));
+        $carteroNombre = trim((string) ($request->user()->name ?? ''));
 
         DB::transaction(function () use ($validated, $asignacion, $estadoEntregadoId, $userId, $eventoEntregaId, $imagenPath) {
             $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoEntregadoId);
@@ -683,9 +689,24 @@ class CarterosController extends Controller
             $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoEntregaId, $userId);
         });
 
-        return redirect()
+        $syncWarning = $this->syncExternalSolicitudEntrega(
+            $validated['tipo_paquete'],
+            (int) $validated['id'],
+            $validated['recibido_por'],
+            $validated['descripcion'] ?? null,
+            $externalImage,
+            $carteroNombre
+        );
+
+        $redirect = redirect()
             ->route('carteros.cartero')
             ->with('success', 'Correspondencia entregada correctamente.');
+
+        if ($syncWarning !== null) {
+            $redirect->with('warning', $syncWarning);
+        }
+
+        return $redirect;
     }
 
     public function addAttempt(Request $request)
@@ -1112,6 +1133,114 @@ class CarterosController extends Controller
         }
 
         return $newPath;
+    }
+
+    private function buildExternalImagePayload(?UploadedFile $file): ?string
+    {
+        if (!$file) {
+            return null;
+        }
+
+        $contents = @file_get_contents($file->getRealPath());
+        if ($contents === false) {
+            return null;
+        }
+
+        $mimeType = trim((string) ($file->getMimeType() ?: 'image/jpeg'));
+
+        return 'data:' . $mimeType . ';base64,' . base64_encode($contents);
+    }
+
+    private function syncExternalSolicitudEntrega(
+        string $tipoPaquete,
+        int $id,
+        string $recibidoPor,
+        ?string $descripcion,
+        ?string $imagenBase64,
+        string $carteroNombre
+    ): ?string {
+        if ($tipoPaquete !== 'CONTRATO') {
+            return null;
+        }
+
+        $baseUrl = rtrim((string) config('services.solicitudes_sync.base_url', ''), '/');
+        if ($baseUrl === '') {
+            Log::warning('Sincronizacion de solicitud omitida: base_url no configurada.', [
+                'tipo_paquete' => $tipoPaquete,
+                'id' => $id,
+            ]);
+
+            return 'La entrega se guardo aqui, pero no se pudo sincronizar con el otro sistema.';
+        }
+
+        $codigo = trim((string) $this->getCodigosPorTipo($tipoPaquete, [$id])->first());
+        if ($codigo === '') {
+            Log::warning('Sincronizacion de solicitud omitida: codigo no encontrado.', [
+                'tipo_paquete' => $tipoPaquete,
+                'id' => $id,
+            ]);
+
+            return 'La entrega se guardo aqui, pero no se pudo sincronizar con el otro sistema.';
+        }
+
+        $endpoint = str_ends_with($baseUrl, '/api')
+            ? $baseUrl . '/solicitud/actualizar-estado'
+            : $baseUrl . '/api/solicitud/actualizar-estado';
+
+        $payload = [
+            'guia' => $codigo,
+            'estado' => 3,
+            'firma_d' => $recibidoPor,
+            'entrega_observacion' => $descripcion,
+            'imagen' => $imagenBase64,
+            'usercartero' => $carteroNombre !== '' ? $carteroNombre : 'Sin responsable',
+        ];
+
+        Log::info('Sync entrega externo: request', [
+            'tipo_paquete' => $tipoPaquete,
+            'id' => $id,
+            'endpoint' => $endpoint,
+            'guia' => $payload['guia'],
+            'estado' => $payload['estado'],
+            'firma_d' => $payload['firma_d'],
+            'entrega_observacion' => $payload['entrega_observacion'],
+            'usercartero' => $payload['usercartero'],
+            'imagen_length' => is_string($imagenBase64) ? strlen($imagenBase64) : null,
+            'imagen_prefix' => is_string($imagenBase64) ? substr($imagenBase64, 0, 80) : null,
+        ]);
+
+        try {
+            $response = Http::timeout(15)
+                ->acceptJson()
+                ->asJson()
+                ->put($endpoint, $payload);
+
+            Log::info('Sync entrega externo: response', [
+                'guia' => $codigo,
+                'endpoint' => $endpoint,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            if ($response->successful()) {
+                return null;
+            }
+
+            Log::warning('Fallo sincronizando entrega con sistema externo.', [
+                'codigo' => $codigo,
+                'endpoint' => $endpoint,
+                'status' => $response->status(),
+                'response' => $response->body(),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('Error sincronizando entrega con sistema externo.', [
+                'codigo' => $codigo,
+                'endpoint' => $endpoint,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        return 'La entrega se guardo aqui, pero no se pudo sincronizar con el otro sistema.';
     }
 
     private function updatePackageImage(string $tipoPaquete, int $id, ?string $imagePath): void

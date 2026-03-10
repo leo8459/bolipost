@@ -40,4 +40,8 @@ return [
         'token' => env('TRACKING_SQLSERVER_TOKEN'),
     ],
 
+    'solicitudes_sync' => [
+        'base_url' => env('SOLICITUDES_SYNC_BASE_URL', 'http://127.0.0.1:8000'),
+    ],
+
 ];
