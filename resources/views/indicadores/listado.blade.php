@@ -12,7 +12,7 @@
                 @if (!empty($showSla))
                     <div class="sla-summary-group mb-2 mb-md-0">
                         <span class="sla-summary-pill sla-summary-green">
-                            Correcto: {{ number_format((int) ($slaResumen['correcto'] ?? 0)) }}
+                            En plazo: {{ number_format((int) ($slaResumen['correcto'] ?? 0)) }}
                         </span>
                         <span class="sla-summary-pill sla-summary-yellow">
                             Retraso: {{ number_format((int) ($slaResumen['retraso'] ?? 0)) }}
@@ -91,7 +91,7 @@
                                         <td>
                                             @php
                                                 $estadoSlaTexto = match ($row->sla_color ?? '') {
-                                                    'VERDE' => 'Correcto',
+                                                    'VERDE' => 'En plazo',
                                                     'AMARILLO' => 'Retraso',
                                                     'ROJO' => 'Rezago',
                                                     default => 'Sin datos',

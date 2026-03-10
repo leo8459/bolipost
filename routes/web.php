@@ -139,6 +139,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
     Route::get('/paquetes-ems/create', [PaquetesEmsController::class, 'create'])->name('paquetes-ems.create');
     Route::get('/paquetes-ems/almacen', [PaquetesEmsController::class, 'almacen'])->name('paquetes-ems.almacen');
+    Route::get('/paquetes-ems/almacen-admisiones', [PaquetesEmsController::class, 'almacenAdmisiones'])->name('paquetes-ems.almacen-admisiones');
     Route::get('/paquetes-ems/ventanilla', [PaquetesEmsController::class, 'ventanilla'])->name('paquetes-ems.ventanilla');
     Route::get('/paquetes-ems/en-transito', [PaquetesEmsController::class, 'enTransito'])->name('paquetes-ems.en-transito');
     Route::get('/paquetes-ems/recibir-regional', [PaquetesEmsController::class, 'recibirRegional'])->name('paquetes-ems.recibir-regional');

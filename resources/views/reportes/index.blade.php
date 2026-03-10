@@ -252,7 +252,7 @@
             <div class="small-box bg-teal mb-0">
                 <div class="inner">
                     <h3>{{ number_format($summary['correcto'] ?? 0) }}</h3>
-                    <p>Correcto</p>
+                    <p>En plazo</p>
                 </div>
                 <div class="icon"><i class="fas fa-thumbs-up"></i></div>
             </div>
@@ -288,7 +288,7 @@
         <div class="px-3 pt-3">
             <div class="alert alert-light border mb-0 py-2">
                 <strong>Como leer situacion:</strong>
-                <span class="badge badge-success ml-2">Correcto</span>
+                <span class="badge badge-success ml-2">En plazo</span>
                 <span class="badge badge-warning ml-1">Retraso</span>
                 <span class="badge badge-danger ml-1">Rezago</span>
                 <span class="badge badge-primary ml-1">Entregado</span>

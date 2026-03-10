@@ -311,7 +311,7 @@ class ReportesController extends Controller
             }
 
             $situacion = match ($bucket) {
-                'correcto' => 'Correcto',
+                'correcto' => 'En plazo',
                 'retraso' => 'Retraso',
                 'rezago' => 'Rezago',
                 default => 'Sin datos',

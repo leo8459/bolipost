@@ -43,6 +43,57 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.almacen');
     }
 
+    public function almacenAdmisiones(Request $request)
+    {
+        $search = trim((string) $request->query('q', ''));
+
+        $estadoAlmacenId = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ALMACEN'])
+            ->value('id');
+
+        $paquetes = PaqueteEms::query()
+            ->leftJoin('paquetes_ems_formulario as formulario', 'formulario.paquete_ems_id', '=', 'paquetes_ems.id')
+            ->leftJoin('users', 'users.id', '=', 'paquetes_ems.user_id')
+            ->select([
+                'paquetes_ems.id',
+                DB::raw("coalesce(nullif(trim(formulario.codigo), ''), paquetes_ems.codigo) as codigo"),
+                DB::raw("coalesce(nullif(trim(formulario.nombre_remitente), ''), paquetes_ems.nombre_remitente) as remitente"),
+                DB::raw("coalesce(nullif(trim(formulario.nombre_destinatario), ''), paquetes_ems.nombre_destinatario) as destinatario"),
+                DB::raw("coalesce(nullif(trim(formulario.ciudad), ''), paquetes_ems.ciudad) as destino"),
+                DB::raw("coalesce(formulario.peso, paquetes_ems.peso, 0) as peso"),
+                'paquetes_ems.created_at',
+                'paquetes_ems.updated_at',
+                'users.name as usuario',
+            ])
+            ->when($estadoAlmacenId, function ($query) use ($estadoAlmacenId) {
+                $query->where('paquetes_ems.estado_id', (int) $estadoAlmacenId);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('paquetes_ems.codigo', 'like', '%' . $search . '%')
+                        ->orWhere('formulario.codigo', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.nombre_remitente', 'like', '%' . $search . '%')
+                        ->orWhere('formulario.nombre_remitente', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('formulario.nombre_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.ciudad', 'like', '%' . $search . '%')
+                        ->orWhere('formulario.ciudad', 'like', '%' . $search . '%')
+                        ->orWhere('users.name', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderByDesc('paquetes_ems.updated_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('paquetes_ems.almacen-admisiones', [
+            'paquetes' => $paquetes,
+            'search' => $search,
+            'estadoAlmacenDisponible' => (bool) $estadoAlmacenId,
+        ]);
+    }
+
     public function ventanilla()
     {
         return view('paquetes_ems.ventanilla');

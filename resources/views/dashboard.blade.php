@@ -256,7 +256,7 @@
                             </div>
                             <div class="custom-control custom-checkbox mr-4 mb-2">
                                 <input type="checkbox" class="custom-control-input" id="cfg_col_correctos" data-setting-column="correctos">
-                                <label class="custom-control-label" for="cfg_col_correctos">Correcto</label>
+                                <label class="custom-control-label" for="cfg_col_correctos">En plazo</label>
                             </div>
                             <div class="custom-control custom-checkbox mr-4 mb-2">
                                 <input type="checkbox" class="custom-control-input" id="cfg_col_atrasados" data-setting-column="atrasados">
@@ -383,7 +383,7 @@
     <div class="row mt-1" data-widget="alertas_operativas">
         <div class="col-md-4">
             <div class="alert alert-success mb-2">
-                <strong>Correcto:</strong> {{ number_format($totales['correctos']) }}
+                <strong>En plazo:</strong> {{ number_format($totales['correctos']) }}
             </div>
         </div>
         <div class="col-md-4">
@@ -442,7 +442,7 @@
                 <div class="card-header chart-header-flex">
                     <div>
                         <strong>Estado operativo por modulo</strong>
-                        <div class="chart-helper">Compara entregados, correcto, retraso y rezago por modulo.</div>
+                        <div class="chart-helper">Compara entregados, en plazo, retraso y rezago por modulo.</div>
                     </div>
                     <div class="chart-type-wrap">
                         <button type="button" class="btn btn-sm btn-outline-secondary chart-action-btn" data-chart-download="chartEstados" title="Descargar PNG">
@@ -548,7 +548,7 @@
                                 <th class="text-right" data-col="registrados">Registrados</th>
                                 <th class="text-right" data-col="entregados">Entregados</th>
                                 <th class="text-right" data-col="pendientes">Pendientes</th>
-                                <th class="text-right" data-col="correctos">Correcto</th>
+                                <th class="text-right" data-col="correctos">En plazo</th>
                                 <th class="text-right" data-col="atrasados">Con retraso</th>
                                 <th class="text-right" data-col="rezago">Rezago</th>
                                 <th class="text-right" data-col="tasa_entrega">Tasa entrega</th>
@@ -1372,7 +1372,7 @@
             const chartType = type === 'area' ? 'line' : (type === 'bar_h' ? 'bar' : type);
             const datasets = [
                 { label: 'Entregados', data: chartEstadosData.entregados, backgroundColor: '#28a745', borderColor: '#28a745' },
-                { label: 'Correcto', data: chartEstadosData.correctos, backgroundColor: '#20c997', borderColor: '#20c997' },
+                { label: 'En plazo', data: chartEstadosData.correctos, backgroundColor: '#20c997', borderColor: '#20c997' },
                 { label: 'Retraso', data: chartEstadosData.retraso, backgroundColor: '#f39c12', borderColor: '#f39c12' },
                 { label: 'Rezago', data: chartEstadosData.rezago, backgroundColor: '#dc3545', borderColor: '#dc3545' },
             ];
