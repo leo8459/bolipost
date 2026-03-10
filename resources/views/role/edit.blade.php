@@ -17,7 +17,7 @@
                     </div>
                     <div class="card-body">
                         <form method="POST" action="{{ route('roles.update', $role->id) }}"  role="form" enctype="multipart/form-data">
-                            {{ method_field('PATCH') }}
+                            {{ method_field('PUT') }}
                             @csrf
 
                             @include('role.form')

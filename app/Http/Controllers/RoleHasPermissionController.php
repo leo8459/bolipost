@@ -2,111 +2,41 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\RoleHasPermission;
-use Illuminate\Http\Request;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
-
-/**
- * Class RoleHasPermissionController
- * @package App\Http\Controllers
- */
 class RoleHasPermissionController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
     public function index()
     {
-        $roleHasPermissions = RoleHasPermission::paginate();
-        $permissions = Permission::pluck('name', 'id');
-        $roles = Role::pluck('name', 'id');
-
-        return view('role-has-permission.index', compact('roleHasPermissions', 'permissions', 'roles'))
-            ->with('i', (request()->input('page', 1) - 1) * $roleHasPermissions->perPage());
+        return redirect()->route('roles.index')
+            ->with('warning', 'La gestion de accesos ahora se realiza desde Roles.');
     }
 
     public function create()
     {
-        $roleHasPermission = new RoleHasPermission();
-        $permissions = Permission::pluck('name', 'id');
-        $roles = Role::pluck('name', 'id');
-        
-        return view('role-has-permission.create', compact('roleHasPermission', 'permissions', 'roles'));
+        return redirect()->route('roles.create');
     }
-    
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
+    public function store()
     {
-        request()->validate(RoleHasPermission::$rules);
-
-        $roleHasPermission = RoleHasPermission::create($request->all());
-
-        return redirect()->route('role-has-permissions.index')
-            ->with('success', 'RoleHasPermission created successfully.');
+        return redirect()->route('roles.index');
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int $id
-     * @return \Illuminate\Http\Response
-     */
     public function show($id)
     {
-        $roleHasPermission = RoleHasPermission::find($id);
-
-        return view('role-has-permission.show', compact('roleHasPermission'));
+        return redirect()->route('roles.index');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int $id
-     * @return \Illuminate\Http\Response
-     */
     public function edit($id)
     {
-        $roleHasPermission = RoleHasPermission::find($id);
-
-        return view('role-has-permission.edit', compact('roleHasPermission'));
+        return redirect()->route('roles.index');
     }
 
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request $request
-     * @param  RoleHasPermission $roleHasPermission
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, RoleHasPermission $roleHasPermission)
+    public function update($id)
     {
-        request()->validate(RoleHasPermission::$rules);
-
-        $roleHasPermission->update($request->all());
-
-        return redirect()->route('role-has-permissions.index')
-            ->with('success', 'RoleHasPermission updated successfully');
+        return redirect()->route('roles.index');
     }
 
-    /**
-     * @param int $id
-     * @return \Illuminate\Http\RedirectResponse
-     * @throws \Exception
-     */
-    public function destroy($id)
+    public function destroy()
     {
-        $roleHasPermission = RoleHasPermission::find($id)->delete();
-
-        return redirect()->route('role-has-permissions.index')
-            ->with('success', 'RoleHasPermission deleted successfully');
+        return redirect()->route('roles.index');
     }
 }

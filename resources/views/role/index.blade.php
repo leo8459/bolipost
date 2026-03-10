@@ -29,6 +29,11 @@
                             <p>{{ $message }}</p>
                         </div>
                     @endif
+                    @if ($message = Session::get('warning'))
+                        <div class="alert alert-warning">
+                            <p>{{ $message }}</p>
+                        </div>
+                    @endif
 
                     <div class="card-body">
                         <div class="table-responsive">
@@ -38,6 +43,7 @@
                                         <th>No</th>
 
                                         <th>Rol</th>
+                                        <th>Permisos</th>
 
                                         <th></th>
                                     </tr>
@@ -48,6 +54,7 @@
                                             <td>{{ ++$i }}</td>
 
                                             <td>{{ $role->name }}</td>
+                                            <td>{{ $role->permissions_count }}</td>
 
                                             <td>
                                                 <form action="{{ route('roles.destroy', $role->id) }}" method="POST">

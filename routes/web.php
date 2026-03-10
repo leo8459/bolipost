@@ -62,31 +62,31 @@ Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
     ->name('api.public.zona-paquete');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'route.permission'])
     ->name('dashboard');
 Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'route.permission'])
     ->name('dashboard.export.excel');
 Route::get('/dashboard/export/pdf', [DashboardController::class, 'exportPdf'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'route.permission'])
     ->name('dashboard.export.pdf');
 Route::get('/reportes', [ReportesController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'route.permission'])
     ->name('reportes.index');
 Route::get('/reportes/{scope}', [ReportesController::class, 'show'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'route.permission'])
     ->where('scope', 'general|contrato|ems|certi|ordi')
     ->name('reportes.scope');
 Route::get('/reportes/{scope}/export/excel', [ReportesController::class, 'exportExcel'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'route.permission'])
     ->where('scope', 'general|contrato|ems|certi|ordi')
     ->name('reportes.export.excel');
 Route::get('/reportes/{scope}/export/pdf', [ReportesController::class, 'exportPdf'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'route.permission'])
     ->where('scope', 'general|contrato|ems|certi|ordi')
     ->name('reportes.export.pdf');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
@@ -125,7 +125,7 @@ Route::middleware('auth')->group(function () {
     // Route::get('/role-has-permission/{roleHasPermission}', [RoleHasPermissionController::class, 'show'])->name('role-has-permissions.show');
     Route::post('/role-has-permission', [RoleHasPermissionController::class, 'store'])->name('role-has-permissions.store');
     Route::get('/role-has-permission/{roleHasPermission}/edit', [RoleHasPermissionController::class, 'edit'])->name('role-has-permissions.edit');
-    Route::put('/role-has-permission/{roleHasPermission', [RoleHasPermissionController::class, 'update'])->name('role-has-permissions.update');
+    Route::put('/role-has-permission/{roleHasPermission}', [RoleHasPermissionController::class, 'update'])->name('role-has-permissions.update');
     Route::delete('/role-has-permission/{roleHasPermission}', [RoleHasPermissionController::class, 'destroy'])->name('role-has-permissions.destroy');
 
 

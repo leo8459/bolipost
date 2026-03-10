@@ -2,17 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use Spatie\Permission\Models\Role;
+use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Permission;
-use Illuminate\Http\Request;
 
 class PermissionController extends Controller
 {
-
     public function index()
     {
-        $permissions = Permission::paginate();
+        $permissions = Permission::orderBy('name')->paginate(20);
 
         return view('permission.index', compact('permissions'))
             ->with('i', (request()->input('page', 1) - 1) * $permissions->perPage());
@@ -21,17 +19,20 @@ class PermissionController extends Controller
     public function create()
     {
         $permission = new Permission();
+
         return view('permission.create', compact('permission'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|unique:roles',
-            // Otras reglas de validación según tus necesidades
+            'name' => 'required|string|max:255|unique:permissions,name',
         ]);
 
-        $permission = Permission::create($request->all());
+        Permission::create([
+            'name' => $request->name,
+            'guard_name' => 'web',
+        ]);
 
         return redirect()->route('permissions.index')
             ->with('success', 'Permiso creado correctamente.');
@@ -39,14 +40,14 @@ class PermissionController extends Controller
 
     public function show($id)
     {
-        $permission = Permission::find($id);
+        $permission = Permission::findOrFail($id);
 
         return view('permission.show', compact('permission'));
     }
 
     public function edit($id)
     {
-        $permission = Permission::find($id);
+        $permission = Permission::findOrFail($id);
 
         return view('permission.edit', compact('permission'));
     }
@@ -56,6 +57,8 @@ class PermissionController extends Controller
         $request->validate([
             'name' => [
                 'required',
+                'string',
+                'max:255',
                 Rule::unique('permissions')->ignore($permission->id),
             ],
         ]);
@@ -68,9 +71,9 @@ class PermissionController extends Controller
 
     public function destroy($id)
     {
-        $permission = Permission::find($id)->delete();
+        Permission::findOrFail($id)->delete();
 
         return redirect()->route('permissions.index')
-            ->with('success', 'Permiso eliminado correctamente');
+            ->with('success', 'Permiso eliminado correctamente.');
     }
 }

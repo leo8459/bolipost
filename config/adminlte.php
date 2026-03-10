@@ -778,7 +778,7 @@ return [
                         ],
                         [
                             'text' => 'Accesos',
-                            'url' => 'role-has-permissions',
+                            'url' => 'roles',
                             'icon' => 'fas fa-key',
                         ],
                     ],
@@ -845,6 +845,7 @@ return [
     */
 
     'filters' => [
+        App\Menu\Filters\RoutePermissionFilter::class,
         JeroenNoten\LaravelAdminLte\Menu\Filters\GateFilter::class,
         JeroenNoten\LaravelAdminLte\Menu\Filters\HrefFilter::class,
         JeroenNoten\LaravelAdminLte\Menu\Filters\SearchFilter::class,
