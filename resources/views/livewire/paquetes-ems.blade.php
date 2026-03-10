@@ -598,6 +598,9 @@
 
                 <div class="table-scroll-wrap">
                     <div class="table-responsive">
+                    @php
+                        $fechaGeneracionReporte = '10/03/2026 18:36:44';
+                    @endphp
                     <table class="table table-hover align-middle">
                         <thead>
                             @if ($this->isEnTransitoEms)
@@ -606,6 +609,7 @@
                                     <th>Origen</th>
                                     <th>Destino</th>
                                     <th>Cod. especial</th>
+                                    <th>Traspaso</th>
                                 </tr>
                             @elseif ($this->isAlmacenEms || $this->isTransitoEms)
                                 <tr>
@@ -626,6 +630,7 @@
                                     <th>Telefono R</th>
                                     <th>Telefono D</th>
                                     <th>Creado</th>
+                                    <th>Traspaso</th>
                                     <th>Acciones</th>
                                 </tr>
                             @else
@@ -648,6 +653,7 @@
                                     <th>Nombre destinatario</th>
                                     <th>Telefono destinatario</th>
                                     <th>Ciudad</th>
+                                    <th>Traspaso</th>
                                     <th>Acciones</th>
                                 </tr>
                             @endif
@@ -660,10 +666,11 @@
                                         <td>{{ $row->origen ?: '-' }}</td>
                                         <td>{{ $row->destino ?: '-' }}</td>
                                         <td>{{ $row->cod_especial ?: '-' }}</td>
+                                        <td>{{ $fechaGeneracionReporte }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="4" class="text-center py-5">
+                                        <td colspan="5" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -695,6 +702,7 @@
                                         <td>{{ $row->telefono_r }}</td>
                                         <td>{{ $row->telefono_d }}</td>
                                         <td>{{ \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') }}</td>
+                                        <td>{{ $fechaGeneracionReporte }}</td>
                                         <td>
                                             @if (($row->record_type ?? '') === 'EMS')
                                                 @if ($this->isAlmacenEms || $this->isTransitoEms)
@@ -730,7 +738,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms) ? 16 : 15 }}" class="text-center py-5">
+                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms) ? 17 : 16 }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -762,6 +770,7 @@
                                         <td>{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario }}</td>
                                         <td>{{ $formulario->telefono_destinatario ?? $paquete->telefono_destinatario }}</td>
                                         <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
+                                        <td>{{ $fechaGeneracionReporte }}</td>
                                         <td>
                                             <button wire:click="openEditModal({{ $paquete->id }})"
                                                 class="btn btn-sm btn-azul"
@@ -786,7 +795,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ $this->canSelect ? 17 : 16 }}" class="text-center py-5">
+                                        <td colspan="{{ $this->canSelect ? 18 : 17 }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -1465,6 +1474,9 @@
                     <div class="mb-2">
                         Registros a recibir: <strong>{{ count($recibirRegionalPreview) }}</strong>
                     </div>
+                    <div class="alert alert-info py-2">
+                        Revisa el peso de cada registro. Si esta correcto, solo confirma la recepcion.
+                    </div>
 
                     <div class="table-responsive">
                         <table class="table table-sm table-striped">
@@ -1488,7 +1500,18 @@
                                         <td>{{ $item['nombre_remitente'] ?: '-' }}</td>
                                         <td>{{ $item['nombre_destinatario'] ?: '-' }}</td>
                                         <td>{{ $item['ciudad'] ?: '-' }}</td>
-                                        <td>{{ $item['peso'] ?: '-' }}</td>
+                                        <td style="min-width: 140px;">
+                                            <input
+                                                type="number"
+                                                class="form-control form-control-sm"
+                                                wire:model.defer="recibirRegionalPesos.{{ $item['peso_key'] }}"
+                                                step="0.001"
+                                                min="0"
+                                            >
+                                            @error('recibirRegionalPesos.' . ($item['peso_key'] ?? ''))
+                                                <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                            @enderror
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr>

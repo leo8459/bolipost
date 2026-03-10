@@ -104,6 +104,7 @@
                 <th>Codigo</th>
                 <th>Usuario</th>
                 <th>Fecha/Hora de registro</th>
+                <th>Traspaso</th>
             </tr>
         </thead>
         <tbody>
@@ -113,6 +114,7 @@
                     <td>{{ $paquete->codigo }}</td>
                     <td>{{ optional($paquete->user)->name ?? 'N/A' }}</td>
                     <td>{{ optional($paquete->created_at)->format('d/m/Y H:i:s') }}</td>
+                    <td>{{ $generatedAt->format('d/m/Y H:i:s') }}</td>
                 </tr>
             @endforeach
         </tbody>

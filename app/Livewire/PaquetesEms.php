@@ -64,6 +64,7 @@ class PaquetesEms extends Component
     public $entregaRecibidoPor = '';
     public $entregaDescripcion = '';
     public $recibirRegionalPreview = [];
+    public $recibirRegionalPesos = [];
 
     public $ciudades = [
         'LA PAZ',
@@ -832,6 +833,15 @@ class PaquetesEms extends Component
         $bloquesExtra = max(0, (int) ceil($peso - 1.0));
 
         return round($precioBaseKilo + ($bloquesExtra * $precioKiloExtra), 2);
+    }
+
+    protected function formatPesoEditable($peso): string
+    {
+        if ($peso === null || $peso === '') {
+            return '';
+        }
+
+        return number_format((float) $peso, 3, '.', '');
     }
 
     protected function normalizeTarifaText(string $value): string
@@ -1653,6 +1663,9 @@ class PaquetesEms extends Component
             return;
         }
 
+        $this->recibirRegionalPreview = [];
+        $this->recibirRegionalPesos = [];
+
         $idsEms = collect($this->selectedPaquetes)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -1710,29 +1723,34 @@ class PaquetesEms extends Component
         $previewEms = $paquetes
             ->map(function ($paquete) {
                 $formulario = $paquete->formulario;
+                $peso = $this->formatPesoEditable($formulario->peso ?? $paquete->peso);
 
                 return [
                     'id' => (int) $paquete->id,
+                    'peso_key' => 'ems_' . (int) $paquete->id,
                     'tipo' => 'EMS',
                     'codigo' => (string) $paquete->codigo,
                     'nombre_remitente' => (string) ($formulario->nombre_remitente ?? $paquete->nombre_remitente),
                     'nombre_destinatario' => (string) ($formulario->nombre_destinatario ?? $paquete->nombre_destinatario),
                     'ciudad' => (string) ($formulario->ciudad ?? $paquete->ciudad),
-                    'peso' => (string) ($formulario->peso ?? $paquete->peso),
+                    'peso' => $peso,
                 ];
             })
             ->values();
 
         $previewContratos = $contratos
             ->map(function ($contrato) {
+                $peso = $this->formatPesoEditable($contrato->peso);
+
                 return [
                     'id' => (int) $contrato->id,
+                    'peso_key' => 'contrato_' . (int) $contrato->id,
                     'tipo' => 'CONTRATO',
                     'codigo' => (string) $contrato->codigo,
                     'nombre_remitente' => (string) ($contrato->nombre_r ?? ''),
                     'nombre_destinatario' => (string) ($contrato->nombre_d ?? ''),
                     'ciudad' => (string) ($contrato->destino ?? ''),
-                    'peso' => (string) ($contrato->peso ?? ''),
+                    'peso' => $peso,
                 ];
             })
             ->values();
@@ -1740,6 +1758,15 @@ class PaquetesEms extends Component
         $this->recibirRegionalPreview = $previewEms
             ->merge($previewContratos)
             ->values()
+            ->all();
+
+        $this->recibirRegionalPesos = collect($this->recibirRegionalPreview)
+            ->mapWithKeys(function ($item) {
+                return [($item['peso_key'] ?? '') => $item['peso'] ?? ''];
+            })
+            ->filter(function ($value, $key) {
+                return $key !== '';
+            })
             ->all();
 
         $this->dispatch('openRecibirRegionalModal');
@@ -1750,6 +1777,28 @@ class PaquetesEms extends Component
         if (!$this->isTransitoEms) {
             return;
         }
+
+        if (empty($this->recibirRegionalPreview)) {
+            session()->flash('error', 'No hay registros preparados para recibir.');
+            return;
+        }
+
+        $rules = [];
+        $messages = [];
+        foreach ($this->recibirRegionalPreview as $item) {
+            $pesoKey = $item['peso_key'] ?? null;
+            $codigo = (string) ($item['codigo'] ?? 'SIN CODIGO');
+            if (!$pesoKey) {
+                continue;
+            }
+
+            $rules['recibirRegionalPesos.' . $pesoKey] = 'required|numeric|min:0';
+            $messages['recibirRegionalPesos.' . $pesoKey . '.required'] = 'El peso para ' . $codigo . ' es obligatorio.';
+            $messages['recibirRegionalPesos.' . $pesoKey . '.numeric'] = 'El peso para ' . $codigo . ' debe ser numerico.';
+            $messages['recibirRegionalPesos.' . $pesoKey . '.min'] = 'El peso para ' . $codigo . ' no puede ser negativo.';
+        }
+
+        $this->validate($rules, $messages);
 
         $idsEms = collect($this->selectedPaquetes)
             ->filter()
@@ -1794,10 +1843,11 @@ class PaquetesEms extends Component
         $paquetesRecibir = collect();
         if (!empty($idsEms)) {
             $paquetesRecibir = PaqueteEms::query()
+                ->with('formulario:id,paquete_ems_id,peso')
                 ->whereIn('id', $idsEms)
                 ->where('estado_id', (int) $estadoRegionalRecepcionId)
                 ->orderBy('id')
-                ->get(['id', 'codigo']);
+                ->get(['id', 'codigo', 'peso', 'estado_id']);
         }
 
         $contratosRecibir = collect();
@@ -1806,23 +1856,42 @@ class PaquetesEms extends Component
                 ->whereIn('id', $idsContratos)
                 ->where('estados_id', (int) $estadoRegionalRecepcionId)
                 ->orderBy('id')
-                ->get(['id', 'codigo']);
+                ->get(['id', 'codigo', 'peso', 'estados_id']);
         }
 
         $updatedEms = 0;
         $updatedContratos = 0;
+        $pesosRecibir = collect($this->recibirRegionalPesos)
+            ->mapWithKeys(function ($peso, $key) {
+                return [$key => round((float) $peso, 3)];
+            });
+
         DB::transaction(function () use (
             $estadoRecibido,
             $paquetesRecibir,
             $contratosRecibir,
             $actorUserId,
+            $pesosRecibir,
             &$updatedEms,
             &$updatedContratos
         ) {
             if ($paquetesRecibir->isNotEmpty()) {
-                $updatedEms = PaqueteEms::query()
-                    ->whereIn('id', $paquetesRecibir->pluck('id')->all())
-                    ->update(['estado_id' => $estadoRecibido]);
+                foreach ($paquetesRecibir as $paquete) {
+                    $peso = $pesosRecibir->get('ems_' . (int) $paquete->id);
+                    if ($peso !== null) {
+                        $paquete->peso = $peso;
+                    }
+
+                    $paquete->estado_id = $estadoRecibido;
+                    $paquete->save();
+
+                    if ($paquete->formulario) {
+                        $paquete->formulario->peso = $paquete->peso;
+                        $paquete->formulario->save();
+                    }
+
+                    $updatedEms++;
+                }
 
                 $this->registerEventosEms(
                     $paquetesRecibir,
@@ -1832,9 +1901,16 @@ class PaquetesEms extends Component
             }
 
             if ($contratosRecibir->isNotEmpty()) {
-                $updatedContratos = RecojoContrato::query()
-                    ->whereIn('id', $contratosRecibir->pluck('id')->all())
-                    ->update(['estados_id' => $estadoRecibido]);
+                foreach ($contratosRecibir as $contrato) {
+                    $peso = $pesosRecibir->get('contrato_' . (int) $contrato->id);
+                    if ($peso !== null) {
+                        $contrato->peso = $peso;
+                    }
+
+                    $contrato->estados_id = $estadoRecibido;
+                    $contrato->save();
+                    $updatedContratos++;
+                }
 
                 $this->registerEventosContrato(
                     $contratosRecibir,
@@ -1849,6 +1925,7 @@ class PaquetesEms extends Component
         $this->selectedPaquetes = [];
         $this->selectedContratos = [];
         $this->recibirRegionalPreview = [];
+        $this->recibirRegionalPesos = [];
         $this->dispatch('closeRecibirRegionalModal');
         session()->flash(
             'success',
