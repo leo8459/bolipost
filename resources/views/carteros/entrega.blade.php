@@ -67,7 +67,7 @@
 
                     <div class="row">
                         <div class="col-lg-7">
-                            <form method="POST" action="{{ route('carteros.entrega.store') }}" class="mb-3 mb-lg-0"
+                            <form method="POST" action="{{ route('carteros.entrega.store') }}" class="mb-3 mb-lg-0 entrega-upload-form"
                                 enctype="multipart/form-data">
                                 @csrf
                                 <input type="hidden" name="tipo_paquete" value="{{ $tipo_paquete }}">
@@ -87,16 +87,20 @@
                                     <small class="text-muted d-block mt-1">
                                         En celular se abre la camara. En PC se abre selector de archivos.
                                     </small>
+                                    <small class="text-muted d-block mt-1 foto-upload-hint">
+                                        Si la foto es muy pesada, se reduce automaticamente antes de enviar.
+                                    </small>
                                     <div class="foto-preview-wrap mt-2 d-none" id="preview_entrega_wrap">
                                         <img id="preview_entrega" class="foto-preview-img" alt="Vista previa de foto de entrega">
                                     </div>
+                                    <div class="small text-info mt-2 d-none foto-upload-status"></div>
                                 </div>
 
                                 <button type="submit" class="btn btn-success px-4">Confirmar entrega</button>
                             </form>
                         </div>
                         <div class="col-lg-5 d-flex align-items-end">
-                            <form method="POST" action="{{ route('carteros.entrega.intento') }}" class="w-100"
+                            <form method="POST" action="{{ route('carteros.entrega.intento') }}" class="w-100 entrega-upload-form"
                                 enctype="multipart/form-data">
                                 @csrf
                                 <input type="hidden" name="tipo_paquete" value="{{ $tipo_paquete }}">
@@ -109,9 +113,13 @@
                                     <small class="text-muted d-block mt-1">
                                         En celular se abre la camara. En PC se abre selector de archivos.
                                     </small>
+                                    <small class="text-muted d-block mt-1 foto-upload-hint">
+                                        Si la foto es muy pesada, se reduce automaticamente antes de enviar.
+                                    </small>
                                     <div class="foto-preview-wrap mt-2 d-none" id="preview_intento_wrap">
                                         <img id="preview_intento" class="foto-preview-img" alt="Vista previa de foto de intento">
                                     </div>
+                                    <div class="small text-info mt-2 d-none foto-upload-status"></div>
                                 </div>
                                 <button type="submit" class="btn btn-warning px-4">Agregar intento</button>
                             </form>
@@ -200,6 +208,9 @@
             const descripcion = document.getElementById('descripcion_unica');
             const entregaInput = document.getElementById('descripcion_entrega');
             const intentoInput = document.getElementById('descripcion_intento');
+            const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+            const TARGET_MAX_BYTES = 1200 * 1024;
+            const MAX_DIMENSION = 1600;
 
             if (!descripcion || !entregaInput || !intentoInput) return;
 
@@ -235,6 +246,149 @@
                     img.onload = function() {
                         URL.revokeObjectURL(objectUrl);
                     };
+                });
+            });
+
+            const setStatus = (form, message) => {
+                const status = form.querySelector('.foto-upload-status');
+                if (!status) return;
+
+                if (!message) {
+                    status.textContent = '';
+                    status.classList.add('d-none');
+                    return;
+                }
+
+                status.textContent = message;
+                status.classList.remove('d-none');
+            };
+
+            const dataUrlToBlob = (dataUrl) => {
+                const parts = dataUrl.split(',');
+                if (parts.length !== 2) {
+                    return null;
+                }
+
+                const mimeMatch = parts[0].match(/data:(.*?);base64/);
+                const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+                const binary = atob(parts[1]);
+                const bytes = new Uint8Array(binary.length);
+
+                for (let i = 0; i < binary.length; i += 1) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+
+                return new Blob([bytes], { type: mime });
+            };
+
+            const loadImage = (file) => new Promise((resolve, reject) => {
+                const img = new Image();
+                const objectUrl = URL.createObjectURL(file);
+
+                img.onload = function() {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(img);
+                };
+
+                img.onerror = function() {
+                    URL.revokeObjectURL(objectUrl);
+                    reject(new Error('No se pudo leer la imagen.'));
+                };
+
+                img.src = objectUrl;
+            });
+
+            const compressImage = async (file) => {
+                if (!file.type.startsWith('image/') || !/image\/(jpeg|jpg|png|webp)/i.test(file.type)) {
+                    return file;
+                }
+
+                const img = await loadImage(file);
+                let width = img.naturalWidth || img.width;
+                let height = img.naturalHeight || img.height;
+
+                if (!width || !height) {
+                    return file;
+                }
+
+                if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+                    const scale = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+                    width = Math.max(1, Math.round(width * scale));
+                    height = Math.max(1, Math.round(height * scale));
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    return file;
+                }
+
+                ctx.drawImage(img, 0, 0, width, height);
+
+                let quality = 0.82;
+                let blob = dataUrlToBlob(canvas.toDataURL('image/jpeg', quality));
+
+                while (blob && blob.size > TARGET_MAX_BYTES && quality > 0.45) {
+                    quality -= 0.08;
+                    blob = dataUrlToBlob(canvas.toDataURL('image/jpeg', quality));
+                }
+
+                if (!blob || blob.size >= file.size) {
+                    return file;
+                }
+
+                const name = (file.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg';
+                return new File([blob], name, {
+                    type: 'image/jpeg',
+                    lastModified: Date.now(),
+                });
+            };
+
+            document.querySelectorAll('.entrega-upload-form').forEach((form) => {
+                form.addEventListener('submit', async function(event) {
+                    if (form.dataset.compressed === '1') {
+                        return;
+                    }
+
+                    const fileInput = form.querySelector('.foto-input');
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+                    if (!file || file.size <= MAX_UPLOAD_BYTES) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    setStatus(form, 'Reduciendo foto antes de enviar...');
+
+                    try {
+                        const processedFile = await compressImage(file);
+
+                        if (processedFile.size > MAX_UPLOAD_BYTES) {
+                            setStatus(form, 'La foto sigue siendo muy grande. Toma una foto con menor resolucion.');
+                            return;
+                        }
+
+                        if (processedFile !== file && typeof DataTransfer !== 'undefined') {
+                            const transfer = new DataTransfer();
+                            transfer.items.add(processedFile);
+                            fileInput.files = transfer.files;
+                        }
+
+                        form.dataset.compressed = '1';
+                        setStatus(form, 'Foto lista. Enviando...');
+
+                        if (submitButton) {
+                            submitButton.disabled = true;
+                        }
+
+                        form.submit();
+                    } catch (error) {
+                        setStatus(form, 'No se pudo optimizar la foto. Intenta con una imagen mas liviana.');
+                    }
                 });
             });
         })();
