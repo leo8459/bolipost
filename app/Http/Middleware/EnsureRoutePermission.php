@@ -42,15 +42,27 @@ class EnsureRoutePermission
             return $next($request);
         }
 
-        // If permission wasn't created yet, do not block here.
-        if (! AclPermissionRegistry::permissionExists($permissionName)) {
+        $permissionsToCheck = array_values(array_unique(array_merge(
+            [$permissionName],
+            AclPermissionRegistry::featurePermissionsForRoute($permissionName),
+        )));
+
+        // If permissions were not created yet, do not block here.
+        $existingPermissions = array_values(array_filter(
+            $permissionsToCheck,
+            fn (string $permission): bool => AclPermissionRegistry::permissionExists($permission)
+        ));
+
+        if ($existingPermissions === []) {
             return $next($request);
         }
 
-        if (! $user->can($permissionName)) {
-            abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
+        foreach ($existingPermissions as $permission) {
+            if ($user->can($permission)) {
+                return $next($request);
+            }
         }
 
-        return $next($request);
+        abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
     }
 }

@@ -80,6 +80,7 @@
                                     >
                                     <label class="custom-control-label" for="{{ $permissionId }}">
                                         {{ $permission['action_label'] }}
+                                        <span class="badge badge-light border ml-1">{{ $permission['type_label'] ?? 'Permiso' }}</span>
                                         <small class="d-block text-muted">{{ $permission['name'] }}</small>
                                     </label>
                                 </div>

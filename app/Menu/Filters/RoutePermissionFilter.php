@@ -33,6 +33,19 @@ class RoutePermissionFilter implements FilterInterface
             return $item;
         }
 
+        $candidatePermissions = array_values(array_unique(array_merge(
+            [$routeName],
+            AclPermissionRegistry::featurePermissionsForRoute($routeName),
+        )));
+
+        foreach ($candidatePermissions as $permissionName) {
+            if (AclPermissionRegistry::permissionExists($permissionName) && Auth::user()?->can($permissionName)) {
+                $item['can'] = $permissionName;
+
+                return $item;
+            }
+        }
+
         if (! AclPermissionRegistry::permissionExists($routeName)) {
             return $item;
         }

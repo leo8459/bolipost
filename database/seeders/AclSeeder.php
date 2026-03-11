@@ -52,8 +52,12 @@ class AclSeeder extends Seeder
 
         return collect($permissionNames)
             ->filter(function (string $permission) use ($patterns): bool {
+                $normalizedPermission = str_starts_with($permission, 'feature.')
+                    ? (string) Str::after($permission, 'feature.')
+                    : $permission;
+
                 foreach ($patterns as $pattern) {
-                    if (Str::is($pattern, $permission)) {
+                    if (Str::is($pattern, $permission) || Str::is($pattern, $normalizedPermission)) {
                         return true;
                     }
                 }
