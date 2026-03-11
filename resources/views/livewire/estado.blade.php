@@ -190,11 +190,13 @@
                                     <td>{{ $estado->activo ? 'Si' : 'No' }}</td>
                                     <td class="muted small">{{ optional($estado->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $estado->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
+                                        @endaclcan
                                         <button wire:click="delete({{ $estado->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
@@ -272,4 +274,5 @@
         $('#estadoModal').modal('hide');
     });
 </script>
+
 

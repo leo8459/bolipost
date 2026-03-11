@@ -138,9 +138,11 @@
                                             title="Reimprimir rotulo">
                                             <i class="fas fa-print"></i>
                                         </a>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $recojo->id }})" class="btn btn-sm btn-azul" title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
+                                        @endaclcan
                                         <button wire:click="delete({{ $recojo->id }})" class="btn btn-sm btn-outline-azul"
                                             title="Eliminar" onclick="return confirm('Seguro que deseas eliminar este contrato?')">
                                             <i class="fas fa-trash"></i>
@@ -309,4 +311,5 @@
         $('#recojoModal').modal('hide');
     });
 </script>
+
 

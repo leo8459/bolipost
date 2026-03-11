@@ -188,11 +188,13 @@
                                     <td>{{ $servicio->nombre_servicio }}</td>
                                     <td class="muted small">{{ optional($servicio->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $servicio->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
+                                        @endaclcan
                                         <button wire:click="delete({{ $servicio->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
@@ -262,4 +264,5 @@
         $('#servicioModal').modal('hide');
     });
 </script>
+
 

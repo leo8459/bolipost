@@ -188,11 +188,13 @@
                                     <td>{{ $origen->nombre_origen }}</td>
                                     <td class="muted small">{{ optional($origen->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $origen->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
+                                        @endaclcan
                                         <button wire:click="delete({{ $origen->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
@@ -267,4 +269,5 @@
         $('#origenModal').modal('hide');
     });
 </script>
+
 

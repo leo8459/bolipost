@@ -202,11 +202,13 @@
                                     <td class="muted">{{ $t->observacion ?? '—' }}</td>
                                     <td class="muted small">{{ optional($t->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $t->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
+                                        @endaclcan
                                         <button wire:click="delete({{ $t->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
@@ -331,4 +333,5 @@
         $('#tarifarioModal').modal('hide');
     });
 </script>
+
 

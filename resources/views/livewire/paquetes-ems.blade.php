@@ -710,11 +710,13 @@
                                         <td>
                                             @if (($row->record_type ?? '') === 'EMS')
                                                 @if ($this->isAlmacenEms || $this->isTransitoEms)
+                                                    @aclcan('edit', $this)
                                                     <button wire:click="openEditModal({{ $row->record_id }})"
                                                         class="btn btn-sm btn-azul"
                                                         title="Editar">
                                                         <i class="fas fa-pen"></i>
                                                     </button>
+                                                    @endaclcan
                                                 @endif
                                                 <a href="{{ route('paquetes-ems.boleta', $row->record_id) }}"
                                                    class="btn btn-sm btn-outline-azul"
@@ -776,11 +778,13 @@
                                         <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
                                         <td>{{ $fechaGeneracionReporte }}</td>
                                         <td>
+                                            @aclcan('edit', $this)
                                             <button wire:click="openEditModal({{ $paquete->id }})"
                                                 class="btn btn-sm btn-azul"
                                                 title="Editar">
                                                 <i class="fas fa-pen"></i>
                                             </button>
+                                            @endaclcan
                                             <a href="{{ route('paquetes-ems.boleta', $paquete->id) }}"
                                                class="btn btn-sm btn-outline-azul"
                                                target="_blank"
@@ -1611,3 +1615,4 @@
     });
 
 </script>
+

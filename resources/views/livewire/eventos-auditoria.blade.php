@@ -192,11 +192,13 @@
                                     <td>{{ optional($registro->user)->name ?? '-' }}</td>
                                     <td class="muted small">{{ optional($registro->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $registro->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
+                                        @endaclcan
                                         <button wire:click="delete({{ $registro->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
@@ -286,4 +288,5 @@
         $('#eventosAuditoriaModal').modal('hide');
     });
 </script>
+
 

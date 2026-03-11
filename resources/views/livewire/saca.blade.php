@@ -187,9 +187,11 @@
                                     <td>{{ $saca->receptaculo }}</td>
                                     <td>{{ optional($saca->despacho)->identificador }}</td>
                                     <td>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $saca->id }})" class="btn btn-sm btn-azul" title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
+                                        @endaclcan
                                         <button wire:click="delete({{ $saca->id }})" class="btn btn-sm btn-outline-azul" title="Eliminar" onclick="return confirm('Seguro que deseas eliminar esta saca?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
@@ -338,4 +340,5 @@
         $('#sacaModal').modal('hide');
     });
 </script>
+
 

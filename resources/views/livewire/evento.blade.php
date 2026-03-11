@@ -188,11 +188,13 @@
                                     <td><span class="pill-id">{{ $evento->nombre_evento }}</span></td>
                                     <td class="muted small">{{ optional($evento->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $evento->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
+                                        @endaclcan
                                         <button wire:click="delete({{ $evento->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
@@ -262,5 +264,6 @@
         $('#eventoModal').modal('hide');
     });
 </script>
+
 
 

@@ -322,14 +322,12 @@ class AclPermissionRegistry
         $permissions = [];
 
         foreach ($targets as $target) {
-            $moduleKey = $target['module'];
-            $featureAction = $target['action'];
-
-            $permissions[] = self::featurePermissionName($moduleKey, $featureAction);
-            $permissions[] = self::featurePermissionName($moduleKey, 'manage');
-
-            foreach (self::routePermissionsForModuleAction($moduleKey, $featureAction) as $routePermission) {
-                $permissions[] = $routePermission;
+            foreach (self::authorizationPermissionsForModuleAction(
+                $target['module'],
+                $target['action'],
+                false
+            ) as $permission) {
+                $permissions[] = $permission;
             }
         }
 
@@ -356,6 +354,44 @@ class AclPermissionRegistry
         foreach ($targets as $target) {
             $permissions[] = self::featurePermissionName($target['module'], $target['action']);
             $permissions[] = self::featurePermissionName($target['module'], 'manage');
+        }
+
+        return array_values(array_unique($permissions));
+    }
+
+    /**
+     * Resolve ACL module keys from a Livewire component class/instance.
+     *
+     * @return array<int, string>
+     */
+    public static function moduleKeysForLivewireComponent(string $componentClass, ?object $component = null): array
+    {
+        return self::livewireModulesForComponent($componentClass, $component);
+    }
+
+    /**
+     * Permission candidates that can authorize a module feature action.
+     *
+     * @return array<int, string>
+     */
+    public static function authorizationPermissionsForModuleAction(
+        string $moduleKey,
+        string $featureAction,
+        bool $includeManage = true
+    ): array
+    {
+        if ($moduleKey === '' || $featureAction === '') {
+            return [];
+        }
+
+        $permissions = [self::featurePermissionName($moduleKey, $featureAction)];
+
+        if ($includeManage) {
+            $permissions[] = self::featurePermissionName($moduleKey, 'manage');
+        }
+
+        foreach (self::routePermissionsForModuleAction($moduleKey, $featureAction) as $routePermission) {
+            $permissions[] = $routePermission;
         }
 
         return array_values(array_unique($permissions));

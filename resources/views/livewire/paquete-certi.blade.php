@@ -229,10 +229,12 @@
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? 'Sin estado' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $paquete->id }})"
                                             class="btn btn-sm btn-azul">
                                             Editar
                                         </button>
+                                        @endaclcan
                                         @if ($this->isInventory)
                                             <a href="{{ route('paquetes-certificados.baja-pdf', ['ids' => $paquete->id]) }}"
                                                 class="btn btn-sm btn-outline-azul"
@@ -465,4 +467,5 @@
         }
     });
 </script>
+
 

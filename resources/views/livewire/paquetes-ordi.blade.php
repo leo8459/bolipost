@@ -181,7 +181,9 @@
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? '-' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $paquete->id }})" class="btn btn-sm btn-azul">Editar</button>
+                                        @endaclcan
                                         @if ($this->isClasificacion)
                                             <button wire:click="delete({{ $paquete->id }})" class="btn btn-sm btn-outline-azul" onclick="return confirm('Seguro que deseas eliminar este paquete?')">Borrar</button>
                                         @endif
@@ -446,4 +448,5 @@
         $('#recibirModal').modal('hide');
     });
 </script>
+
 

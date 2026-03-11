@@ -219,11 +219,13 @@
                                                 <i class="fas fa-unlock"></i>
                                             </button>
                                         @endif
+                                        @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $despacho->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
+                                        @endaclcan
                                         <button wire:click="delete({{ $despacho->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
@@ -333,4 +335,5 @@
         }
     });
 </script>
+
 
