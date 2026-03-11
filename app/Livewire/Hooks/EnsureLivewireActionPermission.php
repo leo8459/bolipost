@@ -47,13 +47,14 @@ class EnsureLivewireActionPermission extends ComponentHook
             return;
         }
 
-        $existingPermissions = array_values(array_filter(
-            array_unique($permissionsToCheck),
-            fn (string $permission): bool => AclPermissionRegistry::permissionExists($permission)
-        ));
+        $existingPermissions = AclPermissionRegistry::existingPermissionsFrom($permissionsToCheck);
 
         if ($existingPermissions === []) {
-            return;
+            if ((bool) config('acl.route_permission.allow_when_permission_missing', true)) {
+                return;
+            }
+
+            abort(403, 'No se encontro la configuracion de permisos para esta accion.');
         }
 
         foreach ($existingPermissions as $permission) {
@@ -65,4 +66,3 @@ class EnsureLivewireActionPermission extends ComponentHook
         abort(403, 'No tienes permiso para ejecutar esta funcionalidad.');
     }
 }
-

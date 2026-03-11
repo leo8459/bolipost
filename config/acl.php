@@ -12,6 +12,7 @@ return [
     */
     'route_permission' => [
         'enabled' => true,
+        'allow_when_permission_missing' => false,
     ],
 
     /*
@@ -60,6 +61,7 @@ return [
         'profile.edit',
         'profile.update',
         'profile.destroy',
+        'acl.livewire-actions',
     ],
 
     /*
@@ -71,6 +73,29 @@ return [
     |
     */
     'custom_permissions' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Automatic ACL Sync
+    |--------------------------------------------------------------------------
+    |
+    | Keeps route and action permissions synchronized in production without
+    | requiring manual seeding after each deployment.
+    |
+    */
+    'sync' => [
+        'enabled' => true,
+        'ttl_seconds' => 300,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | UI Behaviour
+    |--------------------------------------------------------------------------
+    */
+    'ui' => [
+        'auto_hide_livewire_actions' => true,
+    ],
 
     /*
     |--------------------------------------------------------------------------

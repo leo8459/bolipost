@@ -878,6 +878,16 @@ return [
                 ],
             ],
         ],
+        'AclUi' => [
+            'active' => true,
+            'files' => [
+                [
+                    'type' => 'js',
+                    'asset' => true,
+                    'location' => 'js/acl-ui.js',
+                ],
+            ],
+        ],
         'Datatables' => [
             'active' => false,
             'files' => [

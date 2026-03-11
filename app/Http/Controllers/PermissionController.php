@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AclPermissionRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Permission;
@@ -10,6 +11,8 @@ class PermissionController extends Controller
 {
     public function index()
     {
+        AclPermissionRegistry::syncPermissions();
+
         $permissions = Permission::orderBy('name')->paginate(20);
 
         return view('permission.index', compact('permissions'))
@@ -75,5 +78,13 @@ class PermissionController extends Controller
 
         return redirect()->route('permissions.index')
             ->with('success', 'Permiso eliminado correctamente.');
+    }
+
+    public function sync()
+    {
+        $permissionNames = AclPermissionRegistry::syncPermissions();
+
+        return redirect()->route('permissions.index')
+            ->with('success', 'Permisos sincronizados correctamente. Total: '.count($permissionNames));
     }
 }

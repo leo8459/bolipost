@@ -63,12 +63,13 @@ class AppServiceProvider extends ServiceProvider
 
             foreach ($moduleKeys as $moduleKey) {
                 $permissions = AclPermissionRegistry::authorizationPermissionsForModuleAction($moduleKey, $action, false);
-                $existingPermissions = array_values(array_filter(
-                    $permissions,
-                    fn (string $permission): bool => AclPermissionRegistry::permissionExists($permission)
-                ));
+                $existingPermissions = AclPermissionRegistry::existingPermissionsFrom($permissions);
 
                 if ($existingPermissions === []) {
+                    if ((bool) config('acl.route_permission.allow_when_permission_missing', true)) {
+                        continue;
+                    }
+
                     continue;
                 }
 

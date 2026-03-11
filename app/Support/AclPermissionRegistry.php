@@ -19,7 +19,7 @@ class AclPermissionRegistry
      * @var array<string, string>
      */
     private const ACTION_LABELS = [
-        'index' => 'Ver listado',
+        'index' => 'Acceso:Clasificacion',
         'show' => 'Ver detalle',
         'create' => 'Abrir formulario',
         'store' => 'Guardar nuevo',
@@ -35,6 +35,7 @@ class AclPermissionRegistry
         'pdf' => 'Exportar PDF',
         'download' => 'Descargar',
         'search' => 'Buscar',
+        'sync' => 'Sincronizar permisos',
         'entrega' => 'Registrar entrega',
         'boleta' => 'Ver boleta',
         'access' => 'Acceder',
@@ -53,12 +54,12 @@ class AclPermissionRegistry
         'restore' => 'Botones de restauracion',
         'export' => 'Botones de exportacion/descarga',
         'import' => 'Botones de importacion',
-        'assign' => 'Botones de asignacion',
+        'assign' => 'Botones de Recibir paquetes',
         'confirm' => 'Botones de confirmacion',
         'deliver' => 'Botones de entrega',
         'report' => 'Botones de reporte',
         'print' => 'Botones de impresion/boleta',
-        'manage' => 'Gestion total del modulo',
+        'manage' => 'Boton de alta de paquetes',
     ];
 
     /**
@@ -217,6 +218,11 @@ class AclPermissionRegistry
     private static ?array $cachedRouteLookup = null;
 
     /**
+     * @var array<string, bool>|null
+     */
+    private static ?array $cachedExistingPermissionLookup = null;
+
+    /**
      * Sync discovered permissions into database.
      *
      * @return array<int, string>
@@ -231,6 +237,7 @@ class AclPermissionRegistry
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+        self::$cachedExistingPermissionLookup = null;
 
         return $permissionNames;
     }
@@ -451,9 +458,49 @@ class AclPermissionRegistry
      */
     public static function permissionExists(string $permissionName): bool
     {
-        return app(PermissionRegistrar::class)
+        if ($permissionName === '') {
+            return false;
+        }
+
+        $lookup = self::existingPermissionLookup();
+
+        return isset($lookup[$permissionName]);
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    public static function existingPermissionLookup(): array
+    {
+        if (self::$cachedExistingPermissionLookup !== null) {
+            return self::$cachedExistingPermissionLookup;
+        }
+
+        self::$cachedExistingPermissionLookup = app(PermissionRegistrar::class)
             ->getPermissions()
-            ->contains('name', $permissionName);
+            ->pluck('name')
+            ->mapWithKeys(fn (string $permissionName): array => [$permissionName => true])
+            ->all();
+
+        return self::$cachedExistingPermissionLookup;
+    }
+
+    /**
+     * @param  array<int, string>  $permissions
+     * @return array<int, string>
+     */
+    public static function existingPermissionsFrom(array $permissions): array
+    {
+        if ($permissions === []) {
+            return [];
+        }
+
+        $lookup = self::existingPermissionLookup();
+
+        return array_values(array_filter(
+            array_unique($permissions),
+            fn (string $permissionName): bool => isset($lookup[$permissionName])
+        ));
     }
 
     /**

@@ -17,6 +17,12 @@
                             </span>
 
                             <div class="float-right">
+                                <form action="{{ route('permissions.sync') }}" method="POST" class="d-inline-block mr-2">
+                                    @csrf
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                        {{ __('Sincronizar permisos') }}
+                                    </button>
+                                </form>
                                 <a href="{{ route('permissions.create') }}" class="btn btn-primary btn-sm float-right"
                                     data-placement="left">
                                     {{ __('Crear Nuevo') }}

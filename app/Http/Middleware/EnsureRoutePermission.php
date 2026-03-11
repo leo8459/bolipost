@@ -47,14 +47,14 @@ class EnsureRoutePermission
             AclPermissionRegistry::featurePermissionsForRoute($permissionName),
         )));
 
-        // If permissions were not created yet, do not block here.
-        $existingPermissions = array_values(array_filter(
-            $permissionsToCheck,
-            fn (string $permission): bool => AclPermissionRegistry::permissionExists($permission)
-        ));
+        $existingPermissions = AclPermissionRegistry::existingPermissionsFrom($permissionsToCheck);
 
         if ($existingPermissions === []) {
-            return $next($request);
+            if ((bool) config('acl.route_permission.allow_when_permission_missing', true)) {
+                return $next($request);
+            }
+
+            abort(403, 'No se encontro la configuracion de permisos para esta ventana.');
         }
 
         foreach ($existingPermissions as $permission) {

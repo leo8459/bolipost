@@ -35,6 +35,7 @@ use App\Http\Controllers\RecojoController;
 use App\Http\Controllers\ZonaPaqueteController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportesController;
+use App\Http\Controllers\AclController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -60,6 +61,8 @@ Route::get('/api/busqueda/captcha', [BusquedaController::class, 'captchaTracking
 
 Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
     ->name('api.public.zona-paquete');
+Route::middleware(['auth'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
+    ->name('acl.livewire-actions');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'route.permission'])
@@ -112,6 +115,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
 
     //Permisos
     Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
+    Route::post('/permissions/sync', [PermissionController::class, 'sync'])->name('permissions.sync');
     Route::get('/permission/create', [PermissionController::class, 'create'])->name('permissions.create');
     // Route::get('/permission/{permission}', [PermissionController::class, 'show'])->name('permissions.show');
     Route::post('/permission', [PermissionController::class, 'store'])->name('permissions.store');
