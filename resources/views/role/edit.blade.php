@@ -28,5 +28,5 @@
             </div>
         </div>
     </section>
-    @include('footer')
+    {{-- @include('footer') --}}
     @endsection

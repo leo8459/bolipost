@@ -6,6 +6,91 @@
 
 <div class="box box-info padding-1">
     <div class="box-body">
+        <style>
+            .permission-module {
+                border: 1px solid #dee2e6;
+                border-radius: 0.5rem;
+                background: #fff;
+                overflow: hidden;
+            }
+
+            .permission-module-header {
+                padding: 0.75rem 1rem;
+                background: #f8f9fa;
+                border-bottom: 1px solid #e9ecef;
+            }
+
+            .permission-module-title {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+
+            .permission-collapse-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.35rem;
+                border-radius: 999px;
+                border: 1px solid #ced4da;
+                background: #fff;
+                color: #495057;
+                font-weight: 600;
+                padding: 0.2rem 0.65rem;
+                line-height: 1.2;
+                transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+            }
+
+            .permission-collapse-btn::before {
+                content: "\25B8";
+                font-size: 0.75rem;
+                transition: transform 0.15s ease;
+            }
+
+            .permission-collapse-btn[aria-expanded="true"]::before {
+                transform: rotate(90deg);
+            }
+
+            .permission-collapse-btn:hover {
+                background: #f1f3f5;
+                border-color: #adb5bd;
+            }
+
+            .permission-collapse-btn:focus {
+                outline: none;
+                box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.2);
+            }
+
+            .permission-items .list-group-item {
+                padding: 0.65rem 1rem;
+            }
+
+            .permission-save-bar {
+                position: sticky;
+                bottom: 1rem;
+                z-index: 20;
+            }
+
+            .permission-save-inner {
+                display: flex;
+                justify-content: flex-end;
+                background: rgba(255, 255, 255, 0.95);
+                border: 1px solid #dee2e6;
+                border-radius: 0.5rem;
+                padding: 0.75rem 1rem;
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            }
+
+            @media (max-width: 575.98px) {
+                .permission-save-inner {
+                    justify-content: stretch;
+                }
+
+                .permission-save-inner .btn {
+                    width: 100%;
+                }
+            }
+        </style>
+
         <div class="form-group mb-3">
             <label for="name">Nombre del rol</label>
             <input
@@ -34,9 +119,12 @@
             >
         </div>
 
-        <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap">
             <h2 class="h5 mb-0">Permisos por modulo y accion</h2>
-            <button type="button" class="btn btn-outline-primary btn-sm" id="toggleAllPermissions">Marcar todo</button>
+            <div class="d-flex align-items-center" style="gap: .5rem;">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleAllLists">Abrir listas</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="toggleAllPermissions">Marcar todo</button>
+            </div>
         </div>
 
         <p class="text-muted mb-3">
@@ -46,10 +134,22 @@
         @foreach ($permissionGroups as $group)
             @php
                 $moduleId = 'module_' . \Illuminate\Support\Str::slug($group['module_key'], '_');
+                $moduleBodyId = $moduleId . '_body';
             @endphp
-            <div class="card card-outline card-primary mb-3">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <strong>{{ $group['module_label'] }}</strong>
+            <section class="permission-module mb-3">
+                <div class="permission-module-header d-flex justify-content-between align-items-center">
+                    <div class="permission-module-title">
+                        <button
+                            type="button"
+                            class="btn btn-outline-secondary btn-sm permission-collapse-btn js-module-collapse"
+                            data-target="{{ $moduleBodyId }}"
+                            data-module="{{ $group['module_key'] }}"
+                            aria-expanded="false"
+                        >
+                            Ver permisos
+                        </button>
+                        <strong>{{ $group['module_label'] }}</strong>
+                    </div>
                     <div class="custom-control custom-checkbox m-0">
                         <input
                             type="checkbox"
@@ -60,14 +160,14 @@
                         <label class="custom-control-label" for="{{ $moduleId }}">Todo el modulo</label>
                     </div>
                 </div>
-                <div class="card-body">
-                    <div class="row">
+                <div id="{{ $moduleBodyId }}" class="d-none js-module-body">
+                    <ul class="list-group list-group-flush permission-items">
                         @foreach ($group['permissions'] as $permission)
                             @php
                                 $permissionId = 'permission_' . \Illuminate\Support\Str::slug($permission['name'], '_');
                                 $checked = in_array($permission['name'], $selectedPermissions, true);
                             @endphp
-                            <div class="col-12 col-md-6 col-lg-4 mb-2">
+                            <li class="list-group-item">
                                 <div class="custom-control custom-checkbox">
                                     <input
                                         type="checkbox"
@@ -84,11 +184,11 @@
                                         <small class="d-block text-muted">{{ $permission['name'] }}</small>
                                     </label>
                                 </div>
-                            </div>
+                            </li>
                         @endforeach
-                    </div>
+                    </ul>
                 </div>
-            </div>
+            </section>
         @endforeach
 
         @error('permissions')
@@ -99,8 +199,8 @@
         @enderror
     </div>
 
-    <div class="box-footer mt20">
-        <div class="text-right">
+    <div class="box-footer mt-3 permission-save-bar">
+        <div class="permission-save-inner">
             <button type="submit" class="btn btn-primary">{{ __('Guardar') }}</button>
         </div>
     </div>
@@ -111,8 +211,24 @@
         const moduleToggles = Array.from(document.querySelectorAll('.js-module-toggle'));
         const permissionItems = Array.from(document.querySelectorAll('.js-permission-item'));
         const globalToggle = document.getElementById('toggleAllPermissions');
+        const listToggle = document.getElementById('toggleAllLists');
+        const moduleCollapseButtons = Array.from(document.querySelectorAll('.js-module-collapse'));
 
         const getModuleItems = (moduleKey) => permissionItems.filter((item) => item.dataset.module === moduleKey);
+        const getModuleBody = (targetId) => document.getElementById(targetId);
+        const moduleHasCheckedItems = (moduleKey) => getModuleItems(moduleKey).some((item) => item.checked);
+
+        const setModuleOpen = (button, isOpen) => {
+            const targetId = button.dataset.target;
+            const body = getModuleBody(targetId);
+            if (!body) {
+                return;
+            }
+
+            body.classList.toggle('d-none', !isOpen);
+            button.textContent = isOpen ? 'Ocultar' : 'Ver permisos';
+            button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        };
 
         const refreshModuleToggle = (moduleToggle) => {
             const moduleItems = getModuleItems(moduleToggle.dataset.module);
@@ -128,6 +244,16 @@
             const allChecked = permissionItems.length > 0 && permissionItems.every((item) => item.checked);
             globalToggle.textContent = allChecked ? 'Desmarcar todo' : 'Marcar todo';
             globalToggle.dataset.checked = allChecked ? '1' : '0';
+        };
+
+        const refreshListToggle = () => {
+            if (!listToggle || moduleCollapseButtons.length === 0) {
+                return;
+            }
+
+            const allOpen = moduleCollapseButtons.every((button) => button.getAttribute('aria-expanded') === 'true');
+            listToggle.textContent = allOpen ? 'Cerrar listas' : 'Abrir listas';
+            listToggle.dataset.open = allOpen ? '1' : '0';
         };
 
         moduleToggles.forEach((moduleToggle) => {
@@ -168,6 +294,28 @@
             });
         }
 
+        moduleCollapseButtons.forEach((button) => {
+            const shouldOpenByDefault = moduleHasCheckedItems(button.dataset.module);
+            setModuleOpen(button, shouldOpenByDefault);
+
+            button.addEventListener('click', function () {
+                const isOpen = button.getAttribute('aria-expanded') === 'true';
+                setModuleOpen(button, !isOpen);
+                refreshListToggle();
+            });
+        });
+
+        if (listToggle) {
+            listToggle.addEventListener('click', function () {
+                const shouldOpen = listToggle.dataset.open !== '1';
+                moduleCollapseButtons.forEach((button) => {
+                    setModuleOpen(button, shouldOpen);
+                });
+                refreshListToggle();
+            });
+        }
+
         refreshGlobalToggle();
+        refreshListToggle();
     });
 </script>
