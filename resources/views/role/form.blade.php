@@ -64,6 +64,19 @@
                 padding: 0.65rem 1rem;
             }
 
+            .permission-items {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 0.5rem;
+                padding: 0.75rem;
+            }
+
+            .permission-items .list-group-item {
+                border: 1px solid #e9ecef;
+                border-radius: 0.4rem;
+                margin: 0;
+            }
+
             .permission-save-bar {
                 position: sticky;
                 bottom: 1rem;
@@ -81,12 +94,22 @@
             }
 
             @media (max-width: 575.98px) {
+                .permission-items {
+                    grid-template-columns: 1fr;
+                }
+
                 .permission-save-inner {
                     justify-content: stretch;
                 }
 
                 .permission-save-inner .btn {
                     width: 100%;
+                }
+            }
+
+            @media (min-width: 576px) and (max-width: 991.98px) {
+                .permission-items {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
                 }
             }
         </style>
