@@ -90,6 +90,7 @@
                                     <small class="text-muted d-block mt-1 foto-upload-hint">
                                         Si la foto es muy pesada, se reduce automaticamente antes de enviar.
                                     </small>
+                                    <small class="text-muted d-block mt-1 foto-size-label"></small>
                                     <div class="foto-preview-wrap mt-2 d-none" id="preview_entrega_wrap">
                                         <img id="preview_entrega" class="foto-preview-img" alt="Vista previa de foto de entrega">
                                     </div>
@@ -116,6 +117,7 @@
                                     <small class="text-muted d-block mt-1 foto-upload-hint">
                                         Si la foto es muy pesada, se reduce automaticamente antes de enviar.
                                     </small>
+                                    <small class="text-muted d-block mt-1 foto-size-label"></small>
                                     <div class="foto-preview-wrap mt-2 d-none" id="preview_intento_wrap">
                                         <img id="preview_intento" class="foto-preview-img" alt="Vista previa de foto de intento">
                                     </div>
@@ -222,6 +224,14 @@
                 intentoInput.value = value;
             };
 
+            const formatBytesToMb = (bytes) => {
+                if (!bytes || Number.isNaN(bytes)) {
+                    return '';
+                }
+
+                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            };
+
             descripcion.addEventListener('input', syncDescripcion);
             syncDescripcion();
 
@@ -231,13 +241,22 @@
                     const img = document.getElementById(previewId);
                     const wrap = document.getElementById(previewId + '_wrap');
                     const file = this.files && this.files[0] ? this.files[0] : null;
+                    const form = this.closest('form');
+                    const sizeLabel = form ? form.querySelector('.foto-size-label') : null;
 
                     if (!img || !wrap) return;
 
                     if (!file) {
                         img.removeAttribute('src');
                         wrap.classList.add('d-none');
+                        if (sizeLabel) {
+                            sizeLabel.textContent = '';
+                        }
                         return;
+                    }
+
+                    if (sizeLabel) {
+                        sizeLabel.textContent = 'Peso actual: ' + formatBytesToMb(file.size);
                     }
 
                     const objectUrl = URL.createObjectURL(file);
@@ -354,6 +373,7 @@
                     }
 
                     const fileInput = form.querySelector('.foto-input');
+                    const sizeLabel = form.querySelector('.foto-size-label');
                     const submitButton = form.querySelector('button[type="submit"]');
                     const file = fileInput && fileInput.files ? fileInput.files[0] : null;
 
@@ -376,6 +396,10 @@
                             const transfer = new DataTransfer();
                             transfer.items.add(processedFile);
                             fileInput.files = transfer.files;
+                        }
+
+                        if (sizeLabel) {
+                            sizeLabel.textContent = 'Peso actual: ' + formatBytesToMb(processedFile.size);
                         }
 
                         form.dataset.compressed = '1';
