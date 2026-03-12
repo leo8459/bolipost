@@ -54,6 +54,13 @@ class PaquetesOrdi extends Component
     private const ESTADO_RECIBIDO = 'RECIBIDO';
     private const ESTADO_ENTREGADO = 'ENTREGADO';
     private const ESTADO_REZAGO = 'REZAGO';
+    private const MODE_ROUTE_PERMISSIONS = [
+        'clasificacion' => 'paquetes-ordinarios.index',
+        'despacho' => 'paquetes-ordinarios.despacho',
+        'almacen' => 'paquetes-ordinarios.almacen',
+        'entregado' => 'paquetes-ordinarios.entregado',
+        'rezago' => 'paquetes-ordinarios.rezago',
+    ];
 
     public function mount($mode = 'clasificacion')
     {
@@ -97,7 +104,7 @@ class PaquetesOrdi extends Component
 
     public function openRecibirModal()
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen'));
 
         if (!$this->isAlmacen) {
             return;
@@ -110,6 +117,8 @@ class PaquetesOrdi extends Component
 
     public function addCodigoRecibir()
     {
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen'));
+
         if (!$this->isAlmacen) {
             return;
         }
@@ -154,6 +163,8 @@ class PaquetesOrdi extends Component
 
     public function confirmarRecibir()
     {
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen'));
+
         if (!$this->isAlmacen) {
             return;
         }
@@ -211,7 +222,7 @@ class PaquetesOrdi extends Component
 
     public function bajaPaquetes()
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.dropoff');
+        $this->authorizePermission($this->modeFeaturePermission('dropoff', 'almacen'));
 
         if (!$this->isAlmacen) {
             return;
@@ -284,7 +295,7 @@ class PaquetesOrdi extends Component
 
     public function rezagoPaquetes()
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.rezago');
+        $this->authorizePermission($this->modeFeaturePermission('rezago', 'almacen'));
 
         if (!$this->isAlmacen) {
             return;
@@ -343,7 +354,7 @@ class PaquetesOrdi extends Component
 
     public function openCreateModal()
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.create');
+        $this->authorizePermission($this->modeFeaturePermission('create', 'clasificacion'));
 
         $this->resetForm();
         $this->editingId = null;
@@ -358,7 +369,7 @@ class PaquetesOrdi extends Component
 
     public function openEditModal($id)
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.edit');
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
 
         $paquete = PaqueteOrdi::findOrFail($id);
 
@@ -381,8 +392,8 @@ class PaquetesOrdi extends Component
     public function save()
     {
         $permission = $this->editingId
-            ? 'feature.paquetes-ordinarios.edit'
-            : 'feature.paquetes-ordinarios.create';
+            ? $this->modeFeaturePermission('edit')
+            : $this->modeFeaturePermission('create', 'clasificacion');
         $this->authorizePermission($permission);
 
         if (!$this->editingId) {
@@ -413,7 +424,7 @@ class PaquetesOrdi extends Component
 
     public function despacharSeleccionados()
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'clasificacion'));
 
         $ids = collect($this->selectedPaquetes)
             ->filter()
@@ -471,7 +482,7 @@ class PaquetesOrdi extends Component
 
     public function reimprimirManifiesto()
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.print');
+        $this->authorizePermission($this->modeFeaturePermission('print', 'despacho'));
 
         if (!$this->isDespacho) {
             return;
@@ -566,7 +577,7 @@ class PaquetesOrdi extends Component
 
     public function delete($id)
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.delete');
+        $this->authorizePermission($this->modeFeaturePermission('delete', 'clasificacion'));
 
         $paquete = PaqueteOrdi::findOrFail($id);
         $codigo = (string) $paquete->codigo;
@@ -577,7 +588,7 @@ class PaquetesOrdi extends Component
 
     public function devolverAClasificacion($id)
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.restore');
+        $this->authorizePermission($this->modeFeaturePermission('restore', 'despacho'));
 
         $estadoClasificacionId = $this->getClasificacionEstadoId();
         if (!$estadoClasificacionId) {
@@ -597,7 +608,7 @@ class PaquetesOrdi extends Component
 
     public function altaAAlmacen($id)
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.restore');
+        $this->authorizePermission($this->modeFeaturePermission('restore', 'entregado'));
 
         if (!$this->isEntregado) {
             return;
@@ -631,7 +642,7 @@ class PaquetesOrdi extends Component
 
     public function reimprimirFormularioEntrega($id)
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.print');
+        $this->authorizePermission($this->modeFeaturePermission('print', 'entregado'));
 
         if (!$this->isEntregado) {
             return;
@@ -665,7 +676,7 @@ class PaquetesOrdi extends Component
 
     public function devolverRezagoAAlmacen($id)
     {
-        $this->authorizePermission('feature.paquetes-ordinarios.restore');
+        $this->authorizePermission($this->modeFeaturePermission('restore', 'rezago'));
 
         if (!$this->isRezago) {
             return;
@@ -1044,14 +1055,22 @@ class PaquetesOrdi extends Component
             'ventanillas' => $this->getVentanillasByCiudad(),
             'ciudadesDisponibles' => $this->ciudadesDisponibles(),
             'previewRecibirPaquetes' => $previewRecibirPaquetes,
-            'canOrdiAssign' => $this->userCan('feature.paquetes-ordinarios.assign'),
-            'canOrdiDelete' => $this->userCan('feature.paquetes-ordinarios.delete'),
-            'canOrdiDropoff' => $this->userCan('feature.paquetes-ordinarios.dropoff'),
-            'canOrdiRezago' => $this->userCan('feature.paquetes-ordinarios.rezago'),
-            'canOrdiCreate' => $this->userCan('feature.paquetes-ordinarios.create'),
-            'canOrdiPrint' => $this->userCan('feature.paquetes-ordinarios.print'),
-            'canOrdiEdit' => $this->userCan('feature.paquetes-ordinarios.edit'),
+            'canOrdiAssign' => $this->userCan($this->modeFeaturePermission('assign')),
+            'canOrdiDelete' => $this->userCan($this->modeFeaturePermission('delete')),
+            'canOrdiDropoff' => $this->userCan($this->modeFeaturePermission('dropoff')),
+            'canOrdiRezago' => $this->userCan($this->modeFeaturePermission('rezago')),
+            'canOrdiCreate' => $this->userCan($this->modeFeaturePermission('create')),
+            'canOrdiPrint' => $this->userCan($this->modeFeaturePermission('print')),
+            'canOrdiEdit' => $this->userCan($this->modeFeaturePermission('edit')),
+            'canOrdiRestore' => $this->userCan($this->modeFeaturePermission('restore')),
         ]);
+    }
+
+    private function modeFeaturePermission(string $action, ?string $mode = null): string
+    {
+        $routePermission = self::MODE_ROUTE_PERMISSIONS[$mode ?? $this->mode] ?? self::MODE_ROUTE_PERMISSIONS['clasificacion'];
+
+        return 'feature.'.$routePermission.'.'.$action;
     }
 
     private function userCan(string $permission): bool

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Routing\Route as IlluminateRoute;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Livewire\Component as LivewireComponent;
@@ -56,12 +57,12 @@ class AclPermissionRegistry
         'restore' => 'Botones de restauracion',
         'export' => 'Botones de exportacion/descarga',
         'import' => 'Botones de importacion',
-        'assign' => 'Botones de Recibir paquetes',
+        'assign' => 'Botones de movimiento/recepcion',
         'confirm' => 'Botones de confirmacion',
         'deliver' => 'Botones de entrega',
         'report' => 'Botones de reporte',
         'print' => 'Botones de impresion/boleta',
-        'manage' => 'Boton de alta de paquetes',
+        'manage' => 'Botones de administracion general',
     ];
 
     /**
@@ -207,6 +208,78 @@ class AclPermissionRegistry
     ];
 
     /**
+     * Window route names by component mode.
+     *
+     * @var array<string, array<string, string>>
+     */
+    private const WINDOW_ROUTE_MODULES = [
+        'PaquetesOrdi' => [
+            'clasificacion' => 'paquetes-ordinarios.index',
+            'despacho' => 'paquetes-ordinarios.despacho',
+            'almacen' => 'paquetes-ordinarios.almacen',
+            'entregado' => 'paquetes-ordinarios.entregado',
+            'rezago' => 'paquetes-ordinarios.rezago',
+        ],
+        'PaqueteCerti' => [
+            'almacen' => 'paquetes-certificados.almacen',
+            'inventario' => 'paquetes-certificados.inventario',
+            'rezago' => 'paquetes-certificados.rezago',
+            'todos' => 'paquetes-certificados.todos',
+        ],
+    ];
+
+    /**
+     * Supported feature actions by window route.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private const WINDOW_FEATURE_ALLOWLIST = [
+        'paquetes-ordinarios.index' => ['create', 'edit', 'delete', 'assign'],
+        'paquetes-ordinarios.almacen' => ['edit', 'assign', 'dropoff', 'rezago'],
+        'paquetes-ordinarios.despacho' => ['edit', 'restore', 'print'],
+        'paquetes-ordinarios.entregado' => ['edit', 'restore', 'print'],
+        'paquetes-ordinarios.rezago' => ['edit', 'restore'],
+        'paquetes-certificados.almacen' => ['create', 'edit', 'delete', 'dropoff', 'rezago'],
+        'paquetes-certificados.inventario' => ['edit', 'delete', 'assign', 'export'],
+        'paquetes-certificados.rezago' => ['edit', 'delete', 'assign'],
+        'paquetes-certificados.todos' => ['edit', 'delete'],
+    ];
+
+    /**
+     * Explicit Livewire method targets for window-specific actions.
+     *
+     * @var array<string, array<string, array<int, array{module:string,action:string}>>>
+     */
+    private const LIVEWIRE_METHOD_TARGET_OVERRIDES = [
+        'PaquetesOrdi' => [
+            'openrecibirmodal' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'assign']],
+            'addcodigorecibir' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'assign']],
+            'confirmarrecibir' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'assign']],
+            'bajapaquetes' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'dropoff']],
+            'rezagopaquetes' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'rezago']],
+            'opencreatemodal' => [['module' => 'paquetes-ordinarios.index', 'action' => 'create']],
+            'despacharseleccionados' => [['module' => 'paquetes-ordinarios.index', 'action' => 'assign']],
+            'reimprimirmanifiesto' => [['module' => 'paquetes-ordinarios.despacho', 'action' => 'print']],
+            'delete' => [['module' => 'paquetes-ordinarios.index', 'action' => 'delete']],
+            'devolveraclasificacion' => [['module' => 'paquetes-ordinarios.despacho', 'action' => 'restore']],
+            'altaaalmacen' => [['module' => 'paquetes-ordinarios.entregado', 'action' => 'restore']],
+            'reimprimirformularioentrega' => [['module' => 'paquetes-ordinarios.entregado', 'action' => 'print']],
+            'devolverrezagoaalmacen' => [['module' => 'paquetes-ordinarios.rezago', 'action' => 'restore']],
+        ],
+        'PaqueteCerti' => [
+            'opencreatemodal' => [['module' => 'paquetes-certificados.almacen', 'action' => 'create']],
+            'bajamasiva' => [['module' => 'paquetes-certificados.almacen', 'action' => 'dropoff']],
+            'rezagomasivo' => [['module' => 'paquetes-certificados.almacen', 'action' => 'rezago']],
+            'marcarinventario' => [['module' => 'paquetes-certificados.almacen', 'action' => 'edit']],
+            'marcarventanilla' => [
+                ['module' => 'paquetes-certificados.inventario', 'action' => 'assign'],
+                ['module' => 'paquetes-certificados.rezago', 'action' => 'assign'],
+            ],
+            'reimprimirpdf' => [['module' => 'paquetes-certificados.inventario', 'action' => 'export']],
+        ],
+    ];
+
+    /**
      * @var array<int, string>|null
      */
     private static ?array $cachedLivewireFeaturePermissions = null;
@@ -322,9 +395,10 @@ class AclPermissionRegistry
     public static function authorizationPermissionsForLivewireAction(
         string $componentClass,
         string $methodName,
-        ?object $component = null
+        ?object $component = null,
+        bool $includeAmbiguous = false
     ): array {
-        $targets = self::livewireFeatureTargets($componentClass, $methodName, $component, false);
+        $targets = self::livewireFeatureTargets($componentClass, $methodName, $component, $includeAmbiguous);
 
         if ($targets === []) {
             return [];
@@ -421,11 +495,13 @@ class AclPermissionRegistry
             ->orderBy('name')
             ->pluck('name')
             ->reject(fn (string $permissionName): bool => $excludedPermissions->contains($permissionName))
+            ->reject(fn (string $permissionName): bool => self::shouldHidePermissionFromMatrix($permissionName))
             ->values();
 
         if ($permissionNames->isEmpty()) {
             $permissionNames = collect(self::syncPermissions())
                 ->reject(fn (string $permissionName): bool => $excludedPermissions->contains($permissionName))
+                ->reject(fn (string $permissionName): bool => self::shouldHidePermissionFromMatrix($permissionName))
                 ->values();
         }
 
@@ -447,6 +523,7 @@ class AclPermissionRegistry
                 'name' => $permissionName,
                 'action_key' => $actionKey,
                 'action_label' => self::actionLabel($permissionName, $actionKey),
+                'hint' => self::permissionHint($permissionName, $moduleKey, $actionKey),
                 'type' => self::permissionType($permissionName),
                 'type_label' => self::permissionTypeLabel($permissionName),
             ];
@@ -455,6 +532,32 @@ class AclPermissionRegistry
         ksort($groups);
 
         return array_values($groups);
+    }
+
+    /**
+     * Build a readable menu -> submenu -> window -> actions summary.
+     *
+     * @param  array<int, array<string, mixed>>|null  $permissionGroups
+     * @return array<int, array<string, mixed>>
+     */
+    public static function menuPermissionSummary(?array $permissionGroups = null): array
+    {
+        $permissionGroups ??= self::groupedPermissionsForMatrix();
+
+        $groupsByModule = collect($permissionGroups)
+            ->mapWithKeys(fn (array $group): array => [$group['module_key'] => $group]);
+
+        $summary = [];
+
+        foreach ((array) config('adminlte.menu', []) as $item) {
+            $node = self::buildMenuSummaryNode($item, $groupsByModule, true);
+
+            if ($node !== null) {
+                $summary[] = $node;
+            }
+        }
+
+        return $summary;
     }
 
     /**
@@ -639,6 +742,20 @@ class AclPermissionRegistry
         ?object $component = null,
         bool $includeAmbiguous = false
     ): array {
+        $componentBaseName = class_basename($componentClass);
+        $normalizedMethod = strtolower(trim((string) Str::of($methodName)->replaceMatches('/[^a-z0-9]/', '')));
+
+        if (
+            isset(self::LIVEWIRE_METHOD_TARGET_OVERRIDES[$componentBaseName][$normalizedMethod])
+            && self::LIVEWIRE_METHOD_TARGET_OVERRIDES[$componentBaseName][$normalizedMethod] !== []
+        ) {
+            return self::resolveExplicitLivewireTargets(
+                $componentBaseName,
+                self::LIVEWIRE_METHOD_TARGET_OVERRIDES[$componentBaseName][$normalizedMethod],
+                $component
+            );
+        }
+
         $actions = self::livewireFeatureActionsForMethod($methodName, $component, $includeAmbiguous);
 
         if ($actions === []) {
@@ -676,6 +793,12 @@ class AclPermissionRegistry
             return self::eventosTablaModules($component);
         }
 
+        $windowModules = self::windowRouteModulesForComponent($baseName, $component);
+
+        if ($windowModules !== []) {
+            return $windowModules;
+        }
+
         if (isset(self::LIVEWIRE_COMPONENT_MODULES[$baseName])) {
             return [self::LIVEWIRE_COMPONENT_MODULES[$baseName]];
         }
@@ -683,6 +806,65 @@ class AclPermissionRegistry
         $fallbackModule = Str::kebab(Str::pluralStudly($baseName));
 
         return [$fallbackModule];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function windowRouteModulesForComponent(string $baseName, ?object $component = null): array
+    {
+        $map = self::WINDOW_ROUTE_MODULES[$baseName] ?? [];
+
+        if ($map === []) {
+            return [];
+        }
+
+        if ($component && property_exists($component, 'mode')) {
+            $mode = strtolower(trim((string) $component->mode));
+
+            if (isset($map[$mode])) {
+                return [$map[$mode]];
+            }
+        }
+
+        return array_values(array_unique(array_values($map)));
+    }
+
+    /**
+     * @param  array<int, array{module:string,action:string}>  $targets
+     * @return array<int, array{module:string,action:string}>
+     */
+    private static function resolveExplicitLivewireTargets(string $componentBaseName, array $targets, ?object $component = null): array
+    {
+        $currentWindowModules = self::windowRouteModulesForComponent($componentBaseName, $component);
+        $currentWindowModule = $currentWindowModules[0] ?? null;
+        $resolvedTargets = [];
+
+        foreach ($targets as $target) {
+            $module = (string) ($target['module'] ?? '');
+            $action = (string) ($target['action'] ?? '');
+
+            if ($module === '' || $action === '') {
+                continue;
+            }
+
+            if (
+                $currentWindowModule !== null
+                && str_contains($module, '.')
+                && isset(self::WINDOW_ROUTE_MODULES[$componentBaseName])
+                && in_array($module, self::WINDOW_ROUTE_MODULES[$componentBaseName], true)
+                && ! in_array($module, $currentWindowModules, true)
+            ) {
+                continue;
+            }
+
+            $resolvedTargets[] = [
+                'module' => $module,
+                'action' => $action,
+            ];
+        }
+
+        return array_values(array_unique($resolvedTargets, SORT_REGULAR));
     }
 
     /**
@@ -922,6 +1104,34 @@ class AclPermissionRegistry
 
     private static function actionLabel(string $permissionName, string $actionKey): string
     {
+        $specialLabels = [
+            'feature.paquetes-ordinarios.restore' => 'Botones: Alta y Devolver',
+            'feature.paquetes-ordinarios.print' => 'Botones: Reimprimir',
+            'feature.paquetes-certificados.assign' => 'Botones: Alta/Devuelto a ventanilla',
+            'feature.paquetes-certificados.export' => 'Boton: Reimprimir PDF',
+            'feature.paquetes-ordinarios.index.create' => 'Boton: Nuevo',
+            'feature.paquetes-ordinarios.index.assign' => 'Boton: Despachar',
+            'feature.paquetes-ordinarios.index.delete' => 'Boton: Borrar',
+            'feature.paquetes-ordinarios.almacen.assign' => 'Boton: Recibir paquetes',
+            'feature.paquetes-ordinarios.almacen.dropoff' => 'Boton: Baja de paquetes',
+            'feature.paquetes-ordinarios.almacen.rezago' => 'Boton: Enviar a rezago',
+            'feature.paquetes-ordinarios.despacho.restore' => 'Boton: Devolver a clasificacion',
+            'feature.paquetes-ordinarios.despacho.print' => 'Boton: Reimprimir manifiesto',
+            'feature.paquetes-ordinarios.entregado.restore' => 'Boton: Alta',
+            'feature.paquetes-ordinarios.entregado.print' => 'Boton: Reimprimir formulario',
+            'feature.paquetes-ordinarios.rezago.restore' => 'Boton: Devolver a almacen',
+            'feature.paquetes-certificados.almacen.create' => 'Boton: Nuevo',
+            'feature.paquetes-certificados.almacen.dropoff' => 'Boton: Baja',
+            'feature.paquetes-certificados.almacen.rezago' => 'Boton: Rezago',
+            'feature.paquetes-certificados.inventario.assign' => 'Boton: Alta a ventanilla',
+            'feature.paquetes-certificados.inventario.export' => 'Boton: Reimprimir PDF',
+            'feature.paquetes-certificados.rezago.assign' => 'Boton: Devuelto a ventanilla',
+        ];
+
+        if (isset($specialLabels[$permissionName])) {
+            return $specialLabels[$permissionName];
+        }
+
         $permissionType = self::permissionType($permissionName);
 
         if ($permissionType === 'feature') {
@@ -947,9 +1157,203 @@ class AclPermissionRegistry
         return 'Acceso: '.self::humanize($actionKey);
     }
 
+    /**
+     * @param  \Illuminate\Support\Collection<string, array<string, mixed>>  $groupsByModule
+     * @return array<string, mixed>|null
+     */
+    private static function buildMenuSummaryNode(array $item, $groupsByModule, bool $isTopLevel = false): ?array
+    {
+        if (isset($item['header']) || isset($item['type'])) {
+            return null;
+        }
+
+        $label = trim((string) ($item['text'] ?? ''));
+        $submenu = $item['submenu'] ?? null;
+
+        if (is_array($submenu) && $submenu !== []) {
+            $children = collect($submenu)
+                ->map(fn (array $child): ?array => self::buildMenuSummaryNode($child, $groupsByModule, false))
+                ->filter()
+                ->values()
+                ->all();
+
+            if ($children === []) {
+                return null;
+            }
+
+            return [
+                'label' => $label !== '' ? $label : 'Menu',
+                'level' => $isTopLevel ? 'tab' : 'submenu',
+                'children' => $children,
+            ];
+        }
+
+        $url = trim((string) ($item['url'] ?? ''));
+        $routeName = self::resolveRouteNameFromMenuUrl($url);
+
+        if ($routeName === null) {
+            return null;
+        }
+
+        [$moduleKey] = self::splitPermissionName($routeName);
+        $group = $groupsByModule->get($moduleKey);
+        $windowFeatureGroup = $groupsByModule->get($routeName);
+
+        $routePermission = null;
+        $featurePermissions = [];
+
+        if (is_array($group)) {
+            $routePermission = collect($group['permissions'] ?? [])->firstWhere('name', $routeName);
+        }
+
+        if (is_array($windowFeatureGroup)) {
+            $featurePermissions = collect($windowFeatureGroup['permissions'] ?? [])
+                ->filter(function (array $permission) use ($routeName): bool {
+                    if (($permission['type'] ?? null) !== 'feature') {
+                        return false;
+                    }
+
+                    return self::isSupportedWindowFeaturePermission(
+                        (string) ($permission['name'] ?? ''),
+                        $routeName
+                    );
+                })
+                ->values()
+                ->all();
+        }
+
+        return [
+            'label' => $label !== '' ? $label : $routeName,
+            'level' => 'window',
+            'route' => $routePermission,
+            'route_name' => $routeName,
+            'module_key' => $moduleKey,
+            'module_label' => is_array($windowFeatureGroup)
+                ? ($windowFeatureGroup['module_label'] ?? self::humanize($routeName))
+                : (is_array($group) ? ($group['module_label'] ?? self::humanize($moduleKey)) : self::humanize($moduleKey)),
+            'actions' => $featurePermissions,
+        ];
+    }
+
+    private static function resolveRouteNameFromMenuUrl(string $url): ?string
+    {
+        if (
+            $url === ''
+            || str_starts_with($url, 'http://')
+            || str_starts_with($url, 'https://')
+            || str_starts_with($url, '#')
+            || str_starts_with($url, 'mailto:')
+            || str_starts_with($url, 'tel:')
+        ) {
+            return null;
+        }
+
+        $path = trim(parse_url($url, PHP_URL_PATH) ?? '', '/');
+
+        if ($path === '') {
+            return null;
+        }
+
+        try {
+            $route = Route::getRoutes()->match(Request::create('/'.$path, 'GET'));
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $name = $route->getName();
+
+        return is_string($name) && $name !== '' ? $name : null;
+    }
+
+    private static function permissionHint(string $permissionName, string $moduleKey, string $actionKey): ?string
+    {
+        $specialHints = [
+            'feature.paquetes-ordinarios.restore' => 'Controla los botones Alta en Entregado, Devolver en Rezago y Devolver en Despacho.',
+            'feature.paquetes-ordinarios.print' => 'Controla Reimprimir manifiesto en Despacho y Reimprimir formulario en Entregado.',
+            'feature.paquetes-ordinarios.assign' => 'Controla Recibir paquetes y Despachar en Ordinarios.',
+            'feature.paquetes-certificados.assign' => 'Controla los botones Alta y Devuelto a ventanilla en Inventario y Rezago.',
+            'feature.paquetes-certificados.export' => 'Controla el boton Reimprimir PDF en Inventario.',
+            'feature.paquetes-certificados.dropoff' => 'Controla el boton Baja en Almacen.',
+            'feature.paquetes-certificados.rezago' => 'Controla el boton Rezago en Almacen.',
+            'feature.paquetes-ordinarios.index.create' => 'Controla el boton Nuevo de la ventana Clasificacion.',
+            'feature.paquetes-ordinarios.index.assign' => 'Controla el boton Despachar de la ventana Clasificacion.',
+            'feature.paquetes-ordinarios.index.delete' => 'Controla el boton Borrar dentro de la ventana Clasificacion.',
+            'feature.paquetes-ordinarios.almacen.assign' => 'Controla Recibir paquetes en la ventana Almacen.',
+            'feature.paquetes-ordinarios.almacen.dropoff' => 'Controla Baja de paquetes en la ventana Almacen.',
+            'feature.paquetes-ordinarios.almacen.rezago' => 'Controla el boton Rezago en la ventana Almacen.',
+            'feature.paquetes-ordinarios.despacho.restore' => 'Controla el boton Devolver en la ventana Despacho.',
+            'feature.paquetes-ordinarios.despacho.print' => 'Controla Reimprimir manifiesto en la ventana Despacho.',
+            'feature.paquetes-ordinarios.entregado.restore' => 'Controla el boton Alta en la ventana Entregado.',
+            'feature.paquetes-ordinarios.entregado.print' => 'Controla Reimprimir formulario en la ventana Entregado.',
+            'feature.paquetes-ordinarios.rezago.restore' => 'Controla el boton Devolver en la ventana Rezago.',
+            'feature.paquetes-certificados.almacen.create' => 'Controla el boton Nuevo en la ventana Almacen.',
+            'feature.paquetes-certificados.almacen.dropoff' => 'Controla el boton Baja en la ventana Almacen.',
+            'feature.paquetes-certificados.almacen.rezago' => 'Controla el boton Rezago en la ventana Almacen.',
+            'feature.paquetes-certificados.inventario.assign' => 'Controla el boton Alta en la ventana Inventario.',
+            'feature.paquetes-certificados.inventario.export' => 'Controla Reimprimir PDF en la ventana Inventario.',
+            'feature.paquetes-certificados.rezago.assign' => 'Controla el boton Devuelto en la ventana Rezago.',
+        ];
+
+        if (isset($specialHints[$permissionName])) {
+            return $specialHints[$permissionName];
+        }
+
+        if (self::permissionType($permissionName) === 'route') {
+            return 'Solo controla la apertura de esta ventana. Los botones se administran aparte.';
+        }
+
+        if ($moduleKey !== '' && $actionKey !== '') {
+            return 'Controla una accion especifica dentro del modulo '.self::humanize($moduleKey).'.';
+        }
+
+        return null;
+    }
+
     private static function humanize(string $value): string
     {
         return Str::headline(str_replace(['.', '-', '_'], ' ', $value));
+    }
+
+    private static function shouldHidePermissionFromMatrix(string $permissionName): bool
+    {
+        $legacyFeaturePrefixes = [
+            'feature.paquetes-ordinarios.',
+            'feature.paquetes-certificados.',
+        ];
+
+        foreach ($legacyFeaturePrefixes as $prefix) {
+            if (! str_starts_with($permissionName, $prefix)) {
+                continue;
+            }
+
+            [$moduleKey, $actionKey] = self::splitPermissionName($permissionName);
+
+            if (! str_contains($moduleKey, '.')) {
+                return true;
+            }
+
+            return ! self::isAllowedFeatureActionForWindow($moduleKey, $actionKey);
+        }
+
+        return false;
+    }
+
+    private static function isSupportedWindowFeaturePermission(string $permissionName, string $routeName): bool
+    {
+        [, $actionKey] = self::splitPermissionName($permissionName);
+
+        return self::isAllowedFeatureActionForWindow($routeName, $actionKey);
+    }
+
+    private static function isAllowedFeatureActionForWindow(string $routeName, string $actionKey): bool
+    {
+        $allowedActions = self::WINDOW_FEATURE_ALLOWLIST[$routeName] ?? null;
+
+        if ($allowedActions === null) {
+            return true;
+        }
+
+        return in_array($actionKey, $allowedActions, true);
     }
 
     /**

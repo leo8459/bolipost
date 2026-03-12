@@ -22,9 +22,10 @@ class RoleController extends Controller
         $role = new Role();
         AclPermissionRegistry::syncPermissions();
         $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix();
+        $menuPermissionSummary = AclPermissionRegistry::menuPermissionSummary($permissionGroups);
         $selectedPermissions = [];
 
-        return view('role.create', compact('role', 'permissionGroups', 'selectedPermissions'));
+        return view('role.create', compact('role', 'permissionGroups', 'menuPermissionSummary', 'selectedPermissions'));
     }
 
     public function store(Request $request)
@@ -61,9 +62,10 @@ class RoleController extends Controller
         AclPermissionRegistry::syncPermissions();
 
         $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix();
+        $menuPermissionSummary = AclPermissionRegistry::menuPermissionSummary($permissionGroups);
         $selectedPermissions = $role->permissions()->pluck('name')->all();
 
-        return view('role.edit', compact('role', 'permissionGroups', 'selectedPermissions'));
+        return view('role.edit', compact('role', 'permissionGroups', 'menuPermissionSummary', 'selectedPermissions'));
     }
 
     public function update(Request $request, Role $role)

@@ -240,11 +240,13 @@
                                         </button>
                                         @endif
                                         @if ($this->isInventory && $canCertiExport)
-                                            <a href="{{ route('paquetes-certificados.baja-pdf', ['ids' => $paquete->id]) }}"
+                                            <button
+                                                wire:click="reimprimirPdf({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
-                                                target="_blank" rel="noopener">
+                                                type="button"
+                                            >
                                                 Reimprimir
-                                            </a>
+                                            </button>
                                         @endif
                                         @if (($this->isInventory || $this->isRezago) && $canCertiAssign)
                                             <button wire:click="marcarVentanilla({{ $paquete->id }})"

@@ -67,7 +67,9 @@ class AclController extends Controller
 
                 $permissionsToCheck = AclPermissionRegistry::authorizationPermissionsForLivewireAction(
                     $componentClass,
-                    $methodName
+                    $methodName,
+                    null,
+                    true
                 );
 
                 if ($permissionsToCheck === []) {

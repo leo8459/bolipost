@@ -62,6 +62,8 @@ return [
         'profile.update',
         'profile.destroy',
         'acl.livewire-actions',
+        'paquetes-certificados.baja-pdf',
+        'paquetes-certificados.rezago-pdf',
     ],
 
     /*
@@ -94,7 +96,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'ui' => [
-        'auto_hide_livewire_actions' => false,
+        'auto_hide_livewire_actions' => true,
     ],
 
     /*

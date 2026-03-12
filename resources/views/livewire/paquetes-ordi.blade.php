@@ -202,6 +202,7 @@
                                             @endif
                                         @endif
                                         @if ($this->isDespacho)
+                                            @if ($canOrdiRestore)
                                             <button
                                                 wire:click="devolverAClasificacion({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
@@ -209,14 +210,18 @@
                                             >
                                                 Devolver
                                             </button>
+                                            @endif
                                         @endif
                                         @if ($this->isEntregado)
+                                            @if ($canOrdiPrint)
                                             <button
                                                 wire:click="reimprimirFormularioEntrega({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
                                             >
                                                 Reimprimir
                                             </button>
+                                            @endif
+                                            @if ($canOrdiRestore)
                                             <button
                                                 wire:click="altaAAlmacen({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
@@ -224,8 +229,10 @@
                                             >
                                                 Alta
                                             </button>
+                                            @endif
                                         @endif
                                         @if ($this->isRezago)
+                                            @if ($canOrdiRestore)
                                             <button
                                                 wire:click="devolverRezagoAAlmacen({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
@@ -233,6 +240,7 @@
                                             >
                                                 Devolver
                                             </button>
+                                            @endif
                                         @endif
                                     </td>
                                 </tr>

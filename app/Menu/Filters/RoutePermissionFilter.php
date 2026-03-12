@@ -29,10 +29,9 @@ class RoutePermissionFilter implements FilterInterface
             return $item;
         }
 
-        $candidatePermissions = array_values(array_unique(array_merge(
-            [$routeName],
-            AclPermissionRegistry::featurePermissionsForRoute($routeName),
-        )));
+        // Keep menu visibility aligned with route access:
+        // a menu item is visible only when the user has the exact route permission.
+        $candidatePermissions = [$routeName];
 
         foreach ($candidatePermissions as $permissionName) {
             if (AclPermissionRegistry::permissionExists($permissionName) && Auth::user()?->can($permissionName)) {

@@ -42,10 +42,9 @@ class EnsureRoutePermission
             return $next($request);
         }
 
-        $permissionsToCheck = array_values(array_unique(array_merge(
-            [$permissionName],
-            AclPermissionRegistry::featurePermissionsForRoute($permissionName),
-        )));
+        // Route access must be controlled only by the exact route permission.
+        // Button/action feature permissions are enforced separately in views/components.
+        $permissionsToCheck = [$permissionName];
 
         $existingPermissions = AclPermissionRegistry::existingPermissionsFrom($permissionsToCheck);
 

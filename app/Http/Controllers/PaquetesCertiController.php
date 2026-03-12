@@ -30,6 +30,11 @@ class PaquetesCertiController extends Controller
 
     public function bajaPdf(Request $request)
     {
+        $this->authorizeAnyPermission([
+            'feature.paquetes-certificados.almacen.dropoff',
+            'feature.paquetes-certificados.inventario.export',
+        ]);
+
         $ids = collect(explode(',', (string) $request->query('ids')))
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -51,6 +56,10 @@ class PaquetesCertiController extends Controller
 
     public function rezagoPdf(Request $request)
     {
+        $this->authorizeAnyPermission([
+            'feature.paquetes-certificados.almacen.rezago',
+        ]);
+
         $ids = collect(explode(',', (string) $request->query('ids')))
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -68,5 +77,31 @@ class PaquetesCertiController extends Controller
         ])->setPaper('A4');
 
         return $pdf->download('reporte-rezago.pdf');
+    }
+
+    /**
+     * @param  array<int, string>  $permissions
+     */
+    private function authorizeAnyPermission(array $permissions): void
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+            return;
+        }
+
+        foreach ($permissions as $permission) {
+            if (is_string($permission) && $permission !== '' && $user->can($permission)) {
+                return;
+            }
+        }
+
+        abort(403, 'No tienes permiso para realizar esta accion.');
     }
 }

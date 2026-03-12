@@ -879,9 +879,7 @@ return [
             ],
         ],
         'AclUi' => [
-            // The backend already enforces ACL. Disabling this client-side hider
-            // avoids stale or inconsistent button visibility in Livewire views.
-            'active' => false,
+            'active' => true,
             'files' => [
                 [
                     'type' => 'js',

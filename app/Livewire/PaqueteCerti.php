@@ -22,6 +22,12 @@ class PaqueteCerti extends Component
     private const ESTADO_VENTANILLA = 'VENTANILLA';
     private const ESTADO_ENTREGADO = 'ENTREGADO';
     private const ESTADO_REZAGO = 'REZAGO';
+    private const MODE_ROUTE_PERMISSIONS = [
+        'almacen' => 'paquetes-certificados.almacen',
+        'inventario' => 'paquetes-certificados.inventario',
+        'rezago' => 'paquetes-certificados.rezago',
+        'todos' => 'paquetes-certificados.todos',
+    ];
 
     public $mode = 'almacen';
     public $search = '';
@@ -83,7 +89,7 @@ class PaqueteCerti extends Component
 
     public function openCreateModal()
     {
-        $this->authorizePermission('feature.paquetes-certificados.create');
+        $this->authorizePermission($this->modeFeaturePermission('create', 'almacen'));
 
         $this->resetForm();
         $this->editingId = null;
@@ -102,7 +108,7 @@ class PaqueteCerti extends Component
 
     public function openEditModal($id)
     {
-        $this->authorizePermission('feature.paquetes-certificados.edit');
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
 
         $paquete = PaqueteCertiModel::findOrFail($id);
 
@@ -124,8 +130,8 @@ class PaqueteCerti extends Component
     public function save()
     {
         $permission = $this->editingId
-            ? 'feature.paquetes-certificados.edit'
-            : 'feature.paquetes-certificados.create';
+            ? $this->modeFeaturePermission('edit')
+            : $this->modeFeaturePermission('create', 'almacen');
 
         $this->authorizePermission($permission);
 
@@ -163,7 +169,7 @@ class PaqueteCerti extends Component
 
     public function delete($id)
     {
-        $this->authorizePermission('feature.paquetes-certificados.delete');
+        $this->authorizePermission($this->modeFeaturePermission('delete'));
 
         $paquete = PaqueteCertiModel::findOrFail($id);
         $codigo = (string) $paquete->codigo;
@@ -174,7 +180,7 @@ class PaqueteCerti extends Component
 
     public function openReencaminarModal($id)
     {
-        $this->authorizePermission('feature.paquetes-certificados.edit');
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
 
         $paquete = PaqueteCertiModel::findOrFail($id);
         $this->reencaminarId = $paquete->id;
@@ -184,7 +190,7 @@ class PaqueteCerti extends Component
 
     public function saveReencaminar()
     {
-        $this->authorizePermission('feature.paquetes-certificados.edit');
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
 
         $this->validate([
             'reencaminarId' => 'required|integer|exists:paquetes_certi,id',
@@ -204,7 +210,7 @@ class PaqueteCerti extends Component
 
     public function marcarInventario($id)
     {
-        $this->authorizePermission('feature.paquetes-certificados.edit');
+        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
 
         $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
         if (!$estadoEntregadoId) {
@@ -222,7 +228,7 @@ class PaqueteCerti extends Component
 
     public function bajaMasiva()
     {
-        $this->authorizePermission('feature.paquetes-certificados.dropoff');
+        $this->authorizePermission($this->modeFeaturePermission('dropoff', 'almacen'));
 
         $ids = collect($this->selectedPaquetes)
             ->filter()
@@ -259,7 +265,7 @@ class PaqueteCerti extends Component
 
     public function rezagoMasivo()
     {
-        $this->authorizePermission('feature.paquetes-certificados.rezago');
+        $this->authorizePermission($this->modeFeaturePermission('rezago', 'almacen'));
 
         $ids = collect($this->selectedPaquetes)
             ->filter()
@@ -296,7 +302,7 @@ class PaqueteCerti extends Component
 
     public function marcarVentanilla($id)
     {
-        $this->authorizePermission('feature.paquetes-certificados.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign'));
 
         $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
         if (!$estadoVentanillaId) {
@@ -314,7 +320,7 @@ class PaqueteCerti extends Component
 
     public function reimprimirPdf($id)
     {
-        $this->authorizePermission('feature.paquetes-certificados.export');
+        $this->authorizePermission($this->modeFeaturePermission('export', 'inventario'));
 
         $paquete = PaqueteCertiModel::findOrFail($id);
 
@@ -520,14 +526,21 @@ class PaqueteCerti extends Component
             'paquetes' => $paquetes,
             'estados' => EstadoModel::orderBy('nombre_estado')->get(),
             'ventanillas' => VentanillaModel::orderBy('nombre_ventanilla')->get(),
-            'canCertiCreate' => $this->userCan('feature.paquetes-certificados.create'),
-            'canCertiEdit' => $this->userCan('feature.paquetes-certificados.edit'),
-            'canCertiDelete' => $this->userCan('feature.paquetes-certificados.delete'),
-            'canCertiDropoff' => $this->userCan('feature.paquetes-certificados.dropoff'),
-            'canCertiRezago' => $this->userCan('feature.paquetes-certificados.rezago'),
-            'canCertiAssign' => $this->userCan('feature.paquetes-certificados.assign'),
-            'canCertiExport' => $this->userCan('feature.paquetes-certificados.export'),
+            'canCertiCreate' => $this->userCan($this->modeFeaturePermission('create')),
+            'canCertiEdit' => $this->userCan($this->modeFeaturePermission('edit')),
+            'canCertiDelete' => $this->userCan($this->modeFeaturePermission('delete')),
+            'canCertiDropoff' => $this->userCan($this->modeFeaturePermission('dropoff')),
+            'canCertiRezago' => $this->userCan($this->modeFeaturePermission('rezago')),
+            'canCertiAssign' => $this->userCan($this->modeFeaturePermission('assign')),
+            'canCertiExport' => $this->userCan($this->modeFeaturePermission('export')),
         ]);
+    }
+
+    private function modeFeaturePermission(string $action, ?string $mode = null): string
+    {
+        $routePermission = self::MODE_ROUTE_PERMISSIONS[$mode ?? $this->mode] ?? self::MODE_ROUTE_PERMISSIONS['almacen'];
+
+        return 'feature.'.$routePermission.'.'.$action;
     }
 
     private function userCan(string $permission): bool
