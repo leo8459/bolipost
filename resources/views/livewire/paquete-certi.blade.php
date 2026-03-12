@@ -149,7 +149,7 @@
                         type="text"
                         class="form-control search-input"
                         placeholder="Buscar..."
-                        wire:model="search"
+                        wire:model.live.debounce.300ms="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
                     @if ($this->isAlmacen)

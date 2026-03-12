@@ -102,6 +102,15 @@ class PaquetesOrdi extends Component
         $this->resetPage();
     }
 
+    public function updatedSearch($value)
+    {
+        $this->searchQuery = $value;
+        $this->selectAll = false;
+        $this->selectedPaquetes = [];
+        $this->selectedCiudadMarcado = '';
+        $this->resetPage();
+    }
+
     public function openRecibirModal()
     {
         $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen'));

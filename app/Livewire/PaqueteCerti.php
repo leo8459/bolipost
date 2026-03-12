@@ -87,6 +87,12 @@ class PaqueteCerti extends Component
         $this->resetPage();
     }
 
+    public function updatedSearch($value)
+    {
+        $this->searchQuery = $value;
+        $this->resetPage();
+    }
+
     public function openCreateModal()
     {
         $this->authorizePermission($this->modeFeaturePermission('create', 'almacen'));

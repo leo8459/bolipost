@@ -55,7 +55,7 @@
                 </div>
 
                 <div class="d-flex gap-2 align-items-center">
-                    <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
+                    <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model.live.debounce.300ms="search">
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
                     @if ($this->isClasificacion)
                         <select wire:model="selectedCiudadMarcado" class="form-control search-input" style="min-width: 180px;">
