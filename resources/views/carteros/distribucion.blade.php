@@ -5,6 +5,9 @@
 @endsection
 
 @section('content')
+    @php
+        $canAssignDistribucion = auth()->user()?->can('feature.carteros.distribucion.assign') ?? false;
+    @endphp
     <div class="carteros-wrap">
         <div class="card card-carteros">
             <div class="card-header">
@@ -19,22 +22,24 @@
                         <label for="codigo-search" class="mb-1">Buscar por codigo</label>
                         <input type="text" id="codigo-search" class="form-control" placeholder="Escribe codigo y presiona Enter">
                     </div>
-                    <div class="col-md-3 mb-2">
-                        <label for="assignment-mode" class="mb-1">Tipo de asignacion</label>
-                        <select id="assignment-mode" class="form-control">
-                            <option value="auto">Autoasignarme</option>
-                            <option value="user">Asignar a usuario</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <label for="assignee-user" class="mb-1">Usuario</label>
-                        <select id="assignee-user" class="form-control" disabled>
-                            <option value="">Selecciona usuario</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2 mb-2 d-flex align-items-end">
-                        <button id="btn-asignar" class="btn btn-carteros-primary btn-block">Asignar</button>
-                    </div>
+                    @if ($canAssignDistribucion)
+                        <div class="col-md-3 mb-2">
+                            <label for="assignment-mode" class="mb-1">Tipo de asignacion</label>
+                            <select id="assignment-mode" class="form-control">
+                                <option value="auto">Autoasignarme</option>
+                                <option value="user">Asignar a usuario</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label for="assignee-user" class="mb-1">Usuario</label>
+                            <select id="assignee-user" class="form-control" disabled>
+                                <option value="">Selecciona usuario</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-2 d-flex align-items-end">
+                            <button id="btn-asignar" class="btn btn-carteros-primary btn-block">Asignar</button>
+                        </div>
+                    @endif
                 </div>
                 <div id="asignacion-msg" class="small"></div>
             </div>
@@ -108,6 +113,7 @@
             const assignMsg = document.getElementById('asignacion-msg');
             const checkAll = document.getElementById('check-all');
             const csrfToken = '{{ csrf_token() }}';
+            const canAssignDistribucion = @json($canAssignDistribucion);
 
             function escapeHtml(value) {
                 if (value === null || value === undefined) return '';
@@ -223,6 +229,10 @@
             }
 
             async function loadUsers() {
+                if (!canAssignDistribucion || !assigneeUser) {
+                    return;
+                }
+
                 try {
                     const response = await fetch('{{ route('api.carteros.users') }}', {
                         headers: { 'Accept': 'application/json' }
@@ -345,63 +355,65 @@
                 }
             });
 
-            assignmentMode.addEventListener('change', function() {
-                const useUser = assignmentMode.value === 'user';
-                assigneeUser.disabled = !useUser;
-            });
+            if (canAssignDistribucion && assignmentMode && assigneeUser && assignButton) {
+                assignmentMode.addEventListener('change', function() {
+                    const useUser = assignmentMode.value === 'user';
+                    assigneeUser.disabled = !useUser;
+                });
 
-            assignButton.addEventListener('click', async function() {
-                const items = Object.values(selectedItems);
-                if (!items.length) {
-                    showMessage('Selecciona al menos un paquete.', 'danger');
-                    return;
-                }
-
-                const mode = assignmentMode.value;
-                const userId = assigneeUser.value;
-                if (mode === 'user' && !userId) {
-                    showMessage('Selecciona un usuario para asignar.', 'danger');
-                    return;
-                }
-
-                assignButton.disabled = true;
-                showMessage('Asignando...', 'info');
-
-                try {
-                    const response = await fetch('{{ route('api.carteros.asignar') }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken
-                        },
-                        body: JSON.stringify({
-                            assignment_mode: mode,
-                            user_id: mode === 'user' ? parseInt(userId, 10) : null,
-                            items: items
-                        })
-                    });
-
-                    const payload = await response.json();
-                    if (!response.ok) {
-                        const errorText = payload.message || 'No se pudo asignar.';
-                        showMessage(errorText, 'danger');
+                assignButton.addEventListener('click', async function() {
+                    const items = Object.values(selectedItems);
+                    if (!items.length) {
+                        showMessage('Selecciona al menos un paquete.', 'danger');
                         return;
                     }
 
-                    showMessage(payload.message || 'Asignado correctamente.', 'success');
-                    selectedItems = {};
-                    checkAll.checked = false;
-                    if (currentPage > lastPage) {
-                        currentPage = lastPage;
+                    const mode = assignmentMode.value;
+                    const userId = assigneeUser.value;
+                    if (mode === 'user' && !userId) {
+                        showMessage('Selecciona un usuario para asignar.', 'danger');
+                        return;
                     }
-                    loadPage(currentPage, false);
-                } catch (error) {
-                    showMessage('Error al asignar paquetes.', 'danger');
-                } finally {
-                    assignButton.disabled = false;
-                }
-            });
+
+                    assignButton.disabled = true;
+                    showMessage('Asignando...', 'info');
+
+                    try {
+                        const response = await fetch('{{ route('api.carteros.asignar') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken
+                            },
+                            body: JSON.stringify({
+                                assignment_mode: mode,
+                                user_id: mode === 'user' ? parseInt(userId, 10) : null,
+                                items: items
+                            })
+                        });
+
+                        const payload = await response.json();
+                        if (!response.ok) {
+                            const errorText = payload.message || 'No se pudo asignar.';
+                            showMessage(errorText, 'danger');
+                            return;
+                        }
+
+                        showMessage(payload.message || 'Asignado correctamente.', 'success');
+                        selectedItems = {};
+                        checkAll.checked = false;
+                        if (currentPage > lastPage) {
+                            currentPage = lastPage;
+                        }
+                        loadPage(currentPage, false);
+                    } catch (error) {
+                        showMessage('Error al asignar paquetes.', 'danger');
+                    } finally {
+                        assignButton.disabled = false;
+                    }
+                });
+            }
 
             loadUsers();
             loadPage(1, false);

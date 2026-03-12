@@ -74,7 +74,15 @@ return [
     | Add non-route permissions here (for button-only actions, etc).
     |
     */
-    'custom_permissions' => [],
+    'custom_permissions' => [
+        'feature.carteros.distribucion.assign',
+        'feature.carteros.cartero.guide',
+        'feature.carteros.cartero.province',
+        'feature.carteros.cartero.deliver',
+        'feature.carteros.devolucion.restore',
+        'feature.carteros.entrega.deliver',
+        'feature.carteros.entrega.attempt',
+    ],
 
     /*
     |--------------------------------------------------------------------------

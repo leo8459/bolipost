@@ -5,15 +5,24 @@
 @endsection
 
 @section('content')
+    @php
+        $canCarteroGuide = auth()->user()?->can('feature.carteros.cartero.guide') ?? false;
+        $canCarteroProvince = auth()->user()?->can('feature.carteros.cartero.province') ?? false;
+        $canCarteroDeliver = auth()->user()?->can('feature.carteros.cartero.deliver') ?? false;
+    @endphp
     <div class="carteros-wrap">
         <div class="card card-carteros">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center flex-wrap">
                     <h3 class="card-title mb-0">Paquetes en Estado CARTERO (Mis Paquetes)</h3>
                     <div class="d-flex align-items-center" style="gap:10px;">
-                        <button id="btn-open-guia-modal" class="btn btn-sm btn-carteros-primary">Mandar provincia</button>
-                        <button id="btn-show-provincia" class="btn btn-sm btn-outline-light">Mostrar provincias</button>
-                        <button id="btn-show-cartero" class="btn btn-sm btn-outline-light" style="display:none;">Mostrar cartero</button>
+                        @if ($canCarteroGuide)
+                            <button id="btn-open-guia-modal" class="btn btn-sm btn-carteros-primary">Mandar provincia</button>
+                        @endif
+                        @if ($canCarteroProvince)
+                            <button id="btn-show-provincia" class="btn btn-sm btn-outline-light">Mostrar provincias</button>
+                            <button id="btn-show-cartero" class="btn btn-sm btn-outline-light" style="display:none;">Mostrar cartero</button>
+                        @endif
                         <span id="bandeja-chip" class="carteros-chip">Mi bandeja CARTERO</span>
                     </div>
                 </div>
@@ -143,6 +152,9 @@
             const btnShowProvincia = document.getElementById('btn-show-provincia');
             const btnShowCartero = document.getElementById('btn-show-cartero');
             const bandejaChip = document.getElementById('bandeja-chip');
+            const canCarteroGuide = @json($canCarteroGuide);
+            const canCarteroProvince = @json($canCarteroProvince);
+            const canCarteroDeliver = @json($canCarteroDeliver);
 
             function showMessage(text, type) {
                 guiaMessage.style.display = 'block';
@@ -192,6 +204,10 @@
                     const entregaUrl = '{{ route('carteros.entrega') }}' + '?tipo_paquete=' + encodeURIComponent(row.tipo_paquete) + '&id=' + encodeURIComponent(row.id);
                     const key = row.tipo_paquete + '-' + row.id;
                     const checked = Boolean(selectedItems[key]) ? ' checked' : '';
+                    const actionHtml = canCarteroDeliver
+                        ? '<a href="' + entregaUrl + '" class="btn btn-sm btn-carteros-primary">Entregar correspondencia</a>'
+                        : '<span class="text-muted small">Sin accion</span>';
+
                     return '<tr>' +
                         '<td><input type="checkbox" class="row-check" data-key="' + escapeHtml(key) + '"' + checked + '></td>' +
                         '<td>' + escapeHtml(row.tipo_paquete) + '</td>' +
@@ -205,7 +221,7 @@
                         '<td>' + escapeHtml(row.asignado_a) + '</td>' +
                         '<td>' + escapeHtml(row.intento) + '</td>' +
                         '<td>' + escapeHtml(row.created_at) + '</td>' +
-                        '<td><a href="' + entregaUrl + '" class="btn btn-sm btn-carteros-primary">Entregar correspondencia</a></td>' +
+                        '<td>' + actionHtml + '</td>' +
                         '</tr>';
                 }).join('');
 
@@ -296,21 +312,22 @@
                 });
             });
 
-            btnOpenGuiaModal.addEventListener('click', function() {
-                if (currentModeLabel !== 'CARTERO') {
-                    showMessage('Para mandar provincia, vuelve a la bandeja CARTERO.', 'danger');
-                    return;
-                }
-                if (Object.keys(selectedItems).length === 0) {
-                    showMessage('Selecciona al menos un paquete.', 'danger');
-                    return;
-                }
-                refreshSelectedCount();
-                $('#guiaModal').modal('show');
-            });
+            if (canCarteroGuide && btnOpenGuiaModal && guiaForm) {
+                btnOpenGuiaModal.addEventListener('click', function() {
+                    if (currentModeLabel !== 'CARTERO') {
+                        showMessage('Para mandar provincia, vuelve a la bandeja CARTERO.', 'danger');
+                        return;
+                    }
+                    if (Object.keys(selectedItems).length === 0) {
+                        showMessage('Selecciona al menos un paquete.', 'danger');
+                        return;
+                    }
+                    refreshSelectedCount();
+                    $('#guiaModal').modal('show');
+                });
 
-            guiaForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
+                guiaForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
 
                 const items = Object.values(selectedItems).map(function(item) {
                     return { id: item.id, tipo_paquete: item.tipo_paquete };
@@ -369,29 +386,36 @@
                 } finally {
                     btnGuardarGuia.disabled = false;
                 }
-            });
+                });
+            }
 
-            btnShowProvincia.addEventListener('click', function() {
-                currentEndpoint = '{{ route('api.carteros.provincia') }}';
-                currentModeLabel = 'PROVINCIA';
-                bandejaChip.textContent = 'Mi bandeja PROVINCIA';
-                btnShowProvincia.style.display = 'none';
-                btnShowCartero.style.display = '';
-                btnOpenGuiaModal.disabled = true;
-                resetSelection();
-                loadPage(1);
-            });
+            if (canCarteroProvince && btnShowProvincia && btnShowCartero) {
+                btnShowProvincia.addEventListener('click', function() {
+                    currentEndpoint = '{{ route('api.carteros.provincia') }}';
+                    currentModeLabel = 'PROVINCIA';
+                    bandejaChip.textContent = 'Mi bandeja PROVINCIA';
+                    btnShowProvincia.style.display = 'none';
+                    btnShowCartero.style.display = '';
+                    if (btnOpenGuiaModal) {
+                        btnOpenGuiaModal.disabled = true;
+                    }
+                    resetSelection();
+                    loadPage(1);
+                });
 
-            btnShowCartero.addEventListener('click', function() {
-                currentEndpoint = '{{ route('api.carteros.cartero') }}';
-                currentModeLabel = 'CARTERO';
-                bandejaChip.textContent = 'Mi bandeja CARTERO';
-                btnShowCartero.style.display = 'none';
-                btnShowProvincia.style.display = '';
-                btnOpenGuiaModal.disabled = false;
-                resetSelection();
-                loadPage(1);
-            });
+                btnShowCartero.addEventListener('click', function() {
+                    currentEndpoint = '{{ route('api.carteros.cartero') }}';
+                    currentModeLabel = 'CARTERO';
+                    bandejaChip.textContent = 'Mi bandeja CARTERO';
+                    btnShowCartero.style.display = 'none';
+                    btnShowProvincia.style.display = '';
+                    if (btnOpenGuiaModal) {
+                        btnOpenGuiaModal.disabled = false;
+                    }
+                    resetSelection();
+                    loadPage(1);
+                });
+            }
 
             prevLink.addEventListener('click', function(e) {
                 e.preventDefault();

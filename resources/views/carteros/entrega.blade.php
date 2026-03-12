@@ -5,6 +5,10 @@
 @endsection
 
 @section('content')
+    @php
+        $canEntregaDeliver = auth()->user()?->can('feature.carteros.entrega.deliver') ?? false;
+        $canEntregaAttempt = auth()->user()?->can('feature.carteros.entrega.attempt') ?? false;
+    @endphp
     <div class="carteros-wrap entrega-wrap">
         <div class="card card-carteros">
             <div class="card-header">
@@ -66,66 +70,77 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-lg-7">
-                            <form method="POST" action="{{ route('carteros.entrega.store') }}" class="mb-3 mb-lg-0 entrega-upload-form"
-                                enctype="multipart/form-data">
-                                @csrf
-                                <input type="hidden" name="tipo_paquete" value="{{ $tipo_paquete }}">
-                                <input type="hidden" name="id" value="{{ $id }}">
-                                <input type="hidden" name="descripcion" id="descripcion_entrega" value="">
+                        @if ($canEntregaDeliver)
+                            <div class="col-lg-7">
+                                <form method="POST" action="{{ route('carteros.entrega.store') }}" class="mb-3 mb-lg-0 entrega-upload-form"
+                                    enctype="multipart/form-data">
+                                    @csrf
+                                    <input type="hidden" name="tipo_paquete" value="{{ $tipo_paquete }}">
+                                    <input type="hidden" name="id" value="{{ $id }}">
+                                    <input type="hidden" name="descripcion" id="descripcion_entrega" value="">
 
-                                <div class="form-group mb-3">
-                                    <label for="recibido_por">Recibido por</label>
-                                    <input type="text" name="recibido_por" id="recibido_por" class="form-control"
-                                        value="{{ old('recibido_por') }}" required>
-                                </div>
-
-                                <div class="form-group mb-3">
-                                    <label for="foto_entrega">Foto (obligatoria)</label>
-                                    <input type="file" name="foto" id="foto_entrega" class="form-control-file foto-input"
-                                        accept="image/*" capture="environment" data-preview-img="preview_entrega" required>
-                                    <small class="text-muted d-block mt-1">
-                                        En celular se abre la camara. En PC se abre selector de archivos.
-                                    </small>
-                                    <small class="text-muted d-block mt-1 foto-upload-hint">
-                                        Si la foto es muy pesada, se reduce automaticamente antes de enviar.
-                                    </small>
-                                    <small class="text-muted d-block mt-1 foto-size-label"></small>
-                                    <div class="foto-preview-wrap mt-2 d-none" id="preview_entrega_wrap">
-                                        <img id="preview_entrega" class="foto-preview-img" alt="Vista previa de foto de entrega">
+                                    <div class="form-group mb-3">
+                                        <label for="recibido_por">Recibido por</label>
+                                        <input type="text" name="recibido_por" id="recibido_por" class="form-control"
+                                            value="{{ old('recibido_por') }}" required>
                                     </div>
-                                    <div class="small text-info mt-2 d-none foto-upload-status"></div>
-                                </div>
 
-                                <button type="submit" class="btn btn-success px-4">Confirmar entrega</button>
-                            </form>
-                        </div>
-                        <div class="col-lg-5 d-flex align-items-end">
-                            <form method="POST" action="{{ route('carteros.entrega.intento') }}" class="w-100 entrega-upload-form"
-                                enctype="multipart/form-data">
-                                @csrf
-                                <input type="hidden" name="tipo_paquete" value="{{ $tipo_paquete }}">
-                                <input type="hidden" name="id" value="{{ $id }}">
-                                <input type="hidden" name="descripcion" id="descripcion_intento" value="">
-                                <div class="form-group mb-3">
-                                    <label for="foto_intento">Foto (obligatoria)</label>
-                                    <input type="file" name="foto" id="foto_intento" class="form-control-file foto-input"
-                                        accept="image/*" capture="environment" data-preview-img="preview_intento" required>
-                                    <small class="text-muted d-block mt-1">
-                                        En celular se abre la camara. En PC se abre selector de archivos.
-                                    </small>
-                                    <small class="text-muted d-block mt-1 foto-upload-hint">
-                                        Si la foto es muy pesada, se reduce automaticamente antes de enviar.
-                                    </small>
-                                    <small class="text-muted d-block mt-1 foto-size-label"></small>
-                                    <div class="foto-preview-wrap mt-2 d-none" id="preview_intento_wrap">
-                                        <img id="preview_intento" class="foto-preview-img" alt="Vista previa de foto de intento">
+                                    <div class="form-group mb-3">
+                                        <label for="foto_entrega">Foto (obligatoria)</label>
+                                        <input type="file" name="foto" id="foto_entrega" class="form-control-file foto-input"
+                                            accept="image/*" capture="environment" data-preview-img="preview_entrega" required>
+                                        <small class="text-muted d-block mt-1">
+                                            En celular se abre la camara. En PC se abre selector de archivos.
+                                        </small>
+                                        <small class="text-muted d-block mt-1 foto-upload-hint">
+                                            Si la foto es muy pesada, se reduce automaticamente antes de enviar.
+                                        </small>
+                                        <small class="text-muted d-block mt-1 foto-size-label"></small>
+                                        <div class="foto-preview-wrap mt-2 d-none" id="preview_entrega_wrap">
+                                            <img id="preview_entrega" class="foto-preview-img" alt="Vista previa de foto de entrega">
+                                        </div>
+                                        <div class="small text-info mt-2 d-none foto-upload-status"></div>
                                     </div>
-                                    <div class="small text-info mt-2 d-none foto-upload-status"></div>
+
+                                    <button type="submit" class="btn btn-success px-4">Confirmar entrega</button>
+                                </form>
+                            </div>
+                        @endif
+                        @if ($canEntregaAttempt)
+                            <div class="col-lg-5 d-flex align-items-end">
+                                <form method="POST" action="{{ route('carteros.entrega.intento') }}" class="w-100 entrega-upload-form"
+                                    enctype="multipart/form-data">
+                                    @csrf
+                                    <input type="hidden" name="tipo_paquete" value="{{ $tipo_paquete }}">
+                                    <input type="hidden" name="id" value="{{ $id }}">
+                                    <input type="hidden" name="descripcion" id="descripcion_intento" value="">
+                                    <div class="form-group mb-3">
+                                        <label for="foto_intento">Foto (obligatoria)</label>
+                                        <input type="file" name="foto" id="foto_intento" class="form-control-file foto-input"
+                                            accept="image/*" capture="environment" data-preview-img="preview_intento" required>
+                                        <small class="text-muted d-block mt-1">
+                                            En celular se abre la camara. En PC se abre selector de archivos.
+                                        </small>
+                                        <small class="text-muted d-block mt-1 foto-upload-hint">
+                                            Si la foto es muy pesada, se reduce automaticamente antes de enviar.
+                                        </small>
+                                        <small class="text-muted d-block mt-1 foto-size-label"></small>
+                                        <div class="foto-preview-wrap mt-2 d-none" id="preview_intento_wrap">
+                                            <img id="preview_intento" class="foto-preview-img" alt="Vista previa de foto de intento">
+                                        </div>
+                                        <div class="small text-info mt-2 d-none foto-upload-status"></div>
+                                    </div>
+                                    <button type="submit" class="btn btn-warning px-4">Agregar intento</button>
+                                </form>
+                            </div>
+                        @endif
+                        @if (! $canEntregaDeliver && ! $canEntregaAttempt)
+                            <div class="col-12">
+                                <div class="alert alert-warning mb-0">
+                                    Esta ventana esta habilitada, pero tu rol no tiene botones operativos en entrega.
                                 </div>
-                                <button type="submit" class="btn btn-warning px-4">Agregar intento</button>
-                            </form>
-                        </div>
+                            </div>
+                        @endif
                     </div>
 
                     @php
@@ -214,14 +229,18 @@
             const TARGET_MAX_BYTES = 1200 * 1024;
             const MAX_DIMENSION = 1600;
 
-            if (!descripcion || !entregaInput || !intentoInput) return;
+            if (!descripcion) return;
 
             descripcion.value = @json(old('descripcion', ''));
 
             const syncDescripcion = () => {
                 const value = descripcion.value || '';
-                entregaInput.value = value;
-                intentoInput.value = value;
+                if (entregaInput) {
+                    entregaInput.value = value;
+                }
+                if (intentoInput) {
+                    intentoInput.value = value;
+                }
             };
 
             const formatBytesToMb = (bytes) => {

@@ -5,6 +5,9 @@
 @endsection
 
 @section('content')
+    @php
+        $canCarteroRestore = auth()->user()?->can('feature.carteros.devolucion.restore') ?? false;
+    @endphp
     <div class="carteros-wrap">
         <div class="card card-carteros">
             <div class="card-header">
@@ -79,6 +82,7 @@
             const nextLink = document.getElementById('next-page-link');
             const msg = document.getElementById('devolucion-msg');
             const csrfToken = '{{ csrf_token() }}';
+            const canCarteroRestore = @json($canCarteroRestore);
 
             function escapeHtml(value) {
                 if (value === null || value === undefined) return '';
@@ -105,6 +109,10 @@
                 }
 
                 body.innerHTML = rows.map(function(row) {
+                    const actionHtml = canCarteroRestore
+                        ? '<button class="btn btn-sm btn-carteros-primary btn-recuperar" data-id="' + row.id + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '">RECUPERAR</button>'
+                        : '<span class="text-muted small">Sin accion</span>';
+
                     return '<tr>' +
                         '<td>' + escapeHtml(row.tipo_paquete) + '</td>' +
                         '<td>' + escapeHtml(row.codigo) + '</td>' +
@@ -118,7 +126,7 @@
                         '<td>' + escapeHtml(row.intento) + '</td>' +
                         '<td>' + escapeHtml(row.descripcion) + '</td>' +
                         '<td>' + escapeHtml(row.created_at) + '</td>' +
-                        '<td><button class="btn btn-sm btn-carteros-primary btn-recuperar" data-id="' + row.id + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '">RECUPERAR</button></td>' +
+                        '<td>' + actionHtml + '</td>' +
                         '</tr>';
                 }).join('');
             }

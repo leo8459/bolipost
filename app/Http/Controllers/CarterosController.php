@@ -77,6 +77,8 @@ class CarterosController extends Controller
 
     public function users(): JsonResponse
     {
+        $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
+
         $users = User::query()
             ->orderBy('name')
             ->get(['id', 'name']);
@@ -105,6 +107,8 @@ class CarterosController extends Controller
 
     public function provinciaData(Request $request): JsonResponse
     {
+        $this->authorizeFeaturePermission('feature.carteros.cartero.province');
+
         return $this->combinedDataResponse(
             $request,
             $this->resolveEstadoProvinciaId(),
@@ -131,6 +135,8 @@ class CarterosController extends Controller
 
         public function assign(Request $request): JsonResponse
     {
+        $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
+
         $validated = $request->validate([
             'assignment_mode' => ['required', 'in:auto,user'],
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -283,6 +289,8 @@ class CarterosController extends Controller
     }
     public function returnToAlmacen(Request $request): JsonResponse
     {
+        $this->authorizeFeaturePermission('feature.carteros.devolucion.restore');
+
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
@@ -440,6 +448,8 @@ class CarterosController extends Controller
 
     public function registerGuide(Request $request): JsonResponse
     {
+        $this->authorizeFeaturePermission('feature.carteros.cartero.guide');
+
         $validated = $request->validate([
             'transportadora' => ['required', 'string', 'max:255'],
             'provincia' => ['required', 'string', 'max:255'],
@@ -642,6 +652,8 @@ class CarterosController extends Controller
 
     public function deliverPackage(Request $request)
     {
+        $this->authorizeFeaturePermission('feature.carteros.entrega.deliver');
+
         $validated = $request->validate([
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
             'id' => ['required', 'integer'],
@@ -711,6 +723,8 @@ class CarterosController extends Controller
 
     public function addAttempt(Request $request)
     {
+        $this->authorizeFeaturePermission('feature.carteros.entrega.attempt');
+
         $validated = $request->validate([
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
             'id' => ['required', 'integer'],
@@ -1543,6 +1557,27 @@ class CarterosController extends Controller
         }
 
         return $prefix . str_pad((string) $next, 5, '0', STR_PAD_LEFT);
+    }
+
+    private function authorizeFeaturePermission(string $permission): void
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+            return;
+        }
+
+        if ($user->can($permission)) {
+            return;
+        }
+
+        abort(403, 'No tienes permiso para realizar esta accion.');
     }
 }
 

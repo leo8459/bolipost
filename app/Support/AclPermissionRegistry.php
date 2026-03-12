@@ -60,6 +60,9 @@ class AclPermissionRegistry
         'assign' => 'Botones de movimiento/recepcion',
         'confirm' => 'Botones de confirmacion',
         'deliver' => 'Botones de entrega',
+        'attempt' => 'Botones de intento',
+        'guide' => 'Botones de guia/provincia',
+        'province' => 'Botones de vista provincia',
         'report' => 'Botones de reporte',
         'print' => 'Botones de impresion/boleta',
         'manage' => 'Botones de administracion general',
@@ -1126,6 +1129,13 @@ class AclPermissionRegistry
             'feature.paquetes-certificados.inventario.assign' => 'Boton: Alta a ventanilla',
             'feature.paquetes-certificados.inventario.export' => 'Boton: Reimprimir PDF',
             'feature.paquetes-certificados.rezago.assign' => 'Boton: Devuelto a ventanilla',
+            'feature.carteros.distribucion.assign' => 'Boton: Asignar',
+            'feature.carteros.cartero.guide' => 'Boton: Mandar provincia',
+            'feature.carteros.cartero.province' => 'Boton: Mostrar provincias',
+            'feature.carteros.cartero.deliver' => 'Boton: Abrir entrega',
+            'feature.carteros.devolucion.restore' => 'Boton: Recuperar',
+            'feature.carteros.entrega.deliver' => 'Boton: Confirmar entrega',
+            'feature.carteros.entrega.attempt' => 'Boton: Agregar intento',
         ];
 
         if (isset($specialLabels[$permissionName])) {
@@ -1292,6 +1302,13 @@ class AclPermissionRegistry
             'feature.paquetes-certificados.inventario.assign' => 'Controla el boton Alta en la ventana Inventario.',
             'feature.paquetes-certificados.inventario.export' => 'Controla Reimprimir PDF en la ventana Inventario.',
             'feature.paquetes-certificados.rezago.assign' => 'Controla el boton Devuelto en la ventana Rezago.',
+            'feature.carteros.distribucion.assign' => 'Controla el boton Asignar en la ventana Distribucion.',
+            'feature.carteros.cartero.guide' => 'Controla Mandar provincia y Guardar guia dentro de la ventana Cartero.',
+            'feature.carteros.cartero.province' => 'Controla el boton Mostrar provincias dentro de la ventana Cartero.',
+            'feature.carteros.cartero.deliver' => 'Controla el boton Entregar correspondencia dentro de la ventana Cartero.',
+            'feature.carteros.devolucion.restore' => 'Controla el boton Recuperar dentro de la ventana Devolucion.',
+            'feature.carteros.entrega.deliver' => 'Controla el boton Confirmar entrega dentro de la ventana Entrega.',
+            'feature.carteros.entrega.attempt' => 'Controla el boton Agregar intento dentro de la ventana Entrega.',
         ];
 
         if (isset($specialHints[$permissionName])) {
@@ -1319,6 +1336,7 @@ class AclPermissionRegistry
         $legacyFeaturePrefixes = [
             'feature.paquetes-ordinarios.',
             'feature.paquetes-certificados.',
+            'feature.carteros.',
         ];
 
         foreach ($legacyFeaturePrefixes as $prefix) {
