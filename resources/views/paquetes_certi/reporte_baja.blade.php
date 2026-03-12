@@ -22,7 +22,7 @@
         .details-table td { width: 50%; padding-right: 18px; }
         .sign-table { margin-top: 10px; }
         .sign-table td { width: 50%; padding: 0 10px; }
-        body { padding-top: 0.60cm; }
+        body { padding-top: 0.90cm; }
     </style>
 </head>
 <body>
