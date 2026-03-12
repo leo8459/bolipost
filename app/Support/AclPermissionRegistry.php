@@ -311,9 +311,23 @@ class AclPermissionRegistry
     {
         $guardName = (string) config('auth.defaults.guard', 'web');
         $permissionNames = self::allPermissionNames();
+        $timestamp = now();
+        $rows = collect($permissionNames)
+            ->map(fn (string $permissionName): array => [
+                'name' => $permissionName,
+                'guard_name' => $guardName,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ])
+            ->values()
+            ->all();
 
-        foreach ($permissionNames as $permissionName) {
-            Permission::findOrCreate($permissionName, $guardName);
+        if ($rows !== []) {
+            Permission::query()->upsert(
+                $rows,
+                ['name', 'guard_name'],
+                ['updated_at']
+            );
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
