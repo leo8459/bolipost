@@ -310,6 +310,7 @@
                                 Almacen admisiones
                             </a>
 
+                            @if ($canEmsAssign)
                             <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
                                 Generados hoy
                             </button>
@@ -317,33 +318,44 @@
                             <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosSinFiltroFecha">
                                 Mandar seleccionados
                             </button>
+                            @endif
                         @elseif ($this->isAlmacenEms)
                             <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
                                 Registrar contrato
                             </a>
+                            @if ($canEmsEdit)
                             <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
                                 Anadir peso contrato
                             </button>
+                            @endif
+                            @if ($canEmsAssign)
                             <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
                                 Enviar a ventanilla EMS
                             </button>
                             <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
                                 Manda a regional
                             </button>
+                            @endif
+                            @if ($canEmsPrint)
                             <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
                                 Reimprimir CN-33
                             </button>
+                            @endif
                         @elseif ($this->isVentanillaEms)
+                            @if ($canEmsDeliver)
                             <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
                                 Entregar seleccionados
                             </button>
+                            @endif
                         @elseif ($this->isTransitoEms)
+                            @if ($canEmsAssign)
                             <button class="btn btn-outline-light2" type="button" wire:click="openRecibirRegionalModal">
                                 Recibir
                             </button>
+                            @endif
                         @endif
 
-                        @if ($this->isAdmision || $this->isAlmacenEms)
+                        @if (($this->isAdmision || $this->isAlmacenEms) && $canEmsCreate)
                             <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                         @endif
                     @endif
@@ -710,27 +722,31 @@
                                         <td>
                                             @if (($row->record_type ?? '') === 'EMS')
                                                 @if ($this->isAlmacenEms || $this->isTransitoEms)
-                                                    @aclcan('edit', $this)
+                                                    @if ($canEmsEdit)
                                                     <button wire:click="openEditModal({{ $row->record_id }})"
                                                         class="btn btn-sm btn-azul"
                                                         title="Editar">
                                                         <i class="fas fa-pen"></i>
                                                     </button>
-                                                    @endaclcan
+                                                    @endif
                                                 @endif
+                                                @if ($canEmsPrint)
                                                 <a href="{{ route('paquetes-ems.boleta', $row->record_id) }}"
                                                    class="btn btn-sm btn-outline-azul"
                                                    target="_blank"
                                                    title="Reimprimir boleta">
                                                     <i class="fas fa-print"></i>
                                                 </a>
+                                                @endif
                                                 @if ($this->isAlmacenEms)
+                                                    @if ($canEmsRestore)
                                                     <button wire:click="devolverAAdmisiones({{ $row->record_id }})"
                                                         class="btn btn-sm btn-outline-azul"
                                                         title="Devolver a ADMISIONES"
                                                         onclick="return confirm('Seguro que deseas devolver este paquete a ADMISIONES?')">
                                                         <i class="fas fa-undo"></i>
                                                     </button>
+                                                    @endif
                                                 @endif
                                             @else
                                                 <a href="{{ route('paquetes-contrato.reporte', $row->record_id) }}"
@@ -778,26 +794,30 @@
                                         <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
                                         <td>{{ $fechaGeneracionReporte }}</td>
                                         <td>
-                                            @aclcan('edit', $this)
+                                            @if ($canEmsEdit)
                                             <button wire:click="openEditModal({{ $paquete->id }})"
                                                 class="btn btn-sm btn-azul"
                                                 title="Editar">
                                                 <i class="fas fa-pen"></i>
                                             </button>
-                                            @endaclcan
+                                            @endif
+                                            @if ($canEmsPrint)
                                             <a href="{{ route('paquetes-ems.boleta', $paquete->id) }}"
                                                class="btn btn-sm btn-outline-azul"
                                                target="_blank"
                                                title="Reimprimir boleta">
                                                 <i class="fas fa-print"></i>
                                             </a>
+                                            @endif
                                             @if ($this->isAdmision)
+                                                @if ($canEmsDelete)
                                                 <button wire:click="delete({{ $paquete->id }})"
                                                     class="btn btn-sm btn-outline-azul"
                                                     title="Eliminar"
                                                     onclick="return confirm('Seguro que deseas eliminar este paquete?')">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
+                                                @endif
                                             @endif
                                         </td>
                                     </tr>

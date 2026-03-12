@@ -64,6 +64,7 @@
                                 <option value="{{ $ciudadDisponible }}">{{ $ciudadDisponible }}</option>
                             @endforeach
                         </select>
+                        @if ($canOrdiAssign)
                         <button
                             class="btn btn-outline-light2"
                             type="button"
@@ -72,9 +73,13 @@
                         >
                             Despachar
                         </button>
+                        @endif
+                        @if ($canOrdiCreate)
                         <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                        @endif
                     @endif
                     @if ($this->isDespacho)
+                        @if ($canOrdiPrint)
                         <button
                             class="btn btn-outline-light2"
                             type="button"
@@ -84,11 +89,15 @@
                         >
                             Reimprimir Manifiesto
                         </button>
+                        @endif
                     @endif
                     @if ($this->isAlmacen)
+                        @if ($canOrdiAssign)
                         <button class="btn btn-outline-light2" type="button" wire:click="openRecibirModal">
                             Recibir paquetes
                         </button>
+                        @endif
+                        @if ($canOrdiDropoff)
                         <button
                             class="btn btn-outline-light2"
                             type="button"
@@ -97,6 +106,8 @@
                         >
                             Baja de paquetes
                         </button>
+                        @endif
+                        @if ($canOrdiRezago)
                         <button
                             class="btn btn-outline-light2"
                             type="button"
@@ -105,6 +116,7 @@
                         >
                             Rezago
                         </button>
+                        @endif
                     @endif
                 </div>
             </div>
@@ -181,11 +193,13 @@
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? '-' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
-                                        @aclcan('edit', $this)
+                                        @if ($canOrdiEdit)
                                         <button wire:click="openEditModal({{ $paquete->id }})" class="btn btn-sm btn-azul">Editar</button>
-                                        @endaclcan
+                                        @endif
                                         @if ($this->isClasificacion)
+                                            @if ($canOrdiDelete)
                                             <button wire:click="delete({{ $paquete->id }})" class="btn btn-sm btn-outline-azul" onclick="return confirm('Seguro que deseas eliminar este paquete?')">Borrar</button>
+                                            @endif
                                         @endif
                                         @if ($this->isDespacho)
                                             <button

@@ -83,6 +83,8 @@ class PaqueteCerti extends Component
 
     public function openCreateModal()
     {
+        $this->authorizePermission('feature.paquetes-certificados.create');
+
         $this->resetForm();
         $this->editingId = null;
         $userCity = trim((string) optional(auth()->user())->ciudad);
@@ -100,6 +102,8 @@ class PaqueteCerti extends Component
 
     public function openEditModal($id)
     {
+        $this->authorizePermission('feature.paquetes-certificados.edit');
+
         $paquete = PaqueteCertiModel::findOrFail($id);
 
         $this->editingId = $paquete->id;
@@ -119,6 +123,12 @@ class PaqueteCerti extends Component
 
     public function save()
     {
+        $permission = $this->editingId
+            ? 'feature.paquetes-certificados.edit'
+            : 'feature.paquetes-certificados.create';
+
+        $this->authorizePermission($permission);
+
         $this->validate($this->rules());
 
         if ($this->editingId) {
@@ -153,6 +163,8 @@ class PaqueteCerti extends Component
 
     public function delete($id)
     {
+        $this->authorizePermission('feature.paquetes-certificados.delete');
+
         $paquete = PaqueteCertiModel::findOrFail($id);
         $codigo = (string) $paquete->codigo;
         $paquete->delete();
@@ -162,6 +174,8 @@ class PaqueteCerti extends Component
 
     public function openReencaminarModal($id)
     {
+        $this->authorizePermission('feature.paquetes-certificados.edit');
+
         $paquete = PaqueteCertiModel::findOrFail($id);
         $this->reencaminarId = $paquete->id;
         $this->reencaminarCuidad = $paquete->cuidad;
@@ -170,6 +184,8 @@ class PaqueteCerti extends Component
 
     public function saveReencaminar()
     {
+        $this->authorizePermission('feature.paquetes-certificados.edit');
+
         $this->validate([
             'reencaminarId' => 'required|integer|exists:paquetes_certi,id',
             'reencaminarCuidad' => 'required|string|max:255',
@@ -188,6 +204,8 @@ class PaqueteCerti extends Component
 
     public function marcarInventario($id)
     {
+        $this->authorizePermission('feature.paquetes-certificados.edit');
+
         $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
         if (!$estadoEntregadoId) {
             session()->flash('success', 'No existe el estado ENTREGADO en la tabla estados.');
@@ -204,6 +222,8 @@ class PaqueteCerti extends Component
 
     public function bajaMasiva()
     {
+        $this->authorizePermission('feature.paquetes-certificados.dropoff');
+
         $ids = collect($this->selectedPaquetes)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -239,6 +259,8 @@ class PaqueteCerti extends Component
 
     public function rezagoMasivo()
     {
+        $this->authorizePermission('feature.paquetes-certificados.rezago');
+
         $ids = collect($this->selectedPaquetes)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -274,6 +296,8 @@ class PaqueteCerti extends Component
 
     public function marcarVentanilla($id)
     {
+        $this->authorizePermission('feature.paquetes-certificados.assign');
+
         $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
         if (!$estadoVentanillaId) {
             session()->flash('success', 'No existe el estado VENTANILLA en la tabla estados.');
@@ -290,6 +314,8 @@ class PaqueteCerti extends Component
 
     public function reimprimirPdf($id)
     {
+        $this->authorizePermission('feature.paquetes-certificados.export');
+
         $paquete = PaqueteCertiModel::findOrFail($id);
 
         $this->dispatch('openBajaPdf', [
@@ -494,6 +520,31 @@ class PaqueteCerti extends Component
             'paquetes' => $paquetes,
             'estados' => EstadoModel::orderBy('nombre_estado')->get(),
             'ventanillas' => VentanillaModel::orderBy('nombre_ventanilla')->get(),
+            'canCertiCreate' => $this->userCan('feature.paquetes-certificados.create'),
+            'canCertiEdit' => $this->userCan('feature.paquetes-certificados.edit'),
+            'canCertiDelete' => $this->userCan('feature.paquetes-certificados.delete'),
+            'canCertiDropoff' => $this->userCan('feature.paquetes-certificados.dropoff'),
+            'canCertiRezago' => $this->userCan('feature.paquetes-certificados.rezago'),
+            'canCertiAssign' => $this->userCan('feature.paquetes-certificados.assign'),
+            'canCertiExport' => $this->userCan('feature.paquetes-certificados.export'),
         ]);
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->can($permission);
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
     }
 }

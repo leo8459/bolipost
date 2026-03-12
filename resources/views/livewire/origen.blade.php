@@ -149,7 +149,9 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchOrigenes">Buscar</button>
+                    @aclcan('create', $this)
                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endaclcan
                 </div>
             </div>
 
@@ -195,12 +197,14 @@
                                             <i class="fas fa-pen"></i>
                                         </button>
                                         @endaclcan
+                                        @aclcan('delete', $this)
                                         <button wire:click="delete({{ $origen->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
                                             onclick="return confirm('Seguro que deseas eliminar este origen?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
+                                        @endaclcan
                                     </td>
                                 </tr>
                             @empty

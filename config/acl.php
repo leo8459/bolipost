@@ -94,7 +94,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'ui' => [
-        'auto_hide_livewire_actions' => true,
+        'auto_hide_livewire_actions' => false,
     ],
 
     /*

@@ -153,16 +153,20 @@
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
                     @if ($this->isAlmacen)
+                        @if ($canCertiDropoff)
                         <button class="btn btn-outline-light2" type="button"
                             wire:click.prevent="bajaMasiva">
                             Baja
                         </button>
+                        @endif
+                        @if ($canCertiRezago)
                         <button class="btn btn-outline-light2" type="button"
                             wire:click.prevent="rezagoMasivo">
                             Rezago
                         </button>
+                        @endif
                     @endif
-                    @if ($this->isAlmacen)
+                    @if ($this->isAlmacen && $canCertiCreate)
                         <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                     @endif
                 </div>
@@ -229,31 +233,33 @@
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? 'Sin estado' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
-                                        @aclcan('edit', $this)
+                                        @if ($canCertiEdit)
                                         <button wire:click="openEditModal({{ $paquete->id }})"
                                             class="btn btn-sm btn-azul">
                                             Editar
                                         </button>
-                                        @endaclcan
-                                        @if ($this->isInventory)
+                                        @endif
+                                        @if ($this->isInventory && $canCertiExport)
                                             <a href="{{ route('paquetes-certificados.baja-pdf', ['ids' => $paquete->id]) }}"
                                                 class="btn btn-sm btn-outline-azul"
                                                 target="_blank" rel="noopener">
                                                 Reimprimir
                                             </a>
                                         @endif
-                                        @if ($this->isInventory || $this->isRezago)
+                                        @if (($this->isInventory || $this->isRezago) && $canCertiAssign)
                                             <button wire:click="marcarVentanilla({{ $paquete->id }})"
                                                 class="btn btn-sm btn-outline-azul"
                                                 onclick="return confirm('Enviar este paquete a ventanilla?')">
                                                 {{ $this->isRezago ? 'Devuelto' : 'Alta' }}
                                             </button>
                                         @endif
+                                        @if ($canCertiDelete)
                                         <button wire:click="delete({{ $paquete->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             onclick="return confirm('Seguro que deseas eliminar este paquete?')">
                                             Borrar
                                         </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty

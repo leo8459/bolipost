@@ -392,11 +392,15 @@ class PaquetesEms extends Component
 
     public function openCreateModal()
     {
+        $this->authorizePermission('feature.paquetes-ems.create');
+
         return $this->redirect(route('paquetes-ems.create'), navigate: false);
     }
 
     public function openRegionalModal()
     {
+        $this->authorizePermission('feature.paquetes-ems.assign');
+
         $idsEms = collect($this->selectedPaquetes)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -565,6 +569,8 @@ class PaquetesEms extends Component
 
     public function openContratoPesoModal()
     {
+        $this->authorizePermission('feature.paquetes-ems.edit');
+
         if (!$this->isAlmacenEms) {
             return;
         }
@@ -882,6 +888,8 @@ class PaquetesEms extends Component
 
     public function toggleCn33Reprint()
     {
+        $this->authorizePermission('feature.paquetes-ems.print');
+
         if (!$this->isAlmacenEms) {
             return;
         }
@@ -894,6 +902,8 @@ class PaquetesEms extends Component
 
     public function reimprimirCn33()
     {
+        $this->authorizePermission('feature.paquetes-ems.print');
+
         if (!$this->isAlmacenEms) {
             return;
         }
@@ -951,6 +961,8 @@ class PaquetesEms extends Component
 
     public function openEditModal($id)
     {
+        $this->authorizePermission('feature.paquetes-ems.edit');
+
         $paquete = PaqueteEms::query()->with('formulario')->findOrFail($id);
         $formulario = $paquete->formulario;
 
@@ -992,6 +1004,12 @@ class PaquetesEms extends Component
 
     public function save()
     {
+        $permission = $this->editingId
+            ? 'feature.paquetes-ems.edit'
+            : 'feature.paquetes-ems.create';
+
+        $this->authorizePermission($permission);
+
         $user = Auth::user();
         if (!$user) {
             session()->flash('error', 'Usuario no autenticado.');
@@ -1034,6 +1052,12 @@ class PaquetesEms extends Component
 
     public function saveConfirmed()
     {
+        $permission = $this->editingId
+            ? 'feature.paquetes-ems.edit'
+            : 'feature.paquetes-ems.create';
+
+        $this->authorizePermission($permission);
+
         $user = Auth::user();
         if (!$user) {
             session()->flash('error', 'Usuario no autenticado.');
@@ -1093,6 +1117,8 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosGeneradosHoy()
     {
+        $this->authorizePermission('feature.paquetes-ems.assign');
+
         if (!$this->isAdmision) {
             return;
         }
@@ -1103,6 +1129,8 @@ class PaquetesEms extends Component
 
     public function confirmarMandarGeneradosHoy()
     {
+        $this->authorizePermission('feature.paquetes-ems.assign');
+
         if (!$this->isAdmision) {
             return;
         }
@@ -1127,11 +1155,15 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosSinFiltroFecha()
     {
+        $this->authorizePermission('feature.paquetes-ems.assign');
+
         return $this->mandarSeleccionadosAlmacenEms(false);
     }
 
     public function mandarSeleccionadosRegional()
     {
+        $this->authorizePermission('feature.paquetes-ems.assign');
+
         if (trim((string) $this->regionalDestino) === '') {
             session()->flash('error', 'Selecciona la ciudad de destino para regional.');
             return;
@@ -1450,6 +1482,8 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosVentanillaEms()
     {
+        $this->authorizePermission('feature.paquetes-ems.assign');
+
         if (!$this->isAlmacenEms) {
             session()->flash('error', 'Esta accion solo esta disponible en ALMACEN EMS.');
             return;
@@ -1511,6 +1545,8 @@ class PaquetesEms extends Component
 
     public function openEntregaVentanillaModal()
     {
+        $this->authorizePermission('feature.paquetes-ems.deliver');
+
         if (!$this->isVentanillaEms) {
             return;
         }
@@ -1534,6 +1570,8 @@ class PaquetesEms extends Component
 
     public function confirmarEntregaVentanilla()
     {
+        $this->authorizePermission('feature.paquetes-ems.deliver');
+
         if (!$this->isVentanillaEms) {
             return;
         }
@@ -1659,6 +1697,8 @@ class PaquetesEms extends Component
 
     public function openRecibirRegionalModal()
     {
+        $this->authorizePermission('feature.paquetes-ems.assign');
+
         if (!$this->isTransitoEms) {
             return;
         }
@@ -1774,6 +1814,8 @@ class PaquetesEms extends Component
 
     public function recibirSeleccionadosRegional()
     {
+        $this->authorizePermission('feature.paquetes-ems.assign');
+
         if (!$this->isTransitoEms) {
             return;
         }
@@ -1935,6 +1977,8 @@ class PaquetesEms extends Component
 
     public function devolverAAdmisiones($id)
     {
+        $this->authorizePermission('feature.paquetes-ems.restore');
+
         if (!$this->isAlmacenEms) {
             session()->flash('error', 'Esta accion solo esta disponible en ALMACEN.');
             return;
@@ -1974,6 +2018,8 @@ class PaquetesEms extends Component
 
     protected function mandarSeleccionadosAlmacenEms(bool $soloHoy)
     {
+        $this->authorizePermission('feature.paquetes-ems.assign');
+
         $ids = collect($this->selectedPaquetes)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -2050,6 +2096,8 @@ class PaquetesEms extends Component
 
     public function delete($id)
     {
+        $this->authorizePermission('feature.paquetes-ems.delete');
+
         $paquete = PaqueteEms::findOrFail($id);
         $paquete->delete();
         session()->flash('success', 'Paquete eliminado correctamente.');
@@ -2173,7 +2221,32 @@ class PaquetesEms extends Component
             'paquetes' => $paquetes,
             'almacenRows' => $almacenRows,
             'contratosAlmacen' => $contratosAlmacen,
+            'canEmsAssign' => $this->userCan('feature.paquetes-ems.assign'),
+            'canEmsCreate' => $this->userCan('feature.paquetes-ems.create'),
+            'canEmsEdit' => $this->userCan('feature.paquetes-ems.edit'),
+            'canEmsDelete' => $this->userCan('feature.paquetes-ems.delete'),
+            'canEmsPrint' => $this->userCan('feature.paquetes-ems.print'),
+            'canEmsRestore' => $this->userCan('feature.paquetes-ems.restore'),
+            'canEmsDeliver' => $this->userCan('feature.paquetes-ems.deliver'),
         ]);
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->can($permission);
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
     }
 
     protected function almacenUnificadoQuery()

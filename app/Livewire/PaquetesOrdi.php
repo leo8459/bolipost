@@ -97,6 +97,8 @@ class PaquetesOrdi extends Component
 
     public function openRecibirModal()
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.assign');
+
         if (!$this->isAlmacen) {
             return;
         }
@@ -209,6 +211,8 @@ class PaquetesOrdi extends Component
 
     public function bajaPaquetes()
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.dropoff');
+
         if (!$this->isAlmacen) {
             return;
         }
@@ -280,6 +284,8 @@ class PaquetesOrdi extends Component
 
     public function rezagoPaquetes()
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.rezago');
+
         if (!$this->isAlmacen) {
             return;
         }
@@ -337,6 +343,8 @@ class PaquetesOrdi extends Component
 
     public function openCreateModal()
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.create');
+
         $this->resetForm();
         $this->editingId = null;
 
@@ -350,6 +358,8 @@ class PaquetesOrdi extends Component
 
     public function openEditModal($id)
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.edit');
+
         $paquete = PaqueteOrdi::findOrFail($id);
 
         $this->editingId = $paquete->id;
@@ -370,6 +380,11 @@ class PaquetesOrdi extends Component
 
     public function save()
     {
+        $permission = $this->editingId
+            ? 'feature.paquetes-ordinarios.edit'
+            : 'feature.paquetes-ordinarios.create';
+        $this->authorizePermission($permission);
+
         if (!$this->editingId) {
             $estadoClasificacionId = $this->getClasificacionEstadoId();
             if (!$estadoClasificacionId) {
@@ -398,6 +413,8 @@ class PaquetesOrdi extends Component
 
     public function despacharSeleccionados()
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.assign');
+
         $ids = collect($this->selectedPaquetes)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -454,6 +471,8 @@ class PaquetesOrdi extends Component
 
     public function reimprimirManifiesto()
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.print');
+
         if (!$this->isDespacho) {
             return;
         }
@@ -547,6 +566,8 @@ class PaquetesOrdi extends Component
 
     public function delete($id)
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.delete');
+
         $paquete = PaqueteOrdi::findOrFail($id);
         $codigo = (string) $paquete->codigo;
         $paquete->delete();
@@ -556,6 +577,8 @@ class PaquetesOrdi extends Component
 
     public function devolverAClasificacion($id)
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.restore');
+
         $estadoClasificacionId = $this->getClasificacionEstadoId();
         if (!$estadoClasificacionId) {
             session()->flash('success', 'No existe el estado CLASIFICACION en la tabla estados.');
@@ -574,6 +597,8 @@ class PaquetesOrdi extends Component
 
     public function altaAAlmacen($id)
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.restore');
+
         if (!$this->isEntregado) {
             return;
         }
@@ -606,6 +631,8 @@ class PaquetesOrdi extends Component
 
     public function reimprimirFormularioEntrega($id)
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.print');
+
         if (!$this->isEntregado) {
             return;
         }
@@ -638,6 +665,8 @@ class PaquetesOrdi extends Component
 
     public function devolverRezagoAAlmacen($id)
     {
+        $this->authorizePermission('feature.paquetes-ordinarios.restore');
+
         if (!$this->isRezago) {
             return;
         }
@@ -1015,6 +1044,31 @@ class PaquetesOrdi extends Component
             'ventanillas' => $this->getVentanillasByCiudad(),
             'ciudadesDisponibles' => $this->ciudadesDisponibles(),
             'previewRecibirPaquetes' => $previewRecibirPaquetes,
+            'canOrdiAssign' => $this->userCan('feature.paquetes-ordinarios.assign'),
+            'canOrdiDelete' => $this->userCan('feature.paquetes-ordinarios.delete'),
+            'canOrdiDropoff' => $this->userCan('feature.paquetes-ordinarios.dropoff'),
+            'canOrdiRezago' => $this->userCan('feature.paquetes-ordinarios.rezago'),
+            'canOrdiCreate' => $this->userCan('feature.paquetes-ordinarios.create'),
+            'canOrdiPrint' => $this->userCan('feature.paquetes-ordinarios.print'),
+            'canOrdiEdit' => $this->userCan('feature.paquetes-ordinarios.edit'),
         ]);
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->can($permission);
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
     }
 }

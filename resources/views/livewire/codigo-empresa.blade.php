@@ -182,10 +182,12 @@
                                             <i class="fas fa-pen"></i>
                                         </button>
                                         @endaclcan
+                                        @aclcan('delete', $this)
                                         <button wire:click="delete({{ $registro->id }})" class="btn btn-sm btn-outline-azul"
                                             title="Eliminar" onclick="return confirm('Seguro que deseas eliminar este codigo?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
+                                        @endaclcan
                                     </td>
                                 </tr>
                             @empty

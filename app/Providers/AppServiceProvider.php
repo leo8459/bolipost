@@ -62,7 +62,9 @@ class AppServiceProvider extends ServiceProvider
             $moduleKeys = array_values(array_unique(array_filter($moduleKeys, fn ($moduleKey): bool => is_string($moduleKey) && $moduleKey !== '')));
 
             foreach ($moduleKeys as $moduleKey) {
-                $permissions = AclPermissionRegistry::authorizationPermissionsForModuleAction($moduleKey, $action, false);
+                // Button visibility must be strict by feature action.
+                // Do not grant button access through broad/manage or route permissions.
+                $permissions = ['feature.'.$moduleKey.'.'.$action];
                 $existingPermissions = AclPermissionRegistry::existingPermissionsFrom($permissions);
 
                 if ($existingPermissions === []) {
