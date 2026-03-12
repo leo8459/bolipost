@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Support\AclPermissionRegistry;
+use App\Support\AclRoleManager;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -31,7 +31,7 @@ class EnsureAclPermissionsSynced
 
         if (! Cache::has($cacheKey)) {
             try {
-                AclPermissionRegistry::syncPermissions();
+                AclRoleManager::sync();
                 Cache::put($cacheKey, now()->toIso8601String(), now()->addSeconds($ttlSeconds));
             } catch (\Throwable $exception) {
                 Log::warning('No se pudo sincronizar ACL automaticamente.', [

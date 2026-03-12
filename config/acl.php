@@ -116,6 +116,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Legacy Role Aliases
+    |--------------------------------------------------------------------------
+    |
+    | Maps legacy role names from the previous ACL to the canonical role names
+    | used by the current permission templates.
+    |
+    */
+    'legacy_role_aliases' => [
+        'ADMINISTRADOR' => 'administrador',
+        'ENCARGADO EMS' => 'encargado',
+        'ENCARGADO URBANO' => 'encargado',
+        'ENCARGADO TRATAMIENTO' => 'encargado',
+        'AUXILIAR URBANO' => 'auxiliar',
+        'AUXILIAR URBANO 7' => 'auxiliar',
+        'AUXILIAR TRATAMIENTO' => 'auxiliar',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Initial Role Templates (Wildcard Patterns)
     |--------------------------------------------------------------------------
     |
