@@ -8,24 +8,31 @@
     <style>
         * { margin: 0; padding: 0; }
         .center-text { text-align: center; }
-        .small-text { font-size: 14px; }
-        .special-text { text-align: center; font-size: 12px; }
+        .small-text { font-size: 14px; line-height: 1.3; }
+        .special-text { text-align: center; font-size: 12px; line-height: 1.25; }
         .normal-text { font-size: 12px; }
         .centro { margin-top: 0; margin-bottom: 0; margin-left: 12%; }
         table { width: 100%; }
-        table td { width: 100%; }
+        table td { width: 100%; vertical-align: top; }
         p { margin: 0; padding: 0; }
+        .container { margin-top: 0.60cm; margin-bottom: 0.60cm; padding: 0 8px; page-break-inside: avoid; }
+        .modal-body { min-height: 8cm; }
+        .details-table { margin-bottom: 8px; }
+        .details-table td { width: 50%; padding-right: 18px; }
+        .sign-table { margin-top: 10px; }
+        .sign-table td { width: 50%; padding: 0 10px; }
+        body { padding-top: 0.60cm; }
     </style>
 </head>
 <body>
 @foreach ($packages as $package)
-    <div class="container" style="margin-top: 24px;">
+    <div class="container">
         <div class="modal-body">
             <div class="center-text">
                 <h2 class="normal-text" style="margin-top: 0;">FORMULARIO DE ENTREGA</h2>
                 <h3 class="normal-text">AGENCIA BOLIVIANA DE CORREOS</h3>
             </div>
-            <table class="centro">
+            <table class="centro details-table">
                 <tr>
                     <td>
                         <p class="barcode">{!! DNS1D::getBarcodeHTML($package->codigo, 'C128', 1.25, 25) !!}</p>
@@ -46,7 +53,7 @@
                 </tr>
             </table>
             <br>
-            <table>
+            <table class="sign-table">
                 <tr>
                     <td>
                         <p class="special-text">__________________________</p>
@@ -64,13 +71,13 @@
     </div>
 
     @if (strtoupper((string) $package->aduana) === 'SI')
-        <div class="container" style="margin-top: 24px;">
+        <div class="container">
             <div class="modal-body">
                 <div class="center-text">
                     <h2 class="normal-text" style="margin-top: 0;">FORMULARIO DE ENTREGA</h2>
                     <h3 class="normal-text">AGENCIA BOLIVIANA DE CORREOS</h3>
                 </div>
-                <table class="centro">
+                <table class="centro details-table">
                     <tr>
                         <td>
                             <p class="barcode">{!! DNS1D::getBarcodeHTML($package->codigo, 'C128', 1.25, 25) !!}</p>
@@ -91,7 +98,7 @@
                     </tr>
                 </table>
                 <br>
-                <table>
+                <table class="sign-table">
                     <tr>
                         <td>
                             <p class="special-text">__________________________</p>
