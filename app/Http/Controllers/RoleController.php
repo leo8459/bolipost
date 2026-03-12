@@ -93,6 +93,30 @@ class RoleController extends Controller
             ->with('success', 'Rol actualizado correctamente.');
     }
 
+    public function duplicate(Role $role)
+    {
+        AclPermissionRegistry::syncPermissions();
+
+        $baseName = trim($role->name.' copia');
+        $newName = $baseName;
+        $suffix = 2;
+
+        while (Role::where('name', $newName)->exists()) {
+            $newName = $baseName.' '.$suffix;
+            $suffix++;
+        }
+
+        $newRole = Role::create([
+            'name' => $newName,
+            'guard_name' => $role->guard_name ?: 'web',
+        ]);
+
+        $newRole->syncPermissions($role->permissions()->pluck('name')->all());
+
+        return redirect()->route('roles.edit', $newRole)
+            ->with('success', 'Rol duplicado correctamente.');
+    }
+
     public function destroy($id)
     {
         $role = Role::findOrFail($id);

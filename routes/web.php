@@ -110,6 +110,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // Route::get('/role/{role}', [RoleController::class, 'show'])->name('roles.show');
     Route::post('/role', [RoleController::class, 'store'])->name('roles.store');
     Route::get('/role/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
+    Route::post('/role/{role}/duplicate', [RoleController::class, 'duplicate'])->name('roles.duplicate');
     Route::put('/role/{role}', [RoleController::class, 'update'])->name('roles.update');
     Route::delete('/role/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
 

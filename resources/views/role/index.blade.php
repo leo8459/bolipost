@@ -57,16 +57,24 @@
                                             <td>{{ $role->permissions_count }}</td>
 
                                             <td>
-                                                <form action="{{ route('roles.destroy', $role->id) }}" method="POST">
+                                                <div class="d-flex align-items-center" style="gap: .35rem;">
                                                     <a class="btn btn-sm btn-success"
                                                         href="{{ route('roles.edit', $role->id) }}"
                                                         title="Editar"><i
                                                             class="fa fa-fw fa-edit"></i></a>
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-danger btn-sm" title="Eliminar"><i
-                                                            class="fa fa-fw fa-trash"></i></button>
-                                                </form>
+                                                    <form action="{{ route('roles.duplicate', $role->id) }}" method="POST" class="m-0">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-info btn-sm" title="Duplicar">
+                                                            <i class="fa fa-fw fa-copy"></i>
+                                                        </button>
+                                                    </form>
+                                                    <form action="{{ route('roles.destroy', $role->id) }}" method="POST" class="m-0">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn btn-danger btn-sm" title="Eliminar"><i
+                                                                class="fa fa-fw fa-trash"></i></button>
+                                                    </form>
+                                                </div>
                                             </td>
                                         </tr>
                                     @endforeach
