@@ -776,11 +776,6 @@ return [
                             'url' => 'permissions',
                             'icon' => 'fas fa-key',
                         ],
-                        [
-                            'text' => 'Accesos',
-                            'url' => 'roles',
-                            'icon' => 'fas fa-key',
-                        ],
                     ],
                 ],
             ],
