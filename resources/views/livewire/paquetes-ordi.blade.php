@@ -159,6 +159,9 @@
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
                                 <th>Ciudad</th>
+                                @if ($this->isAlmacen)
+                                    <th>Zona</th>
+                                @endif
                                 <th>Peso</th>
                                 <th>Aduana</th>
                                 <th>Observaciones</th>
@@ -183,6 +186,9 @@
                                     <td>{{ $paquete->destinatario }}</td>
                                     <td>{{ $paquete->telefono }}</td>
                                     <td>{{ $paquete->ciudad }}</td>
+                                    @if ($this->isAlmacen)
+                                        <td>{{ $paquete->zona ?? '-' }}</td>
+                                    @endif
                                     <td>{{ $paquete->peso }}</td>
                                     <td>{{ $paquete->aduana }}</td>
                                     <td>{{ $paquete->observaciones ?? '-' }}</td>
@@ -246,7 +252,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ ($this->isClasificacion || $this->isAlmacen) ? 12 : ($this->isDespacho ? 12 : 11) }}" class="text-center py-5">
+                                    <td colspan="{{ $this->isClasificacion ? 12 : ($this->isAlmacen ? 13 : ($this->isDespacho ? 12 : 11)) }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -311,6 +317,11 @@
                                 <label>Peso</label>
                                 <input type="number" step="0.001" min="0" wire:model.defer="peso" class="form-control">
                                 @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label>Zona</label>
+                                <input type="text" wire:model.defer="zona" class="form-control uppercase-input">
+                                @error('zona') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Aduana</label>
