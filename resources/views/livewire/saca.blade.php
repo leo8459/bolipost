@@ -146,7 +146,9 @@
                 <div class="d-flex gap-2 align-items-center">
                     <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
                     <button class="btn btn-outline-light2" type="button" wire:click="searchSacas">Buscar</button>
-                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @if ($canSacaCreate)
+                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endif
                 </div>
             </div>
 
@@ -187,14 +189,16 @@
                                     <td>{{ $saca->receptaculo }}</td>
                                     <td>{{ optional($saca->despacho)->identificador }}</td>
                                     <td>
-                                        @aclcan('edit', $this)
+                                        @if ($canSacaEdit)
                                         <button wire:click="openEditModal({{ $saca->id }})" class="btn btn-sm btn-azul" title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
-                                        @endaclcan
+                                        @endif
+                                        @if ($canSacaDelete)
                                         <button wire:click="delete({{ $saca->id }})" class="btn btn-sm btn-outline-azul" title="Eliminar" onclick="return confirm('Seguro que deseas eliminar esta saca?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
@@ -213,14 +217,14 @@
                 </div>
 
                 <div class="d-flex justify-content-end mt-3">
-                    @if ($canCerrarDespacho)
+                    @if ($canSacaConfirm && $canCerrarDespacho)
                         <button type="button"
                             class="btn btn-danger"
                             wire:click="cerrarDespacho"
                             onclick="return confirm('Se cerrara el despacho y cambiara estados de sacas y despacho. Continuar?')">
                             Cerrar despacho
                         </button>
-                    @else
+                    @elseif ($canSacaConfirm)
                         <button type="button" class="btn btn-danger" disabled title="{{ $cerrarDespachoError }}">
                             Cerrar despacho
                         </button>
@@ -265,18 +269,24 @@
                                     @if(!empty($codEspecialSugerencias))
                                         <div class="border rounded mt-2 p-2" style="max-height: 140px; overflow-y: auto;">
                                             @foreach($codEspecialSugerencias as $codEspecial)
-                                                <button type="button"
-                                                    class="btn btn-sm btn-light d-block text-left w-100 mb-1"
-                                                    wire:click="seleccionarCodEspecial('{{ $codEspecial }}')">
-                                                    {{ $codEspecial }}
-                                                </button>
+                                                @if ($canSacaAssign)
+                                                    <button type="button"
+                                                        class="btn btn-sm btn-light d-block text-left w-100 mb-1"
+                                                        wire:click="seleccionarCodEspecial('{{ $codEspecial }}')">
+                                                        {{ $codEspecial }}
+                                                    </button>
+                                                @else
+                                                    <div class="btn btn-sm btn-light d-block text-left w-100 mb-1 disabled">
+                                                        {{ $codEspecial }}
+                                                    </div>
+                                                @endif
                                             @endforeach
                                         </div>
                                     @endif
                                 </div>
                             </div>
 
-                            @if (!$editingId)
+                            @if (!$editingId && $canSacaAssign)
                                 <div class="col-md-12">
                                     <button type="button" class="btn btn-outline-primary" wire:click="addCurrentToBatch">
                                         Anadir a la lista
@@ -309,9 +319,11 @@
                                                 <td>{{ $row['paquetes'] }}</td>
                                                 <td>{{ $row['busqueda'] }}</td>
                                                 <td>
-                                                    <button type="button" class="btn btn-sm btn-outline-danger" wire:click="removeBatchRow({{ $index }})">
-                                                        Quitar
-                                                    </button>
+                                                    @if ($canSacaAssign)
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" wire:click="removeBatchRow({{ $index }})">
+                                                            Quitar
+                                                        </button>
+                                                    @endif
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -323,7 +335,9 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">{{ $editingId ? 'Guardar cambios' : 'Crear' }}</button>
+                        @if (($editingId && $canSacaEdit) || (!$editingId && $canSacaCreate))
+                            <button type="submit" class="btn btn-primary">{{ $editingId ? 'Guardar cambios' : 'Crear' }}</button>
+                        @endif
                     </div>
                 </form>
             </div>

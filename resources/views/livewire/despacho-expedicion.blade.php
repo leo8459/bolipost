@@ -153,14 +153,16 @@
                                     <td>{{ $despacho->departamento }}</td>
                                     <td>{{ optional($despacho->estado)->nombre_estado }}</td>
                                     <td>
+                                        @if ($canDespachoExpPrint)
                                         <a
-                                            href="{{ route('despachos.expedicion.pdf', ['id' => $despacho->id]) }}"
+                                            href="{{ route('despachos.expedicion.pdf', ['id' => $despacho->id], false) }}"
                                             target="_blank"
                                             class="btn btn-sm btn-secondary"
                                             title="Reimprimir CN">
                                             <i class="fas fa-print"></i>
                                         </a>
-                                        @if (optional($despacho->estado)->nombre_estado === 'EXPEDICION')
+                                        @endif
+                                        @if (optional($despacho->estado)->nombre_estado === 'EXPEDICION' && $canDespachoExpConfirm)
                                             <button
                                                 type="button"
                                                 class="btn btn-sm btn-danger"
@@ -169,6 +171,7 @@
                                                 title="Intervenir despacho">
                                                 <i class="fas fa-exclamation-triangle"></i>
                                             </button>
+                                            @if ($canDespachoExpRestore)
                                             <button
                                                 type="button"
                                                 class="btn btn-sm btn-warning"
@@ -177,7 +180,8 @@
                                                 title="Volver a apertura">
                                                 <i class="fas fa-undo"></i>
                                             </button>
-                                        @elseif (optional($despacho->estado)->nombre_estado === 'INTERVENIR')
+                                            @endif
+                                        @elseif (optional($despacho->estado)->nombre_estado === 'INTERVENIR' && $canDespachoExpEdit)
                                             <button
                                                 type="button"
                                                 class="btn btn-sm btn-primary"
@@ -248,7 +252,9 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Guardar intervencion</button>
+                        @if ($canDespachoExpEdit)
+                            <button type="submit" class="btn btn-primary">Guardar intervencion</button>
+                        @endif
                     </div>
                 </form>
             </div>

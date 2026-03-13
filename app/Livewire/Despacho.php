@@ -19,6 +19,8 @@ class Despacho extends Component
     private const EVENTO_ID_DESPACHO_ENVIADO_EXTRANJERO = 263;
     private const EVENTO_ID_DESPACHO_MARCADO_ELIMINADO = 228;
     private const EVENTO_ID_DESPACHO_ACTUALIZADO_SALIDA = 229;
+    private const ROUTE_PERMISSION = 'despachos.abiertos';
+    private const SACAS_ROUTE_PERMISSION = 'sacas.index';
     protected array $estadoIdCache = [];
 
     public $search = '';
@@ -98,6 +100,7 @@ class Despacho extends Component
 
     public function openCreateModal()
     {
+        $this->authorizePermission($this->featurePermission('create'));
         $this->resetForm();
         $this->fk_estado = $this->getEstadoAperturaId();
         $this->anio = $this->getCurrentYear();
@@ -109,6 +112,7 @@ class Despacho extends Component
 
     public function openEditModal($id)
     {
+        $this->authorizePermission($this->featurePermission('edit'));
         $despacho = DespachoModel::findOrFail($id);
         $this->editingId = $despacho->id;
         $this->oforigen = $despacho->oforigen;
@@ -128,6 +132,8 @@ class Despacho extends Component
 
     public function save()
     {
+        $this->authorizePermission($this->featurePermission($this->editingId ? 'edit' : 'create'));
+
         if (!$this->editingId) {
             $this->anio = $this->getCurrentYear();
             $this->nro_despacho = $this->getNextNroDespachoForYear($this->anio);
@@ -158,6 +164,7 @@ class Despacho extends Component
 
     public function delete($id)
     {
+        $this->authorizePermission($this->featurePermission('delete'));
         $despacho = DespachoModel::findOrFail($id);
         $identificador = (string) $despacho->identificador;
         $despacho->delete();
@@ -167,6 +174,7 @@ class Despacho extends Component
 
     public function reaperturaSaca($id)
     {
+        $this->authorizePermission($this->featurePermission('restore'));
         $estadoAperturaId = $this->getEstadoIdByNombre('APERTURA', 11);
         $estadoSacaAperturaId = $this->getEstadoIdByNombre('ASIGNADO', 16);
 
@@ -189,6 +197,7 @@ class Despacho extends Component
 
     public function expedicion($id)
     {
+        $this->authorizePermission($this->featurePermission('confirm'));
         $estadoClausuraId = $this->getEstadoIdByNombre('CLAUSURA', 14);
         $estadoExpedicionId = $this->getEstadoIdByNombre('EXPEDICION', 19);
 
@@ -201,7 +210,7 @@ class Despacho extends Component
         $this->registrarEventoDespacho((string) $despacho->identificador, self::EVENTO_ID_DESPACHO_ENVIADO_EXTRANJERO);
 
         $this->dispatch('printDespachoExpedicion', [
-            'url' => route('despachos.expedicion.pdf', ['id' => $despacho->id]),
+            'url' => route('despachos.expedicion.pdf', ['id' => $despacho->id], false),
         ]);
 
         session()->flash('success', 'Despacho enviado a expedicion.');
@@ -410,6 +419,32 @@ class Despacho extends Component
 
         return view('livewire.despacho', [
             'despachos' => $despachos,
+            'canDespachoCreate' => $this->userCan($this->featurePermission('create')),
+            'canDespachoEdit' => $this->userCan($this->featurePermission('edit')),
+            'canDespachoDelete' => $this->userCan($this->featurePermission('delete')),
+            'canDespachoAssign' => $this->userCan($this->featurePermission('assign')),
+            'canDespachoConfirm' => $this->userCan($this->featurePermission('confirm')),
+            'canDespachoRestore' => $this->userCan($this->featurePermission('restore')),
+            'canSacasWindow' => $this->userCan(self::SACAS_ROUTE_PERMISSION),
         ]);
+    }
+
+    private function featurePermission(string $action): string
+    {
+        return 'feature.'.self::ROUTE_PERMISSION.'.'.$action;
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        return $user ? $user->can($permission) : false;
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
     }
 }

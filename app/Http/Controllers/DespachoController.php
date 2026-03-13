@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Despacho;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
 
 class DespachoController extends Controller
 {
@@ -29,6 +30,11 @@ class DespachoController extends Controller
 
     public function expedicionPdf($id)
     {
+        $this->authorizeAnyPermission(request(), [
+            'feature.despachos.abiertos.confirm',
+            'feature.despachos.expedicion.print',
+        ]);
+
         $despacho = Despacho::query()
             ->with(['sacas' => function ($query) {
                 $query->orderByRaw('CAST(nro_saca AS INTEGER) ASC');
@@ -99,5 +105,22 @@ class DespachoController extends Controller
         $pdf = Pdf::loadView('despacho.expedicion-pdf', $data)->setPaper('A4');
 
         return $pdf->stream('despacho-' . $despacho->identificador . '.pdf');
+    }
+
+    private function authorizeAnyPermission(Request $request, array $permissions): void
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            abort(403, 'No autenticado.');
+        }
+
+        foreach ($permissions as $permission) {
+            if ($user->can($permission)) {
+                return;
+            }
+        }
+
+        abort(403, 'No tienes permiso para realizar esta accion.');
     }
 }

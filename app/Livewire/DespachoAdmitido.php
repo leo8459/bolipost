@@ -18,6 +18,7 @@ class DespachoAdmitido extends Component
 {
     use WithPagination;
     private const EVENTO_ID_DESPACHO_ACTUALIZADO_ENTRADA = 230;
+    private const ROUTE_PERMISSION = 'despachos.admitidos';
     protected array $estadoIdCache = [];
 
     public $ciudadToOficina = [
@@ -55,6 +56,7 @@ class DespachoAdmitido extends Component
 
     public function openAdmitirModal()
     {
+        $this->authorizePermission($this->featurePermission('confirm'));
         $this->resetAdmitirForm();
         $this->dispatch('openAdmitirDespachoModal');
     }
@@ -78,12 +80,14 @@ class DespachoAdmitido extends Component
 
     public function scanAndSearch()
     {
+        $this->authorizePermission($this->featurePermission('assign'));
         $this->enqueueReceptaculo();
         $this->previewAdmitir();
     }
 
     public function removeScanned($codigo)
     {
+        $this->authorizePermission($this->featurePermission('assign'));
         $codigo = $this->normalizeReceptaculo($codigo);
         $this->receptaculosEscaneados = collect($this->receptaculosEscaneados)
             ->reject(fn ($item) => $item === $codigo)
@@ -107,6 +111,7 @@ class DespachoAdmitido extends Component
 
     public function previewAdmitir()
     {
+        $this->authorizePermission($this->featurePermission('assign'));
         if (!empty(trim((string) $this->receptaculoScanInput))) {
             $this->enqueueReceptaculo();
         }
@@ -232,6 +237,7 @@ class DespachoAdmitido extends Component
 
     public function admitirDespachos()
     {
+        $this->authorizePermission($this->featurePermission('confirm'));
         if (empty($this->previewSacas)) {
             $this->previewAdmitir();
         }
@@ -493,6 +499,27 @@ class DespachoAdmitido extends Component
 
         return view('livewire.despacho-admitido', [
             'despachos' => $despachos,
+            'canDespachoAdmitAssign' => $this->userCan($this->featurePermission('assign')),
+            'canDespachoAdmitConfirm' => $this->userCan($this->featurePermission('confirm')),
         ]);
+    }
+
+    private function featurePermission(string $action): string
+    {
+        return 'feature.'.self::ROUTE_PERMISSION.'.'.$action;
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        return $user ? $user->can($permission) : false;
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
     }
 }

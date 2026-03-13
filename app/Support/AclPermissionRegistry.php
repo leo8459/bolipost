@@ -216,6 +216,18 @@ class AclPermissionRegistry
      * @var array<string, array<string, string>>
      */
     private const WINDOW_ROUTE_MODULES = [
+        'Despacho' => [
+            'default' => 'despachos.abiertos',
+        ],
+        'DespachoExpedicion' => [
+            'default' => 'despachos.expedicion',
+        ],
+        'DespachoAdmitido' => [
+            'default' => 'despachos.admitidos',
+        ],
+        'DespachoTodos' => [
+            'default' => 'despachos.todos',
+        ],
         'Recojo' => [
             'general' => 'paquetes-contrato.index',
             'almacen' => 'paquetes-contrato.almacen',
@@ -247,6 +259,9 @@ class AclPermissionRegistry
             'rezago' => 'paquetes-certificados.rezago',
             'todos' => 'paquetes-certificados.todos',
         ],
+        'Saca' => [
+            'default' => 'sacas.index',
+        ],
     ];
 
     /**
@@ -255,6 +270,10 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const WINDOW_FEATURE_ALLOWLIST = [
+        'despachos.abiertos' => ['create', 'edit', 'delete', 'assign', 'confirm', 'restore'],
+        'despachos.expedicion' => ['print', 'confirm', 'restore', 'edit'],
+        'despachos.admitidos' => ['assign', 'confirm'],
+        'despachos.todos' => [],
         'paquetes-contrato.index' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.almacen' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.recoger-envios' => ['assign', 'print'],
@@ -278,6 +297,7 @@ class AclPermissionRegistry
         'paquetes-certificados.inventario' => ['edit', 'delete', 'assign', 'export'],
         'paquetes-certificados.rezago' => ['edit', 'delete', 'assign'],
         'paquetes-certificados.todos' => ['edit', 'delete'],
+        'sacas.index' => ['create', 'edit', 'delete', 'assign', 'confirm'],
     ];
 
     /**
@@ -286,6 +306,30 @@ class AclPermissionRegistry
      * @var array<string, array<string, array<int, array{module:string,action:string}>>>
      */
     private const LIVEWIRE_METHOD_TARGET_OVERRIDES = [
+        'Despacho' => [
+            'opencreatemodal' => [['module' => 'despachos.abiertos', 'action' => 'create']],
+            'openeditmodal' => [['module' => 'despachos.abiertos', 'action' => 'edit']],
+            'save' => [
+                ['module' => 'despachos.abiertos', 'action' => 'create'],
+                ['module' => 'despachos.abiertos', 'action' => 'edit'],
+            ],
+            'delete' => [['module' => 'despachos.abiertos', 'action' => 'delete']],
+            'expedicion' => [['module' => 'despachos.abiertos', 'action' => 'confirm']],
+            'reaperturasaca' => [['module' => 'despachos.abiertos', 'action' => 'restore']],
+        ],
+        'DespachoExpedicion' => [
+            'intervenirdespacho' => [['module' => 'despachos.expedicion', 'action' => 'confirm']],
+            'volverapertura' => [['module' => 'despachos.expedicion', 'action' => 'restore']],
+            'openintervencionmodal' => [['module' => 'despachos.expedicion', 'action' => 'edit']],
+            'registrarintervencion' => [['module' => 'despachos.expedicion', 'action' => 'edit']],
+        ],
+        'DespachoAdmitido' => [
+            'openadmitirmodal' => [['module' => 'despachos.admitidos', 'action' => 'confirm']],
+            'admitirdespachos' => [['module' => 'despachos.admitidos', 'action' => 'confirm']],
+            'previewadmitir' => [['module' => 'despachos.admitidos', 'action' => 'assign']],
+            'scanandsearch' => [['module' => 'despachos.admitidos', 'action' => 'assign']],
+            'removescanned' => [['module' => 'despachos.admitidos', 'action' => 'assign']],
+        ],
         'Recojo' => [
             'openeditmodal' => [
                 ['module' => 'paquetes-contrato.index', 'action' => 'edit'],
@@ -355,6 +399,19 @@ class AclPermissionRegistry
                 ['module' => 'paquetes-certificados.rezago', 'action' => 'assign'],
             ],
             'reimprimirpdf' => [['module' => 'paquetes-certificados.inventario', 'action' => 'export']],
+        ],
+        'Saca' => [
+            'opencreatemodal' => [['module' => 'sacas.index', 'action' => 'create']],
+            'openeditmodal' => [['module' => 'sacas.index', 'action' => 'edit']],
+            'save' => [
+                ['module' => 'sacas.index', 'action' => 'create'],
+                ['module' => 'sacas.index', 'action' => 'edit'],
+            ],
+            'delete' => [['module' => 'sacas.index', 'action' => 'delete']],
+            'cerrardespacho' => [['module' => 'sacas.index', 'action' => 'confirm']],
+            'seleccionarcodespecial' => [['module' => 'sacas.index', 'action' => 'assign']],
+            'addcurrenttobatch' => [['module' => 'sacas.index', 'action' => 'assign']],
+            'removebatchrow' => [['module' => 'sacas.index', 'action' => 'assign']],
         ],
     ];
 
@@ -1259,6 +1316,23 @@ class AclPermissionRegistry
             'feature.carteros.devolucion.restore' => 'Boton: Recuperar',
             'feature.carteros.entrega.deliver' => 'Boton: Confirmar entrega',
             'feature.carteros.entrega.attempt' => 'Boton: Agregar intento',
+            'feature.despachos.abiertos.create' => 'Boton: Nuevo despacho',
+            'feature.despachos.abiertos.edit' => 'Boton: Editar despacho',
+            'feature.despachos.abiertos.delete' => 'Boton: Eliminar despacho',
+            'feature.despachos.abiertos.assign' => 'Boton: Abrir sacas',
+            'feature.despachos.abiertos.confirm' => 'Boton: Enviar a expedicion',
+            'feature.despachos.abiertos.restore' => 'Boton: Reapertura de saca',
+            'feature.despachos.expedicion.print' => 'Boton: Reimprimir CN',
+            'feature.despachos.expedicion.confirm' => 'Boton: Intervenir despacho',
+            'feature.despachos.expedicion.restore' => 'Boton: Volver a apertura',
+            'feature.despachos.expedicion.edit' => 'Boton: Registrar intervencion',
+            'feature.despachos.admitidos.assign' => 'Boton: Buscar/quitar receptaculos',
+            'feature.despachos.admitidos.confirm' => 'Boton: Admitir despachos',
+            'feature.sacas.index.create' => 'Boton: Nueva saca',
+            'feature.sacas.index.edit' => 'Boton: Editar saca',
+            'feature.sacas.index.delete' => 'Boton: Eliminar saca',
+            'feature.sacas.index.assign' => 'Boton: Armar lista de sacas',
+            'feature.sacas.index.confirm' => 'Boton: Cerrar despacho',
         ];
 
         if (isset($specialLabels[$permissionName])) {
@@ -1465,6 +1539,23 @@ class AclPermissionRegistry
             'feature.carteros.devolucion.restore' => 'Controla el boton Recuperar dentro de la ventana Devolucion.',
             'feature.carteros.entrega.deliver' => 'Controla el boton Confirmar entrega dentro de la ventana Entrega.',
             'feature.carteros.entrega.attempt' => 'Controla el boton Agregar intento dentro de la ventana Entrega.',
+            'feature.despachos.abiertos.create' => 'Controla el boton Nuevo en la ventana Despachos abiertos.',
+            'feature.despachos.abiertos.edit' => 'Controla el boton Editar en la ventana Despachos abiertos.',
+            'feature.despachos.abiertos.delete' => 'Controla el boton Eliminar en la ventana Despachos abiertos.',
+            'feature.despachos.abiertos.assign' => 'Controla el boton Abrir/Asignar sacas desde la ventana Despachos abiertos.',
+            'feature.despachos.abiertos.confirm' => 'Controla el boton Enviar a expedicion y su impresion automatica.',
+            'feature.despachos.abiertos.restore' => 'Controla el boton Reapertura de saca en la ventana Despachos abiertos.',
+            'feature.despachos.expedicion.print' => 'Controla el boton Reimprimir CN dentro de la ventana Despachos expedicion.',
+            'feature.despachos.expedicion.confirm' => 'Controla el boton Intervenir despacho dentro de la ventana Despachos expedicion.',
+            'feature.despachos.expedicion.restore' => 'Controla el boton Volver a apertura dentro de la ventana Despachos expedicion.',
+            'feature.despachos.expedicion.edit' => 'Controla Abrir modal y Guardar intervencion dentro de la ventana Despachos expedicion.',
+            'feature.despachos.admitidos.assign' => 'Controla Buscar sacas, escaneo y Quitar receptaculos dentro de la ventana Despachos admitidos.',
+            'feature.despachos.admitidos.confirm' => 'Controla Abrir el modal Admitir despachos y el boton Recibir despachos.',
+            'feature.sacas.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Sacas.',
+            'feature.sacas.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Sacas.',
+            'feature.sacas.index.delete' => 'Controla el boton Eliminar dentro de la ventana Sacas.',
+            'feature.sacas.index.assign' => 'Controla seleccionar cod especial, Anadir a la lista y Quitar filas dentro de la ventana Sacas.',
+            'feature.sacas.index.confirm' => 'Controla el boton Cerrar despacho dentro de la ventana Sacas.',
         ];
 
         if (isset($specialHints[$permissionName])) {
@@ -1490,11 +1581,13 @@ class AclPermissionRegistry
     private static function shouldHidePermissionFromMatrix(string $permissionName): bool
     {
         $legacyFeaturePrefixes = [
+            'feature.despachos.',
             'feature.paquetes-contrato.',
             'feature.paquetes-ems.',
             'feature.paquetes-ordinarios.',
             'feature.paquetes-certificados.',
             'feature.carteros.',
+            'feature.sacas.',
         ];
 
         foreach ($legacyFeaturePrefixes as $prefix) {

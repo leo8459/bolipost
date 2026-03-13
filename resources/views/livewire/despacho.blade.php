@@ -140,7 +140,9 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
-                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @if ($canDespachoCreate)
+                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endif
                 </div>
             </div>
 
@@ -197,7 +199,7 @@
                                     <td>{{ $despacho->departamento }}</td>
                                     <td>{{ optional($despacho->estado)->nombre_estado }}</td>
                                     <td>
-                                        @if (optional($despacho->estado)->nombre_estado === 'CLAUSURA')
+                                        @if (optional($despacho->estado)->nombre_estado === 'CLAUSURA' && $canDespachoConfirm)
                                             <button wire:click="expedicion({{ $despacho->id }})"
                                                 class="btn btn-sm btn-info"
                                                 title="Expedicion"
@@ -205,13 +207,13 @@
                                                 <i class="fas fa-paper-plane"></i>
                                             </button>
                                         @endif
-                                        @if (optional($despacho->estado)->nombre_estado !== 'CLAUSURA')
-                                            <a href="{{ route('sacas.index', ['despacho_id' => $despacho->id]) }}"
+                                        @if (optional($despacho->estado)->nombre_estado !== 'CLAUSURA' && $canDespachoAssign && $canSacasWindow)
+                                            <a href="{{ route('sacas.index', ['despacho_id' => $despacho->id], false) }}"
                                                 class="btn btn-sm btn-success"
                                                 title="Asignar sacas">
                                                 <i class="fas fa-suitcase"></i>
                                             </a>
-                                        @else
+                                        @elseif (optional($despacho->estado)->nombre_estado === 'CLAUSURA' && $canDespachoRestore)
                                             <button wire:click="reaperturaSaca({{ $despacho->id }})"
                                                 class="btn btn-sm btn-warning"
                                                 title="Reapertura de saca"
@@ -219,21 +221,21 @@
                                                 <i class="fas fa-unlock"></i>
                                             </button>
                                         @endif
-                                        @aclcan('edit', $this)
+                                        @if ($canDespachoEdit)
                                         <button wire:click="openEditModal({{ $despacho->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
-                                        @endaclcan
-                                        @aclcan('delete', $this)
+                                        @endif
+                                        @if ($canDespachoDelete)
                                         <button wire:click="delete({{ $despacho->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
                                             onclick="return confirm('Seguro que deseas eliminar este despacho?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
-                                        @endaclcan
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
@@ -311,9 +313,11 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">
-                            {{ $editingId ? 'Guardar cambios' : 'Crear' }}
-                        </button>
+                        @if (($editingId && $canDespachoEdit) || (!$editingId && $canDespachoCreate))
+                            <button type="submit" class="btn btn-primary">
+                                {{ $editingId ? 'Guardar cambios' : 'Crear' }}
+                            </button>
+                        @endif
                     </div>
                 </form>
             </div>

@@ -85,7 +85,9 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
-                    <button class="btn btn-dorado" type="button" wire:click="openAdmitirModal">Admitir despachos</button>
+                    @if ($canDespachoAdmitConfirm)
+                        <button class="btn btn-dorado" type="button" wire:click="openAdmitirModal">Admitir despachos</button>
+                    @endif
                 </div>
             </div>
 
@@ -165,7 +167,9 @@
                         </div>
 
                         <div class="d-flex gap-2 mb-3">
-                            <button type="button" class="btn btn-info" wire:click="previewAdmitir">Buscar sacas</button>
+                            @if ($canDespachoAdmitAssign)
+                                <button type="button" class="btn btn-info" wire:click="previewAdmitir">Buscar sacas</button>
+                            @endif
                         </div>
 
                         @if($receptaculosEscaneadosCount > 0)
@@ -194,13 +198,15 @@
                                                         <span class="text-success fw-bold">{{ $item['detalle'] }}</span>
                                                     </td>
                                                     <td>
-                                                        <button
-                                                            type="button"
-                                                            class="btn btn-sm btn-outline-danger"
-                                                            wire:click="removeScanned('{{ $item['codigo'] }}')"
-                                                            title="Quitar">
-                                                            <i class="fas fa-times"></i>
-                                                        </button>
+                                                        @if ($canDespachoAdmitAssign)
+                                                            <button
+                                                                type="button"
+                                                                class="btn btn-sm btn-outline-danger"
+                                                                wire:click="removeScanned('{{ $item['codigo'] }}')"
+                                                                title="Quitar">
+                                                                <i class="fas fa-times"></i>
+                                                            </button>
+                                                        @endif
                                                     </td>
                                                 </tr>
                                             @endif
@@ -277,7 +283,9 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Recibir despachos</button>
+                        @if ($canDespachoAdmitConfirm)
+                            <button type="submit" class="btn btn-primary">Recibir despachos</button>
+                        @endif
                     </div>
                 </form>
             </div>

@@ -19,6 +19,7 @@ class Saca extends Component
     private const EVENTO_ID_SACA_INTERNA_CERRADA_SALIDA = 241;
     private const EVENTO_ID_SACA_INTERNA_ELIMINADA = 247;
     private const EVENTO_ID_DESPACHO_CERRADO_SALIDA = 223;
+    private const ROUTE_PERMISSION = 'sacas.index';
 
     public $search = '';
     public $searchQuery = '';
@@ -69,6 +70,9 @@ class Saca extends Component
         }
 
         $this->openCreateModalOnLoad = false;
+        if (! $this->userCan($this->featurePermission('create'))) {
+            return;
+        }
         $this->dispatch('openSacaModal');
     }
 
@@ -80,6 +84,7 @@ class Saca extends Component
 
     public function openCreateModal()
     {
+        $this->authorizePermission($this->featurePermission('create'));
         $this->resetForm();
         $estadoId = $this->getEstadoAperturaId();
         if ($estadoId === null) {
@@ -98,6 +103,7 @@ class Saca extends Component
 
     public function openEditModal($id)
     {
+        $this->authorizePermission($this->featurePermission('edit'));
         $saca = SacaModel::query()
             ->when($this->lockedDespachoId, function ($query) {
                 $query->where('fk_despacho', $this->lockedDespachoId);
@@ -125,12 +131,14 @@ class Saca extends Component
 
     public function seleccionarCodEspecial($codigo)
     {
+        $this->authorizePermission($this->featurePermission('assign'));
         $this->busqueda = $codigo;
         $this->codEspecialSugerencias = [];
     }
 
     public function save()
     {
+        $this->authorizePermission($this->featurePermission($this->editingId ? 'edit' : 'create'));
         if ($this->editingId) {
             $this->validate($this->rules());
             if (!$this->normalizarBusquedaDesdeCodEspecial()) {
@@ -203,6 +211,7 @@ class Saca extends Component
 
     public function addCurrentToBatch()
     {
+        $this->authorizePermission($this->featurePermission('assign'));
         if ($this->editingId) {
             return;
         }
@@ -232,6 +241,7 @@ class Saca extends Component
 
     public function removeBatchRow($index)
     {
+        $this->authorizePermission($this->featurePermission('assign'));
         if (!isset($this->batchRows[$index])) {
             return;
         }
@@ -242,6 +252,7 @@ class Saca extends Component
 
     public function delete($id)
     {
+        $this->authorizePermission($this->featurePermission('delete'));
         DB::transaction(function () use ($id) {
             $saca = SacaModel::query()
                 ->when($this->lockedDespachoId, function ($query) {
@@ -278,6 +289,7 @@ class Saca extends Component
 
     public function cerrarDespacho()
     {
+        $this->authorizePermission($this->featurePermission('confirm'));
         $despachoId = $this->getCurrentDespachoId();
 
         if (!$despachoId) {
@@ -761,8 +773,32 @@ class Saca extends Component
         return view('livewire.saca', [
             'sacas' => $sacas,
             'despachos' => $despachos,
+            'canSacaCreate' => $this->userCan($this->featurePermission('create')),
+            'canSacaEdit' => $this->userCan($this->featurePermission('edit')),
+            'canSacaDelete' => $this->userCan($this->featurePermission('delete')),
+            'canSacaAssign' => $this->userCan($this->featurePermission('assign')),
+            'canSacaConfirm' => $this->userCan($this->featurePermission('confirm')),
             'canCerrarDespacho' => $canCerrarDespacho,
             'cerrarDespachoError' => $cerrarDespachoError,
         ]);
+    }
+
+    private function featurePermission(string $action): string
+    {
+        return 'feature.'.self::ROUTE_PERMISSION.'.'.$action;
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        return $user ? $user->can($permission) : false;
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
     }
 }

@@ -19,6 +19,7 @@ class DespachoExpedicion extends Component
     use WithPagination;
     private const EVENTO_ID_DESPACHO_REABIERTO_SALIDA = 224;
     private const EVENTO_ID_DESPACHO_ACTUALIZADO_ENTRADA = 230;
+    private const ROUTE_PERMISSION = 'despachos.expedicion';
     protected array $estadoIdCache = [];
 
     public $ciudadToOficina = [
@@ -54,6 +55,7 @@ class DespachoExpedicion extends Component
 
     public function volverApertura($id)
     {
+        $this->authorizePermission($this->featurePermission('restore'));
         $estadoExpedicionId = $this->getEstadoIdByNombre('EXPEDICION', 19);
         $estadoClausuraId = $this->getEstadoIdByNombre('CLAUSURA', 14);
 
@@ -68,6 +70,7 @@ class DespachoExpedicion extends Component
 
     public function intervenirDespacho($id)
     {
+        $this->authorizePermission($this->featurePermission('confirm'));
         $estadoExpedicionId = $this->getEstadoIdByNombre('EXPEDICION', 19);
         $estadoIntervenirId = $this->getEstadoIdByNombre('INTERVENIR', 20);
 
@@ -82,6 +85,7 @@ class DespachoExpedicion extends Component
 
     public function openIntervencionModal($id)
     {
+        $this->authorizePermission($this->featurePermission('edit'));
         $estadoIntervenirId = $this->getEstadoIdByNombre('INTERVENIR', 20);
         $despacho = DespachoModel::query()
             ->where('fk_estado', $estadoIntervenirId)
@@ -126,6 +130,7 @@ class DespachoExpedicion extends Component
 
     public function registrarIntervencion()
     {
+        $this->authorizePermission($this->featurePermission('edit'));
         $validated = $this->validate([
             'intervencionDespachoId' => 'required|integer|exists:despacho,id',
             'intervencionSacaId' => 'required|integer|exists:saca,id',
@@ -237,7 +242,7 @@ class DespachoExpedicion extends Component
             ]);
         });
 
-        $this->dispatch('reimprimirCnDespacho', route('despachos.expedicion.pdf', ['id' => $despachoId]));
+        $this->dispatch('reimprimirCnDespacho', route('despachos.expedicion.pdf', ['id' => $despachoId], false));
         $this->dispatch('closeIntervencionModal');
         $this->resetIntervencionForm();
         session()->flash('success', 'Intervencion registrada: peso del paquete descontado automaticamente en saca y despacho.');
@@ -292,7 +297,30 @@ class DespachoExpedicion extends Component
 
         return view('livewire.despacho-expedicion', [
             'despachos' => $despachos,
+            'canDespachoExpPrint' => $this->userCan($this->featurePermission('print')),
+            'canDespachoExpConfirm' => $this->userCan($this->featurePermission('confirm')),
+            'canDespachoExpRestore' => $this->userCan($this->featurePermission('restore')),
+            'canDespachoExpEdit' => $this->userCan($this->featurePermission('edit')),
         ]);
+    }
+
+    private function featurePermission(string $action): string
+    {
+        return 'feature.'.self::ROUTE_PERMISSION.'.'.$action;
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        return $user ? $user->can($permission) : false;
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
     }
 
     protected function getOforigenFromUser()

@@ -78,6 +78,7 @@ return [
         'carteros.distribucion.report',
         'tarifario.pdf',
         'tarifario.global-excel',
+        'despachos.expedicion.pdf',
     ],
 
     /*
@@ -112,6 +113,23 @@ return [
         'feature.paquetes-ems.almacen.sendventanilla',
         'feature.paquetes-ems.almacen.sendregional',
         'feature.paquetes-ems.almacen.reprintcn33',
+        'feature.despachos.abiertos.create',
+        'feature.despachos.abiertos.edit',
+        'feature.despachos.abiertos.delete',
+        'feature.despachos.abiertos.assign',
+        'feature.despachos.abiertos.confirm',
+        'feature.despachos.abiertos.restore',
+        'feature.despachos.expedicion.print',
+        'feature.despachos.expedicion.confirm',
+        'feature.despachos.expedicion.restore',
+        'feature.despachos.expedicion.edit',
+        'feature.despachos.admitidos.assign',
+        'feature.despachos.admitidos.confirm',
+        'feature.sacas.index.create',
+        'feature.sacas.index.edit',
+        'feature.sacas.index.delete',
+        'feature.sacas.index.assign',
+        'feature.sacas.index.confirm',
     ],
 
     /*
