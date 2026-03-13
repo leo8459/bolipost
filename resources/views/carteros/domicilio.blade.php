@@ -9,7 +9,7 @@
         <div class="card card-carteros">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center flex-wrap">
-                    <h3 class="card-title mb-0">Paquetes en Estado DOMICILIO</h3>
+                    <h3 class="card-title mb-0">Paquetes en Estado ENTREGADO</h3>
                     <span class="carteros-chip">Entregados</span>
                 </div>
             </div>
@@ -95,7 +95,7 @@
 
             function renderRows(rows) {
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="13" class="text-center py-4">No hay paquetes en estado DOMICILIO.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="13" class="text-center py-4">No hay paquetes en estado ENTREGADO.</td></tr>';
                     return;
                 }
 

@@ -170,7 +170,7 @@ class CarterosController extends Controller
 
         return $this->combinedDataResponse(
             $request,
-            $this->resolveEstadoDomicilioId()
+            $this->resolveEstadoByName('ENTREGADO')
         );
     }
 
