@@ -9,10 +9,10 @@ use Illuminate\Http\Request;
 class PaquetesCertiController extends Controller
 {
     private const ROLE_VENTANILLA_MAP = [
-        'auxiliar_urbano_dnd' => ['DND'],
+        'auxiliar_urbano_dnd' => ['DND', 'CASILLA'],
         'auxiliar_urbano' => ['DD'],
         'auxiliar_7' => ['DD'],
-        'auxiliar_urbano_casilla' => ['CASILLA'],
+        'auxiliar_urbano_casilla' => ['DND', 'CASILLA'],
         'encargado_urbano' => ['DD', 'DND'],
     ];
 
