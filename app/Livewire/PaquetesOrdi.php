@@ -19,7 +19,7 @@ class PaquetesOrdi extends Component
         'auxiliar_urbano_dnd' => ['DND', 'CASILLA'],
         'auxiliar_urbano' => ['DD'],
         'auxiliar_7' => ['DD'],
-        'auxiliar_urbano_casilla' => ['DND', 'CASILLA'],
+        'auxiliar_urbano_casilla' => ['CASILLA'],
         'encargado_urbano' => ['DD', 'DND'],
     ];
 
