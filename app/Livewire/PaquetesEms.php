@@ -72,6 +72,8 @@ class PaquetesEms extends Component
     private const ALMACEN_EMS_SEND_VENTANILLA_PERMISSION = 'feature.paquetes-ems.almacen.sendventanilla';
     private const ALMACEN_EMS_SEND_REGIONAL_PERMISSION = 'feature.paquetes-ems.almacen.sendregional';
     private const ALMACEN_EMS_REPRINT_CN33_PERMISSION = 'feature.paquetes-ems.almacen.reprintcn33';
+    private const CREATE_ROUTE_PERMISSION = 'paquetes-ems.create';
+    private const ALMACEN_ADMISIONES_ROUTE_PERMISSION = 'paquetes-ems.almacen-admisiones';
 
     public $mode = 'admision';
     public $search = '';
@@ -434,8 +436,9 @@ class PaquetesEms extends Component
     public function openCreateModal()
     {
         $this->authorizePermission($this->modeFeaturePermission('create'));
+        $this->authorizeRoutePermission(self::CREATE_ROUTE_PERMISSION);
 
-        return $this->redirect(route('paquetes-ems.create'), navigate: false);
+        return $this->redirect(route('paquetes-ems.create', absolute: false), navigate: false);
     }
 
     public function openRegionalModal()
@@ -2348,6 +2351,7 @@ class PaquetesEms extends Component
             'contratosAlmacen' => $contratosAlmacen,
             'canEmsAssign' => $this->userCan($this->modeFeaturePermission('assign')),
             'canEmsCreate' => $this->userCan($this->modeFeaturePermission('create')),
+            'canEmsCreateRoute' => $this->userCan(self::CREATE_ROUTE_PERMISSION),
             'canEmsEdit' => $this->userCan($this->modeFeaturePermission('edit')),
             'canEmsDelete' => $this->userCan($this->modeFeaturePermission('delete')),
             'canEmsPrint' => $this->userCan($this->modeFeaturePermission('print')),
@@ -2358,6 +2362,7 @@ class PaquetesEms extends Component
             'canEmsSendVentanilla' => $this->userCan(self::ALMACEN_EMS_SEND_VENTANILLA_PERMISSION),
             'canEmsSendRegional' => $this->userCan(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION),
             'canEmsReprintCn33' => $this->userCan(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION),
+            'canEmsAlmacenAdmisiones' => $this->userCan(self::ALMACEN_ADMISIONES_ROUTE_PERMISSION),
             'canContratoAlmacenPrint' => $this->userCan('feature.paquetes-contrato.almacen.print'),
         ]);
     }
@@ -2365,6 +2370,9 @@ class PaquetesEms extends Component
     private function modeFeaturePermission(string $action, ?string $mode = null): string
     {
         $modeKey = $mode ?? $this->mode;
+        if ($action === 'create' && $modeKey === 'create_ems') {
+            $modeKey = 'admision';
+        }
         $routePermission = self::MODE_ROUTE_PERMISSIONS[$modeKey] ?? self::MODE_ROUTE_PERMISSIONS['admision'];
 
         return 'feature.'.$routePermission.'.'.$action;
@@ -2385,6 +2393,13 @@ class PaquetesEms extends Component
     {
         if (! $this->userCan($permission)) {
             abort(403, 'No tienes permiso para realizar esta accion.');
+        }
+    }
+
+    private function authorizeRoutePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para abrir esta ventana.');
         }
     }
 

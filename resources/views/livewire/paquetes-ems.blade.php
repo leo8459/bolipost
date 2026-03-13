@@ -365,9 +365,11 @@
                         <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
 
                         @if ($this->isAdmision)
-                            <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.almacen-admisiones') }}">
-                                Almacen admisiones
-                            </a>
+                            @if ($canEmsAlmacenAdmisiones)
+                                <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.almacen-admisiones', absolute: false) }}">
+                                    Almacen admisiones
+                                </a>
+                            @endif
 
                             @if ($canEmsAssign)
                             <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
@@ -418,7 +420,7 @@
                             @endif
                         @endif
 
-                        @if (($this->isAdmision || $this->isAlmacenEms) && $canEmsCreate)
+                        @if (($this->isAdmision || $this->isAlmacenEms) && $canEmsCreate && $canEmsCreateRoute)
                             <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                         @endif
                     @endif
@@ -638,7 +640,7 @@
 
                         <div class="d-flex justify-content-end gap-2">
                             <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-azul">Cancelar</a>
-                            @if ($canEmsCreate)
+                            @if ($canEmsCreate && $canEmsCreateRoute)
                             <button type="submit" class="btn btn-dorado">Crear y continuar</button>
                             @endif
                         </div>
