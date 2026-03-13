@@ -35,7 +35,6 @@ class EventosTabla extends Component
 
     public function searchRegistros(): void
     {
-        $this->authorizePermission($this->featurePermission('view'));
         $this->searchQuery = trim((string) $this->search);
         $this->resetPage();
     }
@@ -140,7 +139,6 @@ class EventosTabla extends Component
             'eventos' => DB::table('eventos')->orderBy('nombre_evento')->get(['id', 'nombre_evento']),
             'users' => DB::table('users')->orderBy('name')->get(['id', 'name']),
             'config' => $this->pageConfig(),
-            'canEventosView' => $this->userCan($this->featurePermission('view')),
             'canEventosCreate' => $this->userCan($this->featurePermission('create')),
             'canEventosEdit' => $this->userCan($this->featurePermission('edit')),
             'canEventosDelete' => $this->userCan($this->featurePermission('delete')),
