@@ -149,6 +149,9 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchTarifarios">Buscar</button>
+                    <a class="btn btn-outline-light2" href="{{ route('tarifario.template-excel') }}">Plantilla Excel</a>
+                    <a class="btn btn-outline-light2" href="{{ route('tarifario.template-mass-excel', ['servicio' => 'EMS_NACIONAL']) }}">Plantilla Masiva</a>
+                    <a class="btn btn-outline-light2" href="{{ route('tarifario.import-form') }}">Importar Excel</a>
                     @aclcan('create', $this)
                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                     @endaclcan
@@ -158,6 +161,21 @@
             @if (session()->has('success'))
                 <div class="alert alert-success m-3">
                     <p class="mb-0">{{ session('success') }}</p>
+                </div>
+            @endif
+            @if (session()->has('warning'))
+                <div class="alert alert-warning m-3 mb-0">
+                    <p class="mb-0">{{ session('warning') }}</p>
+                </div>
+            @endif
+            @if (session()->has('import_errors'))
+                <div class="alert alert-danger m-3 mb-0">
+                    <p class="mb-2"><strong>Errores de importacion (primeros 20):</strong></p>
+                    <ul class="mb-0">
+                        @foreach (session('import_errors', []) as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                    </ul>
                 </div>
             @endif
 

@@ -157,6 +157,10 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/pesos', [PesoController::class, 'index'])->name('pesos.index');
     Route::get('/origenes', [OrigenController::class, 'index'])->name('origenes.index');
     Route::get('/tarifario', [TarifarioController::class, 'index'])->name('tarifario.index');
+    Route::get('/tarifario/import', [TarifarioController::class, 'importForm'])->name('tarifario.import-form');
+    Route::post('/tarifario/import', [TarifarioController::class, 'import'])->name('tarifario.import');
+    Route::get('/tarifario/plantilla-excel', [TarifarioController::class, 'downloadTemplateExcel'])->name('tarifario.template-excel');
+    Route::get('/tarifario/plantilla-masiva-excel', [TarifarioController::class, 'downloadMassTemplateExcel'])->name('tarifario.template-mass-excel');
     Route::get('/tarifa-contrato', [TarifaContratoController::class, 'index'])->name('tarifa-contrato.index');
     Route::get('/tarifa-contrato/create', [TarifaContratoController::class, 'create'])->name('tarifa-contrato.create');
     Route::get('/tarifa-contrato/import', [TarifaContratoController::class, 'importForm'])->name('tarifa-contrato.import-form');

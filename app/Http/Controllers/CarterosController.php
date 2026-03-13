@@ -77,6 +77,7 @@ class CarterosController extends Controller
 
     public function users(): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.distribucion');
         $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
 
         $users = User::query()
@@ -88,16 +89,22 @@ class CarterosController extends Controller
 
     public function distribucionData(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.distribucion');
+
         return $this->combinedDataResponse($request);
     }
 
     public function asignadosData(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.asignados');
+
         return $this->combinedDataResponse($request, $this->resolveEstadoCarteroId());
     }
 
     public function carteroData(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.cartero');
+
         return $this->combinedDataResponse(
             $request,
             $this->resolveEstadoCarteroId(),
@@ -107,6 +114,7 @@ class CarterosController extends Controller
 
     public function provinciaData(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.cartero');
         $this->authorizeFeaturePermission('feature.carteros.cartero.province');
 
         return $this->combinedDataResponse(
@@ -118,6 +126,8 @@ class CarterosController extends Controller
 
     public function devolucionData(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.devolucion');
+
         return $this->combinedDataResponse(
             $request,
             $this->resolveEstadoDevolucionId(),
@@ -127,6 +137,8 @@ class CarterosController extends Controller
 
     public function domicilioData(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.domicilio');
+
         return $this->combinedDataResponse(
             $request,
             $this->resolveEstadoDomicilioId()
@@ -135,6 +147,7 @@ class CarterosController extends Controller
 
         public function assign(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.distribucion');
         $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
 
         $validated = $request->validate([
@@ -289,6 +302,7 @@ class CarterosController extends Controller
     }
     public function returnToAlmacen(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.devolucion');
         $this->authorizeFeaturePermission('feature.carteros.devolucion.restore');
 
         $validated = $request->validate([
@@ -369,6 +383,8 @@ class CarterosController extends Controller
     }
     public function acceptPackages(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.cartero');
+
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
@@ -448,6 +464,7 @@ class CarterosController extends Controller
 
     public function registerGuide(Request $request): JsonResponse
     {
+        $this->authorizeRoutePermission('carteros.cartero');
         $this->authorizeFeaturePermission('feature.carteros.cartero.guide');
 
         $validated = $request->validate([
@@ -1578,6 +1595,27 @@ class CarterosController extends Controller
         }
 
         abort(403, 'No tienes permiso para realizar esta accion.');
+    }
+
+    private function authorizeRoutePermission(string $permission): void
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+            return;
+        }
+
+        if ($user->can($permission)) {
+            return;
+        }
+
+        abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
     }
 }
 

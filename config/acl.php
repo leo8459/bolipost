@@ -64,6 +64,17 @@ return [
         'acl.livewire-actions',
         'paquetes-certificados.baja-pdf',
         'paquetes-certificados.rezago-pdf',
+        'api.carteros.distribucion',
+        'api.carteros.asignados',
+        'api.carteros.cartero',
+        'api.carteros.provincia',
+        'api.carteros.devolucion',
+        'api.carteros.domicilio',
+        'api.carteros.users',
+        'api.carteros.asignar',
+        'api.carteros.registrar-guia',
+        'api.carteros.devolver-almacen',
+        'api.carteros.aceptar-paquetes',
     ],
 
     /*
