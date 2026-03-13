@@ -147,7 +147,7 @@ class CodigoEmpresa extends Component
 
         $this->validate([
             'operacion_empresa_id' => 'required|integer|exists:empresa,id',
-            'cantidad_generar' => 'required|integer|min:1|max:1000',
+            'cantidad_generar' => 'required|integer|min:1',
         ]);
 
         $empresa = EmpresaModel::findOrFail((int) $this->operacion_empresa_id);
@@ -200,11 +200,6 @@ class CodigoEmpresa extends Component
         $hasta = (int) $this->reimprimir_hasta;
         if ($hasta < $desde) {
             $this->addError('reimprimir_hasta', 'El numero final debe ser mayor o igual al inicial.');
-            return;
-        }
-
-        if (($hasta - $desde + 1) > 1000) {
-            $this->addError('reimprimir_hasta', 'El rango maximo permitido es de 1000 codigos.');
             return;
         }
 

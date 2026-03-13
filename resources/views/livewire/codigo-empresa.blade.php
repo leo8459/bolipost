@@ -91,7 +91,7 @@
                             </div>
                             <div class="form-group col-md-4">
                                 <label>Cantidad</label>
-                                <input type="number" min="1" max="1000" wire:model.defer="cantidad_generar" class="form-control">
+                                <input type="number" min="1" wire:model.defer="cantidad_generar" class="form-control">
                                 @error('cantidad_generar') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                         @elseif ($operacion === 'REIMPRIMIR')
