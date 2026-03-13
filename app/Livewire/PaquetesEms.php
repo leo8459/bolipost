@@ -1212,9 +1212,9 @@ class PaquetesEms extends Component
                 $this->auto_codigo = true;
                 return redirect()
                     ->route('paquetes-ems.index')
-                    ->with('download_boleta_url', route('paquetes-ems.boleta', $paquete->id));
+                    ->with('download_boleta_url', route('paquetes-ems.boleta', $paquete->id, false));
             }
-            return $this->redirect(route('paquetes-ems.boleta', $paquete->id), navigate: false);
+            return $this->redirect(route('paquetes-ems.boleta', $paquete->id, false), navigate: false);
         }
 
         $this->dispatch('closePaqueteConfirm');

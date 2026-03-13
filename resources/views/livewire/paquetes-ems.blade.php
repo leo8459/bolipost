@@ -809,7 +809,7 @@
                                                     @endif
                                                 @endif
                                                 @if ($canEmsPrint)
-                                                <a href="{{ route('paquetes-ems.boleta', $row->record_id) }}"
+                                                <a href="{{ route('paquetes-ems.boleta', $row->record_id, false) }}"
                                                    class="btn btn-sm btn-outline-azul"
                                                    target="_blank"
                                                    title="Reimprimir boleta">
@@ -880,7 +880,7 @@
                                             </button>
                                             @endif
                                             @if ($canEmsPrint)
-                                            <a href="{{ route('paquetes-ems.boleta', $paquete->id) }}"
+                                            <a href="{{ route('paquetes-ems.boleta', $paquete->id, false) }}"
                                                class="btn btn-sm btn-outline-azul"
                                                target="_blank"
                                                title="Reimprimir boleta">
