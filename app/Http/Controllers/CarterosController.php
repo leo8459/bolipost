@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Cartero;
 use App\Models\Estado;
 use App\Models\PaqueteCerti;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CarterosController extends Controller
@@ -47,6 +49,24 @@ class CarterosController extends Controller
     public function domicilio()
     {
         return view('carteros.domicilio');
+    }
+
+    public function distributionAssignmentReport(Request $request, string $token)
+    {
+        $this->authorizeRoutePermission('carteros.distribucion');
+        $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
+
+        $reports = (array) $request->session()->get('carteros.assignment_reports', []);
+        $report = $reports[$token] ?? null;
+
+        if (!is_array($report) || empty($report['rows'])) {
+            abort(404, 'No se encontro el reporte de asignacion solicitado.');
+        }
+
+        $filename = 'reporte-asignacion-cartero-' . $token . '.pdf';
+        $pdf = Pdf::loadView('carteros.asignacion-reporte', $report)->setPaper('A4', 'portrait');
+
+        return $pdf->stream($filename);
     }
 
     public function entregaForm(Request $request)
@@ -298,6 +318,14 @@ class CarterosController extends Controller
                 'contrato' => $updatedContrato,
                 'total' => $updatedEms + $updatedCerti + $updatedOrdi + $updatedContrato,
             ],
+            'report_url' => route('carteros.distribucion.report', [
+                'token' => $this->storeAssignmentReport(
+                    $request,
+                    $validated['items'],
+                    $assigneeUserId,
+                    (int) $request->user()->id
+                ),
+            ]),
         ]);
     }
     public function returnToAlmacen(Request $request): JsonResponse
@@ -789,6 +817,162 @@ class CarterosController extends Controller
             ->with('success', 'Intento registrado y paquete enviado a DEVOLUCION.');
     }
 
+    private function storeAssignmentReport(Request $request, array $items, int $assigneeUserId, int $actorUserId): string
+    {
+        $rows = $this->buildAssignmentReportRows($items);
+        $token = (string) Str::uuid();
+        $assignee = User::query()->find($assigneeUserId, ['id', 'name', 'ciudad']);
+        $actor = User::query()->find($actorUserId, ['id', 'name', 'ciudad']);
+        $assignedAt = now();
+
+        $summaryByType = collect($rows)
+            ->groupBy('tipo_paquete')
+            ->map(fn ($group) => $group->count())
+            ->all();
+
+        $reports = (array) $request->session()->get('carteros.assignment_reports', []);
+        $reports[$token] = [
+            'rows' => $rows,
+            'assigned_at' => $assignedAt,
+            'assigned_user' => $assignee,
+            'actor_user' => $actor,
+            'regional' => $this->resolveAssignmentRegional($rows, $assignee, $actor),
+            'summary_by_type' => $summaryByType,
+            'total_assigned' => count($rows),
+        ];
+
+        if (count($reports) > 10) {
+            $reports = array_slice($reports, -10, null, true);
+        }
+
+        $request->session()->put('carteros.assignment_reports', $reports);
+
+        return $token;
+    }
+
+    private function buildAssignmentReportRows(array $items): array
+    {
+        $items = collect($items)
+            ->map(fn ($item) => [
+                'id' => (int) ($item['id'] ?? 0),
+                'tipo_paquete' => strtoupper(trim((string) ($item['tipo_paquete'] ?? ''))),
+            ])
+            ->filter(fn ($item) => $item['id'] > 0 && in_array($item['tipo_paquete'], ['EMS', 'CERTI', 'ORDI', 'CONTRATO'], true))
+            ->unique(fn ($item) => $item['tipo_paquete'] . ':' . $item['id'])
+            ->values();
+
+        $emsIds = $items->where('tipo_paquete', 'EMS')->pluck('id')->all();
+        $certiIds = $items->where('tipo_paquete', 'CERTI')->pluck('id')->all();
+        $ordiIds = $items->where('tipo_paquete', 'ORDI')->pluck('id')->all();
+        $contratoIds = $items->where('tipo_paquete', 'CONTRATO')->pluck('id')->all();
+
+        $emsRows = PaqueteEms::query()
+            ->whereIn('id', $emsIds ?: [0])
+            ->get(['id', 'codigo', 'nombre_destinatario', 'direccion', 'ciudad', 'peso'])
+            ->keyBy('id');
+
+        $certiRows = PaqueteCerti::query()
+            ->whereIn('id', $certiIds ?: [0])
+            ->get(['id', 'codigo', 'destinatario', 'cuidad', 'zona', 'peso'])
+            ->keyBy('id');
+
+        $ordiRows = PaqueteOrdi::query()
+            ->whereIn('id', $ordiIds ?: [0])
+            ->get(['id', 'codigo', 'destinatario', 'ciudad', 'zona', 'peso'])
+            ->keyBy('id');
+
+        $contratoRows = RecojoContrato::query()
+            ->whereIn('id', $contratoIds ?: [0])
+            ->get(['id', 'codigo', 'nombre_d', 'direccion_d', 'destino', 'peso'])
+            ->keyBy('id');
+
+        return $items->values()->map(function ($item, $index) use ($emsRows, $certiRows, $ordiRows, $contratoRows) {
+            $tipo = $item['tipo_paquete'];
+            $id = $item['id'];
+
+            if ($tipo === 'EMS' && isset($emsRows[$id])) {
+                $pkg = $emsRows[$id];
+
+                return [
+                    'no' => $index + 1,
+                    'tipo_paquete' => $tipo,
+                    'codigo' => (string) $pkg->codigo,
+                    'destinatario' => (string) $pkg->nombre_destinatario,
+                    'direccion' => (string) ($pkg->direccion ?? ''),
+                    'ciudad' => (string) ($pkg->ciudad ?? ''),
+                    'peso' => $pkg->peso,
+                ];
+            }
+
+            if ($tipo === 'CERTI' && isset($certiRows[$id])) {
+                $pkg = $certiRows[$id];
+
+                return [
+                    'no' => $index + 1,
+                    'tipo_paquete' => $tipo,
+                    'codigo' => (string) $pkg->codigo,
+                    'destinatario' => (string) $pkg->destinatario,
+                    'direccion' => $this->joinAddressParts([$pkg->zona ?? null, $pkg->cuidad ?? null]),
+                    'ciudad' => (string) ($pkg->cuidad ?? ''),
+                    'peso' => $pkg->peso,
+                ];
+            }
+
+            if ($tipo === 'ORDI' && isset($ordiRows[$id])) {
+                $pkg = $ordiRows[$id];
+
+                return [
+                    'no' => $index + 1,
+                    'tipo_paquete' => $tipo,
+                    'codigo' => (string) $pkg->codigo,
+                    'destinatario' => (string) $pkg->destinatario,
+                    'direccion' => $this->joinAddressParts([$pkg->zona ?? null, $pkg->ciudad ?? null]),
+                    'ciudad' => (string) ($pkg->ciudad ?? ''),
+                    'peso' => $pkg->peso,
+                ];
+            }
+
+            if ($tipo === 'CONTRATO' && isset($contratoRows[$id])) {
+                $pkg = $contratoRows[$id];
+
+                return [
+                    'no' => $index + 1,
+                    'tipo_paquete' => $tipo,
+                    'codigo' => (string) $pkg->codigo,
+                    'destinatario' => (string) $pkg->nombre_d,
+                    'direccion' => (string) ($pkg->direccion_d ?? ''),
+                    'ciudad' => (string) ($pkg->destino ?? ''),
+                    'peso' => $pkg->peso,
+                ];
+            }
+
+            return null;
+        })->filter()->values()->all();
+    }
+
+    private function joinAddressParts(array $parts): string
+    {
+        return collect($parts)
+            ->map(fn ($part) => trim((string) $part))
+            ->filter()
+            ->join(' / ');
+    }
+
+    private function resolveAssignmentRegional(array $rows, ?User $assignee, ?User $actor): string
+    {
+        $regional = trim((string) ($assignee?->ciudad ?? ''));
+
+        if ($regional === '') {
+            $regional = trim((string) ($actor?->ciudad ?? ''));
+        }
+
+        if ($regional === '') {
+            $regional = trim((string) collect($rows)->pluck('ciudad')->filter()->first());
+        }
+
+        return strtoupper($regional !== '' ? $regional : 'SIN REGIONAL');
+    }
+
     private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null): JsonResponse
     {
         $page = max(1, (int) $request->query('page', 1));
@@ -850,6 +1034,7 @@ class CarterosController extends Controller
                 'codigo',
                 'nombre_destinatario as destinatario',
                 'telefono_destinatario as telefono',
+                'direccion',
                 'ciudad',
                 'peso',
                 'precio',
@@ -871,7 +1056,7 @@ class CarterosController extends Controller
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
                     'ciudad' => $item->ciudad,
-                    'zona' => null,
+                    'zona' => $item->direccion,
                     'peso' => $item->peso,
                     'precio' => $item->precio,
                     'estado_id' => $item->estado_id,

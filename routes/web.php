@@ -224,6 +224,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/despachos/todos', [DespachoController::class, 'todos'])->name('despachos.todos');
     Route::get('/sacas', [SacaController::class, 'index'])->name('sacas.index');
     Route::get('/carteros/distribucion', [CarterosController::class, 'distribucion'])->name('carteros.distribucion');
+    Route::get('/carteros/distribucion/reporte/{token}', [CarterosController::class, 'distributionAssignmentReport'])->name('carteros.distribucion.report');
     Route::get('/carteros/asignados', [CarterosController::class, 'asignados'])->name('carteros.asignados');
     Route::get('/carteros/cartero', [CarterosController::class, 'cartero'])->name('carteros.cartero');
     Route::get('/carteros/devolucion', [CarterosController::class, 'devolucion'])->name('carteros.devolucion');

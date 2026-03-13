@@ -75,6 +75,7 @@ return [
         'api.carteros.registrar-guia',
         'api.carteros.devolver-almacen',
         'api.carteros.aceptar-paquetes',
+        'carteros.distribucion.report',
     ],
 
     /*
