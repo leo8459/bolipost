@@ -196,6 +196,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
     Route::get('/eventos-auditoria', [EventosAuditoriaController::class, 'index'])->name('eventos-auditoria.index');
     Route::get('/empresas', [EmpresaController::class, 'index'])->name('empresas.index');
+    Route::get('/empresas/import', [EmpresaController::class, 'importForm'])->name('empresas.import-form');
+    Route::post('/empresas/import', [EmpresaController::class, 'import'])->name('empresas.import');
+    Route::get('/empresas/plantilla-excel', [EmpresaController::class, 'downloadTemplateExcel'])->name('empresas.template-excel');
     Route::get('/codigo-empresa', [CodigoEmpresaController::class, 'index'])->name('codigo-empresa.index');
     Route::get('/paquetes-contrato', [RecojoController::class, 'index'])->name('paquetes-contrato.index');
     Route::get('/paquetes-contrato/recoger-envios', [RecojoController::class, 'recogerEnvios'])->name('paquetes-contrato.recoger-envios');

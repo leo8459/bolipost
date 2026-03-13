@@ -144,7 +144,7 @@
                     <h4 class="fw-bold mb-0">Empresas</h4>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center">
+                <div class="d-flex gap-2 align-items-center flex-wrap">
                     <input
                         type="text"
                         class="form-control search-input"
@@ -152,6 +152,12 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchEmpresas">Buscar</button>
+                    @if (auth()->user()?->can('empresas.template-excel'))
+                    <a class="btn btn-outline-light2" href="{{ route('empresas.template-excel') }}">Plantilla Excel</a>
+                    @endif
+                    @if (auth()->user()?->can('empresas.import-form'))
+                    <a class="btn btn-outline-light2" href="{{ route('empresas.import-form') }}">Importar Excel</a>
+                    @endif
                     @aclcan('create', $this)
                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                     @endaclcan
@@ -161,6 +167,17 @@
             @if (session()->has('success'))
                 <div class="alert alert-success m-3">
                     <p class="mb-0">{{ session('success') }}</p>
+                </div>
+            @endif
+
+            @if (session()->has('import_errors'))
+                <div class="alert alert-warning m-3">
+                    <p class="mb-2"><strong>Errores de importacion (primeros 20):</strong></p>
+                    <ul class="mb-0 pl-3">
+                        @foreach (session('import_errors', []) as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
                 </div>
             @endif
 
