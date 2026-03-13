@@ -57,18 +57,17 @@
                                     <strong>20.000 kg</strong>.
                                 </p>
                                 <p class="mt-2 mb-2">
-                                    Las columnas <strong>servicio</strong>, <strong>origen</strong> y <strong>destino</strong>
+                                    Las columnas <strong>servicio</strong> y el rango de <strong>peso</strong>
                                     deben coincidir con los catalogos del sistema.
                                 </p>
                                 <p class="mt-2 mb-0">
-                                    Si una combinacion de servicio, origen, destino y peso ya existe, la importacion
+                                    Si una combinacion de servicio y peso ya existe, la importacion
                                     actualiza <strong>precio</strong> y <strong>observacion</strong>.
                                 </p>
                                 <hr>
                                 <p class="mb-0">
-                                    Si quieres evitar repetir LA PAZ, COCHABAMBA, BENI, etc. muchas veces,
-                                    usa la <strong>Plantilla Masiva EMS_NACIONAL</strong>. Esa hoja ya sale con
-                                    todas las combinaciones de departamentos y pesos; solo llenas <strong>precio</strong>.
+                                    Usa la <strong>Plantilla Masiva EMS_NACIONAL</strong> si quieres que la hoja ya salga
+                                    con todas las combinaciones de <strong>pesos</strong> para ese servicio; solo llenas <strong>precio</strong>.
                                 </p>
                             </div>
 

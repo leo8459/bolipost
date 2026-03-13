@@ -149,6 +149,8 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchTarifarios">Buscar</button>
+                    <a class="btn btn-outline-light2" href="{{ route('tarifario.pdf') }}" target="_blank">Reporte PDF</a>
+                    <a class="btn btn-outline-light2" href="{{ route('tarifario.global-excel') }}">Reporte Global Excel</a>
                     <a class="btn btn-outline-light2" href="{{ route('tarifario.template-excel') }}">Plantilla Excel</a>
                     <a class="btn btn-outline-light2" href="{{ route('tarifario.template-mass-excel', ['servicio' => 'EMS_NACIONAL']) }}">Plantilla Masiva</a>
                     <a class="btn btn-outline-light2" href="{{ route('tarifario.import-form') }}">Importar Excel</a>
@@ -198,8 +200,6 @@
                         <thead>
                             <tr>
                                 <th>Servicio</th>
-                                <th>Origen</th>
-                                <th>Destino</th>
                                 <th>Peso</th>
                                 <th>Precio</th>
                                 <th>Observacion</th>
@@ -211,8 +211,6 @@
                             @forelse ($tarifarios as $t)
                                 <tr>
                                     <td>{{ $t->servicio->nombre_servicio ?? '' }}</td>
-                                    <td>{{ $t->origen->nombre_origen ?? '' }}</td>
-                                    <td>{{ $t->destino->nombre_destino ?? '' }}</td>
                                     <td>
                                         @if($t->peso)
                                             {{ $t->peso->peso_inicial }} - {{ $t->peso->peso_final }}
@@ -241,7 +239,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center py-5">
+                                    <td colspan="6" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -282,29 +280,6 @@
                                     @endforeach
                                 </select>
                                 @error('servicio_id') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Origen</label>
-                                <select wire:model.defer="origen_id" class="form-control">
-                                    <option value="">Seleccione...</option>
-                                    @foreach($origenes as $o)
-                                        <option value="{{ $o->id }}">{{ $o->nombre_origen }}</option>
-                                    @endforeach
-                                </select>
-                                @error('origen_id') <small class="text-danger">{{ $message }}</small> @enderror
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label>Destino</label>
-                                <select wire:model.defer="destino_id" class="form-control">
-                                    <option value="">Seleccione...</option>
-                                    @foreach($destinos as $d)
-                                        <option value="{{ $d->id }}">{{ $d->nombre_destino }}</option>
-                                    @endforeach
-                                </select>
-                                @error('destino_id') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Peso</label>

@@ -157,6 +157,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/pesos', [PesoController::class, 'index'])->name('pesos.index');
     Route::get('/origenes', [OrigenController::class, 'index'])->name('origenes.index');
     Route::get('/tarifario', [TarifarioController::class, 'index'])->name('tarifario.index');
+    Route::get('/tarifario/pdf', [TarifarioController::class, 'exportPdf'])->name('tarifario.pdf');
+    Route::get('/tarifario/reporte-global-excel', [TarifarioController::class, 'downloadGlobalReportExcel'])->name('tarifario.global-excel');
     Route::get('/tarifario/import', [TarifarioController::class, 'importForm'])->name('tarifario.import-form');
     Route::post('/tarifario/import', [TarifarioController::class, 'import'])->name('tarifario.import');
     Route::get('/tarifario/plantilla-excel', [TarifarioController::class, 'downloadTemplateExcel'])->name('tarifario.template-excel');

@@ -13,11 +13,11 @@ class Tarifario extends Model
 
     protected $fillable = [
         'servicio_id',
-        'destino_id',
         'peso_id',
-        'origen_id',
         'precio',
         'observacion',
+        'destino_id',
+        'origen_id',
     ];
 
     public function servicio()

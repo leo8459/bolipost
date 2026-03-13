@@ -76,6 +76,8 @@ return [
         'api.carteros.devolver-almacen',
         'api.carteros.aceptar-paquetes',
         'carteros.distribucion.report',
+        'tarifario.pdf',
+        'tarifario.global-excel',
     ],
 
     /*

@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Destino;
-use App\Models\Origen;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Peso;
 use App\Models\Servicio;
 use App\Models\Tarifario;
@@ -11,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -24,8 +24,6 @@ class TarifarioController extends Controller
 {
     private const IMPORT_COLUMNS = [
         'servicio',
-        'origen',
-        'destino',
         'peso_inicial',
         'peso_final',
         'precio',
@@ -60,6 +58,163 @@ class TarifarioController extends Controller
     public function index()
     {
         return view('tarifario.index');
+    }
+
+    public function exportPdf()
+    {
+        $this->authorizeTarifarioAccess();
+
+        $tarifarios = Tarifario::query()
+            ->with(['servicio', 'peso'])
+            ->orderBy('servicio_id')
+            ->orderBy('peso_id')
+            ->get();
+
+        $grouped = $tarifarios
+            ->groupBy(fn ($item) => optional($item->servicio)->nombre_servicio ?: 'SIN SERVICIO')
+            ->sortKeys();
+
+        $pdf = Pdf::loadView('tarifario.report-pdf', [
+            'groupedTarifarios' => $grouped,
+            'generatedAt' => now(),
+            'totalTarifarios' => $tarifarios->count(),
+        ])->setPaper('A4', 'portrait');
+
+        return $pdf->stream('tarifario-' . now()->format('Ymd-His') . '.pdf');
+    }
+
+    public function downloadGlobalReportExcel()
+    {
+        $this->authorizeTarifarioAccess();
+
+        $servicios = Servicio::query()
+            ->orderBy('nombre_servicio')
+            ->get(['id', 'nombre_servicio']);
+
+        $pesos = Peso::query()
+            ->orderBy('peso_inicial')
+            ->get(['id', 'peso_inicial', 'peso_final']);
+
+        $tarifarios = Tarifario::query()
+            ->get(['servicio_id', 'peso_id', 'precio'])
+            ->mapWithKeys(function ($item) {
+                return [((int) $item->peso_id) . ':' . ((int) $item->servicio_id) => (float) $item->precio];
+            });
+
+        $filename = 'tarifario_global_' . now()->format('Ymd_His') . '.xlsx';
+
+        return response()->streamDownload(function () use ($servicios, $pesos, $tarifarios) {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Tarifario Global');
+
+            $serviceCount = max(1, $servicios->count());
+            $lastColumnIndex = 2 + $serviceCount;
+            $lastColumn = Coordinate::stringFromColumnIndex($lastColumnIndex);
+
+            $sheet->mergeCells("A1:{$lastColumn}1");
+            $sheet->setCellValue('A1', 'TARIFARIO GLOBAL POR SERVICIO');
+            $sheet->mergeCells("A2:{$lastColumn}2");
+            $sheet->setCellValue('A2', 'Generado el ' . now()->format('d/m/Y H:i'));
+
+            $sheet->setCellValue('A4', 'Peso inicial (kg)');
+            $sheet->setCellValue('B4', 'Peso final (kg)');
+
+            $columnIndex = 3;
+            foreach ($servicios as $servicio) {
+                $sheet->setCellValue(
+                    Coordinate::stringFromColumnIndex($columnIndex) . '4',
+                    (string) $servicio->nombre_servicio
+                );
+                $columnIndex++;
+            }
+
+            $row = 5;
+            foreach ($pesos as $peso) {
+                $sheet->setCellValue("A{$row}", (float) $peso->peso_inicial);
+                $sheet->setCellValue("B{$row}", (float) $peso->peso_final);
+
+                $columnIndex = 3;
+                foreach ($servicios as $servicio) {
+                    $key = ((int) $peso->id) . ':' . ((int) $servicio->id);
+                    $price = $tarifarios->get($key);
+                    if ($price !== null) {
+                        $sheet->setCellValue(Coordinate::stringFromColumnIndex($columnIndex) . $row, $price);
+                    }
+                    $columnIndex++;
+                }
+
+                $row++;
+            }
+
+            $lastDataRow = max(5, $row - 1);
+
+            $sheet->getStyle("A1:{$lastColumn}1")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 16, 'color' => ['argb' => 'FFFFFFFF']],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['argb' => 'FF20539A'],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ]);
+
+            $sheet->getStyle("A2:{$lastColumn}2")->applyFromArray([
+                'font' => ['italic' => true, 'color' => ['argb' => 'FF4B5563']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ]);
+
+            $sheet->getStyle("A4:{$lastColumn}4")->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['argb' => 'FF1F2937']],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['argb' => 'FFFECF64'],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['argb' => 'FFB45309'],
+                    ],
+                ],
+            ]);
+
+            $sheet->getStyle("A5:B{$lastDataRow}")->getNumberFormat()->setFormatCode('0.000');
+            if ($lastColumnIndex >= 3) {
+                $sheet->getStyle('C5:' . $lastColumn . $lastDataRow)->getNumberFormat()->setFormatCode('#,##0.00');
+            }
+
+            $sheet->getStyle("A4:{$lastColumn}{$lastDataRow}")->applyFromArray([
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['argb' => 'FFCBD5E1'],
+                    ],
+                ],
+                'alignment' => [
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ]);
+
+            $sheet->getColumnDimension('A')->setWidth(16);
+            $sheet->getColumnDimension('B')->setWidth(16);
+            for ($i = 3; $i <= $lastColumnIndex; $i++) {
+                $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setWidth(22);
+            }
+
+            $sheet->freezePane('C5');
+            $sheet->setAutoFilter("A4:{$lastColumn}{$lastDataRow}");
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 
     public function importForm()
@@ -104,23 +259,11 @@ class TarifarioController extends Controller
         }
 
         $servicios = Servicio::query()->orderBy('nombre_servicio')->get(['id', 'nombre_servicio']);
-        $origenes = Origen::query()->orderBy('nombre_origen')->get(['id', 'nombre_origen']);
-        $destinos = Destino::query()->orderBy('nombre_destino')->get(['id', 'nombre_destino']);
         $pesos = Peso::query()->orderBy('peso_inicial')->get(['id', 'peso_inicial', 'peso_final']);
 
         $servicioMap = [];
         foreach ($servicios as $servicio) {
             $servicioMap[$this->normalizeLookupKey((string) $servicio->nombre_servicio)] = (int) $servicio->id;
-        }
-
-        $origenMap = [];
-        foreach ($origenes as $origen) {
-            $origenMap[$this->normalizeLookupKey((string) $origen->nombre_origen)] = (int) $origen->id;
-        }
-
-        $destinoMap = [];
-        foreach ($destinos as $destino) {
-            $destinoMap[$this->normalizeLookupKey((string) $destino->nombre_destino)] = (int) $destino->id;
         }
 
         $pesoMap = [];
@@ -146,8 +289,6 @@ class TarifarioController extends Controller
             }
 
             $servicioTexto = (string) ($data['servicio'] ?? '');
-            $origenTexto = (string) ($data['origen'] ?? '');
-            $destinoTexto = (string) ($data['destino'] ?? '');
             $pesoInicial = $this->parseDecimal($data['peso_inicial'] ?? null);
             $pesoFinal = $this->parseDecimal($data['peso_final'] ?? null);
             $precio = $this->parseDecimal($data['precio'] ?? null);
@@ -155,18 +296,6 @@ class TarifarioController extends Controller
             $servicioId = $servicioMap[$this->normalizeLookupKey($servicioTexto)] ?? null;
             if (!$servicioId) {
                 $errors[] = "Linea {$line}: servicio '{$servicioTexto}' no existe.";
-                continue;
-            }
-
-            $origenId = $origenMap[$this->normalizeLookupKey($origenTexto)] ?? null;
-            if (!$origenId) {
-                $errors[] = "Linea {$line}: origen '{$origenTexto}' no existe.";
-                continue;
-            }
-
-            $destinoId = $destinoMap[$this->normalizeLookupKey($destinoTexto)] ?? null;
-            if (!$destinoId) {
-                $errors[] = "Linea {$line}: destino '{$destinoTexto}' no existe.";
                 continue;
             }
 
@@ -183,19 +312,17 @@ class TarifarioController extends Controller
 
             $payload = [
                 'servicio_id' => $servicioId,
-                'origen_id' => $origenId,
-                'destino_id' => $destinoId,
                 'peso_id' => $pesoId,
                 'precio' => $precio,
                 'observacion' => $this->normalizeNullableText($data['observacion'] ?? null),
+                'origen_id' => null,
+                'destino_id' => null,
             ];
 
             $validator = Validator::make(
                 $payload,
                 [
                     'servicio_id' => ['required', 'integer', Rule::exists('servicio', 'id')],
-                    'origen_id' => ['required', 'integer', Rule::exists('origen', 'id')],
-                    'destino_id' => ['required', 'integer', Rule::exists('destino', 'id')],
                     'peso_id' => ['required', 'integer', Rule::exists('peso', 'id')],
                     'precio' => ['required', 'numeric', 'min:0'],
                     'observacion' => ['nullable', 'string'],
@@ -203,8 +330,6 @@ class TarifarioController extends Controller
                 [],
                 [
                     'servicio_id' => 'servicio',
-                    'origen_id' => 'origen',
-                    'destino_id' => 'destino',
                     'peso_id' => 'peso',
                     'precio' => 'precio',
                     'observacion' => 'observacion',
@@ -219,8 +344,6 @@ class TarifarioController extends Controller
             $validated = $validator->validated();
             $tarifario = Tarifario::query()->where([
                 'servicio_id' => $validated['servicio_id'],
-                'origen_id' => $validated['origen_id'],
-                'destino_id' => $validated['destino_id'],
                 'peso_id' => $validated['peso_id'],
             ])->first();
 
@@ -252,16 +375,14 @@ class TarifarioController extends Controller
         $filename = 'plantilla_tarifario.xlsx';
         $columns = self::IMPORT_COLUMNS;
         $servicios = Servicio::query()->orderBy('nombre_servicio')->get(['nombre_servicio']);
-        $origenes = Origen::query()->orderBy('nombre_origen')->get(['nombre_origen']);
-        $destinos = Destino::query()->orderBy('nombre_destino')->get(['nombre_destino']);
 
-        return response()->streamDownload(function () use ($columns, $servicios, $origenes, $destinos) {
+        return response()->streamDownload(function () use ($columns, $servicios) {
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('Tarifario');
 
             $sheet->fromArray($columns, null, 'A1');
-            $sheet->getStyle('A1:G1')->applyFromArray([
+            $sheet->getStyle('A1:E1')->applyFromArray([
                 'font' => [
                     'bold' => true,
                     'color' => ['argb' => 'FFFFFFFF'],
@@ -283,16 +404,14 @@ class TarifarioController extends Controller
             ]);
 
             $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:G1');
+            $sheet->setAutoFilter('A1:E1');
 
             $columnWidths = [
                 'A' => 28,
-                'B' => 24,
-                'C' => 24,
+                'B' => 14,
+                'C' => 14,
                 'D' => 14,
-                'E' => 14,
-                'F' => 14,
-                'G' => 36,
+                'E' => 36,
             ];
 
             foreach ($columnWidths as $column => $width) {
@@ -301,13 +420,13 @@ class TarifarioController extends Controller
 
             $row = 2;
             foreach (self::TEMPLATE_WEIGHT_RANGES as [$pesoInicial, $pesoFinal]) {
-                $sheet->setCellValue("D{$row}", $pesoInicial);
-                $sheet->setCellValue("E{$row}", $pesoFinal);
+                $sheet->setCellValue("B{$row}", $pesoInicial);
+                $sheet->setCellValue("C{$row}", $pesoFinal);
                 $row++;
             }
 
-            $sheet->getStyle('D2:E5000')->getNumberFormat()->setFormatCode('0.000');
-            $sheet->getStyle('F2:F5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('B2:C5000')->getNumberFormat()->setFormatCode('0.000');
+            $sheet->getStyle('D2:D5000')->getNumberFormat()->setFormatCode('#,##0.00');
 
             $sheetServicios = $spreadsheet->createSheet();
             $sheetServicios->setTitle('Servicios');
@@ -318,26 +437,6 @@ class TarifarioController extends Controller
                 $serviceRow++;
             }
             $sheetServicios->getColumnDimension('A')->setWidth(34);
-
-            $sheetOrigenes = $spreadsheet->createSheet();
-            $sheetOrigenes->setTitle('Origenes');
-            $sheetOrigenes->setCellValue('A1', 'nombre_origen');
-            $originRow = 2;
-            foreach ($origenes as $origen) {
-                $sheetOrigenes->setCellValue("A{$originRow}", (string) $origen->nombre_origen);
-                $originRow++;
-            }
-            $sheetOrigenes->getColumnDimension('A')->setWidth(30);
-
-            $sheetDestinos = $spreadsheet->createSheet();
-            $sheetDestinos->setTitle('Destinos');
-            $sheetDestinos->setCellValue('A1', 'nombre_destino');
-            $destinationRow = 2;
-            foreach ($destinos as $destino) {
-                $sheetDestinos->setCellValue("A{$destinationRow}", (string) $destino->nombre_destino);
-                $destinationRow++;
-            }
-            $sheetDestinos->getColumnDimension('A')->setWidth(30);
 
             $sheetPesos = $spreadsheet->createSheet();
             $sheetPesos->setTitle('Pesos');
@@ -359,10 +458,10 @@ class TarifarioController extends Controller
             $sheetInstrucciones->setCellValue('A1', 'INSTRUCCIONES DE USO');
             $sheetInstrucciones->setCellValue('A3', '1) No cambies los nombres de columnas en la hoja Tarifario.');
             $sheetInstrucciones->setCellValue('A4', '2) Empieza a llenar datos desde la fila 2.');
-            $sheetInstrucciones->setCellValue('A5', '3) Las columnas peso_inicial y peso_final ya vienen precargadas con los rangos de 0.001 a 20.000 kg.');
-            $sheetInstrucciones->setCellValue('A6', '4) Si necesitas mas filas, duplica una fila existente para conservar el rango de peso.');
-            $sheetInstrucciones->setCellValue('A7', '5) servicio, origen y destino deben existir en sus catalogos.');
-            $sheetInstrucciones->setCellValue('A8', '6) Si una combinacion ya existe, la importacion actualiza precio y observacion.');
+            $sheetInstrucciones->setCellValue('A5', '3) El tarifario ahora solo usa servicio, peso y precio.');
+            $sheetInstrucciones->setCellValue('A6', '4) Las columnas peso_inicial y peso_final ya vienen precargadas con los rangos de 0.001 a 20.000 kg.');
+            $sheetInstrucciones->setCellValue('A7', '5) Si necesitas mas filas, duplica una fila existente para conservar el rango de peso.');
+            $sheetInstrucciones->setCellValue('A8', '6) Si una combinacion de servicio y peso ya existe, la importacion actualiza precio y observacion.');
             $sheetInstrucciones->getStyle('A1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 14],
                 'color' => ['argb' => 'FF0D47A1'],
@@ -370,12 +469,8 @@ class TarifarioController extends Controller
             $sheetInstrucciones->getColumnDimension('A')->setWidth(100);
 
             $lastServiceRow = max(2, $serviceRow - 1);
-            $lastOriginRow = max(2, $originRow - 1);
-            $lastDestinationRow = max(2, $destinationRow - 1);
 
             $this->applyListValidation($sheet, 'A2:A5000', "=Servicios!\$A\$2:\$A\${$lastServiceRow}");
-            $this->applyListValidation($sheet, 'B2:B5000', "=Origenes!\$A\$2:\$A\${$lastOriginRow}");
-            $this->applyListValidation($sheet, 'C2:C5000', "=Destinos!\$A\$2:\$A\${$lastDestinationRow}");
 
             $spreadsheet->setActiveSheetIndex(0);
 
@@ -400,16 +495,14 @@ class TarifarioController extends Controller
         }
 
         $servicios = $serviciosQuery->get(['nombre_servicio']);
-        $origenes = Origen::query()->orderBy('nombre_origen')->get(['nombre_origen']);
-        $destinos = Destino::query()->orderBy('nombre_destino')->get(['nombre_destino']);
 
-        return response()->streamDownload(function () use ($columns, $servicios, $origenes, $destinos, $serviceFilter) {
+        return response()->streamDownload(function () use ($columns, $servicios, $serviceFilter) {
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('Tarifario');
 
             $sheet->fromArray($columns, null, 'A1');
-            $sheet->getStyle('A1:G1')->applyFromArray([
+            $sheet->getStyle('A1:E1')->applyFromArray([
                 'font' => [
                     'bold' => true,
                     'color' => ['argb' => 'FFFFFFFF'],
@@ -431,39 +524,31 @@ class TarifarioController extends Controller
             ]);
 
             $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:G1');
+            $sheet->setAutoFilter('A1:E1');
 
             foreach ([
                 'A' => 28,
-                'B' => 20,
-                'C' => 20,
+                'B' => 14,
+                'C' => 14,
                 'D' => 14,
-                'E' => 14,
-                'F' => 14,
-                'G' => 30,
+                'E' => 30,
             ] as $column => $width) {
                 $sheet->getColumnDimension($column)->setWidth($width);
             }
 
             $row = 2;
             foreach ($servicios as $servicio) {
-                foreach ($origenes as $origen) {
-                    foreach ($destinos as $destino) {
-                        foreach (self::TEMPLATE_WEIGHT_RANGES as [$pesoInicial, $pesoFinal]) {
-                            $sheet->setCellValue("A{$row}", (string) $servicio->nombre_servicio);
-                            $sheet->setCellValue("B{$row}", (string) $origen->nombre_origen);
-                            $sheet->setCellValue("C{$row}", (string) $destino->nombre_destino);
-                            $sheet->setCellValue("D{$row}", $pesoInicial);
-                            $sheet->setCellValue("E{$row}", $pesoFinal);
-                            $row++;
-                        }
-                    }
+                foreach (self::TEMPLATE_WEIGHT_RANGES as [$pesoInicial, $pesoFinal]) {
+                    $sheet->setCellValue("A{$row}", (string) $servicio->nombre_servicio);
+                    $sheet->setCellValue("B{$row}", $pesoInicial);
+                    $sheet->setCellValue("C{$row}", $pesoFinal);
+                    $row++;
                 }
             }
 
             $lastDataRow = max(2, $row - 1);
-            $sheet->getStyle("D2:E{$lastDataRow}")->getNumberFormat()->setFormatCode('0.000');
-            $sheet->getStyle("F2:F{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle("B2:C{$lastDataRow}")->getNumberFormat()->setFormatCode('0.000');
+            $sheet->getStyle("D2:D{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0.00');
 
             $sheetServicios = $spreadsheet->createSheet();
             $sheetServicios->setTitle('Servicios');
@@ -475,32 +560,12 @@ class TarifarioController extends Controller
             }
             $sheetServicios->getColumnDimension('A')->setWidth(34);
 
-            $sheetOrigenes = $spreadsheet->createSheet();
-            $sheetOrigenes->setTitle('Origenes');
-            $sheetOrigenes->setCellValue('A1', 'nombre_origen');
-            $originRow = 2;
-            foreach ($origenes as $origen) {
-                $sheetOrigenes->setCellValue("A{$originRow}", (string) $origen->nombre_origen);
-                $originRow++;
-            }
-            $sheetOrigenes->getColumnDimension('A')->setWidth(24);
-
-            $sheetDestinos = $spreadsheet->createSheet();
-            $sheetDestinos->setTitle('Destinos');
-            $sheetDestinos->setCellValue('A1', 'nombre_destino');
-            $destinationRow = 2;
-            foreach ($destinos as $destino) {
-                $sheetDestinos->setCellValue("A{$destinationRow}", (string) $destino->nombre_destino);
-                $destinationRow++;
-            }
-            $sheetDestinos->getColumnDimension('A')->setWidth(24);
-
             $sheetInstrucciones = $spreadsheet->createSheet();
             $sheetInstrucciones->setTitle('Instrucciones');
             $sheetInstrucciones->setCellValue('A1', 'INSTRUCCIONES DE USO');
-            $sheetInstrucciones->setCellValue('A3', '1) Esta plantilla ya incluye todas las combinaciones de origen, destino y peso.');
+            $sheetInstrucciones->setCellValue('A3', '1) Esta plantilla ya incluye todas las combinaciones de servicio y peso.');
             $sheetInstrucciones->setCellValue('A4', '2) Solo llena precio y, si necesitas, observacion.');
-            $sheetInstrucciones->setCellValue('A5', '3) Puedes filtrar en Excel por origen, destino o servicio para trabajar por bloques.');
+            $sheetInstrucciones->setCellValue('A5', '3) Puedes filtrar en Excel por servicio para trabajar por bloques.');
             $sheetInstrucciones->setCellValue('A6', '4) Si vuelves a importar una combinacion existente, el sistema actualiza precio y observacion.');
             $sheetInstrucciones->setCellValue('A7', $serviceFilter
                 ? '5) Esta plantilla fue generada solo para el servicio: ' . $serviceFilter
@@ -608,5 +673,26 @@ class TarifarioController extends Controller
     private function weightReferenceLabel(float $pesoInicial, float $pesoFinal): string
     {
         return $this->formatPeso($pesoInicial) . ' - ' . $this->formatPeso($pesoFinal) . ' kg';
+    }
+
+    private function authorizeTarifarioAccess(): void
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+            return;
+        }
+
+        if ($user->can('tarifario.index')) {
+            return;
+        }
+
+        abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
     }
 }

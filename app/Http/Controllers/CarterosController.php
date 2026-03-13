@@ -25,6 +25,12 @@ class CarterosController extends Controller
     private const EVENTO_ID_PAQUETE_CAMINO_ENTREGA_FISICA = 184;
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
     private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
+    private const DISTRIBUTION_ASSIGNEE_ROLES = [
+        'auxiliar_urbano',
+        'auxiliar_urbano_dnd',
+        'auxiliar_7',
+        'carteros_ems',
+    ];
 
     public function distribucion()
     {
@@ -101,6 +107,9 @@ class CarterosController extends Controller
         $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
 
         $users = User::query()
+            ->whereHas('roles', function ($query) {
+                $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
+            })
             ->orderBy('name')
             ->get(['id', 'name']);
 
@@ -184,6 +193,20 @@ class CarterosController extends Controller
             throw ValidationException::withMessages([
                 'user_id' => 'Debes seleccionar un usuario para asignar.',
             ]);
+        }
+        if ($validated['assignment_mode'] === 'user') {
+            $assigneeHasAllowedRole = User::query()
+                ->whereKey($assigneeUserId)
+                ->whereHas('roles', function ($query) {
+                    $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
+                })
+                ->exists();
+
+            if (! $assigneeHasAllowedRole) {
+                throw ValidationException::withMessages([
+                    'user_id' => 'El usuario seleccionado no tiene un rol habilitado para distribucion.',
+                ]);
+            }
         }
         $eventoId = self::EVENTO_ID_PAQUETE_CAMINO_ENTREGA_FISICA;
         $eventoExiste = DB::table('eventos')

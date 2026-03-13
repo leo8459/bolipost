@@ -1106,7 +1106,7 @@ class PaquetesEms extends Component
         if (!$this->isCertificadoShipment()) {
             $this->applyTarifarioMatch();
             if (!$this->tarifario_id) {
-                $this->addError('peso', 'No existe tarifario para este servicio, destino y peso.');
+                $this->addError('peso', 'No existe tarifario para este servicio y peso.');
                 return;
             }
         } else {
@@ -3005,8 +3005,6 @@ class PaquetesEms extends Component
 
         if (
             !$this->servicio_id ||
-            !$this->destino_id ||
-            !$this->user_origen_id ||
             $this->peso === '' ||
             $this->peso === null
         ) {
@@ -3020,8 +3018,6 @@ class PaquetesEms extends Component
         $tarifario = Tarifario::query()
             ->with(['peso'])
             ->where('servicio_id', $this->servicio_id)
-            ->where('destino_id', $this->destino_id)
-            ->where('origen_id', $this->user_origen_id)
             ->whereHas('peso', function ($query) use ($peso) {
                 $query->where('peso_inicial', '<=', $peso)
                     ->where('peso_final', '>=', $peso);
