@@ -7,6 +7,7 @@
 @section('content')
     @php
         $canAssignDistribucion = auth()->user()?->can('feature.carteros.distribucion.assign') ?? false;
+        $canSelfAssignDistribucion = $canAssignDistribucion || (auth()->user()?->can('feature.carteros.distribucion.selfassign') ?? false);
     @endphp
     <div class="carteros-wrap">
         <div class="card card-carteros">
@@ -90,6 +91,10 @@
                                         <option value="">Selecciona usuario</option>
                                     </select>
                                 </div>
+                            @elseif ($canSelfAssignDistribucion)
+                                <div class="selection-target mb-2">
+                                    Modo disponible: Autoasignarme
+                                </div>
                             @endif
 
                             <div class="selection-target" id="selection-target">
@@ -116,7 +121,7 @@
                                 <div class="selection-empty">Aun no seleccionaste paquetes.</div>
                             </div>
 
-                            @if ($canAssignDistribucion)
+                            @if ($canSelfAssignDistribucion)
                                 <button id="btn-asignar" class="btn btn-carteros-primary btn-block mt-3">Asignar seleccionados</button>
                             @endif
                         </div>
@@ -183,6 +188,7 @@
             const openReportButton = document.getElementById('btn-open-report');
             const csrfToken = '{{ csrf_token() }}';
             const canAssignDistribucion = @json($canAssignDistribucion);
+            const canSelfAssignDistribucion = @json($canSelfAssignDistribucion);
             const currentUserName = @json(auth()->user()->name);
 
             function escapeHtml(value) {
@@ -213,6 +219,7 @@
             }
 
             function getAssigneeName() {
+                if (!canSelfAssignDistribucion) return currentUserName;
                 if (!canAssignDistribucion || !assignmentMode) return currentUserName;
                 if (assignmentMode.value === 'user' && assigneeUser && assigneeUser.value) {
                     return assigneeUser.options[assigneeUser.selectedIndex]?.text || 'Usuario seleccionado';
@@ -563,6 +570,63 @@
                         loadPage(currentPage, false);
                     } catch (error) {
                         showMessage('Error al asignar paquetes.', 'danger');
+                    } finally {
+                        assignButton.disabled = false;
+                    }
+                });
+            }
+
+            if (!canAssignDistribucion && canSelfAssignDistribucion && assignButton) {
+                assignButton.addEventListener('click', async function() {
+                    const items = Object.values(selectedItems).map(function(item) {
+                        return { id: item.id, tipo_paquete: item.tipo_paquete };
+                    });
+
+                    if (!items.length) {
+                        showMessage('Selecciona al menos un paquete.', 'danger');
+                        return;
+                    }
+
+                    assignButton.disabled = true;
+                    updateReportLink(null);
+                    showMessage('Autoasignando paquetes y preparando reporte...', 'info');
+
+                    try {
+                        const response = await fetch('{{ route('api.carteros.asignar') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken
+                            },
+                            body: JSON.stringify({
+                                assignment_mode: 'auto',
+                                user_id: null,
+                                items: items
+                            })
+                        });
+
+                        const payload = await response.json();
+
+                        if (!response.ok) {
+                            showMessage(payload.message || 'No se pudo autoasignar.', 'danger');
+                            return;
+                        }
+
+                        updateReportLink(payload.report_url || null);
+                        const reportLink = payload.report_url
+                            ? ' <a href="' + escapeHtml(payload.report_url) + '" target="_blank">Abrir reporte PDF</a>'
+                            : '';
+
+                        showMessage((payload.message || 'Autoasignado correctamente.') + reportLink, 'success');
+                        if (payload.report_url) {
+                            window.open(payload.report_url, '_blank', 'noopener');
+                        }
+                        clearSelection();
+                        if (currentPage > lastPage) currentPage = lastPage;
+                        loadPage(currentPage, false);
+                    } catch (error) {
+                        showMessage('Error al autoasignar paquetes.', 'danger');
                     } finally {
                         assignButton.disabled = false;
                     }

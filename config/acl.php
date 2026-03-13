@@ -91,6 +91,7 @@ return [
     */
     'custom_permissions' => [
         'feature.carteros.distribucion.assign',
+        'feature.carteros.distribucion.selfassign',
         'feature.carteros.cartero.guide',
         'feature.carteros.cartero.province',
         'feature.carteros.cartero.deliver',
@@ -259,6 +260,11 @@ return [
             'feature.paquetes-ems.recibir-regional.assign',
             'feature.paquetes-ems.recibir-regional.print',
             'feature.paquetes-ems.en-transito.print',
+        ],
+        'cartero_ems' => [
+            'dashboard',
+            'carteros.distribucion',
+            'feature.carteros.distribucion.selfassign',
         ],
         'auxiliar' => [
             'dashboard',

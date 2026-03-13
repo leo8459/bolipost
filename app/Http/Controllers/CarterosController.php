@@ -29,6 +29,7 @@ class CarterosController extends Controller
         'auxiliar_urbano',
         'auxiliar_urbano_dnd',
         'auxiliar_7',
+        'cartero_ems',
         'carteros_ems',
     ];
 
@@ -60,7 +61,10 @@ class CarterosController extends Controller
     public function distributionAssignmentReport(Request $request, string $token)
     {
         $this->authorizeRoutePermission('carteros.distribucion');
-        $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
+        $this->authorizeAnyFeaturePermission([
+            'feature.carteros.distribucion.assign',
+            'feature.carteros.distribucion.selfassign',
+        ]);
 
         $reports = (array) $request->session()->get('carteros.assignment_reports', []);
         $report = $reports[$token] ?? null;
@@ -174,10 +178,9 @@ class CarterosController extends Controller
         );
     }
 
-        public function assign(Request $request): JsonResponse
+    public function assign(Request $request): JsonResponse
     {
         $this->authorizeRoutePermission('carteros.distribucion');
-        $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
 
         $validated = $request->validate([
             'assignment_mode' => ['required', 'in:auto,user'],
@@ -186,6 +189,16 @@ class CarterosController extends Controller
             'items.*.id' => ['required', 'integer'],
             'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
         ]);
+
+        if ($validated['assignment_mode'] === 'auto') {
+            $this->authorizeAnyFeaturePermission([
+                'feature.carteros.distribucion.assign',
+                'feature.carteros.distribucion.selfassign',
+            ]);
+        } else {
+            $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
+        }
+
         $assigneeUserId = $validated['assignment_mode'] === 'auto'
             ? (int) $request->user()->id
             : (int) ($validated['user_id'] ?? 0);
@@ -1800,6 +1813,32 @@ class CarterosController extends Controller
 
         if ($user->can($permission)) {
             return;
+        }
+
+        abort(403, 'No tienes permiso para realizar esta accion.');
+    }
+
+    /**
+     * @param  array<int, string>  $permissions
+     */
+    private function authorizeAnyFeaturePermission(array $permissions): void
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+            return;
+        }
+
+        foreach ($permissions as $permission) {
+            if ($user->can($permission)) {
+                return;
+            }
         }
 
         abort(403, 'No tienes permiso para realizar esta accion.');
