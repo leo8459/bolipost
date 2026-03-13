@@ -228,6 +228,65 @@
         .table-scroll-wrap-sm{
             max-height: 36vh;
         }
+        .autofill-input{
+            border: 1px solid #f2c14e !important;
+            background: linear-gradient(180deg, #fffdf7 0%, #ffffff 100%);
+        }
+        .autofill-input:focus{
+            border-color: #d39c12 !important;
+            box-shadow: 0 0 0 0.18rem rgba(242, 193, 78, .22) !important;
+        }
+        .autofill-helper{
+            margin-top: 8px;
+            font-size: 12px;
+            line-height: 1.45;
+            color: #74613a;
+        }
+        .autofill-panel{
+            margin-top: 12px;
+            border: 1px solid #f3dc93;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #fff9e6 0%, #fffdf8 100%);
+            padding: 14px 16px;
+        }
+        .autofill-panel-head{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .autofill-panel-title{
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: #8a5a00;
+        }
+        .autofill-panel-badge{
+            border: 1px solid #f3dc93;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #9a6700;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 4px 10px;
+        }
+        .autofill-panel-text{
+            font-size: 14px;
+            color: #5f4a18;
+            margin-bottom: 8px;
+        }
+        .autofill-panel-list{
+            margin: 0;
+            padding-left: 18px;
+            color: #6b5721;
+            font-size: 12px;
+        }
+        .autofill-panel-list li{
+            margin-bottom: 2px;
+        }
     </style>
 
     <div class="plantilla-wrap">
@@ -485,19 +544,7 @@
                             <div class="form-row">
                                 <div class="form-group col-md-6">
                                     <label>Nombre remitente<span class="required-star">*</span></label>
-                                    <input
-                                        type="text"
-                                        wire:model.live.debounce.300ms="nombre_remitente"
-                                        class="form-control"
-                                        list="remitentesEmsListCreate"
-                                        autocomplete="off"
-                                        required
-                                    >
-                                    <datalist id="remitentesEmsListCreate">
-                                        @foreach($remitenteSugerencias as $remitenteSugerido)
-                                            <option value="{{ $remitenteSugerido }}"></option>
-                                        @endforeach
-                                    </datalist>
+                                    <input type="text" wire:model.defer="nombre_remitente" class="form-control" required>
                                     @error('nombre_remitente') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-6">
@@ -510,7 +557,21 @@
                             <div class="form-row">
                                 <div class="form-group col-md-6">
                                     <label>Carnet remitente<span class="required-star">*</span></label>
-                                    <input type="text" wire:model.defer="carnet" class="form-control" required>
+                                    <input
+                                        type="text"
+                                        wire:model.live.debounce.300ms="carnet"
+                                        class="form-control autofill-input"
+                                        list="remitentesCarnetListCreate"
+                                        autocomplete="off"
+                                        placeholder="Escribe el carnet para autollenar"
+                                        required
+                                    >
+                                    <datalist id="remitentesCarnetListCreate">
+                                        @foreach($remitenteSugerencias as $remitenteSugerido)
+                                            <option value="{{ $remitenteSugerido }}"></option>
+                                        @endforeach
+                                    </datalist>
+                                    <div class="autofill-helper">Ingresa el carnet del remitente. Si existe un registro previo, el sistema completara automaticamente los datos relacionados.</div>
                                     @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-6">
@@ -519,6 +580,21 @@
                                     @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
+
+                            @if($autofillMessage)
+                                <div class="autofill-panel">
+                                    <div class="autofill-panel-head">
+                                        <div class="autofill-panel-title">Autollenado aplicado</div>
+                                        <div class="autofill-panel-badge">Busqueda por carnet</div>
+                                    </div>
+                                    <div class="autofill-panel-text">{{ $autofillMessage }}</div>
+                                    <ul class="autofill-panel-list">
+                                        <li>Se completaron datos previos del remitente.</li>
+                                        <li>Tambien se recupero el ultimo envio asociado a ese carnet.</li>
+                                        <li>Revisa el formulario y corrige solo si deseas cambiar algun dato.</li>
+                                    </ul>
+                                </div>
+                            @endif
                         </div>
 
                         <div class="section-block">
@@ -1083,18 +1159,7 @@
                             <div class="form-row">
                                 <div class="form-group col-md-6">
                                     <label>Nombre remitente</label>
-                                    <input
-                                        type="text"
-                                        wire:model.live.debounce.300ms="nombre_remitente"
-                                        class="form-control"
-                                        list="remitentesEmsList"
-                                        autocomplete="off"
-                                    >
-                                    <datalist id="remitentesEmsList">
-                                        @foreach($remitenteSugerencias as $remitenteSugerido)
-                                            <option value="{{ $remitenteSugerido }}"></option>
-                                        @endforeach
-                                    </datalist>
+                                    <input type="text" wire:model.defer="nombre_remitente" class="form-control">
                                     @error('nombre_remitente') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 @if (!$this->isAlmacenEms)
@@ -1110,7 +1175,20 @@
                                 <div class="form-row">
                                     <div class="form-group col-md-6">
                                         <label>Carnet remitente</label>
-                                        <input type="text" wire:model.defer="carnet" class="form-control">
+                                        <input
+                                            type="text"
+                                            wire:model.live.debounce.300ms="carnet"
+                                            class="form-control autofill-input"
+                                            list="remitentesCarnetList"
+                                            autocomplete="off"
+                                            placeholder="Escribe el carnet para autollenar"
+                                        >
+                                        <datalist id="remitentesCarnetList">
+                                            @foreach($remitenteSugerencias as $remitenteSugerido)
+                                                <option value="{{ $remitenteSugerido }}"></option>
+                                            @endforeach
+                                        </datalist>
+                                        <div class="autofill-helper">Usa el carnet para recuperar rapidamente el ultimo registro relacionado con ese remitente.</div>
                                         @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
                                     </div>
                                     <div class="form-group col-md-6">
@@ -1119,6 +1197,21 @@
                                         @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
                                     </div>
                                 </div>
+
+                                @if($autofillMessage)
+                                    <div class="autofill-panel">
+                                        <div class="autofill-panel-head">
+                                            <div class="autofill-panel-title">Autollenado aplicado</div>
+                                            <div class="autofill-panel-badge">Busqueda por carnet</div>
+                                        </div>
+                                        <div class="autofill-panel-text">{{ $autofillMessage }}</div>
+                                        <ul class="autofill-panel-list">
+                                            <li>Se reutilizaron datos guardados anteriormente.</li>
+                                            <li>El sistema trajo el ultimo formulario asociado a ese carnet.</li>
+                                            <li>Puedes editar cualquier campo antes de guardar los cambios.</li>
+                                        </ul>
+                                    </div>
+                                @endif
                             @endif
                         </div>
 

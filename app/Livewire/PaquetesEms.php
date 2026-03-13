@@ -46,6 +46,19 @@ class PaquetesEms extends Component
         'PANDO' => 'CIJ',
         'COBIJA' => 'CIJ',
     ];
+    private const EMS_CODE_SERVICE_NAMES = [
+        'EMS',
+        'EMS_NACIONAL',
+        'SUPER_EXPRESS_NACIONAL',
+        'EMS_LOCAL_COBERTURA_1',
+        'EMS_LOCAL_COBERTURA_2',
+        'EMS_LOCAL_COBERTURA_3',
+        'EMS_LOCAL_COBERTURA_4',
+        'CIUDADES_INTERMEDIAS',
+        'TRINIDAD_COBIJA',
+        'CIUDADES_INTERMEDIAS_TRINIDAD_COBIJA',
+    ];
+    private const TELEFONO_DESTINATARIO_RECARGO = 1.00;
 
     public $mode = 'admision';
     public $search = '';
@@ -117,6 +130,7 @@ class PaquetesEms extends Component
     public $user_origen_id = null;
     public $estado_id = null;
     public $remitenteSugerencias = [];
+    public $autofillMessage = '';
 
     protected $paginationTheme = 'bootstrap';
 
@@ -1115,13 +1129,6 @@ class PaquetesEms extends Component
         }
 
         $this->precio_confirm = $this->precio;
-        if (
-            $this->servicio_especial === 'IDA Y VUELTA' &&
-            $this->precio !== '' &&
-            $this->precio !== null
-        ) {
-            $this->precio_confirm = (string) ((float) $this->precio * 2);
-        }
 
         if ($this->auto_codigo) {
             $this->codigo = $this->generateCodigo();
@@ -2221,6 +2228,7 @@ class PaquetesEms extends Component
             'destino_id',
             'estado_id',
             'remitenteSugerencias',
+            'autofillMessage',
         ]);
 
         $this->resetValidation();
@@ -2968,15 +2976,23 @@ class PaquetesEms extends Component
             $this->applyTarifarioMatch();
         }
 
+        if ($name === 'servicio_especial') {
+            $this->applyTarifarioMatch();
+        }
+
+        if ($name === 'telefono_destinatario') {
+            $this->applyTarifarioMatch();
+        }
+
         if ($name === 'auto_codigo') {
             if ($this->auto_codigo) {
                 $this->codigo = $this->generateCodigo();
             }
         }
 
-        if ($name === 'nombre_remitente') {
+        if ($name === 'carnet') {
             $this->refreshRemitenteSugerencias((string) $value);
-            $this->applyRegisteredRemitente((string) $value);
+            $this->applyRegisteredRemitenteByCarnet((string) $value);
         }
     }
 
@@ -3032,7 +3048,7 @@ class PaquetesEms extends Component
         }
 
         $this->tarifario_id = $tarifario->id;
-        $this->precio = $tarifario->precio;
+        $this->precio = $this->calculatePrecioFinal((float) $tarifario->precio);
     }
 
     protected function isCertificadoShipment(): bool
@@ -3081,7 +3097,7 @@ class PaquetesEms extends Component
         }
 
         $name = strtoupper(trim($servicio->nombre_servicio));
-        if ($name === 'EMS') {
+        if ($this->usesEmsCodePrefix($name)) {
             return 'EN';
         }
         if ($name === 'ENCOMIENDA') {
@@ -3092,6 +3108,31 @@ class PaquetesEms extends Component
         }
 
         return null;
+    }
+
+    protected function usesEmsCodePrefix(string $serviceName): bool
+    {
+        return in_array(strtoupper(trim($serviceName)), self::EMS_CODE_SERVICE_NAMES, true);
+    }
+
+    protected function hasTelefonoDestinatarioRecargo(): bool
+    {
+        return trim((string) $this->telefono_destinatario) !== '';
+    }
+
+    protected function calculatePrecioFinal(float $basePrice): float
+    {
+        $price = round($basePrice, 2);
+
+        if ($this->servicio_especial === 'IDA Y VUELTA') {
+            $price = round($price * 2, 2);
+        }
+
+        if (! $this->hasTelefonoDestinatarioRecargo()) {
+            return $price;
+        }
+
+        return round($price + self::TELEFONO_DESTINATARIO_RECARGO, 2);
     }
 
     protected function getCodigoSuffix(): string
@@ -3346,50 +3387,55 @@ class PaquetesEms extends Component
         $term = trim($value);
         if ($term === '') {
             $this->remitenteSugerencias = [];
+            $this->autofillMessage = '';
             return;
         }
 
         $this->remitenteSugerencias = RemitenteEms::query()
-            ->where('nombre_remitente', 'like', '%' . $term . '%')
-            ->orderBy('nombre_remitente')
+            ->where('carnet', 'like', '%' . $term . '%')
+            ->orderBy('carnet')
             ->limit(10)
-            ->pluck('nombre_remitente')
+            ->pluck('carnet')
             ->unique()
             ->values()
             ->all();
     }
 
-    protected function applyRegisteredRemitente(string $value): void
+    protected function applyRegisteredRemitenteByCarnet(string $value): void
     {
-        $nombre = trim($value);
-        if ($nombre === '') {
+        $carnet = trim($value);
+        if ($carnet === '') {
+            $this->autofillMessage = '';
             return;
         }
 
         $remitente = RemitenteEms::query()
-            ->whereRaw('trim(upper(nombre_remitente)) = trim(upper(?))', [$nombre])
+            ->whereRaw('trim(upper(carnet)) = trim(upper(?))', [$carnet])
             ->orderByDesc('updated_at')
             ->first();
 
         if (!$remitente) {
+            $this->autofillMessage = '';
             return;
         }
 
+        $this->nombre_remitente = $remitente->nombre_remitente;
         $this->telefono_remitente = $remitente->telefono_remitente;
         $this->carnet = $remitente->carnet;
         $this->nombre_envia = $remitente->nombre_envia;
+        $this->autofillMessage = 'Datos del remitente autocompletados por carnet.';
 
-        $this->applyLastFormularioDataByRemitente($nombre);
+        $this->applyLastFormularioDataByCarnet($carnet);
     }
 
-    protected function applyLastFormularioDataByRemitente(string $nombreRemitente): void
+    protected function applyLastFormularioDataByCarnet(string $carnet): void
     {
         if ($this->editingId) {
             return;
         }
 
         $formulario = PaqueteEmsFormulario::query()
-            ->whereRaw('trim(upper(nombre_remitente)) = trim(upper(?))', [$nombreRemitente])
+            ->whereRaw('trim(upper(carnet)) = trim(upper(?))', [$carnet])
             ->orderByDesc('updated_at')
             ->first();
 
@@ -3415,6 +3461,7 @@ class PaquetesEms extends Component
             $this->destino_id = (string) $formulario->destino_id;
         }
 
+        $this->autofillMessage = 'Se recuperaron tambien los ultimos datos usados con ese carnet.';
         $this->applyTarifarioMatch();
 
         if ($this->auto_codigo) {
