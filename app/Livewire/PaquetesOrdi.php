@@ -14,6 +14,15 @@ use Livewire\WithPagination;
 class PaquetesOrdi extends Component
 {
     use WithPagination;
+
+    private const ROLE_VENTANILLA_MAP = [
+        'auxiliar_urbano_dnd' => ['DND'],
+        'auxiliar_urbano' => ['DD'],
+        'auxiliar_7' => ['DD'],
+        'auxiliar_urbano_casilla' => ['CASILLA'],
+        'encargado_urbano' => ['DD', 'DND'],
+    ];
+
     private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 295;
     private const EVENTO_ID_PAQUETE_CAMINO_UBICACION_NACIONAL = 296;
     private const EVENTO_ID_PAQUETE_RECIBIDO_DESTINO_TRANSITO = 310;
@@ -153,7 +162,7 @@ class PaquetesOrdi extends Component
         $paquete = PaqueteOrdi::query()
             ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
             ->where('fk_estado', $estadoEnviadoId)
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->first();
 
         if (!$paquete) {
@@ -206,7 +215,7 @@ class PaquetesOrdi extends Component
         $idsActualizar = PaqueteOrdi::query()
             ->whereIn('id', $ids)
             ->where('fk_estado', $estadoEnviadoId)
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -244,6 +253,8 @@ class PaquetesOrdi extends Component
             ->values()
             ->all();
 
+        $ids = $this->filterAuthorizedIds($ids);
+
         if (empty($ids)) {
             session()->flash('success', 'Selecciona al menos un paquete.');
             return;
@@ -266,7 +277,7 @@ class PaquetesOrdi extends Component
         $idsActualizar = PaqueteOrdi::query()
             ->whereIn('id', $ids)
             ->where('fk_estado', $estadoRecibidoId)
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -284,6 +295,7 @@ class PaquetesOrdi extends Component
 
         $packages = PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
+            ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->whereIn('id', $idsActualizar)
             ->orderBy('id')
             ->get();
@@ -317,6 +329,8 @@ class PaquetesOrdi extends Component
             ->values()
             ->all();
 
+        $ids = $this->filterAuthorizedIds($ids);
+
         if (empty($ids)) {
             session()->flash('success', 'Selecciona al menos un paquete.');
             return;
@@ -339,7 +353,7 @@ class PaquetesOrdi extends Component
         $idsActualizar = PaqueteOrdi::query()
             ->whereIn('id', $ids)
             ->where('fk_estado', $estadoRecibidoId)
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
+            ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -380,7 +394,7 @@ class PaquetesOrdi extends Component
     {
         $this->authorizePermission($this->modeFeaturePermission('edit'));
 
-        $paquete = PaqueteOrdi::findOrFail($id);
+        $paquete = $this->findAuthorizedPaqueteOrFail($id);
 
         $this->editingId = $paquete->id;
         $this->codigo = $paquete->codigo;
@@ -416,8 +430,13 @@ class PaquetesOrdi extends Component
 
         $this->validate($this->rules());
 
+        if (! $this->selectedVentanillaIsAllowed()) {
+            $this->addError('fk_ventanilla', 'No puedes asignar esa ventanilla.');
+            return;
+        }
+
         if ($this->editingId) {
-            $paquete = PaqueteOrdi::findOrFail($this->editingId);
+            $paquete = $this->findAuthorizedPaqueteOrFail($this->editingId);
             $paquete->update($this->payload());
             $this->registrarEventoOrdi((string) $paquete->codigo, self::EVENTO_ID_CORRECCION_DATOS);
             session()->flash('success', 'Paquete ordinario actualizado correctamente.');
@@ -442,6 +461,8 @@ class PaquetesOrdi extends Component
             ->values()
             ->all();
 
+        $ids = $this->filterAuthorizedIds($ids);
+
         if (empty($ids)) {
             session()->flash('success', 'Selecciona al menos un paquete.');
             return;
@@ -454,7 +475,7 @@ class PaquetesOrdi extends Component
         }
 
         DB::transaction(function () use ($ids, $estadoTransitoId) {
-            $paquetes = PaqueteOrdi::query()
+            $paquetes = $this->accessiblePaquetesQuery()
                 ->whereIn('id', $ids)
                 ->orderBy('id')
                 ->lockForUpdate()
@@ -474,6 +495,7 @@ class PaquetesOrdi extends Component
 
         $packages = PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
+            ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->whereIn('id', $ids)
             ->orderBy('id')
             ->get();
@@ -506,6 +528,7 @@ class PaquetesOrdi extends Component
         $packages = PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
             ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$codigo])
+            ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->orderBy('id')
             ->get();
 
@@ -588,7 +611,7 @@ class PaquetesOrdi extends Component
     {
         $this->authorizePermission($this->modeFeaturePermission('delete', 'clasificacion'));
 
-        $paquete = PaqueteOrdi::findOrFail($id);
+        $paquete = $this->findAuthorizedPaqueteOrFail($id);
         $codigo = (string) $paquete->codigo;
         $paquete->delete();
         $this->registrarEventoOrdi($codigo, self::EVENTO_ID_PAQUETE_MARCADO_ELIMINADO);
@@ -605,7 +628,7 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        $paquete = PaqueteOrdi::findOrFail($id);
+        $paquete = $this->findAuthorizedPaqueteOrFail($id);
         $paquete->update([
             'fk_estado' => $estadoClasificacionId,
         ]);
@@ -635,9 +658,8 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        $paquete = PaqueteOrdi::query()
+        $paquete = $this->accessiblePaquetesQuery()
             ->where('id', $id)
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
             ->firstOrFail();
 
         $paquete->update([
@@ -663,10 +685,9 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        $paquete = PaqueteOrdi::query()
+        $paquete = $this->accessiblePaquetesQuery()
             ->with(['estado', 'ventanillaRef'])
             ->where('id', $id)
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
             ->first();
 
         if (!$paquete) {
@@ -703,9 +724,8 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        $paquete = PaqueteOrdi::query()
+        $paquete = $this->accessiblePaquetesQuery()
             ->where('id', $id)
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
             ->firstOrFail();
 
         $paquete->update([
@@ -877,11 +897,12 @@ class PaquetesOrdi extends Component
     {
         $ciudad = $this->upper($this->ciudad);
 
-        return Ventanilla::query()
+        return $this->availableVentanillasQuery()
             ->when($ciudad === 'LA PAZ', function ($query) {
                 $query->where(function ($sub) {
                     $sub->whereRaw('trim(upper(nombre_ventanilla)) = ?', ['DD'])
-                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['DND']);
+                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['DND'])
+                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['CASILLA']);
                 });
             })
             ->when($ciudad !== '' && $ciudad !== 'LA PAZ', function ($query) {
@@ -1011,18 +1032,12 @@ class PaquetesOrdi extends Component
             $estadoModoId = $this->getClasificacionEstadoId();
         }
 
-        return PaqueteOrdi::query()
+        return $this->accessiblePaquetesQuery()
             ->with(['estado', 'ventanillaRef'])
             ->when($estadoModoId, function ($query) use ($estadoModoId) {
                 $query->where('fk_estado', $estadoModoId);
             })
             ->when(!$estadoModoId, function ($query) {
-                $query->whereRaw('1 = 0');
-            })
-            ->when($userCity !== '', function ($query) use ($userCity) {
-                $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
-            })
-            ->when($userCity === '', function ($query) {
                 $query->whereRaw('1 = 0');
             })
             ->when($q !== '', function ($query) use ($q) {
@@ -1052,7 +1067,7 @@ class PaquetesOrdi extends Component
         $paquetes = $this->basePaquetesQuery()->paginate(10);
         $previewRecibirPaquetes = collect();
         if (!empty($this->previewRecibirIds)) {
-            $previewRecibirPaquetes = PaqueteOrdi::query()
+            $previewRecibirPaquetes = $this->accessiblePaquetesQuery()
                 ->with(['estado', 'ventanillaRef'])
                 ->whereIn('id', $this->previewRecibirIds)
                 ->orderBy('id')
@@ -1098,5 +1113,116 @@ class PaquetesOrdi extends Component
         if (! $this->userCan($permission)) {
             abort(403, 'No tienes permiso para realizar esta accion.');
         }
+    }
+
+    private function accessiblePaquetesQuery(): Builder
+    {
+        $query = PaqueteOrdi::query();
+        $this->applyAccessScope($query);
+
+        return $query;
+    }
+
+    private function findAuthorizedPaqueteOrFail(int $id): PaqueteOrdi
+    {
+        return $this->accessiblePaquetesQuery()->findOrFail($id);
+    }
+
+    private function filterAuthorizedIds(array $ids): array
+    {
+        $ids = collect($ids)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            return [];
+        }
+
+        return $this->accessiblePaquetesQuery()
+            ->whereIn('id', $ids)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    private function selectedVentanillaIsAllowed(): bool
+    {
+        if (empty($this->fk_ventanilla)) {
+            return false;
+        }
+
+        return $this->availableVentanillasQuery()
+            ->whereKey($this->fk_ventanilla)
+            ->exists();
+    }
+
+    private function availableVentanillasQuery(): Builder
+    {
+        $query = Ventanilla::query();
+        $ventanillas = $this->restrictedVentanillaNames();
+
+        if ($ventanillas !== null) {
+            $query->where(function ($restrictedQuery) use ($ventanillas) {
+                foreach ($ventanillas as $ventanilla) {
+                    $restrictedQuery->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', [$ventanilla]);
+                }
+            });
+        }
+
+        return $query;
+    }
+
+    private function applyAccessScope(Builder $query): void
+    {
+        $userCity = $this->upper((string) optional(auth()->user())->ciudad);
+
+        if ($userCity !== '') {
+            $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        $ventanillas = $this->restrictedVentanillaNames();
+        if ($ventanillas === null) {
+            return;
+        }
+
+        $query->whereHas('ventanillaRef', function (Builder $ventanillaQuery) use ($ventanillas) {
+            $ventanillaQuery->where(function (Builder $restrictedQuery) use ($ventanillas) {
+                foreach ($ventanillas as $ventanilla) {
+                    $restrictedQuery->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', [$ventanilla]);
+                }
+            });
+        });
+    }
+
+    private function restrictedVentanillaNames(): ?array
+    {
+        $user = auth()->user();
+
+        if (! $user || ! method_exists($user, 'hasRole')) {
+            return null;
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+        if ($superAdminRole !== '' && $user->hasRole($superAdminRole)) {
+            return null;
+        }
+
+        $userCity = $this->upper((string) optional($user)->ciudad);
+        if ($userCity !== 'LA PAZ') {
+            return null;
+        }
+
+        foreach (self::ROLE_VENTANILLA_MAP as $role => $ventanillas) {
+            if ($user->hasRole($role)) {
+                return $ventanillas;
+            }
+        }
+
+        return null;
     }
 }
