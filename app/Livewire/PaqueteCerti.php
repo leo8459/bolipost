@@ -17,6 +17,7 @@ class PaqueteCerti extends Component
     private const ROLE_VENTANILLA_MAP = [
         'auxiliar_urbano_dnd' => ['DND'],
         'auxiliar_urbano' => ['DD'],
+        'auxiliar_7' => ['DD'],
         'auxiliar_urbano_casilla' => ['CASILLA'],
         'encargado_urbano' => ['DD', 'DND'],
     ];
