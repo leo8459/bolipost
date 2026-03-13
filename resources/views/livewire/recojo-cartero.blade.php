@@ -115,12 +115,14 @@
                                         <td>{{ $recojo->peso }}</td>
                                         <td>{{ optional($recojo->created_at)->format('d/m/Y H:i') }}</td>
                                         <td>
+                                            @if ($canContratoCarteroPrint)
                                             <a href="{{ route('paquetes-contrato.reporte', $recojo->id) }}"
                                                target="_blank"
                                                class="btn btn-sm btn-outline-azul"
                                                title="Reimprimir rotulo">
                                                 <i class="fas fa-print"></i>
                                             </a>
+                                            @endif
                                         </td>
                                     </tr>
                                 @empty

@@ -57,16 +57,22 @@
                 <div class="d-flex gap-2 align-items-center">
                     <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
                     <button class="btn btn-outline-light2" type="button" wire:click="searchRecojos">Buscar</button>
+                    @if ($canRecojoReport)
                     <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.reporte-hoy') }}" target="_blank">
                         Imprimir generados hoy
                     </a>
+                    @endif
                     @if (!$this->isAlmacenMode)
+                        @if ($canCreateContratoTarifa)
                         <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.create-con-tarifa') }}">
                             Crear con tarifa
                         </a>
+                        @endif
+                        @if ($canCreateContrato)
                         <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create') }}">
                             Crear sin tarifa
                         </a>
+                        @endif
                     @endif
                 </div>
             </div>
@@ -132,23 +138,25 @@
                                     <td>{{ optional($recojo->fecha_recojo)->format('d/m/Y H:i:s') ?? '-' }}</td>
                                     <td>{{ optional($recojo->user)->name ?? '-' }}</td>
                                     <td>
+                                        @if ($canRecojoPrint)
                                         <a href="{{ route('paquetes-contrato.reporte', $recojo->id) }}"
                                             target="_blank"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Reimprimir rotulo">
                                             <i class="fas fa-print"></i>
                                         </a>
-                                        @aclcan('edit', $this)
+                                        @endif
+                                        @if ($canRecojoEdit)
                                         <button wire:click="openEditModal({{ $recojo->id }})" class="btn btn-sm btn-azul" title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
-                                        @endaclcan
-                                        @aclcan('delete', $this)
+                                        @endif
+                                        @if ($canRecojoDelete)
                                         <button wire:click="delete({{ $recojo->id }})" class="btn btn-sm btn-outline-azul"
                                             title="Eliminar" onclick="return confirm('Seguro que deseas eliminar este contrato?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
-                                        @endaclcan
+                                        @endif
                                     </td>
                                 </tr>
                             @empty

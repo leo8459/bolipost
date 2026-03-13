@@ -39,9 +39,11 @@
                         wire:keydown.enter.prevent="searchRecojos(true)"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchRecojos(true)">Buscar</button>
+                    @if ($canContratoRecogerAssign)
                     <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosAlmacen">
                         Mandar seleccionados a ALMACEN
                     </button>
+                    @endif
                 </div>
             </div>
 
@@ -117,12 +119,14 @@
                                     <td>{{ $recojo->telefono_d ?: '-' }}</td>
                                     <td>{{ optional($recojo->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @if ($canContratoRecogerPrint)
                                         <a href="{{ route('paquetes-contrato.reporte', $recojo->id) }}"
                                            target="_blank"
                                            class="btn btn-sm btn-outline-azul"
                                            title="Reimprimir rotulo">
                                             <i class="fas fa-print"></i>
                                         </a>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty

@@ -50,15 +50,20 @@ class RecojoController extends Controller
         return view('paquetes_contrato.cartero');
     }
 
-   public function entregados()
+    public function entregados()
 {
     $empresaId = (int) (Auth::user()->empresa_id ?? 0);
+    $user = Auth::user();
 
     // Si el usuario no tiene empresa, no mostramos nada
     if ($empresaId <= 0) {
         $contratos = Recojo::query()->whereRaw('1=0')->paginate(15);
 
-        return view('paquetes_contrato.entregados', compact('contratos'));
+        return view('paquetes_contrato.entregados', [
+            'contratos' => $contratos,
+            'canContratoEntregadoPrint' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.print'),
+            'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
+        ]);
     }
 
     // Buscar el ID del estado ENTREGADO (sin importar mayúsculas/espacios)
@@ -70,7 +75,11 @@ class RecojoController extends Controller
     if ($estadoEntregadoId <= 0) {
         $contratos = Recojo::query()->whereRaw('1=0')->paginate(15);
 
-        return view('paquetes_contrato.entregados', compact('contratos'));
+        return view('paquetes_contrato.entregados', [
+            'contratos' => $contratos,
+            'canContratoEntregadoPrint' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.print'),
+            'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
+        ]);
     }
 
     $contratos = Recojo::query()
@@ -84,7 +93,11 @@ class RecojoController extends Controller
         ->orderByDesc('id')
         ->paginate(15);
 
-    return view('paquetes_contrato.entregados', compact('contratos'));
+    return view('paquetes_contrato.entregados', [
+        'contratos' => $contratos,
+        'canContratoEntregadoPrint' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.print'),
+        'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
+    ]);
 }
 
     public function create()
@@ -104,6 +117,8 @@ class RecojoController extends Controller
         return view('paquetes_contrato.create', [
             'origen' => $origen,
             'departamentos' => self::DEPARTAMENTOS,
+            'canContratoCreateSubmit' => $user->can('feature.paquetes-contrato.create.create'),
+            'canContratoCreateFrecuente' => $user->can('feature.paquetes-contrato.create.manage'),
         ]);
     }
 
@@ -161,6 +176,7 @@ class RecojoController extends Controller
             'departamentos' => self::DEPARTAMENTOS,
             'serviciosTarifa' => $serviciosTarifa,
             'provinciasPorDestino' => $provinciasPorDestino,
+            'canContratoCreateTarifaSubmit' => $user->can('feature.paquetes-contrato.create-con-tarifa.create'),
         ]);
     }
 
@@ -177,6 +193,12 @@ class RecojoController extends Controller
                 ->withInput()
                 ->with('error', 'Tu usuario no tiene empresa asignada. Asigna empresa al usuario para generar codigo.');
         }
+
+        abort_unless(
+            $user->can('feature.paquetes-contrato.create-con-tarifa.create'),
+            403,
+            'No tienes permiso para guardar contratos con tarifa.'
+        );
 
         $data = $request->validate([
             'nombre_r' => 'required|string|max:255',
@@ -335,6 +357,12 @@ class RecojoController extends Controller
             return redirect()->route('login');
         }
 
+        abort_unless(
+            $user->can('feature.paquetes-contrato.create.create'),
+            403,
+            'No tienes permiso para guardar contratos.'
+        );
+
         $data = $request->validate($this->storeRules());
 
         try {
@@ -406,6 +434,16 @@ class RecojoController extends Controller
 
     public function reporte(Recojo $contrato)
     {
+        $this->authorizeAnyPermission(request(), [
+            'feature.paquetes-contrato.index.print',
+            'feature.paquetes-contrato.almacen.print',
+            'feature.paquetes-contrato.recoger-envios.print',
+            'feature.paquetes-contrato.cartero.print',
+            'feature.paquetes-contrato.entregados.print',
+            'feature.paquetes-contrato.create.create',
+            'feature.paquetes-contrato.create-con-tarifa.create',
+        ]);
+
         $generatedAt = now();
         $pdf = Pdf::loadView('paquetes_contrato.reporte', [
             'contrato' => $contrato,
@@ -419,6 +457,11 @@ class RecojoController extends Controller
 
     public function reporteHoy()
     {
+        $this->authorizeAnyPermission(request(), [
+            'feature.paquetes-contrato.index.report',
+            'feature.paquetes-contrato.almacen.report',
+        ]);
+
         $hoy = now()->toDateString();
         $contratos = Recojo::query()
             ->whereDate('created_at', $hoy)
@@ -695,5 +738,22 @@ class RecojoController extends Controller
     protected function missingEmpresaMessage(): string
     {
         return 'Entra con un usuario que tenga empresa asociada.';
+    }
+
+    protected function authorizeAnyPermission(Request $request, array $permissions): void
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            abort(403, 'No autenticado.');
+        }
+
+        foreach ($permissions as $permission) {
+            if ($user->can($permission)) {
+                return;
+            }
+        }
+
+        abort(403, 'No tienes permiso para realizar esta accion.');
     }
 }

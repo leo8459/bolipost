@@ -379,9 +379,11 @@
                             </button>
                             @endif
                         @elseif ($this->isAlmacenEms)
+                            @if ($canEmsCreate)
                             <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
                                 Registrar contrato
                             </a>
+                            @endif
                             @if ($canEmsEdit)
                             <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
                                 Anadir peso contrato

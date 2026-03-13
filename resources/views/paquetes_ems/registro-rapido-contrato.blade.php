@@ -143,8 +143,10 @@
                         </div>
                         <div class="col-md-2">
                             <div class="form-group mb-0 d-flex gap-2">
-                                <button type="button" class="btn btn-outline-primary" id="btnAgregarPrelista">Anadir a prelista</button>
-                                <button type="button" class="btn btn-primary" id="btnGuardarTodos">Guardar todos</button>
+                                @if ($canQuickContractCreate ?? false)
+                                    <button type="button" class="btn btn-outline-primary" id="btnAgregarPrelista">Anadir a prelista</button>
+                                    <button type="button" class="btn btn-primary" id="btnGuardarTodos">Guardar todos</button>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -177,7 +179,9 @@
                                         <td>{{ $item['destino'] ?? '-' }}</td>
                                         <td>{{ $item['provincia'] ?? '-' }}</td>
                                         <td>
-                                            <button type="button" class="btn btn-xs btn-outline-danger" disabled>Quitar</button>
+                                            @if ($canQuickContractDelete ?? false)
+                                                <button type="button" class="btn btn-xs btn-outline-danger" disabled>Quitar</button>
+                                            @endif
                                         </td>
                                     </tr>
                                 @empty
@@ -211,6 +215,7 @@
         const listCount = document.getElementById('registroRapidoListadoCount');
         const btnAgregar = document.getElementById('btnAgregarPrelista');
         const btnGuardarTodos = document.getElementById('btnGuardarTodos');
+        const canQuickContractDelete = @json((bool) ($canQuickContractDelete ?? false));
         const csrfToken = form.querySelector('input[name="_token"]')?.value || '';
         const prelista = [];
 
@@ -284,7 +289,7 @@
                     <td>${escapeHtml(item.origen)}</td>
                     <td>${escapeHtml(item.destino)}</td>
                     <td>${escapeHtml(item.provincia || '-')}</td>
-                    <td><button type="button" class="btn btn-xs btn-outline-danger" data-remove-index="${index}">Quitar</button></td>
+                    <td>${canQuickContractDelete ? `<button type="button" class="btn btn-xs btn-outline-danger" data-remove-index="${index}">Quitar</button>` : ''}</td>
                 `;
                 listBody.appendChild(row);
             });

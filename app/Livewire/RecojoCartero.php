@@ -101,7 +101,15 @@ class RecojoCartero extends Component
 
         return view('livewire.recojo-cartero', [
             'recojos' => $recojos,
+            'canContratoCarteroPrint' => $this->userCan('feature.paquetes-contrato.cartero.print'),
         ]);
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        return $user ? $user->can($permission) : false;
     }
 }
 

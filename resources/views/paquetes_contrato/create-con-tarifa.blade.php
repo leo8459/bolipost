@@ -227,9 +227,11 @@
                         </div>
                     </div>
 
+                    @if ($canContratoCreateTarifaSubmit ?? false)
                     <button type="submit" class="btn btn-primary" {{ ($serviciosTarifa ?? collect())->isEmpty() ? 'disabled' : '' }}>
                         Guardar contrato con tarifa
                     </button>
+                    @endif
                 </form>
             </div>
         </div>

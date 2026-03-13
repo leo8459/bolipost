@@ -59,6 +59,14 @@ class PaquetesEms extends Component
         'CIUDADES_INTERMEDIAS_TRINIDAD_COBIJA',
     ];
     private const TELEFONO_DESTINATARIO_RECARGO = 1.00;
+    private const MODE_ROUTE_PERMISSIONS = [
+        'admision' => 'paquetes-ems.index',
+        'create_ems' => 'paquetes-ems.create',
+        'almacen_ems' => 'paquetes-ems.almacen',
+        'ventanilla_ems' => 'paquetes-ems.ventanilla',
+        'transito_ems' => 'paquetes-ems.recibir-regional',
+        'en_transito_ems' => 'paquetes-ems.en-transito',
+    ];
 
     public $mode = 'admision';
     public $search = '';
@@ -420,14 +428,14 @@ class PaquetesEms extends Component
 
     public function openCreateModal()
     {
-        $this->authorizePermission('feature.paquetes-ems.create');
+        $this->authorizePermission($this->modeFeaturePermission('create'));
 
         return $this->redirect(route('paquetes-ems.create'), navigate: false);
     }
 
     public function openRegionalModal()
     {
-        $this->authorizePermission('feature.paquetes-ems.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
 
         $idsEms = collect($this->selectedPaquetes)
             ->filter()
@@ -456,6 +464,8 @@ class PaquetesEms extends Component
 
     public function openRegionalContratoModal()
     {
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
+
         $ids = collect($this->selectedContratos)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -476,6 +486,8 @@ class PaquetesEms extends Component
 
     public function openContratoRegistrarModal()
     {
+        $this->authorizePermission($this->modeFeaturePermission('create', 'almacen_ems'));
+
         if (!$this->isAlmacenEms) {
             return;
         }
@@ -501,6 +513,8 @@ class PaquetesEms extends Component
 
     public function registrarContratoRapido()
     {
+        $this->authorizePermission($this->modeFeaturePermission('create', 'almacen_ems'));
+
         if (!$this->isAlmacenEms) {
             return;
         }
@@ -597,7 +611,7 @@ class PaquetesEms extends Component
 
     public function openContratoPesoModal()
     {
-        $this->authorizePermission('feature.paquetes-ems.edit');
+        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen_ems'));
 
         if (!$this->isAlmacenEms) {
             return;
@@ -620,6 +634,8 @@ class PaquetesEms extends Component
 
     public function buscarContratoParaPeso()
     {
+        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen_ems'));
+
         if (!$this->isAlmacenEms) {
             return;
         }
@@ -646,6 +662,8 @@ class PaquetesEms extends Component
 
     public function guardarPesoContratoPorCodigo()
     {
+        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen_ems'));
+
         if (!$this->isAlmacenEms) {
             return;
         }
@@ -936,7 +954,7 @@ class PaquetesEms extends Component
 
     public function toggleCn33Reprint()
     {
-        $this->authorizePermission('feature.paquetes-ems.print');
+        $this->authorizePermission($this->modeFeaturePermission('print', 'almacen_ems'));
 
         if (!$this->isAlmacenEms) {
             return;
@@ -950,7 +968,7 @@ class PaquetesEms extends Component
 
     public function reimprimirCn33()
     {
-        $this->authorizePermission('feature.paquetes-ems.print');
+        $this->authorizePermission($this->modeFeaturePermission('print', 'almacen_ems'));
 
         if (!$this->isAlmacenEms) {
             return;
@@ -1057,7 +1075,7 @@ class PaquetesEms extends Component
 
     public function openEditModal($id)
     {
-        $this->authorizePermission('feature.paquetes-ems.edit');
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
 
         $paquete = PaqueteEms::query()->with('formulario')->findOrFail($id);
         $formulario = $paquete->formulario;
@@ -1101,8 +1119,8 @@ class PaquetesEms extends Component
     public function save()
     {
         $permission = $this->editingId
-            ? 'feature.paquetes-ems.edit'
-            : 'feature.paquetes-ems.create';
+            ? $this->modeFeaturePermission('edit')
+            : $this->modeFeaturePermission('create');
 
         $this->authorizePermission($permission);
 
@@ -1142,8 +1160,8 @@ class PaquetesEms extends Component
     public function saveConfirmed()
     {
         $permission = $this->editingId
-            ? 'feature.paquetes-ems.edit'
-            : 'feature.paquetes-ems.create';
+            ? $this->modeFeaturePermission('edit')
+            : $this->modeFeaturePermission('create');
 
         $this->authorizePermission($permission);
 
@@ -1206,7 +1224,7 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosGeneradosHoy()
     {
-        $this->authorizePermission('feature.paquetes-ems.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'admision'));
 
         if (!$this->isAdmision) {
             return;
@@ -1218,7 +1236,7 @@ class PaquetesEms extends Component
 
     public function confirmarMandarGeneradosHoy()
     {
-        $this->authorizePermission('feature.paquetes-ems.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'admision'));
 
         if (!$this->isAdmision) {
             return;
@@ -1244,14 +1262,14 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosSinFiltroFecha()
     {
-        $this->authorizePermission('feature.paquetes-ems.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'admision'));
 
         return $this->mandarSeleccionadosAlmacenEms(false);
     }
 
     public function mandarSeleccionadosRegional()
     {
-        $this->authorizePermission('feature.paquetes-ems.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
 
         if (trim((string) $this->regionalDestino) === '') {
             session()->flash('error', 'Selecciona la ciudad de destino para regional.');
@@ -1454,6 +1472,8 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosContratosRegional()
     {
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
+
         if (trim((string) $this->regionalDestinoContrato) === '') {
             session()->flash('error', 'Selecciona la ciudad de destino para regional (contratos).');
             return;
@@ -1581,7 +1601,7 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosVentanillaEms()
     {
-        $this->authorizePermission('feature.paquetes-ems.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
 
         if (!$this->isAlmacenEms) {
             session()->flash('error', 'Esta accion solo esta disponible en ALMACEN EMS.');
@@ -1644,7 +1664,7 @@ class PaquetesEms extends Component
 
     public function openEntregaVentanillaModal()
     {
-        $this->authorizePermission('feature.paquetes-ems.deliver');
+        $this->authorizePermission($this->modeFeaturePermission('deliver', 'ventanilla_ems'));
 
         if (!$this->isVentanillaEms) {
             return;
@@ -1669,7 +1689,7 @@ class PaquetesEms extends Component
 
     public function confirmarEntregaVentanilla()
     {
-        $this->authorizePermission('feature.paquetes-ems.deliver');
+        $this->authorizePermission($this->modeFeaturePermission('deliver', 'ventanilla_ems'));
 
         if (!$this->isVentanillaEms) {
             return;
@@ -1796,7 +1816,7 @@ class PaquetesEms extends Component
 
     public function openRecibirRegionalModal()
     {
-        $this->authorizePermission('feature.paquetes-ems.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'transito_ems'));
 
         if (!$this->isTransitoEms) {
             return;
@@ -1913,7 +1933,7 @@ class PaquetesEms extends Component
 
     public function recibirSeleccionadosRegional()
     {
-        $this->authorizePermission('feature.paquetes-ems.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'transito_ems'));
 
         if (!$this->isTransitoEms) {
             return;
@@ -2076,7 +2096,7 @@ class PaquetesEms extends Component
 
     public function devolverAAdmisiones($id)
     {
-        $this->authorizePermission('feature.paquetes-ems.restore');
+        $this->authorizePermission($this->modeFeaturePermission('restore', 'almacen_ems'));
 
         if (!$this->isAlmacenEms) {
             session()->flash('error', 'Esta accion solo esta disponible en ALMACEN.');
@@ -2117,7 +2137,7 @@ class PaquetesEms extends Component
 
     protected function mandarSeleccionadosAlmacenEms(bool $soloHoy)
     {
-        $this->authorizePermission('feature.paquetes-ems.assign');
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'admision'));
 
         $ids = collect($this->selectedPaquetes)
             ->filter()
@@ -2195,7 +2215,7 @@ class PaquetesEms extends Component
 
     public function delete($id)
     {
-        $this->authorizePermission('feature.paquetes-ems.delete');
+        $this->authorizePermission($this->modeFeaturePermission('delete', 'admision'));
 
         $paquete = PaqueteEms::findOrFail($id);
         $paquete->delete();
@@ -2321,14 +2341,22 @@ class PaquetesEms extends Component
             'paquetes' => $paquetes,
             'almacenRows' => $almacenRows,
             'contratosAlmacen' => $contratosAlmacen,
-            'canEmsAssign' => $this->userCan('feature.paquetes-ems.assign'),
-            'canEmsCreate' => $this->userCan('feature.paquetes-ems.create'),
-            'canEmsEdit' => $this->userCan('feature.paquetes-ems.edit'),
-            'canEmsDelete' => $this->userCan('feature.paquetes-ems.delete'),
-            'canEmsPrint' => $this->userCan('feature.paquetes-ems.print'),
-            'canEmsRestore' => $this->userCan('feature.paquetes-ems.restore'),
-            'canEmsDeliver' => $this->userCan('feature.paquetes-ems.deliver'),
+            'canEmsAssign' => $this->userCan($this->modeFeaturePermission('assign')),
+            'canEmsCreate' => $this->userCan($this->modeFeaturePermission('create')),
+            'canEmsEdit' => $this->userCan($this->modeFeaturePermission('edit')),
+            'canEmsDelete' => $this->userCan($this->modeFeaturePermission('delete')),
+            'canEmsPrint' => $this->userCan($this->modeFeaturePermission('print')),
+            'canEmsRestore' => $this->userCan($this->modeFeaturePermission('restore')),
+            'canEmsDeliver' => $this->userCan($this->modeFeaturePermission('deliver')),
         ]);
+    }
+
+    private function modeFeaturePermission(string $action, ?string $mode = null): string
+    {
+        $modeKey = $mode ?? $this->mode;
+        $routePermission = self::MODE_ROUTE_PERMISSIONS[$modeKey] ?? self::MODE_ROUTE_PERMISSIONS['admision'];
+
+        return 'feature.'.$routePermission.'.'.$action;
     }
 
     private function userCan(string $permission): bool

@@ -37,6 +37,8 @@ class RecojoRecogerEnvios extends Component
 
     public function mandarSeleccionadosAlmacen()
     {
+        $this->authorizePermission('feature.paquetes-contrato.recoger-envios.assign');
+
         $actorUserId = (int) optional(Auth::user())->id;
         $ids = collect($this->selectedRecojos)
             ->filter()
@@ -224,6 +226,22 @@ class RecojoRecogerEnvios extends Component
 
         return view('livewire.recojo-recoger-envios', [
             'recojos' => $recojos,
+            'canContratoRecogerAssign' => $this->userCan('feature.paquetes-contrato.recoger-envios.assign'),
+            'canContratoRecogerPrint' => $this->userCan('feature.paquetes-contrato.recoger-envios.print'),
         ]);
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        return $user ? $user->can($permission) : false;
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
     }
 }

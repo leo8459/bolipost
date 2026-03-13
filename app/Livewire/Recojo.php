@@ -17,6 +17,11 @@ class Recojo extends Component
 {
     use WithPagination;
 
+    private const MODE_ROUTE_PERMISSIONS = [
+        'general' => 'paquetes-contrato.index',
+        'almacen' => 'paquetes-contrato.almacen',
+    ];
+
     public $mode = 'general';
     public $search = '';
     public $searchQuery = '';
@@ -78,6 +83,8 @@ class Recojo extends Component
 
     public function openEditModal($id)
     {
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
+
         $recojo = RecojoModel::findOrFail((int) $id);
 
         $this->editingId = $recojo->id;
@@ -107,6 +114,8 @@ class Recojo extends Component
 
     public function save()
     {
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
+
         $this->validate($this->rules());
 
         if ($this->editingId) {
@@ -124,6 +133,8 @@ class Recojo extends Component
 
     public function delete($id)
     {
+        $this->authorizePermission($this->modeFeaturePermission('delete'));
+
         $recojo = RecojoModel::findOrFail((int) $id);
         $recojo->delete();
         session()->flash('success', 'Contrato eliminado correctamente.');
@@ -352,6 +363,39 @@ class Recojo extends Component
     return view('livewire.recojo', [
         'recojos' => $recojos,
         'users' => User::query()->orderBy('name')->get(['id', 'name']),
+        'canRecojoEdit' => $this->userCan($this->modeFeaturePermission('edit')),
+        'canRecojoDelete' => $this->userCan($this->modeFeaturePermission('delete')),
+        'canRecojoPrint' => $this->userCan($this->modeFeaturePermission('print')),
+        'canRecojoReport' => $this->userCan($this->modeFeaturePermission('report')),
+        'canCreateContrato' => $this->userCanRoute('paquetes-contrato.create'),
+        'canCreateContratoTarifa' => $this->userCanRoute('paquetes-contrato.create-con-tarifa'),
     ]);
 }
+
+    private function modeFeaturePermission(string $action, ?string $mode = null): string
+    {
+        $modeKey = $mode ?? $this->mode;
+        $routePermission = self::MODE_ROUTE_PERMISSIONS[$modeKey] ?? self::MODE_ROUTE_PERMISSIONS['general'];
+
+        return 'feature.'.$routePermission.'.'.$action;
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        return $user ? $user->can($permission) : false;
+    }
+
+    private function userCanRoute(string $permission): bool
+    {
+        return $this->userCan($permission);
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
+    }
 }

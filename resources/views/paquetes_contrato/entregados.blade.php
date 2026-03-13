@@ -40,7 +40,7 @@
                                     <td>{{ $c->nombre_r }}</td>
                                     <td>{{ optional($c->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
-                                        @if (!empty($c->imagen))
+                                        @if (!empty($c->imagen) && ($canContratoEntregadoExport ?? false))
                                             <a href="{{ asset('storage/' . $c->imagen) }}"
                                                class="btn btn-sm btn-outline-azul"
                                                download>
@@ -51,12 +51,14 @@
                                         @endif
                                     </td>
                                     <td>
+                                        @if ($canContratoEntregadoPrint ?? false)
                                         <a href="{{ route('paquetes-contrato.reporte', $c->id) }}"
                                            class="btn btn-sm btn-outline-azul"
                                            target="_blank"
                                            title="Reimprimir rotulo">
                                             <i class="fas fa-print"></i>
                                         </a>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty

@@ -252,12 +252,16 @@
                     </div>
 
                     <div class="top-actions">
+                        @if ($canContratoCreateFrecuente ?? false)
                         <button type="button" class="btn btn-guardar-frecuente" id="btnGuardarFrecuente">
                             Guardar envio frecuente
                         </button>
+                        @endif
+                        @if ($canContratoCreateSubmit ?? false)
                         <button type="submit" class="btn btn-primary">
                             Guardar contrato
                         </button>
+                        @endif
                     </div>
                 </form>
             </div>

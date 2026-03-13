@@ -249,6 +249,8 @@ class PaquetesEmsController extends Controller
     public function createRegistroRapidoContrato()
     {
         $user = Auth::user();
+        abort_if(!$user, 403, 'No autenticado.');
+
         $origen = strtoupper(trim((string) optional($user)->ciudad));
         if ($origen === '') {
             $origen = strtoupper(trim((string) optional($user)->name));
@@ -259,6 +261,8 @@ class PaquetesEmsController extends Controller
             'ciudades' => self::CIUDADES_BOLIVIA,
             'provinciasPorDestino' => $this->buildProvinciasPorDestino(),
             'listado' => [],
+            'canQuickContractCreate' => $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
+            'canQuickContractDelete' => $user->can('feature.paquetes-ems.contrato-rapido.create.delete'),
         ]);
     }
 
@@ -271,6 +275,12 @@ class PaquetesEmsController extends Controller
                 'message' => 'Usuario no autenticado.',
             ], 401);
         }
+
+        abort_unless(
+            $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
+            403,
+            'No tienes permiso para guardar contratos rapidos.'
+        );
 
         $validated = $request->validate([
             'items' => 'required|array|min:1',
