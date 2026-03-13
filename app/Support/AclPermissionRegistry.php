@@ -151,6 +151,19 @@ class AclPermissionRegistry
     ];
 
     /**
+     * Dynamic route map for EventosTabla by tipo.
+     *
+     * @var array<string, string>
+     */
+    private const EVENTOS_TABLA_ROUTE_MODULES = [
+        'ems' => 'eventos-ems.index',
+        'certi' => 'eventos-certi.index',
+        'ordi' => 'eventos-ordi.index',
+        'despacho' => 'eventos-despacho.index',
+        'contrato' => 'eventos-contrato.index',
+    ];
+
+    /**
      * Method overrides for Livewire action inference.
      *
      * @var array<string, string>
@@ -274,6 +287,11 @@ class AclPermissionRegistry
         'despachos.expedicion' => ['print', 'confirm', 'restore', 'edit'],
         'despachos.admitidos' => ['assign', 'confirm'],
         'despachos.todos' => [],
+        'eventos-ems.index' => ['create', 'edit', 'delete'],
+        'eventos-certi.index' => ['create', 'edit', 'delete'],
+        'eventos-ordi.index' => ['create', 'edit', 'delete'],
+        'eventos-despacho.index' => ['create', 'edit', 'delete'],
+        'eventos-contrato.index' => ['create', 'edit', 'delete'],
         'paquetes-contrato.index' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.almacen' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.recoger-envios' => ['assign', 'print'],
@@ -329,6 +347,15 @@ class AclPermissionRegistry
             'previewadmitir' => [['module' => 'despachos.admitidos', 'action' => 'assign']],
             'scanandsearch' => [['module' => 'despachos.admitidos', 'action' => 'assign']],
             'removescanned' => [['module' => 'despachos.admitidos', 'action' => 'assign']],
+        ],
+        'EventosTabla' => [
+            'opencreatemodal' => [['module' => 'eventos-ems.index', 'action' => 'create']],
+            'openeditmodal' => [['module' => 'eventos-ems.index', 'action' => 'edit']],
+            'save' => [
+                ['module' => 'eventos-ems.index', 'action' => 'create'],
+                ['module' => 'eventos-ems.index', 'action' => 'edit'],
+            ],
+            'delete' => [['module' => 'eventos-ems.index', 'action' => 'delete']],
         ],
         'Recojo' => [
             'openeditmodal' => [
@@ -963,6 +990,18 @@ class AclPermissionRegistry
      */
     private static function windowRouteModulesForComponent(string $baseName, ?object $component = null): array
     {
+        if ($baseName === 'EventosTabla') {
+            if ($component && property_exists($component, 'tipo')) {
+                $tipo = strtolower(trim((string) $component->tipo));
+
+                if (isset(self::EVENTOS_TABLA_ROUTE_MODULES[$tipo])) {
+                    return [self::EVENTOS_TABLA_ROUTE_MODULES[$tipo]];
+                }
+            }
+
+            return array_values(array_unique(array_values(self::EVENTOS_TABLA_ROUTE_MODULES)));
+        }
+
         $map = self::WINDOW_ROUTE_MODULES[$baseName] ?? [];
 
         if ($map === []) {
@@ -996,6 +1035,14 @@ class AclPermissionRegistry
 
             if ($module === '' || $action === '') {
                 continue;
+            }
+
+            if (
+                $componentBaseName === 'EventosTabla'
+                && $currentWindowModule !== null
+                && str_starts_with($module, 'eventos-')
+            ) {
+                $module = $currentWindowModule;
             }
 
             if (
@@ -1316,6 +1363,9 @@ class AclPermissionRegistry
             'feature.carteros.devolucion.restore' => 'Boton: Recuperar',
             'feature.carteros.entrega.deliver' => 'Boton: Confirmar entrega',
             'feature.carteros.entrega.attempt' => 'Boton: Agregar intento',
+            'feature.eventos-ems.index.create' => 'Boton: Nuevo registro EMS',
+            'feature.eventos-ems.index.edit' => 'Boton: Editar registro EMS',
+            'feature.eventos-ems.index.delete' => 'Boton: Eliminar registro EMS',
             'feature.despachos.abiertos.create' => 'Boton: Nuevo despacho',
             'feature.despachos.abiertos.edit' => 'Boton: Editar despacho',
             'feature.despachos.abiertos.delete' => 'Boton: Eliminar despacho',
@@ -1539,6 +1589,9 @@ class AclPermissionRegistry
             'feature.carteros.devolucion.restore' => 'Controla el boton Recuperar dentro de la ventana Devolucion.',
             'feature.carteros.entrega.deliver' => 'Controla el boton Confirmar entrega dentro de la ventana Entrega.',
             'feature.carteros.entrega.attempt' => 'Controla el boton Agregar intento dentro de la ventana Entrega.',
+            'feature.eventos-ems.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos EMS.',
+            'feature.eventos-ems.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Eventos EMS.',
+            'feature.eventos-ems.index.delete' => 'Controla el boton Eliminar dentro de la ventana Eventos EMS.',
             'feature.despachos.abiertos.create' => 'Controla el boton Nuevo en la ventana Despachos abiertos.',
             'feature.despachos.abiertos.edit' => 'Controla el boton Editar en la ventana Despachos abiertos.',
             'feature.despachos.abiertos.delete' => 'Controla el boton Eliminar en la ventana Despachos abiertos.',

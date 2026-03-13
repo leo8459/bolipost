@@ -149,7 +149,9 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchRegistros">Buscar</button>
-                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @if ($canEventosCreate)
+                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endif
                 </div>
             </div>
 
@@ -204,19 +206,21 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @aclcan('edit', $this)
+                                        @if ($canEventosEdit)
                                         <button wire:click="openEditModal({{ $registro->id }})"
                                             class="btn btn-sm btn-azul"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
-                                        @endaclcan
+                                        @endif
+                                        @if ($canEventosDelete)
                                         <button wire:click="delete({{ $registro->id }})"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Eliminar"
                                             onclick="return confirm('Seguro que deseas eliminar este registro?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
@@ -281,9 +285,11 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">
-                            {{ $editingId ? 'Guardar cambios' : 'Crear' }}
-                        </button>
+                        @if (($editingId && $canEventosEdit) || (!$editingId && $canEventosCreate))
+                            <button type="submit" class="btn btn-primary">
+                                {{ $editingId ? 'Guardar cambios' : 'Crear' }}
+                            </button>
+                        @endif
                     </div>
                 </form>
             </div>

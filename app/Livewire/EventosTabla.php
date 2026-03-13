@@ -10,6 +10,13 @@ use Livewire\WithPagination;
 class EventosTabla extends Component
 {
     use WithPagination;
+    private const TIPO_ROUTE_PERMISSIONS = [
+        'ems' => 'eventos-ems.index',
+        'certi' => 'eventos-certi.index',
+        'ordi' => 'eventos-ordi.index',
+        'contrato' => 'eventos-contrato.index',
+        'despacho' => 'eventos-despacho.index',
+    ];
 
     public $tipo = 'ems';
     public $search = '';
@@ -34,6 +41,7 @@ class EventosTabla extends Component
 
     public function openCreateModal(): void
     {
+        $this->authorizePermission($this->featurePermission('create'));
         $this->resetForm();
         $this->editingId = null;
         $this->dispatch('openEventosTablaModal');
@@ -41,6 +49,7 @@ class EventosTabla extends Component
 
     public function openEditModal(int $id): void
     {
+        $this->authorizePermission($this->featurePermission('edit'));
         $registro = DB::table($this->tableName())->where('id', $id)->first();
 
         if (!$registro) {
@@ -57,6 +66,7 @@ class EventosTabla extends Component
 
     public function save(): void
     {
+        $this->authorizePermission($this->featurePermission($this->editingId ? 'edit' : 'create'));
         $this->validate($this->rules());
 
         $payload = [
@@ -86,6 +96,7 @@ class EventosTabla extends Component
 
     public function delete(int $id): void
     {
+        $this->authorizePermission($this->featurePermission('delete'));
         DB::table($this->tableName())->where('id', $id)->delete();
         session()->flash('success', $this->pageConfig()['singular'] . ' eliminado correctamente.');
     }
@@ -128,6 +139,9 @@ class EventosTabla extends Component
             'eventos' => DB::table('eventos')->orderBy('nombre_evento')->get(['id', 'nombre_evento']),
             'users' => DB::table('users')->orderBy('name')->get(['id', 'name']),
             'config' => $this->pageConfig(),
+            'canEventosCreate' => $this->userCan($this->featurePermission('create')),
+            'canEventosEdit' => $this->userCan($this->featurePermission('edit')),
+            'canEventosDelete' => $this->userCan($this->featurePermission('delete')),
         ]);
     }
 
@@ -180,6 +194,30 @@ class EventosTabla extends Component
                 'table' => 'eventos_ems',
             ],
         };
+    }
+
+    private function routePermission(): string
+    {
+        return self::TIPO_ROUTE_PERMISSIONS[$this->tipo] ?? self::TIPO_ROUTE_PERMISSIONS['ems'];
+    }
+
+    private function featurePermission(string $action): string
+    {
+        return 'feature.' . $this->routePermission() . '.' . $action;
+    }
+
+    private function userCan(string $permission): bool
+    {
+        $user = auth()->user();
+
+        return $user ? $user->can($permission) : false;
+    }
+
+    private function authorizePermission(string $permission): void
+    {
+        if (! $this->userCan($permission)) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
     }
 }
 
