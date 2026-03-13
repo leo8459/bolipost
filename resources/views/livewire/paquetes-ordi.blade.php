@@ -289,12 +289,12 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Destinatario</label>
-                                <input type="text" wire:model.defer="destinatario" class="form-control uppercase-input">
+                                <input type="text" wire:model.live.debounce.300ms="destinatario" class="form-control uppercase-input">
                                 @error('destinatario') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Telefono</label>
-                                <input type="text" wire:model.defer="telefono" class="form-control">
+                                <input type="text" wire:model.live.debounce.300ms="telefono" class="form-control">
                                 @error('telefono') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
