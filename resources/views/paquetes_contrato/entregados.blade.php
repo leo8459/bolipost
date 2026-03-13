@@ -52,7 +52,7 @@
                                     </td>
                                     <td>
                                         @if ($canContratoEntregadoPrint ?? false)
-                                        <a href="{{ route('paquetes-contrato.reporte', $c->id) }}"
+                                        <a href="{{ route('paquetes-contrato.reporte', $c->id, false) }}"
                                            class="btn btn-sm btn-outline-azul"
                                            target="_blank"
                                            title="Reimprimir rotulo">

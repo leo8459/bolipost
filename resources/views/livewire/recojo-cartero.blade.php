@@ -116,7 +116,7 @@
                                         <td>{{ optional($recojo->created_at)->format('d/m/Y H:i') }}</td>
                                         <td>
                                             @if ($canContratoCarteroPrint)
-                                            <a href="{{ route('paquetes-contrato.reporte', $recojo->id) }}"
+                                            <a href="{{ route('paquetes-contrato.reporte', $recojo->id, false) }}"
                                                target="_blank"
                                                class="btn btn-sm btn-outline-azul"
                                                title="Reimprimir rotulo">

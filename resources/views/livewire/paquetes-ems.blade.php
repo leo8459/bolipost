@@ -636,7 +636,9 @@
 
                         <div class="d-flex justify-content-end gap-2">
                             <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-azul">Cancelar</a>
+                            @if ($canEmsCreate)
                             <button type="submit" class="btn btn-dorado">Crear y continuar</button>
+                            @endif
                         </div>
                     </form>
                 @else
@@ -827,7 +829,7 @@
                                                     @endif
                                                 @endif
                                             @else
-                                                <a href="{{ route('paquetes-contrato.reporte', $row->record_id) }}"
+                                                <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
                                                    target="_blank"
                                                    class="btn btn-sm btn-outline-azul"
                                                    title="Reimprimir rotulo">
@@ -936,15 +938,21 @@
                                         <option value="1000">1000</option>
                                     </select>
                                 </div>
+                                @if ($canEmsCreate)
                                 <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openContratoRegistrarModal">
                                     Registrar
                                 </button>
+                                @endif
+                                @if ($canEmsEdit)
                                 <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openContratoPesoModal">
                                     Anadir peso
                                 </button>
+                                @endif
+                                @if ($canEmsAssign)
                                 <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openRegionalContratoModal">
                                     Manda contratos a regional
                                 </button>
+                                @endif
                                 <div class="muted small">
                                     Total en pagina: <strong>{{ $contratosAlmacen ? $contratosAlmacen->count() : 0 }}</strong> |
                                     Seleccionados: <strong>{{ count($selectedContratos) }}</strong>
@@ -997,12 +1005,14 @@
                                             <td>{{ $contrato->telefono_d ?: '-' }}</td>
                                             <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') }}</td>
                                             <td>
-                                                <a href="{{ route('paquetes-contrato.reporte', $contrato->id) }}"
+                                                @if ($canContratoAlmacenPrint)
+                                                <a href="{{ route('paquetes-contrato.reporte', $contrato->id, false) }}"
                                                    target="_blank"
                                                    class="btn btn-sm btn-outline-azul"
                                                    title="Reimprimir rotulo">
                                                     <i class="fas fa-print"></i>
                                                 </a>
+                                                @endif
                                             </td>
                                         </tr>
                                     @empty
@@ -1259,9 +1269,11 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        @if ($editingId ? $canEmsEdit : $canEmsCreate)
                         <button type="submit" class="btn btn-primary">
                             {{ $editingId ? 'Guardar cambios' : 'Crear' }}
                         </button>
+                        @endif
                     </div>
                 </form>
             </div>
@@ -1308,9 +1320,11 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($editingId ? $canEmsEdit : $canEmsCreate)
                     <button type="button" class="btn btn-primary" wire:click="saveConfirmed">
                         {{ $this->isCreateEms ? 'Confirmar y volver' : 'Confirmar y guardar' }}
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1339,6 +1353,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsAssign)
                     <button
                         type="button"
                         class="btn btn-primary"
@@ -1347,6 +1362,7 @@
                     >
                         Confirmar envio
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1385,9 +1401,11 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsAssign)
                     <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosRegional">
                         Confirmar y generar manifiesto
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1426,9 +1444,11 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsAssign)
                     <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosContratosRegional">
                         Confirmar y generar manifiesto
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1485,9 +1505,11 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsCreate)
                     <button type="button" class="btn btn-primary" wire:click="registrarContratoRapido">
                         Registrar
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1513,9 +1535,11 @@
                                 wire:model.defer="contratoCodigoPeso"
                                 wire:keydown.enter.prevent="buscarContratoParaPeso"
                             >
+                            @if ($canEmsEdit)
                             <button type="button" class="btn btn-outline-azul" wire:click="buscarContratoParaPeso">
                                 Detectar
                             </button>
+                            @endif
                         </div>
                         @error('contratoCodigoPeso') <small class="text-danger">{{ $message }}</small> @enderror
                     </div>
@@ -1545,9 +1569,11 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsEdit)
                     <button type="button" class="btn btn-primary" wire:click="guardarPesoContratoPorCodigo">
                         Guardar peso
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1576,9 +1602,11 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsDeliver)
                     <button type="button" class="btn btn-primary" wire:click="confirmarEntregaVentanilla">
                         Confirmar entrega
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1647,9 +1675,11 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsAssign)
                     <button type="button" class="btn btn-primary" wire:click="recibirSeleccionadosRegional">
                         Confirmar recibido
                     </button>
+                    @endif
                 </div>
             </div>
         </div>

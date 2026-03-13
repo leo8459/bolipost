@@ -58,18 +58,18 @@
                     <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
                     <button class="btn btn-outline-light2" type="button" wire:click="searchRecojos">Buscar</button>
                     @if ($canRecojoReport)
-                    <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.reporte-hoy') }}" target="_blank">
+                    <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.reporte-hoy', [], false) }}" target="_blank">
                         Imprimir generados hoy
                     </a>
                     @endif
                     @if (!$this->isAlmacenMode)
                         @if ($canCreateContratoTarifa)
-                        <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.create-con-tarifa') }}">
+                        <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.create-con-tarifa', [], false) }}">
                             Crear con tarifa
                         </a>
                         @endif
                         @if ($canCreateContrato)
-                        <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create') }}">
+                        <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create', [], false) }}">
                             Crear sin tarifa
                         </a>
                         @endif
@@ -139,7 +139,7 @@
                                     <td>{{ optional($recojo->user)->name ?? '-' }}</td>
                                     <td>
                                         @if ($canRecojoPrint)
-                                        <a href="{{ route('paquetes-contrato.reporte', $recojo->id) }}"
+                                        <a href="{{ route('paquetes-contrato.reporte', $recojo->id, false) }}"
                                             target="_blank"
                                             class="btn btn-sm btn-outline-azul"
                                             title="Reimprimir rotulo">

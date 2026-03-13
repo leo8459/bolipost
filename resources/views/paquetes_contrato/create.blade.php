@@ -134,11 +134,11 @@
                     <h5 class="mb-1">Crear contrato</h5>
                     <p class="hint-text mb-0" style="color:#dbe2ff;">Formulario simplificado para uso rapido</p>
                 </div>
-                <a href="{{ route('paquetes-contrato.index') }}" class="btn btn-light btn-sm">Volver</a>
+                <a href="{{ route('paquetes-contrato.index', [], false) }}" class="btn btn-light btn-sm">Volver</a>
             </div>
 
             <div class="card-body">
-                <form method="POST" action="{{ route('paquetes-contrato.store') }}" id="formContratoCreate">
+                <form method="POST" action="{{ route('paquetes-contrato.store', [], false) }}" id="formContratoCreate">
                     @csrf
 
                     <div id="envioFrecuenteStatus" class="alert d-none mb-3" role="alert"></div>

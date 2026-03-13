@@ -2348,6 +2348,7 @@ class PaquetesEms extends Component
             'canEmsPrint' => $this->userCan($this->modeFeaturePermission('print')),
             'canEmsRestore' => $this->userCan($this->modeFeaturePermission('restore')),
             'canEmsDeliver' => $this->userCan($this->modeFeaturePermission('deliver')),
+            'canContratoAlmacenPrint' => $this->userCan('feature.paquetes-contrato.almacen.print'),
         ]);
     }
 

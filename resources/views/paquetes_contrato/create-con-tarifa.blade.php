@@ -88,8 +88,8 @@
                     <small>Asigna la tarifa ahora y calcula el precio cuando se registre el peso.</small>
                 </div>
                 <div class="d-flex" style="gap:8px;">
-                    <a href="{{ route('paquetes-contrato.create') }}" class="btn btn-light btn-sm">Crear normal</a>
-                    <a href="{{ route('paquetes-contrato.index') }}" class="btn btn-light btn-sm">Volver</a>
+                    <a href="{{ route('paquetes-contrato.create', [], false) }}" class="btn btn-light btn-sm">Crear normal</a>
+                    <a href="{{ route('paquetes-contrato.index', [], false) }}" class="btn btn-light btn-sm">Volver</a>
                 </div>
             </div>
 
@@ -100,7 +100,7 @@
                     de 0.001 a 1.000 kg usa <strong>kilo</strong>, y desde 1.001 suma <strong>kilo_extra</strong> por cada kg adicional.
                 </div>
 
-                <form method="POST" action="{{ route('paquetes-contrato.store-con-tarifa') }}">
+                <form method="POST" action="{{ route('paquetes-contrato.store-con-tarifa', [], false) }}">
                     @csrf
 
                     <div class="section-block">

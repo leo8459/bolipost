@@ -347,7 +347,7 @@ class RecojoController extends Controller
         return redirect()
             ->route('paquetes-contrato.index')
             ->with('success', 'GUARDADO CON TARIFA (PESO PENDIENTE)')
-            ->with('download_reporte_url', route('paquetes-contrato.reporte', $contrato->id));
+            ->with('download_reporte_url', route('paquetes-contrato.reporte', $contrato->id, false));
     }
 
     public function store(Request $request)
@@ -377,7 +377,7 @@ class RecojoController extends Controller
         return redirect()
             ->route('paquetes-contrato.index')
             ->with('success', 'GUARDADO')
-            ->with('download_reporte_url', route('paquetes-contrato.reporte', $contrato->id));
+            ->with('download_reporte_url', route('paquetes-contrato.reporte', $contrato->id, false));
     }
 
     public function storePublic(Request $request)
@@ -427,7 +427,7 @@ class RecojoController extends Controller
             'data' => [
                 'id' => $contrato->id,
                 'codigo' => $contrato->codigo,
-                'reporte_url' => route('paquetes-contrato.reporte', $contrato->id),
+                'reporte_url' => route('paquetes-contrato.reporte', $contrato->id, false),
             ],
         ], 201);
     }
