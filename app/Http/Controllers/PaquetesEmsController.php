@@ -83,6 +83,12 @@ class PaquetesEmsController extends Controller
 
     public function create()
     {
+        $this->authorizeAnyPermission(request(), [
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+            'paquetes-ems.create',
+        ]);
+
         return view('paquetes_ems.create');
     }
 
@@ -475,5 +481,22 @@ class PaquetesEmsController extends Controller
     protected function buildProvinciasPorDestino(): array
     {
         return self::PROVINCIAS_POR_DEPARTAMENTO;
+    }
+
+    private function authorizeAnyPermission(Request $request, array $permissions): void
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            abort(403, 'No autenticado.');
+        }
+
+        foreach ($permissions as $permission) {
+            if ($user->can($permission)) {
+                return;
+            }
+        }
+
+        abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
     }
 }

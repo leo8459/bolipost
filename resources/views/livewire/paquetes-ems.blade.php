@@ -420,7 +420,7 @@
                             @endif
                         @endif
 
-                        @if (($this->isAdmision || $this->isAlmacenEms) && $canEmsCreate && $canEmsCreateRoute)
+                        @if (($this->isAdmision || $this->isAlmacenEms) && $canEmsCreate)
                             <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                         @endif
                     @endif
@@ -640,7 +640,7 @@
 
                         <div class="d-flex justify-content-end gap-2">
                             <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-azul">Cancelar</a>
-                            @if ($canEmsCreate && $canEmsCreateRoute)
+                            @if ($canEmsCreate)
                             <button type="submit" class="btn btn-dorado">Crear y continuar</button>
                             @endif
                         </div>
