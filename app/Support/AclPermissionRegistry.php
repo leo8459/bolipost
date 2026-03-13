@@ -453,6 +453,16 @@ class AclPermissionRegistry
             'feature.paquetes-ems.index.create',
             'feature.paquetes-ems.almacen.create',
         ],
+        'paquetes-ems.boleta' => [
+            'paquetes-ems.boleta',
+            'feature.paquetes-ems.index.print',
+            'feature.paquetes-ems.almacen.print',
+            'feature.paquetes-ems.ventanilla.print',
+            'feature.paquetes-ems.recibir-regional.print',
+            'feature.paquetes-ems.en-transito.print',
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+        ],
     ];
 
     /**
