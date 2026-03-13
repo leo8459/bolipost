@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Empresa;
 use App\Models\Estado;
 use App\Models\Recojo;
 use Illuminate\Http\Request;
@@ -12,9 +13,13 @@ class AreaContratosController extends Controller
     {
         $search = trim((string) $request->query('q', ''));
         $estadoId = (int) $request->query('estado_id', 0);
+        $empresaId = (int) $request->query('empresa_id', 0);
         $estados = Estado::query()
             ->orderBy('nombre_estado')
             ->get(['id', 'nombre_estado']);
+        $empresas = Empresa::query()
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'sigla']);
 
         $contratos = Recojo::query()
             ->with([
@@ -23,6 +28,9 @@ class AreaContratosController extends Controller
             ])
             ->when($estadoId > 0, function ($query) use ($estadoId) {
                 $query->where('estados_id', $estadoId);
+            })
+            ->when($empresaId > 0, function ($query) use ($empresaId) {
+                $query->where('empresa_id', $empresaId);
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
@@ -53,7 +61,9 @@ class AreaContratosController extends Controller
             'contratos' => $contratos,
             'search' => $search,
             'estadoId' => $estadoId,
+            'empresaId' => $empresaId,
             'estados' => $estados,
+            'empresas' => $empresas,
         ]);
     }
 

@@ -571,7 +571,7 @@
                                 <input
                                     type="text"
                                     class="form-control"
-                                    placeholder="Ingresa cod_especial (ej: E00001)"
+                                    placeholder="Ingresa cod_especial (ej: SRZ00001)"
                                     wire:model.defer="cn33Despacho"
                                 >
                             </div>

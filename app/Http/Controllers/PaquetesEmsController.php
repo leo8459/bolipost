@@ -28,6 +28,54 @@ class PaquetesEmsController extends Controller
         'POTOSI',
     ];
 
+    private const PROVINCIAS_POR_DEPARTAMENTO = [
+        'LA PAZ' => [
+            'MURILLO', 'OMASUYOS', 'PACAJES', 'CAMACHO', 'MUNECAS', 'LARECAJA',
+            'FRANZ TAMAYO', 'INGAVI', 'LOAYZA', 'INQUISIVI', 'SUD YUNGAS',
+            'LOS ANDES', 'AROMA', 'NOR YUNGAS', 'ABEL ITURRALDE',
+            'BAUTISTA SAAVEDRA', 'MANCO KAPAC', 'GUALBERTO VILLARROEL',
+            'JOSE MANUEL PANDO', 'CARANAVI',
+        ],
+        'COCHABAMBA' => [
+            'CERCADO', 'CAMPERO', 'AYOPAYA', 'ESTEBAN ARCE', 'ARANI', 'ARQUE',
+            'CAPINOTA', 'GERMAN JORDAN', 'QUILLACOLLO', 'CHAPARE', 'TAPACARI',
+            'CARRASCO', 'MIZQUE', 'PUNATA', 'BOLIVAR', 'TIRAQUE',
+        ],
+        'SANTA CRUZ' => [
+            'ANDRES IBANEZ', 'WARNES', 'VALLEGRANDE', 'ICHILO', 'CHIQUITOS',
+            'SARA', 'CORDILLERA', 'FLORIDA', 'MANUEL MARIA CABALLERO',
+            'GUARAYOS', 'NUFLO DE CHAVEZ', 'VELASCO', 'ANGEL SANDOVAL',
+            'GERMAN BUSCH',
+        ],
+        'ORURO' => [
+            'CERCADO', 'CARANGAS', 'SAUCARI', 'SABAYA', 'LADISLAO CABRERA',
+            'LITORAL', 'POOPO', 'PANTALEON DALENCE', 'SAJAMA',
+            'SAN PEDRO DE TOTORA', 'SEBASTIAN PAGADOR', 'EDUARDO AVAROA',
+            'NOR CARANGAS', 'SUR CARANGAS', 'TOMAS BARRON',
+        ],
+        'POTOSI' => [
+            'TOMAS FRIAS', 'RAFAEL BUSTILLO', 'CORNELIO SAAVEDRA', 'CHAYANTA',
+            'CHARCAS', 'NOR CHICHAS', 'ALONSO DE IBANEZ', 'SUD CHICHAS',
+            'NOR LIPEZ', 'SUD LIPEZ', 'JOSE MARIA LINARES', 'ANTONIO QUIJARRO',
+            'DANIEL CAMPOS', 'MODESTO OMISTE', 'BILBAO RIOJA', 'ENRIQUE BALDIVIESO',
+        ],
+        'TARIJA' => [
+            'CERCADO', 'ANICETO ARCE', 'BURDETT OCONNOR', 'GRAN CHACO',
+            'JOSE MARIA AVILES', 'MENDEZ',
+        ],
+        'CHUQUISACA' => [
+            'OROPEZA', 'AZURDUY', 'ZUDANEZ', 'TOMINA', 'HERNANDO SILES',
+            'YAMPARAEZ', 'NOR CINTI', 'SUD CINTI', 'BELISARIO BOETO', 'LUIS CALVO',
+        ],
+        'BENI' => [
+            'CERCADO', 'VACA DIEZ', 'JOSE BALLIVIAN', 'YACUMA', 'MOXOS',
+            'MAMORE', 'MARBAN', 'ITENE',
+        ],
+        'PANDO' => [
+            'NICOLAS SUAREZ', 'MANURIPI', 'MADRE DE DIOS', 'ABUNA', 'FEDERICO ROMAN',
+        ],
+    ];
+
     public function index()
     {
         return view('paquetes_ems.index');
@@ -209,6 +257,7 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.registro-rapido-contrato', [
             'origen' => $origen,
             'ciudades' => self::CIUDADES_BOLIVIA,
+            'provinciasPorDestino' => $this->buildProvinciasPorDestino(),
             'listado' => [],
         ]);
     }
@@ -227,11 +276,13 @@ class PaquetesEmsController extends Controller
             'items' => 'required|array|min:1',
             'items.*.codigo' => 'required|string|max:50',
             'items.*.destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
+            'items.*.provincia' => 'nullable|string|max:255',
             'items.*.peso' => 'required|numeric|min:0.001',
         ], [], [
             'items' => 'prelista',
             'items.*.codigo' => 'codigo',
             'items.*.destino' => 'destino',
+            'items.*.provincia' => 'provincia',
             'items.*.peso' => 'peso',
         ]);
 
@@ -266,9 +317,11 @@ class PaquetesEmsController extends Controller
             ->map(function (array $item) {
                 $codigo = strtoupper(trim((string) ($item['codigo'] ?? '')));
                 $codigo = preg_replace('/\s+/', '', $codigo) ?: '';
+                $provincia = strtoupper(trim((string) ($item['provincia'] ?? '')));
                 return [
                     'codigo' => $codigo,
                     'destino' => strtoupper(trim((string) ($item['destino'] ?? ''))),
+                    'provincia' => $provincia === '' ? null : $provincia,
                     'peso' => (float) ($item['peso'] ?? 0),
                 ];
             })
@@ -336,7 +389,7 @@ class PaquetesEmsController extends Controller
                     'telefono_d' => null,
                     'direccion_d' => 'SIN DIRECCION',
                     'mapa' => null,
-                    'provincia' => null,
+                    'provincia' => $item['provincia'],
                     'peso' => $item['peso'],
                     'fecha_recojo' => now(),
                     'observacion' => 'REGISTRO RAPIDO DESDE ALMACEN EMS',
@@ -407,5 +460,10 @@ class PaquetesEmsController extends Controller
         }
 
         return null;
+    }
+
+    protected function buildProvinciasPorDestino(): array
+    {
+        return self::PROVINCIAS_POR_DEPARTAMENTO;
     }
 }

@@ -32,6 +32,20 @@ class PaquetesEms extends Component
     private const EVENTO_ID_SACA_INTERNA_CREADA_SALIDA = 240;
     private const EVENTO_ID_PAQUETE_ENVIADO_VENTANILLA_EMS = 312;
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
+    private const SPECIAL_CODE_PREFIX_BY_CITY = [
+        'LA PAZ' => 'LPZ',
+        'COCHABAMBA' => 'CBB',
+        'SANTA CRUZ' => 'SRZ',
+        'ORURO' => 'ORU',
+        'POTOSI' => 'POI',
+        'TARIJA' => 'TJA',
+        'CHUQUISACA' => 'SRE',
+        'SUCRE' => 'SRE',
+        'BENI' => 'TDD',
+        'TRINIDAD' => 'TDD',
+        'PANDO' => 'CIJ',
+        'COBIJA' => 'CIJ',
+    ];
 
     public $mode = 'admision';
     public $search = '';
@@ -508,9 +522,9 @@ class PaquetesEms extends Component
             return;
         }
 
-        $estadoAlmacenId = $this->findEstadoId('ALMACEN');
-        if (!$estadoAlmacenId) {
-            session()->flash('error', 'No existe el estado ALMACEN en la tabla estados.');
+        $eligibleEstadoIds = $this->regionalEligibleEstadoIds();
+        if (empty($eligibleEstadoIds)) {
+            session()->flash('error', 'No existen los estados ALMACEN/RECIBIDO en la tabla estados.');
             return;
         }
 
@@ -855,6 +869,26 @@ class PaquetesEms extends Component
         return strtoupper(trim($value));
     }
 
+    protected function composeCn33Remitente(?string $nombreRemitente, ?string $empresaNombre): string
+    {
+        $nombre = trim((string) $nombreRemitente);
+        $empresa = trim((string) $empresaNombre);
+
+        if ($empresa === '') {
+            return $nombre !== '' ? $nombre : 'SIN REMITENTE';
+        }
+
+        if ($nombre === '' || in_array(strtoupper($nombre), ['SIN REMITENTE', '-'], true)) {
+            return $empresa;
+        }
+
+        if (stripos($nombre, $empresa) !== false) {
+            return $nombre;
+        }
+
+        return $nombre . ' / ' . $empresa;
+    }
+
     protected function resolveEmpresaIdByCodigoContrato(string $codigo): ?int
     {
         $codigoNormalizado = strtoupper(trim((string) $codigo));
@@ -916,6 +950,7 @@ class PaquetesEms extends Component
 
         $paquetes = PaqueteEms::query()
             ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
+            ->with(['user:id,empresa_id', 'user.empresa:id,nombre'])
             ->orderBy('id')
             ->get([
                 'id',
@@ -931,18 +966,65 @@ class PaquetesEms extends Component
                 'updated_at',
             ]);
 
-        if ($paquetes->isEmpty()) {
-            session()->flash('error', 'No se encontraron paquetes para el despacho ' . $despacho . '.');
+        $contratos = RecojoContrato::query()
+            ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
+            ->with(['empresa:id,nombre'])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo',
+                'cod_especial',
+                'empresa_id',
+                'origen',
+                'destino',
+                'peso',
+                'nombre_r',
+                'user_id',
+                'created_at',
+                'updated_at',
+            ]);
+
+        if ($paquetes->isEmpty() && $contratos->isEmpty()) {
+            session()->flash('error', 'No se encontraron paquetes/contratos para el despacho ' . $despacho . '.');
             return;
         }
 
-        $generatedAt = $paquetes->first()->updated_at ?: now();
+        $rowsPdf = collect($paquetes->map(function ($paquete) {
+            return (object) [
+                'codigo' => $paquete->codigo,
+                'origen' => $paquete->origen,
+                'cantidad' => (int) ($paquete->cantidad ?? 1),
+                'peso' => (float) ($paquete->peso ?? 0),
+                'nombre_remitente' => $this->composeCn33Remitente(
+                    $paquete->nombre_remitente,
+                    optional(optional($paquete->user)->empresa)->nombre
+                ),
+            ];
+        })->all())
+            ->concat($contratos->map(function ($contrato) {
+                return (object) [
+                    'codigo' => $contrato->codigo,
+                    'origen' => $contrato->origen,
+                    'cantidad' => 1,
+                    'peso' => (float) ($contrato->peso ?? 0),
+                    'nombre_remitente' => $this->composeCn33Remitente(
+                        $contrato->nombre_r,
+                        optional($contrato->empresa)->nombre
+                    ),
+                ];
+            })->all())
+            ->values();
+
+        $generatedAt = collect([$paquetes->max('updated_at'), $contratos->max('updated_at')])
+            ->filter()
+            ->sortDesc()
+            ->first() ?: now();
         $loggedUserName = trim((string) optional(Auth::user())->name);
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
-        $destinationCity = trim((string) optional($paquetes->first())->ciudad);
+        $destinationCity = trim((string) (optional($paquetes->first())->ciudad ?? optional($contratos->first())->destino));
 
         $pdf = Pdf::loadView('paquetes_ems.reporte-regional', [
-            'paquetes' => $paquetes,
+            'paquetes' => $rowsPdf,
             'generatedAt' => $generatedAt,
             'currentManifiesto' => $despacho,
             'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
@@ -1203,9 +1285,9 @@ class PaquetesEms extends Component
             return;
         }
 
-        $estadoAlmacenId = $this->findEstadoId('ALMACEN');
-        if (!$estadoAlmacenId) {
-            session()->flash('error', 'No existe el estado ALMACEN en la tabla estados.');
+        $eligibleEstadoIds = $this->regionalEligibleEstadoIds();
+        if (empty($eligibleEstadoIds)) {
+            session()->flash('error', 'No existen los estados ALMACEN/RECIBIDO en la tabla estados.');
             return;
         }
 
@@ -1220,7 +1302,7 @@ class PaquetesEms extends Component
             $idsEms,
             $idsContratos,
             $estadoRegionalId,
-            $estadoAlmacenId,
+            $eligibleEstadoIds,
             $actorUserId,
             &$manifiesto,
             &$updated,
@@ -1230,7 +1312,8 @@ class PaquetesEms extends Component
             if (!empty($idsEms)) {
                 $paquetes = PaqueteEms::query()
                     ->whereIn('id', $idsEms)
-                    ->with(['user:id,name'])
+                    ->whereIn('estado_id', $eligibleEstadoIds)
+                    ->with(['user:id,name,empresa_id', 'user.empresa:id,nombre'])
                     ->orderBy('id')
                     ->lockForUpdate()
                     ->get([
@@ -1252,14 +1335,15 @@ class PaquetesEms extends Component
             if (!empty($idsContratos)) {
                 $contratos = RecojoContrato::query()
                     ->whereIn('id', $idsContratos)
-                    ->where('estados_id', (int) $estadoAlmacenId)
-                    ->with(['user:id,name'])
+                    ->whereIn('estados_id', $eligibleEstadoIds)
+                    ->with(['user:id,name', 'empresa:id,nombre'])
                     ->orderBy('id')
                     ->lockForUpdate()
                     ->get([
                         'id',
                         'codigo',
                         'cod_especial',
+                        'empresa_id',
                         'origen',
                         'destino',
                         'peso',
@@ -1275,8 +1359,7 @@ class PaquetesEms extends Component
                 return;
             }
 
-            $correlative = $this->nextSpecialCodeCorrelative();
-            $manifiesto = 'E' . str_pad((string) $correlative, 5, '0', STR_PAD_LEFT);
+            $manifiesto = $this->nextSpecialCodeForLoggedUser();
 
             foreach ($paquetes as $paquete) {
                 $paquete->cod_especial = $manifiesto;
@@ -1317,7 +1400,10 @@ class PaquetesEms extends Component
                 'origen' => $paquete->origen,
                 'cantidad' => (int) ($paquete->cantidad ?? 1),
                 'peso' => (float) ($paquete->peso ?? 0),
-                'nombre_remitente' => $paquete->nombre_remitente,
+                'nombre_remitente' => $this->composeCn33Remitente(
+                    $paquete->nombre_remitente,
+                    optional(optional($paquete->user)->empresa)->nombre
+                ),
             ];
         })->merge(
             $contratos->map(function ($contrato) {
@@ -1326,7 +1412,10 @@ class PaquetesEms extends Component
                     'origen' => $contrato->origen,
                     'cantidad' => 1,
                     'peso' => (float) ($contrato->peso ?? 0),
-                    'nombre_remitente' => $contrato->nombre_r,
+                    'nombre_remitente' => $this->composeCn33Remitente(
+                        $contrato->nombre_r,
+                        optional($contrato->empresa)->nombre
+                    ),
                 ];
             })
         );
@@ -1405,13 +1494,14 @@ class PaquetesEms extends Component
             $contratos = RecojoContrato::query()
                 ->whereIn('id', $ids)
                 ->where('estados_id', (int) $estadoAlmacenId)
-                ->with(['user:id,name'])
+                ->with(['user:id,name', 'empresa:id,nombre'])
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get([
                     'id',
                     'codigo',
                     'cod_especial',
+                    'empresa_id',
                     'origen',
                     'destino',
                     'peso',
@@ -1424,8 +1514,7 @@ class PaquetesEms extends Component
                 return;
             }
 
-            $correlative = $this->nextSpecialCodeCorrelative();
-            $manifiesto = 'E' . str_pad((string) $correlative, 5, '0', STR_PAD_LEFT);
+            $manifiesto = $this->nextSpecialCodeForLoggedUser();
 
             foreach ($contratos as $contrato) {
                 $contrato->cod_especial = $manifiesto;
@@ -1452,7 +1541,10 @@ class PaquetesEms extends Component
                 'origen' => $contrato->origen,
                 'cantidad' => 1,
                 'peso' => $contrato->peso ?? 0,
-                'nombre_remitente' => $contrato->nombre_r,
+                'nombre_remitente' => $this->composeCn33Remitente(
+                    $contrato->nombre_r,
+                    optional($contrato->empresa)->nombre
+                ),
             ];
         });
 
@@ -3181,26 +3273,29 @@ class PaquetesEms extends Component
         );
     }
 
-    protected function nextSpecialCodeCorrelative(): int
+    protected function nextSpecialCodeForLoggedUser(): string
     {
+        $prefix = $this->resolveSpecialCodePrefixForLoggedUser();
         $specialCodes = PaqueteEms::query()
             ->whereNotNull('cod_especial')
+            ->where('cod_especial', 'like', $prefix . '%')
             ->lockForUpdate()
             ->pluck('cod_especial')
             ->merge(
                 RecojoContrato::query()
                     ->whereNotNull('cod_especial')
+                    ->where('cod_especial', 'like', $prefix . '%')
                     ->lockForUpdate()
                     ->pluck('cod_especial')
             );
 
         if ($specialCodes->isEmpty()) {
-            return 1;
+            return $prefix . '00001';
         }
 
         $maxCorrelative = 0;
         foreach ($specialCodes as $specialCode) {
-            if (preg_match('/^E(\d{5})$/', (string) $specialCode, $matches)) {
+            if (preg_match('/^' . preg_quote($prefix, '/') . '(\d{5})$/', (string) $specialCode, $matches)) {
                 $value = (int) $matches[1];
                 if ($value > $maxCorrelative) {
                     $maxCorrelative = $value;
@@ -3208,7 +3303,46 @@ class PaquetesEms extends Component
             }
         }
 
-        return $maxCorrelative + 1;
+        return $prefix . str_pad((string) ($maxCorrelative + 1), 5, '0', STR_PAD_LEFT);
+    }
+
+    protected function resolveSpecialCodePrefixForLoggedUser(): string
+    {
+        $user = Auth::user();
+        $candidates = [
+            strtoupper(trim((string) optional($user)->ciudad)),
+            strtoupper(trim((string) optional($user)->name)),
+            strtoupper(trim((string) $this->origen)),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate === '') {
+                continue;
+            }
+
+            foreach (self::SPECIAL_CODE_PREFIX_BY_CITY as $key => $prefix) {
+                if ($candidate === $key || str_contains($candidate, $key)) {
+                    return $prefix;
+                }
+            }
+        }
+
+        return 'EMS';
+    }
+
+    protected function regionalEligibleEstadoIds(): array
+    {
+        $estadoIds = [
+            $this->findEstadoId('ALMACEN'),
+            $this->findEstadoId('RECIBIDO'),
+        ];
+
+        return collect($estadoIds)
+            ->filter(fn ($id) => !empty($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     protected function refreshRemitenteSugerencias(string $value): void

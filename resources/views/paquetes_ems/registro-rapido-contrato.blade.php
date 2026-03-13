@@ -101,6 +101,7 @@
                     @csrf
                     @php
                         $destinoPrefill = old('destino', '');
+                        $provinciaPrefill = strtoupper(trim((string) old('provincia', '')));
                     @endphp
                     <div class="row align-items-end">
                         <div class="col-md-3">
@@ -133,6 +134,14 @@
                             </div>
                         </div>
                         <div class="col-md-2">
+                            <div class="form-group">
+                                <label>Provincia (opcional)</label>
+                                <select name="provincia" id="registroRapidoProvincia" class="form-control">
+                                    <option value="">Seleccione...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
                             <div class="form-group mb-0 d-flex gap-2">
                                 <button type="button" class="btn btn-outline-primary" id="btnAgregarPrelista">Anadir a prelista</button>
                                 <button type="button" class="btn btn-primary" id="btnGuardarTodos">Guardar todos</button>
@@ -154,6 +163,7 @@
                                     <th>Peso</th>
                                     <th>Origen</th>
                                     <th>Destino</th>
+                                    <th>Provincia</th>
                                     <th>Accion</th>
                                 </tr>
                             </thead>
@@ -165,13 +175,14 @@
                                         <td>{{ $item['peso'] ?? '-' }}</td>
                                         <td>{{ $item['origen'] ?? '-' }}</td>
                                         <td>{{ $item['destino'] ?? '-' }}</td>
+                                        <td>{{ $item['provincia'] ?? '-' }}</td>
                                         <td>
                                             <button type="button" class="btn btn-xs btn-outline-danger" disabled>Quitar</button>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr id="registroRapidoListadoEmpty">
-                                        <td colspan="6" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
+                                        <td colspan="7" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -191,6 +202,9 @@
         const pesoInput = document.getElementById('registroRapidoPeso');
         const origenInput = document.getElementById('registroRapidoOrigen');
         const destinoInput = document.getElementById('registroRapidoDestino');
+        const provinciaInput = document.getElementById('registroRapidoProvincia');
+        const provinciasPorDestino = @json($provinciasPorDestino ?? []);
+        const oldProvincia = @json($provinciaPrefill);
         const alertWrap = document.getElementById('registroRapidoAjaxAlert');
         const serverAlert = document.getElementById('registroRapidoServerAlert');
         const listBody = document.getElementById('registroRapidoListadoBody');
@@ -225,12 +239,38 @@
             return String(value || '').toUpperCase().replace(/\s+/g, '').trim();
         }
 
+        function renderProvinciaOptions(destino, selected = '') {
+            if (!provinciaInput) return;
+
+            const key = String(destino || '').trim().toUpperCase();
+            const provincias = Array.isArray(provinciasPorDestino[key]) ? provinciasPorDestino[key] : [];
+            const selectedValue = String(selected || '').trim().toUpperCase();
+
+            provinciaInput.innerHTML = '';
+            const empty = document.createElement('option');
+            empty.value = '';
+            empty.textContent = 'Seleccione...';
+            provinciaInput.appendChild(empty);
+
+            provincias.forEach((provincia) => {
+                const value = String(provincia || '').trim().toUpperCase();
+                if (!value) return;
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                if (selectedValue !== '' && selectedValue === value) {
+                    option.selected = true;
+                }
+                provinciaInput.appendChild(option);
+            });
+        }
+
         function renderPrelista() {
             if (!listBody) return;
             listBody.innerHTML = '';
 
             if (!prelista.length) {
-                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="6" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
+                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="7" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
                 if (listCount) listCount.textContent = '0';
                 return;
             }
@@ -243,6 +283,7 @@
                     <td>${escapeHtml(item.peso)}</td>
                     <td>${escapeHtml(item.origen)}</td>
                     <td>${escapeHtml(item.destino)}</td>
+                    <td>${escapeHtml(item.provincia || '-')}</td>
                     <td><button type="button" class="btn btn-xs btn-outline-danger" data-remove-index="${index}">Quitar</button></td>
                 `;
                 listBody.appendChild(row);
@@ -258,6 +299,7 @@
             const peso = String(pesoInput.value || '').trim();
             const destino = String(destinoInput.value || '').trim().toUpperCase();
             const origen = String(origenInput.value || '').trim().toUpperCase();
+            const provincia = String(provinciaInput?.value || '').trim().toUpperCase();
 
             if (!codigo) {
                 showAlert('danger', 'Ingresa un codigo valido.');
@@ -289,6 +331,7 @@
                 peso: Number(peso).toFixed(3),
                 origen: origen,
                 destino: destino,
+                provincia: provincia,
             });
 
             renderPrelista();
@@ -296,12 +339,21 @@
 
             codigoInput.value = '';
             pesoInput.value = '';
+            if (provinciaInput) {
+                provinciaInput.value = '';
+            }
             codigoInput.focus();
         }
 
         if (btnAgregar) {
             btnAgregar.addEventListener('click', function () {
                 addCurrentToPrelista();
+            });
+        }
+
+        if (destinoInput) {
+            destinoInput.addEventListener('change', function () {
+                renderProvinciaOptions(this.value, '');
             });
         }
 
@@ -331,6 +383,7 @@
                             codigo: item.codigo,
                             peso: item.peso,
                             destino: item.destino,
+                            provincia: item.provincia || null,
                         })),
                     }),
                     headers: {
@@ -366,6 +419,9 @@
                 if (pesoInput) {
                     pesoInput.value = '';
                 }
+                if (provinciaInput) {
+                    provinciaInput.value = '';
+                }
                 if (codigoInput) codigoInput.focus();
             } catch (e) {
                 showAlert('danger', 'Error de conexion al guardar la prelista.');
@@ -381,6 +437,7 @@
         }
 
         renderPrelista();
+        renderProvinciaOptions(destinoInput ? destinoInput.value : '', oldProvincia);
     })();
 </script>
 @endsection

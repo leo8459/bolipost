@@ -13,7 +13,7 @@
             </div>
             <div class="card-body">
                 <form method="GET" action="{{ route('area-contratos.todos') }}" class="row mb-3">
-                    <div class="col-md-7 mb-2 mb-md-0">
+                    <div class="col-md-4 mb-2 mb-md-0">
                         <input type="text" name="q" value="{{ $search }}" class="form-control"
                             placeholder="Buscar por codigo, estado, remitente, origen, destino, direcciones o empresa...">
                     </div>
@@ -27,8 +27,21 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3 mb-2 mb-md-0">
+                        <select name="empresa_id" class="form-control">
+                            <option value="0">Todas las empresas</option>
+                            @foreach ($empresas as $empresa)
+                                <option value="{{ $empresa->id }}" {{ (int) $empresaId === (int) $empresa->id ? 'selected' : '' }}>
+                                    {{ $empresa->nombre }}@if(!empty($empresa->sigla)) ({{ $empresa->sigla }})@endif
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-1">
                         <button type="submit" class="btn btn-primary btn-block">Buscar</button>
+                    </div>
+                    <div class="col-md-1">
+                        <a href="{{ route('area-contratos.todos') }}" class="btn btn-outline-secondary btn-block">Limpiar</a>
                     </div>
                 </form>
 
@@ -45,6 +58,7 @@
                                 <th>Destino</th>
                                 <th>Direccion destinatario</th>
                                 <th>Empresa</th>
+                                <th>Imagen</th>
                                 <th>Fecha</th>
                                 <th>Acciones</th>
                             </tr>
@@ -66,6 +80,18 @@
                                             ({{ optional($contrato->empresa)->sigla }})
                                         @endif
                                     </td>
+                                    <td>
+                                        @if (!empty($contrato->imagen))
+                                            <a href="{{ asset('storage/' . $contrato->imagen) }}"
+                                                target="_blank"
+                                                rel="noopener"
+                                                class="btn btn-sm btn-outline-info">
+                                                Ver imagen
+                                            </a>
+                                        @else
+                                            <span class="text-muted">Sin imagen</span>
+                                        @endif
+                                    </td>
                                     <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         <a href="{{ route('paquetes-contrato.reporte', $contrato->id) }}"
@@ -77,7 +103,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-4">
+                                    <td colspan="12" class="text-center py-4">
                                         No hay contratos registrados.
                                     </td>
                                 </tr>
