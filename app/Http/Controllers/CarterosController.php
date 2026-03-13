@@ -822,16 +822,15 @@ class CarterosController extends Controller
             $userId,
             [$estadoCarteroId, $estadoProvinciaId]
         );
-        $imagenPath = $this->storeDeliveryPhoto($request, $asignacion->imagen ?? $asignacion->foto);
+        $imagenDevolucionPath = $this->storeDeliveryPhoto($request, $asignacion->imagen_devolucion);
 
-        DB::transaction(function () use ($validated, $asignacion, $estadoDevolucionId, $userId, $eventoIntentoId, $imagenPath) {
+        DB::transaction(function () use ($validated, $asignacion, $estadoDevolucionId, $userId, $eventoIntentoId, $imagenDevolucionPath) {
             $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoDevolucionId);
             $asignacion->intento = ((int) $asignacion->intento) + 1;
             $asignacion->id_estados = $estadoDevolucionId;
             $asignacion->descripcion = $validated['descripcion'] ?? $asignacion->descripcion;
-            $asignacion->imagen = $imagenPath;
+            $asignacion->imagen_devolucion = $imagenDevolucionPath;
             $asignacion->save();
-            $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath);
             $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoIntentoId, $userId);
         });
 
@@ -1353,6 +1352,7 @@ class CarterosController extends Controller
                 $row['descripcion'] = $asignacion->descripcion;
                 $row['imagen'] = $asignacion->imagen ?? $asignacion->foto;
                 $row['foto'] = $asignacion->imagen ?? $asignacion->foto;
+                $row['imagen_devolucion'] = $asignacion->imagen_devolucion;
             }
 
             return $row;

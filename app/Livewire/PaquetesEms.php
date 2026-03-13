@@ -67,6 +67,11 @@ class PaquetesEms extends Component
         'transito_ems' => 'paquetes-ems.recibir-regional',
         'en_transito_ems' => 'paquetes-ems.en-transito',
     ];
+    private const ALMACEN_EMS_REGISTER_CONTRACT_PERMISSION = 'feature.paquetes-ems.almacen.registercontract';
+    private const ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION = 'feature.paquetes-ems.almacen.weighcontract';
+    private const ALMACEN_EMS_SEND_VENTANILLA_PERMISSION = 'feature.paquetes-ems.almacen.sendventanilla';
+    private const ALMACEN_EMS_SEND_REGIONAL_PERMISSION = 'feature.paquetes-ems.almacen.sendregional';
+    private const ALMACEN_EMS_REPRINT_CN33_PERMISSION = 'feature.paquetes-ems.almacen.reprintcn33';
 
     public $mode = 'admision';
     public $search = '';
@@ -435,7 +440,7 @@ class PaquetesEms extends Component
 
     public function openRegionalModal()
     {
-        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
 
         $idsEms = collect($this->selectedPaquetes)
             ->filter()
@@ -464,7 +469,7 @@ class PaquetesEms extends Component
 
     public function openRegionalContratoModal()
     {
-        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
 
         $ids = collect($this->selectedContratos)
             ->filter()
@@ -486,7 +491,7 @@ class PaquetesEms extends Component
 
     public function openContratoRegistrarModal()
     {
-        $this->authorizePermission($this->modeFeaturePermission('create', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_REGISTER_CONTRACT_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -513,7 +518,7 @@ class PaquetesEms extends Component
 
     public function registrarContratoRapido()
     {
-        $this->authorizePermission($this->modeFeaturePermission('create', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_REGISTER_CONTRACT_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -611,7 +616,7 @@ class PaquetesEms extends Component
 
     public function openContratoPesoModal()
     {
-        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -634,7 +639,7 @@ class PaquetesEms extends Component
 
     public function buscarContratoParaPeso()
     {
-        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -662,7 +667,7 @@ class PaquetesEms extends Component
 
     public function guardarPesoContratoPorCodigo()
     {
-        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -954,7 +959,7 @@ class PaquetesEms extends Component
 
     public function toggleCn33Reprint()
     {
-        $this->authorizePermission($this->modeFeaturePermission('print', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -968,7 +973,7 @@ class PaquetesEms extends Component
 
     public function reimprimirCn33()
     {
-        $this->authorizePermission($this->modeFeaturePermission('print', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -1269,7 +1274,7 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosRegional()
     {
-        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
 
         if (trim((string) $this->regionalDestino) === '') {
             session()->flash('error', 'Selecciona la ciudad de destino para regional.');
@@ -1472,7 +1477,7 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosContratosRegional()
     {
-        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
 
         if (trim((string) $this->regionalDestinoContrato) === '') {
             session()->flash('error', 'Selecciona la ciudad de destino para regional (contratos).');
@@ -1601,7 +1606,7 @@ class PaquetesEms extends Component
 
     public function mandarSeleccionadosVentanillaEms()
     {
-        $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen_ems'));
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_VENTANILLA_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             session()->flash('error', 'Esta accion solo esta disponible en ALMACEN EMS.');
@@ -2348,6 +2353,11 @@ class PaquetesEms extends Component
             'canEmsPrint' => $this->userCan($this->modeFeaturePermission('print')),
             'canEmsRestore' => $this->userCan($this->modeFeaturePermission('restore')),
             'canEmsDeliver' => $this->userCan($this->modeFeaturePermission('deliver')),
+            'canEmsRegisterContract' => $this->userCan(self::ALMACEN_EMS_REGISTER_CONTRACT_PERMISSION),
+            'canEmsWeighContract' => $this->userCan(self::ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION),
+            'canEmsSendVentanilla' => $this->userCan(self::ALMACEN_EMS_SEND_VENTANILLA_PERMISSION),
+            'canEmsSendRegional' => $this->userCan(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION),
+            'canEmsReprintCn33' => $this->userCan(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION),
             'canContratoAlmacenPrint' => $this->userCan('feature.paquetes-contrato.almacen.print'),
         ]);
     }

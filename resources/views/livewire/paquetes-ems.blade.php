@@ -379,25 +379,27 @@
                             </button>
                             @endif
                         @elseif ($this->isAlmacenEms)
-                            @if ($canEmsCreate)
+                            @if ($canEmsRegisterContract)
                             <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
                                 Registrar contrato
                             </a>
                             @endif
-                            @if ($canEmsEdit)
+                            @if ($canEmsWeighContract)
                             <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
                                 Anadir peso contrato
                             </button>
                             @endif
-                            @if ($canEmsAssign)
+                            @if ($canEmsSendVentanilla)
                             <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
                                 Enviar a ventanilla EMS
                             </button>
+                            @endif
+                            @if ($canEmsSendRegional)
                             <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
                                 Manda a regional
                             </button>
                             @endif
-                            @if ($canEmsPrint)
+                            @if ($canEmsReprintCn33)
                             <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
                                 Reimprimir CN-33
                             </button>
@@ -642,7 +644,7 @@
                         </div>
                     </form>
                 @else
-                @if ($this->isAlmacenEms && $showCn33Reprint)
+                @if ($this->isAlmacenEms && $showCn33Reprint && $canEmsReprintCn33)
                     <div class="section-block mb-3">
                         <div class="section-title">Reimprimir CN-33</div>
                         <div class="form-row align-items-end">
@@ -656,12 +658,14 @@
                                 >
                             </div>
                             <div class="form-group col-md-6 mb-2 d-flex gap-2">
+                                @if ($canEmsReprintCn33)
                                 <button class="btn btn-azul" type="button" wire:click="reimprimirCn33">
                                     Imprimir CN-33
                                 </button>
                                 <button class="btn btn-outline-azul" type="button" wire:click="toggleCn33Reprint">
                                     Cerrar
                                 </button>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -938,17 +942,17 @@
                                         <option value="1000">1000</option>
                                     </select>
                                 </div>
-                                @if ($canEmsCreate)
+                                @if ($canEmsRegisterContract)
                                 <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openContratoRegistrarModal">
                                     Registrar
                                 </button>
                                 @endif
-                                @if ($canEmsEdit)
+                                @if ($canEmsWeighContract)
                                 <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openContratoPesoModal">
                                     Anadir peso
                                 </button>
                                 @endif
-                                @if ($canEmsAssign)
+                                @if ($canEmsSendRegional)
                                 <button class="btn btn-outline-azul btn-sm" type="button" wire:click="openRegionalContratoModal">
                                     Manda contratos a regional
                                 </button>
@@ -1401,7 +1405,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    @if ($canEmsAssign)
+                    @if ($canEmsSendRegional)
                     <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosRegional">
                         Confirmar y generar manifiesto
                     </button>
@@ -1444,7 +1448,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    @if ($canEmsAssign)
+                    @if ($canEmsSendRegional)
                     <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosContratosRegional">
                         Confirmar y generar manifiesto
                     </button>
@@ -1505,7 +1509,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    @if ($canEmsCreate)
+                    @if ($canEmsRegisterContract)
                     <button type="button" class="btn btn-primary" wire:click="registrarContratoRapido">
                         Registrar
                     </button>
@@ -1535,7 +1539,7 @@
                                 wire:model.defer="contratoCodigoPeso"
                                 wire:keydown.enter.prevent="buscarContratoParaPeso"
                             >
-                            @if ($canEmsEdit)
+                            @if ($canEmsWeighContract)
                             <button type="button" class="btn btn-outline-azul" wire:click="buscarContratoParaPeso">
                                 Detectar
                             </button>
@@ -1569,7 +1573,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    @if ($canEmsEdit)
+                    @if ($canEmsWeighContract)
                     <button type="button" class="btn btn-primary" wire:click="guardarPesoContratoPorCodigo">
                         Guardar peso
                     </button>

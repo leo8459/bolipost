@@ -22,6 +22,7 @@ class Cartero extends Model
         'recibido_por',
         'descripcion',
         'imagen',
+        'imagen_devolucion',
     ];
 
     public function user()
