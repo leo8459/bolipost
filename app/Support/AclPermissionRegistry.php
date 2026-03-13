@@ -443,6 +443,19 @@ class AclPermissionRegistry
     ];
 
     /**
+     * Route access overrides for windows that can be opened from multiple feature contexts.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'paquetes-ems.create' => [
+            'paquetes-ems.create',
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+        ],
+    ];
+
+    /**
      * @var array<int, string>|null
      */
     private static ?array $cachedLivewireFeaturePermissions = null;
@@ -562,6 +575,24 @@ class AclPermissionRegistry
             self::featurePermissionName($moduleKey, $featureAction),
             self::featurePermissionName($moduleKey, 'manage'),
         ]));
+    }
+
+    /**
+     * Permission candidates that can authorize opening a route/window.
+     *
+     * @return array<int, string>
+     */
+    public static function authorizationPermissionsForRouteAccess(string $routePermission): array
+    {
+        if ($routePermission === '') {
+            return [];
+        }
+
+        if (isset(self::ROUTE_ACCESS_PERMISSION_OVERRIDES[$routePermission])) {
+            return array_values(array_unique(self::ROUTE_ACCESS_PERMISSION_OVERRIDES[$routePermission]));
+        }
+
+        return [$routePermission];
     }
 
     /**
