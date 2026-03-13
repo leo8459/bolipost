@@ -148,7 +148,9 @@
                         placeholder="Buscar..."
                         wire:model="search"
                     >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchRegistros">Buscar</button>
+                    @if ($canEventosView)
+                        <button class="btn btn-outline-light2" type="button" wire:click="searchRegistros">Buscar</button>
+                    @endif
                     @if ($canEventosCreate)
                         <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                     @endif
