@@ -42,6 +42,8 @@ class PaquetesOrdi extends Component
     public $reprintCodEspecial = '';
     public $codigoRecibir = '';
     public $previewRecibirIds = [];
+    public $reencaminarCiudad = '';
+    public $previewReencaminarIds = [];
 
     public $codigo = '';
     public $destinatario = '';
@@ -131,6 +133,122 @@ class PaquetesOrdi extends Component
         $this->codigoRecibir = '';
         $this->previewRecibirIds = [];
         $this->dispatch('openRecibirModal');
+    }
+
+    public function openReencaminarModal()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
+
+        if (! $this->isAlmacen) {
+            return;
+        }
+
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $ids = $this->filterAuthorizedIds($ids);
+
+        if (empty($ids)) {
+            session()->flash('success', 'Selecciona al menos un paquete para reencaminar.');
+            return;
+        }
+
+        $this->previewReencaminarIds = $ids;
+        $this->reencaminarCiudad = '';
+        $this->resetValidation();
+        $this->dispatch('openReencaminarModal');
+    }
+
+    public function saveReencaminar()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
+
+        if (! $this->isAlmacen) {
+            return;
+        }
+
+        $this->validate([
+            'reencaminarCiudad' => 'required|string|max:255',
+        ]);
+
+        $ids = collect($this->previewReencaminarIds)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $ids = $this->filterAuthorizedIds($ids);
+
+        if (empty($ids)) {
+            session()->flash('success', 'No hay paquetes validos para reencaminar.');
+            return;
+        }
+
+        $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
+        if (! $estadoRecibidoId) {
+            session()->flash('success', 'No existe el estado RECIBIDO en la tabla estados.');
+            return;
+        }
+
+        $ciudad = $this->upper($this->reencaminarCiudad);
+
+        $idsActualizar = PaqueteOrdi::query()
+            ->whereIn('id', $ids)
+            ->where('fk_estado', $estadoRecibidoId)
+            ->tap(fn (Builder $query) => $this->applyAccessScope($query))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (empty($idsActualizar)) {
+            session()->flash('success', 'Solo se pueden reencaminar paquetes en estado RECIBIDO.');
+            return;
+        }
+
+        $paquetesReporte = PaqueteOrdi::query()
+            ->with(['estado', 'ventanillaRef'])
+            ->whereIn('id', $idsActualizar)
+            ->orderBy('id')
+            ->get()
+            ->map(function (PaqueteOrdi $paquete) use ($ciudad) {
+                $paquete->ciudad_origen = $paquete->ciudad;
+                $paquete->ciudad_destino = $ciudad;
+
+                return $paquete;
+            });
+
+        PaqueteOrdi::query()
+            ->whereIn('id', $idsActualizar)
+            ->update(['ciudad' => $ciudad]);
+
+        $this->registrarEventosOrdiPorIds($idsActualizar, self::EVENTO_ID_CORRECCION_DATOS);
+
+        $cantidad = count($idsActualizar);
+
+        $this->selectAll = false;
+        $this->selectedPaquetes = [];
+        $this->previewReencaminarIds = [];
+        $this->reencaminarCiudad = '';
+        $this->dispatch('closeReencaminarModal');
+        session()->flash('success', $cantidad === 1
+            ? 'Paquete reencaminado correctamente.'
+            : 'Paquetes reencaminados correctamente.');
+        $this->resetPage();
+
+        $pdf = Pdf::loadView('paquetes_ordi.reporte_reencaminar', [
+            'packages' => $paquetesReporte,
+            'generatedAt' => now(),
+            'generatedBy' => (string) optional(auth()->user())->name,
+        ])->setPaper('A4', 'landscape');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'reporte-reencaminar-ordinarios-' . now()->format('Ymd-His') . '.pdf');
     }
 
     public function addCodigoRecibir()
@@ -1129,11 +1247,21 @@ class PaquetesOrdi extends Component
                 ->get();
         }
 
+        $previewReencaminarPaquetes = collect();
+        if (! empty($this->previewReencaminarIds)) {
+            $previewReencaminarPaquetes = $this->accessiblePaquetesQuery()
+                ->with(['estado', 'ventanillaRef'])
+                ->whereIn('id', $this->previewReencaminarIds)
+                ->orderBy('id')
+                ->get();
+        }
+
         return view('livewire.paquetes-ordi', [
             'paquetes' => $paquetes,
             'ventanillas' => $this->getVentanillasByCiudad(),
             'ciudadesDisponibles' => $this->ciudadesDisponibles(),
             'previewRecibirPaquetes' => $previewRecibirPaquetes,
+            'previewReencaminarPaquetes' => $previewReencaminarPaquetes,
             'canOrdiAssign' => $this->userCan($this->modeFeaturePermission('assign')),
             'canOrdiDelete' => $this->userCan($this->modeFeaturePermission('delete')),
             'canOrdiDropoff' => $this->userCan($this->modeFeaturePermission('dropoff')),

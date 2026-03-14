@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteCerti as PaqueteCertiModel;
 use App\Models\Ventanilla as VentanillaModel;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -43,8 +44,8 @@ class PaqueteCerti extends Component
     public $searchQuery = '';
     public $editingId = null;
     public $selectedPaquetes = [];
-    public $reencaminarId = null;
     public $reencaminarCuidad = '';
+    public $previewReencaminarIds = [];
 
     public $codigo = '';
     public $destinatario = '';
@@ -210,34 +211,100 @@ class PaqueteCerti extends Component
         session()->flash('success', 'Paquete certificado eliminado correctamente.');
     }
 
-    public function openReencaminarModal($id)
+    public function openReencaminarModal()
     {
-        $this->authorizePermission($this->modeFeaturePermission('edit'));
+        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
 
-        $paquete = $this->findAuthorizedPaqueteOrFail($id);
-        $this->reencaminarId = $paquete->id;
-        $this->reencaminarCuidad = $paquete->cuidad;
+        if (! $this->isAlmacen) {
+            return;
+        }
+
+        $ids = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $ids = $this->filterAuthorizedIds($ids);
+
+        if (empty($ids)) {
+            session()->flash('success', 'Selecciona al menos un paquete para reencaminar.');
+            return;
+        }
+
+        $this->previewReencaminarIds = $ids;
+        $this->reencaminarCuidad = '';
+        $this->resetValidation();
         $this->dispatch('openReencaminarModal');
     }
 
     public function saveReencaminar()
     {
-        $this->authorizePermission($this->modeFeaturePermission('edit'));
+        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
+
+        if (! $this->isAlmacen) {
+            return;
+        }
 
         $this->validate([
-            'reencaminarId' => 'required|integer|exists:paquetes_certi,id',
             'reencaminarCuidad' => 'required|string|max:255',
         ]);
 
-        $paquete = $this->findAuthorizedPaqueteOrFail($this->reencaminarId);
-        $paquete->update([
-            'cuidad' => $this->upper($this->reencaminarCuidad),
-        ]);
-        $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_CORRECCION_DATOS);
+        $ids = collect($this->previewReencaminarIds)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
 
-        $this->reset(['reencaminarId', 'reencaminarCuidad']);
+        $ids = $this->filterAuthorizedIds($ids);
+
+        if (empty($ids)) {
+            session()->flash('success', 'No hay paquetes validos para reencaminar.');
+            return;
+        }
+
+        $ciudadDestino = $this->upper($this->reencaminarCuidad);
+
+        $paquetesReporte = PaqueteCertiModel::query()
+            ->with(['estado', 'ventanillaRef'])
+            ->whereIn('id', $ids)
+            ->orderBy('id')
+            ->get()
+            ->map(function (PaqueteCertiModel $paquete) use ($ciudadDestino) {
+                $paquete->ciudad_origen = $paquete->cuidad;
+                $paquete->ciudad_destino = $ciudadDestino;
+
+                return $paquete;
+            });
+
+        PaqueteCertiModel::query()
+            ->whereIn('id', $ids)
+            ->update([
+                'cuidad' => $ciudadDestino,
+            ]);
+        $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_CORRECCION_DATOS);
+
+        $cantidad = count($ids);
+
+        $this->selectedPaquetes = [];
+        $this->reset(['reencaminarCuidad', 'previewReencaminarIds']);
         $this->dispatch('closeReencaminarModal');
-        session()->flash('success', 'Paquete reencaminado correctamente.');
+        session()->flash('success', $cantidad === 1
+            ? 'Paquete reencaminado correctamente.'
+            : 'Paquetes reencaminados correctamente.');
+        $this->resetPage();
+
+        $pdf = Pdf::loadView('paquetes_certi.reporte_reencaminar', [
+            'packages' => $paquetesReporte,
+            'generatedAt' => now(),
+            'generatedBy' => (string) optional(auth()->user())->name,
+        ])->setPaper('A4', 'landscape');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'reporte-reencaminar-certificados-' . now()->format('Ymd-His') . '.pdf');
     }
 
     public function marcarInventario($id)
@@ -612,8 +679,18 @@ class PaqueteCerti extends Component
             ->orderByDesc('id')
             ->paginate(10);
 
+        $previewReencaminarPaquetes = collect();
+        if (! empty($this->previewReencaminarIds)) {
+            $previewReencaminarPaquetes = $this->authorizedPaquetesQuery()
+                ->with(['estado', 'ventanillaRef'])
+                ->whereIn('id', $this->previewReencaminarIds)
+                ->orderBy('id')
+                ->get();
+        }
+
         return view('livewire.paquete-certi', [
             'paquetes' => $paquetes,
+            'previewReencaminarPaquetes' => $previewReencaminarPaquetes,
             'estados' => EstadoModel::orderBy('nombre_estado')->get(),
             'ventanillas' => $this->ventanillasQuery()->orderBy('nombre_ventanilla')->get(),
             'canCertiCreate' => $this->userCan($this->modeFeaturePermission('create')),

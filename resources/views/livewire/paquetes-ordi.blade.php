@@ -92,6 +92,11 @@
                         @endif
                     @endif
                     @if ($this->isAlmacen)
+                        @if ($canOrdiEdit)
+                        <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
+                            Reencaminar
+                        </button>
+                        @endif
                         @if ($canOrdiAssign)
                         <button class="btn btn-outline-light2" type="button" wire:click="openRecibirModal">
                             Recibir paquetes
@@ -518,6 +523,76 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="reencaminarModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <form wire:submit.prevent="saveReencaminar">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reencaminar paquetes seleccionados</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Ciudad destino</label>
+                            <select wire:model.defer="reencaminarCiudad" class="form-control uppercase-input">
+                                <option value="">Seleccione</option>
+                                <option value="LA PAZ">LA PAZ</option>
+                                <option value="COCHABAMBA">COCHABAMBA</option>
+                                <option value="SANTA CRUZ">SANTA CRUZ</option>
+                                <option value="ORURO">ORURO</option>
+                                <option value="POTOSI">POTOSI</option>
+                                <option value="SUCRE">SUCRE</option>
+                                <option value="TARIJA">TARIJA</option>
+                                <option value="TRINIDAD">TRINIDAD</option>
+                                <option value="COBIJA">COBIJA</option>
+                            </select>
+                            @error('reencaminarCiudad') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Codigo</th>
+                                        <th>Destinatario</th>
+                                        <th>Telefono</th>
+                                        <th>Ciudad actual</th>
+                                        <th>Zona</th>
+                                        <th>Ventanilla</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($previewReencaminarPaquetes as $paquete)
+                                        <tr>
+                                            <td>{{ $paquete->codigo }}</td>
+                                            <td>{{ $paquete->destinatario }}</td>
+                                            <td>{{ $paquete->telefono }}</td>
+                                            <td>{{ $paquete->ciudad }}</td>
+                                            <td>{{ $paquete->zona ?? '-' }}</td>
+                                            <td>{{ optional($paquete->ventanillaRef)->nombre_ventanilla ?? '-' }}</td>
+                                            <td>{{ optional($paquete->estado)->nombre_estado ?? '-' }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted">Sin paquetes seleccionados</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar actualizacion</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -547,6 +622,14 @@
 
     window.addEventListener('closeRecibirModal', () => {
         $('#recibirModal').modal('hide');
+    });
+
+    window.addEventListener('openReencaminarModal', () => {
+        $('#reencaminarModal').modal('show');
+    });
+
+    window.addEventListener('closeReencaminarModal', () => {
+        $('#reencaminarModal').modal('hide');
     });
 </script>
 

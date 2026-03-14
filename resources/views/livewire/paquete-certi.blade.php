@@ -153,6 +153,11 @@
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
                     @if ($this->isAlmacen)
+                        @if ($canCertiEdit)
+                        <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
+                            Reencaminar
+                        </button>
+                        @endif
                         @if ($canCertiDropoff)
                         <button class="btn btn-outline-light2" type="button"
                             wire:click.prevent="bajaMasiva">
@@ -470,18 +475,18 @@
     </div>
 
     <div class="modal fade" id="reencaminarModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <form wire:submit.prevent="saveReencaminar">
                     <div class="modal-header">
-                        <h5 class="modal-title">Reencaminar paquete</h5>
+                        <h5 class="modal-title">Reencaminar paquetes seleccionados</h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group">
-                            <label>Asignar la ciudad al paquete:</label>
+                            <label>Ciudad destino</label>
                             <select wire:model.defer="reencaminarCuidad" class="form-control uppercase-input">
                                 <option value="">Seleccione</option>
                                 <option value="LA PAZ">LA PAZ</option>
@@ -496,10 +501,43 @@
                             </select>
                             @error('reencaminarCuidad') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Codigo</th>
+                                        <th>Destinatario</th>
+                                        <th>Telefono</th>
+                                        <th>Ciudad actual</th>
+                                        <th>Zona</th>
+                                        <th>Ventanilla</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($previewReencaminarPaquetes as $paquete)
+                                        <tr>
+                                            <td>{{ $paquete->codigo }}</td>
+                                            <td>{{ $paquete->destinatario }}</td>
+                                            <td>{{ $paquete->telefono }}</td>
+                                            <td>{{ $paquete->cuidad }}</td>
+                                            <td>{{ $paquete->zona }}</td>
+                                            <td>{{ optional($paquete->ventanillaRef)->nombre_ventanilla ?? $paquete->ventanilla }}</td>
+                                            <td>{{ optional($paquete->estado)->nombre_estado ?? 'Sin estado' }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted">Sin paquetes seleccionados</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="submit" class="btn btn-primary">Guardar actualizacion</button>
                     </div>
                 </form>
             </div>
