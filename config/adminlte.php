@@ -348,6 +348,11 @@ return [
             ],
         ],
         [
+            'text' => 'BITACORAS',
+            'url' => '/bitacoras',
+            'icon' => 'fas fa-book',
+        ],
+        [
             'text' => 'Admisiones',
             'icon' => 'fas fa-inbox',
             'submenu' => [

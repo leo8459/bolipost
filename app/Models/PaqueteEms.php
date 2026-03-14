@@ -54,4 +54,9 @@ class PaqueteEms extends Model
     {
         return $this->hasOne(PaqueteEmsFormulario::class, 'paquete_ems_id');
     }
+
+    public function bitacoras()
+    {
+        return $this->hasMany(Bitacora::class, 'paquetes_ems_id');
+    }
 }

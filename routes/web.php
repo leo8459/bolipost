@@ -36,6 +36,7 @@ use App\Http\Controllers\ZonaPaqueteController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\AclController;
+use App\Http\Controllers\BitacoraController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -175,6 +176,12 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/tarifa-contrato/{tarifaContrato}/edit', [TarifaContratoController::class, 'edit'])->name('tarifa-contrato.edit');
     Route::put('/tarifa-contrato/{tarifaContrato}', [TarifaContratoController::class, 'update'])->name('tarifa-contrato.update');
     Route::delete('/tarifa-contrato/{tarifaContrato}', [TarifaContratoController::class, 'destroy'])->name('tarifa-contrato.destroy');
+    Route::get('/bitacoras', [BitacoraController::class, 'index'])->name('bitacoras.index');
+    Route::get('/bitacoras/create', [BitacoraController::class, 'create'])->name('bitacoras.create');
+    Route::post('/bitacoras', [BitacoraController::class, 'store'])->name('bitacoras.store');
+    Route::get('/bitacoras/{bitacora}/edit', [BitacoraController::class, 'edit'])->name('bitacoras.edit');
+    Route::put('/bitacoras/{bitacora}', [BitacoraController::class, 'update'])->name('bitacoras.update');
+    Route::delete('/bitacoras/{bitacora}', [BitacoraController::class, 'destroy'])->name('bitacoras.destroy');
     Route::get('/paquetes-certificados/almacen', [PaquetesCertiController::class, 'almacen'])->name('paquetes-certificados.almacen');
     Route::get('/paquetes-certificados/inventario', [PaquetesCertiController::class, 'inventario'])->name('paquetes-certificados.inventario');
     Route::get('/paquetes-certificados/rezago', [PaquetesCertiController::class, 'rezago'])->name('paquetes-certificados.rezago');
