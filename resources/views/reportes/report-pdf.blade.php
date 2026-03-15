@@ -248,6 +248,6 @@
     </tfoot>
 </table>
 
-<div class="footer">Agencia Boliviana de Correos | Sistema de Reportes</div>
+<div class="footer">Correos de Bolivia | Sistema de Reportes</div>
 </body>
 </html>

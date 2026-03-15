@@ -21,7 +21,7 @@
         $tieneIncidencia = str_contains($eventoTextos, 'fall') || str_contains($eventoTextos, 'incid') || str_contains($eventoTextos, 'devuelt');
         $fechaUltima = \Illuminate\Support\Carbon::parse($ultimoEvento->created_at);
         $servicioActual = strtoupper((string) ($ultimoEvento->servicio ?? 'EMS'));
-        $origenLabel = 'Agencia Boliviana de Correos';
+        $origenLabel = 'Correos de Bolivia';
         $origenIso2 = null;
 
         $primerPaso = in_array($servicioActual, ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';

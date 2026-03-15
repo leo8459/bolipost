@@ -411,7 +411,7 @@
 </div>
 
 <div style="text-align:right; font-size:7.8px; color:#7d91aa; margin-top:2px;">
-    Agencia Boliviana de Correos | Board-Level Operational Intelligence
+    Correos de Bolivia | Board-Level Operational Intelligence
 </div>
 </body>
 </html>

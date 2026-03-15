@@ -1,7 +1,7 @@
 ﻿<footer class="site-footer" id="contacto">
     <div class="container footer-top">
         <div class="footer-callout">
-            <h3>Te invitamos a visitar nuestra pagina web de la Agencia Boliviana de Correos</h3>
+            <h3>Te invitamos a visitar nuestra pagina web de Correos de Bolivia</h3>
             <p>En nuestro sitio encontraras informacion sobre servicios postales, institucion, horarios de atencion y ubicaciones de oficinas a nivel nacional.</p>
             <a class="btn btn-light" href="https://correos.gob.bo" target="_blank" rel="noopener noreferrer">Visitar</a>
         </div>
@@ -10,7 +10,7 @@
     <div class="container footer-grid">
         <div class="footer-col">
             <div class="footer-brand">
-                <img src="{{ asset('images/AGBClogo2.png') }}" alt="Agencia Boliviana de Correos">
+                <img src="{{ asset('images/AGBClogo2.png') }}" alt="Correos de Bolivia">
             </div>
         </div>
 
@@ -69,6 +69,6 @@
     <div class="container footer-contact">
         Contacto: (591-2) 2152423 - Av. Mariscal Santa Cruz Esq. C. Oruro Edif. Telecomunicaciones - agbc@correos.gob.bo
     </div>
-    <div class="footer-copy">&copy; 2026 Todos los derechos reservados - Agencia Boliviana de Correos</div>
+    <div class="footer-copy">&copy; 2026 Todos los derechos reservados - Correos de Bolivia</div>
     <div class="footer-copy footer-copy-tight">Copyright &copy; MAER 2026</div>
 </footer>

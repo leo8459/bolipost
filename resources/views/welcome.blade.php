@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TrackingBo | Plataforma Empresarial Postal</title>
-    <meta name="description" content="TrackingBo ofrece rastreo postal y gesti&#xF3;n operativa con enfoque empresarial e institucional.">
+    <title>TrackingBO | Plataforma Empresarial Postal</title>
+    <meta name="description" content="TrackingBO ofrece rastreo postal y gesti&#xF3;n operativa con enfoque empresarial e institucional.">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
     <link rel="shortcut icon" href="{{ asset('favicon-32x32.png') }}">
@@ -25,7 +25,7 @@
                 <div>
                     <p class="kicker reveal">&#xBF;Est&#xE1;s buscando tu paquete?</p>
                     <h1 class="reveal">RASTREA TU C&#xD3;DIGO</h1>
-                    <p class="reveal">Este es un servicio de seguimiento de c&#xF3;digo de rastreo postal a nivel internacional y nacional de la Agencia Boliviana de Correos.</p>
+                    <p class="reveal">Este es un servicio de seguimiento de c&#xF3;digo de rastreo postal a nivel internacional y nacional de Correos de Bolivia.</p>
                     <div class="hero-track reveal">
                         <div class="hero-track-title">Rastrea tu c&#xF3;digo</div>
                         <form class="hero-track-form" id="trackForm" action="{{ route('tracking.demo') }}" method="GET">
@@ -72,7 +72,7 @@
                 </div>
 
                 <div class="hero-figure" id="heroFigure">
-                    <img class="hero-img reveal" src="{{ asset('images/MONITO.png') }}" alt="Operador TrackingBo">
+                    <img class="hero-img reveal" src="{{ asset('images/MONITO.png') }}" alt="Operador TrackingBO">
                 </div>
             </div>
         </section>
@@ -106,7 +106,7 @@
             <div class="container">
                 <div class="reveal">
                     <div class="service-title">
-                        <h3>Enviar y Recoger Paquetes con la Agencia Boliviana de Correos: Simple y R&#xE1;pido</h3>
+                        <h3>Enviar y Recoger Paquetes con Correos de Bolivia: Simple y R&#xE1;pido</h3>
                         <div class="service-divider"></div>
                     </div>
                     <div class="service-journey">
@@ -114,7 +114,7 @@
                             <div class="service-copy">
                                 <span class="service-pill">Env&#xED;o de paquetes</span>
                                 <h4>Env&#xED;a tus paquetes en nuestras oficinas</h4>
-                                <p>Env&#xED;a tus paquetes en la Agencia Boliviana de Correos de manera sencilla. Visita nuestras oficinas cercanas, empaca bien tu paquete y proporciona la direcci&#xF3;n del destinatario.</p>
+                                <p>Env&#xED;a tus paquetes en Correos de Bolivia de manera sencilla. Visita nuestras oficinas cercanas, empaca bien tu paquete y proporciona la direcci&#xF3;n del destinatario.</p>
                                 <h5>Requerimientos para el env&#xED;o de paquetes:</h5>
                                 <ul class="service-list">
                                     <li>Fotocopia de C.I.</li>
@@ -135,7 +135,7 @@
                             <div class="service-copy">
                                 <span class="service-pill">Recojo de paquetes</span>
                                 <h4>Recoge tus paquetes en nuestras oficinas</h4>
-                                <p>Para recoger paquetes en la Agencia Boliviana de Correos, sigue pasos simples: ve a nuestras oficinas cuando recibas un aviso, lleva una identificaci&#xF3;n v&#xE1;lida y el c&#xF3;digo de rastreo.</p>
+                                <p>Para recoger paquetes en Correos de Bolivia, sigue pasos simples: ve a nuestras oficinas cuando recibas un aviso, lleva una identificaci&#xF3;n v&#xE1;lida y el c&#xF3;digo de rastreo.</p>
                                 <h5>Requerimientos para recoger tus paquetes:</h5>
                                 <ul class="service-list">
                                     <li>C.I. o pasaporte vigente.</li>

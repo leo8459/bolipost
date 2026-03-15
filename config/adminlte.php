@@ -14,9 +14,9 @@ return [
     |
     */
 
-    'title' => 'TrackingBo',
+    'title' => 'TrackingBO',
     'title_prefix' => '',
-    'title_postfix' => '| TrackingBo',
+    'title_postfix' => '| TrackingBO',
 
     /*
     |--------------------------------------------------------------------------
@@ -63,12 +63,12 @@ return [
     |
     */
 
-    'logo' => '<b>Tracking</b>Bo',
+    'logo' => '<b>Tracking</b>BO',
     'logo_img' => 'images/AGBClogo2.png',
     'logo_img_class' => 'brand-image img-circle',
     'logo_img_xl' => null,
     'logo_img_xl_class' => 'brand-image-xs',
-    'logo_img_alt' => 'TrackingBo',
+    'logo_img_alt' => 'TrackingBO',
 
     /*
     |--------------------------------------------------------------------------
@@ -87,7 +87,7 @@ return [
         'enabled' => true,
         'img' => [
             'path' => 'images/AGBClogo2.png',
-            'alt' => 'TrackingBo',
+            'alt' => 'TrackingBO',
             'class' => '',
             'width' => 50,
             'height' => 50,
