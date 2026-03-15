@@ -363,26 +363,26 @@ return [
                 ],
             ],
         ],
-                [
+        [
             'text' => 'Paquetes Contratos',
             'icon' => 'fas fa-file-contract',
             'submenu' => [
-                
+
                 [
                     'text' => 'Consulta de Contratos',
                     'icon' => 'fas fa-search',
                     'submenu' => [
-                        
-                       [
-                    'text' => 'Todos los contratos',
-                    'url' => 'area-contratos/todos',
-                    'icon' => 'fas fa-list',
-                ],
-                [
-                    'text' => 'Todos los entregados',
-                    'url' => 'area-contratos/entregados',
-                    'icon' => 'fas fa-check-circle',
-                ],
+
+                        [
+                            'text' => 'Todos los contratos',
+                            'url' => 'area-contratos/todos',
+                            'icon' => 'fas fa-list',
+                        ],
+                        [
+                            'text' => 'Todos los entregados',
+                            'url' => 'area-contratos/entregados',
+                            'icon' => 'fas fa-check-circle',
+                        ],
                     ],
                 ],
                 [
@@ -726,6 +726,51 @@ return [
                     'icon' => 'fas fa-window-restore',
                 ],
                 [
+                    'text' => 'Rendimiento',
+                    'url' => '/pulse',
+
+                    'icon' => 'fas fa-chart-line',
+                ],
+                [
+                    'text' => 'Logs',
+                    'url' => '/log-viewer',
+
+                    'icon' => 'fas fa-file-alt',
+                ],
+                [
+                    'text' => 'Respaldos',
+                    'url' => '/respaldos',
+                    'icon' => 'fas fa-save',
+                ],
+                [
+                    'text' => 'Impotaciones',
+                    'icon' => 'fas fa-file-import',
+                    'submenu' => [
+                        [
+                            'text' => 'Tarifas',
+                            'icon' => 'fas fa-tags',
+                            'submenu' => [
+                                [
+                                    'text' => 'Importar Tarifas',
+                                    'url' => 'tarifa-contrato/import',
+                                    'icon' => 'fas fa-file-excel',
+                                ],
+                            ],
+                        ],
+                        [
+                            'text' => 'Paquetes',
+                            'icon' => 'fas fa-boxes',
+                            'submenu' => [
+                                [
+                                    'text' => 'Importacion de Paquetes',
+                                    'url' => 'importar/paquets',
+                                    'icon' => 'fas fa-upload',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                [
                     'text' => 'Configuracion de tarifas',
                     'icon' => 'fas fa-tags',
                     'submenu' => [
@@ -785,51 +830,7 @@ return [
                 ],
             ],
         ],
-        [
-            'text' => 'Impotaciones',
-            'icon' => 'fas fa-file-import',
-            'submenu' => [
-                [
-                    'text' => 'Tarifas',
-                    'icon' => 'fas fa-tags',
-                    'submenu' => [
-                        [
-                            'text' => 'Importar Tarifas',
-                            'url' => 'tarifa-contrato/import',
-                            'icon' => 'fas fa-file-excel',
-                        ],
-                    ],
-                ],
-                [
-                    'text' => 'Paquetes',
-                    'icon' => 'fas fa-boxes',
-                    'submenu' => [
-                        [
-                            'text' => 'Importacion de Paquetes',
-                            'url' => 'importar/paquets',
-                            'icon' => 'fas fa-upload',
-                        ],
-                    ],
-                ],
-            ],
-        ],
-        [
-            'text' => 'Rendimiento',
-            'url' => '/pulse',
 
-            'icon' => 'fas fa-chart-line',
-        ],
-        [
-            'text' => 'Logs',
-            'url' => '/log-viewer',
-
-            'icon' => 'fas fa-file-alt',
-        ],
-        [
-            'text' => 'Respaldos',
-            'url' => '/respaldos',
-            'icon' => 'fas fa-save',
-        ],
     ],
 
     /*
