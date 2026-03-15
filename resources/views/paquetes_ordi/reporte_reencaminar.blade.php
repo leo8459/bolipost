@@ -4,34 +4,67 @@
     <meta charset="UTF-8">
     <title>Reporte de Reencaminado Ordinarios</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #1f2937; }
-        h1 { margin: 0 0 6px; font-size: 18px; }
-        .meta { margin-bottom: 14px; font-size: 10px; color: #4b5563; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; }
-        th { background: #e5eefb; color: #1d4f91; font-weight: bold; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #000; padding: 4px; vertical-align: middle; }
+        th { font-weight: 800; }
+        .text-center { text-align: center; }
         .text-right { text-align: right; }
+        .header { width: 100%; margin-bottom: 10px; }
+        .header td { border: 0; vertical-align: top; }
+        .title-main { margin: 0; font-size: 26px; font-weight: 800; line-height: 1.05; }
+        .title-sub { margin: 4px 0 0 0; font-size: 18px; font-weight: 800; line-height: 1.1; }
+        .report-code { text-align: right; font-size: 22px; font-weight: 800; line-height: 1; margin-bottom: 6px; }
+        .section-space { margin-top: 14px; }
+        .no-border { border: 0 !important; }
+        .special-text { text-align: center; font-size: 11px; line-height: 1.1; border: 0; }
     </style>
 </head>
 <body>
-    <h1>Reporte de Reencaminado - Paquetes Ordinarios</h1>
-    <div class="meta">
-        Generado por: {{ $generatedBy !== '' ? $generatedBy : 'N/A' }} |
-        Fecha: {{ optional($generatedAt)->format('d/m/Y H:i') }} |
-        Total: {{ $packages->count() }}
-    </div>
+    <table class="header">
+        <tr>
+            <td style="width: 30%;">
+                <img src="{{ public_path('images/images.png') }}" alt="" width="160" height="55">
+            </td>
+            <td style="width: 40%;" class="text-center">
+                <h2 class="title-main">Reporte de Reencaminado</h2>
+                <h3 class="title-sub">Paquetes Ordinarios</h3>
+                <div><strong>AGENCIA BOLIVIANA DE CORREOS</strong></div>
+            </td>
+            <td style="width: 30%;" class="text-center">
+                <div class="report-code">RPT</div>
+                <div>{{ optional($generatedAt)->format('d/m/Y H:i') }}</div>
+            </td>
+        </tr>
+    </table>
 
+    <table>
+        <tr>
+            <th style="width: 20%;">Generado por</th>
+            <td style="width: 30%;">{{ $generatedBy !== '' ? $generatedBy : 'N/A' }}</td>
+            <th style="width: 20%;">Fecha</th>
+            <td style="width: 30%;">{{ optional($generatedAt)->format('d/m/Y H:i') }}</td>
+        </tr>
+        <tr>
+            <th>Total de paquetes</th>
+            <td>{{ $packages->count() }}</td>
+            <th>Tipo</th>
+            <td>Ordinarios</td>
+        </tr>
+    </table>
+
+    <div class="section-space"><strong>Detalle de paquetes reencaminados</strong></div>
     <table>
         <thead>
             <tr>
-                <th>Codigo</th>
+                <th style="width: 12%;">Codigo</th>
                 <th>Destinatario</th>
-                <th>Telefono</th>
-                <th>Ciudad origen</th>
-                <th>Ciudad destino</th>
-                <th>Zona</th>
-                <th>Ventanilla</th>
-                <th>Estado</th>
+                <th style="width: 12%;">Telefono</th>
+                <th style="width: 12%;">Ciudad origen</th>
+                <th style="width: 12%;">Ciudad destino</th>
+                <th style="width: 10%;">Zona</th>
+                <th style="width: 14%;">Ventanilla</th>
+                <th style="width: 12%;">Estado</th>
             </tr>
         </thead>
         <tbody>
@@ -48,6 +81,20 @@
                 </tr>
             @endforeach
         </tbody>
+    </table>
+
+    <table style="margin-top: 50px;">
+        <tr>
+            <td class="special-text no-border">
+                __________________________<br>
+                RECIBIDO POR
+            </td>
+            <td class="special-text no-border">
+                __________________________<br>
+                ENTREGADO POR<br>
+                {{ $generatedBy !== '' ? $generatedBy : 'N/A' }}
+            </td>
+        </tr>
     </table>
 </body>
 </html>
