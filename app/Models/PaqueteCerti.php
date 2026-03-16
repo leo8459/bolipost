@@ -13,6 +13,7 @@ class PaqueteCerti extends Model
 
     protected $fillable = [
         'codigo',
+        'cod_especial',
         'destinatario',
         'telefono',
         'cuidad',

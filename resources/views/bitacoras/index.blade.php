@@ -80,6 +80,8 @@
                                         <th>Usuario</th>
                                         <th>Paquete EMS</th>
                                         <th>Paquete Contrato</th>
+                                        <th>Paquete Ordinario</th>
+                                        <th>Paquete Certificado</th>
                                         <th>Transportadora</th>
                                         <th>Provincia</th>
                                         <th>Factura</th>
@@ -105,6 +107,20 @@
                                             <td>
                                                 @if($bitacora->paqueteContrato)
                                                     #{{ $bitacora->paqueteContrato->id }} - {{ $bitacora->paqueteContrato->codigo }}
+                                                @else
+                                                    -
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if($bitacora->paqueteOrdi)
+                                                    #{{ $bitacora->paqueteOrdi->id }} - {{ $bitacora->paqueteOrdi->codigo }}
+                                                @else
+                                                    -
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if($bitacora->paqueteCerti)
+                                                    #{{ $bitacora->paqueteCerti->id }} - {{ $bitacora->paqueteCerti->codigo }}
                                                 @else
                                                     -
                                                 @endif
@@ -143,7 +159,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="12" class="text-center py-4">No hay registros</td>
+                                            <td colspan="14" class="text-center py-4">No hay registros</td>
                                         </tr>
                                     @endforelse
                                 </tbody>

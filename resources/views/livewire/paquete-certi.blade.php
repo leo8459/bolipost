@@ -205,6 +205,7 @@
                                     <th></th>
                                 @endif
                                 <th>Codigo</th>
+                                <th>Cod. Especial</th>
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
                                 <th>Cuidad</th>
@@ -227,6 +228,7 @@
                                         </td>
                                     @endif
                                     <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
+                                    <td>{{ $paquete->cod_especial ?? '-' }}</td>
                                     <td>{{ $paquete->destinatario }}</td>
                                     <td>{{ $paquete->telefono }}</td>
                                     <td>{{ $paquete->cuidad }}</td>
@@ -271,7 +273,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $this->isAlmacen ? 13 : 12 }}" class="text-center py-5">
+                                    <td colspan="{{ $this->isAlmacen ? 14 : 13 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -307,6 +309,16 @@
                                 <label>Codigo</label>
                                 <input type="text" wire:model.defer="codigo" class="form-control uppercase-input">
                                 @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label>Cod. especial</label>
+                                <input
+                                    type="text"
+                                    wire:model.defer="cod_especial"
+                                    class="form-control uppercase-input"
+                                    placeholder="Se genera automaticamente al despachar"
+                                >
+                                @error('cod_especial') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Destinatario</label>

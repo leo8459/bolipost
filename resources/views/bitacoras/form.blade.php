@@ -8,7 +8,9 @@
             <div class="alert alert-info">
                 Usuario logueado: <strong>{{ auth()->user()->name ?? 'Usuario del sistema' }}</strong>
                 <br>
-                Escribe el <strong>cod_especial</strong> y el sistema registrara automaticamente una bitacora por cada paquete EMS y contrato que tenga ese codigo.
+                Escribe el <strong>cod_especial</strong> y el sistema registrara automaticamente una bitacora por cada paquete EMS, contrato y ordinario relacionado.
+                <br>
+                Para <strong>certificados</strong>, puedes ingresar su <strong>cod_especial</strong> o su <strong>codigo</strong> y tambien se registraran en la bitacora.
             </div>
 
             <div class="row">
@@ -21,7 +23,7 @@
                             name="cod_especial"
                             value="{{ old('cod_especial', $bitacora->cod_especial) }}"
                             class="form-control @error('cod_especial') is-invalid @enderror"
-                            placeholder="Ej: LPZ00001"
+                            placeholder="Ej: LPZ00001 o codigo certificado"
                         >
                         @error('cod_especial')
                             <div class="invalid-feedback">{{ $message }}</div>

@@ -48,6 +48,7 @@ class PaqueteCerti extends Component
     public $previewReencaminarIds = [];
 
     public $codigo = '';
+    public $cod_especial = '';
     public $destinatario = '';
     public $telefono = '';
     public $cuidad = '';
@@ -130,6 +131,7 @@ class PaqueteCerti extends Component
 
         $this->editingId = $paquete->id;
         $this->codigo = $paquete->codigo;
+        $this->cod_especial = $paquete->cod_especial ?? '';
         $this->destinatario = $paquete->destinatario;
         $this->telefono = $paquete->telefono;
         $this->cuidad = $paquete->cuidad;
@@ -318,9 +320,14 @@ class PaqueteCerti extends Component
         }
 
         $paquete = $this->findAuthorizedPaqueteOrFail($id);
-        $paquete->update([
-            'fk_estado' => $estadoEntregadoId,
-        ]);
+        DB::transaction(function () use ($paquete, $estadoEntregadoId) {
+            $paquete->refresh();
+            if ($this->emptyToNull($paquete->cod_especial) === null) {
+                $paquete->cod_especial = $this->nextCertiCodEspecial();
+            }
+            $paquete->fk_estado = $estadoEntregadoId;
+            $paquete->save();
+        });
         $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
         session()->flash('success', 'Paquete enviado a ENTREGADO.');
     }
@@ -348,9 +355,21 @@ class PaqueteCerti extends Component
             return;
         }
 
-        PaqueteCertiModel::query()
-            ->whereIn('id', $ids)
-            ->update(['fk_estado' => $estadoEntregadoId]);
+        DB::transaction(function () use ($ids, $estadoEntregadoId) {
+            $codEspecial = $this->nextCertiCodEspecial();
+
+            PaqueteCertiModel::query()
+                ->whereIn('id', $ids)
+                ->where(function ($query) {
+                    $query->whereNull('cod_especial')
+                        ->orWhereRaw("trim(cod_especial) = ''");
+                })
+                ->update(['cod_especial' => $codEspecial]);
+
+            PaqueteCertiModel::query()
+                ->whereIn('id', $ids)
+                ->update(['fk_estado' => $estadoEntregadoId]);
+        });
         $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
 
         $this->selectedPaquetes = [];
@@ -387,9 +406,21 @@ class PaqueteCerti extends Component
             return;
         }
 
-        PaqueteCertiModel::query()
-            ->whereIn('id', $ids)
-            ->update(['fk_estado' => $estadoRezagoId]);
+        DB::transaction(function () use ($ids, $estadoRezagoId) {
+            $codEspecial = $this->nextCertiCodEspecial();
+
+            PaqueteCertiModel::query()
+                ->whereIn('id', $ids)
+                ->where(function ($query) {
+                    $query->whereNull('cod_especial')
+                        ->orWhereRaw("trim(cod_especial) = ''");
+                })
+                ->update(['cod_especial' => $codEspecial]);
+
+            PaqueteCertiModel::query()
+                ->whereIn('id', $ids)
+                ->update(['fk_estado' => $estadoRezagoId]);
+        });
         $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_RETENIDO_PUNTO_ENTREGA);
 
         $this->selectedPaquetes = [];
@@ -436,6 +467,7 @@ class PaqueteCerti extends Component
     {
         $this->reset([
             'codigo',
+            'cod_especial',
             'destinatario',
             'telefono',
             'cuidad',
@@ -454,6 +486,7 @@ class PaqueteCerti extends Component
     {
         return [
             'codigo' => 'required|string|max:255',
+            'cod_especial' => 'nullable|string|max:255',
             'destinatario' => 'required|string|max:255',
             'telefono' => 'required|integer|min:0',
             'cuidad' => 'required|string|max:255',
@@ -520,6 +553,7 @@ class PaqueteCerti extends Component
 
         return [
             'codigo' => $this->upper($this->codigo),
+            'cod_especial' => $this->emptyToNull($this->cod_especial),
             'destinatario' => $this->upper($this->destinatario),
             'telefono' => $this->telefono,
             'cuidad' => $this->upper($this->cuidad),
@@ -536,6 +570,35 @@ class PaqueteCerti extends Component
     protected function upper($value)
     {
         return strtoupper(trim((string) $value));
+    }
+
+    protected function emptyToNull($value): ?string
+    {
+        $text = trim((string) $value);
+
+        return $text === '' ? null : $this->upper($text);
+    }
+
+    protected function nextCertiCodEspecial(): string
+    {
+        return 'C' . str_pad((string) $this->nextCertiCorrelative(), 5, '0', STR_PAD_LEFT);
+    }
+
+    protected function nextCertiCorrelative(): int
+    {
+        $lastCode = PaqueteCertiModel::query()
+            ->whereRaw("cod_especial ~ '^C[0-9]{5}$'")
+            ->lockForUpdate()
+            ->orderByDesc('cod_especial')
+            ->value('cod_especial');
+
+        if (!$lastCode) {
+            return 1;
+        }
+
+        $number = (int) substr((string) $lastCode, 1, 5);
+
+        return $number > 0 ? $number + 1 : 1;
     }
 
     protected function getEstadoIdByNombre(string $nombre): ?int

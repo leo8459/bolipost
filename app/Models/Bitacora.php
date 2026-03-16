@@ -14,6 +14,8 @@ class Bitacora extends Model
     protected $fillable = [
         'paquetes_ems_id',
         'paquetes_contrato_id',
+        'paquetes_ordi_id',
+        'paquetes_certi_id',
         'user_id',
         'cod_especial',
         'transportadora',
@@ -37,6 +39,16 @@ class Bitacora extends Model
     public function paqueteContrato()
     {
         return $this->belongsTo(Recojo::class, 'paquetes_contrato_id');
+    }
+
+    public function paqueteOrdi()
+    {
+        return $this->belongsTo(PaqueteOrdi::class, 'paquetes_ordi_id');
+    }
+
+    public function paqueteCerti()
+    {
+        return $this->belongsTo(PaqueteCerti::class, 'paquetes_certi_id');
     }
 
     public function user()

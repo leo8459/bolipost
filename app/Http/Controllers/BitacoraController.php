@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Bitacora;
+use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
+use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +30,8 @@ class BitacoraController extends Controller
                 'user:id,name',
                 'paqueteEms:id,codigo,cod_especial',
                 'paqueteContrato:id,codigo,cod_especial',
+                'paqueteOrdi:id,codigo,cod_especial',
+                'paqueteCerti:id,codigo,cod_especial',
             ])
             ->when($userId > 0, function ($query) use ($userId) {
                 $query->where('user_id', $userId);
@@ -53,6 +57,14 @@ class BitacoraController extends Controller
                         })
                         ->orWhereHas('paqueteContrato', function ($contratoQuery) use ($q) {
                             $contratoQuery->where('codigo', 'ILIKE', "%{$q}%")
+                                ->orWhere('cod_especial', 'ILIKE', "%{$q}%");
+                        })
+                        ->orWhereHas('paqueteOrdi', function ($ordiQuery) use ($q) {
+                            $ordiQuery->where('codigo', 'ILIKE', "%{$q}%")
+                                ->orWhere('cod_especial', 'ILIKE', "%{$q}%");
+                        })
+                        ->orWhereHas('paqueteCerti', function ($certiQuery) use ($q) {
+                            $certiQuery->where('codigo', 'ILIKE', "%{$q}%")
                                 ->orWhere('cod_especial', 'ILIKE', "%{$q}%");
                         });
                 });
@@ -167,8 +179,19 @@ class BitacoraController extends Controller
                 ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codEspecial])
                 ->exists();
 
-            if (!$emsExists && !$contratoExists) {
-                $validator->errors()->add('cod_especial', 'No existen paquetes EMS ni contratos con ese cod_especial.');
+            $ordiExists = PaqueteOrdi::query()
+                ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codEspecial])
+                ->exists();
+
+            $certiExists = PaqueteCerti::query()
+                ->where(function ($query) use ($codEspecial) {
+                    $query->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codEspecial])
+                        ->orWhereRaw('trim(upper(COALESCE(codigo, \'\'))) = ?', [$codEspecial]);
+                })
+                ->exists();
+
+            if (!$emsExists && !$contratoExists && !$ordiExists && !$certiExists) {
+                $validator->errors()->add('cod_especial', 'No existen paquetes EMS, contratos, ordinarios o certificados con ese codigo.');
             }
         });
 
@@ -207,6 +230,19 @@ class BitacoraController extends Controller
             ->orderBy('id')
             ->get(['id']);
 
+        $ordinarios = PaqueteOrdi::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codEspecial])
+            ->orderBy('id')
+            ->get(['id']);
+
+        $certificados = PaqueteCerti::query()
+            ->where(function ($query) use ($codEspecial) {
+                $query->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codEspecial])
+                    ->orWhereRaw('trim(upper(COALESCE(codigo, \'\'))) = ?', [$codEspecial]);
+            })
+            ->orderBy('id')
+            ->get(['id']);
+
         $total = 0;
         $items = collect();
 
@@ -214,6 +250,8 @@ class BitacoraController extends Controller
             $items->push([
                 'paquetes_ems_id' => (int) $paquete->id,
                 'paquetes_contrato_id' => null,
+                'paquetes_ordi_id' => null,
+                'paquetes_certi_id' => null,
             ]);
         }
 
@@ -221,6 +259,26 @@ class BitacoraController extends Controller
             $items->push([
                 'paquetes_ems_id' => null,
                 'paquetes_contrato_id' => (int) $contrato->id,
+                'paquetes_ordi_id' => null,
+                'paquetes_certi_id' => null,
+            ]);
+        }
+
+        foreach ($ordinarios as $ordinario) {
+            $items->push([
+                'paquetes_ems_id' => null,
+                'paquetes_contrato_id' => null,
+                'paquetes_ordi_id' => (int) $ordinario->id,
+                'paquetes_certi_id' => null,
+            ]);
+        }
+
+        foreach ($certificados as $certificado) {
+            $items->push([
+                'paquetes_ems_id' => null,
+                'paquetes_contrato_id' => null,
+                'paquetes_ordi_id' => null,
+                'paquetes_certi_id' => (int) $certificado->id,
             ]);
         }
 
@@ -232,6 +290,8 @@ class BitacoraController extends Controller
                     'cod_especial' => $payload['cod_especial'],
                     'paquetes_ems_id' => $item['paquetes_ems_id'],
                     'paquetes_contrato_id' => $item['paquetes_contrato_id'],
+                    'paquetes_ordi_id' => $item['paquetes_ordi_id'],
+                    'paquetes_certi_id' => $item['paquetes_certi_id'],
                 ];
                 $values = [
                     'user_id' => $payload['user_id'],
@@ -298,6 +358,17 @@ class BitacoraController extends Controller
             ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
             ->sum('peso');
 
+        $pesoOrdi = (float) PaqueteOrdi::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
+            ->sum('peso');
+
+        $pesoCerti = (float) PaqueteCerti::query()
+            ->where(function ($query) use ($codigo) {
+                $query->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
+                    ->orWhereRaw('trim(upper(COALESCE(codigo, \'\'))) = ?', [$codigo]);
+            })
+            ->sum('peso');
+
         $precioEms = (float) PaqueteEms::query()
             ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
             ->sum('precio');
@@ -307,7 +378,7 @@ class BitacoraController extends Controller
             ->sum('precio');
 
         return [
-            'peso' => round($pesoEms + $pesoContrato, 3),
+            'peso' => round($pesoEms + $pesoContrato + $pesoOrdi + $pesoCerti, 3),
             'precio_total' => round($precioEms + $precioContrato, 2),
         ];
     }
