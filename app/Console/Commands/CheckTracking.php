@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\TrackingSubscription;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -37,12 +38,18 @@ class CheckTracking extends Command
             ]);
 
             try {
-                $resp = Http::timeout(15)
+                $request = Http::timeout(15)
                     ->withoutVerifying()
-                    ->withToken(env('TRACKING_API_TOKEN'))
-                    ->post(env('TRACKING_API_URL'), [
-                        'codigo' => $sub->codigo,
-                    ]);
+                    ->acceptJson();
+
+                $token = trim((string) env('TRACKING_API_TOKEN', ''));
+                if ($token !== '') {
+                    $request = $request->withToken($token);
+                }
+
+                $resp = $request->get(env('TRACKING_API_URL'), [
+                    'codigo' => $sub->codigo,
+                ]);
             } catch (\Throwable $e) {
                 Log::error('TRACKING_API_EX', [
                     'codigo' => $sub->codigo,
@@ -73,16 +80,14 @@ class CheckTracking extends Command
                 continue;
             }
 
-            $locales = $data['eventos_locales'] ?? [];
-            $externos = $data['eventos_externos'] ?? [];
+            $eventos = $this->extractEvents($data);
 
             Log::info('TRACKING_COUNTS', [
                 'codigo' => $sub->codigo,
-                'locales' => is_array($locales) ? count($locales) : null,
-                'externos' => is_array($externos) ? count($externos) : null,
+                'eventos' => $eventos->count(),
             ]);
 
-            $sig = $this->latestSignature($locales, $externos);
+            $sig = $this->latestSignature($eventos);
 
             Log::info('TRACKING_LATEST', [
                 'codigo' => $sub->codigo,
@@ -100,7 +105,7 @@ class CheckTracking extends Command
                 'new' => $sig,
             ]);
 
-            $latest = $this->latestEventData($locales, $externos, $sig);
+            $latest = $this->latestEventData($eventos, $sig);
 
             if ($sub->last_sig === null) {
                 $sub->last_sig = $sig;
@@ -154,44 +159,44 @@ class CheckTracking extends Command
         return self::SUCCESS;
     }
 
-    private function latestSignature($locales, $externos): ?string
+    private function extractEvents(array $data): Collection
+    {
+        return collect($data['resultado'] ?? [])
+            ->flatMap(function ($grupo) {
+                $eventos = data_get($grupo, 'eventos', []);
+
+                return is_array($eventos) ? $eventos : [];
+            })
+            ->filter(fn ($evento) => is_array($evento) || is_object($evento))
+            ->map(fn ($evento) => (array) $evento)
+            ->values();
+    }
+
+    private function latestSignature(Collection $eventos): ?string
     {
         $items = [];
 
-        foreach (($locales ?? []) as $ev) {
+        foreach ($eventos as $ev) {
             $date = $ev['updated_at'] ?? $ev['created_at'] ?? null;
-
-            if ($date) {
-                $ts = strtotime($date);
-
-                if ($ts !== false) {
-                    $items[] = [
-                        'ts' => $ts,
-                        'sig' => 'local|'.$date.'|'
-                            .($ev['id'] ?? '').'|'
-                            .($ev['action'] ?? '').'|'
-                            .($ev['descripcion'] ?? ''),
-                    ];
-                }
+            if (! $date) {
+                continue;
             }
-        }
 
-        foreach (($externos ?? []) as $ev) {
-            $date = $ev['eventDate'] ?? null;
-
-            if ($date) {
-                $ts = strtotime($date);
-
-                if ($ts !== false) {
-                    $items[] = [
-                        'ts' => $ts,
-                        'sig' => 'external|'.$date.'|'
-                            .($ev['mailitM_PID'] ?? '').'|'
-                            .($ev['eventType'] ?? '').'|'
-                            .($ev['office'] ?? ''),
-                    ];
-                }
+            $ts = strtotime($date);
+            if ($ts === false) {
+                continue;
             }
+
+            $items[] = [
+                'ts' => $ts,
+                'sig' => 'tracking|'.$date.'|'
+                    .($ev['id'] ?? '').'|'
+                    .($ev['evento_id'] ?? '').'|'
+                    .($ev['nombre_evento'] ?? '').'|'
+                    .($ev['office'] ?? '').'|'
+                    .($ev['condition'] ?? '').'|'
+                    .($ev['next_office'] ?? ''),
+            ];
         }
 
         if ($items === []) {
@@ -203,56 +208,34 @@ class CheckTracking extends Command
         return $items[0]['sig'];
     }
 
-    private function latestEventData($locales, $externos, string $sig = ''): array
+    private function latestEventData(Collection $eventos, string $sig = ''): array
     {
         $items = [];
 
-        foreach (($locales ?? []) as $ev) {
+        foreach ($eventos as $ev) {
             $date = $ev['updated_at'] ?? $ev['created_at'] ?? null;
-
-            if ($date) {
-                $ts = strtotime($date);
-
-                if ($ts !== false) {
-                    $items[] = [
-                        'ts' => $ts,
-                        'data' => [
-                            'source' => 'local',
-                            'eventDate' => $date,
-                            'eventTitle' => $ev['action'] ?? 'Evento local',
-                            'eventBody' => $ev['descripcion'] ?? '',
-                            'office' => '',
-                            'condition' => '',
-                            'nextOffice' => '',
-                            'sig' => $sig,
-                        ],
-                    ];
-                }
+            if (! $date) {
+                continue;
             }
-        }
 
-        foreach (($externos ?? []) as $ev) {
-            $date = $ev['eventDate'] ?? null;
-
-            if ($date) {
-                $ts = strtotime($date);
-
-                if ($ts !== false) {
-                    $items[] = [
-                        'ts' => $ts,
-                        'data' => [
-                            'source' => 'external',
-                            'eventDate' => $date,
-                            'eventTitle' => $ev['eventType'] ?? 'Evento externo',
-                            'eventBody' => '',
-                            'office' => $ev['office'] ?? '',
-                            'condition' => $ev['condition'] ?? '',
-                            'nextOffice' => $ev['nextOffice'] ?? '',
-                            'sig' => $sig,
-                        ],
-                    ];
-                }
+            $ts = strtotime($date);
+            if ($ts === false) {
+                continue;
             }
+
+            $items[] = [
+                'ts' => $ts,
+                'data' => [
+                    'source' => (string) ($ev['tabla_origen'] ?? $ev['servicio'] ?? 'tracking'),
+                    'eventDate' => $date,
+                    'eventTitle' => $ev['nombre_evento'] ?? 'Nuevo evento de tracking',
+                    'eventBody' => trim((string) (($ev['servicio'] ?? '').' '.($ev['office'] ?? ''))),
+                    'office' => $ev['office'] ?? '',
+                    'condition' => $ev['condition'] ?? '',
+                    'nextOffice' => $ev['next_office'] ?? '',
+                    'sig' => $sig,
+                ],
+            ];
         }
 
         if ($items === []) {
