@@ -11,6 +11,7 @@ use App\Models\Estado;
 use App\Models\Origen;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteEmsFormulario;
+use App\Models\Preregistro;
 use App\Models\Recojo as RecojoContrato;
 use App\Models\RemitenteEms;
 use App\Models\Servicio;
@@ -147,6 +148,8 @@ class PaquetesEms extends Component
     public $estado_id = null;
     public $remitenteSugerencias = [];
     public $autofillMessage = '';
+    public $preregistro_codigo = '';
+    public $preregistroAutofillMessage = '';
 
     protected $paginationTheme = 'bootstrap';
 
@@ -1208,6 +1211,7 @@ class PaquetesEms extends Component
                 $paquete = PaqueteEms::create($this->payload($user->id));
                 $this->syncFormularioData($paquete);
                 $this->saveRemitenteData();
+                $this->linkPreregistroToPaquete($paquete, (int) $user->id);
                 $this->registerAdmisionEvento($paquete, (int) $user->id);
             });
 
@@ -2255,6 +2259,7 @@ class PaquetesEms extends Component
     public function resetForm()
     {
         $this->reset([
+            'preregistro_codigo',
             'origen',
             'tipo_correspondencia',
             'servicio_especial',
@@ -2279,6 +2284,7 @@ class PaquetesEms extends Component
             'estado_id',
             'remitenteSugerencias',
             'autofillMessage',
+            'preregistroAutofillMessage',
         ]);
 
         $this->resetValidation();
@@ -3058,6 +3064,11 @@ class PaquetesEms extends Component
             return;
         }
 
+        if ($name === 'preregistro_codigo') {
+            $this->applyPreregistroAutofill((string) $value);
+            return;
+        }
+
         if ($name === 'destino_id') {
             if ($this->destino_id) {
                 $destino = $this->destinos->firstWhere('id', (int) $this->destino_id);
@@ -3405,6 +3416,111 @@ class PaquetesEms extends Component
                 'tarifario_id' => $this->tarifario_id ?: null,
             ]
         );
+    }
+
+    protected function applyPreregistroAutofill(string $codigo): void
+    {
+        if ($this->editingId) {
+            return;
+        }
+
+        $codigo = $this->normalizePreregistroCode($codigo);
+        $this->preregistro_codigo = $codigo;
+
+        if ($codigo === '') {
+            $this->preregistroAutofillMessage = '';
+            return;
+        }
+
+        $preregistro = Preregistro::query()
+            ->where(function ($query) use ($codigo) {
+                $query->whereRaw('trim(upper(COALESCE(codigo_preregistro, \'\'))) = ?', [$codigo])
+                    ->orWhereRaw('trim(upper(COALESCE(codigo_generado, \'\'))) = ?', [$codigo]);
+            })
+            ->first();
+
+        if (!$preregistro) {
+            $this->preregistroAutofillMessage = 'No existe un preregistro con ese codigo.';
+            return;
+        }
+
+        if (strtoupper(trim((string) $preregistro->estado)) === 'VALIDADO') {
+            $this->preregistroAutofillMessage = 'Ese preregistro ya fue validado y convertido en EMS.';
+            return;
+        }
+
+        $this->origen = (string) $preregistro->origen;
+        $this->tipo_correspondencia = (string) ($preregistro->tipo_correspondencia ?? '');
+        $this->servicio_especial = (string) ($preregistro->servicio_especial ?? '');
+        $this->contenido = (string) $preregistro->contenido;
+        $this->cantidad = (string) $preregistro->cantidad;
+        $this->peso = (string) $preregistro->peso;
+        $this->nombre_remitente = (string) $preregistro->nombre_remitente;
+        $this->nombre_envia = (string) ($preregistro->nombre_envia ?? '');
+        $this->carnet = (string) $preregistro->carnet;
+        $this->telefono_remitente = (string) ($preregistro->telefono_remitente ?? '');
+        $this->nombre_destinatario = (string) $preregistro->nombre_destinatario;
+        $this->telefono_destinatario = (string) ($preregistro->telefono_destinatario ?? '');
+        $this->direccion = (string) $preregistro->direccion;
+        $this->ciudad = (string) $preregistro->ciudad;
+        $this->servicio_id = (string) $preregistro->servicio_id;
+        $this->destino_id = (string) $preregistro->destino_id;
+        $this->auto_codigo = true;
+
+        $this->refreshEmsState();
+        $this->applyTarifarioMatch();
+
+        if ($this->auto_codigo) {
+            $this->codigo = $this->generateCodigo();
+        }
+
+        $this->preregistroAutofillMessage = 'Datos del preregistro ' . $codigo . ' cargados correctamente.';
+    }
+
+    protected function linkPreregistroToPaquete(PaqueteEms $paquete, int $userId): void
+    {
+        $codigo = $this->normalizePreregistroCode((string) $this->preregistro_codigo);
+        if ($codigo === '' || !$paquete->exists || $userId <= 0) {
+            return;
+        }
+
+        $preregistro = Preregistro::query()
+            ->where(function ($query) use ($codigo) {
+                $query->whereRaw('trim(upper(COALESCE(codigo_preregistro, \'\'))) = ?', [$codigo])
+                    ->orWhereRaw('trim(upper(COALESCE(codigo_generado, \'\'))) = ?', [$codigo]);
+            })
+            ->lockForUpdate()
+            ->first();
+
+        if (!$preregistro || strtoupper(trim((string) $preregistro->estado)) === 'VALIDADO') {
+            return;
+        }
+
+        $preregistro->update([
+            'estado' => 'VALIDADO',
+            'validado_por' => $userId,
+            'validado_at' => now(),
+            'paquete_ems_id' => (int) $paquete->id,
+            'codigo_generado' => (string) $paquete->codigo,
+        ]);
+    }
+
+    protected function normalizePreregistroCode(string $codigo): string
+    {
+        $codigo = strtoupper(trim($codigo));
+        if ($codigo === '') {
+            return '';
+        }
+
+        if (preg_match('/^\d{1,8}$/', $codigo) === 1) {
+            return 'PRE' . str_pad($codigo, 8, '0', STR_PAD_LEFT);
+        }
+
+        if (preg_match('/^PRE\d{1,8}$/', $codigo) === 1) {
+            return 'PRE' . str_pad(substr($codigo, 3), 8, '0', STR_PAD_LEFT);
+        }
+
+        return $codigo;
     }
 
     protected function nextSpecialCodeForLoggedUser(): string

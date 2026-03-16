@@ -33,6 +33,33 @@
             padding:10px 12px;
             background: rgba(255,255,255,.95);
         }
+        .header-preregistro{
+            min-width: 320px;
+            max-width: 420px;
+        }
+        .header-preregistro .header-preregistro-label{
+            display:block;
+            font-size:11px;
+            font-weight:800;
+            color: rgba(255,255,255,.88);
+            margin-bottom:6px;
+            letter-spacing:.02em;
+        }
+        .header-preregistro .header-preregistro-help{
+            margin-top:6px;
+            font-size:11px;
+            color: rgba(255,255,255,.82);
+            line-height:1.35;
+        }
+        .header-preregistro .header-preregistro-message{
+            margin-top:6px;
+            font-size:11px;
+            font-weight:700;
+            color:#d1fae5;
+        }
+        .header-preregistro .header-preregistro-message.is-error{
+            color:#fee2e2;
+        }
 
         .btn-dorado{
             background: var(--dorado);
@@ -351,6 +378,22 @@
 
                 <div class="d-flex gap-2 align-items-center flex-wrap">
                     @if ($this->isCreateEms)
+                        <div class="header-preregistro">
+                            <label class="header-preregistro-label" for="headerPreregistroCodigo">Codigo de preregistro</label>
+                            <input
+                                id="headerPreregistroCodigo"
+                                type="text"
+                                class="form-control search-input"
+                                placeholder="Pega PRE00000001 o 00000001"
+                                wire:model.live.debounce.400ms="preregistro_codigo"
+                            >
+                            <div class="header-preregistro-help">Pega aqui el codigo generado del preregistro y el formulario se autollenara.</div>
+                            @if($preregistroAutofillMessage)
+                                <div class="header-preregistro-message {{ str_contains(strtolower($preregistroAutofillMessage), 'no existe') || str_contains(strtolower($preregistroAutofillMessage), 'ya fue validado') ? 'is-error' : '' }}">
+                                    {{ $preregistroAutofillMessage }}
+                                </div>
+                            @endif
+                        </div>
                         <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.index') }}">
                             Volver a Paquetes EMS
                         </a>
@@ -1064,6 +1107,26 @@
                     <div class="modal-body">
                         <div class="section-block">
                             <div class="section-title">Datos generales</div>
+
+                            @if ($this->isAdmision && !$editingId)
+                                <div class="form-row">
+                                    <div class="form-group col-md-12">
+                                        <label>Codigo de preregistro</label>
+                                        <input
+                                            type="text"
+                                            wire:model.live.debounce.400ms="preregistro_codigo"
+                                            class="form-control autofill-input"
+                                            placeholder="Ejemplo: PRE00000001 o 00000001"
+                                        >
+                                        <div class="autofill-helper">Pega el codigo del preregistro para autollenar los datos del envio. Acepta formato con PRE o solo el numero.</div>
+                                        @if($preregistroAutofillMessage)
+                                            <small class="{{ str_contains(strtolower($preregistroAutofillMessage), 'no existe') || str_contains(strtolower($preregistroAutofillMessage), 'ya fue validado') ? 'text-danger' : 'text-success' }}">
+                                                {{ $preregistroAutofillMessage }}
+                                            </small>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endif
 
                             <div class="form-row">
                                 @if (!$this->isAlmacenEms)

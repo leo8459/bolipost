@@ -37,6 +37,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\AclController;
 use App\Http\Controllers\BitacoraController;
+use App\Http\Controllers\PreregistroController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -62,6 +63,9 @@ Route::get('/api/busqueda/captcha', [BusquedaController::class, 'captchaTracking
 
 Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
     ->name('api.public.zona-paquete');
+Route::get('/hacer-envio-desde-casa', [PreregistroController::class, 'publicCreate'])->name('preregistros.public.create');
+Route::post('/hacer-envio-desde-casa', [PreregistroController::class, 'publicStore'])->name('preregistros.public.store');
+Route::get('/hacer-envio-desde-casa/{preregistro}/ticket', [PreregistroController::class, 'ticket'])->name('preregistros.public.ticket');
 Route::middleware(['auth'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
 
@@ -182,6 +186,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/bitacoras/{bitacora}/edit', [BitacoraController::class, 'edit'])->name('bitacoras.edit');
     Route::put('/bitacoras/{bitacora}', [BitacoraController::class, 'update'])->name('bitacoras.update');
     Route::delete('/bitacoras/{bitacora}', [BitacoraController::class, 'destroy'])->name('bitacoras.destroy');
+    Route::get('/preregistros', [PreregistroController::class, 'index'])->name('preregistros.index');
+    Route::post('/preregistros/{preregistro}/approve', [PreregistroController::class, 'approve'])->name('preregistros.approve');
     Route::get('/paquetes-certificados/almacen', [PaquetesCertiController::class, 'almacen'])->name('paquetes-certificados.almacen');
     Route::get('/paquetes-certificados/inventario', [PaquetesCertiController::class, 'inventario'])->name('paquetes-certificados.inventario');
     Route::get('/paquetes-certificados/rezago', [PaquetesCertiController::class, 'rezago'])->name('paquetes-certificados.rezago');

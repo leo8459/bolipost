@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Destino;
+use App\Models\Servicio;
 use App\Models\TrackingSubscription;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -31,6 +33,19 @@ class BusquedaController extends Controller
 
         return view('welcome', [
             'captchaPregunta' => $captcha['question'],
+            'preregistroServicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
+            'preregistroDestinos' => Destino::query()->orderBy('nombre_destino')->get(),
+            'preregistroCiudades' => [
+                'LA PAZ',
+                'SANTA CRUZ',
+                'PANDO',
+                'BENI',
+                'TARIJA',
+                'CHUQUISACA',
+                'ORURO',
+                'COCHABAMBA',
+                'POTOSI',
+            ],
         ]);
     }
 

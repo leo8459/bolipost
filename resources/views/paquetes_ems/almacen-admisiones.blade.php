@@ -12,7 +12,10 @@
                     <h3 class="card-title mb-1 font-weight-bold">Almacen admisiones</h3>
                     <div class="text-muted small">Paquetes creados en admisiones y enviados a ALMACEN EMS con su usuario.</div>
                 </div>
-                <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-secondary btn-sm">Volver a admisiones</a>
+                <div class="d-flex gap-2">
+                    <a href="{{ route('preregistros.index') }}" class="btn btn-outline-primary btn-sm mr-2">Preregistros desde casa</a>
+                    <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-secondary btn-sm">Volver a admisiones</a>
+                </div>
             </div>
 
             <div class="card-body">

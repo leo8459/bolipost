@@ -16,6 +16,9 @@
         </ul>
 
         <div class="nav-actions">
+            <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}">
+                Hacer envio desde casa
+            </a>
             <button class="menu-toggle" id="menuToggle" type="button" aria-label="Abrir menu" aria-expanded="false">
                 <span class="menu-toggle-bars" aria-hidden="true">
                     <i></i>
