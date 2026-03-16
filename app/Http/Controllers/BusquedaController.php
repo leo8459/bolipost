@@ -75,6 +75,16 @@ class BusquedaController extends Controller
             ], 422);
         }
 
+        return $this->responderEventosTracking($request);
+    }
+
+    public function consultarEventosTrackingPublico(Request $request): JsonResponse
+    {
+        return $this->responderEventosTracking($request);
+    }
+
+    private function responderEventosTracking(Request $request): JsonResponse
+    {
         $codigo = $this->obtenerCodigoValidado($request);
         $resultado = $this->buscarEventosPorCodigo($codigo);
         $eventos = $resultado['eventos'];
