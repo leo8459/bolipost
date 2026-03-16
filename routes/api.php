@@ -9,3 +9,8 @@ Route::post('/public/paquetes-contrato', [RecojoController::class, 'storePublic'
 
 Route::get('/public/tracking/eventos', [BusquedaController::class, 'consultarEventosTrackingPublico'])
     ->name('api.public.tracking.eventos');
+
+
+
+Route::post('/subscribe', [BusquedaController::class, 'subscribe']);
+Route::post('/unsubscribe', [BusquedaController::class, 'unsubscribe']);
