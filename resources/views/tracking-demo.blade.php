@@ -12,7 +12,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/landing-shared.css') }}">
+<<<<<<< HEAD
     <link rel="stylesheet" href="{{ asset('css/preregistro-modal.css') }}">
+=======
+>>>>>>> a41ccfb (Uchazara)
     <link rel="stylesheet" href="{{ asset('css/tracking-demo.css') }}">
 </head>
 <body>
@@ -22,7 +25,11 @@
         $tieneIncidencia = str_contains($eventoTextos, 'fall') || str_contains($eventoTextos, 'incid') || str_contains($eventoTextos, 'devuelt');
         $fechaUltima = \Illuminate\Support\Carbon::parse($ultimoEvento->created_at);
         $servicioActual = strtoupper((string) ($ultimoEvento->servicio ?? 'EMS'));
+<<<<<<< HEAD
         $origenLabel = 'Correos de Bolivia';
+=======
+        $origenLabel = 'Agencia Boliviana de Correos';
+>>>>>>> a41ccfb (Uchazara)
         $origenIso2 = null;
 
         $primerPaso = in_array($servicioActual, ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';
@@ -227,8 +234,13 @@
                 'CHUQUISACA' => 'Chuquisaca',
                 'SUCRE' => 'Chuquisaca',
                 'TARIJA' => 'Tarija',
+<<<<<<< HEAD
                 'TRINIDAD' => 'Beni',
                 'COBIJA' => 'Pando',
+=======
+                'BENI' => 'Beni',
+                'PANDO' => 'Pando',
+>>>>>>> a41ccfb (Uchazara)
             ];
 
             foreach ($mapa as $clave => $nombre) {
@@ -469,13 +481,17 @@
         </section>
     </main>
 
+<<<<<<< HEAD
     @include('partials.preregistro-modal')
+=======
+>>>>>>> a41ccfb (Uchazara)
     @include('partials.landing-footer')
 
     <script>
         const topbar = document.getElementById('topbar');
         const menuToggle = document.getElementById('menuToggle');
         const menu = document.getElementById('menu');
+<<<<<<< HEAD
         const preregistroModal = document.getElementById('preregistroModal');
         const preregistroClose = document.getElementById('preregistroClose');
         const preregistroTriggers = document.querySelectorAll('[data-open-preregistro], .btn-home-shipping');
@@ -485,6 +501,8 @@
         const preregistroSuccessCode = document.getElementById('preregistroSuccessCode');
         const preregistroTicketUrl = @json(session('preregistro_ticket_url'));
 
+=======
+>>>>>>> a41ccfb (Uchazara)
 
         menuToggle?.addEventListener('click', () => { const isOpen = menu.classList.toggle('open'); menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); });
         menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { menu.classList.remove('open'); menuToggle?.setAttribute('aria-expanded', 'false'); }));
@@ -493,6 +511,7 @@
         window.addEventListener('scroll', onScroll, { passive: true });
         onScroll();
 
+<<<<<<< HEAD
         const openPreregistroModal = () => {
             if (!preregistroModal) return;
             preregistroModal.classList.add('is-open');
@@ -580,6 +599,8 @@
             }
         @endif
 
+=======
+>>>>>>> a41ccfb (Uchazara)
         const revealBlocks = document.querySelectorAll('.reveal-block');
         const revealItems = document.querySelectorAll('.reveal-item');
         const progressItems = document.querySelectorAll('.progress-track li');

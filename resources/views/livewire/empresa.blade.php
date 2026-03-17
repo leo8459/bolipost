@@ -144,7 +144,11 @@
                     <h4 class="fw-bold mb-0">Empresas</h4>
                 </div>
 
+<<<<<<< HEAD
                 <div class="d-flex gap-2 align-items-center flex-wrap">
+=======
+                <div class="d-flex gap-2 align-items-center">
+>>>>>>> a41ccfb (Uchazara)
                     <input
                         type="text"
                         class="form-control search-input"
@@ -152,12 +156,15 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchEmpresas">Buscar</button>
+<<<<<<< HEAD
                     @if (auth()->user()?->can('empresas.template-excel'))
                     <a class="btn btn-outline-light2" href="{{ route('empresas.template-excel') }}">Plantilla Excel</a>
                     @endif
                     @if (auth()->user()?->can('empresas.import-form'))
                     <a class="btn btn-outline-light2" href="{{ route('empresas.import-form') }}">Importar Excel</a>
                     @endif
+=======
+>>>>>>> a41ccfb (Uchazara)
                     @aclcan('create', $this)
                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                     @endaclcan
@@ -170,6 +177,7 @@
                 </div>
             @endif
 
+<<<<<<< HEAD
             @if (session()->has('import_errors'))
                 <div class="alert alert-warning m-3">
                     <p class="mb-2"><strong>Errores de importacion (primeros 20):</strong></p>
@@ -181,6 +189,8 @@
                 </div>
             @endif
 
+=======
+>>>>>>> a41ccfb (Uchazara)
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="muted">

@@ -14,9 +14,15 @@ return [
     |
     */
 
+<<<<<<< HEAD
     'title' => 'TrackingBO',
     'title_prefix' => '',
     'title_postfix' => '| TrackingBO',
+=======
+    'title' => 'TrackingBo',
+    'title_prefix' => '',
+    'title_postfix' => '| TrackingBo',
+>>>>>>> a41ccfb (Uchazara)
 
     /*
     |--------------------------------------------------------------------------
@@ -63,12 +69,20 @@ return [
     |
     */
 
+<<<<<<< HEAD
     'logo' => '<b>Tracking</b>BO',
+=======
+    'logo' => '<b>Tracking</b>Bo',
+>>>>>>> a41ccfb (Uchazara)
     'logo_img' => 'images/AGBClogo2.png',
     'logo_img_class' => 'brand-image img-circle',
     'logo_img_xl' => null,
     'logo_img_xl_class' => 'brand-image-xs',
+<<<<<<< HEAD
     'logo_img_alt' => 'TrackingBO',
+=======
+    'logo_img_alt' => 'TrackingBo',
+>>>>>>> a41ccfb (Uchazara)
 
     /*
     |--------------------------------------------------------------------------
@@ -87,7 +101,11 @@ return [
         'enabled' => true,
         'img' => [
             'path' => 'images/AGBClogo2.png',
+<<<<<<< HEAD
             'alt' => 'TrackingBO',
+=======
+            'alt' => 'TrackingBo',
+>>>>>>> a41ccfb (Uchazara)
             'class' => '',
             'width' => 50,
             'height' => 50,
@@ -348,11 +366,14 @@ return [
             ],
         ],
         [
+<<<<<<< HEAD
             'text' => 'BITACORAS',
             'url' => '/bitacoras',
             'icon' => 'fas fa-book',
         ],
         [
+=======
+>>>>>>> a41ccfb (Uchazara)
             'text' => 'Admisiones',
             'icon' => 'fas fa-inbox',
             'submenu' => [
@@ -363,15 +384,24 @@ return [
                 ],
             ],
         ],
+<<<<<<< HEAD
         [
             'text' => 'Paquetes Contratos',
             'icon' => 'fas fa-file-contract',
             'submenu' => [
 
+=======
+                [
+            'text' => 'Paquetes Contratos',
+            'icon' => 'fas fa-file-contract',
+            'submenu' => [
+                
+>>>>>>> a41ccfb (Uchazara)
                 [
                     'text' => 'Consulta de Contratos',
                     'icon' => 'fas fa-search',
                     'submenu' => [
+<<<<<<< HEAD
 
                         [
                             'text' => 'Todos los contratos',
@@ -383,6 +413,19 @@ return [
                             'url' => 'area-contratos/entregados',
                             'icon' => 'fas fa-check-circle',
                         ],
+=======
+                        
+                       [
+                    'text' => 'Todos los contratos',
+                    'url' => 'area-contratos/todos',
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Todos los entregados',
+                    'url' => 'area-contratos/entregados',
+                    'icon' => 'fas fa-check-circle',
+                ],
+>>>>>>> a41ccfb (Uchazara)
                     ],
                 ],
                 [
@@ -650,6 +693,87 @@ return [
             ],
         ],
         [
+<<<<<<< HEAD
+=======
+            'text' => 'Gestiones',
+            'icon' => 'fas fa-clipboard-list',
+            'submenu' => [
+                [
+                    'text' => 'Bitacora',
+                    'icon' => 'fas fa-book',
+                    'submenu' => [
+                        [
+                            'text' => 'Bitacora Vehicular',
+                            'url' => 'livewire/vehicle-logs',
+                            'icon' => 'fas fa-book',
+                        ],
+                        [
+                            'text' => 'Mapa en tiempo real',
+                            'url' => 'livewire/map',
+                            'icon' => 'fas fa-map-marked-alt',
+                        ],
+                        [
+                            'text' => 'Vehiculos',
+                            'url' => 'livewire/vehicles',
+                            'icon' => 'fas fa-truck',
+                        ],
+                        [
+                            'text' => 'Marcas',
+                            'url' => 'livewire/vehicle-brands',
+                            'icon' => 'fas fa-tags',
+                        ],
+                        [
+                            'text' => 'Conductores',
+                            'url' => 'livewire/drivers',
+                            'icon' => 'fas fa-id-card',
+                        ],
+                        [
+                            'text' => 'Asignaciones',
+                            'url' => 'livewire/vehicle-assignments',
+                            'icon' => 'fas fa-link',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Mantenimiento',
+                    'icon' => 'fas fa-tools',
+                    'submenu' => [
+                        [
+                            'text' => 'Registros',
+                            'url' => 'livewire/maintenance-logs',
+                            'icon' => 'fas fa-tools',
+                        ],
+                        [
+                            'text' => 'Alertas',
+                            'url' => 'livewire/maintenance-alerts',
+                            'icon' => 'fas fa-bell',
+                        ],
+                        [
+                            'text' => 'Calendario',
+                            'url' => 'livewire/maintenance-calendar',
+                            'icon' => 'fas fa-calendar-alt',
+                        ],
+                        [
+                            'text' => 'Tipos',
+                            'url' => 'livewire/maintenance-types',
+                            'icon' => 'fas fa-list',
+                        ],
+                        [
+                            'text' => 'Citas',
+                            'url' => 'livewire/maintenance-appointments',
+                            'icon' => 'fas fa-calendar-plus',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Gasolina',
+                    'url' => 'livewire/fuel-logs',
+                    'icon' => 'fas fa-gas-pump',
+                ],
+            ],
+        ],
+        [
+>>>>>>> a41ccfb (Uchazara)
             'text' => 'CODIGOS',
             'icon' => 'fas fa-barcode',
             'submenu' => [
@@ -711,6 +835,7 @@ return [
             'icon' => 'fas fa-cogs',
             'submenu' => [
                 [
+<<<<<<< HEAD
                     'text' => 'Impotaciones',
                     'icon' => 'fas fa-file-import',
                     'submenu' => [
@@ -737,6 +862,21 @@ return [
                             ],
                         ],
                     ],
+=======
+                    'text' => 'Estados',
+                    'url' => 'estados',
+                    'icon' => 'fas fa-flag',
+                ],
+                [
+                    'text' => 'Auditoria',
+                    'url' => 'auditoria',
+                    'icon' => 'fas fa-clipboard-list',
+                ],
+                [
+                    'text' => 'Ventanillas',
+                    'url' => 'ventanillas',
+                    'icon' => 'fas fa-window-restore',
+>>>>>>> a41ccfb (Uchazara)
                 ],
                 [
                     'text' => 'Configuracion de tarifas',
@@ -796,6 +936,7 @@ return [
                         ],
                     ],
                 ],
+<<<<<<< HEAD
                 [
                     'text' => 'Estados',
                     'url' => 'estados',
@@ -831,6 +972,55 @@ return [
             ],
         ],
 
+=======
+            ],
+        ],
+        [
+            'text' => 'Impotaciones',
+            'icon' => 'fas fa-file-import',
+            'submenu' => [
+                [
+                    'text' => 'Tarifas',
+                    'icon' => 'fas fa-tags',
+                    'submenu' => [
+                        [
+                            'text' => 'Importar Tarifas',
+                            'url' => 'tarifa-contrato/import',
+                            'icon' => 'fas fa-file-excel',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Paquetes',
+                    'icon' => 'fas fa-boxes',
+                    'submenu' => [
+                        [
+                            'text' => 'Importacion de Paquetes',
+                            'url' => 'importar/paquets',
+                            'icon' => 'fas fa-upload',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'text' => 'Rendimiento',
+            'url' => '/pulse',
+
+            'icon' => 'fas fa-chart-line',
+        ],
+        [
+            'text' => 'Logs',
+            'url' => '/log-viewer',
+
+            'icon' => 'fas fa-file-alt',
+        ],
+        [
+            'text' => 'Respaldos',
+            'url' => '/respaldos',
+            'icon' => 'fas fa-save',
+        ],
+>>>>>>> a41ccfb (Uchazara)
     ],
 
     /*
@@ -877,6 +1067,14 @@ return [
                     'asset' => true,
                     'location' => 'css/adminlte-custom.css',
                 ],
+<<<<<<< HEAD
+=======
+                [
+                    'type' => 'css',
+                    'asset' => true,
+                    'location' => 'css/gestiones-adminlte.css',
+                ],
+>>>>>>> a41ccfb (Uchazara)
             ],
         ],
         'AclUi' => [

@@ -43,10 +43,17 @@ class Despacho extends Component
         'BOLPZ' => 'BOLPZ - LA PAZ',
         'BOTJA' => 'BOTJA - TARIJA',
         'BOPOI' => 'BOPOI - POTOSI',
+<<<<<<< HEAD
         'BOCIJ' => 'BOCIJ - COBIJA',
         'BOCBB' => 'BOCBB - COCHABAMBA',
         'BOORU' => 'BOORU - ORURO',
         'BOTDD' => 'BOTDD - TRINIDAD',
+=======
+        'BOCIJ' => 'BOCIJ - PANDO',
+        'BOCBB' => 'BOCBB - COCHABAMBA',
+        'BOORU' => 'BOORU - ORURO',
+        'BOTDD' => 'BOTDD - BENI',
+>>>>>>> a41ccfb (Uchazara)
         'BOSRE' => 'BOSRE - SUCRE',
         'BOSRZ' => 'BOSRZ - SANTA CRUZ',
         'PELIM' => 'PELIM - PERU/LIMA',
@@ -56,10 +63,17 @@ class Despacho extends Component
         'LA PAZ' => 'BOLPZ',
         'TARIJA' => 'BOTJA',
         'POTOSI' => 'BOPOI',
+<<<<<<< HEAD
         'COBIJA' => 'BOCIJ',
         'COCHABAMBA' => 'BOCBB',
         'ORURO' => 'BOORU',
         'TRINIDAD' => 'BOTDD',
+=======
+        'PANDO' => 'BOCIJ',
+        'COCHABAMBA' => 'BOCBB',
+        'ORURO' => 'BOORU',
+        'BENI' => 'BOTDD',
+>>>>>>> a41ccfb (Uchazara)
         'SUCRE' => 'BOSRE',
         'SANTA CRUZ' => 'BOSRZ',
         'PERU/LIMA' => 'PELIM',

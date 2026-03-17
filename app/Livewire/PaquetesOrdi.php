@@ -42,8 +42,11 @@ class PaquetesOrdi extends Component
     public $reprintCodEspecial = '';
     public $codigoRecibir = '';
     public $previewRecibirIds = [];
+<<<<<<< HEAD
     public $reencaminarCiudad = '';
     public $previewReencaminarIds = [];
+=======
+>>>>>>> a41ccfb (Uchazara)
 
     public $codigo = '';
     public $destinatario = '';
@@ -135,6 +138,7 @@ class PaquetesOrdi extends Component
         $this->dispatch('openRecibirModal');
     }
 
+<<<<<<< HEAD
     public function openReencaminarModal()
     {
         $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
@@ -251,6 +255,8 @@ class PaquetesOrdi extends Component
         }, 'reporte-reencaminar-ordinarios-' . now()->format('Ymd-His') . '.pdf');
     }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
     public function addCodigoRecibir()
     {
         $this->authorizePermission($this->modeFeaturePermission('assign', 'almacen'));
@@ -1247,6 +1253,7 @@ class PaquetesOrdi extends Component
                 ->get();
         }
 
+<<<<<<< HEAD
         $previewReencaminarPaquetes = collect();
         if (! empty($this->previewReencaminarIds)) {
             $previewReencaminarPaquetes = $this->accessiblePaquetesQuery()
@@ -1256,12 +1263,17 @@ class PaquetesOrdi extends Component
                 ->get();
         }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
         return view('livewire.paquetes-ordi', [
             'paquetes' => $paquetes,
             'ventanillas' => $this->getVentanillasByCiudad(),
             'ciudadesDisponibles' => $this->ciudadesDisponibles(),
             'previewRecibirPaquetes' => $previewRecibirPaquetes,
+<<<<<<< HEAD
             'previewReencaminarPaquetes' => $previewReencaminarPaquetes,
+=======
+>>>>>>> a41ccfb (Uchazara)
             'canOrdiAssign' => $this->userCan($this->modeFeaturePermission('assign')),
             'canOrdiDelete' => $this->userCan($this->modeFeaturePermission('delete')),
             'canOrdiDropoff' => $this->userCan($this->modeFeaturePermission('dropoff')),
@@ -1395,11 +1407,14 @@ class PaquetesOrdi extends Component
             return null;
         }
 
+<<<<<<< HEAD
         // Roles de Ventanilla Única (sin restricción de ciudad)
         if ($user->hasRole('encargado_unica') || $user->hasRole('auxiliar_unica')) {
             return ['UNICA'];
         }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
         $userCity = $this->upper((string) optional($user)->ciudad);
         if ($userCity !== 'LA PAZ') {
             return null;

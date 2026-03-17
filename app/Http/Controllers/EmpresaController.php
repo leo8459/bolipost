@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+<<<<<<< HEAD
 use App\Models\Empresa;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,12 +16,15 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
+=======
+>>>>>>> a41ccfb (Uchazara)
 class EmpresaController extends Controller
 {
     public function index()
     {
         return view('empresa.index');
     }
+<<<<<<< HEAD
 
     public function importForm()
     {
@@ -196,3 +200,7 @@ class EmpresaController extends Controller
         $sheet->getColumnDimension('A')->setWidth(90);
     }
 }
+=======
+}
+
+>>>>>>> a41ccfb (Uchazara)

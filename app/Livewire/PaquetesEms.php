@@ -2,7 +2,10 @@
 
 namespace App\Livewire;
 
+<<<<<<< HEAD
 use App\Models\Bitacora;
+=======
+>>>>>>> a41ccfb (Uchazara)
 use App\Models\Cartero;
 use App\Models\CodigoEmpresa;
 use App\Models\Destino;
@@ -11,7 +14,10 @@ use App\Models\Estado;
 use App\Models\Origen;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteEmsFormulario;
+<<<<<<< HEAD
 use App\Models\Preregistro;
+=======
+>>>>>>> a41ccfb (Uchazara)
 use App\Models\Recojo as RecojoContrato;
 use App\Models\RemitenteEms;
 use App\Models\Servicio;
@@ -19,7 +25,10 @@ use App\Models\TarifaContrato;
 use App\Models\Tarifario;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
+<<<<<<< HEAD
 use Illuminate\Support\Collection;
+=======
+>>>>>>> a41ccfb (Uchazara)
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -44,9 +53,15 @@ class PaquetesEms extends Component
         'TARIJA' => 'TJA',
         'CHUQUISACA' => 'SRE',
         'SUCRE' => 'SRE',
+<<<<<<< HEAD
         'TRINIDAD' => 'TDD',
         'TRINIDAD' => 'TDD',
         'COBIJA' => 'CIJ',
+=======
+        'BENI' => 'TDD',
+        'TRINIDAD' => 'TDD',
+        'PANDO' => 'CIJ',
+>>>>>>> a41ccfb (Uchazara)
         'COBIJA' => 'CIJ',
     ];
     private const EMS_CODE_SERVICE_NAMES = [
@@ -75,7 +90,10 @@ class PaquetesEms extends Component
     private const ALMACEN_EMS_SEND_VENTANILLA_PERMISSION = 'feature.paquetes-ems.almacen.sendventanilla';
     private const ALMACEN_EMS_SEND_REGIONAL_PERMISSION = 'feature.paquetes-ems.almacen.sendregional';
     private const ALMACEN_EMS_REPRINT_CN33_PERMISSION = 'feature.paquetes-ems.almacen.reprintcn33';
+<<<<<<< HEAD
     private const ALMACEN_ADMISIONES_ROUTE_PERMISSION = 'paquetes-ems.almacen-admisiones';
+=======
+>>>>>>> a41ccfb (Uchazara)
 
     public $mode = 'admision';
     public $search = '';
@@ -113,8 +131,13 @@ class PaquetesEms extends Component
     public $ciudades = [
         'LA PAZ',
         'SANTA CRUZ',
+<<<<<<< HEAD
         'COBIJA',
         'TRINIDAD',
+=======
+        'PANDO',
+        'BENI',
+>>>>>>> a41ccfb (Uchazara)
         'TARIJA',
         'CHUQUISACA',
         'ORURO',
@@ -148,8 +171,11 @@ class PaquetesEms extends Component
     public $estado_id = null;
     public $remitenteSugerencias = [];
     public $autofillMessage = '';
+<<<<<<< HEAD
     public $preregistro_codigo = '';
     public $preregistroAutofillMessage = '';
+=======
+>>>>>>> a41ccfb (Uchazara)
 
     protected $paginationTheme = 'bootstrap';
 
@@ -440,9 +466,14 @@ class PaquetesEms extends Component
     public function openCreateModal()
     {
         $this->authorizePermission($this->modeFeaturePermission('create'));
+<<<<<<< HEAD
         $this->authorizeCreateRouteAccess();
 
         return $this->redirect(route('paquetes-ems.create', absolute: false), navigate: false);
+=======
+
+        return $this->redirect(route('paquetes-ems.create'), navigate: false);
+>>>>>>> a41ccfb (Uchazara)
     }
 
     public function openRegionalModal()
@@ -1211,7 +1242,10 @@ class PaquetesEms extends Component
                 $paquete = PaqueteEms::create($this->payload($user->id));
                 $this->syncFormularioData($paquete);
                 $this->saveRemitenteData();
+<<<<<<< HEAD
                 $this->linkPreregistroToPaquete($paquete, (int) $user->id);
+=======
+>>>>>>> a41ccfb (Uchazara)
                 $this->registerAdmisionEvento($paquete, (int) $user->id);
             });
 
@@ -1362,7 +1396,10 @@ class PaquetesEms extends Component
                         'ciudad',
                         'cantidad',
                         'peso',
+<<<<<<< HEAD
                         'precio',
+=======
+>>>>>>> a41ccfb (Uchazara)
                         'nombre_remitente',
                         'user_id',
                         'created_at',
@@ -1386,7 +1423,10 @@ class PaquetesEms extends Component
                         'origen',
                         'destino',
                         'peso',
+<<<<<<< HEAD
                         'precio',
+=======
+>>>>>>> a41ccfb (Uchazara)
                         'nombre_r',
                         'user_id',
                         'created_at',
@@ -1416,6 +1456,7 @@ class PaquetesEms extends Component
                 $updated++;
             }
 
+<<<<<<< HEAD
             $this->registrarBitacoraPorCodEspecial(
                 $manifiesto,
                 $paquetes,
@@ -1425,6 +1466,8 @@ class PaquetesEms extends Component
                 $this->regionalDestino
             );
 
+=======
+>>>>>>> a41ccfb (Uchazara)
             $this->registerEventosEms(
                 $paquetes,
                 $actorUserId,
@@ -1556,7 +1599,10 @@ class PaquetesEms extends Component
                     'origen',
                     'destino',
                     'peso',
+<<<<<<< HEAD
                     'precio',
+=======
+>>>>>>> a41ccfb (Uchazara)
                     'nombre_r',
                     'user_id',
                     'created_at',
@@ -1575,6 +1621,7 @@ class PaquetesEms extends Component
                 $updated++;
             }
 
+<<<<<<< HEAD
             $this->registrarBitacoraPorCodEspecial(
                 $manifiesto,
                 collect(),
@@ -1584,6 +1631,8 @@ class PaquetesEms extends Component
                 $this->regionalDestinoContrato
             );
 
+=======
+>>>>>>> a41ccfb (Uchazara)
             $this->registerEventosContrato(
                 $contratos,
                 $actorUserId,
@@ -2259,7 +2308,10 @@ class PaquetesEms extends Component
     public function resetForm()
     {
         $this->reset([
+<<<<<<< HEAD
             'preregistro_codigo',
+=======
+>>>>>>> a41ccfb (Uchazara)
             'origen',
             'tipo_correspondencia',
             'servicio_especial',
@@ -2284,7 +2336,10 @@ class PaquetesEms extends Component
             'estado_id',
             'remitenteSugerencias',
             'autofillMessage',
+<<<<<<< HEAD
             'preregistroAutofillMessage',
+=======
+>>>>>>> a41ccfb (Uchazara)
         ]);
 
         $this->resetValidation();
@@ -2361,6 +2416,7 @@ class PaquetesEms extends Component
                 'paquetes' => collect(),
                 'almacenRows' => $almacenRows,
                 'contratosAlmacen' => $contratosAlmacen,
+<<<<<<< HEAD
                 'canEmsAssign' => false,
                 'canEmsCreate' => $this->userCan($this->modeFeaturePermission('create')),
                 'canEmsAdmisionCreate' => $this->userCan($this->modeFeaturePermission('create', 'admision')),
@@ -2377,6 +2433,8 @@ class PaquetesEms extends Component
                 'canEmsReprintCn33' => false,
                 'canEmsAlmacenAdmisiones' => false,
                 'canContratoAlmacenPrint' => false,
+=======
+>>>>>>> a41ccfb (Uchazara)
             ]);
         }
 
@@ -2395,8 +2453,11 @@ class PaquetesEms extends Component
             'contratosAlmacen' => $contratosAlmacen,
             'canEmsAssign' => $this->userCan($this->modeFeaturePermission('assign')),
             'canEmsCreate' => $this->userCan($this->modeFeaturePermission('create')),
+<<<<<<< HEAD
             'canEmsAdmisionCreate' => $this->userCan($this->modeFeaturePermission('create', 'admision')),
             'canEmsCreateRoute' => $this->canAccessCreateRoute(),
+=======
+>>>>>>> a41ccfb (Uchazara)
             'canEmsEdit' => $this->userCan($this->modeFeaturePermission('edit')),
             'canEmsDelete' => $this->userCan($this->modeFeaturePermission('delete')),
             'canEmsPrint' => $this->userCan($this->modeFeaturePermission('print')),
@@ -2407,7 +2468,10 @@ class PaquetesEms extends Component
             'canEmsSendVentanilla' => $this->userCan(self::ALMACEN_EMS_SEND_VENTANILLA_PERMISSION),
             'canEmsSendRegional' => $this->userCan(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION),
             'canEmsReprintCn33' => $this->userCan(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION),
+<<<<<<< HEAD
             'canEmsAlmacenAdmisiones' => $this->userCan(self::ALMACEN_ADMISIONES_ROUTE_PERMISSION),
+=======
+>>>>>>> a41ccfb (Uchazara)
             'canContratoAlmacenPrint' => $this->userCan('feature.paquetes-contrato.almacen.print'),
         ]);
     }
@@ -2438,6 +2502,7 @@ class PaquetesEms extends Component
         }
     }
 
+<<<<<<< HEAD
     private function canAccessCreateRoute(): bool
     {
         return $this->userCan('feature.paquetes-ems.index.create')
@@ -2452,6 +2517,8 @@ class PaquetesEms extends Component
         }
     }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
     protected function almacenUnificadoQuery()
     {
         $q = trim((string) $this->searchQuery);
@@ -3064,11 +3131,14 @@ class PaquetesEms extends Component
             return;
         }
 
+<<<<<<< HEAD
         if ($name === 'preregistro_codigo') {
             $this->applyPreregistroAutofill((string) $value);
             return;
         }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
         if ($name === 'destino_id') {
             if ($this->destino_id) {
                 $destino = $this->destinos->firstWhere('id', (int) $this->destino_id);
@@ -3418,6 +3488,7 @@ class PaquetesEms extends Component
         );
     }
 
+<<<<<<< HEAD
     protected function applyPreregistroAutofill(string $codigo): void
     {
         if ($this->editingId) {
@@ -3523,6 +3594,8 @@ class PaquetesEms extends Component
         return $codigo;
     }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
     protected function nextSpecialCodeForLoggedUser(): string
     {
         $prefix = $this->resolveSpecialCodePrefixForLoggedUser();
@@ -3556,6 +3629,7 @@ class PaquetesEms extends Component
         return $prefix . str_pad((string) ($maxCorrelative + 1), 5, '0', STR_PAD_LEFT);
     }
 
+<<<<<<< HEAD
     protected function registrarBitacoraPorCodEspecial(
         string $codEspecial,
         Collection $paquetes,
@@ -3641,6 +3715,8 @@ class PaquetesEms extends Component
         ];
     }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
     protected function resolveSpecialCodePrefixForLoggedUser(): string
     {
         $user = Auth::user();

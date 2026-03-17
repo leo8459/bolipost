@@ -92,11 +92,14 @@
                         @endif
                     @endif
                     @if ($this->isAlmacen)
+<<<<<<< HEAD
                         @if ($canOrdiEdit)
                         <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
                             Reencaminar
                         </button>
                         @endif
+=======
+>>>>>>> a41ccfb (Uchazara)
                         @if ($canOrdiAssign)
                         <button class="btn btn-outline-light2" type="button" wire:click="openRecibirModal">
                             Recibir paquetes
@@ -523,6 +526,7 @@
             </div>
         </div>
     </div>
+<<<<<<< HEAD
 
     <div class="modal fade" id="reencaminarModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog modal-xl">
@@ -593,6 +597,8 @@
             </div>
         </div>
     </div>
+=======
+>>>>>>> a41ccfb (Uchazara)
 </div>
 
 <script>
@@ -623,6 +629,7 @@
     window.addEventListener('closeRecibirModal', () => {
         $('#recibirModal').modal('hide');
     });
+<<<<<<< HEAD
 
     window.addEventListener('openReencaminarModal', () => {
         $('#reencaminarModal').modal('show');
@@ -631,6 +638,8 @@
     window.addEventListener('closeReencaminarModal', () => {
         $('#reencaminarModal').modal('hide');
     });
+=======
+>>>>>>> a41ccfb (Uchazara)
 </script>
 
 

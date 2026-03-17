@@ -113,11 +113,20 @@ class Empresa extends Component
                     ->orWhere('sigla', 'ILIKE', "%{$q}%")
                     ->orWhere('codigo_cliente', 'ILIKE', "%{$q}%");
             })
+<<<<<<< HEAD
             ->orderBy('codigo_cliente')
             ->paginate(100);
+=======
+            ->orderByDesc('id')
+            ->paginate(10);
+>>>>>>> a41ccfb (Uchazara)
 
         return view('livewire.empresa', [
             'empresas' => $empresas,
         ]);
     }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> a41ccfb (Uchazara)

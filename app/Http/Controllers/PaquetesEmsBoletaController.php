@@ -11,8 +11,11 @@ class PaquetesEmsBoletaController extends Controller
     public function show(PaqueteEms $paquete)
     {
         $this->authorizeAnyPermission(request(), [
+<<<<<<< HEAD
             'feature.paquetes-ems.index.create',
             'feature.paquetes-ems.almacen.create',
+=======
+>>>>>>> a41ccfb (Uchazara)
             'feature.paquetes-ems.index.print',
             'feature.paquetes-ems.almacen.print',
             'feature.paquetes-ems.ventanilla.print',

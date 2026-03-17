@@ -23,7 +23,11 @@
         <div class="min-h-screen flex flex-col justify-center items-center px-4 py-8">
             <div class="mb-5">
                 <a href="/">
+<<<<<<< HEAD
                     <img src="{{ asset('images/AGBClogo2.png') }}" alt="TrackingBO" class="w-48 h-auto object-contain drop-shadow-sm">
+=======
+                    <img src="{{ asset('images/AGBClogo2.png') }}" alt="TrackingBo" class="w-48 h-auto object-contain drop-shadow-sm">
+>>>>>>> a41ccfb (Uchazara)
                 </a>
             </div>
 

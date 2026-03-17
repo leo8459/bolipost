@@ -153,11 +153,14 @@
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
                     @if ($this->isAlmacen)
+<<<<<<< HEAD
                         @if ($canCertiEdit)
                         <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
                             Reencaminar
                         </button>
                         @endif
+=======
+>>>>>>> a41ccfb (Uchazara)
                         @if ($canCertiDropoff)
                         <button class="btn btn-outline-light2" type="button"
                             wire:click.prevent="bajaMasiva">
@@ -205,7 +208,10 @@
                                     <th></th>
                                 @endif
                                 <th>Codigo</th>
+<<<<<<< HEAD
                                 <th>Cod. Especial</th>
+=======
+>>>>>>> a41ccfb (Uchazara)
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
                                 <th>Cuidad</th>
@@ -228,7 +234,10 @@
                                         </td>
                                     @endif
                                     <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
+<<<<<<< HEAD
                                     <td>{{ $paquete->cod_especial ?? '-' }}</td>
+=======
+>>>>>>> a41ccfb (Uchazara)
                                     <td>{{ $paquete->destinatario }}</td>
                                     <td>{{ $paquete->telefono }}</td>
                                     <td>{{ $paquete->cuidad }}</td>
@@ -273,7 +282,11 @@
                                 </tr>
                             @empty
                                 <tr>
+<<<<<<< HEAD
                                     <td colspan="{{ $this->isAlmacen ? 14 : 13 }}" class="text-center py-5">
+=======
+                                    <td colspan="{{ $this->isAlmacen ? 13 : 12 }}" class="text-center py-5">
+>>>>>>> a41ccfb (Uchazara)
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -311,6 +324,7 @@
                                 @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
+<<<<<<< HEAD
                                 <label>Cod. especial</label>
                                 <input
                                     type="text"
@@ -321,6 +335,8 @@
                                 @error('cod_especial') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
+=======
+>>>>>>> a41ccfb (Uchazara)
                                 <label>Destinatario</label>
                                 <input type="text" wire:model.live.debounce.300ms="destinatario" class="form-control uppercase-input">
                                 @error('destinatario') <small class="text-danger">{{ $message }}</small> @enderror
@@ -487,18 +503,30 @@
     </div>
 
     <div class="modal fade" id="reencaminarModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+<<<<<<< HEAD
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <form wire:submit.prevent="saveReencaminar">
                     <div class="modal-header">
                         <h5 class="modal-title">Reencaminar paquetes seleccionados</h5>
+=======
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form wire:submit.prevent="saveReencaminar">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reencaminar paquete</h5>
+>>>>>>> a41ccfb (Uchazara)
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group">
+<<<<<<< HEAD
                             <label>Ciudad destino</label>
+=======
+                            <label>Asignar la ciudad al paquete:</label>
+>>>>>>> a41ccfb (Uchazara)
                             <select wire:model.defer="reencaminarCuidad" class="form-control uppercase-input">
                                 <option value="">Seleccione</option>
                                 <option value="LA PAZ">LA PAZ</option>
@@ -513,6 +541,7 @@
                             </select>
                             @error('reencaminarCuidad') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>
+<<<<<<< HEAD
 
                         <div class="table-responsive">
                             <table class="table table-sm table-hover align-middle">
@@ -550,6 +579,12 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-primary">Guardar actualizacion</button>
+=======
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+>>>>>>> a41ccfb (Uchazara)
                     </div>
                 </form>
             </div>

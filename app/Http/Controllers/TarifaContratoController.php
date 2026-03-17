@@ -36,8 +36,13 @@ class TarifaContratoController extends Controller
         'POTOSI',
         'TARIJA',
         'CHUQUISACA',
+<<<<<<< HEAD
         'TRINIDAD',
         'COBIJA',
+=======
+        'BENI',
+        'PANDO',
+>>>>>>> a41ccfb (Uchazara)
     ];
 
     private const PROVINCIAS_POR_DEPARTAMENTO = [
@@ -46,7 +51,11 @@ class TarifaContratoController extends Controller
             'FRANZ TAMAYO', 'INGAVI', 'LOAYZA', 'INQUISIVI', 'SUD YUNGAS',
             'LOS ANDES', 'AROMA', 'NOR YUNGAS', 'ABEL ITURRALDE',
             'BAUTISTA SAAVEDRA', 'MANCO KAPAC', 'GUALBERTO VILLARROEL',
+<<<<<<< HEAD
             'JOSE MANUEL COBIJA', 'CARANAVI',
+=======
+            'JOSE MANUEL PANDO', 'CARANAVI',
+>>>>>>> a41ccfb (Uchazara)
         ],
         'COCHABAMBA' => [
             'CERCADO', 'CAMPERO', 'AYOPAYA', 'ESTEBAN ARCE', 'ARANI', 'ARQUE',
@@ -79,11 +88,19 @@ class TarifaContratoController extends Controller
             'OROPEZA', 'AZURDUY', 'ZUDANEZ', 'TOMINA', 'HERNANDO SILES',
             'YAMPARAEZ', 'NOR CINTI', 'SUD CINTI', 'BELISARIO BOETO', 'LUIS CALVO',
         ],
+<<<<<<< HEAD
         'TRINIDAD' => [
             'CERCADO', 'VACA DIEZ', 'JOSE BALLIVIAN', 'YACUMA', 'MOXOS',
             'MAMORE', 'MARBAN', 'ITENE',
         ],
         'COBIJA' => [
+=======
+        'BENI' => [
+            'CERCADO', 'VACA DIEZ', 'JOSE BALLIVIAN', 'YACUMA', 'MOXOS',
+            'MAMORE', 'MARBAN', 'ITENE',
+        ],
+        'PANDO' => [
+>>>>>>> a41ccfb (Uchazara)
             'NICOLAS SUAREZ', 'MANURIPI', 'MADRE DE DIOS', 'ABUNA', 'FEDERICO ROMAN',
         ],
     ];

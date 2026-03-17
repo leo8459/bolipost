@@ -19,7 +19,11 @@ class DashboardController extends Controller
     private const CERTI_ORDI_YELLOW_DAYS = 15;
     private const DESTINOS_LARGA_DISTANCIA = [
         'SANTA CRUZ',
+<<<<<<< HEAD
         'TRINIDAD',
+=======
+        'BENI',
+>>>>>>> a41ccfb (Uchazara)
         'TARIJA',
     ];
     private const DESTINOS_BASE = [
@@ -30,8 +34,13 @@ class DashboardController extends Controller
         'POTOSI',
         'TARIJA',
         'CHUQUISACA',
+<<<<<<< HEAD
         'TRINIDAD',
         'COBIJA',
+=======
+        'BENI',
+        'PANDO',
+>>>>>>> a41ccfb (Uchazara)
     ];
     private const DESTINOS_CAPITALES = [
         'LA PAZ',
@@ -574,8 +583,13 @@ class DashboardController extends Controller
             return 'TARIJA';
         }
 
+<<<<<<< HEAD
         if (str_contains($normalized, 'TRINIDAD') || str_contains($normalized, 'TRINIDAD')) {
             return 'TRINIDAD';
+=======
+        if (str_contains($normalized, 'BENI') || str_contains($normalized, 'TRINIDAD')) {
+            return 'BENI';
+>>>>>>> a41ccfb (Uchazara)
         }
 
         foreach (self::DESTINOS_BASE as $base) {

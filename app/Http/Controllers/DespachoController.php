@@ -47,10 +47,17 @@ class DespachoController extends Controller
             'BOLPZ' => 'LA PAZ',
             'BOTJA' => 'TARIJA',
             'BOPOI' => 'POTOSI',
+<<<<<<< HEAD
             'BOCIJ' => 'COBIJA',
             'BOCBB' => 'COCHABAMBA',
             'BOORU' => 'ORURO',
             'BOTDD' => 'TRINIDAD',
+=======
+            'BOCIJ' => 'PANDO',
+            'BOCBB' => 'COCHABAMBA',
+            'BOORU' => 'ORURO',
+            'BOTDD' => 'BENI',
+>>>>>>> a41ccfb (Uchazara)
             'BOSRE' => 'SUCRE',
             'BOSRZ' => 'SANTA CRUZ',
             'PELIM' => 'PERU/LIMA',

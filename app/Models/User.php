@@ -8,10 +8,18 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\SoftDeletes;
+<<<<<<< HEAD
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable, HasRoles, SoftDeletes;
+=======
+use App\Models\Driver;
+
+class User extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable, HasRoles, SoftDeletes;
+>>>>>>> a41ccfb (Uchazara)
 
     public function adminlte_image()
     {
@@ -61,4 +69,36 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Empresa::class, 'empresa_id');
     }
+<<<<<<< HEAD
+=======
+
+    /**
+     * Compatibility attribute for imported Vitacora modules.
+     * Maps BoliPost role names to the role labels expected by those modules.
+     */
+    public function getRoleAttribute(): string
+    {
+        $role = (string) ($this->getRoleNames()->first() ?? '');
+
+        return match (mb_strtolower($role)) {
+            'administrador' => 'admin',
+            'cartero' => 'conductor',
+            default => 'recepcion',
+        };
+    }
+
+    /**
+     * Resolve the related driver profile used by gestiones modules.
+     */
+    public function resolvedDriver(): ?Driver
+    {
+        $query = Driver::query()->where('user_id', $this->id);
+
+        if (!empty($this->email)) {
+            $query->orWhere('email', $this->email);
+        }
+
+        return $query->first();
+    }
+>>>>>>> a41ccfb (Uchazara)
 }

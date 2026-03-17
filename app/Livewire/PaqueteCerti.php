@@ -5,7 +5,10 @@ namespace App\Livewire;
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteCerti as PaqueteCertiModel;
 use App\Models\Ventanilla as VentanillaModel;
+<<<<<<< HEAD
 use Barryvdh\DomPDF\Facade\Pdf;
+=======
+>>>>>>> a41ccfb (Uchazara)
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -44,11 +47,18 @@ class PaqueteCerti extends Component
     public $searchQuery = '';
     public $editingId = null;
     public $selectedPaquetes = [];
+<<<<<<< HEAD
     public $reencaminarCuidad = '';
     public $previewReencaminarIds = [];
 
     public $codigo = '';
     public $cod_especial = '';
+=======
+    public $reencaminarId = null;
+    public $reencaminarCuidad = '';
+
+    public $codigo = '';
+>>>>>>> a41ccfb (Uchazara)
     public $destinatario = '';
     public $telefono = '';
     public $cuidad = '';
@@ -131,7 +141,10 @@ class PaqueteCerti extends Component
 
         $this->editingId = $paquete->id;
         $this->codigo = $paquete->codigo;
+<<<<<<< HEAD
         $this->cod_especial = $paquete->cod_especial ?? '';
+=======
+>>>>>>> a41ccfb (Uchazara)
         $this->destinatario = $paquete->destinatario;
         $this->telefono = $paquete->telefono;
         $this->cuidad = $paquete->cuidad;
@@ -213,6 +226,7 @@ class PaqueteCerti extends Component
         session()->flash('success', 'Paquete certificado eliminado correctamente.');
     }
 
+<<<<<<< HEAD
     public function openReencaminarModal()
     {
         $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
@@ -238,11 +252,21 @@ class PaqueteCerti extends Component
         $this->previewReencaminarIds = $ids;
         $this->reencaminarCuidad = '';
         $this->resetValidation();
+=======
+    public function openReencaminarModal($id)
+    {
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
+
+        $paquete = $this->findAuthorizedPaqueteOrFail($id);
+        $this->reencaminarId = $paquete->id;
+        $this->reencaminarCuidad = $paquete->cuidad;
+>>>>>>> a41ccfb (Uchazara)
         $this->dispatch('openReencaminarModal');
     }
 
     public function saveReencaminar()
     {
+<<<<<<< HEAD
         $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
 
         if (! $this->isAlmacen) {
@@ -307,6 +331,24 @@ class PaqueteCerti extends Component
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'reporte-reencaminar-certificados-' . now()->format('Ymd-His') . '.pdf');
+=======
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
+
+        $this->validate([
+            'reencaminarId' => 'required|integer|exists:paquetes_certi,id',
+            'reencaminarCuidad' => 'required|string|max:255',
+        ]);
+
+        $paquete = $this->findAuthorizedPaqueteOrFail($this->reencaminarId);
+        $paquete->update([
+            'cuidad' => $this->upper($this->reencaminarCuidad),
+        ]);
+        $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_CORRECCION_DATOS);
+
+        $this->reset(['reencaminarId', 'reencaminarCuidad']);
+        $this->dispatch('closeReencaminarModal');
+        session()->flash('success', 'Paquete reencaminado correctamente.');
+>>>>>>> a41ccfb (Uchazara)
     }
 
     public function marcarInventario($id)
@@ -320,6 +362,7 @@ class PaqueteCerti extends Component
         }
 
         $paquete = $this->findAuthorizedPaqueteOrFail($id);
+<<<<<<< HEAD
         DB::transaction(function () use ($paquete, $estadoEntregadoId) {
             $paquete->refresh();
             if ($this->emptyToNull($paquete->cod_especial) === null) {
@@ -328,6 +371,11 @@ class PaqueteCerti extends Component
             $paquete->fk_estado = $estadoEntregadoId;
             $paquete->save();
         });
+=======
+        $paquete->update([
+            'fk_estado' => $estadoEntregadoId,
+        ]);
+>>>>>>> a41ccfb (Uchazara)
         $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
         session()->flash('success', 'Paquete enviado a ENTREGADO.');
     }
@@ -355,6 +403,7 @@ class PaqueteCerti extends Component
             return;
         }
 
+<<<<<<< HEAD
         DB::transaction(function () use ($ids, $estadoEntregadoId) {
             $codEspecial = $this->nextCertiCodEspecial();
 
@@ -370,6 +419,11 @@ class PaqueteCerti extends Component
                 ->whereIn('id', $ids)
                 ->update(['fk_estado' => $estadoEntregadoId]);
         });
+=======
+        PaqueteCertiModel::query()
+            ->whereIn('id', $ids)
+            ->update(['fk_estado' => $estadoEntregadoId]);
+>>>>>>> a41ccfb (Uchazara)
         $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
 
         $this->selectedPaquetes = [];
@@ -406,6 +460,7 @@ class PaqueteCerti extends Component
             return;
         }
 
+<<<<<<< HEAD
         DB::transaction(function () use ($ids, $estadoRezagoId) {
             $codEspecial = $this->nextCertiCodEspecial();
 
@@ -421,6 +476,11 @@ class PaqueteCerti extends Component
                 ->whereIn('id', $ids)
                 ->update(['fk_estado' => $estadoRezagoId]);
         });
+=======
+        PaqueteCertiModel::query()
+            ->whereIn('id', $ids)
+            ->update(['fk_estado' => $estadoRezagoId]);
+>>>>>>> a41ccfb (Uchazara)
         $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_RETENIDO_PUNTO_ENTREGA);
 
         $this->selectedPaquetes = [];
@@ -467,7 +527,10 @@ class PaqueteCerti extends Component
     {
         $this->reset([
             'codigo',
+<<<<<<< HEAD
             'cod_especial',
+=======
+>>>>>>> a41ccfb (Uchazara)
             'destinatario',
             'telefono',
             'cuidad',
@@ -486,7 +549,10 @@ class PaqueteCerti extends Component
     {
         return [
             'codigo' => 'required|string|max:255',
+<<<<<<< HEAD
             'cod_especial' => 'nullable|string|max:255',
+=======
+>>>>>>> a41ccfb (Uchazara)
             'destinatario' => 'required|string|max:255',
             'telefono' => 'required|integer|min:0',
             'cuidad' => 'required|string|max:255',
@@ -553,7 +619,10 @@ class PaqueteCerti extends Component
 
         return [
             'codigo' => $this->upper($this->codigo),
+<<<<<<< HEAD
             'cod_especial' => $this->emptyToNull($this->cod_especial),
+=======
+>>>>>>> a41ccfb (Uchazara)
             'destinatario' => $this->upper($this->destinatario),
             'telefono' => $this->telefono,
             'cuidad' => $this->upper($this->cuidad),
@@ -572,6 +641,7 @@ class PaqueteCerti extends Component
         return strtoupper(trim((string) $value));
     }
 
+<<<<<<< HEAD
     protected function emptyToNull($value): ?string
     {
         $text = trim((string) $value);
@@ -601,6 +671,8 @@ class PaqueteCerti extends Component
         return $number > 0 ? $number + 1 : 1;
     }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
     protected function getEstadoIdByNombre(string $nombre): ?int
     {
         $id = EstadoModel::query()
@@ -742,6 +814,7 @@ class PaqueteCerti extends Component
             ->orderByDesc('id')
             ->paginate(10);
 
+<<<<<<< HEAD
         $previewReencaminarPaquetes = collect();
         if (! empty($this->previewReencaminarIds)) {
             $previewReencaminarPaquetes = $this->authorizedPaquetesQuery()
@@ -754,6 +827,10 @@ class PaqueteCerti extends Component
         return view('livewire.paquete-certi', [
             'paquetes' => $paquetes,
             'previewReencaminarPaquetes' => $previewReencaminarPaquetes,
+=======
+        return view('livewire.paquete-certi', [
+            'paquetes' => $paquetes,
+>>>>>>> a41ccfb (Uchazara)
             'estados' => EstadoModel::orderBy('nombre_estado')->get(),
             'ventanillas' => $this->ventanillasQuery()->orderBy('nombre_ventanilla')->get(),
             'canCertiCreate' => $this->userCan($this->modeFeaturePermission('create')),
@@ -873,11 +950,14 @@ class PaqueteCerti extends Component
             return null;
         }
 
+<<<<<<< HEAD
         // Roles de Ventanilla Única
         if ($user->hasRole('encargado_unica') || $user->hasRole('auxiliar_unica')) {
             return ['UNICA'];
         }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
         foreach (self::ROLE_VENTANILLA_MAP as $role => $ventanillas) {
             if ($user->hasRole($role)) {
                 return $ventanillas;

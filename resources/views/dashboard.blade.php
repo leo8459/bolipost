@@ -12,9 +12,12 @@
             <div class="text-muted mb-2">
                 <strong>Rango:</strong> {{ $rangoLabel }}
             </div>
+<<<<<<< HEAD
             <a href="{{ route('preregistros.public.create') }}" target="_blank" rel="noopener" class="btn btn-sm btn-primary">
                 Hacer envio desde casa
             </a>
+=======
+>>>>>>> a41ccfb (Uchazara)
         </div>
     </div>
 @stop

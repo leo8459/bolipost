@@ -270,7 +270,11 @@ class ImportController extends Controller
         return [
             'codigo' => $this->upper((string) ($data['codigo'] ?? '')),
             'destinatario' => $this->upper((string) ($data['destinatario'] ?? '')),
+<<<<<<< HEAD
             'telefono' => ($t = trim((string) ($data['telefono'] ?? ''))) !== '' ? $t : null,
+=======
+            'telefono' => trim((string) ($data['telefono'] ?? '')),
+>>>>>>> a41ccfb (Uchazara)
             'ciudad' => $ciudad,
             'zona' => $this->upper((string) ($data['zona'] ?? '')),
             'peso' => $this->parseDecimal($data['peso'] ?? null),
@@ -289,7 +293,11 @@ class ImportController extends Controller
         return [
             'codigo' => 'required|string|max:255',
             'destinatario' => 'required|string|max:255',
+<<<<<<< HEAD
             'telefono' => 'nullable|integer|min:0|max:2147483647',
+=======
+            'telefono' => 'required|integer|min:0|max:2147483647',
+>>>>>>> a41ccfb (Uchazara)
             'cuidad' => 'required|string|max:255',
             'zona' => 'required|string|max:255',
             'ventanilla' => 'required|string|max:255',
@@ -308,7 +316,11 @@ class ImportController extends Controller
         return [
             'codigo' => 'required|string|max:255',
             'destinatario' => 'required|string|max:255',
+<<<<<<< HEAD
             'telefono' => 'nullable|string|max:30',
+=======
+            'telefono' => 'required|string|max:30',
+>>>>>>> a41ccfb (Uchazara)
             'ciudad' => 'required|string|max:255',
             'zona' => 'required|string|max:255',
             'peso' => 'required|numeric|min:0',

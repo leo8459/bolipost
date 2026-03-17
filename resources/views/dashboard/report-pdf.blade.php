@@ -411,7 +411,11 @@
 </div>
 
 <div style="text-align:right; font-size:7.8px; color:#7d91aa; margin-top:2px;">
+<<<<<<< HEAD
     Correos de Bolivia | Board-Level Operational Intelligence
+=======
+    Agencia Boliviana de Correos | Board-Level Operational Intelligence
+>>>>>>> a41ccfb (Uchazara)
 </div>
 </body>
 </html>

@@ -141,6 +141,7 @@
     border: 1px solid rgba(255, 205, 0, .28);
 }
 
+<<<<<<< HEAD
 .btn-home-shipping {
     color: #fff;
     background: linear-gradient(95deg, #20539A, #173d72);
@@ -158,6 +159,8 @@
     text-decoration: none;
 }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
 .menu-toggle {
     display: none;
     width: 40px;
@@ -303,6 +306,7 @@
 }
 
 @media (max-width: 860px) {
+<<<<<<< HEAD
     .nav {
         min-height: 82px;
     }
@@ -316,6 +320,8 @@
         font-size: .76rem;
     }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
     .menu-toggle {
         display: inline-flex;
         align-items: center;
@@ -358,14 +364,18 @@
 
     .menu a::after { display: none; }
     .brand span { display: none; }
+<<<<<<< HEAD
     .brand img {
         width: 150px;
         height: 76px;
     }
+=======
+>>>>>>> a41ccfb (Uchazara)
     .footer-grid { grid-template-columns: 1fr; }
 }
 
 
+<<<<<<< HEAD
 @media (max-width: 520px) {
     .btn-home-shipping {
         max-width: 150px;
@@ -376,5 +386,7 @@
     }
 }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
 
 

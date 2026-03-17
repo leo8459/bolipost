@@ -26,8 +26,13 @@ class RecojoController extends Controller
         'POTOSI',
         'TARIJA',
         'CHUQUISACA',
+<<<<<<< HEAD
         'TRINIDAD',
         'COBIJA',
+=======
+        'BENI',
+        'PANDO',
+>>>>>>> a41ccfb (Uchazara)
     ];
 
     public function index()

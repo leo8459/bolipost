@@ -29,10 +29,14 @@ body {
 }
 
 .track-page { padding-top: 108px; }
+<<<<<<< HEAD
 .tracking-shell {
   padding: 1.5rem 0 2.4rem;
   overflow-x: clip;
 }
+=======
+.tracking-shell { padding: 1.5rem 0 2.4rem; }
+>>>>>>> a41ccfb (Uchazara)
 
 .tracking-layout {
   position: relative;
@@ -114,10 +118,13 @@ body {
   overflow: hidden;
 }
 
+<<<<<<< HEAD
 .status-banner > :last-child {
   min-width: 0;
 }
 
+=======
+>>>>>>> a41ccfb (Uchazara)
 .status-banner::after {
   content: "";
   position: absolute;
@@ -182,7 +189,10 @@ body {
   font-size: 0.95rem;
   position: relative;
   z-index: 1;
+<<<<<<< HEAD
   overflow-wrap: anywhere;
+=======
+>>>>>>> a41ccfb (Uchazara)
 }
 
 .status-banner span {
@@ -193,8 +203,11 @@ body {
   color: #ffea9b;
   position: relative;
   z-index: 1;
+<<<<<<< HEAD
   overflow-wrap: anywhere;
   word-break: break-word;
+=======
+>>>>>>> a41ccfb (Uchazara)
 }
 
 .status-meta {
@@ -225,10 +238,15 @@ body {
 }
 
 .meta-item strong {
+<<<<<<< HEAD
   display: block;
   color: #112f52;
   font-size: 0.93rem;
   overflow-wrap: anywhere;
+=======
+  color: #112f52;
+  font-size: 0.93rem;
+>>>>>>> a41ccfb (Uchazara)
 }
 
 .card {
@@ -280,7 +298,10 @@ body {
   font-size: 0.85rem;
   color: #1f4f34;
   font-weight: 700;
+<<<<<<< HEAD
   overflow-wrap: anywhere;
+=======
+>>>>>>> a41ccfb (Uchazara)
 }
 
 .pickup-map-link {
@@ -373,7 +394,10 @@ body {
   color: #4d6788;
   font-weight: 650;
   line-height: 1.28;
+<<<<<<< HEAD
   overflow-wrap: anywhere;
+=======
+>>>>>>> a41ccfb (Uchazara)
 }
 
 .progress-track li.is-done .step-dot,
@@ -449,7 +473,10 @@ body {
 .history-group-head h3 {
   color: #173f70;
   font-size: 0.95rem;
+<<<<<<< HEAD
   overflow-wrap: anywhere;
+=======
+>>>>>>> a41ccfb (Uchazara)
 }
 
 .history-group-head span {
@@ -512,7 +539,10 @@ body {
   padding: 0.66rem 0.76rem;
   display: grid;
   gap: 0.38rem;
+<<<<<<< HEAD
   min-width: 0;
+=======
+>>>>>>> a41ccfb (Uchazara)
 }
 
 .history-event-head {
@@ -526,7 +556,10 @@ body {
   font-size: 0.94rem;
   color: #142f52;
   line-height: 1.3;
+<<<<<<< HEAD
   overflow-wrap: anywhere;
+=======
+>>>>>>> a41ccfb (Uchazara)
 }
 
 .event-badge {
@@ -600,7 +633,10 @@ body {
   color: #213f61;
   font-weight: 600;
   word-break: break-word;
+<<<<<<< HEAD
   overflow-wrap: anywhere;
+=======
+>>>>>>> a41ccfb (Uchazara)
 }
 
 .country-flag {
@@ -645,10 +681,14 @@ body {
 
 @media (max-width: 720px) {
   .track-page { padding-top: 102px; }
+<<<<<<< HEAD
   .status-banner {
     align-items: flex-start;
     flex-wrap: wrap;
   }
+=======
+  .status-banner { align-items: flex-start; }
+>>>>>>> a41ccfb (Uchazara)
   .card-head { flex-direction: column; align-items: flex-start; }
   .progress-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .progress-track li::after { display: none; }
@@ -666,6 +706,7 @@ body {
 }
 
 @media (max-width: 520px) {
+<<<<<<< HEAD
   .tracking-shell { padding-top: 1rem; }
   .status-banner {
     padding: 1rem;
@@ -676,6 +717,8 @@ body {
     height: 36px;
     font-size: 1rem;
   }
+=======
+>>>>>>> a41ccfb (Uchazara)
   .status-meta { grid-template-columns: 1fr; }
   .history-event-head {
     flex-direction: column;
