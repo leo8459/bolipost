@@ -24,6 +24,10 @@
         $servicioActual = strtoupper((string) ($ultimoEvento->servicio ?? 'EMS'));
         $origenLabel = 'Correos de Bolivia';
         $origenIso2 = null;
+        $codigoS10 = strtoupper(trim((string) $codigo));
+        $esCodigoS10 = preg_match('/^[A-Z]{2}\d{9}[A-Z]{2}$/', $codigoS10) === 1;
+        $esCodigoBoliviano = $esCodigoS10 && str_ends_with($codigoS10, 'BO');
+        $esTrackingInternacionalExterno = ($fuenteTracking ?? null) === 'api' && !$esCodigoBoliviano;
 
         $primerPaso = in_array($servicioActual, ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';
         $incluyeCartero = str_contains($eventoTextos, 'cartero')
@@ -39,15 +43,22 @@
 
         $idxEntregado = $incluyeCartero ? 5 : 4;
         $pasoActual = 0;
+        $textoIndicaDespacho = str_contains($eventoTextos, 'despach');
+        $textoIndicaExpedicion = str_contains($eventoTextos, 'exped')
+            || str_contains($eventoTextos, 'saca')
+            || (!$esTrackingInternacionalExterno && str_contains($eventoTextos, 'transit'));
+        $textoIndicaVentanilla = str_contains($eventoTextos, 'ventanilla')
+            || str_contains($eventoTextos, 'listo para entregar')
+            || str_contains($eventoTextos, 'oficina de entrega');
 
         if ($primerPaso === 'Clasificacion') {
             if (str_contains($eventoTextos, 'clasific') || str_contains($eventoTextos, 'recibid') || str_contains($eventoTextos, 'registr')) $pasoActual = max($pasoActual, 0);
         } else {
             if (str_contains($eventoTextos, 'admi') || str_contains($eventoTextos, 'recibid') || str_contains($eventoTextos, 'registr')) $pasoActual = max($pasoActual, 0);
         }
-        if (str_contains($eventoTextos, 'despach')) $pasoActual = max($pasoActual, 1);
-        if (str_contains($eventoTextos, 'exped') || str_contains($eventoTextos, 'transit') || str_contains($eventoTextos, 'saca')) $pasoActual = max($pasoActual, 2);
-        if (str_contains($eventoTextos, 'ventanilla') || str_contains($eventoTextos, 'oficina') || str_contains($eventoTextos, 'listo')) $pasoActual = max($pasoActual, 3);
+        if ($textoIndicaDespacho) $pasoActual = max($pasoActual, 1);
+        if ($textoIndicaExpedicion) $pasoActual = max($pasoActual, 2);
+        if ($textoIndicaVentanilla) $pasoActual = max($pasoActual, 3);
         if ($incluyeCartero && (str_contains($eventoTextos, 'cartero') || str_contains($eventoTextos, 'distrib') || str_contains($eventoTextos, 'domicilio') || str_contains($eventoTextos, 'intento'))) {
             $pasoActual = max($pasoActual, 4);
         }
