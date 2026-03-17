@@ -711,38 +711,6 @@ return [
             'icon' => 'fas fa-cogs',
             'submenu' => [
                 [
-                    'text' => 'Estados',
-                    'url' => 'estados',
-                    'icon' => 'fas fa-flag',
-                ],
-                [
-                    'text' => 'Auditoria',
-                    'url' => 'auditoria',
-                    'icon' => 'fas fa-clipboard-list',
-                ],
-                [
-                    'text' => 'Ventanillas',
-                    'url' => 'ventanillas',
-                    'icon' => 'fas fa-window-restore',
-                ],
-                [
-                    'text' => 'Rendimiento',
-                    'url' => '/pulse',
-
-                    'icon' => 'fas fa-chart-line',
-                ],
-                [
-                    'text' => 'Logs',
-                    'url' => '/log-viewer',
-
-                    'icon' => 'fas fa-file-alt',
-                ],
-                [
-                    'text' => 'Respaldos',
-                    'url' => '/respaldos',
-                    'icon' => 'fas fa-save',
-                ],
-                [
                     'text' => 'Impotaciones',
                     'icon' => 'fas fa-file-import',
                     'submenu' => [
@@ -827,6 +795,38 @@ return [
                             'icon' => 'fas fa-key',
                         ],
                     ],
+                ],
+                [
+                    'text' => 'Estados',
+                    'url' => 'estados',
+                    'icon' => 'fas fa-flag',
+                ],
+                [
+                    'text' => 'Auditoria',
+                    'url' => 'auditoria',
+                    'icon' => 'fas fa-clipboard-list',
+                ],
+                [
+                    'text' => 'Ventanillas',
+                    'url' => 'ventanillas',
+                    'icon' => 'fas fa-window-restore',
+                ],
+                [
+                    'text' => 'Rendimiento',
+                    'url' => '/pulse',
+
+                    'icon' => 'fas fa-chart-line',
+                ],
+                [
+                    'text' => 'Logs',
+                    'url' => '/log-viewer',
+
+                    'icon' => 'fas fa-file-alt',
+                ],
+                [
+                    'text' => 'Respaldos',
+                    'url' => '/respaldos',
+                    'icon' => 'fas fa-save',
                 ],
             ],
         ],
