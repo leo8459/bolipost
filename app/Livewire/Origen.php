@@ -19,8 +19,8 @@ class Origen extends Component
     public $tipos = [
         'LA PAZ',
         'SANTA CRUZ',
-        'PANDO',
-        'BENI',
+        'COBIJA',
+        'TRINIDAD',
         'TARIJA',
         'CHUQUISACA',
         'ORURO',

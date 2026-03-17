@@ -227,8 +227,8 @@
                 'CHUQUISACA' => 'Chuquisaca',
                 'SUCRE' => 'Chuquisaca',
                 'TARIJA' => 'Tarija',
-                'BENI' => 'Beni',
-                'PANDO' => 'Pando',
+                'TRINIDAD' => 'Beni',
+                'COBIJA' => 'Pando',
             ];
 
             foreach ($mapa as $clave => $nombre) {

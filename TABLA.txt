@@ -51,7 +51,7 @@ class Iniciar extends Component
             'nombre_destinatario' => 'required|string|max:255',
             // 'telefono_destinatario' => 'required|string',
             'direccion' => 'required|string',
-            'ciudad' => 'required|in:LA PAZ,POTOSI,ORURO,SANTA CRUZ,CHUQUISACA,COCHABAMBA,BENI,PANDO,TARIJA',
+            'ciudad' => 'required|in:LA PAZ,POTOSI,ORURO,SANTA CRUZ,CHUQUISACA,COCHABAMBA,TRINIDAD,COBIJA,TARIJA',
             'pais' => 'required|string',
             'contenido' => 'nullable|string|max:500', // Regla de validación
 
@@ -137,8 +137,8 @@ class Iniciar extends Component
             'POTOSI' => '4',
             'CHUQUISACA' => '5',
             'TARIJA' => '6',
-            'PANDO' => '7',
-            'BENI' => '8',
+            'COBIJA' => '7',
+            'TRINIDAD' => '8',
 
         ];
         

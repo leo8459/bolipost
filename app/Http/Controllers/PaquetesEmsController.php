@@ -19,8 +19,8 @@ class PaquetesEmsController extends Controller
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
-        'PANDO',
-        'BENI',
+        'COBIJA',
+        'TRINIDAD',
         'TARIJA',
         'CHUQUISACA',
         'ORURO',
@@ -34,7 +34,7 @@ class PaquetesEmsController extends Controller
             'FRANZ TAMAYO', 'INGAVI', 'LOAYZA', 'INQUISIVI', 'SUD YUNGAS',
             'LOS ANDES', 'AROMA', 'NOR YUNGAS', 'ABEL ITURRALDE',
             'BAUTISTA SAAVEDRA', 'MANCO KAPAC', 'GUALBERTO VILLARROEL',
-            'JOSE MANUEL PANDO', 'CARANAVI',
+            'JOSE MANUEL COBIJA', 'CARANAVI',
         ],
         'COCHABAMBA' => [
             'CERCADO', 'CAMPERO', 'AYOPAYA', 'ESTEBAN ARCE', 'ARANI', 'ARQUE',
@@ -67,11 +67,11 @@ class PaquetesEmsController extends Controller
             'OROPEZA', 'AZURDUY', 'ZUDANEZ', 'TOMINA', 'HERNANDO SILES',
             'YAMPARAEZ', 'NOR CINTI', 'SUD CINTI', 'BELISARIO BOETO', 'LUIS CALVO',
         ],
-        'BENI' => [
+        'TRINIDAD' => [
             'CERCADO', 'VACA DIEZ', 'JOSE BALLIVIAN', 'YACUMA', 'MOXOS',
             'MAMORE', 'MARBAN', 'ITENE',
         ],
-        'PANDO' => [
+        'COBIJA' => [
             'NICOLAS SUAREZ', 'MANURIPI', 'MADRE DE DIOS', 'ABUNA', 'FEDERICO ROMAN',
         ],
     ];

@@ -44,9 +44,9 @@ class PaquetesEms extends Component
         'TARIJA' => 'TJA',
         'CHUQUISACA' => 'SRE',
         'SUCRE' => 'SRE',
-        'BENI' => 'TDD',
         'TRINIDAD' => 'TDD',
-        'PANDO' => 'CIJ',
+        'TRINIDAD' => 'TDD',
+        'COBIJA' => 'CIJ',
         'COBIJA' => 'CIJ',
     ];
     private const EMS_CODE_SERVICE_NAMES = [
@@ -113,8 +113,8 @@ class PaquetesEms extends Component
     public $ciudades = [
         'LA PAZ',
         'SANTA CRUZ',
-        'PANDO',
-        'BENI',
+        'COBIJA',
+        'TRINIDAD',
         'TARIJA',
         'CHUQUISACA',
         'ORURO',

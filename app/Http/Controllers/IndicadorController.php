@@ -20,7 +20,7 @@ class IndicadorController extends Controller
     private const CERTI_ORDI_RED_DAYS = 30;
     private const DESTINOS_LARGA_DISTANCIA = [
         'SANTA CRUZ',
-        'BENI',
+        'TRINIDAD',
         'TARIJA',
     ];
     private const DESTINOS_BASE = [
@@ -31,8 +31,8 @@ class IndicadorController extends Controller
         'POTOSI',
         'TARIJA',
         'CHUQUISACA',
-        'BENI',
-        'PANDO',
+        'TRINIDAD',
+        'COBIJA',
     ];
     private const DESTINOS_CAPITALES = [
         'LA PAZ',
@@ -628,8 +628,8 @@ class IndicadorController extends Controller
             return 'TARIJA';
         }
 
-        if (str_contains($normalized, 'BENI') || str_contains($normalized, 'TRINIDAD')) {
-            return 'BENI';
+        if (str_contains($normalized, 'TRINIDAD') || str_contains($normalized, 'TRINIDAD')) {
+            return 'TRINIDAD';
         }
 
         foreach (self::DESTINOS_BASE as $base) {

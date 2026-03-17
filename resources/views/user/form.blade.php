@@ -84,7 +84,7 @@
                 </option>
 
                 @php
-                    $regionales = ['LA PAZ','COCHABAMBA','SANTA CRUZ','ORURO','POTOSI','TARIJA','SUCRE','BENI','PANDO'];
+                    $regionales = ['LA PAZ','COCHABAMBA','SANTA CRUZ','ORURO','POTOSI','TARIJA','SUCRE','TRINIDAD','COBIJA'];
                     $selectedRegional = old('ciudad', $user->ciudad ?? '');
                 @endphp
 

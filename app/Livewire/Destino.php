@@ -19,8 +19,8 @@ class Destino extends Component
     public $departamentos = [
         'LA PAZ',
         'SANTA CRUZ',
-        'PANDO',
-        'BENI',
+        'COBIJA',
+        'TRINIDAD',
         'TARIJA',
         'CHUQUISACA',
         'ORURO',

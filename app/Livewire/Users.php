@@ -286,7 +286,7 @@ class Users extends Component
             'users' => $users,
             'roles' => Role::query()->orderBy('name')->get(),
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
-            'regionales' => ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'BENI', 'PANDO'],
+            'regionales' => ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'],
         ]);
     }
 }
