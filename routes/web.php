@@ -36,15 +36,8 @@ use App\Http\Controllers\ZonaPaqueteController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\AclController;
-<<<<<<< HEAD
 use App\Http\Controllers\BitacoraController;
 use App\Http\Controllers\PreregistroController;
-=======
-use App\Http\Controllers\Web\FuelLogController;
-use App\Http\Controllers\Web\MaintenanceFileController;
-use App\Http\Controllers\Web\MapController;
-use App\Http\Controllers\Web\QrDecoderController;
->>>>>>> a41ccfb (Uchazara)
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -70,12 +63,9 @@ Route::get('/api/busqueda/captcha', [BusquedaController::class, 'captchaTracking
 
 Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
     ->name('api.public.zona-paquete');
-<<<<<<< HEAD
 Route::get('/hacer-envio-desde-casa', [PreregistroController::class, 'publicCreate'])->name('preregistros.public.create');
 Route::post('/hacer-envio-desde-casa', [PreregistroController::class, 'publicStore'])->name('preregistros.public.store');
 Route::get('/hacer-envio-desde-casa/{preregistro}/ticket', [PreregistroController::class, 'ticket'])->name('preregistros.public.ticket');
-=======
->>>>>>> a41ccfb (Uchazara)
 Route::middleware(['auth'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
 
@@ -190,7 +180,6 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/tarifa-contrato/{tarifaContrato}/edit', [TarifaContratoController::class, 'edit'])->name('tarifa-contrato.edit');
     Route::put('/tarifa-contrato/{tarifaContrato}', [TarifaContratoController::class, 'update'])->name('tarifa-contrato.update');
     Route::delete('/tarifa-contrato/{tarifaContrato}', [TarifaContratoController::class, 'destroy'])->name('tarifa-contrato.destroy');
-<<<<<<< HEAD
     Route::get('/bitacoras', [BitacoraController::class, 'index'])->name('bitacoras.index');
     Route::get('/bitacoras/create', [BitacoraController::class, 'create'])->name('bitacoras.create');
     Route::post('/bitacoras', [BitacoraController::class, 'store'])->name('bitacoras.store');
@@ -199,8 +188,6 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::delete('/bitacoras/{bitacora}', [BitacoraController::class, 'destroy'])->name('bitacoras.destroy');
     Route::get('/preregistros', [PreregistroController::class, 'index'])->name('preregistros.index');
     Route::post('/preregistros/{preregistro}/approve', [PreregistroController::class, 'approve'])->name('preregistros.approve');
-=======
->>>>>>> a41ccfb (Uchazara)
     Route::get('/paquetes-certificados/almacen', [PaquetesCertiController::class, 'almacen'])->name('paquetes-certificados.almacen');
     Route::get('/paquetes-certificados/inventario', [PaquetesCertiController::class, 'inventario'])->name('paquetes-certificados.inventario');
     Route::get('/paquetes-certificados/rezago', [PaquetesCertiController::class, 'rezago'])->name('paquetes-certificados.rezago');
@@ -222,12 +209,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
     Route::get('/eventos-auditoria', [EventosAuditoriaController::class, 'index'])->name('eventos-auditoria.index');
     Route::get('/empresas', [EmpresaController::class, 'index'])->name('empresas.index');
-<<<<<<< HEAD
     Route::get('/empresas/import', [EmpresaController::class, 'importForm'])->name('empresas.import-form');
     Route::post('/empresas/import', [EmpresaController::class, 'import'])->name('empresas.import');
     Route::get('/empresas/plantilla-excel', [EmpresaController::class, 'downloadTemplateExcel'])->name('empresas.template-excel');
-=======
->>>>>>> a41ccfb (Uchazara)
     Route::get('/codigo-empresa', [CodigoEmpresaController::class, 'index'])->name('codigo-empresa.index');
     Route::get('/paquetes-contrato', [RecojoController::class, 'index'])->name('paquetes-contrato.index');
     Route::get('/paquetes-contrato/recoger-envios', [RecojoController::class, 'recogerEnvios'])->name('paquetes-contrato.recoger-envios');
@@ -278,39 +262,6 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/carteros/entrega', [CarterosController::class, 'deliverPackage'])->name('carteros.entrega.store');
     Route::post('/carteros/entrega/intento', [CarterosController::class, 'addAttempt'])->name('carteros.entrega.intento');
 
-<<<<<<< HEAD
-=======
-    // Modulos de Gestiones (Bitacora / Gasolina / Mantenimiento)
-    Route::view('/livewire/vehicles', 'livewire.pages.vehicles')->name('livewire.vehicles');
-    Route::view('/livewire/vehicle-brands', 'livewire.pages.vehicle-brands')->name('livewire.vehicle-brands');
-    Route::view('/livewire/drivers', 'livewire.pages.drivers')->name('livewire.drivers');
-    Route::view('/livewire/vehicle-assignments', 'livewire.pages.vehicle-assignments')->name('livewire.vehicle-assignments');
-    Route::view('/livewire/vehicle-logs', 'livewire.pages.vehicle-logs')->name('livewire.vehicle-logs');
-    Route::view('/map', 'livewire.pages.map')->name('map.index');
-    Route::view('/livewire/map', 'livewire.pages.map')->name('livewire.map');
-    Route::get('/map/data', [MapController::class, 'data'])->name('map.data');
-    Route::view('/livewire/fuel-logs', 'livewire.pages.fuel-logs')->name('livewire.fuel-logs');
-    Route::view('/livewire/maintenance-logs', 'livewire.pages.maintenance-logs')->name('livewire.maintenance-logs');
-    Route::view('/livewire/maintenance-alerts', 'livewire.pages.maintenance-alerts')->name('livewire.maintenance-alerts');
-    Route::view('/livewire/maintenance-calendar', 'livewire.pages.maintenance-calendar')->name('livewire.maintenance-calendar');
-    Route::view('/livewire/maintenance-types', 'livewire.pages.maintenance-types')->name('livewire.maintenance-types');
-    Route::view('/livewire/maintenance-appointments', 'livewire.pages.maintenance-appointments')->name('livewire.maintenance-appointments');
-    Route::get('/maintenance-logs/{maintenanceLog}/comprobante', [MaintenanceFileController::class, 'comprobante'])
-        ->name('maintenance-logs.comprobante');
-
-    Route::redirect('/vehicles', '/livewire/vehicles')->name('vehicles.index');
-    Route::redirect('/drivers', '/livewire/drivers')->name('drivers.index');
-    Route::redirect('/vehicle-logs', '/livewire/vehicle-logs')->name('vehicle-logs.index');
-    Route::redirect('/fuel-logs', '/livewire/fuel-logs')->name('fuel-logs.index');
-    Route::redirect('/maintenance-logs', '/livewire/maintenance-logs')->name('maintenance-logs.index');
-
-    Route::get('/fuel-logs/bitacora/pdf', [FuelLogController::class, 'bitacoraPdf'])->name('fuel-logs.bitacora.pdf');
-    Route::get('/vehicle-logs/pdf', [FuelLogController::class, 'vehicleLogsPdf'])->name('vehicle-logs.pdf');
-    Route::post('/fuel-logs/scrape-from-qr', [FuelLogController::class, 'scrapeFromQr'])->name('fuel-logs.scrape-from-qr');
-    Route::get('/fuel-logs/by-vehicle/{vehicle}', [FuelLogController::class, 'byVehicle'])->name('fuel-logs.by-vehicle');
-    Route::post('/qr/decode-from-image', [QrDecoderController::class, 'decodeFromImage'])->name('api.qr.decode');
-
->>>>>>> a41ccfb (Uchazara)
     Route::get('/respaldos', [BackupController::class, 'index'])->name('backups.index');
     Route::post('/respaldos/base-datos', [BackupController::class, 'backupDatabase'])->name('backups.database');
     Route::post('/respaldos/sistema', [BackupController::class, 'backupSystem'])->name('backups.system');
@@ -318,12 +269,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
 });
 
 require __DIR__ . '/auth.php';
-<<<<<<< HEAD
 
 
 
 
 
 
-=======
->>>>>>> a41ccfb (Uchazara)

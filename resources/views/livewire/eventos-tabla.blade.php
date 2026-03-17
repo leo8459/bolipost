@@ -147,10 +147,7 @@
                         class="form-control search-input"
                         placeholder="Buscar..."
                         wire:model="search"
-<<<<<<< HEAD
                         wire:keydown.enter.prevent="searchRegistros"
-=======
->>>>>>> a41ccfb (Uchazara)
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchRegistros">Buscar</button>
                     @if ($canEventosCreate)

@@ -2,12 +2,9 @@
 
 namespace App\Http\Controllers;
 
-<<<<<<< HEAD
 use App\Models\Destino;
 use App\Models\Servicio;
 use App\Models\TrackingSubscription;
-=======
->>>>>>> a41ccfb (Uchazara)
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,7 +33,6 @@ class BusquedaController extends Controller
 
         return view('welcome', [
             'captchaPregunta' => $captcha['question'],
-<<<<<<< HEAD
             'preregistroServicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
             'preregistroDestinos' => Destino::query()->orderBy('nombre_destino')->get(),
             'preregistroCiudades' => [
@@ -50,8 +46,6 @@ class BusquedaController extends Controller
                 'COCHABAMBA',
                 'POTOSI',
             ],
-=======
->>>>>>> a41ccfb (Uchazara)
         ]);
     }
 
@@ -85,7 +79,6 @@ class BusquedaController extends Controller
             'eventos' => $eventos,
             'ultimoEvento' => $eventos->first(),
             'fuenteTracking' => $resultado['fuente'],
-<<<<<<< HEAD
             'preregistroServicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
             'preregistroDestinos' => Destino::query()->orderBy('nombre_destino')->get(),
             'preregistroCiudades' => [
@@ -99,8 +92,6 @@ class BusquedaController extends Controller
                 'COCHABAMBA',
                 'POTOSI',
             ],
-=======
->>>>>>> a41ccfb (Uchazara)
         ]);
     }
 
@@ -113,7 +104,6 @@ class BusquedaController extends Controller
             ], 422);
         }
 
-<<<<<<< HEAD
         return $this->responderEventosTracking($request);
     }
 
@@ -124,8 +114,6 @@ class BusquedaController extends Controller
 
     private function responderEventosTracking(Request $request): JsonResponse
     {
-=======
->>>>>>> a41ccfb (Uchazara)
         $codigo = $this->obtenerCodigoValidado($request);
         $resultado = $this->buscarEventosPorCodigo($codigo);
         $eventos = $resultado['eventos'];
@@ -509,7 +497,6 @@ class BusquedaController extends Controller
 
         return 'TRACKING';
     }
-<<<<<<< HEAD
 
     public function subscribe(Request $request)
 {
@@ -552,6 +539,4 @@ public function unsubscribe(Request $request)
     return response()->json(['ok' => true]);
 }
 
-=======
->>>>>>> a41ccfb (Uchazara)
 }

@@ -19,13 +19,8 @@ class ReportesController extends Controller
     private const EVENTO_EMS_SOLICITUD_ID = 295;
     private const CERTI_ORDI_GREEN_DAYS = 7;
     private const CERTI_ORDI_YELLOW_DAYS = 15;
-<<<<<<< HEAD
     private const DESTINOS_LARGA_DISTANCIA = ['SANTA CRUZ', 'TRINIDAD', 'TARIJA'];
     private const DESTINOS_BASE = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'CHUQUISACA', 'TRINIDAD', 'COBIJA'];
-=======
-    private const DESTINOS_LARGA_DISTANCIA = ['SANTA CRUZ', 'BENI', 'TARIJA'];
-    private const DESTINOS_BASE = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'CHUQUISACA', 'BENI', 'PANDO'];
->>>>>>> a41ccfb (Uchazara)
     private const DESTINOS_CAPITALES = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
     private const SCOPES = ['general', 'contrato', 'ems', 'certi', 'ordi'];
 
@@ -680,13 +675,8 @@ class ReportesController extends Controller
         if (str_contains($normalized, 'TARIJA')) {
             return 'TARIJA';
         }
-<<<<<<< HEAD
         if (str_contains($normalized, 'TRINIDAD') || str_contains($normalized, 'TRINIDAD')) {
             return 'TRINIDAD';
-=======
-        if (str_contains($normalized, 'BENI') || str_contains($normalized, 'TRINIDAD')) {
-            return 'BENI';
->>>>>>> a41ccfb (Uchazara)
         }
         foreach (self::DESTINOS_BASE as $base) {
             if (str_contains($normalized, $base)) {

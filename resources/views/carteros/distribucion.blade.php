@@ -7,10 +7,7 @@
 @section('content')
     @php
         $canAssignDistribucion = auth()->user()?->can('feature.carteros.distribucion.assign') ?? false;
-<<<<<<< HEAD
         $canSelfAssignDistribucion = $canAssignDistribucion || (auth()->user()?->can('feature.carteros.distribucion.selfassign') ?? false);
-=======
->>>>>>> a41ccfb (Uchazara)
     @endphp
     <div class="carteros-wrap">
         <div class="card card-carteros">
@@ -94,13 +91,10 @@
                                         <option value="">Selecciona usuario</option>
                                     </select>
                                 </div>
-<<<<<<< HEAD
                             @elseif ($canSelfAssignDistribucion)
                                 <div class="selection-target mb-2">
                                     Modo disponible: Autoasignarme
                                 </div>
-=======
->>>>>>> a41ccfb (Uchazara)
                             @endif
 
                             <div class="selection-target" id="selection-target">
@@ -127,11 +121,7 @@
                                 <div class="selection-empty">Aun no seleccionaste paquetes.</div>
                             </div>
 
-<<<<<<< HEAD
                             @if ($canSelfAssignDistribucion)
-=======
-                            @if ($canAssignDistribucion)
->>>>>>> a41ccfb (Uchazara)
                                 <button id="btn-asignar" class="btn btn-carteros-primary btn-block mt-3">Asignar seleccionados</button>
                             @endif
                         </div>
@@ -198,10 +188,7 @@
             const openReportButton = document.getElementById('btn-open-report');
             const csrfToken = '{{ csrf_token() }}';
             const canAssignDistribucion = @json($canAssignDistribucion);
-<<<<<<< HEAD
             const canSelfAssignDistribucion = @json($canSelfAssignDistribucion);
-=======
->>>>>>> a41ccfb (Uchazara)
             const currentUserName = @json(auth()->user()->name);
 
             function escapeHtml(value) {
@@ -232,10 +219,7 @@
             }
 
             function getAssigneeName() {
-<<<<<<< HEAD
                 if (!canSelfAssignDistribucion) return currentUserName;
-=======
->>>>>>> a41ccfb (Uchazara)
                 if (!canAssignDistribucion || !assignmentMode) return currentUserName;
                 if (assignmentMode.value === 'user' && assigneeUser && assigneeUser.value) {
                     return assigneeUser.options[assigneeUser.selectedIndex]?.text || 'Usuario seleccionado';
@@ -592,7 +576,6 @@
                 });
             }
 
-<<<<<<< HEAD
             if (!canAssignDistribucion && canSelfAssignDistribucion && assignButton) {
                 assignButton.addEventListener('click', async function() {
                     const items = Object.values(selectedItems).map(function(item) {
@@ -650,8 +633,6 @@
                 });
             }
 
-=======
->>>>>>> a41ccfb (Uchazara)
             renderSelectedList();
             loadUsers();
             loadPage(1, false);

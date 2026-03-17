@@ -33,7 +33,6 @@
             padding:10px 12px;
             background: rgba(255,255,255,.95);
         }
-<<<<<<< HEAD
         .header-preregistro{
             min-width: 320px;
             max-width: 420px;
@@ -61,8 +60,6 @@
         .header-preregistro .header-preregistro-message.is-error{
             color:#fee2e2;
         }
-=======
->>>>>>> a41ccfb (Uchazara)
 
         .btn-dorado{
             background: var(--dorado);
@@ -381,7 +378,6 @@
 
                 <div class="d-flex gap-2 align-items-center flex-wrap">
                     @if ($this->isCreateEms)
-<<<<<<< HEAD
                         <div class="header-preregistro">
                             <label class="header-preregistro-label" for="headerPreregistroCodigo">Codigo de preregistro</label>
                             <input
@@ -398,8 +394,6 @@
                                 </div>
                             @endif
                         </div>
-=======
->>>>>>> a41ccfb (Uchazara)
                         <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.index') }}">
                             Volver a Paquetes EMS
                         </a>
@@ -414,17 +408,11 @@
                         <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
 
                         @if ($this->isAdmision)
-<<<<<<< HEAD
                             @if ($canEmsAlmacenAdmisiones)
                                 <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.almacen-admisiones', absolute: false) }}">
                                     Almacen admisiones
                                 </a>
                             @endif
-=======
-                            <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.almacen-admisiones') }}">
-                                Almacen admisiones
-                            </a>
->>>>>>> a41ccfb (Uchazara)
 
                             @if ($canEmsAssign)
                             <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
@@ -475,11 +463,7 @@
                             @endif
                         @endif
 
-<<<<<<< HEAD
                         @if ((($this->isAdmision && $canEmsAdmisionCreate) || ($this->isAlmacenEms && $canEmsCreate)) && $canEmsCreateRoute)
-=======
-                        @if (($this->isAdmision || $this->isAlmacenEms) && $canEmsCreate)
->>>>>>> a41ccfb (Uchazara)
                             <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                         @endif
                     @endif
@@ -1124,7 +1108,6 @@
                         <div class="section-block">
                             <div class="section-title">Datos generales</div>
 
-<<<<<<< HEAD
                             @if ($this->isAdmision && !$editingId)
                                 <div class="form-row">
                                     <div class="form-group col-md-12">
@@ -1145,8 +1128,6 @@
                                 </div>
                             @endif
 
-=======
->>>>>>> a41ccfb (Uchazara)
                             <div class="form-row">
                                 @if (!$this->isAlmacenEms)
                                     <div class="form-group col-md-6">

@@ -84,11 +84,7 @@
                 </option>
 
                 @php
-<<<<<<< HEAD
                     $regionales = ['LA PAZ','COCHABAMBA','SANTA CRUZ','ORURO','POTOSI','TARIJA','SUCRE','TRINIDAD','COBIJA'];
-=======
-                    $regionales = ['LA PAZ','COCHABAMBA','SANTA CRUZ','ORURO','POTOSI','TARIJA','SUCRE','BENI','PANDO'];
->>>>>>> a41ccfb (Uchazara)
                     $selectedRegional = old('ciudad', $user->ciudad ?? '');
                 @endphp
 

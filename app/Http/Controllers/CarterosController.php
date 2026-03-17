@@ -29,10 +29,7 @@ class CarterosController extends Controller
         'auxiliar_urbano',
         'auxiliar_urbano_dnd',
         'auxiliar_7',
-<<<<<<< HEAD
         'cartero_ems',
-=======
->>>>>>> a41ccfb (Uchazara)
         'carteros_ems',
     ];
 
@@ -64,14 +61,10 @@ class CarterosController extends Controller
     public function distributionAssignmentReport(Request $request, string $token)
     {
         $this->authorizeRoutePermission('carteros.distribucion');
-<<<<<<< HEAD
         $this->authorizeAnyFeaturePermission([
             'feature.carteros.distribucion.assign',
             'feature.carteros.distribucion.selfassign',
         ]);
-=======
-        $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
->>>>>>> a41ccfb (Uchazara)
 
         $reports = (array) $request->session()->get('carteros.assignment_reports', []);
         $report = $reports[$token] ?? null;
@@ -185,16 +178,9 @@ class CarterosController extends Controller
         );
     }
 
-<<<<<<< HEAD
     public function assign(Request $request): JsonResponse
     {
         $this->authorizeRoutePermission('carteros.distribucion');
-=======
-        public function assign(Request $request): JsonResponse
-    {
-        $this->authorizeRoutePermission('carteros.distribucion');
-        $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
->>>>>>> a41ccfb (Uchazara)
 
         $validated = $request->validate([
             'assignment_mode' => ['required', 'in:auto,user'],
@@ -203,7 +189,6 @@ class CarterosController extends Controller
             'items.*.id' => ['required', 'integer'],
             'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
         ]);
-<<<<<<< HEAD
 
         if ($validated['assignment_mode'] === 'auto') {
             $this->authorizeAnyFeaturePermission([
@@ -214,8 +199,6 @@ class CarterosController extends Controller
             $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
         }
 
-=======
->>>>>>> a41ccfb (Uchazara)
         $assigneeUserId = $validated['assignment_mode'] === 'auto'
             ? (int) $request->user()->id
             : (int) ($validated['user_id'] ?? 0);
@@ -1835,7 +1818,6 @@ class CarterosController extends Controller
         abort(403, 'No tienes permiso para realizar esta accion.');
     }
 
-<<<<<<< HEAD
     /**
      * @param  array<int, string>  $permissions
      */
@@ -1862,8 +1844,6 @@ class CarterosController extends Controller
         abort(403, 'No tienes permiso para realizar esta accion.');
     }
 
-=======
->>>>>>> a41ccfb (Uchazara)
     private function authorizeRoutePermission(string $permission): void
     {
         $user = auth()->user();

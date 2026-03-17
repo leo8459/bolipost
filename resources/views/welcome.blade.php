@@ -3,13 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-<<<<<<< HEAD
     <title>TrackingBO | Plataforma Empresarial Postal</title>
     <meta name="description" content="TrackingBO ofrece rastreo postal y gesti&#xF3;n operativa con enfoque empresarial e institucional.">
-=======
-    <title>TrackingBo | Plataforma Empresarial Postal</title>
-    <meta name="description" content="TrackingBo ofrece rastreo postal y gesti&#xF3;n operativa con enfoque empresarial e institucional.">
->>>>>>> a41ccfb (Uchazara)
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
     <link rel="shortcut icon" href="{{ asset('favicon-32x32.png') }}">
@@ -30,11 +25,7 @@
                 <div>
                     <p class="kicker reveal">&#xBF;Est&#xE1;s buscando tu paquete?</p>
                     <h1 class="reveal">RASTREA TU C&#xD3;DIGO</h1>
-<<<<<<< HEAD
                     <p class="reveal">Este es un servicio de seguimiento de c&#xF3;digo de rastreo postal a nivel internacional y nacional de Correos de Bolivia.</p>
-=======
-                    <p class="reveal">Este es un servicio de seguimiento de c&#xF3;digo de rastreo postal a nivel internacional y nacional de la Agencia Boliviana de Correos.</p>
->>>>>>> a41ccfb (Uchazara)
                     <div class="hero-track reveal">
                         <div class="hero-track-title">Rastrea tu c&#xF3;digo</div>
                         <form class="hero-track-form" id="trackForm" action="{{ route('tracking.demo') }}" method="GET">
@@ -81,11 +72,7 @@
                 </div>
 
                 <div class="hero-figure" id="heroFigure">
-<<<<<<< HEAD
                     <img class="hero-img reveal" src="{{ asset('images/MONITO.png') }}" alt="Operador TrackingBO">
-=======
-                    <img class="hero-img reveal" src="{{ asset('images/MONITO.png') }}" alt="Operador TrackingBo">
->>>>>>> a41ccfb (Uchazara)
                 </div>
             </div>
         </section>
@@ -119,11 +106,7 @@
             <div class="container">
                 <div class="reveal">
                     <div class="service-title">
-<<<<<<< HEAD
                         <h3>Enviar y Recoger Paquetes con Correos de Bolivia: Simple y R&#xE1;pido</h3>
-=======
-                        <h3>Enviar y Recoger Paquetes con la Agencia Boliviana de Correos: Simple y R&#xE1;pido</h3>
->>>>>>> a41ccfb (Uchazara)
                         <div class="service-divider"></div>
                     </div>
                     <div class="service-journey">
@@ -131,11 +114,7 @@
                             <div class="service-copy">
                                 <span class="service-pill">Env&#xED;o de paquetes</span>
                                 <h4>Env&#xED;a tus paquetes en nuestras oficinas</h4>
-<<<<<<< HEAD
                                 <p>Env&#xED;a tus paquetes en Correos de Bolivia de manera sencilla. Visita nuestras oficinas cercanas, empaca bien tu paquete y proporciona la direcci&#xF3;n del destinatario.</p>
-=======
-                                <p>Env&#xED;a tus paquetes en la Agencia Boliviana de Correos de manera sencilla. Visita nuestras oficinas cercanas, empaca bien tu paquete y proporciona la direcci&#xF3;n del destinatario.</p>
->>>>>>> a41ccfb (Uchazara)
                                 <h5>Requerimientos para el env&#xED;o de paquetes:</h5>
                                 <ul class="service-list">
                                     <li>Fotocopia de C.I.</li>
@@ -156,11 +135,7 @@
                             <div class="service-copy">
                                 <span class="service-pill">Recojo de paquetes</span>
                                 <h4>Recoge tus paquetes en nuestras oficinas</h4>
-<<<<<<< HEAD
                                 <p>Para recoger paquetes en Correos de Bolivia, sigue pasos simples: ve a nuestras oficinas cuando recibas un aviso, lleva una identificaci&#xF3;n v&#xE1;lida y el c&#xF3;digo de rastreo.</p>
-=======
-                                <p>Para recoger paquetes en la Agencia Boliviana de Correos, sigue pasos simples: ve a nuestras oficinas cuando recibas un aviso, lleva una identificaci&#xF3;n v&#xE1;lida y el c&#xF3;digo de rastreo.</p>
->>>>>>> a41ccfb (Uchazara)
                                 <h5>Requerimientos para recoger tus paquetes:</h5>
                                 <ul class="service-list">
                                     <li>C.I. o pasaporte vigente.</li>
@@ -291,7 +266,6 @@
         </div>
     </div>
 
-<<<<<<< HEAD
     <div class="preregistro-modal" id="preregistroModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="preregistroTitle">
         <div class="preregistro-panel">
             <button class="preregistro-close" type="button" id="preregistroClose" aria-label="Cerrar formulario">
@@ -502,8 +476,6 @@
         </div>
     </div>
 
-=======
->>>>>>> a41ccfb (Uchazara)
     <button class="back-to-top" id="backToTop" type="button" aria-label="Subir al inicio">
         &uarr;
     </button>
@@ -514,7 +486,6 @@
         const topbar = document.getElementById('topbar');
         const menuToggle = document.getElementById('menuToggle');
         const menu = document.getElementById('menu');
-<<<<<<< HEAD
         const preregistroModal = document.getElementById('preregistroModal');
         const preregistroClose = document.getElementById('preregistroClose');
         const preregistroTriggers = document.querySelectorAll('[data-open-preregistro], .btn-home-shipping');
@@ -609,8 +580,6 @@
                 document.body.appendChild(iframe);
             }
         @endif
-=======
->>>>>>> a41ccfb (Uchazara)
 
         menuToggle?.addEventListener('click', () => { const isOpen = menu.classList.toggle('open'); menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); });
         menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { menu.classList.remove('open'); menuToggle?.setAttribute('aria-expanded', 'false'); }));
