@@ -43,6 +43,7 @@ class PaquetesOrdi extends Component
     public $reprintCodEspecial = '';
     public $codigoRecibir = '';
     public $previewRecibirIds = [];
+    public $previewRecibirZonas = [];
     public $reencaminarCiudad = '';
     public $previewReencaminarIds = [];
 
@@ -133,6 +134,7 @@ class PaquetesOrdi extends Component
 
         $this->codigoRecibir = '';
         $this->previewRecibirIds = [];
+        $this->previewRecibirZonas = [];
         $this->dispatch('openRecibirModal');
     }
 
@@ -303,6 +305,10 @@ class PaquetesOrdi extends Component
             ->values()
             ->all();
 
+        if (!isset($this->previewRecibirZonas[(string) $paquete->id])) {
+            $this->previewRecibirZonas[(string) $paquete->id] = $paquete->zona ?? '';
+        }
+
         $this->codigoRecibir = '';
     }
 
@@ -352,13 +358,18 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        PaqueteOrdi::query()
-            ->whereIn('id', $idsActualizar)
-            ->update(['fk_estado' => $estadoRecibidoId]);
+        foreach ($idsActualizar as $id) {
+            $zonaVal = trim($this->previewRecibirZonas[(string) $id] ?? '');
+            PaqueteOrdi::where('id', $id)->update([
+                'fk_estado' => $estadoRecibidoId,
+                'zona'      => $zonaVal !== '' ? $zonaVal : null,
+            ]);
+        }
 
         $this->registrarEventosOrdiPorIds($idsActualizar, self::EVENTO_ID_PAQUETE_RECIBIDO_DESTINO_TRANSITO);
 
         $this->previewRecibirIds = [];
+        $this->previewRecibirZonas = [];
         $this->codigoRecibir = '';
         $this->dispatch('closeRecibirModal');
         session()->flash('success', 'Paquetes recibidos correctamente.');

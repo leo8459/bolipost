@@ -492,6 +492,7 @@
                                         <th>Destinatario</th>
                                         <th>Telefono</th>
                                         <th>Ciudad</th>
+                                        <th>Zona</th>
                                         <th>Ventanilla</th>
                                         <th>Estado</th>
                                     </tr>
@@ -503,6 +504,15 @@
                                             <td>{{ $paquete->destinatario }}</td>
                                             <td>{{ $paquete->telefono }}</td>
                                             <td>{{ $paquete->ciudad }}</td>
+                                            <td>
+                                                <input
+                                                    type="text"
+                                                    class="form-control form-control-sm uppercase-input"
+                                                    placeholder="Zona"
+                                                    wire:model.defer="previewRecibirZonas.{{ $paquete->id }}"
+                                                    style="min-width: 90px;"
+                                                >
+                                            </td>
                                             <td>{{ optional($paquete->ventanillaRef)->nombre_ventanilla ?? '-' }}</td>
                                             <td>{{ optional($paquete->estado)->nombre_estado ?? '-' }}</td>
                                         </tr>
