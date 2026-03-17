@@ -286,11 +286,7 @@ class Users extends Component
             'users' => $users,
             'roles' => Role::query()->orderBy('name')->get(),
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
-<<<<<<< HEAD
             'regionales' => ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'],
-=======
-            'regionales' => ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'BENI', 'PANDO'],
->>>>>>> a41ccfb (Uchazara)
         ]);
     }
 }

@@ -19,13 +19,8 @@ class PaquetesEmsController extends Controller
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
-<<<<<<< HEAD
         'COBIJA',
         'TRINIDAD',
-=======
-        'PANDO',
-        'BENI',
->>>>>>> a41ccfb (Uchazara)
         'TARIJA',
         'CHUQUISACA',
         'ORURO',
@@ -39,11 +34,7 @@ class PaquetesEmsController extends Controller
             'FRANZ TAMAYO', 'INGAVI', 'LOAYZA', 'INQUISIVI', 'SUD YUNGAS',
             'LOS ANDES', 'AROMA', 'NOR YUNGAS', 'ABEL ITURRALDE',
             'BAUTISTA SAAVEDRA', 'MANCO KAPAC', 'GUALBERTO VILLARROEL',
-<<<<<<< HEAD
             'JOSE MANUEL COBIJA', 'CARANAVI',
-=======
-            'JOSE MANUEL PANDO', 'CARANAVI',
->>>>>>> a41ccfb (Uchazara)
         ],
         'COCHABAMBA' => [
             'CERCADO', 'CAMPERO', 'AYOPAYA', 'ESTEBAN ARCE', 'ARANI', 'ARQUE',
@@ -76,19 +67,11 @@ class PaquetesEmsController extends Controller
             'OROPEZA', 'AZURDUY', 'ZUDANEZ', 'TOMINA', 'HERNANDO SILES',
             'YAMPARAEZ', 'NOR CINTI', 'SUD CINTI', 'BELISARIO BOETO', 'LUIS CALVO',
         ],
-<<<<<<< HEAD
         'TRINIDAD' => [
             'CERCADO', 'VACA DIEZ', 'JOSE BALLIVIAN', 'YACUMA', 'MOXOS',
             'MAMORE', 'MARBAN', 'ITENE',
         ],
         'COBIJA' => [
-=======
-        'BENI' => [
-            'CERCADO', 'VACA DIEZ', 'JOSE BALLIVIAN', 'YACUMA', 'MOXOS',
-            'MAMORE', 'MARBAN', 'ITENE',
-        ],
-        'PANDO' => [
->>>>>>> a41ccfb (Uchazara)
             'NICOLAS SUAREZ', 'MANURIPI', 'MADRE DE DIOS', 'ABUNA', 'FEDERICO ROMAN',
         ],
     ];
@@ -100,15 +83,12 @@ class PaquetesEmsController extends Controller
 
     public function create()
     {
-<<<<<<< HEAD
         $this->authorizeAnyPermission(request(), [
             'feature.paquetes-ems.index.create',
             'feature.paquetes-ems.almacen.create',
             'paquetes-ems.create',
         ]);
 
-=======
->>>>>>> a41ccfb (Uchazara)
         return view('paquetes_ems.create');
     }
 
@@ -502,7 +482,6 @@ class PaquetesEmsController extends Controller
     {
         return self::PROVINCIAS_POR_DEPARTAMENTO;
     }
-<<<<<<< HEAD
 
     private function authorizeAnyPermission(Request $request, array $permissions): void
     {
@@ -520,6 +499,4 @@ class PaquetesEmsController extends Controller
 
         abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
     }
-=======
->>>>>>> a41ccfb (Uchazara)
 }

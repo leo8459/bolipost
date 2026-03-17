@@ -994,7 +994,6 @@ body.has-loading-modal {
   .service-art img { animation: none !important; }
 }
 
-<<<<<<< HEAD
 .preregistro-modal {
   position: fixed;
   inset: 0;
@@ -1390,8 +1389,6 @@ body.has-loading-modal {
   flex-wrap: wrap;
 }
 
-=======
->>>>>>> a41ccfb (Uchazara)
 @media (max-width: 1200px) {
   .hero-grid {
     grid-template-columns: 1fr .88fr;
@@ -1431,7 +1428,6 @@ body.has-loading-modal {
   .compliance-card { min-height: auto; }
   .tracking-results-head { flex-direction: column; align-items: flex-start; }
   .tracking-event-item { flex-direction: column; align-items: flex-start; }
-<<<<<<< HEAD
   .preregistro-head,
   .preregistro-section-head,
   .preregistro-actions {
@@ -1448,11 +1444,6 @@ body.has-loading-modal {
 
 @media (max-width: 860px) {
   .hero-figure { display: none; }
-=======
-}
-
-@media (max-width: 860px) {
->>>>>>> a41ccfb (Uchazara)
   .hero-tags { display: none; }
   .hero-captcha-row, .hero-captcha-entry { grid-template-columns: 1fr; }
   .hero-track-form .hero-track-btn { width: 100%; }
@@ -1486,7 +1477,6 @@ body.has-loading-modal {
     word-break: break-word;
   }
   .back-to-top { right: 14px; bottom: 14px; width: 42px; height: 42px; }
-<<<<<<< HEAD
   .preregistro-panel {
     padding: 18px;
     max-height: calc(100vh - 20px);
@@ -1501,8 +1491,6 @@ body.has-loading-modal {
       calc(100% - 16px) calc(50% - 2px),
       calc(100% - 10px) calc(50% - 2px);
   }
-=======
->>>>>>> a41ccfb (Uchazara)
 }
 
 @media (max-width: 520px) {

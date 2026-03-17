@@ -26,17 +26,10 @@ class DespachoExpedicion extends Component
         'LA PAZ' => 'BOLPZ',
         'TARIJA' => 'BOTJA',
         'POTOSI' => 'BOPOI',
-<<<<<<< HEAD
         'COBIJA' => 'BOCIJ',
         'COCHABAMBA' => 'BOCBB',
         'ORURO' => 'BOORU',
         'TRINIDAD' => 'BOTDD',
-=======
-        'PANDO' => 'BOCIJ',
-        'COCHABAMBA' => 'BOCBB',
-        'ORURO' => 'BOORU',
-        'BENI' => 'BOTDD',
->>>>>>> a41ccfb (Uchazara)
         'SUCRE' => 'BOSRE',
         'SANTA CRUZ' => 'BOSRZ',
         'PERU/LIMA' => 'PELIM',

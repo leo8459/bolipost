@@ -248,10 +248,6 @@
     </tfoot>
 </table>
 
-<<<<<<< HEAD
 <div class="footer">Correos de Bolivia | Sistema de Reportes</div>
-=======
-<div class="footer">Agencia Boliviana de Correos | Sistema de Reportes</div>
->>>>>>> a41ccfb (Uchazara)
 </body>
 </html>

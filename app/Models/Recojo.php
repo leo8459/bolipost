@@ -62,12 +62,9 @@ class Recojo extends Model
     {
         return $this->belongsTo(TarifaContrato::class, 'tarifa_contrato_id');
     }
-<<<<<<< HEAD
 
     public function bitacoras()
     {
         return $this->hasMany(Bitacora::class, 'paquetes_contrato_id');
     }
-=======
->>>>>>> a41ccfb (Uchazara)
 }

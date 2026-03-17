@@ -443,7 +443,6 @@ class AclPermissionRegistry
     ];
 
     /**
-<<<<<<< HEAD
      * Route access overrides for windows that can be opened from multiple feature contexts.
      *
      * @var array<string, array<int, string>>
@@ -467,8 +466,6 @@ class AclPermissionRegistry
     ];
 
     /**
-=======
->>>>>>> a41ccfb (Uchazara)
      * @var array<int, string>|null
      */
     private static ?array $cachedLivewireFeaturePermissions = null;
@@ -591,7 +588,6 @@ class AclPermissionRegistry
     }
 
     /**
-<<<<<<< HEAD
      * Permission candidates that can authorize opening a route/window.
      *
      * @return array<int, string>
@@ -610,8 +606,6 @@ class AclPermissionRegistry
     }
 
     /**
-=======
->>>>>>> a41ccfb (Uchazara)
      * Livewire action permissions used in middleware/hooks.
      *
      * @return array<int, string>
@@ -1404,10 +1398,7 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.entregados.print' => 'Boton: Reimprimir rotulo',
             'feature.paquetes-contrato.entregados.export' => 'Boton: Descargar imagen',
             'feature.carteros.distribucion.assign' => 'Boton: Asignar',
-<<<<<<< HEAD
             'feature.carteros.distribucion.selfassign' => 'Boton: Autoasignarme',
-=======
->>>>>>> a41ccfb (Uchazara)
             'feature.carteros.cartero.guide' => 'Boton: Mandar provincia',
             'feature.carteros.cartero.province' => 'Boton: Mostrar provincias',
             'feature.carteros.cartero.deliver' => 'Boton: Abrir entrega',
@@ -1417,12 +1408,9 @@ class AclPermissionRegistry
             'feature.eventos-ems.index.create' => 'Boton: Nuevo registro EMS',
             'feature.eventos-ems.index.edit' => 'Boton: Editar registro EMS',
             'feature.eventos-ems.index.delete' => 'Boton: Eliminar registro EMS',
-<<<<<<< HEAD
             'feature.eventos-contrato.index.create' => 'Boton: Nuevo registro Contrato',
             'feature.eventos-contrato.index.edit' => 'Boton: Editar registro Contrato',
             'feature.eventos-contrato.index.delete' => 'Boton: Eliminar registro Contrato',
-=======
->>>>>>> a41ccfb (Uchazara)
             'feature.despachos.abiertos.create' => 'Boton: Nuevo despacho',
             'feature.despachos.abiertos.edit' => 'Boton: Editar despacho',
             'feature.despachos.abiertos.delete' => 'Boton: Eliminar despacho',
@@ -1640,10 +1628,7 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.entregados.print' => 'Controla Reimprimir rotulo dentro de Contratos entregados.',
             'feature.paquetes-contrato.entregados.export' => 'Controla Descargar imagen dentro de Contratos entregados.',
             'feature.carteros.distribucion.assign' => 'Controla el boton Asignar en la ventana Distribucion.',
-<<<<<<< HEAD
             'feature.carteros.distribucion.selfassign' => 'Controla la autoasignacion de paquetes al usuario actual en la ventana Distribucion.',
-=======
->>>>>>> a41ccfb (Uchazara)
             'feature.carteros.cartero.guide' => 'Controla Mandar provincia y Guardar guia dentro de la ventana Cartero.',
             'feature.carteros.cartero.province' => 'Controla el boton Mostrar provincias dentro de la ventana Cartero.',
             'feature.carteros.cartero.deliver' => 'Controla el boton Entregar correspondencia dentro de la ventana Cartero.',
@@ -1653,12 +1638,9 @@ class AclPermissionRegistry
             'feature.eventos-ems.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos EMS.',
             'feature.eventos-ems.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Eventos EMS.',
             'feature.eventos-ems.index.delete' => 'Controla el boton Eliminar dentro de la ventana Eventos EMS.',
-<<<<<<< HEAD
             'feature.eventos-contrato.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos Contrato.',
             'feature.eventos-contrato.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Eventos Contrato.',
             'feature.eventos-contrato.index.delete' => 'Controla el boton Eliminar dentro de la ventana Eventos Contrato.',
-=======
->>>>>>> a41ccfb (Uchazara)
             'feature.despachos.abiertos.create' => 'Controla el boton Nuevo en la ventana Despachos abiertos.',
             'feature.despachos.abiertos.edit' => 'Controla el boton Editar en la ventana Despachos abiertos.',
             'feature.despachos.abiertos.delete' => 'Controla el boton Eliminar en la ventana Despachos abiertos.',

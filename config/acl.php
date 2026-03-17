@@ -91,10 +91,7 @@ return [
     */
     'custom_permissions' => [
         'feature.carteros.distribucion.assign',
-<<<<<<< HEAD
         'feature.carteros.distribucion.selfassign',
-=======
->>>>>>> a41ccfb (Uchazara)
         'feature.carteros.cartero.guide',
         'feature.carteros.cartero.province',
         'feature.carteros.cartero.deliver',
@@ -264,14 +261,11 @@ return [
             'feature.paquetes-ems.recibir-regional.print',
             'feature.paquetes-ems.en-transito.print',
         ],
-<<<<<<< HEAD
         'cartero_ems' => [
             'dashboard',
             'carteros.distribucion',
             'feature.carteros.distribucion.selfassign',
         ],
-=======
->>>>>>> a41ccfb (Uchazara)
         'auxiliar' => [
             'dashboard',
             'reportes.index',
@@ -380,10 +374,7 @@ return [
         'pesos' => 'Pesos',
         'tarifario' => 'Tarifario',
         'tarifa-contrato' => 'Tarifa Contrato',
-<<<<<<< HEAD
         'bitacoras' => 'Bitacoras',
-=======
->>>>>>> a41ccfb (Uchazara)
         'importar' => 'Importaciones',
         'backups' => 'Respaldos',
     ],
