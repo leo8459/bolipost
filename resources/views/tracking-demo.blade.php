@@ -46,7 +46,8 @@
         $textoIndicaDespacho = str_contains($eventoTextos, 'despach');
         $textoIndicaExpedicion = str_contains($eventoTextos, 'exped')
             || str_contains($eventoTextos, 'saca')
-            || (!$esTrackingInternacionalExterno && str_contains($eventoTextos, 'transit'));
+            || str_contains($eventoTextos, 'transit')
+            || str_contains($eventoTextos, 'extranj');
         $textoIndicaVentanilla = str_contains($eventoTextos, 'ventanilla')
             || str_contains($eventoTextos, 'listo para entregar')
             || str_contains($eventoTextos, 'oficina de entrega');

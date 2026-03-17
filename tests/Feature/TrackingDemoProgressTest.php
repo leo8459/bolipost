@@ -30,7 +30,7 @@ class TrackingDemoProgressTest extends TestCase
         }
     }
 
-    public function test_international_transit_event_does_not_map_to_ventanilla(): void
+    public function test_international_transit_event_maps_to_expedicion_not_ventanilla(): void
     {
         config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
         config()->set('services.tracking_sqlserver.token', 'test-token');
@@ -62,7 +62,8 @@ class TrackingDemoProgressTest extends TestCase
             ->get('/trackingbo?codigo=LH266067312US');
 
         $response->assertOk();
-        $response->assertSee('Paso actual: <strong>Admision</strong>', false);
+        $response->assertSee('Paso actual: <strong>Expedicion</strong>', false);
+        $response->assertDontSee('Paso actual: <strong>Admision</strong>', false);
         $response->assertDontSee('Paso actual: <strong>Ventanilla</strong>', false);
     }
 }
