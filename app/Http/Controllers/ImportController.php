@@ -270,7 +270,7 @@ class ImportController extends Controller
         return [
             'codigo' => $this->upper((string) ($data['codigo'] ?? '')),
             'destinatario' => $this->upper((string) ($data['destinatario'] ?? '')),
-            'telefono' => trim((string) ($data['telefono'] ?? '')),
+            'telefono' => ($t = trim((string) ($data['telefono'] ?? ''))) !== '' ? $t : null,
             'ciudad' => $ciudad,
             'zona' => $this->upper((string) ($data['zona'] ?? '')),
             'peso' => $this->parseDecimal($data['peso'] ?? null),
@@ -289,7 +289,7 @@ class ImportController extends Controller
         return [
             'codigo' => 'required|string|max:255',
             'destinatario' => 'required|string|max:255',
-            'telefono' => 'required|integer|min:0|max:2147483647',
+            'telefono' => 'nullable|integer|min:0|max:2147483647',
             'cuidad' => 'required|string|max:255',
             'zona' => 'required|string|max:255',
             'ventanilla' => 'required|string|max:255',
@@ -308,7 +308,7 @@ class ImportController extends Controller
         return [
             'codigo' => 'required|string|max:255',
             'destinatario' => 'required|string|max:255',
-            'telefono' => 'required|string|max:30',
+            'telefono' => 'nullable|string|max:30',
             'ciudad' => 'required|string|max:255',
             'zona' => 'required|string|max:255',
             'peso' => 'required|numeric|min:0',
