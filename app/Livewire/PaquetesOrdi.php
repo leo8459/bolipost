@@ -8,6 +8,7 @@ use App\Models\Ventanilla;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -283,8 +284,16 @@ class PaquetesOrdi extends Component
             ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->first();
 
+        $desdeApi = false;
         if (!$paquete) {
-            session()->flash('success', 'El paquete no existe, no esta ENVIADO o no pertenece a tu ciudad.');
+            $paquete = $this->buscarYGuardarDesdeApiDespacho($codigo, $estadoEnviadoId);
+            $desdeApi = true;
+        }
+
+        if (!$paquete) {
+            if (!session()->has('success')) {
+                session()->flash('success', 'El paquete no existe, no esta ENVIADO o no pertenece a tu ciudad.');
+            }
             return;
         }
 
@@ -354,6 +363,60 @@ class PaquetesOrdi extends Component
         $this->dispatch('closeRecibirModal');
         session()->flash('success', 'Paquetes recibidos correctamente.');
         $this->resetPage();
+    }
+
+    private function buscarYGuardarDesdeApiDespacho(string $codigo, int $estadoEnviadoId): ?PaqueteOrdi
+    {
+        try {
+            $response = Http::withToken('eZMlItx6mQMNZjxoijEvf7K3pYvGGXMvEHmQcqvtlAPOEAPgyKDVOpyF7JP0ilbK')
+                ->withoutVerifying()
+                ->timeout(10)
+                ->get('https://admin.correos.gob.bo:8101/api/despacho/' . urlencode($codigo));
+
+            if (!$response->successful()) {
+                session()->flash('success', 'API externa: error HTTP ' . $response->status() . '.');
+                return null;
+            }
+
+            $json = $response->json();
+
+            if (!($json['success'] ?? false) || empty($json['data'])) {
+                session()->flash('success', 'API externa: el codigo no fue encontrado.');
+                return null;
+            }
+
+            $data = $json['data'];
+
+            if (strtoupper(trim($data['ESTADO'] ?? '')) !== 'ENVIADO') {
+                session()->flash('success', 'API externa: el paquete no esta en estado ENVIADO (estado: ' . ($data['ESTADO'] ?? 'desconocido') . ').');
+                return null;
+            }
+
+            $ventanilla = \App\Models\Ventanilla::whereRaw('trim(upper(nombre_ventanilla)) = ?', ['DD'])->first();
+            if (!$ventanilla) {
+                session()->flash('success', 'API externa: ventanilla "DD" no existe en el sistema.');
+                return null;
+            }
+
+            $paquete = PaqueteOrdi::create([
+                'codigo'        => strtoupper(trim($data['CODIGO'])),
+                'destinatario'  => $data['DESTINATARIO'] ?? '',
+                'telefono'      => $data['TELEFONO'] ?? '',
+                'ciudad'        => strtoupper(trim($data['CUIDAD'] ?? '')),
+                'zona'          => $data['ZONA'] ?? '',
+                'peso'          => $data['PESO'] ?? 0,
+                'aduana'        => $data['ADUANA'] ?? 'NO',
+                'observaciones' => $data['OBSERVACIONES'] ?? null,
+                'cod_especial'  => $data['PAIS'] ?? null,
+                'fk_ventanilla' => $ventanilla->id,
+                'fk_estado'     => $estadoEnviadoId,
+            ]);
+
+            return $paquete;
+        } catch (\Throwable $e) {
+            session()->flash('success', 'API externa: error al procesar (' . $e->getMessage() . ').');
+            return null;
+        }
     }
 
     public function bajaPaquetes()
