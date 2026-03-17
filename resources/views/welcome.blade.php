@@ -345,10 +345,16 @@
 
                     <div class="preregistro-field">
                         <label>Servicio</label>
-                        <select name="servicio_id">
+                        <select name="servicio_id" class="preregistro-select-compact" title="Selecciona el servicio">
                             <option value="">Seleccione...</option>
                             @foreach($preregistroServicios as $servicio)
-                                <option value="{{ $servicio->id }}" @selected((int) old('servicio_id') === (int) $servicio->id)>{{ $servicio->nombre_servicio }}</option>
+                                @php
+                                    $serviceLabel = (string) \Illuminate\Support\Str::of($servicio->nombre_servicio)
+                                        ->replace('_', ' ')
+                                        ->squish()
+                                        ->limit(28, '...');
+                                @endphp
+                                <option value="{{ $servicio->id }}" title="{{ $servicio->nombre_servicio }}" @selected((int) old('servicio_id') === (int) $servicio->id)>{{ $serviceLabel }}</option>
                             @endforeach
                         </select>
                         @error('servicio_id') <small>{{ $message }}</small> @enderror
@@ -488,6 +494,7 @@
         const copyPreregistroCode = document.getElementById('copyPreregistroCode');
         const preregistroSuccessCode = document.getElementById('preregistroSuccessCode');
         const preregistroTicketUrl = @json(session('preregistro_ticket_url'));
+
 
         const openPreregistroModal = () => {
             if (!preregistroModal) return;

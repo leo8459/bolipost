@@ -79,6 +79,19 @@ class BusquedaController extends Controller
             'eventos' => $eventos,
             'ultimoEvento' => $eventos->first(),
             'fuenteTracking' => $resultado['fuente'],
+            'preregistroServicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
+            'preregistroDestinos' => Destino::query()->orderBy('nombre_destino')->get(),
+            'preregistroCiudades' => [
+                'LA PAZ',
+                'SANTA CRUZ',
+                'PANDO',
+                'BENI',
+                'TARIJA',
+                'CHUQUISACA',
+                'ORURO',
+                'COCHABAMBA',
+                'POTOSI',
+            ],
         ]);
     }
 

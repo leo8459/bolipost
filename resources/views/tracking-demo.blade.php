@@ -12,6 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/landing-shared.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/preregistro-modal.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tracking-demo.css') }}">
 </head>
 <body>
@@ -468,12 +469,22 @@
         </section>
     </main>
 
+    @include('partials.preregistro-modal')
     @include('partials.landing-footer')
 
     <script>
         const topbar = document.getElementById('topbar');
         const menuToggle = document.getElementById('menuToggle');
         const menu = document.getElementById('menu');
+        const preregistroModal = document.getElementById('preregistroModal');
+        const preregistroClose = document.getElementById('preregistroClose');
+        const preregistroTriggers = document.querySelectorAll('[data-open-preregistro], .btn-home-shipping');
+        const preregistroSuccessModal = document.getElementById('preregistroSuccessModal');
+        const closePreregistroSuccess = document.getElementById('closePreregistroSuccess');
+        const copyPreregistroCode = document.getElementById('copyPreregistroCode');
+        const preregistroSuccessCode = document.getElementById('preregistroSuccessCode');
+        const preregistroTicketUrl = @json(session('preregistro_ticket_url'));
+
 
         menuToggle?.addEventListener('click', () => { const isOpen = menu.classList.toggle('open'); menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); });
         menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { menu.classList.remove('open'); menuToggle?.setAttribute('aria-expanded', 'false'); }));
@@ -481,6 +492,93 @@
         const onScroll = () => topbar.classList.toggle('scrolled', window.scrollY > 8);
         window.addEventListener('scroll', onScroll, { passive: true });
         onScroll();
+
+        const openPreregistroModal = () => {
+            if (!preregistroModal) return;
+            preregistroModal.classList.add('is-open');
+            preregistroModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('has-loading-modal');
+        };
+
+        const closePreregistroModal = () => {
+            if (!preregistroModal) return;
+            preregistroModal.classList.remove('is-open');
+            preregistroModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('has-loading-modal');
+        };
+
+        const openPreregistroSuccessModal = () => {
+            if (!preregistroSuccessModal) return;
+            preregistroSuccessModal.classList.add('is-open');
+            preregistroSuccessModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('has-loading-modal');
+        };
+
+        const closePreregistroSuccessModal = () => {
+            if (!preregistroSuccessModal) return;
+            preregistroSuccessModal.classList.remove('is-open');
+            preregistroSuccessModal.setAttribute('aria-hidden', 'true');
+            if (!preregistroModal?.classList.contains('is-open')) {
+                document.body.classList.remove('has-loading-modal');
+            }
+        };
+
+        preregistroTriggers.forEach((trigger) => {
+            trigger.addEventListener('click', (event) => {
+                if (!preregistroModal) return;
+                event.preventDefault();
+                openPreregistroModal();
+            });
+        });
+
+        preregistroClose?.addEventListener('click', closePreregistroModal);
+        preregistroModal?.addEventListener('click', (event) => {
+            if (event.target === preregistroModal) {
+                closePreregistroModal();
+            }
+        });
+        preregistroSuccessModal?.addEventListener('click', (event) => {
+            if (event.target === preregistroSuccessModal) {
+                closePreregistroSuccessModal();
+            }
+        });
+        closePreregistroSuccess?.addEventListener('click', closePreregistroSuccessModal);
+        copyPreregistroCode?.addEventListener('click', async () => {
+            const code = preregistroSuccessCode?.textContent?.trim();
+            if (!code) return;
+
+            try {
+                await navigator.clipboard.writeText(code);
+                copyPreregistroCode.textContent = 'Codigo copiado';
+                setTimeout(() => {
+                    copyPreregistroCode.textContent = 'Copiar codigo';
+                }, 1600);
+            } catch (error) {
+                window.prompt('Copia tu codigo generado:', code);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closePreregistroModal();
+                closePreregistroSuccessModal();
+            }
+        });
+
+        @if ($errors->any())
+            openPreregistroModal();
+        @endif
+
+        @if (session('preregistro_codigo'))
+            openPreregistroSuccessModal();
+            if (preregistroTicketUrl) {
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = preregistroTicketUrl;
+                document.body.appendChild(iframe);
+                setTimeout(() => iframe.remove(), 5000);
+            }
+        @endif
 
         const revealBlocks = document.querySelectorAll('.reveal-block');
         const revealItems = document.querySelectorAll('.reveal-item');

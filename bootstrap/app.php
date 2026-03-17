@@ -26,6 +26,6 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withSchedule(function (Schedule $schedule): void {
-        $schedule->command('tracking:check')->everyMinute()->withoutOverlapping();
+        $schedule->command('tracking:check')->cron('0 */8 * * *')->withoutOverlapping();
     })
     ->create();
