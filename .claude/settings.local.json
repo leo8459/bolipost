@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"encargado\\\\|auxiliar\\\\|ventanilla\" /c/xampp/htdocs/bolipost --include=*.php --include=*.sql)",
+      "Bash(grep -l \"paquete\" /c/xampp/htdocs/bolipost/app/Http/Controllers/*.php)",
+      "Bash(grep -l \"paquete\" /c/xampp/htdocs/bolipost/app/Livewire/*.php)",
+      "Bash(grep -l \"acl\\\\|role\" /c/xampp/htdocs/bolipost/config/*.php)"
+    ]
+  }
+}
