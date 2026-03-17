@@ -873,6 +873,11 @@ class PaqueteCerti extends Component
             return null;
         }
 
+        // Roles de Ventanilla Única
+        if ($user->hasRole('encargado_unica') || $user->hasRole('auxiliar_unica')) {
+            return ['UNICA'];
+        }
+
         foreach (self::ROLE_VENTANILLA_MAP as $role => $ventanillas) {
             if ($user->hasRole($role)) {
                 return $ventanillas;

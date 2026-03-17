@@ -1395,6 +1395,11 @@ class PaquetesOrdi extends Component
             return null;
         }
 
+        // Roles de Ventanilla Única (sin restricción de ciudad)
+        if ($user->hasRole('encargado_unica') || $user->hasRole('auxiliar_unica')) {
+            return ['UNICA'];
+        }
+
         $userCity = $this->upper((string) optional($user)->ciudad);
         if ($userCity !== 'LA PAZ') {
             return null;
