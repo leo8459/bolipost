@@ -206,7 +206,9 @@
                                     <td>
                                         @if ($canOrdiEdit)
                                         <button wire:click="openEditModal({{ $paquete->id }})" class="btn btn-sm btn-azul">Editar</button>
+                                        @if ($this->isAlmacen)
                                         <button wire:click="openZonaModal({{ $paquete->id }})" class="btn btn-sm btn-outline-azul">Editar Zona</button>
+                                        @endif
                                         @endif
                                         @if ($this->isClasificacion)
                                             @if ($canOrdiDelete)
@@ -324,6 +326,7 @@
                                 <input type="number" step="0.001" min="0" wire:model.defer="peso" class="form-control">
                                 @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
+                            @if ($editingId)
                             <div class="form-group col-md-6">
                                 <label>Zona</label>
                                 <select wire:model.defer="zona" class="form-control uppercase-input">
@@ -397,6 +400,7 @@
                                 </select>
                                 @error('zona') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
+                            @endif
                             <div class="form-group col-md-6">
                                 <label>Aduana</label>
                                 <select wire:model.defer="aduana" class="form-control uppercase-input">
