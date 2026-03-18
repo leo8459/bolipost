@@ -95,9 +95,8 @@
     </div>
 
     @if (session('message'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="alert alert-success fade show js-auto-dismiss-alert" data-auto-dismiss="3000" role="alert">
             {{ session('message') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
 
@@ -679,7 +678,26 @@
         @endif
     @endif
 
-
+<div class="modal fade" id="bitacoraMapModal" wire:ignore.self tabindex="-1" aria-labelledby="bitacoraMapLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bitacoraMapLabel">
+                    <i class="fas fa-map-marked-alt me-2"></i>Recorrido de bitacora
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted mb-2" id="bitacora-map-summary">Sin datos</div>
+                <div class="small text-muted mb-3" id="bitacora-map-detail">Sin detalles de recorrido.</div>
+                <div id="bitacora-view-map" wire:ignore></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="modal fade" id="locationPickerModal" wire:ignore.self tabindex="-1" aria-labelledby="locationPickerLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -938,26 +956,53 @@
             if (imageButton) imageButton.disabled = true;
 
             let decodedText = null;
+            const decodeRoute = "{{ route('api.qr.decode') }}";
             try {
+                if (!scanner || typeof scanner.scanFile !== 'function') {
+                    throw new Error('scanner_unavailable');
+                }
+
                 decodedText = await scanner.scanFile(file, true);
-            } catch (_) {
+            } catch (scanError) {
                 try {
                     const formData = new FormData();
                     formData.append('image', file);
 
-                    const response = await fetch(@json(route('api.qr.decode')), {
+                    const response = await fetch(decodeRoute, {
                         method: 'POST',
                         headers: {
-                            'X-CSRF-TOKEN': @json(csrf_token())
+                            'X-CSRF-TOKEN': "{{ csrf_token() }}",
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
                         },
+                        credentials: 'same-origin',
                         body: formData
                     });
 
-                    const payload = await response.json();
-                    if (response.ok && payload.success && payload.data && payload.data.qr_text) {
-                        decodedText = payload.data.qr_text;
+                    const rawBody = await response.text();
+                    let payload = null;
+
+                    try {
+                        payload = rawBody ? JSON.parse(rawBody) : null;
+                    } catch (_) {
+                        payload = null;
                     }
-                } catch (_) {
+
+                    if (response.ok && payload?.success && payload?.data?.qr_text) {
+                        decodedText = payload.data.qr_text;
+                    } else if (payload?.message) {
+                        setStatus(payload.message);
+                    } else if (!response.ok) {
+                        setStatus(`No se pudo decodificar el QR desde el servidor (HTTP ${response.status}).`);
+                    } else {
+                        setStatus('La imagen no contiene un QR valido o el servidor devolvio una respuesta inesperada.');
+                    }
+                } catch (serverDecodeError) {
+                    if (scanError?.message === 'scanner_unavailable') {
+                        setStatus('No se pudo inicializar el lector QR del navegador ni el decodificador del servidor.');
+                    } else {
+                        setStatus('No se pudo procesar la imagen ni localmente ni en el servidor.');
+                    }
                 }
             } finally {
                 if (imageButton) imageButton.disabled = false;
@@ -1099,8 +1144,24 @@
         }
 
         function ensureMap() {
-            if (map) return;
-            map = L.map(mapContainerId).setView([-16.5, -68.15], 12);
+            const container = document.getElementById(mapContainerId);
+            if (!container) return;
+
+            if (map) {
+                const currentContainer = map.getContainer ? map.getContainer() : null;
+                if (currentContainer === container && document.body.contains(container)) {
+                    return;
+                }
+
+                try {
+                    map.off();
+                    map.remove();
+                } catch (_) {}
+                map = null;
+                layers = [];
+            }
+
+            map = L.map(container).setView([-16.5, -68.15], 12);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap contributors'
@@ -1863,6 +1924,31 @@
             event.preventDefault();
             handleDownload(button);
         });
+    })();
+</script>
+<script>
+    (function () {
+        if (window.__fuelFlashAutoDismissInitialized) return;
+        window.__fuelFlashAutoDismissInitialized = true;
+
+        function scheduleDismiss(scope) {
+            (scope || document).querySelectorAll('.js-auto-dismiss-alert').forEach((alertEl) => {
+                if (alertEl.dataset.dismissBound === '1') return;
+                alertEl.dataset.dismissBound = '1';
+
+                const delay = Number.parseInt(alertEl.getAttribute('data-auto-dismiss') || '3000', 10);
+                window.setTimeout(() => {
+                    alertEl.classList.remove('show');
+                    alertEl.classList.add('fade');
+                    window.setTimeout(() => {
+                        alertEl.remove();
+                    }, 200);
+                }, Number.isFinite(delay) ? delay : 3000);
+            });
+        }
+
+        scheduleDismiss(document);
+        new MutationObserver(() => scheduleDismiss(document)).observe(document.body, { childList: true, subtree: true });
     })();
 </script>
 </div>

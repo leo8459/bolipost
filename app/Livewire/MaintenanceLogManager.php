@@ -249,7 +249,11 @@ class MaintenanceLogManager extends Component
 
     public function delete(MaintenanceLog $maintenance)
     {
+        $vehicleId = $maintenance->vehicle_id ? (int) $maintenance->vehicle_id : null;
         $maintenance->delete();
+        if ($vehicleId) {
+            MaintenanceAlertService::evaluateVehicleByKilometraje($vehicleId);
+        }
         session()->flash('message', 'Registro de mantenimiento eliminado correctamente.');
     }
 

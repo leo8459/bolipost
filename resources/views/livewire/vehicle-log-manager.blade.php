@@ -156,9 +156,8 @@
     </style>
 
     @if (session('message'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="alert alert-success fade show js-auto-dismiss-alert" data-auto-dismiss="3000" role="alert">
             {{ session('message') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
 
@@ -397,6 +396,7 @@
                                                             data-end-name="{{ $log->recorrido_destino }}"
                                                             data-date="{{ optional($log->fecha)->format('d/m/Y') }}"
                                                             data-vehicle="{{ $log->vehicle?->placa ?? 'N/A' }}"
+                                                            data-route='@json($log->points_json ?? [])'
                                                         >
                                                             <i class="fas fa-map-marked-alt"></i>
                                                         </button>
@@ -429,12 +429,10 @@
             </div>
         </div>
 
-        <div class="mt-4">
-            {{ $logs->links() }}
-        </div>
+
     
 
-    <div class="modal fade" id="vehicleLocationPickerModal" tabindex="-1" aria-labelledby="vehicleLocationPickerLabel" aria-hidden="true">
+    <div class="modal fade" id="vehicleLocationPickerModal" wire:ignore.self tabindex="-1" aria-labelledby="vehicleLocationPickerLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -445,7 +443,7 @@
                 </div>
                 <div class="modal-body">
                     <p class="small text-muted mb-2">Haz clic en el mapa para seleccionar un punto.</p>
-                    <div id="vehicle-location-map"></div>
+                    <div id="vehicle-location-map" wire:ignore></div>
                     <div class="mt-3 small text-muted" id="vehicle-selected-location-preview">Sin ubicacion seleccionada.</div>
                 </div>
                 <div class="modal-footer">
@@ -456,7 +454,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="vehicleViewMapModal" tabindex="-1" aria-labelledby="vehicleViewMapLabel" aria-hidden="true">
+    <div class="modal fade" id="vehicleViewMapModal" wire:ignore.self tabindex="-1" aria-labelledby="vehicleViewMapLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -467,7 +465,7 @@
                 </div>
                 <div class="modal-body">
                     <div class="small text-muted mb-2" id="vehicle-view-map-meta">Sin datos</div>
-                    <div id="vehicle-view-map"></div>
+                    <div id="vehicle-view-map" wire:ignore></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
@@ -948,8 +946,20 @@
         let formTargetLine = null;
 
         function ensureViewMap() {
-            if (!window.L || !viewModalEl || viewMap) return;
-            viewMap = L.map('vehicle-view-map').setView([-16.5, -68.15], 6);
+            const container = document.getElementById('vehicle-view-map');
+            if (!window.L || !viewModalEl || !container) return;
+
+            if (viewMap) {
+                const currentContainer = viewMap.getContainer ? viewMap.getContainer() : null;
+                if (currentContainer === container && document.body.contains(container)) {
+                    return;
+                }
+
+                viewMap = destroyLeafletMap(viewMap);
+                viewLayer = null;
+            }
+
+            viewMap = L.map(container).setView([-16.5, -68.15], 6);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap contributors'
@@ -1071,6 +1081,36 @@
             return Number.isFinite(n) ? n : null;
         }
 
+        function parseRoute(value) {
+            if (!value) return [];
+            try {
+                const parsed = JSON.parse(value);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (_) {
+                return [];
+            }
+        }
+
+        function normalizeRoutePoints(route) {
+            if (!Array.isArray(route)) return [];
+
+            return route
+                .map((point) => {
+                    if (!point || typeof point !== 'object') return null;
+
+                    const lat = parseCoord(point.lat ?? point.latitude);
+                    const lng = parseCoord(point.lng ?? point.longitude);
+                    if (lat === null || lng === null) return null;
+
+                    return {
+                        lat,
+                        lng,
+                        address: point.address || point.label || point.point_label || '',
+                    };
+                })
+                .filter(Boolean);
+        }
+
         function drawTripOnViewMap(payload) {
             if (!viewMap) return;
             if (viewLayer) {
@@ -1079,24 +1119,48 @@
                 viewLayer = L.layerGroup().addTo(viewMap);
             }
 
+            const routePoints = normalizeRoutePoints(payload.route);
             const bounds = [];
+            const linePoints = routePoints.length > 1
+                ? routePoints.map((point) => {
+                    const latLng = [point.lat, point.lng];
+                    bounds.push(latLng);
+                    return latLng;
+                })
+                : [];
+
             if (payload.startLat !== null && payload.startLng !== null) {
                 const start = [payload.startLat, payload.startLng];
                 L.marker(start).addTo(viewLayer).bindPopup(`<strong>Inicio</strong><br>${payload.startName || '-'}`);
-                bounds.push(start);
+                if (linePoints.length === 0) bounds.push(start);
             }
             if (payload.endLat !== null && payload.endLng !== null) {
                 const end = [payload.endLat, payload.endLng];
                 L.marker(end).addTo(viewLayer).bindPopup(`<strong>Destino</strong><br>${payload.endName || '-'}`);
-                bounds.push(end);
+                if (linePoints.length === 0) bounds.push(end);
             }
-            if (bounds.length === 2) {
+
+            routePoints.forEach((point, index) => {
+                const coords = [point.lat, point.lng];
+                const popupText = point.address || `Punto ${index + 1}`;
+                L.circleMarker(coords, {
+                    radius: 5,
+                    color: '#2563eb',
+                    weight: 2,
+                    fillColor: '#93c5fd',
+                    fillOpacity: 0.95,
+                }).addTo(viewLayer).bindPopup(popupText);
+            });
+
+            if (linePoints.length > 1) {
+                L.polyline(linePoints, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(viewLayer);
+            } else if (bounds.length === 2) {
                 L.polyline(bounds, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(viewLayer);
             }
             if (bounds.length > 0) {
-                viewMap.fitBounds(bounds, { padding: [30, 30] });
+                viewMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
             } else {
-                viewMap.setView([-16.5, -68.15], 6);
+                centerMapNearUser(viewMap);
             }
         }
 
@@ -1150,6 +1214,13 @@
                 refreshViewMapLayout(pendingViewPayload);
             });
 
+            viewModalEl.addEventListener('hidden.bs.modal', function () {
+                if (viewLayer) {
+                    viewLayer.clearLayers();
+                }
+                pendingViewPayload = null;
+            });
+
             if (window.jQuery) {
                 window.jQuery(viewModalEl).on('shown.bs.modal', function () {
                     ensureViewMap();
@@ -1171,6 +1242,7 @@
                 endName: btn.getAttribute('data-end-name') || '',
                 date: btn.getAttribute('data-date') || '',
                 vehicle: btn.getAttribute('data-vehicle') || '',
+                route: parseRoute(btn.getAttribute('data-route')),
             };
 
             if (sideMapEl) {
@@ -1193,13 +1265,38 @@
 
             if (!viewModalEl) return;
             if (viewMetaEl) {
-                viewMetaEl.textContent = `Vehiculo: ${payload.vehicle} | Fecha: ${payload.date}`;
+                viewMetaEl.textContent = `Vehiculo: ${payload.vehicle} | Fecha: ${payload.date} | Inicio: ${payload.startName || '-'} | Destino: ${payload.endName || '-'}`;
             }
             pendingViewPayload = payload;
             const modal = getModalInstance(viewModalEl);
             if (modal) modal.show();
             refreshViewMapLayout(payload);
         });
+    })();
+</script>
+<script>
+    (function () {
+        if (window.__vehicleFlashAutoDismissInitialized) return;
+        window.__vehicleFlashAutoDismissInitialized = true;
+
+        function scheduleDismiss(scope) {
+            (scope || document).querySelectorAll('.js-auto-dismiss-alert').forEach((alertEl) => {
+                if (alertEl.dataset.dismissBound === '1') return;
+                alertEl.dataset.dismissBound = '1';
+
+                const delay = Number.parseInt(alertEl.getAttribute('data-auto-dismiss') || '3000', 10);
+                window.setTimeout(() => {
+                    alertEl.classList.remove('show');
+                    alertEl.classList.add('fade');
+                    window.setTimeout(() => {
+                        alertEl.remove();
+                    }, 220);
+                }, Number.isFinite(delay) ? delay : 3000);
+            });
+        }
+
+        scheduleDismiss(document);
+        new MutationObserver(() => scheduleDismiss(document)).observe(document.body, { childList: true, subtree: true });
     })();
 </script>
 </div>
