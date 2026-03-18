@@ -92,7 +92,7 @@
                         @endif
                     @endif
                     @if ($this->isAlmacen)
-                        @if ($canOrdiEdit)
+                        @if ($canOrdiReencaminar)
                         <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
                             Reencaminar
                         </button>

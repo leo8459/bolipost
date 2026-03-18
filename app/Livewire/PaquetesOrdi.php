@@ -141,7 +141,7 @@ class PaquetesOrdi extends Component
 
     public function openReencaminarModal()
     {
-        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
+        $this->authorizePermission($this->modeFeaturePermission('reencaminar', 'almacen'));
 
         if (! $this->isAlmacen) {
             return;
@@ -169,7 +169,7 @@ class PaquetesOrdi extends Component
 
     public function saveReencaminar()
     {
-        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
+        $this->authorizePermission($this->modeFeaturePermission('reencaminar', 'almacen'));
 
         if (! $this->isAlmacen) {
             return;
@@ -1369,6 +1369,7 @@ class PaquetesOrdi extends Component
             'canOrdiDelete' => $this->userCan($this->modeFeaturePermission('delete')),
             'canOrdiDropoff' => $this->userCan($this->modeFeaturePermission('dropoff')),
             'canOrdiRezago' => $this->userCan($this->modeFeaturePermission('rezago')),
+            'canOrdiReencaminar' => $this->userCan($this->modeFeaturePermission('reencaminar')),
             'canOrdiCreate' => $this->userCan($this->modeFeaturePermission('create')),
             'canOrdiPrint' => $this->userCan($this->modeFeaturePermission('print')),
             'canOrdiEdit' => $this->userCan($this->modeFeaturePermission('edit')),

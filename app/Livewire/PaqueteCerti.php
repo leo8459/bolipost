@@ -245,7 +245,7 @@ class PaqueteCerti extends Component
 
     public function openReencaminarModal()
     {
-        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
+        $this->authorizePermission($this->modeFeaturePermission('reencaminar', 'almacen'));
 
         if (! $this->isAlmacen) {
             return;
@@ -273,7 +273,7 @@ class PaqueteCerti extends Component
 
     public function saveReencaminar()
     {
-        $this->authorizePermission($this->modeFeaturePermission('edit', 'almacen'));
+        $this->authorizePermission($this->modeFeaturePermission('reencaminar', 'almacen'));
 
         if (! $this->isAlmacen) {
             return;
@@ -788,6 +788,7 @@ class PaqueteCerti extends Component
             'ventanillas' => $this->ventanillasQuery()->orderBy('nombre_ventanilla')->get(),
             'canCertiCreate' => $this->userCan($this->modeFeaturePermission('create')),
             'canCertiEdit' => $this->userCan($this->modeFeaturePermission('edit')),
+            'canCertiReencaminar' => $this->userCan($this->modeFeaturePermission('reencaminar')),
             'canCertiDelete' => $this->userCan($this->modeFeaturePermission('delete')),
             'canCertiDropoff' => $this->userCan($this->modeFeaturePermission('dropoff')),
             'canCertiRezago' => $this->userCan($this->modeFeaturePermission('rezago')),

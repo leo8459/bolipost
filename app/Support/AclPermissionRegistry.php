@@ -51,6 +51,7 @@ class AclPermissionRegistry
         'view' => 'Botones de visualizacion',
         'create' => 'Botones de registro',
         'edit' => 'Botones de edicion',
+        'reencaminar' => 'Botones de reencaminado',
         'delete' => 'Botones de eliminacion',
         'dropoff' => 'Botones de baja',
         'rezago' => 'Botones de rezago',
@@ -197,7 +198,7 @@ class AclPermissionRegistry
         'opencontratoregistrarmodal' => 'create',
         'openentregaventanillamodal' => 'deliver',
         'openintervencionmodal' => 'confirm',
-        'openreencaminarmodal' => 'edit',
+        'openreencaminarmodal' => 'reencaminar',
         'openrecibirmodal' => 'assign',
         'openrecibirregionalmodal' => 'assign',
         'openregionalcontratomodal' => 'assign',
@@ -216,7 +217,7 @@ class AclPermissionRegistry
         'rezagomasivo' => 'rezago',
         'rezagopaquetes' => 'rezago',
         'saveconfirmed' => 'confirm',
-        'savereencaminar' => 'edit',
+        'savereencaminar' => 'reencaminar',
         'scanandsearch' => 'assign',
         'togglecn33reprint' => 'print',
         'updatepassword' => 'edit',
@@ -307,11 +308,11 @@ class AclPermissionRegistry
         'paquetes-ems.recibir-regional' => ['assign', 'edit', 'print'],
         'paquetes-ems.en-transito' => ['edit', 'print'],
         'paquetes-ordinarios.index' => ['create', 'edit', 'delete', 'assign'],
-        'paquetes-ordinarios.almacen' => ['edit', 'assign', 'dropoff', 'rezago'],
+        'paquetes-ordinarios.almacen' => ['edit', 'reencaminar', 'assign', 'dropoff', 'rezago'],
         'paquetes-ordinarios.despacho' => ['edit', 'restore', 'print'],
         'paquetes-ordinarios.entregado' => ['edit', 'restore', 'print'],
         'paquetes-ordinarios.rezago' => ['edit', 'restore'],
-        'paquetes-certificados.almacen' => ['create', 'edit', 'delete', 'dropoff', 'rezago'],
+        'paquetes-certificados.almacen' => ['create', 'edit', 'reencaminar', 'delete', 'dropoff', 'rezago'],
         'paquetes-certificados.inventario' => ['edit', 'delete', 'assign', 'export'],
         'paquetes-certificados.rezago' => ['edit', 'delete', 'assign'],
         'paquetes-certificados.todos' => ['edit', 'delete'],
@@ -405,6 +406,8 @@ class AclPermissionRegistry
             'openrecibirmodal' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'assign']],
             'addcodigorecibir' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'assign']],
             'confirmarrecibir' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'assign']],
+            'openreencaminarmodal' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'reencaminar']],
+            'savereencaminar' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'reencaminar']],
             'bajapaquetes' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'dropoff']],
             'rezagopaquetes' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'rezago']],
             'opencreatemodal' => [['module' => 'paquetes-ordinarios.index', 'action' => 'create']],
@@ -418,6 +421,8 @@ class AclPermissionRegistry
         ],
         'PaqueteCerti' => [
             'opencreatemodal' => [['module' => 'paquetes-certificados.almacen', 'action' => 'create']],
+            'openreencaminarmodal' => [['module' => 'paquetes-certificados.almacen', 'action' => 'reencaminar']],
+            'savereencaminar' => [['module' => 'paquetes-certificados.almacen', 'action' => 'reencaminar']],
             'bajamasiva' => [['module' => 'paquetes-certificados.almacen', 'action' => 'dropoff']],
             'rezagomasivo' => [['module' => 'paquetes-certificados.almacen', 'action' => 'rezago']],
             'marcarinventario' => [['module' => 'paquetes-certificados.almacen', 'action' => 'edit']],
@@ -1183,10 +1188,13 @@ class AclPermissionRegistry
         if (
             str_starts_with($normalized, 'openedit')
             || str_starts_with($normalized, 'edit')
-            || str_contains($normalized, 'reencaminar')
             || str_contains($normalized, 'password')
         ) {
             return ['edit'];
+        }
+
+        if (str_contains($normalized, 'reencaminar')) {
+            return ['reencaminar'];
         }
 
         if (self::containsAny($normalized, ['delete', 'destroy', 'baja'])) {
@@ -1235,7 +1243,11 @@ class AclPermissionRegistry
                 return ['confirm'];
             }
 
-            if (self::containsAny($normalized, ['peso', 'reencaminar'])) {
+            if (str_contains($normalized, 'reencaminar')) {
+                return ['reencaminar'];
+            }
+
+            if (self::containsAny($normalized, ['peso'])) {
                 return ['edit'];
             }
 

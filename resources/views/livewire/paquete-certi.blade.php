@@ -153,7 +153,7 @@
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
                     @if ($this->isAlmacen)
-                        @if ($canCertiEdit)
+                        @if ($canCertiReencaminar)
                         <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
                             Reencaminar
                         </button>
