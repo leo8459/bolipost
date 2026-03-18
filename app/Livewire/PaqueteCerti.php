@@ -43,6 +43,8 @@ class PaqueteCerti extends Component
     public $search = '';
     public $searchQuery = '';
     public $editingId = null;
+    public $zonaEditingId = null;
+    public $zonaEditValue = '';
     public $selectedPaquetes = [];
     public $reencaminarCuidad = '';
     public $previewReencaminarIds = [];
@@ -143,6 +145,34 @@ class PaqueteCerti extends Component
         $this->fk_estado = $paquete->fk_estado ? (string) $paquete->fk_estado : '';
 
         $this->dispatch('openPaqueteCertiModal');
+    }
+
+    public function openZonaModal($id)
+    {
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
+
+        $paquete = $this->findAuthorizedPaqueteOrFail($id);
+
+        $this->zonaEditingId = $paquete->id;
+        $this->zonaEditValue = $paquete->zona ?? '';
+
+        $this->dispatch('openZonaModal');
+    }
+
+    public function saveZona()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('edit'));
+
+        $paquete = $this->findAuthorizedPaqueteOrFail($this->zonaEditingId);
+
+        $this->validate(['zonaEditValue' => 'nullable|string|max:255'], [], ['zonaEditValue' => 'Zona']);
+
+        $paquete->update(['zona' => $this->zonaEditValue ?: null]);
+
+        $this->dispatch('closeZonaModal');
+        session()->flash('success', 'Zona actualizada correctamente.');
+        $this->zonaEditingId = null;
+        $this->zonaEditValue = '';
     }
 
     public function updatedDestinatario($value)

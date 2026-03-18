@@ -206,6 +206,7 @@
                                     <td>
                                         @if ($canOrdiEdit)
                                         <button wire:click="openEditModal({{ $paquete->id }})" class="btn btn-sm btn-azul">Editar</button>
+                                        <button wire:click="openZonaModal({{ $paquete->id }})" class="btn btn-sm btn-outline-azul">Editar Zona</button>
                                         @endif
                                         @if ($this->isClasificacion)
                                             @if ($canOrdiDelete)
@@ -603,6 +604,33 @@
             </div>
         </div>
     </div>
+
+    {{-- Modal Actualizar Zona --}}
+    <div class="modal fade" id="zonaModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <form wire:submit.prevent="saveZona">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Actualizar Zona</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group mb-0">
+                            <label>Zona</label>
+                            <input type="text" wire:model="zonaEditValue" class="form-control uppercase-input" placeholder="Ingrese la zona">
+                            @error('zonaEditValue') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -640,6 +668,14 @@
 
     window.addEventListener('closeReencaminarModal', () => {
         $('#reencaminarModal').modal('hide');
+    });
+
+    window.addEventListener('openZonaModal', () => {
+        $('#zonaModal').modal('show');
+    });
+
+    window.addEventListener('closeZonaModal', () => {
+        $('#zonaModal').modal('hide');
     });
 </script>
 
