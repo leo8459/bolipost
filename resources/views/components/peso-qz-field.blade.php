@@ -5,6 +5,7 @@
     'required' => false,
     'useScale' => false,
     'showClear' => false,
+    'live' => false,
     'step' => '0.001',
     'min' => '0',
     'placeholder' => null,
@@ -17,6 +18,7 @@
     if ($useScale && $resolvedPlaceholder === null) {
         $resolvedPlaceholder = 'Esperando balanza...';
     }
+    $useInputGroup = $showClear;
 @endphp
 
 <label>
@@ -26,25 +28,31 @@
     @endif
 </label>
 
-@if($showClear)
+@if($useInputGroup)
     <div class="input-group">
 @endif
 
 <input
     type="number"
     id="{{ $resolvedInputId }}"
-    wire:model.live.debounce.300ms="{{ $model }}"
+    @if($live)
+        wire:model.live.debounce.300ms="{{ $model }}"
+    @else
+        wire:model.defer="{{ $model }}"
+    @endif
     class="form-control"
     step="{{ $step }}"
     min="{{ $min }}"
     @if($resolvedPlaceholder !== null && $resolvedPlaceholder !== '') placeholder="{{ $resolvedPlaceholder }}" @endif
-    @if($useScale) data-cas-peso-input readonly @endif
+    @if($useScale) data-cas-peso-input @endif
     @if($required) required @endif
 >
 
-@if($showClear)
+@if($useInputGroup)
         <div class="input-group-append">
-            <button type="button" class="btn btn-outline-azul" wire:click="$set('{{ $model }}', null)">Limpiar peso</button>
+            @if($showClear)
+                <button type="button" class="btn btn-outline-azul" wire:click="$set('{{ $model }}', null)">Limpiar peso</button>
+            @endif
         </div>
     </div>
 @endif

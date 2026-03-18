@@ -562,6 +562,7 @@
                                         :required="true"
                                         :use-scale="true"
                                         :show-clear="true"
+                                        :live="true"
                                     />
                                 </div>
                             </div>
@@ -1572,15 +1573,14 @@
                     </div>
 
                     <div class="form-group mb-0">
-                        <label>Peso</label>
-                        <input
-                            type="number"
-                            class="form-control"
-                            wire:model.defer="registroContratoPeso"
-                            step="0.001"
+                        <x-peso-qz-field
+                            model="registroContratoPeso"
+                            input-id="peso-create-ems-contrato-rapido"
                             min="0.001"
-                        >
-                        @error('registroContratoPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                            :required="true"
+                            :use-scale="true"
+                            :show-clear="true"
+                        />
                     </div>
                 </div>
                 <div class="modal-footer">

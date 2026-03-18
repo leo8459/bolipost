@@ -249,9 +249,19 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Peso</label>
-                                    <input type="number" step="0.001" class="form-control" wire:model.defer="peso">
-                                    @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                    @if(!$editingId)
+                                        <x-peso-qz-field
+                                            model="peso"
+                                            input-id="peso-create-saca"
+                                            min="0.001"
+                                            :use-scale="true"
+                                            :show-clear="true"
+                                        />
+                                    @else
+                                        <label>Peso</label>
+                                        <input type="number" step="0.001" min="0.001" class="form-control" wire:model.defer="peso">
+                                        @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                    @endif
                                 </div>
                             </div>
                             <div class="col-md-6">

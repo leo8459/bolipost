@@ -320,9 +320,19 @@
                                 @error('ciudad') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Peso</label>
-                                <input type="number" step="0.001" min="0" wire:model.defer="peso" class="form-control">
-                                @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                @if(!$editingId)
+                                    <x-peso-qz-field
+                                        model="peso"
+                                        input-id="peso-create-ordi"
+                                        :required="true"
+                                        :use-scale="true"
+                                        :show-clear="true"
+                                    />
+                                @else
+                                    <label>Peso</label>
+                                    <input type="number" step="0.001" min="0" wire:model.defer="peso" class="form-control">
+                                    @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                @endif
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Zona</label>
