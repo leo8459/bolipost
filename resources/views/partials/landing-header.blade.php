@@ -16,6 +16,24 @@
         </ul>
 
         <div class="nav-actions">
+            @if (auth('cliente')->check())
+                <a class="btn btn-public-panel" href="{{ route('clientes.dashboard') }}">
+                    Mi panel
+                </a>
+                <form method="POST" action="{{ route('clientes.logout') }}" class="nav-inline-form">
+                    @csrf
+                    <button type="submit" class="btn btn-public-login">
+                        Cerrar sesion
+                    </button>
+                </form>
+            @else
+                <a class="btn btn-public-login" href="{{ route('clientes.login') }}">
+                    Login publico
+                </a>
+                <a class="btn btn-public-register" href="{{ route('clientes.register') }}">
+                    Registro publico
+                </a>
+            @endif
             <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}">
                 Hacer envio desde casa
             </a>

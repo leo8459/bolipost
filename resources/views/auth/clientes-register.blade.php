@@ -1,0 +1,30 @@
+<x-guest-layout cardMaxWidth="620px" cardClasses="p-0">
+    <div>
+        <section class="px-6 py-7 sm:px-8 sm:py-8">
+            <div class="mb-5 rounded-xl border border-[#e8edf7] bg-[#f9fbff] p-4">
+                <h2 class="mt-2 text-2xl font-bold text-[#20539A]">Registro publico</h2>
+                <p class="mt-1 text-sm text-[#20539A]/75">Tu cuenta se guardara en la tabla clientes usando el correo verificado por Google.</p>
+            </div>
+
+            <div class="space-y-4">
+                <a
+                    href="{{ route('auth.google.redirect') }}"
+                    class="flex h-11 w-full items-center justify-center rounded-lg border border-[#20539A]/20 bg-white text-sm font-semibold text-[#20539A] transition hover:border-[#20539A] hover:bg-[#f7faff]"
+                >
+                    Continuar con Google
+                </a>
+
+                <p class="text-center text-sm text-[#20539A]/75">
+                    No necesitas escribir un correo manualmente. Se usara el correo autentico devuelto por Google.
+                </p>
+
+                <a
+                    href="{{ route('clientes.login') }}"
+                    class="flex h-11 w-full items-center justify-center rounded-lg border border-[#20539A]/20 bg-white text-sm font-semibold text-[#20539A] transition hover:border-[#20539A] hover:bg-[#f7faff]"
+                >
+                    Ya tengo acceso
+                </a>
+            </div>
+        </section>
+    </div>
+</x-guest-layout>

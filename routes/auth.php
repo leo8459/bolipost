@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\ClienteAuthController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
@@ -10,6 +11,24 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
+
+Route::middleware('guest.cliente')->group(function () {
+    Route::get('clientes/login', [ClienteAuthController::class, 'showLogin'])->name('clientes.login');
+    Route::post('clientes/login', [ClienteAuthController::class, 'login'])->name('clientes.login.store');
+    Route::get('clientes/register', [ClienteAuthController::class, 'showRegister'])->name('clientes.register');
+    Route::post('clientes/register', [ClienteAuthController::class, 'register'])->name('clientes.register.store');
+    Route::get('auth/google/redirect', [ClienteAuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
+    Route::get('auth/google/callback', [ClienteAuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+});
+
+Route::middleware(['cliente.guard', 'auth:cliente'])->group(function () {
+    Route::get('clientes/dashboard', [ClienteAuthController::class, 'dashboard'])->name('clientes.dashboard');
+    Route::post('clientes/logout', [ClienteAuthController::class, 'logout'])->name('clientes.logout');
+    Route::get('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])->name('clientes.solicitudes.index');
+    Route::get('clientes/solicitudes/nueva', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])->name('clientes.solicitudes.create');
+    Route::post('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'store'])->name('clientes.solicitudes.store');
+    Route::get('clientes/mis-solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'history'])->name('clientes.solicitudes.history');
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])

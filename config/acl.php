@@ -51,6 +51,9 @@ return [
         'verification.notice',
         'verification.verify',
         'verification.send',
+        'clientes.login',
+        'auth.google.redirect',
+        'auth.google.callback',
         'logout',
         'role-has-permissions.index',
         'role-has-permissions.create',
@@ -171,6 +174,7 @@ return [
         'encaminamiento',
         'empresa',
         'admisiones',
+        'tiktokero',
     ],
 
     /*
@@ -333,6 +337,9 @@ return [
             'paquetes-contrato.reporte',
             'paquetes-contrato.create',
             'paquetes-contrato.store',
+        ],
+        'tiktokero' => [
+            'dashboard',
         ],
     ],
 

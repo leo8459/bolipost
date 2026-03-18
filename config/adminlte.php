@@ -310,6 +310,28 @@ return [
             'type' => 'sidebar-menu-search',
             'text' => 'search',
         ],
+        [
+            'header' => 'CLIENTE',
+            'can' => 'cliente-panel',
+        ],
+        [
+            'text' => 'Panel Cliente',
+            'url' => 'clientes/dashboard',
+            'icon' => 'fas fa-user-circle',
+            'can' => 'cliente-panel',
+        ],
+        [
+            'text' => 'Nueva Solicitud',
+            'url' => 'clientes/solicitudes/nueva',
+            'icon' => 'fas fa-file-signature',
+            'can' => 'cliente-panel',
+        ],
+        [
+            'text' => 'Mis Solicitudes',
+            'url' => 'clientes/mis-solicitudes',
+            'icon' => 'fas fa-folder-open',
+            'can' => 'cliente-panel',
+        ],
         ['header' => 'SISTEMA DE INFORMACION'],
         [
             'text' => 'Dashboard',
@@ -826,6 +848,11 @@ return [
                             'icon' => 'fas fa-concierge-bell',
                         ],
                         [
+                            'text' => 'Servicios Extras',
+                            'url' => 'servicio-extras',
+                            'icon' => 'fas fa-plus-square',
+                        ],
+                        [
                             'text' => 'Origenes',
                             'url' => 'origenes',
                             'icon' => 'fas fa-route',
@@ -849,6 +876,11 @@ return [
                             'text' => 'Tarifa Contrato',
                             'url' => 'tarifa-contrato',
                             'icon' => 'fas fa-file-invoice-dollar',
+                        ],
+                        [
+                            'text' => 'Tarifario Tiktoker',
+                            'url' => 'tarifario-tiktoker',
+                            'icon' => 'fas fa-hashtag',
                         ],
                     ],
                 ],

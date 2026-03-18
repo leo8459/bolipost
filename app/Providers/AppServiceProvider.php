@@ -6,6 +6,7 @@ use App\Livewire\Hooks\EnsureLivewireActionPermission;
 use App\Support\AclPermissionRegistry;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 
@@ -28,6 +29,10 @@ class AppServiceProvider extends ServiceProvider
         Paginator::useBootstrapFive();
 
         Livewire::componentHook(EnsureLivewireActionPermission::class);
+
+        Gate::define('cliente-panel', function (): bool {
+            return auth('cliente')->check();
+        });
 
         Blade::if('aclcan', function (string $action, mixed $component = null, ?string $moduleOverride = null): bool {
             $user = auth()->user();
