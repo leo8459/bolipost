@@ -215,6 +215,7 @@ class VehicleLogManager extends Component
 
         $data = [
             ...$locationPayload,
+            'ruta_json' => $this->buildRoutePoints($locationPayload),
             'vehicles_id' => $this->vehicles_id,
             'drivers_id' => $this->drivers_id,
             'fuel_log_id' => $this->fuel_log_id,
@@ -232,12 +233,12 @@ class VehicleLogManager extends Component
             if ($log) {
                 $log->update($data);
                 $this->updateVehicleKilometraje($this->vehicles_id, $this->kilometraje_llegada ?? $this->kilometraje_salida, $this->kilometraje_salida);
-                session()->flash('message', 'Registro de bitÃ¡cora actualizado correctamente.');
+                session()->flash('message', 'Registro de bitacora actualizado correctamente.');
             }
         } else {
             VehicleLog::create($data);
             $this->updateVehicleKilometraje($this->vehicles_id, $this->kilometraje_llegada ?? $this->kilometraje_salida, $this->kilometraje_salida);
-            session()->flash('message', 'Registro de bitÃ¡cora creado correctamente.');
+            session()->flash('message', 'Registro de bitacora creado correctamente.');
         }
 
         $this->resetForm();
@@ -277,7 +278,7 @@ class VehicleLogManager extends Component
         }
 
         $log->delete();
-        session()->flash('message', 'Registro de bitÃ¡cora eliminado correctamente.');
+        session()->flash('message', 'Registro de bitacora eliminado correctamente.');
     }
 
     public function resetForm()
@@ -351,6 +352,43 @@ class VehicleLogManager extends Component
             'latitud_destino' => $latDestino,
             'logitud_destino' => $lngDestino,
         ];
+    }
+
+    private function buildRoutePoints(array $locationPayload): array
+    {
+        $points = [];
+
+        $startLat = $locationPayload['latitud_inicio'] ?? null;
+        $startLng = $locationPayload['logitud_inicio'] ?? null;
+        if ($startLat !== null && $startLng !== null) {
+            $points[] = [
+                'lat' => (float) $startLat,
+                'lng' => (float) $startLng,
+                't' => now()->toIso8601String(),
+                'address' => trim($this->recorrido_inicio) !== '' ? trim($this->recorrido_inicio) : 'Punto de salida',
+                'label' => 'Inicio',
+                'point_type' => 'start',
+                'is_marked' => true,
+                'index' => 0,
+            ];
+        }
+
+        $endLat = $locationPayload['latitud_destino'] ?? null;
+        $endLng = $locationPayload['logitud_destino'] ?? null;
+        if ($endLat !== null && $endLng !== null) {
+            $points[] = [
+                'lat' => (float) $endLat,
+                'lng' => (float) $endLng,
+                't' => now()->toIso8601String(),
+                'address' => trim($this->recorrido_destino) !== '' ? trim($this->recorrido_destino) : 'Punto de llegada',
+                'label' => 'Destino',
+                'point_type' => 'end',
+                'is_marked' => true,
+                'index' => count($points),
+            ];
+        }
+
+        return $points;
     }
 
     private function resolveCoordinates(?float $lat, ?float $lng, ?string $sourceText): array

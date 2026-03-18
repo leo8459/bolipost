@@ -78,7 +78,7 @@
                         <div class="profile-field"><span class="profile-label">Clase</span><span class="profile-value">{{ $assignedVehicle->vehicleClass?->nombre ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Combustible</span><span class="profile-value">{{ $assignedVehicle->tipo_combustible ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Color</span><span class="profile-value">{{ $assignedVehicle->color ?? '-' }}</span></div>
-                        <div class="profile-field"><span class="profile-label">Anio</span><span class="profile-value">{{ $assignedVehicle->anio ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">Año</span><span class="profile-value">{{ $assignedVehicle->anio ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">KM Actual</span><span class="profile-value">{{ $assignedVehicle->kilometraje_actual ?? $assignedVehicle->kilometraje_inicial ?? $assignedVehicle->kilometraje ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Capacidad tanque</span><span class="profile-value">{{ $assignedVehicle->capacidad_tanque ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Tipo asignacion</span><span class="profile-value">{{ $currentAssignment?->tipo_asignacion ?? '-' }}</span></div>
@@ -180,7 +180,7 @@
                             <input type="text" wire:model="color" class="form-control">
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">Anio</label>
+                            <label class="form-label fw-bold">Año</label>
                             <input type="number" wire:model="anio" class="form-control">
                         </div>
                         <div class="col-12 col-md-4">
