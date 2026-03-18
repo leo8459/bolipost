@@ -171,12 +171,13 @@ class VehicleLogManager extends Component
         }
 
         $fuelLogs = FuelLog::query()
+            ->leftJoin('fuel_invoices as fi', 'fuel_invoice_details.fuel_invoice_id', '=', 'fi.id')
             ->select([
-                'id',
-                'fecha_emision as fecha',
-                'cantidad as galones',
+                'fuel_invoice_details.id',
+                'fi.fecha_emision as fecha',
+                'fuel_invoice_details.cantidad as galones',
             ])
-            ->orderByDesc('id')
+            ->orderByDesc('fuel_invoice_details.id')
             ->get();
 
         return view('livewire.vehicle-log-manager', [
