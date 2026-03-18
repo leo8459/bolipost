@@ -45,6 +45,7 @@ class PaquetesOrdi extends Component
     public $reprintCodEspecial = '';
     public $codigoRecibir = '';
     public $previewRecibirIds = [];
+    public $previewRecibirZonas = [];
     public $reencaminarCiudad = '';
     public $previewReencaminarIds = [];
 
