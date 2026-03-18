@@ -680,24 +680,14 @@ return [
                     'icon' => 'fas fa-book',
                     'submenu' => [
                         [
-                            'text' => 'Bitacora Vehicular',
-                            'url' => 'livewire/vehicle-logs',
-                            'icon' => 'fas fa-book',
-                        ],
-                        [
-                            'text' => 'Mapa en tiempo real',
-                            'url' => 'livewire/map',
-                            'icon' => 'fas fa-map-marked-alt',
+                            'text' => 'Marcas',
+                            'url' => 'livewire/vehicle-brands',
+                            'icon' => 'fas fa-tags',
                         ],
                         [
                             'text' => 'Vehiculos',
                             'url' => 'livewire/vehicles',
                             'icon' => 'fas fa-truck',
-                        ],
-                        [
-                            'text' => 'Marcas',
-                            'url' => 'livewire/vehicle-brands',
-                            'icon' => 'fas fa-tags',
                         ],
                         [
                             'text' => 'Conductores',
@@ -709,27 +699,22 @@ return [
                             'url' => 'livewire/vehicle-assignments',
                             'icon' => 'fas fa-link',
                         ],
+                        [
+                            'text' => 'Bitacora Vehicular',
+                            'url' => 'livewire/vehicle-logs',
+                            'icon' => 'fas fa-book',
+                        ],
+                        [
+                            'text' => 'Mapa en tiempo real',
+                            'url' => 'livewire/map',
+                            'icon' => 'fas fa-map-marked-alt',
+                        ],
                     ],
                 ],
                 [
                     'text' => 'Mantenimiento',
                     'icon' => 'fas fa-tools',
                     'submenu' => [
-                        [
-                            'text' => 'Registros',
-                            'url' => 'livewire/maintenance-logs',
-                            'icon' => 'fas fa-tools',
-                        ],
-                        [
-                            'text' => 'Alertas',
-                            'url' => 'livewire/maintenance-alerts',
-                            'icon' => 'fas fa-bell',
-                        ],
-                        [
-                            'text' => 'Calendario',
-                            'url' => 'livewire/maintenance-calendar',
-                            'icon' => 'fas fa-calendar-alt',
-                        ],
                         [
                             'text' => 'Tipos',
                             'url' => 'livewire/maintenance-types',
@@ -739,6 +724,21 @@ return [
                             'text' => 'Citas',
                             'url' => 'livewire/maintenance-appointments',
                             'icon' => 'fas fa-calendar-plus',
+                        ],
+                        [
+                            'text' => 'Calendario',
+                            'url' => 'livewire/maintenance-calendar',
+                            'icon' => 'fas fa-calendar-alt',
+                        ],
+                        [
+                            'text' => 'Alerta',
+                            'url' => 'livewire/maintenance-alerts',
+                            'icon' => 'fas fa-bell',
+                        ],
+                        [
+                            'text' => 'Registro',
+                            'url' => 'livewire/maintenance-logs',
+                            'icon' => 'fas fa-tools',
                         ],
                     ],
                 ],
@@ -957,6 +957,7 @@ return [
 
     'filters' => [
         App\Menu\Filters\RoutePermissionFilter::class,
+        App\Menu\Filters\MaintenanceAlertBadgeFilter::class,
         JeroenNoten\LaravelAdminLte\Menu\Filters\GateFilter::class,
         JeroenNoten\LaravelAdminLte\Menu\Filters\HrefFilter::class,
         JeroenNoten\LaravelAdminLte\Menu\Filters\SearchFilter::class,

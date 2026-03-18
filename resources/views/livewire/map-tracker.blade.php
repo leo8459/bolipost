@@ -65,8 +65,8 @@
         </h1>
         <div class="d-flex align-items-center gap-2">
             <div class="btn-group btn-group-sm" role="group" aria-label="Modo mapa">
-                <button type="button" id="mode-online" class="btn btn-primary">Online</button>
-                <button type="button" id="mode-offline" class="btn btn-outline-secondary">Offline</button>
+                <button type="button" id="mode-online" class="btn btn-primary">Tiempo Real</button>
+                <button type="button" id="mode-offline" class="btn btn-outline-secondary">Trayectoria</button>
             </div>
             <input
                 type="date"
@@ -119,12 +119,14 @@
                 const offlineDateEl = document.getElementById('offline-date');
                 const vehicleFilterEl = document.getElementById('vehicle-filter');
                 const overlays = new Map();
-                let currentMode = 'online';
-                let effectiveMode = 'offline';
+                const queryParams = new URLSearchParams(window.location.search);
+                const initialMode = queryParams.get('mode') === 'offline' ? 'offline' : 'online';
+                let currentMode = initialMode;
+                let effectiveMode = initialMode;
                 let selectedVehicleId = null;
                 let selectedLastPoint = null;
                 let filteredVehicleId = '';
-                let currentOfflineDate = @json(now()->toDateString());
+                let currentOfflineDate = queryParams.get('date') || @json(now()->toDateString());
                 const refreshIntervalMs = 20000;
 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -490,7 +492,8 @@
                 if (btnOnline) btnOnline.addEventListener('click', () => setMode('online'));
                 if (btnOffline) btnOffline.addEventListener('click', () => setMode('offline'));
                 if (offlineDateEl) {
-                    offlineDateEl.disabled = true;
+                    offlineDateEl.value = currentOfflineDate;
+                    offlineDateEl.disabled = currentMode !== 'offline';
                     offlineDateEl.addEventListener('change', (event) => {
                         currentOfflineDate = String(event.target.value || @json(now()->toDateString()));
                         if (currentMode === 'offline') {
@@ -511,7 +514,7 @@
                     });
                 }
 
-                refreshData();
+                setMode(initialMode);
                 setInterval(refreshData, refreshIntervalMs);
             })();
         </script>
