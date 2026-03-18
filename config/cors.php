@@ -10,7 +10,7 @@ if (empty($allowedOrigins)) {
 }
 
 return [
-    'paths' => ['api/*', 'login'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie', 'login'],
     'allowed_methods' => ['*'],
     'allowed_origins' => $allowedOrigins,
     'allowed_origins_patterns' => [],

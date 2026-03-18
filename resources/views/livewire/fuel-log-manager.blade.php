@@ -703,27 +703,6 @@
     </div>
 </div>
 
-<div class="modal fade" id="bitacoraMapModal" wire:ignore.self tabindex="-1" aria-labelledby="bitacoraMapLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="bitacoraMapLabel">
-                    <i class="fas fa-map-marked-alt me-2"></i>Recorrido de bitacora
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="small text-muted mb-2" id="bitacora-map-summary">Sin datos</div>
-                <div class="small text-muted mb-3" id="bitacora-map-detail">Sin detalles de recorrido.</div>
-                <div id="bitacora-view-map" wire:ignore></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1047,21 +1026,18 @@
         if (window.__fuelBitacoraMapViewerInitialized) return;
         window.__fuelBitacoraMapViewerInitialized = true;
 
+        const modalEl = document.getElementById('bitacoraMapModal');
+        if (!modalEl || !window.L) return;
+        if (modalEl.parentElement !== document.body) {
+            document.body.appendChild(modalEl);
+        }
+
+        const summaryEl = document.getElementById('bitacora-map-summary');
+        const detailEl = document.getElementById('bitacora-map-detail');
         const mapContainerId = 'bitacora-view-map';
         let map = null;
         let layers = [];
         let pendingPayload = null;
-
-        if (!window.L) return;
-
-        function getMapModalEl() {
-            const el = document.getElementById('bitacoraMapModal');
-            if (!el) return null;
-            if (el.parentElement !== document.body) {
-                document.body.appendChild(el);
-            }
-            return el;
-        }
 
         function getBsModal(el) {
             if (!el) return null;
@@ -1123,23 +1099,7 @@
         }
 
         function ensureMap() {
-            const container = document.getElementById(mapContainerId);
-            if (!container) return;
-
-            if (map) {
-                const currentContainer = map.getContainer ? map.getContainer() : null;
-                if (currentContainer === container && document.body.contains(container)) {
-                    return;
-                }
-
-                try {
-                    map.off();
-                    map.remove();
-                } catch (_) {}
-                map = null;
-                layers = [];
-            }
-
+            if (map) return;
             map = L.map(mapContainerId).setView([-16.5, -68.15], 12);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
@@ -1159,8 +1119,6 @@
 
             const fromText = data.recorridoInicio || '-';
             const toText = data.recorridoDestino || '-';
-            const summaryEl = document.getElementById('bitacora-map-summary');
-            const detailEl = document.getElementById('bitacora-map-detail');
             if (summaryEl) {
                 summaryEl.textContent = `Bitacora #${data.logId} | Fecha: ${data.fecha} | Vehiculo: ${data.placa} | Conductor: ${data.conductor}`;
             }
@@ -1261,14 +1219,12 @@
                 routePoints: btn.getAttribute('data-route-points') || '[]',
             };
 
-            const modalEl = getMapModalEl();
             const modal = getBsModal(modalEl);
             if (!modal) return;
             modal.show();
         });
 
-        document.addEventListener('shown.bs.modal', function (event) {
-            if (event.target?.id !== 'bitacoraMapModal') return;
+        modalEl.addEventListener('shown.bs.modal', function () {
             if (!pendingPayload) return;
             renderRoute(pendingPayload);
             if (map) {
@@ -1277,8 +1233,7 @@
             }
         });
 
-        document.addEventListener('hidden.bs.modal', function (event) {
-            if (event.target?.id !== 'bitacoraMapModal') return;
+        modalEl.addEventListener('hidden.bs.modal', function () {
             clearLayers();
             pendingPayload = null;
         });
