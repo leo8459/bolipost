@@ -23,6 +23,8 @@ class FuelLogManager extends Component
 {
     use WithPagination;
 
+    protected string $paginationTheme = 'bootstrap';
+
     // invoice header fields
     #[Validate('nullable|exists:gas_stations,id')]
     public ?int $gas_station_id = null;

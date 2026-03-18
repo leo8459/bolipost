@@ -676,44 +676,77 @@
                 </div>
                 @else
                 <div class="table-responsive">
-                    <table class="table align-middle mb-0 fuel-table bitacora-style">
+                    <table class="table align-middle mb-0 fuel-table fuel-table--combined bitacora-style">
                         <thead>
                             <tr>
                                 <th>Tipo</th>
                                 <th>Fecha</th>
                                 <th>Vehiculo</th>
                                 <th>Conductor</th>
-                                <th>Detalle</th>
-                                <th class="text-end">Total</th>
+                                <th>Referencia</th>
+                                <th>Recorrido / detalle</th>
+                                <th class="text-end">Combustible / total</th>
                             </tr>
                         </thead>
                         <tbody>
+                            <tr>
+                                <td colspan="7" class="bitacora-cell-note">
+                                    Vista consolidada: muestra en una sola tabla los registros de bitacora y los vales de combustible.
+                                </td>
+                            </tr>
                             @forelse($combinedRows as $row)
                             <tr>
-                                <td>{{ ucfirst($row['tipo']) }} @if($row['tiene_combustible'])<i class="fas fa-gas-pump text-success ms-1"></i>@endif</td>
+                                <td>
+                                    <span class="fw-semibold">{{ ucfirst($row['tipo']) }}</span>
+                                    @if($row['tiene_combustible'])
+                                    <i class="fas fa-gas-pump text-success ms-1"></i>
+                                    @endif
+                                </td>
                                 <td>{{ $row['fecha'] }}</td>
                                 <td>{{ $row['vehiculo'] }}</td>
                                 <td>{{ $row['conductor'] }}</td>
                                 <td>
                                     <div class="fw-semibold">{{ $row['detalle_titulo'] ?? 'Detalle' }}</div>
                                     <div>{{ $row['detalle_principal'] ?? '-' }}</div>
+                                </td>
+                                <td>
                                     @if(!empty($row['detalle_secundario']))
-                                    <div class="text-muted small">{{ $row['detalle_secundario'] }}</div>
+                                    <div>{{ $row['detalle_secundario'] }}</div>
                                     @endif
                                     @if(!empty($row['detalle_terciario']))
                                     <div class="text-muted small">{{ $row['detalle_terciario'] }}</div>
                                     @endif
+                                    @if(empty($row['detalle_secundario']) && empty($row['detalle_terciario']))
+                                    <span class="text-muted">-</span>
+                                    @endif
                                 </td>
-                                <td class="text-end">{{ $row['total'] !== null ? 'BOB' . number_format((float) $row['total'], 2) : '-' }}</td>
+                                <td class="text-end">
+                                    @if($row['total'] !== null)
+                                    <div class="fw-semibold">BOB{{ number_format((float) $row['total'], 2) }}</div>
+                                    @elseif($row['tiene_combustible'])
+                                    <div class="text-success fw-semibold">Con combustible</div>
+                                    @else
+                                    <span class="text-muted">-</span>
+                                    @endif
+                                </td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">Sin datos para combinar</td>
+                                <td colspan="7" class="text-center py-4 text-muted">Sin datos para combinar</td>
                             </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
+                @endif
+            </div>
+            <div class="card-footer bg-white">
+                @if ($tableView === 'fuel')
+                {{ $fuelLogs->links() }}
+                @elseif ($tableView === 'bitacora')
+                {{ $vehicleLogs->links() }}
+                @else
+                {{ $combinedRows->links() }}
                 @endif
             </div>
         </div>
