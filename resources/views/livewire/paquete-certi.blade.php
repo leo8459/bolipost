@@ -245,7 +245,9 @@
                                             class="btn btn-sm btn-azul">
                                             Editar
                                         </button>
+                                        @if ($this->isAlmacen)
                                         <button wire:click="openZonaModal({{ $paquete->id }})" class="btn btn-sm btn-outline-azul">Editar Zona</button>
+                                        @endif
                                         @endif
                                         @if ($this->isInventory && $canCertiExport)
                                             <button
