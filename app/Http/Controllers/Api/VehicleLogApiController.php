@@ -1,0 +1,812 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Driver;
+use App\Models\Vehicle;
+use App\Models\VehicleAssignment;
+use App\Models\VehicleLog;
+use Illuminate\Support\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+
+class VehicleLogApiController extends Controller
+{
+    public function index(Request $request)
+    {
+        $query = VehicleLog::query()
+            ->with(['vehicle', 'driver', 'fuelLog'])
+            ->orderByDesc('fecha')
+            ->orderByDesc('id');
+
+        if ($request->filled('vehicle_id')) {
+            $query->where('vehicles_id', (int) $request->integer('vehicle_id'));
+        }
+
+        if ($request->filled('driver_id')) {
+            $query->where('drivers_id', (int) $request->integer('driver_id'));
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('fecha', '>=', (string) $request->input('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('fecha', '<=', (string) $request->input('date_to'));
+        }
+
+        return response()->json($query->paginate(20));
+    }
+
+    public function show(VehicleLog $vehicleLog)
+    {
+        $vehicleLog->load(['vehicle', 'driver', 'fuelLog']);
+
+        return response()->json($vehicleLog);
+    }
+
+    public function store(Request $request)
+    {
+        $input = $request->all();
+
+        $candidateVehicleId = (int) ($input['vehicles_id'] ?? $input['vehicle_id'] ?? 0);
+        $resolvedDriverId = $this->resolveDriverId(
+            $request,
+            $input['drivers_id'] ?? $input['driver_id'] ?? null,
+            $candidateVehicleId
+        );
+        $resolvedVehicleId = $this->resolveVehicleId($candidateVehicleId, $resolvedDriverId);
+
+        $kilometrajeSalida = $this->asFloat(
+            $input['kilometraje_salida']
+                ?? $input['odometer_start']
+                ?? $input['km_start']
+                ?? 0
+        );
+
+        $distance = $this->asFloat($input['distance_km'] ?? $input['distancia'] ?? null);
+        $kilometrajeLlegada = $this->asFloat(
+            $input['kilometraje_llegada']
+                ?? $input['odometer_end']
+                ?? $input['km_end']
+                ?? (!is_null($distance) ? $kilometrajeSalida + $distance : null)
+        );
+
+        $ruta = $this->normalizeRoutePoints(
+            $input['ruta_json']
+                ?? $input['points_json']
+                ?? $input['route_points']
+                ?? $input['points']
+                ?? null
+        );
+
+        $payload = [
+            'drivers_id' => $resolvedDriverId,
+            'vehicles_id' => $resolvedVehicleId,
+            'fecha' => $input['fecha'] ?? $input['date'] ?? $input['date_time'] ?? now()->toDateString(),
+            'kilometraje_salida' => $kilometrajeSalida ?? 0,
+            'kilometraje_llegada' => $kilometrajeLlegada,
+            'recorrido_inicio' => (string) ($input['recorrido_inicio'] ?? $input['origen'] ?? $input['origin'] ?? ''),
+            'recorrido_destino' => (string) ($input['recorrido_destino'] ?? $input['destino'] ?? $input['destination'] ?? ''),
+            'abastecimiento_combustible' => (bool) ($input['abastecimiento_combustible'] ?? $input['has_fuel_load'] ?? false),
+        ];
+        if (Schema::hasColumn('vehicle_log', 'firma_digital')) {
+            $payload['firma_digital'] = $input['firma_digital'] ?? $input['signature'] ?? null;
+        }
+
+        $latInicio = $this->asFloat(
+            $input['latitud_inicio']
+                ?? $input['start_latitude']
+                ?? $input['start_lat']
+                ?? ($input['start']['latitude'] ?? null)
+                ?? ($input['start']['lat'] ?? null)
+        );
+        $lngInicio = $this->asFloat(
+            $input['logitud_inicio']
+                ?? $input['start_longitude']
+                ?? $input['start_lng']
+                ?? ($input['start']['longitude'] ?? null)
+                ?? ($input['start']['lng'] ?? null)
+        );
+        $latDestino = $this->asFloat(
+            $input['latitud_destino']
+                ?? $input['end_latitude']
+                ?? $input['end_lat']
+                ?? ($input['end']['latitude'] ?? null)
+                ?? ($input['end']['lat'] ?? null)
+        );
+        $lngDestino = $this->asFloat(
+            $input['logitud_destino']
+                ?? $input['end_longitude']
+                ?? $input['end_lng']
+                ?? ($input['end']['longitude'] ?? null)
+                ?? ($input['end']['lng'] ?? null)
+        );
+
+        if (Schema::hasColumn('vehicle_log', 'latitud_inicio') && !is_null($latInicio)) {
+            $payload['latitud_inicio'] = $latInicio;
+        }
+        if (Schema::hasColumn('vehicle_log', 'logitud_inicio') && !is_null($lngInicio)) {
+            $payload['logitud_inicio'] = $lngInicio;
+        }
+        if (Schema::hasColumn('vehicle_log', 'latitud_destino') && !is_null($latDestino)) {
+            $payload['latitud_destino'] = $latDestino;
+        }
+        if (Schema::hasColumn('vehicle_log', 'logitud_destino') && !is_null($lngDestino)) {
+            $payload['logitud_destino'] = $lngDestino;
+        }
+
+        $startRouteLabel = $this->sanitizeRouteLabel((string) ($payload['recorrido_inicio'] ?? ''));
+        $endRouteLabel = $this->sanitizeRouteLabel((string) ($payload['recorrido_destino'] ?? ''));
+        if (empty($ruta)) {
+            $fallbackRoute = [];
+            $baseTs = (string) ($input['date_time'] ?? $input['sent_at'] ?? now()->toIso8601String());
+            if (!is_null($latInicio) && !is_null($lngInicio)) {
+                $fallbackRoute[] = [
+                    'lat' => $latInicio,
+                    'lng' => $lngInicio,
+                    't' => $baseTs,
+                    'address' => $startRouteLabel ?? '',
+                    'label' => $startRouteLabel ?? 'Inicio',
+                    'is_marked' => true,
+                    'index' => 0,
+                ];
+            }
+            if (!is_null($latDestino) && !is_null($lngDestino)) {
+                $isDifferentEnd = is_null($latInicio) || is_null($lngInicio)
+                    || abs($latDestino - $latInicio) > 0.000001
+                    || abs($lngDestino - $lngInicio) > 0.000001;
+                if ($isDifferentEnd || empty($fallbackRoute)) {
+                    $fallbackRoute[] = [
+                        'lat' => $latDestino,
+                        'lng' => $lngDestino,
+                        't' => $baseTs,
+                        'address' => $endRouteLabel ?? '',
+                        'label' => $endRouteLabel ?? 'Destino',
+                        'is_marked' => true,
+                        'index' => count($fallbackRoute),
+                    ];
+                }
+            }
+            $ruta = $fallbackRoute;
+        }
+
+        if (!empty($ruta)) {
+            $payload['ruta_json'] = $ruta;
+            $firstAddress = (string) ($ruta[0]['address'] ?? '');
+            $lastAddress = (string) ($ruta[array_key_last($ruta)]['address'] ?? '');
+            if (is_null($startRouteLabel) && $firstAddress !== '') {
+                $payload['recorrido_inicio'] = Str::limit($firstAddress, 255, '');
+            }
+            if (is_null($endRouteLabel) && $lastAddress !== '') {
+                $payload['recorrido_destino'] = Str::limit($lastAddress, 255, '');
+            }
+        }
+
+        $rules = [
+            'drivers_id' => 'nullable|integer|min:1',
+            'vehicles_id' => 'required|integer|exists:vehicles,id',
+            'fecha' => 'required|date',
+            'kilometraje_salida' => 'required|numeric|min:0',
+            'kilometraje_llegada' => 'nullable|numeric|gte:kilometraje_salida',
+            'recorrido_inicio' => 'required|string|max:255',
+            'recorrido_destino' => 'required|string|max:255',
+            'abastecimiento_combustible' => 'nullable|boolean',
+            'ruta_json' => 'nullable|array',
+        ];
+        if (Schema::hasColumn('vehicle_log', 'firma_digital')) {
+            $rules['firma_digital'] = 'nullable|string';
+        }
+        if (Schema::hasColumn('vehicle_log', 'latitud_inicio')) {
+            $rules['latitud_inicio'] = 'required|numeric|between:-90,90';
+        }
+        if (Schema::hasColumn('vehicle_log', 'logitud_inicio')) {
+            $rules['logitud_inicio'] = 'required|numeric|between:-180,180';
+        }
+        if (Schema::hasColumn('vehicle_log', 'latitud_destino')) {
+            $rules['latitud_destino'] = 'required|numeric|between:-90,90';
+        }
+        if (Schema::hasColumn('vehicle_log', 'logitud_destino')) {
+            $rules['logitud_destino'] = 'required|numeric|between:-180,180';
+        }
+
+        $payload = validator($payload, $rules)->validate();
+
+        $log = VehicleLog::create($payload);
+
+        $manualDistanceKm = null;
+        if (!is_null($kilometrajeSalida) && !is_null($kilometrajeLlegada)) {
+            $manualDistanceKm = max(0, round($kilometrajeLlegada - $kilometrajeSalida, 3));
+        }
+
+        $discrepancyKm = null;
+        if (!is_null($distance) && !is_null($manualDistanceKm)) {
+            $discrepancyKm = round(abs($distance - $manualDistanceKm), 3);
+            if ($discrepancyKm >= 1.0) {
+                Log::warning('Discrepancia detectada entre distance_km y odometro manual.', [
+                    'vehicle_log_id' => $log->id,
+                    'vehicle_id' => $resolvedVehicleId,
+                    'driver_id' => $resolvedDriverId,
+                    'distance_km_app' => $distance,
+                    'distance_km_manual' => $manualDistanceKm,
+                    'discrepancy_km' => $discrepancyKm,
+                ]);
+            }
+        }
+
+        $log->load(['vehicle', 'driver']);
+        $response = $log->toArray();
+        $response['distance_km_app'] = $distance;
+        $response['distance_km_manual'] = $manualDistanceKm;
+        $response['distance_km_discrepancy'] = $discrepancyKm;
+
+        return response()->json($response, 201);
+    }
+
+    public function pointToPoint(Request $request)
+    {
+        $input = $request->all();
+        $providedSegments = $this->normalizePointToPointSegments(
+            $input['point_to_point_segments'] ?? $input['segments'] ?? null
+        );
+        $timeline = $this->normalizeTimelinePoints($input['timeline'] ?? $input['points'] ?? []);
+        if (empty($providedSegments) && count($timeline) > 2) {
+            $timeline = [$timeline[0], $timeline[count($timeline) - 1]];
+        }
+
+        if (empty($providedSegments) && count($timeline) < 2) {
+            return response()->json([
+                'message' => 'Se requieren al menos 2 puntos para generar bitacora punto a punto.',
+            ], 422);
+        }
+
+        $candidateVehicleId = (int) ($input['vehicle_id'] ?? $input['vehicles_id'] ?? 0);
+        $resolvedDriverId = $this->resolveDriverId(
+            $request,
+            $input['driver_id'] ?? $input['drivers_id'] ?? null,
+            $candidateVehicleId
+        );
+        $resolvedVehicleId = $this->resolveVehicleId($candidateVehicleId, $resolvedDriverId);
+
+        if (($resolvedVehicleId ?? 0) <= 0) {
+            return response()->json([
+                'message' => 'No se pudo resolver el vehiculo para generar bitacoras punto a punto.',
+            ], 422);
+        }
+
+        $sentAt = $this->parseTimelineDate($input['sent_at'] ?? $input['fecha'] ?? null) ?? now();
+        $sessionId = (int) ($input['session_id'] ?? 0);
+        $distanceKm = $this->asFloat($input['distance_km'] ?? $input['distancia'] ?? null);
+
+        $vehicle = Vehicle::query()->find($resolvedVehicleId);
+        $kmStart = $this->asFloat(
+            $input['kilometraje_salida']
+                ?? $input['km_start']
+                ?? $input['odometer_start']
+                ?? ($vehicle?->kilometraje_actual ?? $vehicle?->kilometraje_inicial ?? $vehicle?->kilometraje ?? null)
+        ) ?? 0.0;
+
+        $segments = !empty($providedSegments)
+            ? $this->buildProvidedPointToPointSegments($providedSegments, $distanceKm)
+            : $this->buildTimelineSegments($timeline, $distanceKm);
+        $created = [];
+        $cursorKm = $kmStart;
+
+        foreach ($segments as $idx => $segment) {
+            $start = $segment['start'];
+            $end = $segment['end'];
+            $segmentKm = $segment['distance_km'];
+            $segmentSignature = $this->buildPointToPointSignature($sessionId, $start, $end);
+
+            $existing = $this->findExistingPointToPointLog(
+                (int) ($resolvedDriverId ?? 0),
+                (int) $resolvedVehicleId,
+                $sentAt->toDateString(),
+                $segmentSignature,
+                (float) $start['lat'],
+                (float) $start['lng'],
+                (float) $end['lat'],
+                (float) $end['lng']
+            );
+            if ($existing) {
+                $created[] = $existing;
+                $cursorKm = $this->asFloat($existing->kilometraje_llegada) ?? $cursorKm;
+                continue;
+            }
+
+            $payload = [
+                'drivers_id' => $resolvedDriverId,
+                'vehicles_id' => $resolvedVehicleId,
+                'fecha' => $sentAt->toDateString(),
+                'kilometraje_salida' => $cursorKm,
+                'kilometraje_llegada' => $cursorKm + ($segmentKm ?? 0),
+                'recorrido_inicio' => Str::limit((string) (($start['address'] ?? '') ?: ($start['label'] ?? 'Punto A')), 255, ''),
+                'recorrido_destino' => Str::limit((string) (($end['address'] ?? '') ?: ($end['label'] ?? 'Punto B')), 255, ''),
+                'abastecimiento_combustible' => false,
+                'ruta_json' => [
+                    array_merge($start, ['segment_signature' => $segmentSignature, 'session_id' => $sessionId, 'segment_index' => $idx]),
+                    array_merge($end, ['segment_signature' => $segmentSignature, 'session_id' => $sessionId, 'segment_index' => $idx + 1]),
+                ],
+            ];
+
+            if (Schema::hasColumn('vehicle_log', 'latitud_inicio')) {
+                $payload['latitud_inicio'] = $start['lat'];
+            }
+            if (Schema::hasColumn('vehicle_log', 'logitud_inicio')) {
+                $payload['logitud_inicio'] = $start['lng'];
+            }
+            if (Schema::hasColumn('vehicle_log', 'latitud_destino')) {
+                $payload['latitud_destino'] = $end['lat'];
+            }
+            if (Schema::hasColumn('vehicle_log', 'logitud_destino')) {
+                $payload['logitud_destino'] = $end['lng'];
+            }
+
+            $log = VehicleLog::query()->create($payload);
+            $created[] = $log;
+            $cursorKm = $this->asFloat($log->kilometraje_llegada) ?? $cursorKm;
+        }
+
+        if ($vehicle && Schema::hasColumn('vehicles', 'kilometraje_actual')) {
+            $arrival = $cursorKm;
+            $current = $this->asFloat($vehicle->kilometraje_actual ?? null);
+            if (is_null($current) || $arrival > $current) {
+                $vehicle->kilometraje_actual = $arrival;
+                if (Schema::hasColumn('vehicles', 'kilometraje')) {
+                    $vehicle->kilometraje = $arrival;
+                }
+                $vehicle->save();
+            }
+        }
+
+        return response()->json([
+            'message' => 'Bitacoras punto a punto registradas.',
+            'session_id' => $sessionId,
+            'created_count' => count($created),
+            'vehicle_log_ids' => collect($created)->pluck('id')->values(),
+        ], 201);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $segments
+     * @return array<int, array{start: array<string, mixed>, end: array<string, mixed>, distance_km: float|null}>
+     */
+    private function buildProvidedPointToPointSegments(array $segments, ?float $distanceKm): array
+    {
+        $normalized = [];
+        $rawLengths = [];
+
+        foreach ($segments as $segment) {
+            $start = $segment['from'] ?? null;
+            $end = $segment['to'] ?? null;
+            if (!is_array($start) || !is_array($end)) {
+                continue;
+            }
+
+            $len = $this->haversineKm(
+                (float) $start['lat'],
+                (float) $start['lng'],
+                (float) $end['lat'],
+                (float) $end['lng']
+            );
+            $rawLengths[] = $len;
+            $normalized[] = [
+                'start' => $start,
+                'end' => $end,
+                'distance_km' => null,
+            ];
+        }
+
+        if (empty($normalized)) {
+            return [];
+        }
+
+        $totalRaw = array_sum($rawLengths);
+        foreach ($normalized as $i => $item) {
+            $piece = null;
+            if (!is_null($distanceKm) && $distanceKm >= 0) {
+                if ($totalRaw > 0) {
+                    $piece = $distanceKm * (($rawLengths[$i] ?? 0) / $totalRaw);
+                } else {
+                    $piece = count($normalized) > 0 ? ($distanceKm / count($normalized)) : 0;
+                }
+            }
+            $normalized[$i]['distance_km'] = $piece;
+        }
+
+        return $normalized;
+    }
+
+    private function resolveDriverId(Request $request, mixed $candidateDriverId, int $vehicleId): ?int
+    {
+        $candidate = (int) ($candidateDriverId ?? 0);
+
+        if ($candidate > 0) {
+            $driverById = Driver::query()->find($candidate);
+            if ($driverById) {
+                return (int) $driverById->id;
+            }
+
+            $driverByUser = Driver::query()->where('user_id', $candidate)->first();
+            if ($driverByUser) {
+                return (int) $driverByUser->id;
+            }
+        }
+
+        $authDriver = $request->user()?->resolvedDriver();
+        if ($authDriver) {
+            return (int) $authDriver->id;
+        }
+
+        $assignment = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where(function ($q) {
+                $q->where('activo', true)->orWhereNull('activo');
+            })
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($assignment && (int) $assignment->driver_id > 0) {
+            return (int) $assignment->driver_id;
+        }
+
+        return null;
+    }
+
+    private function resolveVehicleId(int $candidateVehicleId, ?int $driverId): ?int
+    {
+        if ($candidateVehicleId > 0 && Vehicle::query()->whereKey($candidateVehicleId)->exists()) {
+            return $candidateVehicleId;
+        }
+
+        if (($driverId ?? 0) > 0) {
+            $assignment = VehicleAssignment::query()
+                ->where('driver_id', (int) $driverId)
+                ->where(function ($q) {
+                    $q->where('activo', true)->orWhereNull('activo');
+                })
+                ->orderByDesc('fecha_inicio')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($assignment && (int) $assignment->vehicle_id > 0) {
+                return (int) $assignment->vehicle_id;
+            }
+        }
+
+        return null;
+    }
+
+    private function asFloat(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        return null;
+    }
+
+    private function normalizeRoutePoints(mixed $raw): array
+    {
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            $raw = is_array($decoded) ? $decoded : [];
+        }
+
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($raw as $point) {
+            if (!is_array($point)) {
+                continue;
+            }
+
+            $lat = $this->asFloat($point['latitude'] ?? $point['lat'] ?? null);
+            $lng = $this->asFloat($point['longitude'] ?? $point['lng'] ?? null);
+
+            if (is_null($lat) || is_null($lng)) {
+                continue;
+            }
+
+            $timestamp = $point['timestamp'] ?? $point['t'] ?? Carbon::now()->toIso8601String();
+            $normalized[] = [
+                'lat' => $lat,
+                'lng' => $lng,
+                't' => is_scalar($timestamp) ? (string) $timestamp : Carbon::now()->toIso8601String(),
+                'address' => (string) ($point['address'] ?? ''),
+                'label' => (string) ($point['label'] ?? $point['point_label'] ?? ''),
+                'is_marked' => !empty($point['isMarked']) || !empty($point['is_marked']) || !empty($point['marked']),
+                'index' => is_numeric($point['index'] ?? null) ? (int) $point['index'] : null,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeTimelinePoints(mixed $raw): array
+    {
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            $raw = is_array($decoded) ? $decoded : [];
+        }
+
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($raw as $point) {
+            if (!is_array($point)) {
+                continue;
+            }
+
+            $lat = $this->asFloat($point['latitude'] ?? $point['lat'] ?? null);
+            $lng = $this->asFloat($point['longitude'] ?? $point['lng'] ?? null);
+            if (is_null($lat) || is_null($lng)) {
+                continue;
+            }
+
+            $timestamp = $point['timestamp'] ?? $point['t'] ?? Carbon::now()->toIso8601String();
+            $normalized[] = [
+                'lat' => $lat,
+                'lng' => $lng,
+                't' => is_scalar($timestamp) ? (string) $timestamp : Carbon::now()->toIso8601String(),
+                'address' => (string) ($point['address'] ?? ''),
+                'label' => (string) ($point['label'] ?? ''),
+                'is_marked' => !empty($point['isMarked']) || !empty($point['is_marked']) || !empty($point['marked']),
+                'index' => is_numeric($point['index'] ?? null) ? (int) $point['index'] : null,
+            ];
+        }
+
+        usort($normalized, function (array $a, array $b) {
+            return strcmp((string) ($a['t'] ?? ''), (string) ($b['t'] ?? ''));
+        });
+
+        return $normalized;
+    }
+
+    private function normalizePointToPointPoint(mixed $raw): ?array
+    {
+        if (!is_array($raw)) {
+            return null;
+        }
+
+        $lat = $this->asFloat($raw['latitude'] ?? $raw['lat'] ?? null);
+        $lng = $this->asFloat($raw['longitude'] ?? $raw['lng'] ?? null);
+        if (is_null($lat) || is_null($lng)) {
+            return null;
+        }
+
+        $timestamp = $raw['timestamp'] ?? $raw['t'] ?? Carbon::now()->toIso8601String();
+
+        return [
+            'lat' => $lat,
+            'lng' => $lng,
+            't' => is_scalar($timestamp) ? (string) $timestamp : Carbon::now()->toIso8601String(),
+            'address' => (string) ($raw['address'] ?? ''),
+            'label' => (string) ($raw['label'] ?? ''),
+            'is_marked' => !empty($raw['isMarked']) || !empty($raw['is_marked']) || !empty($raw['marked']),
+            'index' => is_numeric($raw['index'] ?? null) ? (int) $raw['index'] : null,
+        ];
+    }
+
+    private function normalizePointToPointSegments(mixed $raw): array
+    {
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            $raw = is_array($decoded) ? $decoded : [];
+        }
+
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($raw as $segment) {
+            if (!is_array($segment)) {
+                continue;
+            }
+
+            $from = $this->normalizePointToPointPoint($segment['from'] ?? null);
+            $to = $this->normalizePointToPointPoint($segment['to'] ?? null);
+            if (!$from || !$to) {
+                continue;
+            }
+
+            $normalized[] = [
+                'from' => $from,
+                'to' => $to,
+            ];
+        }
+
+        usort($normalized, function (array $a, array $b) {
+            return strcmp((string) ($a['from']['t'] ?? ''), (string) ($b['from']['t'] ?? ''));
+        });
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $timeline
+     * @return array<int, array{start: array<string, mixed>, end: array<string, mixed>, distance_km: float|null}>
+     */
+    private function buildTimelineSegments(array $timeline, ?float $distanceKm): array
+    {
+        $segments = [];
+        $rawLengths = [];
+
+        for ($i = 0; $i < count($timeline) - 1; $i++) {
+            $start = $timeline[$i];
+            $end = $timeline[$i + 1];
+            $len = $this->haversineKm(
+                (float) $start['lat'],
+                (float) $start['lng'],
+                (float) $end['lat'],
+                (float) $end['lng']
+            );
+            $rawLengths[] = $len;
+            $segments[] = [
+                'start' => $start,
+                'end' => $end,
+                'distance_km' => null,
+            ];
+        }
+
+        $totalRaw = array_sum($rawLengths);
+        foreach ($segments as $i => $segment) {
+            $piece = null;
+            if (!is_null($distanceKm) && $distanceKm >= 0) {
+                if ($totalRaw > 0) {
+                    $piece = $distanceKm * (($rawLengths[$i] ?? 0) / $totalRaw);
+                } else {
+                    $piece = count($segments) > 0 ? ($distanceKm / count($segments)) : 0;
+                }
+            }
+            $segments[$i]['distance_km'] = $piece;
+        }
+
+        return $segments;
+    }
+
+    private function parseTimelineDate(mixed $raw): ?Carbon
+    {
+        if (!$raw) {
+            return null;
+        }
+
+        if (is_numeric($raw)) {
+            $numeric = (float) $raw;
+            return $numeric > 1000000000000
+                ? Carbon::createFromTimestampMs((int) $numeric)
+                : Carbon::createFromTimestamp((int) $numeric);
+        }
+
+        if (is_string($raw)) {
+            try {
+                return Carbon::parse($raw);
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $start
+     * @param array<string, mixed> $end
+     */
+    private function buildPointToPointSignature(int $sessionId, array $start, array $end): string
+    {
+        return sha1(implode('|', [
+            (string) $sessionId,
+            (string) ($start['lat'] ?? ''),
+            (string) ($start['lng'] ?? ''),
+            (string) ($start['t'] ?? ''),
+            (string) ($end['lat'] ?? ''),
+            (string) ($end['lng'] ?? ''),
+            (string) ($end['t'] ?? ''),
+        ]));
+    }
+
+    private function findExistingPointToPointLog(
+        int $driverId,
+        int $vehicleId,
+        string $date,
+        string $signature,
+        float $startLat,
+        float $startLng,
+        float $endLat,
+        float $endLng
+    ): ?VehicleLog
+    {
+        // 1) Dedupe duro por coordenadas/fecha/vehiculo/conductor.
+        $byCoords = VehicleLog::query()
+            ->where('drivers_id', $driverId)
+            ->where('vehicles_id', $vehicleId)
+            ->whereDate('fecha', $date)
+            ->whereBetween('latitud_inicio', [$startLat - 0.00001, $startLat + 0.00001])
+            ->whereBetween('logitud_inicio', [$startLng - 0.00001, $startLng + 0.00001])
+            ->whereBetween('latitud_destino', [$endLat - 0.00001, $endLat + 0.00001])
+            ->whereBetween('logitud_destino', [$endLng - 0.00001, $endLng + 0.00001])
+            ->latest('id')
+            ->first();
+        if ($byCoords) {
+            return $byCoords;
+        }
+
+        // 2) Fallback por firma en JSON (cuando el motor DB soporte consultas JSON).
+        return VehicleLog::query()
+            ->where('drivers_id', $driverId)
+            ->where('vehicles_id', $vehicleId)
+            ->whereDate('fecha', $date)
+            ->whereJsonContains('ruta_json', ['segment_signature' => $signature])
+            ->latest('id')
+            ->first();
+    }
+
+    private function sanitizeRouteLabel(string $raw): ?string
+    {
+        $label = trim(preg_replace('/\s+/', ' ', $raw) ?? $raw);
+        if ($label === '') {
+            return null;
+        }
+
+        $lower = mb_strtolower($label);
+        if ($this->looksLikeCoordinateLabel($label) || $this->looksLikeDateTimeLabel($label)) {
+            return null;
+        }
+
+        if (in_array($lower, [
+            'sincronizacion app',
+            'en ruta',
+            'no definido',
+            'offline snapshot',
+            'heartbeat',
+            'punto a',
+            'punto b',
+            'punto de salida',
+            'punto de llegada',
+            'ruta iniciada',
+            'ubicacion marcada',
+            'ubicación marcada',
+        ], true)) {
+            return null;
+        }
+
+        return Str::limit($label, 255, '');
+    }
+
+    private function looksLikeCoordinateLabel(string $value): bool
+    {
+        return preg_match('/^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/', $value) === 1;
+    }
+
+    private function looksLikeDateTimeLabel(string $value): bool
+    {
+        return preg_match('/^\d{1,2}\/\d{1,2}\/\d{4},\s*\d{1,2}:\d{2}/', $value) === 1
+            || preg_match('/^\d{4}-\d{2}-\d{2}t\d{2}:\d{2}/i', $value) === 1;
+    }
+
+    private function haversineKm(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earth = 6371.0;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return 2 * $earth * asin(min(1, sqrt($a)));
+    }
+}

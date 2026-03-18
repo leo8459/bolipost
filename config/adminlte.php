@@ -650,6 +650,84 @@ return [
             ],
         ],
         [
+            'text' => 'Gestiones',
+            'icon' => 'fas fa-clipboard-list',
+            'submenu' => [
+                [
+                    'text' => 'Bitacora',
+                    'icon' => 'fas fa-book',
+                    'submenu' => [
+                        [
+                            'text' => 'Bitacora Vehicular',
+                            'url' => 'livewire/vehicle-logs',
+                            'icon' => 'fas fa-book',
+                        ],
+                        [
+                            'text' => 'Mapa en tiempo real',
+                            'url' => 'livewire/map',
+                            'icon' => 'fas fa-map-marked-alt',
+                        ],
+                        [
+                            'text' => 'Vehiculos',
+                            'url' => 'livewire/vehicles',
+                            'icon' => 'fas fa-truck',
+                        ],
+                        [
+                            'text' => 'Marcas',
+                            'url' => 'livewire/vehicle-brands',
+                            'icon' => 'fas fa-tags',
+                        ],
+                        [
+                            'text' => 'Conductores',
+                            'url' => 'livewire/drivers',
+                            'icon' => 'fas fa-id-card',
+                        ],
+                        [
+                            'text' => 'Asignaciones',
+                            'url' => 'livewire/vehicle-assignments',
+                            'icon' => 'fas fa-link',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Mantenimiento',
+                    'icon' => 'fas fa-tools',
+                    'submenu' => [
+                        [
+                            'text' => 'Registros',
+                            'url' => 'livewire/maintenance-logs',
+                            'icon' => 'fas fa-tools',
+                        ],
+                        [
+                            'text' => 'Alertas',
+                            'url' => 'livewire/maintenance-alerts',
+                            'icon' => 'fas fa-bell',
+                        ],
+                        [
+                            'text' => 'Calendario',
+                            'url' => 'livewire/maintenance-calendar',
+                            'icon' => 'fas fa-calendar-alt',
+                        ],
+                        [
+                            'text' => 'Tipos',
+                            'url' => 'livewire/maintenance-types',
+                            'icon' => 'fas fa-list',
+                        ],
+                        [
+                            'text' => 'Citas',
+                            'url' => 'livewire/maintenance-appointments',
+                            'icon' => 'fas fa-calendar-plus',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Gasolina',
+                    'url' => 'livewire/fuel-logs',
+                    'icon' => 'fas fa-gas-pump',
+                ],
+            ],
+        ],
+        [
             'text' => 'CODIGOS',
             'icon' => 'fas fa-barcode',
             'submenu' => [
@@ -876,6 +954,11 @@ return [
                     'type' => 'css',
                     'asset' => true,
                     'location' => 'css/adminlte-custom.css',
+                ],
+                [
+                    'type' => 'css',
+                    'asset' => true,
+                    'location' => 'css/gestiones-adminlte.css',
                 ],
             ],
         ],

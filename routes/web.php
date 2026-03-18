@@ -38,6 +38,18 @@ use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\AclController;
 use App\Http\Controllers\BitacoraController;
 use App\Http\Controllers\PreregistroController;
+use App\Http\Controllers\Web\FuelLogController;
+use App\Http\Controllers\Web\MaintenanceFileController;
+use App\Http\Controllers\Web\MapController;
+use App\Http\Controllers\Web\QrDecoderController;
+use App\Livewire\FuelLogManager;
+use App\Livewire\MapTracker;
+use App\Livewire\MaintenanceAlertManager;
+use App\Livewire\MaintenanceAppointmentManager;
+use App\Livewire\MaintenanceCalendarManager;
+use App\Livewire\MaintenanceLogManager;
+use App\Livewire\MaintenanceTypeManager;
+use App\Livewire\VehicleLogManager;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -262,6 +274,36 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/carteros/entrega', [CarterosController::class, 'deliverPackage'])->name('carteros.entrega.store');
     Route::post('/carteros/entrega/intento', [CarterosController::class, 'addAttempt'])->name('carteros.entrega.intento');
 
+
+    // Modulos de Gestiones (Bitacora / Gasolina / Mantenimiento)
+    Route::view('/livewire/vehicles', 'livewire.pages.vehicles')->name('livewire.vehicles');
+    Route::view('/livewire/vehicle-brands', 'livewire.pages.vehicle-brands')->name('livewire.vehicle-brands');
+    Route::view('/livewire/drivers', 'livewire.pages.drivers')->name('livewire.drivers');
+    Route::view('/livewire/vehicle-assignments', 'livewire.pages.vehicle-assignments')->name('livewire.vehicle-assignments');
+    Route::view('/livewire/vehicle-logs', 'livewire.pages.vehicle-logs')->name('livewire.vehicle-logs');
+    Route::view('/map', 'livewire.pages.map')->name('map.index');
+    Route::view('/livewire/map', 'livewire.pages.map')->name('livewire.map');
+    Route::get('/map/data', [MapController::class, 'data'])->name('map.data');
+    Route::view('/livewire/fuel-logs', 'livewire.pages.fuel-logs')->name('livewire.fuel-logs');
+    Route::view('/livewire/maintenance-logs', 'livewire.pages.maintenance-logs')->name('livewire.maintenance-logs');
+    Route::view('/livewire/maintenance-alerts', 'livewire.pages.maintenance-alerts')->name('livewire.maintenance-alerts');
+    Route::view('/livewire/maintenance-calendar', 'livewire.pages.maintenance-calendar')->name('livewire.maintenance-calendar');
+    Route::view('/livewire/maintenance-types', 'livewire.pages.maintenance-types')->name('livewire.maintenance-types');
+    Route::view('/livewire/maintenance-appointments', 'livewire.pages.maintenance-appointments')->name('livewire.maintenance-appointments');
+    Route::get('/maintenance-logs/{maintenanceLog}/comprobante', [MaintenanceFileController::class, 'comprobante'])
+        ->name('maintenance-logs.comprobante');
+
+    Route::redirect('/vehicles', '/livewire/vehicles')->name('vehicles.index');
+    Route::redirect('/drivers', '/livewire/drivers')->name('drivers.index');
+    Route::redirect('/vehicle-logs', '/livewire/vehicle-logs')->name('vehicle-logs.index');
+    Route::redirect('/fuel-logs', '/livewire/fuel-logs')->name('fuel-logs.index');
+    Route::redirect('/maintenance-logs', '/livewire/maintenance-logs')->name('maintenance-logs.index');
+
+    Route::get('/fuel-logs/bitacora/pdf', [FuelLogController::class, 'bitacoraPdf'])->name('fuel-logs.bitacora.pdf');
+    Route::get('/vehicle-logs/pdf', [FuelLogController::class, 'vehicleLogsPdf'])->name('vehicle-logs.pdf');
+    Route::post('/fuel-logs/scrape-from-qr', [FuelLogController::class, 'scrapeFromQr'])->name('fuel-logs.scrape-from-qr');
+    Route::get('/fuel-logs/by-vehicle/{vehicle}', [FuelLogController::class, 'byVehicle'])->name('fuel-logs.by-vehicle');
+    Route::post('/qr/decode-from-image', [QrDecoderController::class, 'decodeFromImage'])->name('api.qr.decode');
     Route::get('/respaldos', [BackupController::class, 'index'])->name('backups.index');
     Route::post('/respaldos/base-datos', [BackupController::class, 'backupDatabase'])->name('backups.database');
     Route::post('/respaldos/sistema', [BackupController::class, 'backupSystem'])->name('backups.system');
@@ -269,6 +311,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
 });
 
 require __DIR__ . '/auth.php';
+
 
 
 

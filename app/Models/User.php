@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -11,7 +12,18 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles, SoftDeletes;
+
+    /**
+     * Alias de rol usado por varios modulos legacy de gestiones.
+     */
+    private const ROLE_ALIASES = [
+        'administrador' => 'admin',
+        'admin' => 'admin',
+        'recepcion' => 'recepcion',
+        'recepcionista' => 'recepcion',
+        'conductor' => 'conductor',
+    ];
 
     public function adminlte_image()
     {
@@ -57,8 +69,47 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
+    public function driver(): HasOne
+    {
+        return $this->hasOne(Driver::class, 'user_id');
+    }
+
+    public function getRoleAttribute(): ?string
+    {
+        $roleName = (string) ($this->getRoleNames()->first() ?? '');
+        if ($roleName === '') {
+            return null;
+        }
+
+        $normalized = mb_strtolower(trim($roleName));
+
+        return self::ROLE_ALIASES[$normalized] ?? $normalized;
+    }
+
+    public function resolvedDriver(): ?Driver
+    {
+        $driver = $this->driver()->first();
+        if ($driver) {
+            return $driver;
+        }
+
+        $email = trim((string) $this->email);
+        if ($email !== '') {
+            $driver = Driver::query()
+                ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
+                ->first();
+
+            if ($driver) {
+                return $driver;
+            }
+        }
+
+        return null;
+    }
+
     public function empresa()
     {
         return $this->belongsTo(Empresa::class, 'empresa_id');
     }
 }
+

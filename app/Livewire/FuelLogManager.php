@@ -1,0 +1,1536 @@
+<?php
+
+namespace App\Livewire;
+
+use App\Models\FuelLog;
+use App\Models\FuelInvoice;
+use App\Models\GasStation;
+use App\Models\Vehicle;
+use App\Models\VehicleAssignment;
+use App\Models\VehicleLog;
+use App\Services\MaintenanceAlertService;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Livewire\Component;
+use Livewire\WithPagination;
+use Livewire\Attributes\Validate;
+
+class FuelLogManager extends Component
+{
+    use WithPagination;
+
+    // invoice header fields
+    #[Validate('nullable|exists:gas_stations,id')]
+    public ?int $gas_station_id = null;
+
+    #[Validate('required|string|max:255')]
+    public string $numero_factura = '';
+
+    #[Validate('required|string|max:255')]
+    public string $nombre_cliente = '';
+
+    #[Validate('required|exists:vehicles,id')]
+    public ?int $vehicle_id = null;
+
+    #[Validate('required|exists:drivers,id')]
+    public ?int $driver_id = null;
+
+    // detail fields (alias compat)
+    #[Validate('required|date')]
+    public ?string $fecha_emision = null;
+
+    #[Validate('required|numeric|min:0')]
+    public ?float $galones = null;
+
+    #[Validate('required|numeric|min:0')]
+    public ?float $precio_galon = null;
+
+    public ?float $total_calculado = null;
+
+    #[Validate('nullable|numeric|min:0')]
+    public ?float $kilometraje = null;
+
+    #[Validate('required|numeric|min:0')]
+    public ?float $kilometraje_salida = null;
+
+    public ?float $kilometraje_llegada = null;
+
+    #[Validate('required|string|max:255')]
+    public string $recorrido_inicio = '';
+    public ?float $latitud_inicio = null;
+    public ?float $logitud_inicio = null;
+
+    #[Validate('required|string|max:255')]
+    public string $recorrido_destino = '';
+    public ?float $latitud_destino = null;
+    public ?float $logitud_destino = null;
+
+    public string $recibo = '';
+    public string $qr_url = '';
+    public ?float $cantidad_combustible = null;
+    public string $razon_social_emisor = '';
+    public string $nit_emisor = '';
+    public string $direccion_emisor = '';
+
+    public bool $isEdit = false;
+    public ?int $editingLogId = null;
+    public bool $isBitacoraEdit = false;
+    public ?int $editingBitacoraId = null;
+    public bool $showForm = false;
+    public string $formView = 'fuel';
+    public string $tableView = 'combined';
+    public string $search = '';
+    public ?string $fecha_desde = null;
+    public ?string $fecha_hasta = null;
+    public string $placa_filtro = '';
+    public string $driverAssignmentMessage = '';
+    public bool $driverAssigned = true;
+    private bool $syncingAssignment = false;
+
+    public $vehicles = [];
+    public $drivers = [];
+    public array $vehicleKmMap = [];
+
+    public function mount(): void
+    {
+        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor']), 403);
+    }
+
+    public function render()
+    {
+        if (auth()->user()?->role === 'conductor') {
+            $driverId = (int) (auth()->user()->resolvedDriver()?->id ?? 0);
+            if (!$driverId) {
+                $this->vehicles = [];
+                $this->vehicleKmMap = [];
+                $this->drivers = [];
+            }
+            $vehicleIds = $this->allowedVehicleIdsForDriver($driverId);
+
+            $vehicleRows = \App\Models\Vehicle::whereIn('id', $vehicleIds)
+                ->orderBy('placa')
+                ->get(['id', 'placa', 'kilometraje_actual']);
+
+            $this->vehicles = $vehicleRows->pluck('placa', 'id')->toArray();
+            $this->vehicleKmMap = $vehicleRows
+                ->mapWithKeys(fn ($v) => [(int) $v->id => $v->kilometraje_actual !== null ? (float) $v->kilometraje_actual : null])
+                ->toArray();
+            $this->drivers = \App\Models\Driver::withTrashed()->whereKey($driverId)->pluck('nombre', 'id')->toArray();
+            $this->driver_id = $driverId ?: null;
+
+            if ($this->vehicle_id && !in_array((int) $this->vehicle_id, $vehicleIds, true)) {
+                $this->vehicle_id = null;
+            }
+        } else {
+            $vehicleRows = \App\Models\Vehicle::query()
+                ->where('activo', true)
+                ->orderBy('placa')
+                ->get(['id', 'placa', 'kilometraje_actual']);
+            $this->vehicles = $vehicleRows->pluck('placa', 'id')->toArray();
+            $this->vehicleKmMap = $vehicleRows
+                ->mapWithKeys(fn ($v) => [(int) $v->id => $v->kilometraje_actual !== null ? (float) $v->kilometraje_actual : null])
+                ->toArray();
+            $this->drivers = \App\Models\Driver::withTrashed()
+                ->orderBy('nombre')
+                ->pluck('nombre', 'id')
+                ->toArray();
+
+            if (empty($this->drivers)) {
+                $date = $this->assignmentDate();
+                $activeAssignments = VehicleAssignment::query()
+                    ->where('activo', true)
+                    ->whereNotNull('driver_id')
+                    ->where(function ($q) use ($date) {
+                        $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $date);
+                    })
+                    ->where(function ($q) use ($date) {
+                        $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $date);
+                    });
+
+                $driverIds = (clone $activeAssignments)
+                    ->pluck('driver_id')
+                    ->unique()
+                    ->map(fn ($id) => (int) $id)
+                    ->values()
+                    ->all();
+
+                $this->drivers = \App\Models\Driver::withTrashed()
+                    ->whereIn('id', $driverIds)
+                    ->orderBy('nombre')
+                    ->pluck('nombre', 'id')
+                    ->toArray();
+            }
+        }
+
+        $this->ensureVehicleInOptions($this->vehicle_id);
+        $this->ensureDriverInOptions($this->driver_id);
+
+        $query = FuelLog::query()
+            ->with(['invoice', 'vehicle', 'driver', 'vehicleLog'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+
+        if (auth()->user()?->role === 'conductor') {
+            $driver = auth()->user()->resolvedDriver();
+            if (!$driver) {
+                $query->whereRaw('1=0');
+            } else {
+                $ids = $driver
+                    ->vehicleLogs()
+                    ->whereNotNull('fuel_log_id')
+                    ->pluck('fuel_log_id')
+                    ->unique()
+                    ->filter()
+                    ->toArray();
+
+                $query->whereIn('id', $ids);
+            }
+        }
+
+        $placaFiltro = mb_strtoupper(trim($this->placa_filtro));
+        if ($placaFiltro !== '') {
+            $query->whereHas('vehicle', function ($q) use ($placaFiltro) {
+                $q->whereRaw('UPPER(placa) LIKE ?', ['%' . $placaFiltro . '%']);
+            });
+        }
+
+        if ($this->fecha_desde || $this->fecha_hasta) {
+            $query->where(function ($main) {
+                $main->whereHas('invoice', function ($invoiceQ) {
+                    if ($this->fecha_desde) {
+                        $invoiceQ->whereDate('fecha_emision', '>=', $this->fecha_desde);
+                    }
+                    if ($this->fecha_hasta) {
+                        $invoiceQ->whereDate('fecha_emision', '<=', $this->fecha_hasta);
+                    }
+                })->orWhere(function ($fallbackQ) {
+                    $fallbackQ->whereDoesntHave('invoice');
+                    if ($this->fecha_desde) {
+                        $fallbackQ->whereDate('created_at', '>=', $this->fecha_desde);
+                    }
+                    if ($this->fecha_hasta) {
+                        $fallbackQ->whereDate('created_at', '<=', $this->fecha_hasta);
+                    }
+                });
+            });
+        }
+
+        $search = trim($this->search);
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->whereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(galones AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(precio_galon AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(total_calculado AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(created_at AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereHas('invoice', function ($invoiceQuery) use ($search) {
+                        $invoiceQuery->where('numero_factura', 'like', "%{$search}%")
+                            ->orWhere('nombre_cliente', 'like', "%{$search}%")
+                            ->orWhereRaw('CAST(fecha_emision AS TEXT) ILIKE ?', ["%{$search}%"]);
+                    })
+                    ->orWhereHas('vehicle', fn ($vehicleQuery) => $vehicleQuery->where('placa', 'like', "%{$search}%"))
+                    ->orWhereHas('driver', fn ($driverQuery) => $driverQuery->where('nombre', 'like', "%{$search}%"))
+                    ->orWhereHas('vehicleLog', function ($logQuery) use ($search) {
+                        $logQuery->where('recorrido_inicio', 'like', "%{$search}%")
+                            ->orWhere('recorrido_destino', 'like', "%{$search}%")
+                            ->orWhereRaw('CAST(fecha AS TEXT) ILIKE ?', ["%{$search}%"]);
+                    });
+            });
+        }
+
+        $fuelTableQuery = clone $query;
+        $fuelLogs = $query->paginate(6, ['*'], 'fuelPage');
+
+        $vehicleLogQuery = VehicleLog::query()
+            ->with(['vehicle', 'driver', 'fuelLog'])
+            ->orderByDesc('fecha')
+            ->orderByDesc('id');
+
+        if (auth()->user()?->role === 'conductor') {
+            $driverId = (int) (auth()->user()->resolvedDriver()?->id ?? 0);
+            if (!$driverId) {
+                $vehicleLogQuery->whereRaw('1=0');
+            } else {
+                $vehicleLogQuery->where('drivers_id', $driverId);
+            }
+        }
+
+        if ($placaFiltro !== '') {
+            $vehicleLogQuery->whereHas('vehicle', function ($q) use ($placaFiltro) {
+                $q->whereRaw('UPPER(placa) LIKE ?', ['%' . $placaFiltro . '%']);
+            });
+        }
+
+        if ($this->fecha_desde || $this->fecha_hasta) {
+            $vehicleLogQuery->where(function ($q) {
+                if ($this->fecha_desde) {
+                    $q->whereDate('fecha', '>=', $this->fecha_desde);
+                }
+                if ($this->fecha_hasta) {
+                    $q->whereDate('fecha', '<=', $this->fecha_hasta);
+                }
+            });
+        }
+
+        if ($search !== '') {
+            $vehicleLogQuery->where(function ($q) use ($search) {
+                $q->where('recorrido_inicio', 'like', "%{$search}%")
+                    ->orWhere('recorrido_destino', 'like', "%{$search}%")
+                    ->orWhereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(fecha AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(kilometraje_salida AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(kilometraje_llegada AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereHas('vehicle', fn ($vehicleQuery) => $vehicleQuery->where('placa', 'like', "%{$search}%"))
+                    ->orWhereHas('driver', fn ($driverQuery) => $driverQuery->where('nombre', 'like', "%{$search}%"));
+            });
+        }
+
+        $vehicleLogCombinedQuery = clone $vehicleLogQuery;
+        $vehicleLogs = $vehicleLogQuery->paginate(6, ['*'], 'bitacoraPage');
+
+        $combinedFuelRows = $fuelTableQuery->get()->map(function (FuelLog $log) {
+            $date = $log->invoice?->fecha_emision ?? $log->created_at;
+            $recorridoInicio = trim((string) ($log->vehicleLog?->recorrido_inicio ?? ''));
+            $recorridoDestino = trim((string) ($log->vehicleLog?->recorrido_destino ?? ''));
+
+            return [
+                'tipo' => 'vale',
+                'fecha' => optional($date)->format('d/m/Y H:i') ?? '-',
+                'fecha_sort' => $date?->timestamp ?? 0,
+                'vehiculo' => $log->vehicle?->placa ?? '-',
+                'conductor' => $log->driver?->nombre ?? '-',
+                'detalle_titulo' => 'Factura',
+                'detalle_principal' => (string) ($log->invoice?->numero_factura ?? '-'),
+                'detalle_secundario' => 'Punto de salida: ' . ($recorridoInicio !== '' ? $recorridoInicio : '-'),
+                'detalle_terciario' => 'Punto de llegada: ' . ($recorridoDestino !== '' ? $recorridoDestino : '-'),
+                'total' => $log->total_calculado,
+                'tiene_combustible' => true,
+            ];
+        })->toBase();
+
+        $combinedBitacoraRows = $vehicleLogCombinedQuery->get()->map(function (VehicleLog $log) {
+            $date = $log->fecha ?? $log->created_at;
+            return [
+                'tipo' => 'bitacora',
+                'fecha' => optional($date)->format('d/m/Y H:i') ?? '-',
+                'fecha_sort' => $date?->timestamp ?? 0,
+                'vehiculo' => $log->vehicle?->placa ?? '-',
+                'conductor' => $log->driver?->nombre ?? '-',
+                'detalle_titulo' => 'Recorrido',
+                'detalle_principal' => (string) ($log->recorrido_inicio ?? '-'),
+                'detalle_secundario' => 'Punto de llegada: ' . (string) ($log->recorrido_destino ?? '-'),
+                'detalle_terciario' => null,
+                'total' => null,
+                'tiene_combustible' => (bool) $log->fuel_log_id,
+            ];
+        })->toBase();
+
+        $combinedRows = $combinedFuelRows
+            ->merge($combinedBitacoraRows)
+            ->sortByDesc('fecha_sort')
+            ->values();
+
+        $combinedRows = $this->paginateCollection($combinedRows, 5, 'combinedPage');
+
+        return view('livewire.fuel-log-manager', [
+            'fuelLogs' => $fuelLogs,
+            'vehicleLogs' => $vehicleLogs,
+            'combinedRows' => $combinedRows,
+        ]);
+    }
+
+    public function updatedVehicleId($value): void
+    {
+        if ($this->syncingAssignment) {
+            return;
+        }
+
+        if (!$value) {
+            $this->kilometraje_salida = null;
+            $this->driverAssignmentMessage = '';
+            $this->driverAssigned = true;
+            $this->driver_id = null;
+            return;
+        }
+
+        $assignment = $this->findVehicleAssignmentByVehicleId((int) $value);
+
+        if ($assignment?->driver_id) {
+            $this->ensureDriverInOptions((int) $assignment->driver_id);
+            $this->syncingAssignment = true;
+            $this->driver_id = (int) $assignment->driver_id;
+            $this->syncingAssignment = false;
+            $this->driverAssignmentMessage = '';
+            $this->driverAssigned = true;
+        } else {
+            $this->syncingAssignment = true;
+            $this->driver_id = null;
+            $this->syncingAssignment = false;
+            $this->driverAssignmentMessage = 'Falta asignar';
+            $this->driverAssigned = false;
+        }
+
+        $this->syncKilometrajeFromVehicle((int) $value);
+    }
+
+    public function updatedDriverId($value): void
+    {
+        if ($this->syncingAssignment) {
+            return;
+        }
+
+        if (!$value) {
+            return;
+        }
+
+        $this->driverAssignmentMessage = '';
+        $this->driverAssigned = true;
+
+        $assignment = $this->findDriverAssignmentAtDate((int) $value);
+
+        if ($assignment?->vehicle_id) {
+            $this->syncingAssignment = true;
+            $this->vehicle_id = (int) $assignment->vehicle_id;
+            $this->syncingAssignment = false;
+            $this->syncKilometrajeFromVehicle((int) $assignment->vehicle_id);
+        }
+    }
+
+    public function updatedFechaEmision($value): void
+    {
+        if ($this->syncingAssignment || !$value) {
+            return;
+        }
+
+        if ($this->vehicle_id) {
+            $assignment = $this->findVehicleAssignmentByVehicleId((int) $this->vehicle_id);
+            if ($assignment?->driver_id) {
+                $this->ensureDriverInOptions((int) $assignment->driver_id);
+                $this->syncingAssignment = true;
+                $this->driver_id = (int) $assignment->driver_id;
+                $this->syncingAssignment = false;
+                $this->driverAssignmentMessage = '';
+                $this->driverAssigned = true;
+            } else {
+                $this->syncingAssignment = true;
+                $this->driver_id = null;
+                $this->syncingAssignment = false;
+                $this->driverAssignmentMessage = 'Falta asignar';
+                $this->driverAssigned = false;
+            }
+            $this->syncKilometrajeFromVehicle((int) $this->vehicle_id);
+        } elseif ($this->driver_id) {
+            $assignment = $this->findDriverAssignmentAtDate((int) $this->driver_id);
+            if ($assignment?->vehicle_id) {
+                $this->syncingAssignment = true;
+                $this->vehicle_id = (int) $assignment->vehicle_id;
+                $this->syncingAssignment = false;
+                $this->driverAssignmentMessage = '';
+                $this->driverAssigned = true;
+                $this->syncKilometrajeFromVehicle((int) $assignment->vehicle_id);
+            }
+        }
+    }
+
+    public function updatedGalonesOrPrecioGalon()
+    {
+        if ($this->galones && $this->precio_galon) {
+            $this->total_calculado = $this->galones * $this->precio_galon;
+        }
+    }
+
+    public function save()
+    {
+        if (auth()->user()?->role === 'conductor' && $this->isEdit) {
+            session()->flash('error', 'No tiene permiso para editar vales de combustible.');
+            return;
+        }
+
+        if (auth()->user()?->role === 'conductor') {
+            $driverId = (int) (auth()->user()->resolvedDriver()?->id ?? 0);
+            if (!$driverId) {
+                $this->addError('driver_id', 'El usuario conductor no tiene perfil de conductor asociado.');
+                return;
+            }
+            $this->driver_id = $driverId;
+
+            $allowedVehicles = $this->allowedVehicleIdsForDriver($driverId);
+            if (!$this->vehicle_id || !in_array((int) $this->vehicle_id, $allowedVehicles, true)) {
+                $this->addError('vehicle_id', 'Solo puede registrar combustible para su vehiculo asignado.');
+                return;
+            }
+        }
+
+        $this->validate();
+        if (!$this->validateTripAndKmRules()) {
+            return;
+        }
+        $this->numero_factura = trim($this->numero_factura);
+        $this->gas_station_id = $this->resolveGasStationId();
+
+        try {
+            DB::transaction(function () {
+                $existingInvoice = FuelInvoice::query()
+                    ->where('numero_factura', $this->numero_factura)
+                    ->first();
+
+                if ($this->isEdit && $this->editingLogId && $existingInvoice) {
+                    $currentLog = FuelLog::find($this->editingLogId);
+                    $currentInvoiceId = $currentLog?->fuel_invoice_id;
+                    if ((int) $existingInvoice->id !== (int) $currentInvoiceId) {
+                        $this->addError('numero_factura', 'La factura ya esta registrada en otro vale.');
+                        throw new \RuntimeException('duplicate_invoice_on_edit');
+                    }
+                }
+
+                // first create or find invoice header (update attributes when editing)
+                $invoiceData = [
+                    'fecha_emision' => Carbon::parse($this->fecha_emision)->format('Y-m-d H:i'),
+                    'nombre_cliente' => $this->nombre_cliente,
+                    // Required by schema (no default in some DBs). Recomputed after detail save.
+                    'monto_total' => 0,
+                ];
+                if (Schema::hasColumn('fuel_invoices', 'numero')) {
+                    $invoiceData['numero'] = $this->numero_factura;
+                }
+
+                if ($this->isEdit && $this->editingLogId) {
+                    $currentLog = FuelLog::find($this->editingLogId);
+                    $invoice = $currentLog?->invoice;
+                    if (!$invoice) {
+                        $invoice = FuelInvoice::create(array_merge($invoiceData, [
+                            'numero_factura' => $this->numero_factura,
+                        ]));
+                    } else {
+                        $invoice->update(array_merge($invoiceData, [
+                            'numero_factura' => $this->numero_factura,
+                        ]));
+                    }
+                } else {
+                    if ($existingInvoice) {
+                        $invoiceHasFuelLog = FuelLog::query()
+                            ->where('fuel_invoice_id', $existingInvoice->id)
+                            ->exists();
+
+                        if ($invoiceHasFuelLog) {
+                            $this->addError('numero_factura', 'La factura ya esta registrada en el sistema.');
+                            throw new \RuntimeException('duplicate_invoice');
+                        }
+
+                        // Reutilizar factura huérfana (ej. creada en intento fallido anterior)
+                        $existingInvoice->update($invoiceData);
+                        $invoice = $existingInvoice;
+                    } else {
+                        $invoice = FuelInvoice::create(array_merge($invoiceData, [
+                            'numero_factura' => $this->numero_factura,
+                        ]));
+                    }
+                }
+
+                $data = [
+                    'fuel_invoice_id' => $invoice->id,
+                    'gas_station_id' => $this->gas_station_id,
+                    'galones' => $this->cantidad_combustible ?? $this->galones,
+                    'precio_galon' => $this->precio_galon,
+                    'total_calculado' => $this->total_calculado ?? (($this->cantidad_combustible ?? $this->galones) * $this->precio_galon),
+                ];
+
+                if ($this->isEdit && $this->editingLogId) {
+                    $log = FuelLog::find($this->editingLogId);
+                    if ($log) {
+                        $log->update($data);
+                        $this->upsertVehicleLog($log->id);
+                    }
+                } else {
+                    $newLog = FuelLog::create($data);
+                    $this->upsertVehicleLog($newLog->id);
+                }
+
+                // update invoice total after detail saved
+                $invoice->monto_total = $invoice->details()->sum('subtotal');
+                $invoice->save();
+            });
+        } catch (\RuntimeException $e) {
+            if (in_array($e->getMessage(), ['duplicate_invoice', 'duplicate_invoice_on_edit'], true)) {
+                return;
+            }
+            throw $e;
+        }
+
+        session()->flash('message', $this->isEdit ? 'Registro de combustible actualizado correctamente.' : 'Registro de combustible creado correctamente.');
+        $this->resetForm();
+    }
+
+    public function edit(FuelLog $log)
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para editar vales de combustible.');
+            return;
+        }
+
+        $this->showForm = true;
+        $this->formView = 'fuel';
+        $this->isEdit = true;
+        $this->editingLogId = $log->id;
+
+        // invoice header
+        if($log->invoice) {
+            $this->numero_factura = $log->invoice->numero_factura;
+            $this->nombre_cliente = $log->invoice->nombre_cliente;
+        }
+
+        // detail fields
+        if ($log->gasStation) {
+            $this->gas_station_id = $log->gasStation->id;
+            $this->nit_emisor = (string) ($log->gasStation->nit_emisor ?? '');
+            $this->razon_social_emisor = (string) ($log->gasStation->razon_social ?? '');
+            $this->direccion_emisor = (string) ($log->gasStation->direccion ?? '');
+        }
+        $this->fecha_emision = optional($log->invoice?->fecha_emision)->format('Y-m-d\TH:i');
+        $this->galones = $log->galones;
+        $this->precio_galon = $log->precio_galon;
+        $this->total_calculado = $log->total_calculado;
+
+        $vehicleLog = VehicleLog::where('fuel_log_id', $log->id)->latest('id')->first();
+        if ($vehicleLog) {
+            $this->vehicle_id = $vehicleLog->vehicles_id;
+            $this->driver_id = $vehicleLog->drivers_id;
+            $this->kilometraje_salida = $vehicleLog->kilometraje_salida;
+            $this->kilometraje_llegada = $vehicleLog->kilometraje_llegada;
+            $this->recorrido_inicio = (string) $vehicleLog->recorrido_inicio;
+            $this->recorrido_destino = (string) $vehicleLog->recorrido_destino;
+            $this->latitud_inicio = $vehicleLog->latitud_inicio;
+            $this->logitud_inicio = $vehicleLog->logitud_inicio;
+            $this->latitud_destino = $vehicleLog->latitud_destino;
+            $this->logitud_destino = $vehicleLog->logitud_destino;
+        }
+    }
+
+    public function delete(FuelLog $log)
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para eliminar vales de combustible.');
+            return;
+        }
+
+        $log->delete();
+        session()->flash('message', 'Registro de combustible eliminado correctamente.');
+    }
+
+    public function resetForm()
+    {
+        $this->gas_station_id = null;
+        $this->numero_factura = '';
+        $this->nombre_cliente = '';
+        $this->gas_station_id = null;
+        $this->numero_factura = '';
+        $this->nombre_cliente = '';
+        $this->vehicle_id = null;
+        $this->driver_id = null;
+        $this->fecha_emision = null;
+        $this->galones = null;
+        $this->precio_galon = null;
+        $this->total_calculado = null;
+        $this->cantidad_combustible = null;
+        $this->qr_url = '';
+        $this->razon_social_emisor = '';
+        $this->nit_emisor = '';
+        $this->direccion_emisor = '';
+        $this->kilometraje = null;
+        $this->kilometraje_salida = null;
+        $this->kilometraje_llegada = null;
+        $this->recorrido_inicio = '';
+        $this->recorrido_destino = '';
+        $this->latitud_inicio = null;
+        $this->logitud_inicio = null;
+        $this->latitud_destino = null;
+        $this->logitud_destino = null;
+        $this->recibo = '';
+        $this->isEdit = false;
+        $this->editingLogId = null;
+        $this->isBitacoraEdit = false;
+        $this->editingBitacoraId = null;
+        $this->driverAssignmentMessage = '';
+        $this->driverAssigned = true;
+        $this->showForm = false;
+        $this->formView = 'fuel';
+        $this->resetAllTablePages();
+    }
+
+    public function create()
+    {
+        $this->openFuelForm();
+    }
+
+    public function cancelForm()
+    {
+        $this->resetForm();
+    }
+
+    public function openFuelForm()
+    {
+        $this->resetForm();
+        $this->formView = 'fuel';
+        $this->showForm = true;
+    }
+
+    public function openBitacoraForm()
+    {
+        $this->resetForm();
+        $this->formView = 'bitacora';
+        $this->showForm = true;
+
+        if (auth()->user()?->role === 'conductor') {
+            $this->driver_id = (int) (auth()->user()->resolvedDriver()?->id ?? 0) ?: null;
+        }
+    }
+
+    public function setTableView(string $view)
+    {
+        if (!in_array($view, ['fuel', 'bitacora', 'combined'], true)) {
+            return;
+        }
+
+        $this->tableView = $view;
+        $this->resetPage('fuelPage');
+        $this->resetPage('bitacoraPage');
+        $this->resetPage('combinedPage');
+    }
+
+    public function updatedFechaDesde(): void
+    {
+        $this->resetAllTablePages();
+    }
+
+    public function updatedFechaHasta(): void
+    {
+        $this->resetAllTablePages();
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetAllTablePages();
+    }
+
+    public function searchLogs(): void
+    {
+        $this->search = trim((string) $this->search);
+        $this->resetAllTablePages();
+    }
+
+    public function limpiarFiltrosFecha(): void
+    {
+        $this->fecha_desde = null;
+        $this->fecha_hasta = null;
+        $this->resetAllTablePages();
+    }
+
+    public function aplicarFiltroPlaca(): void
+    {
+        $this->placa_filtro = mb_strtoupper(trim($this->placa_filtro));
+        $this->resetAllTablePages();
+    }
+
+    public function limpiarFiltroPlaca(): void
+    {
+        $this->placa_filtro = '';
+        $this->resetAllTablePages();
+    }
+
+    public function exportBitacoraPdf()
+    {
+        $params = [];
+        if ($this->fecha_desde) {
+            $params['fecha_desde'] = $this->fecha_desde;
+        }
+        if ($this->fecha_hasta) {
+            $params['fecha_hasta'] = $this->fecha_hasta;
+        }
+        if (trim($this->placa_filtro) !== '') {
+            $params['placa_filtro'] = trim($this->placa_filtro);
+        }
+
+        return redirect()->route('fuel-logs.bitacora.pdf', $params);
+    }
+
+    public function updatedPlacaFiltro($value): void
+    {
+        $this->placa_filtro = mb_strtoupper(trim((string) $value));
+        $this->resetAllTablePages();
+    }
+
+    public function saveBitacora()
+    {
+        if (auth()->user()?->role === 'conductor' && $this->isBitacoraEdit) {
+            session()->flash('error', 'No tiene permiso para editar registros de bitacora.');
+            return;
+        }
+
+        if (auth()->user()?->role === 'conductor') {
+            $driverId = (int) (auth()->user()->resolvedDriver()?->id ?? 0);
+            if (!$driverId) {
+                $this->addError('driver_id', 'El usuario conductor no tiene perfil de conductor asociado.');
+                return;
+            }
+            $this->driver_id = $driverId;
+
+            $allowedVehicles = $this->allowedVehicleIdsForDriver($driverId);
+            if (!$this->vehicle_id || !in_array((int) $this->vehicle_id, $allowedVehicles, true)) {
+                $this->addError('vehicle_id', 'Solo puede registrar bitacora para su vehiculo asignado.');
+                return;
+            }
+        }
+
+        $this->validate([
+            'vehicle_id' => 'required|exists:vehicles,id',
+            'driver_id' => 'required|exists:drivers,id',
+            'fecha_emision' => 'required|date',
+            'kilometraje_salida' => 'required|numeric|min:0',
+            'kilometraje_llegada' => 'nullable|numeric|min:0',
+            'recorrido_inicio' => 'required|string|max:255',
+            'recorrido_destino' => 'required|string|max:255',
+            'latitud_inicio' => 'nullable|numeric',
+            'logitud_inicio' => 'nullable|numeric',
+            'latitud_destino' => 'nullable|numeric',
+            'logitud_destino' => 'nullable|numeric',
+        ]);
+
+        if (!$this->validateTripAndKmRules()) {
+            return;
+        }
+
+        $payload = [
+            ...$this->resolveLocationPayload(),
+            'drivers_id' => $this->driver_id,
+            'vehicles_id' => $this->vehicle_id,
+            'fecha' => Carbon::parse($this->fecha_emision)->toDateString(),
+            'kilometraje_salida' => $this->kilometraje_salida,
+            'kilometraje_llegada' => $this->kilometraje_llegada,
+            'recorrido_inicio' => $this->recorrido_inicio,
+            'recorrido_destino' => $this->recorrido_destino,
+            'abastecimiento_combustible' => false,
+        ];
+
+        if ($this->isBitacoraEdit && $this->editingBitacoraId) {
+            $log = VehicleLog::find($this->editingBitacoraId);
+            if ($log) {
+                $log->update($payload);
+            }
+        } else {
+            VehicleLog::create([
+                ...$payload,
+                'fuel_log_id' => null,
+            ]);
+        }
+
+        $this->updateVehicleKilometraje(
+            $this->vehicle_id,
+            $this->kilometraje_llegada ?? $this->kilometraje_salida,
+            $this->kilometraje_salida
+        );
+
+        session()->flash('message', $this->isBitacoraEdit ? 'Registro de bitacora actualizado correctamente.' : 'Registro de bitacora creado correctamente.');
+        $this->resetForm();
+    }
+
+    public function editBitacora(VehicleLog $log): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para editar registros de bitacora.');
+            return;
+        }
+
+        if ($log->fuel_log_id) {
+            session()->flash('error', 'Esta bitacora pertenece a un vale de combustible. Edite el vale para modificarla.');
+            return;
+        }
+
+        $this->resetForm();
+        $this->showForm = true;
+        $this->formView = 'bitacora';
+        $this->isBitacoraEdit = true;
+        $this->editingBitacoraId = $log->id;
+
+        $this->vehicle_id = $log->vehicles_id ? (int) $log->vehicles_id : null;
+        $this->driver_id = $log->drivers_id ? (int) $log->drivers_id : null;
+        $this->fecha_emision = optional($log->fecha)->format('Y-m-d\T00:00');
+        $this->kilometraje_salida = $log->kilometraje_salida !== null ? (float) $log->kilometraje_salida : null;
+        $this->kilometraje_llegada = $log->kilometraje_llegada !== null ? (float) $log->kilometraje_llegada : null;
+        $this->recorrido_inicio = (string) ($log->recorrido_inicio ?? '');
+        $this->recorrido_destino = (string) ($log->recorrido_destino ?? '');
+        $this->latitud_inicio = $log->latitud_inicio !== null ? (float) $log->latitud_inicio : null;
+        $this->logitud_inicio = $log->logitud_inicio !== null ? (float) $log->logitud_inicio : null;
+        $this->latitud_destino = $log->latitud_destino !== null ? (float) $log->latitud_destino : null;
+        $this->logitud_destino = $log->logitud_destino !== null ? (float) $log->logitud_destino : null;
+    }
+
+    public function deleteBitacora(VehicleLog $log): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para eliminar registros de bitacora.');
+            return;
+        }
+
+        if ($log->fuel_log_id) {
+            session()->flash('error', 'Esta bitacora pertenece a un vale de combustible y no se puede eliminar desde esta vista.');
+            return;
+        }
+
+        $log->delete();
+        session()->flash('message', 'Registro de bitacora eliminado correctamente.');
+    }
+
+    public function procesarQR(string $url): array
+    {
+        $this->resetErrorBag('qr_url');
+        $this->qr_url = trim($url);
+
+        if (!filter_var($this->qr_url, FILTER_VALIDATE_URL)) {
+            $message = 'El QR no contiene una URL valida.';
+            $this->addError('qr_url', $message);
+            return ['ok' => false, 'message' => $message];
+        }
+
+        $parsedUrl = parse_url($this->qr_url);
+        parse_str($parsedUrl['query'] ?? '', $query);
+
+        $nitEmisor = $this->pickQueryValue($query, ['nitEmisor', 'nit', 'nit_emisor']);
+        $cuf = $this->pickQueryValue($query, ['cuf', 'codigo_unico_factura']);
+        $numeroFactura = $this->pickQueryValue($query, ['numeroFactura', 'numero_factura', 'nro_factura', 'factura', 'nf', 'numero']);
+
+        if (!$nitEmisor || !$cuf || !$numeroFactura) {
+            $message = 'No se pudo extraer nitEmisor, cuf y numeroFactura de la URL del QR.';
+            $this->addError('qr_url', $message);
+            return ['ok' => false, 'message' => $message];
+        }
+
+        $payload = [
+            'nitEmisor' => (string) $nitEmisor,
+            'cuf' => (string) $cuf,
+            'numeroFactura' => (string) $numeroFactura,
+        ];
+
+        try {
+            Log::info('Iniciando consulta SIAT desde Livewire', ['payload' => $payload]);
+
+            $response = Http::withOptions(['verify' => false])
+                ->acceptJson()
+                ->timeout(15)
+                ->put('https://siatrest.impuestos.gob.bo/sre-sfe-shared-v2-rest/consulta/factura', $payload);
+
+            if (!$response->successful()) {
+                $message = 'SIAT no devolvio una respuesta valida para esta factura.';
+                $this->addError('qr_url', $message);
+                Log::warning('SIAT consulta/factura fallida desde Livewire', [
+                    'status' => $response->status(),
+                    'payload' => $payload,
+                    'body' => $response->body(),
+                ]);
+                return ['ok' => false, 'message' => $message];
+            }
+
+            $json = $response->json();
+            if (!is_array($json) || data_get($json, 'transaccion') === false) {
+                $message = 'SIAT devolvio una respuesta sin transaccion valida.';
+                $this->addError('qr_url', $message);
+                Log::warning('SIAT respuesta invalida (transaccion=false o estructura no valida)', [
+                    'payload' => $payload,
+                    'body' => $response->body(),
+                ]);
+                return ['ok' => false, 'message' => $message];
+            }
+
+            $factura = data_get($json, 'objeto');
+            if (!is_array($factura)) {
+                $message = 'SIAT no devolvio el nodo objeto esperado.';
+                $this->addError('qr_url', $message);
+                Log::warning('SIAT sin nodo objeto', [
+                    'payload' => $payload,
+                    'body' => $response->body(),
+                ]);
+                return ['ok' => false, 'message' => $message];
+            }
+
+            $this->numero_factura = (string) (data_get($factura, 'numeroFactura') ?? $numeroFactura);
+            $this->fecha_emision = $this->normalizeDatetime(data_get($factura, 'fechaEmision'));
+            $this->total_calculado = $this->castFloat(data_get($factura, 'montoTotal'));
+            $this->razon_social_emisor = (string) (data_get($factura, 'razonSocialEmisor') ?? '');
+            $this->nit_emisor = (string) (data_get($factura, 'nitEmisor') ?? '');
+            $this->direccion_emisor = (string) (data_get($factura, 'direccion') ?? '');
+
+            // Mantener cliente con el valor fiscal del receptor para no romper validacion actual.
+            $this->nombre_cliente = (string) (data_get($factura, 'nombreRazonSocial') ?? data_get($factura, 'nombreCliente') ?? $this->nombre_cliente);
+
+            $detalle = data_get($factura, 'listaDetalle.0', []);
+            $cantidad = $this->castFloat(data_get($detalle, 'cantidad'));
+            $precioUnitario = $this->castFloat(data_get($detalle, 'precioUnitario'));
+
+            if ($cantidad !== null) {
+                $this->cantidad_combustible = $cantidad;
+                $this->galones = $cantidad;
+            }
+
+            if ($precioUnitario !== null) {
+                $this->precio_galon = $precioUnitario;
+            } elseif ($this->total_calculado !== null && $this->galones && $this->galones > 0) {
+                $this->precio_galon = round($this->total_calculado / $this->galones, 2);
+            }
+
+            $message = 'Factura consultada correctamente desde SIAT.';
+            session()->flash('message', $message);
+            Log::info('Consulta SIAT exitosa desde Livewire', [
+                'numero_factura' => $this->numero_factura,
+                'nombre_cliente' => $this->nombre_cliente,
+            ]);
+
+            return [
+                'ok' => true,
+                'message' => $message,
+                'fields' => [
+                    'numero_factura' => $this->numero_factura,
+                    'nombre_cliente' => $this->nombre_cliente,
+                    'fecha_emision' => $this->fecha_emision,
+                    'galones' => $this->galones,
+                    'precio_galon' => $this->precio_galon,
+                    'total_calculado' => $this->total_calculado,
+                    'razon_social_emisor' => $this->razon_social_emisor,
+                    'nit_emisor' => $this->nit_emisor,
+                    'direccion_emisor' => $this->direccion_emisor,
+                ],
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('Error en consulta SIAT desde Livewire', [
+                'message' => $e->getMessage(),
+                'payload' => $payload,
+            ]);
+            $message = 'No fue posible consultar SIAT en este momento.';
+            $this->addError('qr_url', $message);
+            return ['ok' => false, 'message' => $message];
+        }
+    }
+
+    private function pickQueryValue(array $query, array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $query)) {
+                continue;
+            }
+
+            $value = $query[$key];
+            if (is_array($value)) {
+                $value = reset($value);
+            }
+
+            $value = trim((string) $value);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeDatetime(mixed $value): ?string
+    {
+        if (!$value) {
+            return $this->fecha_emision;
+        }
+
+        try {
+            return Carbon::parse((string) $value)->format('Y-m-d\TH:i');
+        } catch (\Throwable) {
+            return $this->fecha_emision;
+        }
+    }
+
+    private function castFloat(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (float) str_replace(',', '.', (string) $value);
+    }
+
+    private function assignmentDate(): string
+    {
+        if (!$this->fecha_emision) {
+            return now()->toDateString();
+        }
+
+        try {
+            return Carbon::parse($this->fecha_emision)->toDateString();
+        } catch (\Throwable) {
+            return now()->toDateString();
+        }
+    }
+
+    private function findVehicleAssignmentAtDate(int $vehicleId): ?VehicleAssignment
+    {
+        $date = $this->assignmentDate();
+        $base = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->whereNotNull('driver_id')
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id');
+
+        // 1) Asignacion activa por fecha del formulario
+        $matchByDate = (clone $base)
+            ->where('activo', true)
+            ->where(function ($q) use ($date) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $date);
+            })
+            ->where(function ($q) use ($date) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $date);
+            })
+            ->first();
+
+        if ($matchByDate) {
+            return $matchByDate;
+        }
+
+        // 2) Cualquier asignacion activa del vehiculo
+        $active = (clone $base)
+            ->where('activo', true)
+            ->first();
+
+        if ($active) {
+            return $active;
+        }
+
+        // 3) Ultima asignacion historica con conductor
+        return (clone $base)->first();
+    }
+
+    private function findVehicleAssignmentByVehicleId(int $vehicleId): ?VehicleAssignment
+    {
+        $date = $this->assignmentDate();
+        $base = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id');
+
+        // 1) Asignacion activa por fecha del formulario.
+        $matchByDate = (clone $base)
+            ->whereNotNull('driver_id')
+            ->where('activo', true)
+            ->where(function ($q) use ($date) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $date);
+            })
+            ->where(function ($q) use ($date) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $date);
+            })
+            ->first();
+
+        if ($matchByDate) {
+            return $matchByDate;
+        }
+
+        // 2) Cualquier asignacion activa con conductor.
+        $activeWithDriver = (clone $base)
+            ->whereNotNull('driver_id')
+            ->where('activo', true)
+            ->first();
+
+        if ($activeWithDriver) {
+            return $activeWithDriver;
+        }
+
+        // 3) Ultima asignacion historica con conductor.
+        $historicWithDriver = (clone $base)
+            ->whereNotNull('driver_id')
+            ->first();
+
+        if ($historicWithDriver) {
+            return $historicWithDriver;
+        }
+
+        // 4) Si existe el vehiculo en asignaciones pero sin conductor, devolver ese registro.
+        return (clone $base)->first();
+    }
+
+    private function findDriverAssignmentAtDate(int $driverId): ?VehicleAssignment
+    {
+        $date = $this->assignmentDate();
+
+        return VehicleAssignment::query()
+            ->where('driver_id', $driverId)
+            ->where(function ($q) use ($date) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $date);
+            })
+            ->where(function ($q) use ($date) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $date);
+            })
+            ->orderByDesc('fecha_inicio')
+            ->first();
+    }
+
+    private function upsertVehicleLog(int $fuelLogId): void
+    {
+        if (!$this->vehicle_id || !$this->driver_id) {
+            return;
+        }
+
+        $payload = [
+            ...$this->resolveLocationPayload(),
+            'drivers_id' => $this->driver_id,
+            'vehicles_id' => $this->vehicle_id,
+            'fuel_log_id' => $fuelLogId,
+            'fecha' => Carbon::parse($this->fecha_emision)->toDateString(),
+            'kilometraje_salida' => $this->kilometraje_salida,
+            'kilometraje_llegada' => $this->kilometraje_llegada,
+            'recorrido_inicio' => $this->recorrido_inicio,
+            'recorrido_destino' => $this->recorrido_destino,
+            'abastecimiento_combustible' => true,
+        ];
+
+        if ($this->isEdit && $this->editingLogId) {
+            $existing = VehicleLog::where('fuel_log_id', $fuelLogId)->latest('id')->first();
+            if ($existing) {
+                $existing->update($payload);
+                $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje_llegada ?? $this->kilometraje_salida, $this->kilometraje_salida);
+                return;
+            }
+        }
+
+        VehicleLog::create($payload);
+        $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje_llegada ?? $this->kilometraje_salida, $this->kilometraje_salida);
+    }
+
+    private function resolveGasStationId(): ?int
+    {
+        $nit = trim($this->nit_emisor);
+        $razon = trim($this->razon_social_emisor);
+        $direccion = trim($this->direccion_emisor);
+        $nombreBase = $razon !== '' ? $razon : ($nit !== '' ? ('NIT ' . $nit) : 'SIN NOMBRE');
+
+        if ($nit === '' && $razon === '' && $direccion === '') {
+            return $this->gas_station_id;
+        }
+
+        if ($nit !== '') {
+            $station = GasStation::firstOrCreate(
+                ['nit_emisor' => $nit],
+                [
+                    'nombre' => $nombreBase,
+                    'razon_social' => $razon !== '' ? $razon : ('NIT ' . $nit),
+                    'direccion' => $direccion !== '' ? $direccion : null,
+                    'ubicacion' => $direccion !== '' ? $direccion : null,
+                    'activa' => true,
+                ]
+            );
+
+            $updates = [];
+            if (trim((string) $station->nombre) === '' || $station->nombre !== $nombreBase) {
+                $updates['nombre'] = $nombreBase;
+            }
+            if ($razon !== '' && $station->razon_social !== $razon) {
+                $updates['razon_social'] = $razon;
+            }
+            if ($direccion !== '' && $station->direccion !== $direccion) {
+                $updates['direccion'] = $direccion;
+            }
+            if ($direccion !== '' && $station->ubicacion !== $direccion) {
+                $updates['ubicacion'] = $direccion;
+            }
+            if (!empty($updates)) {
+                $station->update($updates);
+            }
+
+            return $station->id;
+        }
+
+        $station = GasStation::create([
+            'nombre' => $nombreBase,
+            'nit_emisor' => null,
+            'razon_social' => $razon !== '' ? $razon : 'Sin razon social',
+            'direccion' => $direccion !== '' ? $direccion : null,
+            'ubicacion' => $direccion !== '' ? $direccion : null,
+            'activa' => true,
+        ]);
+
+        return $station->id;
+    }
+
+    private function resolveLocationPayload(): array
+    {
+        [$latInicio, $lngInicio] = $this->resolveCoordinates($this->latitud_inicio, $this->logitud_inicio, $this->recorrido_inicio);
+        [$latDestino, $lngDestino] = $this->resolveCoordinates($this->latitud_destino, $this->logitud_destino, $this->recorrido_destino);
+
+        $this->latitud_inicio = $latInicio;
+        $this->logitud_inicio = $lngInicio;
+        $this->latitud_destino = $latDestino;
+        $this->logitud_destino = $lngDestino;
+
+        return [
+            'latitud_inicio' => $latInicio,
+            'logitud_inicio' => $lngInicio,
+            'latitud_destino' => $latDestino,
+            'logitud_destino' => $lngDestino,
+        ];
+    }
+
+    private function resolveCoordinates(?float $lat, ?float $lng, ?string $sourceText): array
+    {
+        if ($lat !== null && $lng !== null) {
+            $safeLat = $this->normalizeLatitude((float) $lat);
+            $safeLng = $this->normalizeLongitude((float) $lng);
+            if ($safeLat !== null && $safeLng !== null) {
+                return [$safeLat, $safeLng];
+            }
+        }
+
+        if ($sourceText) {
+            if (preg_match('/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/', $sourceText, $m)) {
+                $safeLat = $this->normalizeLatitude((float) $m[1]);
+                $safeLng = $this->normalizeLongitude((float) $m[2]);
+                if ($safeLat !== null && $safeLng !== null) {
+                    return [$safeLat, $safeLng];
+                }
+            }
+        }
+
+        return [0.0, 0.0];
+    }
+
+    private function normalizeLatitude(float $value): ?float
+    {
+        if ($value < -90 || $value > 90) {
+            return null;
+        }
+        return $value;
+    }
+
+    private function normalizeLongitude(float $value): ?float
+    {
+        if ($value < -180 || $value > 180) {
+            return null;
+        }
+        return $value;
+    }
+
+    private function validateTripAndKmRules(): bool
+    {
+        $kmSalida = $this->kilometraje_salida !== null ? (float) $this->kilometraje_salida : null;
+        $kmLlegada = $this->kilometraje_llegada !== null ? (float) $this->kilometraje_llegada : null;
+
+        if ($kmSalida !== null && $kmLlegada !== null && $kmLlegada <= $kmSalida) {
+            $this->addError('kilometraje_llegada', 'El kilometraje de llegada debe ser mayor al kilometraje de salida.');
+            return false;
+        }
+
+        [$latInicio, $lngInicio] = $this->resolveCoordinates($this->latitud_inicio, $this->logitud_inicio, $this->recorrido_inicio);
+        [$latDestino, $lngDestino] = $this->resolveCoordinates($this->latitud_destino, $this->logitud_destino, $this->recorrido_destino);
+
+        $this->latitud_inicio = $latInicio;
+        $this->logitud_inicio = $lngInicio;
+        $this->latitud_destino = $latDestino;
+        $this->logitud_destino = $lngDestino;
+
+        if ($this->isZeroCoordinate($latInicio, $lngInicio)) {
+            $this->addError('recorrido_inicio', 'El punto de salida no puede ser 0,0. Seleccione una ubicacion valida.');
+            return false;
+        }
+
+        if ($this->isZeroCoordinate($latDestino, $lngDestino)) {
+            $this->addError('recorrido_destino', 'El punto de llegada no puede ser 0,0. Seleccione una ubicacion valida.');
+            return false;
+        }
+
+        if ($this->sameCoordinatePair($latInicio, $lngInicio, $latDestino, $lngDestino)) {
+            $this->addError('recorrido_destino', 'El punto de llegada debe ser diferente al punto de salida.');
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isZeroCoordinate(float $lat, float $lng): bool
+    {
+        return abs($lat) < 0.0000001 && abs($lng) < 0.0000001;
+    }
+
+    private function sameCoordinatePair(float $latA, float $lngA, float $latB, float $lngB): bool
+    {
+        return abs($latA - $latB) < 0.0000001 && abs($lngA - $lngB) < 0.0000001;
+    }
+
+    private function assignedVehicleIdsForDriver(int $driverId, string $date): array
+    {
+        return VehicleAssignment::query()
+            ->where('driver_id', $driverId)
+            ->where('activo', true)
+            ->where(function ($q) use ($date) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $date);
+            })
+            ->where(function ($q) use ($date) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $date);
+            })
+            ->pluck('vehicle_id')
+            ->unique()
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+    }
+
+    private function allowedVehicleIdsForDriver(int $driverId): array
+    {
+        if ($driverId <= 0) {
+            return [];
+        }
+
+        // 1) Intentar por la fecha del formulario/QR
+        $ids = $this->assignedVehicleIdsForDriver($driverId, $this->assignmentDate());
+        if (!empty($ids)) {
+            return $ids;
+        }
+
+        // 2) Fallback a asignacion vigente hoy
+        $ids = $this->assignedVehicleIdsForDriver($driverId, now()->toDateString());
+        if (!empty($ids)) {
+            return $ids;
+        }
+
+        // 3) Ultimo fallback: cualquier vehiculo historicamente asignado al conductor
+        return VehicleAssignment::query()
+            ->where('driver_id', $driverId)
+            ->pluck('vehicle_id')
+            ->unique()
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+    }
+
+    private function syncKilometrajeFromVehicle(int $vehicleId): void
+    {
+        $vehicle = Vehicle::query()->find($vehicleId);
+        if (!$vehicle) {
+            return;
+        }
+
+        $km = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
+        if ($km !== null) {
+            $this->kilometraje_salida = (float) $km;
+        }
+    }
+
+    private function ensureDriverInOptions(?int $driverId): void
+    {
+        if (!$driverId) {
+            return;
+        }
+
+        if (array_key_exists($driverId, $this->drivers)) {
+            return;
+        }
+
+        $driver = \App\Models\Driver::withTrashed()->find($driverId);
+        if (!$driver) {
+            return;
+        }
+
+        $this->drivers[$driverId] = (string) $driver->nombre;
+    }
+
+    private function ensureVehicleInOptions(?int $vehicleId): void
+    {
+        if (!$vehicleId) {
+            return;
+        }
+
+        if (array_key_exists($vehicleId, $this->vehicles)) {
+            return;
+        }
+
+        $vehicle = \App\Models\Vehicle::withTrashed()->find($vehicleId);
+        if (!$vehicle) {
+            return;
+        }
+
+        $this->vehicles[$vehicleId] = (string) $vehicle->placa;
+        $this->vehicleKmMap[$vehicleId] = $vehicle->kilometraje_actual !== null ? (float) $vehicle->kilometraje_actual : null;
+    }
+
+    private function updateVehicleKilometraje(?int $vehicleId, ?float $kmActual, ?float $kmInicial): void
+    {
+        if (!$vehicleId) {
+            return;
+        }
+
+        $vehicle = Vehicle::find($vehicleId);
+        if (!$vehicle) {
+            return;
+        }
+
+        $kmCols = $this->resolveVehicleKilometrajeColumns();
+        $updates = [];
+
+        if ($kmCols['has_inicial'] && $kmInicial !== null && $vehicle->kilometraje_inicial === null) {
+            $updates['kilometraje_inicial'] = $kmInicial;
+        }
+
+        if ($kmCols['has_actual'] && $kmActual !== null) {
+            $prev = $vehicle->kilometraje_actual !== null ? (float) $vehicle->kilometraje_actual : null;
+            if ($prev === null || $kmActual >= $prev) {
+                $updates['kilometraje_actual'] = $kmActual;
+            }
+        }
+
+        if ($kmCols['has_legacy'] && $kmActual !== null) {
+            $prevLegacy = $vehicle->kilometraje !== null ? (float) $vehicle->kilometraje : null;
+            if ($prevLegacy === null || $kmActual >= $prevLegacy) {
+                $updates['kilometraje'] = $kmActual;
+            }
+        }
+
+        if (!empty($updates)) {
+            $vehicle->update($updates);
+        }
+
+        MaintenanceAlertService::evaluateVehicleByKilometraje((int) $vehicleId);
+    }
+
+    private function resolveVehicleKilometrajeColumns(): array
+    {
+        static $cache = null;
+
+        if (is_array($cache)) {
+            return $cache;
+        }
+
+        $cache = [
+            'has_inicial' => Schema::hasColumn('vehicles', 'kilometraje_inicial'),
+            'has_actual' => Schema::hasColumn('vehicles', 'kilometraje_actual'),
+            'has_legacy' => Schema::hasColumn('vehicles', 'kilometraje'),
+        ];
+
+        return $cache;
+    }
+
+    private function resetAllTablePages(): void
+    {
+        $this->resetPage('fuelPage');
+        $this->resetPage('bitacoraPage');
+        $this->resetPage('combinedPage');
+    }
+
+    private function paginateCollection($rows, int $perPage, string $pageName): LengthAwarePaginator
+    {
+        $page = LengthAwarePaginator::resolveCurrentPage($pageName);
+        $items = $rows->forPage($page, $perPage)->values();
+
+        return new LengthAwarePaginator(
+            $items,
+            $rows->count(),
+            $perPage,
+            $page,
+            [
+                'path' => request()->url(),
+                'query' => request()->query(),
+                'pageName' => $pageName,
+            ]
+        );
+    }
+}

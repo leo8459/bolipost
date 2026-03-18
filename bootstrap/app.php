@@ -13,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->statefulApi();
+        $middleware->validateCsrfTokens(except: ['api/*']);
+
         $middleware->alias([
             'route.permission' => \App\Http\Middleware\EnsureRoutePermission::class,
         ]);
@@ -29,3 +32,4 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('tracking:check')->cron('0 */8 * * *')->withoutOverlapping();
     })
     ->create();
+
