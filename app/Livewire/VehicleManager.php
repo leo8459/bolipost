@@ -9,6 +9,8 @@ use App\Models\VehicleAssignment;
 use App\Models\MaintenanceAlert;
 use App\Models\MaintenanceAppointment;
 use App\Models\MaintenanceType;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -50,7 +52,7 @@ class VehicleManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion', 'conductor']), 403);
     }
 
     public function render()
@@ -79,8 +81,8 @@ class VehicleManager extends Component
         $assignedVehicle = null;
         $scheduledMaintenances = collect();
 
-        if (auth()->user()?->role === 'conductor') {
-            $driverId = (int) (auth()->user()?->resolvedDriver()?->id ?? 0);
+        if ($this->currentUser()?->role === 'conductor') {
+            $driverId = (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0);
             if (!$driverId) {
                 $query->whereRaw('1=0');
             } else {
@@ -90,6 +92,13 @@ class VehicleManager extends Component
 
                 $vehicleIds = VehicleAssignment::query()
                     ->where('driver_id', $driverId)
+                    ->where('activo', true)
+                    ->where(function ($q) {
+                        $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', now()->toDateString());
+                    })
+                    ->where(function ($q) {
+                        $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', now()->toDateString());
+                    })
                     ->pluck('vehicle_id')
                     ->unique()
                     ->map(fn ($id) => (int) $id)
@@ -127,12 +136,12 @@ class VehicleManager extends Component
 
     public function requestMaintenance(int $maintenanceTypeId): void
     {
-        if (auth()->user()?->role !== 'conductor') {
+        if ($this->currentUser()?->role !== 'conductor') {
             session()->flash('error', 'Solo el conductor puede solicitar mantenimiento desde esta vista.');
             return;
         }
 
-        $driver = auth()->user()?->resolvedDriver();
+        $driver = $this->currentUser()?->resolvedDriver();
         if (!$driver) {
             session()->flash('error', 'No se encontro perfil de conductor asociado al usuario.');
             return;
@@ -179,7 +188,7 @@ class VehicleManager extends Component
             'mensaje' => sprintf(
                 'Solicitud de mantenimiento "%s" registrada por conductor %s para vehiculo %s.',
                 (string) $type->nombre,
-                (string) ($driver->nombre ?? auth()->user()?->name ?? 'N/A'),
+                (string) ($driver->nombre ?? $this->currentUser()?->name ?? 'N/A'),
                 (string) ($vehicle?->placa ?? 'N/A')
             ),
             'leida' => false,
@@ -233,10 +242,14 @@ class VehicleManager extends Component
 
     public function save()
     {
-        if (auth()->user()?->role === 'conductor') {
+        if ($this->currentUser()?->role === 'conductor') {
             session()->flash('error', 'No tiene permiso para crear o editar vehiculos.');
             return;
         }
+
+        $this->placa = mb_strtoupper(trim($this->placa));
+        $this->modelo = trim($this->modelo);
+        $this->color = trim($this->color);
 
         $this->validate([
             'placa' => [
@@ -253,6 +266,10 @@ class VehicleManager extends Component
             'kilometraje' => 'nullable|numeric|min:0',
         ]);
 
+        if (!$this->validateKilometrajeIntegrity()) {
+            return;
+        }
+
         $payload = [
             'placa' => $this->placa,
             'marca_id' => $this->marca_id,
@@ -263,6 +280,7 @@ class VehicleManager extends Component
             'anio' => $this->anio,
             'capacidad_tanque' => $this->capacidad_tanque,
             'kilometraje_actual' => $this->kilometraje,
+            'kilometraje' => $this->kilometraje,
             'activo' => $this->activo,
         ];
 
@@ -286,7 +304,7 @@ class VehicleManager extends Component
 
     public function edit(Vehicle $vehicle)
     {
-        if (auth()->user()?->role === 'conductor') {
+        if ($this->currentUser()?->role === 'conductor') {
             session()->flash('error', 'No tiene permiso para editar vehiculos.');
             return;
         }
@@ -309,7 +327,7 @@ class VehicleManager extends Component
 
     public function delete(Vehicle $vehicle)
     {
-        if (auth()->user()?->role === 'conductor') {
+        if ($this->currentUser()?->role === 'conductor') {
             session()->flash('error', 'No tiene permiso para eliminar vehiculos.');
             return;
         }
@@ -337,7 +355,7 @@ class VehicleManager extends Component
 
     public function create()
     {
-        if (auth()->user()?->role === 'conductor') {
+        if ($this->currentUser()?->role === 'conductor') {
             session()->flash('error', 'No tiene permiso para crear vehiculos.');
             return;
         }
@@ -357,13 +375,13 @@ class VehicleManager extends Component
             return null;
         }
 
-        $modelo = trim($this->modelo);
+        $modelo = trim(preg_replace('/\s+/', ' ', $this->modelo) ?? $this->modelo);
         $brandName = (string) (VehicleBrand::find($this->marca_id)?->nombre ?? '');
         $nombreClase = trim($brandName . ' ' . $this->anio . ' - ' . $modelo);
 
         $existing = VehicleClass::query()
             ->where('marca_id', $this->marca_id)
-            ->where('modelo', $modelo)
+            ->whereRaw('trim(upper(modelo)) = ?', [mb_strtoupper($modelo)])
             ->where('anio', (int) $this->anio)
             ->first();
 
@@ -388,10 +406,20 @@ class VehicleManager extends Component
             return collect();
         }
 
+        $activeAlertTypeIds = MaintenanceAlert::query()
+            ->where('vehicle_id', (int) $vehicle->id)
+            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+            ->whereNotNull('maintenance_type_id')
+            ->pluck('maintenance_type_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $scheduled = MaintenanceAppointment::query()
             ->with(['tipoMantenimiento:id,nombre,cada_km,vehicle_class_id'])
             ->where('vehicle_id', (int) $vehicle->id)
-            ->where('estado', '!=', 'Realizado')
+            ->whereNotIn('estado', ['Realizado', 'Cancelado'])
             ->orderBy('fecha_programada')
             ->get()
             ->map(function ($appointment) {
@@ -407,6 +435,7 @@ class VehicleManager extends Component
                     'fecha_programada' => optional($appointment->fecha_programada)->format('d/m/Y H:i'),
                     'estado' => (string) $appointment->estado,
                     'fuente' => 'programado',
+                    'can_request' => false,
                 ];
             })
             ->filter();
@@ -432,11 +461,47 @@ class VehicleManager extends Component
                 'fecha_programada' => null,
                 'estado' => null,
                 'fuente' => 'tipo',
+                'can_request' => !in_array((int) $type->id, $activeAlertTypeIds, true),
             ]);
 
         return $scheduled
             ->concat($baseTypes)
             ->unique('maintenance_type_id')
             ->values();
+    }
+
+    private function validateKilometrajeIntegrity(): bool
+    {
+        if ($this->kilometraje === null || !$this->isEdit || !$this->editingVehicleId) {
+            return true;
+        }
+
+        $vehicle = Vehicle::query()->find($this->editingVehicleId);
+        if (!$vehicle) {
+            return true;
+        }
+
+        $currentKm = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
+        if ($currentKm === null) {
+            return true;
+        }
+
+        if ((float) $this->kilometraje < (float) $currentKm) {
+            $this->addError(
+                'kilometraje',
+                'El kilometraje no puede ser menor al kilometraje actual registrado del vehiculo ('
+                . number_format((float) $currentKm, 2) . ').'
+            );
+            return false;
+        }
+
+        return true;
+    }
+
+    private function currentUser(): ?User
+    {
+        $user = Auth::user();
+
+        return $user instanceof User ? $user : null;
     }
 }

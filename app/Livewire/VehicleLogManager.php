@@ -2,15 +2,18 @@
 
 namespace App\Livewire;
 
-use App\Models\VehicleLog;
-use App\Models\Vehicle;
 use App\Models\Driver;
 use App\Models\FuelLog;
+use App\Models\User;
+use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
+use App\Models\VehicleLog;
 use App\Services\MaintenanceAlertService;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Validate;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Validate;
 
 class VehicleLogManager extends Component
 {
@@ -25,7 +28,7 @@ class VehicleLogManager extends Component
     #[Validate('required|date')]
     public ?string $fecha = null;
 
-    #[Validate('required|numeric')]
+    #[Validate('required|numeric|min:0')]
     public ?float $kilometraje_salida = null;
 
     public ?float $kilometraje_llegada = null;
@@ -50,13 +53,14 @@ class VehicleLogManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion', 'conductor']), 403);
     }
 
     public function render()
     {
         $query = VehicleLog::with(['vehicle', 'driver', 'fuelLog'])
-            ->orderBy('fecha', 'desc');
+            ->orderByDesc('fecha')
+            ->orderByDesc('id');
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -73,9 +77,9 @@ class VehicleLogManager extends Component
             });
         }
 
-        if (auth()->user()?->role === 'conductor') {
-            $driverId = auth()->user()->resolvedDriver()?->id;
-            if (!$driverId) {
+        if ($this->currentUser()?->role === 'conductor') {
+            $driverId = (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0);
+            if ($driverId <= 0) {
                 $query->whereRaw('1=0');
             } else {
                 $query->where('drivers_id', $driverId);
@@ -83,31 +87,39 @@ class VehicleLogManager extends Component
         }
 
         $logs = $query->paginate(10);
-        
-        if (auth()->user()?->role === 'conductor') {
-            $driverId = (int) (auth()->user()->resolvedDriver()?->id ?? 0);
-            $today = now()->toDateString();
+
+        if ($this->currentUser()?->role === 'conductor') {
+            $driverId = (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0);
+            $assignmentDate = $this->resolveAssignmentDate();
 
             $vehicleIds = VehicleAssignment::query()
                 ->where('driver_id', $driverId)
                 ->where('activo', true)
-                ->where(function ($q) use ($today) {
-                    $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+                ->where(function ($q) use ($assignmentDate) {
+                    $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
                 })
-                ->where(function ($q) use ($today) {
-                    $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+                ->where(function ($q) use ($assignmentDate) {
+                    $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
                 })
                 ->pluck('vehicle_id')
                 ->unique()
-                ->toArray();
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
 
-            $vehicles = Vehicle::where('activo', true)
+            $vehicles = Vehicle::query()
+                ->where('activo', true)
                 ->whereIn('id', $vehicleIds)
-                ->get(['id', 'placa', 'kilometraje_actual']);
-            $drivers = Driver::where('id', $driverId)->get(['id', 'nombre']);
+                ->get(['id', 'placa', 'kilometraje_actual', 'kilometraje_inicial', 'kilometraje']);
+
+            $drivers = Driver::query()
+                ->where('id', $driverId)
+                ->get(['id', 'nombre']);
+
             $this->drivers_id = $driverId ?: null;
         } else {
             $assignmentDate = $this->resolveAssignmentDate();
+
             $activeAssignments = VehicleAssignment::query()
                 ->where('activo', true)
                 ->whereNotNull('vehicle_id')
@@ -136,7 +148,8 @@ class VehicleLogManager extends Component
             $vehicles = Vehicle::query()
                 ->where('activo', true)
                 ->whereIn('id', $vehicleIds)
-                ->get(['id', 'placa', 'kilometraje_actual']);
+                ->get(['id', 'placa', 'kilometraje_actual', 'kilometraje_inicial', 'kilometraje']);
+
             $drivers = Driver::query()
                 ->where('activo', true)
                 ->whereIn('id', $driverIds)
@@ -157,15 +170,13 @@ class VehicleLogManager extends Component
             }
         }
 
-        // fecha column was renamed in the database; alias to keep view compatibility
         $fuelLogs = FuelLog::query()
-            ->leftJoin('fuel_invoices as fi', 'fuel_invoice_details.fuel_invoice_id', '=', 'fi.id')
-            ->select(
-                'fuel_invoice_details.id',
-                'fi.fecha_emision as fecha',
-                'fuel_invoice_details.cantidad as galones'
-            )
-            ->orderByDesc('fuel_invoice_details.id')
+            ->select([
+                'id',
+                'fecha_emision as fecha',
+                'cantidad as galones',
+            ])
+            ->orderByDesc('id')
             ->get();
 
         return view('livewire.vehicle-log-manager', [
@@ -178,29 +189,30 @@ class VehicleLogManager extends Component
 
     public function save()
     {
-        if (auth()->user()?->role === 'conductor' && $this->isEdit) {
+        if ($this->currentUser()?->role === 'conductor' && $this->isEdit) {
             session()->flash('error', 'No tiene permiso para editar registros de bitacora.');
             return;
         }
 
-        if (auth()->user()?->role === 'conductor') {
-            $driverId = (int) (auth()->user()->resolvedDriver()?->id ?? 0);
-            if (!$driverId) {
+        if ($this->currentUser()?->role === 'conductor') {
+            $driverId = (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0);
+            if ($driverId <= 0) {
                 $this->addError('drivers_id', 'El usuario conductor no tiene perfil de conductor asociado.');
                 return;
             }
-            $this->drivers_id = $driverId;
 
-            $today = now()->toDateString();
+            $this->drivers_id = $driverId;
+            $assignmentDate = $this->resolveAssignmentDate();
+
             $isAssigned = VehicleAssignment::query()
                 ->where('driver_id', $driverId)
                 ->where('vehicle_id', $this->vehicles_id)
                 ->where('activo', true)
-                ->where(function ($q) use ($today) {
-                    $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+                ->where(function ($q) use ($assignmentDate) {
+                    $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
                 })
-                ->where(function ($q) use ($today) {
-                    $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+                ->where(function ($q) use ($assignmentDate) {
+                    $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
                 })
                 ->exists();
 
@@ -211,6 +223,14 @@ class VehicleLogManager extends Component
         }
 
         $this->validate();
+
+        $this->recorrido_inicio = trim($this->recorrido_inicio);
+        $this->recorrido_destino = trim($this->recorrido_destino);
+
+        if (!$this->validateTripAndKmRules()) {
+            return;
+        }
+
         $locationPayload = $this->resolveLocationPayload();
 
         $data = [
@@ -225,19 +245,28 @@ class VehicleLogManager extends Component
             'recorrido_destino' => $this->recorrido_destino,
             'abastecimiento_combustible' => $this->abastecimiento_combustible,
             'firma_digital' => $this->firma_digital,
+            'ruta_json' => $this->buildRoutePoints($locationPayload),
         ];
 
         if ($this->isEdit && $this->editingLogId) {
             $log = VehicleLog::find($this->editingLogId);
             if ($log) {
                 $log->update($data);
-                $this->updateVehicleKilometraje($this->vehicles_id, $this->kilometraje_llegada ?? $this->kilometraje_salida, $this->kilometraje_salida);
-                session()->flash('message', 'Registro de bitÃ¡cora actualizado correctamente.');
+                $this->updateVehicleKilometraje(
+                    $this->vehicles_id,
+                    $this->kilometraje_llegada ?? $this->kilometraje_salida,
+                    $this->kilometraje_salida
+                );
+                session()->flash('message', 'Registro de bitacora actualizado correctamente.');
             }
         } else {
             VehicleLog::create($data);
-            $this->updateVehicleKilometraje($this->vehicles_id, $this->kilometraje_llegada ?? $this->kilometraje_salida, $this->kilometraje_salida);
-            session()->flash('message', 'Registro de bitÃ¡cora creado correctamente.');
+            $this->updateVehicleKilometraje(
+                $this->vehicles_id,
+                $this->kilometraje_llegada ?? $this->kilometraje_salida,
+                $this->kilometraje_salida
+            );
+            session()->flash('message', 'Registro de bitacora creado correctamente.');
         }
 
         $this->resetForm();
@@ -245,7 +274,7 @@ class VehicleLogManager extends Component
 
     public function edit(VehicleLog $log)
     {
-        if (auth()->user()?->role === 'conductor') {
+        if ($this->currentUser()?->role === 'conductor') {
             session()->flash('error', 'No tiene permiso para editar registros de bitacora.');
             return;
         }
@@ -257,27 +286,27 @@ class VehicleLogManager extends Component
         $this->drivers_id = $log->drivers_id;
         $this->fuel_log_id = $log->fuel_log_id;
         $this->fecha = optional($log->fecha)->format('Y-m-d');
-        $this->kilometraje_salida = $log->kilometraje_salida;
-        $this->kilometraje_llegada = $log->kilometraje_llegada;
-        $this->recorrido_inicio = $log->recorrido_inicio;
-        $this->recorrido_destino = $log->recorrido_destino;
-        $this->latitud_inicio = $log->latitud_inicio;
-        $this->logitud_inicio = $log->logitud_inicio;
-        $this->latitud_destino = $log->latitud_destino;
-        $this->logitud_destino = $log->logitud_destino;
-        $this->abastecimiento_combustible = $log->abastecimiento_combustible;
+        $this->kilometraje_salida = $log->kilometraje_salida !== null ? (float) $log->kilometraje_salida : null;
+        $this->kilometraje_llegada = $log->kilometraje_llegada !== null ? (float) $log->kilometraje_llegada : null;
+        $this->recorrido_inicio = (string) $log->recorrido_inicio;
+        $this->recorrido_destino = (string) $log->recorrido_destino;
+        $this->latitud_inicio = $log->latitud_inicio !== null ? (float) $log->latitud_inicio : null;
+        $this->logitud_inicio = $log->logitud_inicio !== null ? (float) $log->logitud_inicio : null;
+        $this->latitud_destino = $log->latitud_destino !== null ? (float) $log->latitud_destino : null;
+        $this->logitud_destino = $log->logitud_destino !== null ? (float) $log->logitud_destino : null;
+        $this->abastecimiento_combustible = (bool) $log->abastecimiento_combustible;
         $this->firma_digital = $log->firma_digital;
     }
 
     public function delete(VehicleLog $log)
     {
-        if (auth()->user()?->role === 'conductor') {
+        if ($this->currentUser()?->role === 'conductor') {
             session()->flash('error', 'No tiene permiso para eliminar registros de bitacora.');
             return;
         }
 
         $log->delete();
-        session()->flash('message', 'Registro de bitÃ¡cora eliminado correctamente.');
+        session()->flash('message', 'Registro de bitacora eliminado correctamente.');
     }
 
     public function resetForm()
@@ -326,13 +355,16 @@ class VehicleLogManager extends Component
 
     public function updatedVehiclesId($value): void
     {
-        $this->syncKmSalidaFromVehicle($value);
+        $vehicleId = $value !== null && $value !== '' ? (int) $value : null;
+        $this->syncKmSalidaFromVehicle($vehicleId);
+        $this->syncDriverFromVehicle($vehicleId);
     }
 
     public function onVehicleChanged($value): void
     {
         $this->vehicles_id = $value !== null && $value !== '' ? (int) $value : null;
         $this->syncKmSalidaFromVehicle($this->vehicles_id);
+        $this->syncDriverFromVehicle($this->vehicles_id);
     }
 
     private function resolveLocationPayload(): array
@@ -363,17 +395,15 @@ class VehicleLogManager extends Component
             }
         }
 
-        if ($sourceText) {
-            if (preg_match('/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/', $sourceText, $m)) {
-                $safeLat = $this->normalizeLatitude((float) $m[1]);
-                $safeLng = $this->normalizeLongitude((float) $m[2]);
-                if ($safeLat !== null && $safeLng !== null) {
-                    return [$safeLat, $safeLng];
-                }
+        if ($sourceText && preg_match('/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/', $sourceText, $m)) {
+            $safeLat = $this->normalizeLatitude((float) $m[1]);
+            $safeLng = $this->normalizeLongitude((float) $m[2]);
+            if ($safeLat !== null && $safeLng !== null) {
+                return [$safeLat, $safeLng];
             }
         }
 
-        return [0.0, 0.0];
+        return [null, null];
     }
 
     private function normalizeLatitude(float $value): ?float
@@ -381,7 +411,8 @@ class VehicleLogManager extends Component
         if ($value < -90 || $value > 90) {
             return null;
         }
-        return $value;
+
+        return round($value, 8);
     }
 
     private function normalizeLongitude(float $value): ?float
@@ -389,7 +420,8 @@ class VehicleLogManager extends Component
         if ($value < -180 || $value > 180) {
             return null;
         }
-        return $value;
+
+        return round($value, 8);
     }
 
     private function updateVehicleKilometraje(?int $vehicleId, ?float $kmActual, ?float $kmInicial): void
@@ -423,23 +455,24 @@ class VehicleLogManager extends Component
         MaintenanceAlertService::evaluateVehicleByKilometraje((int) $vehicleId);
     }
 
-    private function syncKmSalidaFromVehicle($value): void
+    private function syncKmSalidaFromVehicle(?int $vehicleId): void
     {
-        if (!$value) {
+        if (!$vehicleId) {
             $this->kilometraje_salida = null;
             return;
         }
 
         $vehicle = Vehicle::query()
-            ->select(['id', 'kilometraje_actual'])
-            ->find((int) $value);
+            ->select(['id', 'kilometraje_actual', 'kilometraje_inicial', 'kilometraje'])
+            ->find($vehicleId);
 
-        if (!$vehicle || $vehicle->kilometraje_actual === null) {
+        if (!$vehicle) {
             $this->kilometraje_salida = null;
             return;
         }
 
-        $this->kilometraje_salida = (float) $vehicle->kilometraje_actual;
+        $km = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
+        $this->kilometraje_salida = $km !== null ? (float) $km : null;
     }
 
     private function resolveAssignmentDate(): string
@@ -449,10 +482,119 @@ class VehicleLogManager extends Component
         }
 
         try {
-            return \Carbon\Carbon::parse($this->fecha)->toDateString();
+            return Carbon::parse($this->fecha)->toDateString();
         } catch (\Throwable) {
             return now()->toDateString();
         }
     }
-}
 
+    private function syncDriverFromVehicle(?int $vehicleId): void
+    {
+        if (!$vehicleId || $this->currentUser()?->role === 'conductor') {
+            return;
+        }
+
+        $assignmentDate = $this->resolveAssignmentDate();
+        $assignment = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->whereNotNull('driver_id')
+            ->where('activo', true)
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
+            })
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
+            })
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($assignment?->driver_id) {
+            $this->drivers_id = (int) $assignment->driver_id;
+        }
+    }
+
+    private function validateTripAndKmRules(): bool
+    {
+        $kmSalida = $this->kilometraje_salida !== null ? (float) $this->kilometraje_salida : null;
+        $kmLlegada = $this->kilometraje_llegada !== null ? (float) $this->kilometraje_llegada : null;
+
+        if ($kmSalida !== null && $kmLlegada !== null && $kmLlegada < $kmSalida) {
+            $this->addError('kilometraje_llegada', 'El kilometraje de llegada no puede ser menor al kilometraje de salida.');
+            return false;
+        }
+
+        [$latInicio, $lngInicio] = $this->resolveCoordinates($this->latitud_inicio, $this->logitud_inicio, $this->recorrido_inicio);
+        [$latDestino, $lngDestino] = $this->resolveCoordinates($this->latitud_destino, $this->logitud_destino, $this->recorrido_destino);
+
+        if ($latInicio === null || $lngInicio === null) {
+            $this->addError('recorrido_inicio', 'Seleccione un punto de inicio valido en el mapa.');
+            return false;
+        }
+
+        if ($latDestino === null || $lngDestino === null) {
+            $this->addError('recorrido_destino', 'Seleccione un punto de destino valido en el mapa.');
+            return false;
+        }
+
+        if (abs($latInicio - $latDestino) < 0.0000001 && abs($lngInicio - $lngDestino) < 0.0000001) {
+            $this->addError('recorrido_destino', 'El destino debe ser diferente del inicio.');
+            return false;
+        }
+
+        return true;
+    }
+
+    private function buildRoutePoints(array $locationPayload): array
+    {
+        $route = [];
+        $timestamp = $this->fecha
+            ? Carbon::parse($this->fecha)->startOfDay()->toIso8601String()
+            : now()->toIso8601String();
+
+        $startLat = $locationPayload['latitud_inicio'] ?? null;
+        $startLng = $locationPayload['logitud_inicio'] ?? null;
+        $endLat = $locationPayload['latitud_destino'] ?? null;
+        $endLng = $locationPayload['logitud_destino'] ?? null;
+
+        if ($startLat !== null && $startLng !== null) {
+            $route[] = [
+                'lat' => (float) $startLat,
+                'lng' => (float) $startLng,
+                't' => $timestamp,
+                'address' => $this->recorrido_inicio,
+                'label' => 'Inicio',
+                'is_marked' => true,
+                'index' => 0,
+            ];
+        }
+
+        if (
+            $endLat !== null && $endLng !== null &&
+            (
+                empty($route) ||
+                abs((float) $endLat - (float) ($startLat ?? 0)) > 0.0000001 ||
+                abs((float) $endLng - (float) ($startLng ?? 0)) > 0.0000001
+            )
+        ) {
+            $route[] = [
+                'lat' => (float) $endLat,
+                'lng' => (float) $endLng,
+                't' => $timestamp,
+                'address' => $this->recorrido_destino,
+                'label' => 'Destino',
+                'is_marked' => true,
+                'index' => count($route),
+            ];
+        }
+
+        return $route;
+    }
+
+    private function currentUser(): ?User
+    {
+        $user = Auth::user();
+
+        return $user instanceof User ? $user : null;
+    }
+}

@@ -78,7 +78,7 @@
                         <div class="profile-field"><span class="profile-label">Clase</span><span class="profile-value">{{ $assignedVehicle->vehicleClass?->nombre ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Combustible</span><span class="profile-value">{{ $assignedVehicle->tipo_combustible ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Color</span><span class="profile-value">{{ $assignedVehicle->color ?? '-' }}</span></div>
-                        <div class="profile-field"><span class="profile-label">Anio</span><span class="profile-value">{{ $assignedVehicle->anio ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">Año</span><span class="profile-value">{{ $assignedVehicle->anio ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">KM Actual</span><span class="profile-value">{{ $assignedVehicle->kilometraje_actual ?? $assignedVehicle->kilometraje_inicial ?? $assignedVehicle->kilometraje ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Capacidad tanque</span><span class="profile-value">{{ $assignedVehicle->capacidad_tanque ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Tipo asignacion</span><span class="profile-value">{{ $currentAssignment?->tipo_asignacion ?? '-' }}</span></div>
@@ -116,10 +116,16 @@
                                                 @endif
                                             </td>
                                             <td class="text-end">
-                                                <button type="button" class="btn btn-sm btn-success"
-                                                        wire:click="requestMaintenance({{ $maintenance['maintenance_type_id'] }})">
-                                                    <i class="fas fa-bell me-1"></i>Solicitar mantenimiento
-                                                </button>
+                                                @if($maintenance['can_request'] ?? false)
+                                                    <button type="button" class="btn btn-sm btn-success"
+                                                            wire:click="requestMaintenance({{ $maintenance['maintenance_type_id'] }})">
+                                                        <i class="fas fa-bell me-1"></i>Solicitar mantenimiento
+                                                    </button>
+                                                @elseif($maintenance['fuente'] === 'programado')
+                                                    <span class="badge bg-info text-dark">Ya programado</span>
+                                                @else
+                                                    <span class="badge bg-warning text-dark">Solicitud pendiente</span>
+                                                @endif
                                             </td>
                                         </tr>
                                     @endforeach
@@ -180,7 +186,7 @@
                             <input type="text" wire:model="color" class="form-control">
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">Anio</label>
+                            <label class="form-label fw-bold">Año</label>
                             <input type="number" wire:model="anio" class="form-control">
                         </div>
                         <div class="col-12 col-md-4">
@@ -241,7 +247,7 @@
                                         <td>{{ $vehicle->brand?->nombre ?? $vehicle->marca ?? '-' }}</td>
                                         <td>{{ $vehicle->modelo }}</td>
                                         <td>{{ $vehicle->vehicleClass?->nombre ?? '-' }}</td>
-                                        <td>{{ number_format((float) ($vehicle->kilometraje ?? 0), 2) }}</td>
+                                        <td>{{ number_format((float) ($vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje ?? 0), 2) }}</td>
                                         <td>{{ $vehicle->tipo_combustible }}</td>
                                         <td>
                                             @if((int) ($vehicle->pending_maintenance_alerts_count ?? 0) > 0)

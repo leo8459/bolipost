@@ -4,7 +4,9 @@ namespace App\Livewire;
 
 use App\Models\VehicleAssignment;
 use App\Models\Driver;
+use App\Models\User;
 use App\Models\Vehicle;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Validate;
@@ -38,7 +40,7 @@ class VehicleAssignmentManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion']), 403);
+        abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion']), 403);
         $this->fecha_inicio = now()->toDateString();
     }
 
@@ -206,5 +208,12 @@ class VehicleAssignmentManager extends Component
         $this->editingId = null;
         $this->showForm = false; // Ocultamos el formulario
         $this->resetPage();
+    }
+
+    private function currentUser(): ?User
+    {
+        $user = Auth::user();
+
+        return $user instanceof User ? $user : null;
     }
 }

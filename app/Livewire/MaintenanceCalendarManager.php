@@ -83,6 +83,7 @@ class MaintenanceCalendarManager extends Component
         $alertsQuery = MaintenanceAlert::query()
             ->with(['vehicle:id,placa', 'maintenanceType:id,nombre'])
             ->with(['maintenanceAppointment:id,fecha_programada'])
+            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
             ->where(function ($q) use ($gridStart, $gridEnd) {
                 $q->whereBetween('created_at', [$gridStart->copy()->startOfDay(), $gridEnd->copy()->endOfDay()])
                     ->orWhereHas('maintenanceAppointment', function ($qa) use ($gridStart, $gridEnd) {
@@ -132,6 +133,7 @@ class MaintenanceCalendarManager extends Component
 
         $appointmentsQuery = MaintenanceAppointment::query()
             ->with(['vehicle:id,placa', 'tipoMantenimiento:id,nombre'])
+            ->where('estado', '!=', 'Realizado')
             ->whereBetween('fecha_programada', [$gridStart->copy()->startOfDay(), $gridEnd->copy()->endOfDay()]);
 
         if ($vehicleIds !== null) {
