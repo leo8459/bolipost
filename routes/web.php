@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\QzSecurityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
@@ -82,6 +83,10 @@ Route::post('/hacer-envio-desde-casa', [PreregistroController::class, 'publicSto
 Route::get('/hacer-envio-desde-casa/{preregistro}/ticket', [PreregistroController::class, 'ticket'])->name('preregistros.public.ticket');
 Route::middleware(['auth'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
+Route::middleware(['auth'])->group(function () {
+    Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
+    Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
+});
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'route.permission'])
