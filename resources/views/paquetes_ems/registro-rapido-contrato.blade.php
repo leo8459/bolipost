@@ -143,9 +143,13 @@
                         </div>
                         <div class="col-md-2">
                             <div class="form-group mb-0 d-flex gap-2">
-                                @if ($canQuickContractCreate ?? false)
+                                @if (($canQuickContractCreate ?? false) || ($canQuickContractSave ?? false))
+                                    @if ($canQuickContractCreate ?? false)
                                     <button type="button" class="btn btn-outline-primary" id="btnAgregarPrelista">Anadir a prelista</button>
+                                    @endif
+                                    @if ($canQuickContractSave ?? false)
                                     <button type="button" class="btn btn-primary" id="btnGuardarTodos">Guardar todos</button>
+                                    @endif
                                 @endif
                             </div>
                         </div>
@@ -179,6 +183,9 @@
                                         <td>{{ $item['destino'] ?? '-' }}</td>
                                         <td>{{ $item['provincia'] ?? '-' }}</td>
                                         <td>
+                                            @if ($canQuickContractCreate ?? false)
+                                                <button type="button" class="btn btn-xs btn-outline-secondary" disabled>Duplicar</button>
+                                            @endif
                                             @if ($canQuickContractDelete ?? false)
                                                 <button type="button" class="btn btn-xs btn-outline-danger" disabled>Quitar</button>
                                             @endif
@@ -215,13 +222,15 @@
         const listCount = document.getElementById('registroRapidoListadoCount');
         const btnAgregar = document.getElementById('btnAgregarPrelista');
         const btnGuardarTodos = document.getElementById('btnGuardarTodos');
+        const canQuickContractCreate = @json((bool) ($canQuickContractCreate ?? false));
+        const canQuickContractSave = @json((bool) ($canQuickContractSave ?? false));
         const canQuickContractDelete = @json((bool) ($canQuickContractDelete ?? false));
         const csrfToken = form.querySelector('input[name="_token"]')?.value || '';
         const prelista = [];
 
         function setButtonsDisabled(disabled) {
             if (btnAgregar) btnAgregar.disabled = disabled;
-            if (btnGuardarTodos) btnGuardarTodos.disabled = disabled;
+            if (btnGuardarTodos) btnGuardarTodos.disabled = disabled || !prelista.length;
         }
 
         function escapeHtml(value) {
@@ -282,6 +291,16 @@
 
             prelista.forEach((item, index) => {
                 const row = document.createElement('tr');
+                const actionButtons = [];
+
+                if (canQuickContractCreate) {
+                    actionButtons.push(`<button type="button" class="btn btn-xs btn-outline-secondary mr-1" data-duplicate-index="${index}">Duplicar</button>`);
+                }
+
+                if (canQuickContractDelete) {
+                    actionButtons.push(`<button type="button" class="btn btn-xs btn-outline-danger" data-remove-index="${index}">Quitar</button>`);
+                }
+
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${escapeHtml(item.codigo)}</td>
@@ -289,7 +308,7 @@
                     <td>${escapeHtml(item.origen)}</td>
                     <td>${escapeHtml(item.destino)}</td>
                     <td>${escapeHtml(item.provincia || '-')}</td>
-                    <td>${canQuickContractDelete ? `<button type="button" class="btn btn-xs btn-outline-danger" data-remove-index="${index}">Quitar</button>` : ''}</td>
+                    <td>${actionButtons.join('')}</td>
                 `;
                 listBody.appendChild(row);
             });
@@ -297,6 +316,8 @@
             if (listCount) {
                 listCount.textContent = String(prelista.length);
             }
+
+            setButtonsDisabled(false);
         }
 
         function addCurrentToPrelista() {
@@ -350,6 +371,23 @@
             codigoInput.focus();
         }
 
+        function duplicateRow(index) {
+            const item = prelista[index];
+            if (!item) return;
+
+            pesoInput.value = item.peso;
+            destinoInput.value = item.destino;
+            renderProvinciaOptions(item.destino, item.provincia || '');
+
+            if (provinciaInput) {
+                provinciaInput.value = item.provincia || '';
+            }
+
+            codigoInput.value = '';
+            codigoInput.focus();
+            showAlert('success', 'Fila cargada para duplicar. Ingresa un nuevo codigo y vuelve a anadirla.');
+        }
+
         if (btnAgregar) {
             btnAgregar.addEventListener('click', function () {
                 addCurrentToPrelista();
@@ -364,6 +402,15 @@
 
         if (listBody) {
             listBody.addEventListener('click', function (event) {
+                const duplicateTarget = event.target.closest('[data-duplicate-index]');
+                if (duplicateTarget) {
+                    const duplicateIndex = Number(duplicateTarget.getAttribute('data-duplicate-index'));
+                    if (!Number.isNaN(duplicateIndex)) {
+                        duplicateRow(duplicateIndex);
+                    }
+                    return;
+                }
+
                 const target = event.target.closest('[data-remove-index]');
                 if (!target) return;
                 const index = Number(target.getAttribute('data-remove-index'));
@@ -374,6 +421,11 @@
         }
 
         async function guardarTodos() {
+            if (!canQuickContractSave) {
+                showAlert('danger', 'No tienes permiso para guardar la prelista.');
+                return;
+            }
+
             if (!prelista.length) {
                 showAlert('danger', 'No hay elementos en la prelista.');
                 return;
@@ -443,6 +495,7 @@
 
         renderPrelista();
         renderProvinciaOptions(destinoInput ? destinoInput.value : '', oldProvincia);
+        setButtonsDisabled(false);
     })();
 </script>
 @endsection

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\SolicitudClienteCreadaMail;
 use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
@@ -9,6 +10,8 @@ use App\Models\TarifarioTiktoker;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class ClienteSolicitudController extends Controller
@@ -114,9 +117,27 @@ class ClienteSolicitudController extends Controller
             'codigo_solicitud' => $this->generateSolicitudCode((int) $solicitud->id),
         ]);
 
+        $message = 'Solicitud registrada correctamente con codigo ' . $solicitud->codigo_solicitud . '.';
+
+        try {
+            Mail::to($cliente->email)->send(new SolicitudClienteCreadaMail($solicitud, $cliente));
+        } catch (\Throwable $exception) {
+            Log::error('No se pudo enviar el correo de solicitud al cliente.', [
+                'solicitud_id' => $solicitud->id,
+                'cliente_id' => $cliente->id,
+                'cliente_email' => $cliente->email,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('clientes.solicitudes.index')
+                ->with('success', $message)
+                ->with('warning', 'La solicitud se registro, pero no se pudo enviar el correo automatico. Revisa la configuracion SMTP.');
+        }
+
         return redirect()
             ->route('clientes.solicitudes.index')
-            ->with('success', 'Solicitud registrada correctamente con codigo ' . $solicitud->codigo_solicitud . '.');
+            ->with('success', $message);
     }
 
     private function generateSolicitudCode(int $id): string

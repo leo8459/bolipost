@@ -268,6 +268,8 @@ class PaquetesEmsController extends Controller
             'provinciasPorDestino' => $this->buildProvinciasPorDestino(),
             'listado' => [],
             'canQuickContractCreate' => $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
+            'canQuickContractSave' => $user->can('feature.paquetes-ems.contrato-rapido.create.save')
+                || $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
             'canQuickContractDelete' => $user->can('feature.paquetes-ems.contrato-rapido.create.delete'),
         ]);
     }
@@ -283,7 +285,8 @@ class PaquetesEmsController extends Controller
         }
 
         abort_unless(
-            $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
+            $user->can('feature.paquetes-ems.contrato-rapido.create.save')
+                || $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
             403,
             'No tienes permiso para guardar contratos rapidos.'
         );
