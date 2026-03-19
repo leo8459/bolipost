@@ -18,9 +18,11 @@
         pollTimer: null,
         retryTimer: null,
         lifecycleBound: false,
+        inputActivationBound: false,
         serialCallbacksBound: false,
         serialBuffer: '',
         serialBufferUpdatedAt: 0,
+        activeInputId: null,
     };
 
     const serial = {
@@ -77,6 +79,7 @@
 
         state.booted = true;
         bindLifecycleEvents();
+        bindInputActivation();
 
         document.addEventListener('click', async (event) => {
             const togglePanelBtn = event.target.closest('[data-cas-toggle-panel]');
@@ -107,6 +110,31 @@
         connectAndRead().catch(() => {
             // El estado visual ya queda reflejado en los pills
         });
+    }
+
+    function bindInputActivation() {
+        if (state.inputActivationBound) {
+            return;
+        }
+
+        state.inputActivationBound = true;
+
+        const markFromEvent = (event) => {
+            const input = event.target?.closest?.('[data-cas-peso-input]');
+            if (!input) {
+                return;
+            }
+
+            rememberActivePesoInput(input);
+        };
+
+        document.addEventListener('focusin', markFromEvent);
+        document.addEventListener('pointerdown', markFromEvent);
+
+        const initialInput = resolveTargetPesoInput();
+        if (initialInput) {
+            rememberActivePesoInput(initialInput);
+        }
     }
 
     function bindLifecycleEvents() {
@@ -780,6 +808,7 @@
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.focus();
+        rememberActivePesoInput(input);
     }
 
     function toggleStatusPanel(button) {
@@ -828,16 +857,75 @@
 
     function setPesoValue(kg) {
         const value = Number(kg).toFixed(3);
+        const input = resolveTargetPesoInput();
 
-        document.querySelectorAll('[data-cas-peso-input]').forEach((input) => {
-            if (!input || input.value === value) {
-                return;
-            }
+        if (!input || input.value === value) {
+            return;
+        }
 
-            input.value = value;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+        rememberActivePesoInput(input);
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function rememberActivePesoInput(input) {
+        if (!input || !input.id) {
+            return;
+        }
+
+        state.activeInputId = input.id;
+    }
+
+    function resolveTargetPesoInput() {
+        const byId = state.activeInputId ? document.getElementById(state.activeInputId) : null;
+        if (isEligiblePesoInput(byId)) {
+            return byId;
+        }
+
+        const activeEl = document.activeElement;
+        if (isEligiblePesoInput(activeEl)) {
+            return activeEl;
+        }
+
+        const visibleInputs = Array.from(document.querySelectorAll('[data-cas-peso-input]')).filter((input) =>
+            isEligiblePesoInput(input)
+        );
+
+        if (visibleInputs.length === 0) {
+            return null;
+        }
+
+        const visibleInsideOpenModal = visibleInputs.find((input) => input.closest('.modal.show'));
+        if (visibleInsideOpenModal) {
+            return visibleInsideOpenModal;
+        }
+
+        return visibleInputs[0];
+    }
+
+    function isEligiblePesoInput(input) {
+        if (!(input instanceof HTMLElement)) {
+            return false;
+        }
+
+        if (!input.matches('[data-cas-peso-input]') || input.disabled) {
+            return false;
+        }
+
+        return isVisibleElement(input);
+    }
+
+    function isVisibleElement(element) {
+        if (!(element instanceof HTMLElement) || !element.isConnected) {
+            return false;
+        }
+
+        if (element.closest('.d-none,[hidden],.modal:not(.show)')) {
+            return false;
+        }
+
+        return element.offsetParent !== null || element.getClientRects().length > 0;
     }
 
     function markQzOk(message) {
