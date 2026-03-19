@@ -146,11 +146,18 @@
 
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                releasePortForBackground().catch(() => {});
                 return;
             }
 
-            reconnect().catch(() => {});
+            if (state.connecting) {
+                return;
+            }
+
+            if (state.port && window.qz?.websocket?.isActive?.()) {
+                return;
+            }
+
+            connectAndRead().catch(() => {});
         });
 
         window.addEventListener('pagehide', () => {
