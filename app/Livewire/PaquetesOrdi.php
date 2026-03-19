@@ -636,7 +636,7 @@ class PaquetesOrdi extends Component
 
     public function updatedDestinatario($value)
     {
-        $this->destinatario = $this->upper($value);
+        $this->destinatario = strtoupper((string) $value);
         $this->autocompletarDatosDestinatario();
     }
 
