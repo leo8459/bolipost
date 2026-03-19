@@ -47,6 +47,15 @@
             margin: 0 0 6px;
             word-break: break-word;
         }
+        .row-inline {
+            display: flex;
+            gap: 8px;
+            margin: 0 0 6px;
+        }
+        .col-inline {
+            flex: 1 1 0;
+            min-width: 0;
+        }
         .price {
             font-size: 18px;
             font-weight: 700;
@@ -112,18 +121,6 @@
             {{ $solicitud->servicioExtra?->descripcion ?: ($solicitud->servicioExtra?->nombre ?? '-') }}
         </div>
         <div class="row">
-            <span class="label">Estado</span>
-            {{ $solicitud->estadoRegistro?->nombre_estado ?? '-' }}
-        </div>
-        <div class="row">
-            <span class="label">Origen / Destino</span>
-            {{ $solicitud->origen ?: '-' }} / {{ $solicitud->destino?->nombre_destino ?: ($solicitud->ciudad ?: '-') }}
-        </div>
-        <div class="row">
-            <span class="label">Remitente</span>
-            {{ $solicitud->nombre_remitente ?: '-' }}
-        </div>
-        <div class="row">
             <span class="label">Destinatario</span>
             {{ $solicitud->nombre_destinatario ?: '-' }}
         </div>
@@ -135,9 +132,15 @@
             <span class="label">Peso</span>
             {{ $solicitud->peso !== null ? number_format((float) $solicitud->peso, 3, '.', '') . ' kg' : '-' }}
         </div>
-        <div class="row">
-            <span class="label">Pago en destinatario</span>
-            {{ $solicitud->pago_destinatario ? 'SI' : 'NO' }}
+        <div class="row-inline">
+            <div class="col-inline">
+                <span class="label">Pago en destinatario</span>
+                {{ $solicitud->pago_destinatario ? 'SI' : 'NO' }}
+            </div>
+            <div class="col-inline">
+                <span class="label">Firma de recepcion</span>
+                __________________
+            </div>
         </div>
 
         <div class="divider"></div>
