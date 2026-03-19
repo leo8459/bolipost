@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Empresa;
+use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
@@ -22,8 +23,9 @@ class UserController extends Controller
         $user = new User();
         $roles = Role::all();
         $empresas = Empresa::query()->orderBy('codigo_cliente')->get();
+        $sucursales = Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get();
 
-        return view('user.create', compact('user', 'roles', 'empresas'));
+        return view('user.create', compact('user', 'roles', 'empresas', 'sucursales'));
     }
 
     public function store(Request $request)
@@ -36,6 +38,7 @@ class UserController extends Controller
             'ciudad' => 'required|string|max:255',
             'ci' => 'nullable|string|max:255',
             'empresa_id' => 'nullable|integer|exists:empresa,id',
+            'sucursal_id' => 'nullable|integer|exists:sucursales,id',
             'roles' => 'nullable|array',
             'roles.*' => 'integer|exists:roles,id',
         ]);
@@ -48,6 +51,7 @@ class UserController extends Controller
         $user->ciudad = $request->ciudad;
         $user->ci = $request->filled('ci') ? trim((string) $request->ci) : null;
         $user->empresa_id = $request->filled('empresa_id') ? (int) $request->empresa_id : null;
+        $user->sucursal_id = $request->filled('sucursal_id') ? (int) $request->sucursal_id : null;
         $user->save();
 
         if ($request->filled('roles')) {
@@ -71,8 +75,9 @@ class UserController extends Controller
         $user = User::find($id);
         $roles = Role::all();
         $empresas = Empresa::query()->orderBy('codigo_cliente')->get();
+        $sucursales = Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get();
 
-        return view('user.edit', compact('user', 'roles', 'empresas'));
+        return view('user.edit', compact('user', 'roles', 'empresas', 'sucursales'));
     }
 
     public function update(Request $request, User $user)
@@ -84,6 +89,7 @@ class UserController extends Controller
             'ciudad' => 'required|string|max:255',
             'ci' => 'nullable|string|max:255',
             'empresa_id' => 'nullable|integer|exists:empresa,id',
+            'sucursal_id' => 'nullable|integer|exists:sucursales,id',
             'roles' => 'nullable|array',
             'roles.*' => 'integer|exists:roles,id',
             'password' => 'nullable|min:8',
@@ -97,6 +103,7 @@ class UserController extends Controller
             $user->ci = trim((string) $request->ci);
         }
         $user->empresa_id = $request->filled('empresa_id') ? (int) $request->empresa_id : null;
+        $user->sucursal_id = $request->filled('sucursal_id') ? (int) $request->sucursal_id : null;
 
         if ($request->filled('password')) {
             $user->password = bcrypt($request->password);

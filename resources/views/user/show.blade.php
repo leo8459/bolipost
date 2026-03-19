@@ -32,6 +32,18 @@
                             <strong>Email:</strong>
                             {{ $user->email }}
                         </div>
+                        <div class="form-group">
+                            <strong>Regional:</strong>
+                            {{ $user->ciudad }}
+                        </div>
+                        <div class="form-group">
+                            <strong>Sucursal:</strong>
+                            @if ($user->sucursal)
+                                Sucursal {{ $user->sucursal->codigoSucursal }} - Punto {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}
+                            @else
+                                Sin sucursal
+                            @endif
+                        </div>
 
                     </div>
                 </div>

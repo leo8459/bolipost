@@ -922,6 +922,11 @@ return [
                     'icon' => 'fas fa-window-restore',
                 ],
                 [
+                    'text' => 'Sucursales',
+                    'url' => 'sucursales',
+                    'icon' => 'fas fa-building',
+                ],
+                [
                     'text' => 'Rendimiento',
                     'url' => '/pulse',
 

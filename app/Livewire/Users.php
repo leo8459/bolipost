@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Empresa;
+use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -25,6 +26,7 @@ class Users extends Component
     public $ciudad = '';
     public $ci = '';
     public $empresa_id = '';
+    public $sucursal_id = '';
     public $roleIds = [];
 
     public $newPassword = '';
@@ -62,6 +64,7 @@ class Users extends Component
         $this->ciudad = (string) $user->ciudad;
         $this->ci = (string) $user->ci;
         $this->empresa_id = $user->empresa_id ? (string) $user->empresa_id : '';
+        $this->sucursal_id = $user->sucursal_id ? (string) $user->sucursal_id : '';
         $this->roleIds = $user->roles()->pluck('roles.id')->map(fn ($id) => (string) $id)->all();
 
         $this->resetValidation();
@@ -83,6 +86,7 @@ class Users extends Component
             // If CI is left empty on edit, keep existing value.
             $user->ci = $ciValue !== '' ? $ciValue : $user->ci;
             $user->empresa_id = $this->empresa_id !== '' ? (int) $this->empresa_id : null;
+            $user->sucursal_id = $this->sucursal_id !== '' ? (int) $this->sucursal_id : null;
 
             if (trim($this->password) !== '') {
                 $user->password = Hash::make($this->password);
@@ -105,6 +109,7 @@ class Users extends Component
             $user->ciudad = trim($this->ciudad);
             $user->ci = $ciValue !== '' ? $ciValue : null;
             $user->empresa_id = $this->empresa_id !== '' ? (int) $this->empresa_id : null;
+            $user->sucursal_id = $this->sucursal_id !== '' ? (int) $this->sucursal_id : null;
             $user->save();
             $user->syncRoles($this->resolveRoleNames());
 
@@ -203,6 +208,7 @@ class Users extends Component
             'ciudad' => ['required', 'string', 'max:255'],
             'ci' => ['nullable', 'string', 'max:255'],
             'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
+            'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],
         ];
@@ -218,6 +224,7 @@ class Users extends Component
             'ciudad' => ['required', 'string', 'max:255'],
             'ci' => ['nullable', 'string', 'max:255'],
             'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
+            'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],
         ];
@@ -247,6 +254,7 @@ class Users extends Component
         $this->ciudad = '';
         $this->ci = '';
         $this->empresa_id = '';
+        $this->sucursal_id = '';
         $this->roleIds = [];
         $this->resetValidation();
     }
@@ -265,7 +273,7 @@ class Users extends Component
         $q = trim((string) $this->searchQuery);
 
         $users = User::withTrashed()
-            ->with(['empresa', 'roles'])
+            ->with(['empresa', 'sucursal', 'roles'])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($inner) use ($q) {
                     $inner->where('name', 'like', '%'.$q.'%')
@@ -276,6 +284,11 @@ class Users extends Component
                             $empresaQuery->where('nombre', 'like', '%'.$q.'%')
                                 ->orWhere('sigla', 'like', '%'.$q.'%')
                                 ->orWhere('codigo_cliente', 'like', '%'.$q.'%');
+                        })
+                        ->orWhereHas('sucursal', function ($sucursalQuery) use ($q) {
+                            $sucursalQuery->where('municipio', 'like', '%'.$q.'%')
+                                ->orWhere('departamento', 'like', '%'.$q.'%')
+                                ->orWhere('telefono', 'like', '%'.$q.'%');
                         });
                 });
             })
@@ -286,6 +299,7 @@ class Users extends Component
             'users' => $users,
             'roles' => Role::query()->orderBy('name')->get(),
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
+            'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
             'regionales' => ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'],
         ]);
     }
