@@ -1239,15 +1239,16 @@ class PaquetesOrdi extends Component
         if ($ciudad === '') {
             $this->selectAll = false;
             $this->selectedPaquetes = [];
+            $this->resetPage();
             return;
         }
 
         $this->selectedPaquetes = $this->basePaquetesQuery()
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$ciudad])
             ->pluck('id')
             ->map(fn ($id) => (string) $id)
             ->all();
 
+        $this->resetPage();
         $this->updatedSelectedPaquetes();
     }
 
@@ -1264,6 +1265,24 @@ class PaquetesOrdi extends Component
         } else {
             $estadoModoId = $this->getClasificacionEstadoId();
         }
+        if ($this->isClasificacion) {
+            if (!$estadoModoId) {
+                return [];
+            }
+            return PaqueteOrdi::query()
+                ->where('fk_estado', $estadoModoId)
+                ->whereNotNull('ciudad')
+                ->select('ciudad')
+                ->distinct()
+                ->orderBy('ciudad')
+                ->pluck('ciudad')
+                ->map(fn ($ciudad) => $this->upper($ciudad))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
+
         $userCity = $this->upper((string) optional(auth()->user())->ciudad);
 
         if (!$estadoModoId || $userCity === '') {
@@ -1316,6 +1335,9 @@ class PaquetesOrdi extends Component
             })
             ->when(!$estadoModoId, function ($query) {
                 $query->whereRaw('1 = 0');
+            })
+            ->when($this->isClasificacion && $this->selectedCiudadMarcado !== '', function ($query) {
+                $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$this->selectedCiudadMarcado]);
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
