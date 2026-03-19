@@ -139,6 +139,30 @@
             @enderror
         </div>
 
+        {{-- Sucursal --}}
+        <div class="form-group mb-3">
+            <label for="sucursal_id">Sucursal de facturacion (opcional)</label>
+            <select
+                id="sucursal_id"
+                name="sucursal_id"
+                class="form-control @error('sucursal_id') is-invalid @enderror"
+            >
+                <option value="">Sin sucursal</option>
+                @foreach(($sucursales ?? collect()) as $sucursal)
+                    <option
+                        value="{{ $sucursal->id }}"
+                        {{ (string) old('sucursal_id', $user->sucursal_id ?? '') === (string) $sucursal->id ? 'selected' : '' }}
+                    >
+                        Sucursal {{ $sucursal->codigoSucursal }} - Punto {{ $sucursal->puntoVenta }} - {{ $sucursal->municipio }}
+                    </option>
+                @endforeach
+            </select>
+            @error('sucursal_id')
+                <div class="invalid-feedback">{{ $message }}</div>
+            @enderror
+            <small class="text-muted">Este campo es independiente de la regional/ciudad.</small>
+        </div>
+
         {{-- Roles --}}
         <h2 class="h5 mt-4">Listado de Roles</h2>
 

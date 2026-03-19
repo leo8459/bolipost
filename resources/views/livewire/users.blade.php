@@ -101,6 +101,12 @@
             background: #fafafa;
         }
 
+        .users-modal-footer {
+            position: sticky;
+            bottom: 0;
+            z-index: 2;
+        }
+
         .users-muted {
             color: var(--muted);
         }
@@ -119,7 +125,7 @@
                         wire:model="search"
                         wire:keydown.enter="searchUsers"
                         class="form-control users-search"
-                        placeholder="Buscar por nombre, alias, email, CI o empresa"
+                        placeholder="Buscar por nombre, alias, email, CI, empresa o sucursal"
                         style="min-width: 260px;"
                     >
                     <button wire:click="searchUsers" class="btn btn-outline-light2" type="button">Buscar</button>
@@ -161,6 +167,7 @@
                                 <th>Alias</th>
                                 <th>Email</th>
                                 <th>Regional</th>
+                                <th>Sucursal</th>
                                 <th>Empresa</th>
                                 <th>CI</th>
                                 <th>Estado</th>
@@ -176,6 +183,13 @@
                                     <td><span class="badge badge-primary">{{ $user->alias ?? '-' }}</span></td>
                                     <td>{{ $user->email }}</td>
                                     <td>{{ $user->ciudad }}</td>
+                                    <td>
+                                        @if ($user->sucursal)
+                                            Suc. {{ $user->sucursal->codigoSucursal }} / PV {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}
+                                        @else
+                                            <span class="users-muted">Sin sucursal</span>
+                                        @endif
+                                    </td>
                                     <td>
                                         @if ($user->empresa)
                                             {{ $user->empresa->codigo_cliente }} - {{ $user->empresa->nombre }} ({{ $user->empresa->sigla }})
@@ -246,7 +260,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-4 users-muted">No se encontraron usuarios.</td>
+                                    <td colspan="11" class="text-center py-4 users-muted">No se encontraron usuarios.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -343,6 +357,21 @@
                                     @error('empresa_id') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Sucursal de facturacion (opcional)</label>
+                                    <select wire:model.defer="sucursal_id" class="form-control">
+                                        <option value="">Sin sucursal</option>
+                                        @foreach($sucursales as $sucursal)
+                                            <option value="{{ $sucursal->id }}">
+                                                Sucursal {{ $sucursal->codigoSucursal }} - Punto {{ $sucursal->puntoVenta }} - {{ $sucursal->municipio }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <small class="text-muted d-block">La regional sigue usando el campo ciudad y no se modifica.</small>
+                                    @error('sucursal_id') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
                         </div>
 
                         <div class="form-group mb-0">
@@ -367,7 +396,7 @@
                             @error('roleIds.*') <small class="text-danger d-block">{{ $message }}</small> @enderror
                         </div>
                     </div>
-                    <div class="modal-footer">
+                    <div class="modal-footer users-modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-primary">{{ $editingId ? 'Guardar cambios' : 'Crear usuario' }}</button>
                     </div>

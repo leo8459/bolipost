@@ -1,7 +1,7 @@
 @extends('adminlte::page')
-@section('title', 'Servicios')
+@section('title', 'Sucursales')
 @section('template_title')
-    Servicios
+    Sucursales
 @endsection
 
 @section('content')
@@ -11,9 +11,9 @@
                 <div class="card">
                     <div class="card-header">
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-                            <span id="card_title">Administracion de Servicios</span>
-                            @aclcan('create', null, 'servicios')
-                                <a href="{{ route('servicios.create') }}" class="btn btn-primary btn-sm">
+                            <span id="card_title">Administracion de Sucursales</span>
+                            @aclcan('create', null, 'sucursales')
+                                <a href="{{ route('sucursales.create') }}" class="btn btn-primary btn-sm">
                                     Crear Nuevo
                                 </a>
                             @endaclcan
@@ -33,7 +33,7 @@
                     @endif
 
                     <div class="card-body">
-                        <form method="GET" action="{{ route('servicios.index') }}" class="mb-3">
+                        <form method="GET" action="{{ route('sucursales.index') }}" class="mb-3">
                             <div class="row">
                                 <div class="col-md-10">
                                     <div class="form-group mb-0">
@@ -43,14 +43,14 @@
                                             name="q"
                                             value="{{ $q }}"
                                             class="form-control"
-                                            placeholder="Nombre, codigo, SIN, actividad o descripcion..."
+                                            placeholder="Codigo, punto de venta, municipio, departamento o telefono..."
                                         >
                                     </div>
                                 </div>
                                 <div class="col-md-2 d-flex align-items-end">
                                     <div class="form-group mb-0 w-100 d-flex" style="gap:8px;">
                                         <button type="submit" class="btn btn-outline-primary flex-fill">Filtrar</button>
-                                        <a href="{{ route('servicios.index') }}" class="btn btn-outline-secondary flex-fill">Limpiar</a>
+                                        <a href="{{ route('sucursales.index') }}" class="btn btn-outline-secondary flex-fill">Limpiar</a>
                                     </div>
                                 </div>
                             </div>
@@ -60,41 +60,41 @@
                             <table class="table table-striped table-hover">
                                 <thead class="thead">
                                     <tr>
-                                        <th>Nombre</th>
-                                        <th>Act. Economica</th>
-                                        <th>Codigo SIN</th>
-                                        <th>Codigo</th>
-                                        <th>Unidad Medida</th>
-                                        <th>Descripcion</th>
+                                        <th>Codigo Sucursal</th>
+                                        <th>Punto Venta</th>
+                                        <th>Municipio</th>
+                                        <th>Departamento</th>
+                                        <th>Telefono</th>
+                                        <th>Usuarios</th>
                                         <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse ($servicios as $servicio)
+                                    @forelse ($sucursales as $sucursal)
                                         <tr>
-                                            <td>{{ $servicio->nombre_servicio }}</td>
-                                            <td>{{ $servicio->actividadEconomica ?: '-' }}</td>
-                                            <td>{{ $servicio->codigoSin ?: '-' }}</td>
-                                            <td>{{ $servicio->codigo ?: '-' }}</td>
-                                            <td>{{ $servicio->unidadMedida ?? '-' }}</td>
-                                            <td>{{ $servicio->descripcion ?: '-' }}</td>
+                                            <td>{{ $sucursal->codigoSucursal }}</td>
+                                            <td>{{ $sucursal->puntoVenta }}</td>
+                                            <td>{{ $sucursal->municipio }}</td>
+                                            <td>{{ $sucursal->departamento ?: '-' }}</td>
+                                            <td>{{ $sucursal->telefono }}</td>
+                                            <td>{{ $sucursal->users_count }}</td>
                                             <td>
                                                 <div class="d-flex" style="gap:8px;">
-                                                    @aclcan('edit', null, 'servicios')
-                                                        <a class="btn btn-sm btn-success" href="{{ route('servicios.edit', $servicio->id) }}" title="Editar">
+                                                    @aclcan('edit', null, 'sucursales')
+                                                        <a class="btn btn-sm btn-success" href="{{ route('sucursales.edit', $sucursal->id) }}" title="Editar">
                                                             <i class="fa fa-fw fa-edit"></i>
                                                         </a>
                                                     @endaclcan
 
-                                                    @aclcan('delete', null, 'servicios')
-                                                        <form action="{{ route('servicios.destroy', $servicio->id) }}" method="POST">
+                                                    @aclcan('delete', null, 'sucursales')
+                                                        <form action="{{ route('sucursales.destroy', $sucursal->id) }}" method="POST">
                                                             @csrf
                                                             @method('DELETE')
                                                             <button
                                                                 type="submit"
                                                                 class="btn btn-danger btn-sm"
                                                                 title="Dar de baja"
-                                                                onclick="return confirm('Seguro que deseas dar de baja este servicio?')"
+                                                                onclick="return confirm('Seguro que deseas dar de baja esta sucursal?')"
                                                             >
                                                                 <i class="fa fa-fw fa-trash"></i>
                                                             </button>
@@ -112,7 +112,7 @@
                             </table>
                         </div>
 
-                        {!! $servicios->links() !!}
+                        {!! $sucursales->links() !!}
                     </div>
                 </div>
             </div>

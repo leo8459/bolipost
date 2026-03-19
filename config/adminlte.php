@@ -383,6 +383,11 @@ return [
                     'url' => 'paquetes-ems',
                     'icon' => 'fas fa-plus-circle',
                 ],
+                [
+                    'text' => 'Nueva Solicitud',
+                    'url' => 'paquetes-ems/solicitudes',
+                    'icon' => 'fas fa-file-signature',
+                ],
             ],
         ],
         [
@@ -920,6 +925,11 @@ return [
                     'text' => 'Ventanillas',
                     'url' => 'ventanillas',
                     'icon' => 'fas fa-window-restore',
+                ],
+                [
+                    'text' => 'Sucursales',
+                    'url' => 'sucursales',
+                    'icon' => 'fas fa-building',
                 ],
                 [
                     'text' => 'Rendimiento',

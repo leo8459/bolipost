@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Estado;
 
 class SolicitudCliente extends Model
 {
@@ -16,14 +17,15 @@ class SolicitudCliente extends Model
         'cliente_id',
         'codigo_solicitud',
         'barcode',
-        'estado',
+        'estado_id',
         'origen',
         'tipo_correspondencia',
         'servicio_especial',
         'contenido',
         'cantidad',
         'peso',
-        'tarifa_estimada',
+        'precio',
+        'pago_destinatario',
         'servicio_extra_id',
         'nombre_remitente',
         'nombre_envia',
@@ -41,7 +43,8 @@ class SolicitudCliente extends Model
 
     protected $casts = [
         'peso' => 'decimal:3',
-        'tarifa_estimada' => 'decimal:2',
+        'precio' => 'decimal:2',
+        'pago_destinatario' => 'boolean',
     ];
 
     public function cliente(): BelongsTo
@@ -67,5 +70,10 @@ class SolicitudCliente extends Model
     public function tarifarioTiktoker(): BelongsTo
     {
         return $this->belongsTo(TarifarioTiktoker::class, 'tarifario_tiktoker_id');
+    }
+
+    public function estadoRegistro(): BelongsTo
+    {
+        return $this->belongsTo(Estado::class, 'estado_id');
     }
 }
