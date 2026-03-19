@@ -75,9 +75,22 @@
             border-bottom-left-radius: 0;
             min-height: 42px;
         }
+        .quick-form-row .peso-cell .form-group {
+            position: relative;
+        }
+        .quick-form-row .peso-cell .peso-cas-toggle {
+            position: relative;
+            z-index: 4;
+        }
         .quick-form-row .peso-cell .peso-cas-panel {
-            margin-top: 8px;
-            min-height: 104px;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            width: min(430px, calc(100vw - 48px));
+            margin-top: 0;
+            min-height: 0;
+            z-index: 30;
+            box-shadow: 0 14px 26px rgba(15, 23, 42, .16);
         }
         .quick-actions {
             margin-top: 4px;
@@ -93,7 +106,11 @@
         }
         @media (max-width: 991.98px) {
             .quick-form-row .peso-cell .peso-cas-panel {
-                min-height: 0;
+                position: static;
+                width: auto;
+                margin-top: 8px;
+                z-index: auto;
+                box-shadow: none;
             }
             .quick-actions {
                 justify-content: flex-start;
@@ -148,7 +165,7 @@
                         $destinoPrefill = old('destino', '');
                         $provinciaPrefill = strtoupper(trim((string) old('provincia', '')));
                     @endphp
-                    <div class="row align-items-end quick-form-row">
+                    <div class="row align-items-start quick-form-row">
                         <div class="col-lg-3 col-md-6">
                             <div class="form-group">
                                 <label>Codigo</label>
