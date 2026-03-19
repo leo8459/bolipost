@@ -213,7 +213,6 @@
                                 </select>
                             </div>
                         </div>
-<<<<<<< HEAD
                         <div class="col-md-2">
                             <div class="form-group mb-0 d-flex gap-2">
                                 @if (($canQuickContractCreate ?? false) || ($canQuickContractSave ?? false))
@@ -226,8 +225,6 @@
                                 @endif
                             </div>
                         </div>
-=======
->>>>>>> 4f17379 (boton de ocultar los detalles de estado de la balanza)
                     </div>
                 </form>
 
