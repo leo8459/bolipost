@@ -47,7 +47,6 @@ class ClienteSolicitudMailTest extends TestCase
             ->post(route('clientes.solicitudes.store'), [
                 'servicio_extra_id' => $servicioExtraId,
                 'origen' => 'LA PAZ',
-                'tipo_correspondencia' => 'Sobre',
                 'destino_id' => $destinoId,
                 'cantidad' => 1,
                 'contenido' => 'Documentos',
@@ -62,6 +61,11 @@ class ClienteSolicitudMailTest extends TestCase
 
         $response->assertRedirect(route('clientes.solicitudes.index'));
         $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('solicitud_clientes', [
+            'cliente_id' => $cliente->id,
+            'barcode' => 'SOL00000001',
+        ]);
 
         Mail::assertSent(SolicitudClienteCreadaMail::class, function (SolicitudClienteCreadaMail $mail) use ($cliente) {
             return $mail->hasTo($cliente->email)

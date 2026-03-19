@@ -1,4 +1,4 @@
-    php artisan migrate --path=/database/migrations/2026_02_18_000001_add_cod_especial_to_paquetes_ems_table.php
+    php artisan migrate --path=/database/migrations/2026_03_19_130000_add_contact_fields_to_clientes_table.php
 
 
 

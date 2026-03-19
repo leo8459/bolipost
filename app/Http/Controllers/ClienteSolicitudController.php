@@ -74,7 +74,6 @@ class ClienteSolicitudController extends Controller
         $data = $request->validate([
             'servicio_extra_id' => ['required', 'integer', 'exists:servicio_extras,id'],
             'origen' => ['required', 'string'],
-            'tipo_correspondencia' => ['nullable', 'string', 'max:255'],
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
             'cantidad' => ['required', 'integer', 'min:1'],
             'contenido' => ['required', 'string'],
@@ -94,7 +93,7 @@ class ClienteSolicitudController extends Controller
             'estado' => self::ESTADO_PENDIENTE,
             'servicio_extra_id' => (int) $data['servicio_extra_id'],
             'origen' => $this->upper($data['origen']),
-            'tipo_correspondencia' => $this->nullableUpper($data['tipo_correspondencia'] ?? null),
+            'tipo_correspondencia' => null,
             'servicio_especial' => null,
             'contenido' => trim((string) $data['contenido']),
             'cantidad' => (int) $data['cantidad'],
@@ -113,8 +112,11 @@ class ClienteSolicitudController extends Controller
             'tarifario_tiktoker_id' => null,
         ]);
 
+        $codigoSolicitud = $this->generateSolicitudCode((int) $solicitud->id);
+
         $solicitud->update([
-            'codigo_solicitud' => $this->generateSolicitudCode((int) $solicitud->id),
+            'codigo_solicitud' => $codigoSolicitud,
+            'barcode' => $codigoSolicitud,
         ]);
 
         $message = 'Solicitud registrada correctamente con codigo ' . $solicitud->codigo_solicitud . '.';

@@ -15,6 +15,7 @@ class SolicitudCliente extends Model
     protected $fillable = [
         'cliente_id',
         'codigo_solicitud',
+        'barcode',
         'estado',
         'origen',
         'tipo_correspondencia',
