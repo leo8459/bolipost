@@ -125,6 +125,7 @@
             pollCommands: [],
             pollGapMs: 120,
             pollEveryMs: 900,
+            noDataTimeoutMs: 8000,
         };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js" defer></script>

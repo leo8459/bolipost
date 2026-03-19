@@ -15,8 +15,10 @@
         booted: false,
         port: null,
         connecting: false,
+        recovering: false,
         pollTimer: null,
-        retryTimer: null,
+        dataWatchdogTimer: null,
+        lastSerialDataAt: 0,
         lifecycleBound: false,
         inputActivationBound: false,
         serialCallbacksBound: false,
@@ -43,6 +45,7 @@
         pollCommands: normalizePollCommands(cfg.pollCommands ?? []),
         pollGapMs: Number(cfg.pollGapMs ?? 120),
         pollEveryMs: Number(cfg.pollEveryMs ?? 900),
+        noDataTimeoutMs: Number(cfg.noDataTimeoutMs ?? 8000),
     };
 
     waitForPesoFieldsAndBoot();
@@ -144,22 +147,6 @@
 
         state.lifecycleBound = true;
 
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                return;
-            }
-
-            if (state.connecting) {
-                return;
-            }
-
-            if (state.port && window.qz?.websocket?.isActive?.()) {
-                return;
-            }
-
-            connectAndRead().catch(() => {});
-        });
-
         window.addEventListener('pagehide', () => {
             releasePortForBackground(true).catch(() => {});
         });
@@ -170,8 +157,8 @@
     }
 
     async function reconnect() {
-        clearRetry();
         stopPolling();
+        stopDataWatchdog();
         await closeCurrentPort();
         await connectAndRead();
     }
@@ -197,16 +184,17 @@
 
             await sendStartCommand(port);
 
+            state.lastSerialDataAt = Date.now();
             markQzOk('QZ conectado');
             markPortOk(`Leyendo ${port}`);
-            clearRetry();
             startPolling();
+            startDataWatchdog();
         } catch (error) {
             markQzError(errorMessage(error, 'Error de conexion'));
             markPortError('Sin puerto');
             stopPolling();
+            stopDataWatchdog();
             await closeCurrentPort();
-            scheduleRetry();
             throw error;
         } finally {
             state.connecting = false;
@@ -303,6 +291,7 @@
         if (typeof qz.websocket.setClosedCallbacks === 'function') {
             qz.websocket.setClosedCallbacks(() => {
                 stopPolling();
+                stopDataWatchdog();
                 state.port = null;
                 markQzPending('QZ desconectado');
                 markPortError('Sin puerto');
@@ -317,7 +306,7 @@
 
         qz.serial.setSerialCallbacks((event) => {
             if (isSerialErrorEvent(event)) {
-                markPortPending(`Balanza conectada (${state.port ?? 'COM'})`);
+                handlePortFailure('Balanza desconectada');
                 return;
             }
 
@@ -325,6 +314,7 @@
             if (!output) {
                 return;
             }
+            state.lastSerialDataAt = Date.now();
 
             const chunks = splitIncomingChunks(output);
 
@@ -433,8 +423,7 @@
             try {
                 await sendPollCommands(state.port, commands);
             } catch (_error) {
-                stopPolling();
-                markPortError('Error de lectura');
+                handlePortFailure('Error de lectura');
             }
         }, serial.pollEveryMs);
     }
@@ -448,9 +437,64 @@
         state.serialBuffer = '';
     }
 
-    async function releasePortForBackground(silent = false) {
-        clearRetry();
+    function startDataWatchdog() {
+        stopDataWatchdog();
+
+        const timeoutMs = Number(serial.noDataTimeoutMs);
+        if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+            return;
+        }
+
+        const tickMs = Math.max(1000, Math.min(2500, Math.floor(timeoutMs / 3)));
+        state.dataWatchdogTimer = setInterval(() => {
+            if (!state.port || state.connecting || state.recovering) {
+                return;
+            }
+
+            const lastDataAt = Number(state.lastSerialDataAt);
+            if (!Number.isFinite(lastDataAt) || lastDataAt <= 0) {
+                return;
+            }
+
+            if (Date.now() - lastDataAt < timeoutMs) {
+                return;
+            }
+
+            handlePortFailure('Sin datos de balanza');
+        }, tickMs);
+    }
+
+    function stopDataWatchdog() {
+        if (!state.dataWatchdogTimer) {
+            return;
+        }
+
+        clearInterval(state.dataWatchdogTimer);
+        state.dataWatchdogTimer = null;
+    }
+
+    function handlePortFailure(message = 'Sin puerto') {
+        if (state.recovering) {
+            return;
+        }
+
+        state.recovering = true;
         stopPolling();
+        stopDataWatchdog();
+        markPortError(message);
+
+        Promise.resolve()
+            .then(async () => {
+                await closeCurrentPort();
+            })
+            .finally(() => {
+                state.recovering = false;
+            });
+    }
+
+    async function releasePortForBackground(silent = false) {
+        stopPolling();
+        stopDataWatchdog();
         await closeCurrentPort();
 
         if (window.qz?.websocket?.isActive?.()) {
@@ -462,31 +506,9 @@
         }
 
         if (!silent) {
-            markQzPending('Pestana inactiva, reconectando al volver');
+            markQzPending('Pestana inactiva');
             markPortPending('Puerto liberado');
         }
-    }
-
-    function scheduleRetry(delayMs = 2500) {
-        if (state.retryTimer || document.hidden || !hasPesoInputs()) {
-            return;
-        }
-
-        state.retryTimer = setTimeout(() => {
-            state.retryTimer = null;
-            connectAndRead().catch(() => {
-                // Se mantiene reintento via scheduleRetry en el catch
-            });
-        }, delayMs);
-    }
-
-    function clearRetry() {
-        if (!state.retryTimer) {
-            return;
-        }
-
-        clearTimeout(state.retryTimer);
-        state.retryTimer = null;
     }
 
     async function closeCurrentPort() {
@@ -510,6 +532,7 @@
             state.port = null;
             state.serialBuffer = '';
             state.serialBufferUpdatedAt = 0;
+            state.lastSerialDataAt = 0;
         }
     }
 
