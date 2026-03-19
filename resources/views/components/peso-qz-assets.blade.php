@@ -1,31 +1,92 @@
 @once
+    @php
+        $pesoQzJsPath = public_path('js/cas-peso-qz.js');
+        $pesoQzJsVersion = is_file($pesoQzJsPath) ? filemtime($pesoQzJsPath) : time();
+    @endphp
+
     <style>
+        input[data-cas-peso-input]{
+            font-weight:700;
+            font-variant-numeric: tabular-nums;
+        }
+        .peso-cas-toggle{
+            color:#1f3d7a;
+            font-size:12px;
+            font-weight:700;
+            text-decoration:none;
+            outline:none;
+        }
+        .peso-cas-toggle:hover{
+            color:#16305f;
+            text-decoration:none;
+        }
+        .peso-cas-toggle:focus{
+            box-shadow:none;
+            text-decoration:none;
+        }
+        .peso-cas-toggle::before{
+            content:"+ ";
+            font-weight:800;
+        }
+        .peso-cas-toggle[aria-expanded="true"]::before{
+            content:"- ";
+        }
+        button[data-cas-clear].btn,
+        button[data-cas-reconnect].btn{
+            border:1px solid #c3d0e5;
+            background:#fff;
+            color:#1e3a8a;
+            font-weight:700;
+            border-radius:10px;
+            transition:all .2s ease;
+        }
+        button[data-cas-clear].btn{
+            padding-left:14px;
+            padding-right:14px;
+            white-space:nowrap;
+        }
+        button[data-cas-clear].btn:hover{
+            border-color:#91a8d4;
+            background:#f8fbff;
+            color:#163a77;
+        }
+        button[data-cas-reconnect].btn:hover{
+            border-color:#91a8d4;
+            background:#f8fbff;
+            color:#163a77;
+        }
+        button[data-cas-clear].btn:focus,
+        button[data-cas-reconnect].btn:focus{
+            box-shadow:0 0 0 .18rem rgba(37,99,235,.18);
+        }
         .peso-cas-panel{
             margin-top:10px;
-            padding:10px 12px;
-            border:1px solid #e5e7eb;
-            border-radius:10px;
-            background:#f8fafc;
+            padding:10px 12px 9px;
+            border:1px solid #dbe5f4;
+            border-radius:12px;
+            background:linear-gradient(145deg,#f8fbff 0%,#f2f7ff 100%);
         }
         .peso-cas-status-line{
             display:flex;
             align-items:center;
-            gap:8px;
+            gap:10px;
             flex-wrap:wrap;
         }
         .peso-cas-frame{
-            margin-top:6px;
+            margin-top:7px;
+            padding-top:7px;
+            border-top:1px dashed #d5dfef;
             font-size:12px;
-            color:#475569;
+            color:#425269;
             word-break:break-word;
         }
         .status-pill{
             border-radius:999px;
             display:inline-block;
-            font-size:11px;
+            font-size:10px;
             font-weight:800;
-            letter-spacing:.03em;
-            padding:3px 10px;
+            letter-spacing:.05em;
+            padding:4px 10px;
         }
         .status-ok{
             color:#166534;
@@ -67,5 +128,5 @@
         };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js" defer></script>
-    <script src="{{ asset('js/cas-peso-qz.js') }}" defer></script>
+    <script src="{{ asset('js/cas-peso-qz.js') }}?v={{ $pesoQzJsVersion }}" defer></script>
 @endonce

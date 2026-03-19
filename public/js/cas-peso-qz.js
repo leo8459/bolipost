@@ -16,6 +16,8 @@
         port: null,
         connecting: false,
         pollTimer: null,
+        retryTimer: null,
+        lifecycleBound: false,
         serialCallbacksBound: false,
         serialBuffer: '',
         serialBufferUpdatedAt: 0,
@@ -74,8 +76,21 @@
         }
 
         state.booted = true;
+        bindLifecycleEvents();
 
         document.addEventListener('click', async (event) => {
+            const togglePanelBtn = event.target.closest('[data-cas-toggle-panel]');
+            if (togglePanelBtn) {
+                toggleStatusPanel(togglePanelBtn);
+                return;
+            }
+
+            const clearBtn = event.target.closest('[data-cas-clear]');
+            if (clearBtn) {
+                clearPesoInput(clearBtn);
+                return;
+            }
+
             const reconnectBtn = event.target.closest('[data-cas-reconnect]');
             if (!reconnectBtn) {
                 return;
@@ -94,7 +109,33 @@
         });
     }
 
+    function bindLifecycleEvents() {
+        if (state.lifecycleBound) {
+            return;
+        }
+
+        state.lifecycleBound = true;
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                releasePortForBackground().catch(() => {});
+                return;
+            }
+
+            reconnect().catch(() => {});
+        });
+
+        window.addEventListener('pagehide', () => {
+            releasePortForBackground(true).catch(() => {});
+        });
+
+        window.addEventListener('beforeunload', () => {
+            releasePortForBackground(true).catch(() => {});
+        });
+    }
+
     async function reconnect() {
+        clearRetry();
         stopPolling();
         await closeCurrentPort();
         await connectAndRead();
@@ -123,12 +164,14 @@
 
             markQzOk('QZ conectado');
             markPortOk(`Leyendo ${port}`);
+            clearRetry();
             startPolling();
         } catch (error) {
             markQzError(errorMessage(error, 'Error de conexion'));
             markPortError('Sin puerto');
             stopPolling();
             await closeCurrentPort();
+            scheduleRetry();
             throw error;
         } finally {
             state.connecting = false;
@@ -368,6 +411,47 @@
         }
 
         state.serialBuffer = '';
+    }
+
+    async function releasePortForBackground(silent = false) {
+        clearRetry();
+        stopPolling();
+        await closeCurrentPort();
+
+        if (window.qz?.websocket?.isActive?.()) {
+            try {
+                await qz.websocket.disconnect();
+            } catch (_error) {
+                // ignore
+            }
+        }
+
+        if (!silent) {
+            markQzPending('Pestana inactiva, reconectando al volver');
+            markPortPending('Puerto liberado');
+        }
+    }
+
+    function scheduleRetry(delayMs = 2500) {
+        if (state.retryTimer || document.hidden || !hasPesoInputs()) {
+            return;
+        }
+
+        state.retryTimer = setTimeout(() => {
+            state.retryTimer = null;
+            connectAndRead().catch(() => {
+                // Se mantiene reintento via scheduleRetry en el catch
+            });
+        }, delayMs);
+    }
+
+    function clearRetry() {
+        if (!state.retryTimer) {
+            return;
+        }
+
+        clearTimeout(state.retryTimer);
+        state.retryTimer = null;
     }
 
     async function closeCurrentPort() {
@@ -645,7 +729,12 @@
     }
 
     function csrfToken() {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        const fromMeta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        if (fromMeta !== '') {
+            return fromMeta;
+        }
+
+        return document.querySelector('input[name="_token"]')?.value ?? '';
     }
 
     function isLikelyBase64(value) {
@@ -666,6 +755,58 @@
         }
 
         return fallback;
+    }
+
+    function clearPesoInput(triggerButton) {
+        if (!triggerButton) {
+            return;
+        }
+
+        const targetId = triggerButton.getAttribute('data-cas-clear-target') ?? '';
+        let input = targetId ? document.getElementById(targetId) : null;
+
+        if (!input) {
+            const inputGroup = triggerButton.closest('.input-group');
+            if (inputGroup) {
+                input = inputGroup.querySelector('input[type="number"]');
+            }
+        }
+
+        if (!input) {
+            return;
+        }
+
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.focus();
+    }
+
+    function toggleStatusPanel(button) {
+        if (!button) {
+            return;
+        }
+
+        const targetId = button.getAttribute('data-cas-target') ?? '';
+        const panel = targetId ? document.getElementById(targetId) : null;
+        if (!panel) {
+            return;
+        }
+
+        const showText = button.getAttribute('data-cas-text-show') ?? 'Mostrar estado de balanza';
+        const hideText = button.getAttribute('data-cas-text-hide') ?? 'Ocultar estado de balanza';
+        const isHidden = panel.classList.contains('d-none');
+
+        if (isHidden) {
+            panel.classList.remove('d-none');
+            button.setAttribute('aria-expanded', 'true');
+            button.textContent = hideText;
+            return;
+        }
+
+        panel.classList.add('d-none');
+        button.setAttribute('aria-expanded', 'false');
+        button.textContent = showText;
     }
 
     function setText(selector, value) {
