@@ -1465,6 +1465,20 @@ class PaquetesOrdi extends Component
 
     private function applyAccessScope(Builder $query): void
     {
+        if ($this->isClasificacion) {
+            $ventanillas = $this->restrictedVentanillaNames();
+            if ($ventanillas !== null) {
+                $query->whereHas('ventanillaRef', function (Builder $ventanillaQuery) use ($ventanillas) {
+                    $ventanillaQuery->where(function (Builder $restrictedQuery) use ($ventanillas) {
+                        foreach ($ventanillas as $ventanilla) {
+                            $restrictedQuery->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', [$ventanilla]);
+                        }
+                    });
+                });
+            }
+            return;
+        }
+
         $userCity = $this->upper((string) optional(auth()->user())->ciudad);
 
         if ($userCity !== '') {
