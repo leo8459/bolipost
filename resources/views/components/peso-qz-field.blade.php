@@ -1,19 +1,36 @@
 @props([
     'model' => 'peso',
+    'name' => null,
+    'value' => null,
     'inputId' => null,
     'label' => 'Peso',
     'required' => false,
     'useScale' => false,
     'showClear' => false,
+    'livewire' => true,
     'live' => false,
+    'statusToggle' => true,
+    'statusCollapsed' => false,
+    'statusToggleShowText' => 'Mostrar estado de balanza',
+    'statusToggleHideText' => 'Ocultar estado de balanza',
     'step' => '0.001',
     'min' => '0',
     'placeholder' => null,
 ])
 
 @php
+    $parsedLivewire = filter_var($livewire, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    $usesLivewire = $parsedLivewire ?? (bool) $livewire;
     $resolvedInputId = $inputId ?: 'peso-' . \Illuminate\Support\Str::slug((string) $model, '-');
+    $resolvedPanelId = $resolvedInputId . '-cas-status-panel';
     $resolvedPlaceholder = $placeholder;
+    $resolvedName = $name ?: ($usesLivewire ? null : $model);
+    $resolvedValue = $value;
+    $parsedStatusToggle = filter_var($statusToggle, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    $usesStatusToggle = $parsedStatusToggle ?? (bool) $statusToggle;
+    $parsedStatusCollapsed = filter_var($statusCollapsed, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    $startsCollapsed = $parsedStatusCollapsed ?? (bool) $statusCollapsed;
+    $panelHiddenAtStart = $usesStatusToggle && $startsCollapsed;
 
     if ($useScale && $resolvedPlaceholder === null) {
         $resolvedPlaceholder = 'Esperando balanza...';
@@ -31,14 +48,21 @@
 @if($useInputGroup)
     <div class="input-group">
 @endif
-
 <input
     type="number"
     id="{{ $resolvedInputId }}"
-    @if($live)
-        wire:model.live.debounce.300ms="{{ $model }}"
-    @else
-        wire:model.defer="{{ $model }}"
+    @if($usesLivewire)
+        @if($live)
+            wire:model.live.debounce.300ms="{{ $model }}"
+        @else
+            wire:model.defer="{{ $model }}"
+        @endif
+    @endif
+    @if(!$usesLivewire && $resolvedName)
+        name="{{ $resolvedName }}"
+    @endif
+    @if(!$usesLivewire && $resolvedValue !== null)
+        value="{{ $resolvedValue }}"
     @endif
     class="form-control"
     step="{{ $step }}"
@@ -51,18 +75,52 @@
 @if($useInputGroup)
         <div class="input-group-append">
             @if($showClear)
-                <button type="button" class="btn btn-outline-azul" wire:click="$set('{{ $model }}', null)">Limpiar peso</button>
+                <button
+                    type="button"
+                    class="btn btn-outline-azul"
+                    data-cas-clear
+                    data-cas-clear-target="{{ $resolvedInputId }}"
+                    @if($usesLivewire)
+                        wire:click="$set('{{ $model }}', null)"
+                    @endif
+                >
+                    Limpiar peso
+                </button>
             @endif
         </div>
     </div>
 @endif
 
-@if($errors->has($model))
-    <small class="text-danger">{{ $errors->first($model) }}</small>
+@php
+    $errorKey = $usesLivewire ? $model : $resolvedName;
+    $errorBag = (isset($errors) && $errors instanceof \Illuminate\Support\ViewErrorBag)
+        ? $errors
+        : new \Illuminate\Support\ViewErrorBag();
+@endphp
+@if($errorKey && $errorBag->has($errorKey))
+    <small class="text-danger">{{ $errorBag->first($errorKey) }}</small>
 @endif
 
 @if($useScale)
-    <div class="peso-cas-panel" wire:ignore>
+    @if($usesStatusToggle)
+        <button
+            type="button"
+            class="btn btn-link peso-cas-toggle px-0 py-1 mt-2"
+            data-cas-toggle-panel
+            data-cas-target="{{ $resolvedPanelId }}"
+            data-cas-text-show="{{ $statusToggleShowText }}"
+            data-cas-text-hide="{{ $statusToggleHideText }}"
+            aria-expanded="{{ $panelHiddenAtStart ? 'false' : 'true' }}"
+        >
+            {{ $panelHiddenAtStart ? $statusToggleShowText : $statusToggleHideText }}
+        </button>
+    @endif
+
+    <div
+        id="{{ $resolvedPanelId }}"
+        class="peso-cas-panel @if($panelHiddenAtStart) d-none @endif"
+        @if($usesLivewire) wire:ignore @endif
+    >
         <div class="peso-cas-status-line">
             <span class="status-pill status-warn" data-cas-qz-pill>PENDIENTE</span>
             <small class="text-muted" data-cas-qz-text>Esperando QZ Tray...</small>

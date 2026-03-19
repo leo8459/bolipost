@@ -55,6 +55,51 @@
         .list-table .table {
             margin-bottom: 0;
         }
+        .quick-form-row .form-group {
+            margin-bottom: 10px;
+        }
+        .quick-form-row .form-group label {
+            color: #0f172a;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        .quick-form-row .peso-cell .form-control {
+            min-height: 42px;
+        }
+        .quick-form-row .peso-cell .input-group .form-control {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+        .quick-form-row .peso-cell .input-group-append .btn {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            min-height: 42px;
+        }
+        .quick-form-row .peso-cell .peso-cas-panel {
+            margin-top: 8px;
+            min-height: 104px;
+        }
+        .quick-actions {
+            margin-top: 4px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .quick-actions .btn {
+            border-radius: 10px;
+            font-weight: 800;
+            padding: 8px 14px;
+        }
+        @media (max-width: 991.98px) {
+            .quick-form-row .peso-cell .peso-cas-panel {
+                min-height: 0;
+            }
+            .quick-actions {
+                justify-content: flex-start;
+                margin-top: 0;
+            }
+        }
     </style>
 
     <div id="registroRapidoAjaxAlert"></div>
@@ -103,26 +148,36 @@
                         $destinoPrefill = old('destino', '');
                         $provinciaPrefill = strtoupper(trim((string) old('provincia', '')));
                     @endphp
-                    <div class="row align-items-end">
-                        <div class="col-md-3">
+                    <div class="row align-items-end quick-form-row">
+                        <div class="col-lg-3 col-md-6">
                             <div class="form-group">
                                 <label>Codigo</label>
                                 <input type="text" name="codigo" id="registroRapidoCodigo" class="form-control" value="{{ old('codigo') }}" placeholder="Ej: C0007A02011BO" required>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-3 col-md-6 peso-cell">
                             <div class="form-group">
-                                <label>Peso</label>
-                                <input type="number" name="peso" id="registroRapidoPeso" class="form-control" value="{{ old('peso') }}" step="0.001" min="0.001" required>
+                                <x-peso-qz-field
+                                    model="peso"
+                                    name="peso"
+                                    input-id="registroRapidoPeso"
+                                    :value="old('peso')"
+                                    min="0.001"
+                                    :required="true"
+                                    :use-scale="true"
+                                    :show-clear="true"
+                                    :livewire="false"
+                                    :status-collapsed="true"
+                                />
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-lg-2 col-md-4">
                             <div class="form-group">
                                 <label>Origen (usuario logueado)</label>
                                 <input type="text" id="registroRapidoOrigen" class="form-control origin-input" value="{{ $origen }}" readonly>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-4">
                             <div class="form-group">
                                 <label>Destino</label>
                                 <select name="destino" id="registroRapidoDestino" class="form-control" required>
@@ -133,7 +188,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-4">
                             <div class="form-group">
                                 <label>Provincia (opcional)</label>
                                 <select name="provincia" id="registroRapidoProvincia" class="form-control">
@@ -141,15 +196,13 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-2">
-                            <div class="form-group mb-0 d-flex gap-2">
-                                @if ($canQuickContractCreate ?? false)
-                                    <button type="button" class="btn btn-outline-primary" id="btnAgregarPrelista">Anadir a prelista</button>
-                                    <button type="button" class="btn btn-primary" id="btnGuardarTodos">Guardar todos</button>
-                                @endif
-                            </div>
-                        </div>
                     </div>
+                    @if ($canQuickContractCreate ?? false)
+                        <div class="quick-actions">
+                            <button type="button" class="btn btn-outline-primary" id="btnAgregarPrelista">Anadir a prelista</button>
+                            <button type="button" class="btn btn-primary" id="btnGuardarTodos">Guardar todos</button>
+                        </div>
+                    @endif
                 </form>
 
                 <div class="list-wrap">

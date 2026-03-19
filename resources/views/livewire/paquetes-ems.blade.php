@@ -1636,9 +1636,14 @@
                     @endif
 
                     <div class="form-group">
-                        <label>Peso</label>
-                        <input type="number" class="form-control" wire:model.defer="contratoPeso" step="0.001" min="0.001">
-                        @error('contratoPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                        <x-peso-qz-field
+                            model="contratoPeso"
+                            input-id="peso-contrato-modal"
+                            min="0.001"
+                            :required="true"
+                            :use-scale="true"
+                            :show-clear="true"
+                        />
                     </div>
 
                     <div class="form-group mb-0">
