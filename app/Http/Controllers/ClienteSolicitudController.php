@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Mail\SolicitudClienteCreadaMail;
 use App\Models\Destino;
+use App\Models\Estado;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
-use App\Models\TarifarioTiktoker;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,7 +16,6 @@ use Illuminate\View\View;
 
 class ClienteSolicitudController extends Controller
 {
-    private const ESTADO_PENDIENTE = 'PENDIENTE';
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
@@ -50,6 +49,7 @@ class ClienteSolicitudController extends Controller
 
         $solicitudes = SolicitudCliente::query()
             ->with([
+                'estadoRegistro:id,nombre_estado',
                 'servicioExtra:id,nombre,descripcion',
                 'destino:id,nombre_destino',
                 'tarifarioTiktoker:id,origen_id,destino_id,servicio_extra_id,peso1,peso2,peso3,peso_extra,tiempo_entrega',
@@ -86,11 +86,19 @@ class ClienteSolicitudController extends Controller
             'direccion_entrega' => ['required', 'string', 'max:255'],
         ]);
 
-        $destino = Destino::query()->findOrFail((int) $data['destino_id']);
+        try {
+            $destino = Destino::query()->findOrFail((int) $data['destino_id']);
+            $estadoSolicitudId = $this->resolveSolicitudEstadoId();
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['estado' => $exception->getMessage()]);
+        }
 
         $solicitud = SolicitudCliente::query()->create([
             'cliente_id' => (int) $cliente->id,
-            'estado' => self::ESTADO_PENDIENTE,
+            'estado_id' => $estadoSolicitudId,
             'servicio_extra_id' => (int) $data['servicio_extra_id'],
             'origen' => $this->upper($data['origen']),
             'tipo_correspondencia' => null,
@@ -98,6 +106,7 @@ class ClienteSolicitudController extends Controller
             'contenido' => trim((string) $data['contenido']),
             'cantidad' => (int) $data['cantidad'],
             'peso' => null,
+            'precio' => null,
             'nombre_remitente' => $this->upper($data['nombre_remitente']),
             'nombre_envia' => null,
             'carnet' => trim((string) $data['carnet']),
@@ -145,6 +154,19 @@ class ClienteSolicitudController extends Controller
     private function generateSolicitudCode(int $id): string
     {
         return 'SOL' . str_pad((string) $id, 8, '0', STR_PAD_LEFT);
+    }
+
+    private function resolveSolicitudEstadoId(): int
+    {
+        $estadoId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
+            ->value('id') ?? 0);
+
+        if ($estadoId <= 0) {
+            throw new \RuntimeException('No existe el estado SOLICITUD en la tabla estados.');
+        }
+
+        return $estadoId;
     }
 
     private function upper(string $value): string

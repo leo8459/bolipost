@@ -101,7 +101,7 @@ class PreregistroController extends Controller
                 'codigo_preregistro_numerico' => $this->extractPreregistroNumber($preregistro->codigo_generado),
                 'ticket_url' => route('preregistros.public.ticket', $preregistro, false),
                 'estado' => $preregistro->estado,
-                'tarifa_estimada' => $preregistro->tarifa_estimada,
+                'precio' => $preregistro->precio,
             ],
         ], 201);
     }
@@ -251,7 +251,7 @@ class PreregistroController extends Controller
                     'validado_at' => now(),
                     'paquete_ems_id' => (int) $paquete->id,
                     'codigo_generado' => $codigo,
-                    'tarifa_estimada' => $precio,
+                    'precio' => $precio,
                 ]);
 
                 return $paquete;
@@ -285,7 +285,7 @@ class PreregistroController extends Controller
             'contenido' => trim((string) $data['contenido']),
             'cantidad' => (int) $data['cantidad'],
             'peso' => round((float) $data['peso'], 3),
-            'tarifa_estimada' => $precio,
+            'precio' => $precio,
             'nombre_remitente' => $this->upper($data['nombre_remitente']),
             'nombre_envia' => $this->nullableUpper($data['nombre_envia'] ?? null),
             'carnet' => trim((string) $data['carnet']),

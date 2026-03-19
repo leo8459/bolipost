@@ -5,8 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\CodigoEmpresa;
 use App\Models\Empresa;
 use App\Models\Estado;
+use App\Models\Origen;
 use App\Models\PaqueteEms;
 use App\Models\Recojo as RecojoContrato;
+use App\Models\Destino;
+use App\Models\ServicioExtra;
+use App\Models\SolicitudCliente;
+use App\Models\TarifarioTiktoker;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -90,6 +96,255 @@ class PaquetesEmsController extends Controller
         ]);
 
         return view('paquetes_ems.create');
+    }
+
+    public function createSolicitud()
+    {
+        $this->authorizeAnyPermission(request(), [
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+            'paquetes-ems.create',
+        ]);
+
+        return view('paquetes_ems.solicitud-create', [
+            'destinos' => Destino::query()->orderBy('nombre_destino')->get(),
+            'servicioExtras' => ServicioExtra::query()
+                ->whereIn('nombre', ['serviciotiktokero', 'serviciotiktokeroventanilla'])
+                ->orderBy('id')
+                ->get(['id', 'nombre', 'descripcion']),
+            'ciudades' => self::CIUDADES_BOLIVIA,
+        ]);
+    }
+
+    public function indexSolicitudes(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+            'paquetes-ems.create',
+        ]);
+
+        $solicitudes = SolicitudCliente::query()
+            ->with([
+                'cliente:id,name,email',
+                'estadoRegistro:id,nombre_estado',
+                'servicioExtra:id,nombre,descripcion',
+                'destino:id,nombre_destino',
+            ])
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('paquetes_ems.solicitudes-index', [
+            'solicitudes' => $solicitudes,
+        ]);
+    }
+
+    public function findSolicitud(Request $request): JsonResponse
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+            'paquetes-ems.create',
+        ]);
+
+        $codigoSolicitud = strtoupper(trim((string) $request->query('codigo_solicitud')));
+
+        if ($codigoSolicitud === '') {
+            return response()->json([
+                'message' => 'Debes ingresar un codigo de solicitud.',
+            ], 422);
+        }
+
+        $solicitud = SolicitudCliente::query()
+            ->whereRaw('trim(upper(codigo_solicitud)) = ?', [$codigoSolicitud])
+            ->first();
+
+        if (!$solicitud) {
+            return response()->json([
+                'message' => 'No se encontro una solicitud con ese codigo.',
+            ], 404);
+        }
+
+        return response()->json([
+            'id' => (int) $solicitud->id,
+            'codigo_solicitud' => $solicitud->codigo_solicitud,
+            'servicio_extra_id' => $solicitud->servicio_extra_id,
+            'origen' => $solicitud->origen,
+            'destino_id' => $solicitud->destino_id,
+            'cantidad' => $solicitud->cantidad,
+            'contenido' => $solicitud->contenido,
+            'nombre_remitente' => $solicitud->nombre_remitente,
+            'carnet' => $solicitud->carnet,
+            'telefono_remitente' => $solicitud->telefono_remitente,
+            'direccion_recojo' => $solicitud->direccion_recojo,
+            'nombre_destinatario' => $solicitud->nombre_destinatario,
+            'telefono_destinatario' => $solicitud->telefono_destinatario,
+            'direccion_entrega' => $solicitud->direccion,
+            'pago_destinatario' => (bool) $solicitud->pago_destinatario,
+        ]);
+    }
+
+    public function quoteSolicitud(Request $request): JsonResponse
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+            'paquetes-ems.create',
+        ]);
+
+        $request->validate([
+            'servicio_extra_id' => ['required', 'integer', 'exists:servicio_extras,id'],
+            'origen' => ['required', 'string'],
+            'destino_id' => ['required', 'integer', 'exists:destino,id'],
+            'peso' => ['required', 'numeric', 'min:0.001'],
+            'pago_destinatario' => ['nullable', 'boolean'],
+        ]);
+
+        try {
+            [$tarifario, $precio] = $this->resolveTarifarioYPrecio(
+                (int) $request->input('servicio_extra_id'),
+                (string) $request->input('origen'),
+                (int) $request->input('destino_id'),
+                (float) $request->input('peso'),
+                (bool) $request->boolean('pago_destinatario')
+            );
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'tarifario_tiktoker_id' => (int) $tarifario->id,
+            'precio' => number_format($precio, 2, '.', ''),
+            'tiempo_entrega' => (int) $tarifario->tiempo_entrega,
+        ]);
+    }
+
+    public function storeSolicitud(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+            'paquetes-ems.create',
+        ]);
+
+        $data = $request->validate([
+            'solicitud_id' => ['nullable', 'integer', 'exists:solicitud_clientes,id'],
+            'servicio_extra_id' => ['required', 'integer', 'exists:servicio_extras,id'],
+            'origen' => ['required', 'string'],
+            'destino_id' => ['required', 'integer', 'exists:destino,id'],
+            'cantidad' => ['required', 'integer', 'min:1'],
+            'peso' => ['required', 'numeric', 'min:0.001'],
+            'pago_destinatario' => ['nullable', 'boolean'],
+            'contenido' => ['required', 'string'],
+            'nombre_remitente' => ['required', 'string', 'max:255'],
+            'carnet' => ['required', 'string', 'max:255'],
+            'telefono_remitente' => ['nullable', 'string', 'max:50'],
+            'nombre_destinatario' => ['required', 'string', 'max:255'],
+            'telefono_destinatario' => ['nullable', 'string', 'max:50'],
+            'direccion_recojo' => ['required', 'string', 'max:255'],
+            'direccion_entrega' => ['required', 'string', 'max:255'],
+        ]);
+
+        try {
+            $destino = Destino::query()->findOrFail((int) $data['destino_id']);
+            [$tarifarioTiktoker, $precio] = $this->resolveTarifarioYPrecio(
+                (int) $data['servicio_extra_id'],
+                (string) $data['origen'],
+                (int) $data['destino_id'],
+                (float) $data['peso'],
+                (bool) ($data['pago_destinatario'] ?? false)
+            );
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['precio' => $exception->getMessage()]);
+        }
+        $estadoSolicitudId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
+            ->value('id') ?? 0);
+
+        if ($estadoSolicitudId <= 0) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['estado' => 'No existe el estado SOLICITUD en la tabla estados.']);
+        }
+
+        $payload = [
+            'estado_id' => $estadoSolicitudId,
+            'servicio_extra_id' => (int) $data['servicio_extra_id'],
+            'origen' => strtoupper(trim((string) $data['origen'])),
+            'tipo_correspondencia' => null,
+            'servicio_especial' => null,
+            'contenido' => trim((string) $data['contenido']),
+            'cantidad' => (int) $data['cantidad'],
+            'peso' => (float) $data['peso'],
+            'precio' => $precio,
+            'pago_destinatario' => (bool) ($data['pago_destinatario'] ?? false),
+            'nombre_remitente' => strtoupper(trim((string) $data['nombre_remitente'])),
+            'nombre_envia' => null,
+            'carnet' => trim((string) $data['carnet']),
+            'telefono_remitente' => $this->nullableTrim($data['telefono_remitente'] ?? null),
+            'nombre_destinatario' => strtoupper(trim((string) $data['nombre_destinatario'])),
+            'telefono_destinatario' => $this->nullableTrim($data['telefono_destinatario'] ?? null),
+            'direccion_recojo' => trim((string) $data['direccion_recojo']),
+            'direccion' => trim((string) $data['direccion_entrega']),
+            'ciudad' => strtoupper((string) $destino->nombre_destino),
+            'servicio_id' => null,
+            'destino_id' => (int) $data['destino_id'],
+            'tarifario_tiktoker_id' => (int) $tarifarioTiktoker->id,
+        ];
+
+        $solicitudId = (int) ($data['solicitud_id'] ?? 0);
+        $solicitud = null;
+
+        if ($solicitudId > 0) {
+            $solicitud = SolicitudCliente::query()->find($solicitudId);
+        }
+
+        if ($solicitud) {
+            $solicitud->update($payload);
+
+            return redirect()
+                ->route('paquetes-ems.solicitudes.ticket', $solicitud);
+        }
+
+        $solicitud = SolicitudCliente::query()->create(array_merge($payload, [
+            'cliente_id' => null,
+        ]));
+
+        $codigoSolicitud = 'SOL' . str_pad((string) $solicitud->id, 8, '0', STR_PAD_LEFT);
+
+        $solicitud->update([
+            'codigo_solicitud' => $codigoSolicitud,
+            'barcode' => $codigoSolicitud,
+        ]);
+
+        return redirect()
+            ->route('paquetes-ems.solicitudes.ticket', $solicitud);
+    }
+
+    public function ticketSolicitud(Request $request, SolicitudCliente $solicitud)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+            'paquetes-ems.create',
+        ]);
+
+        $solicitud->loadMissing([
+            'estadoRegistro:id,nombre_estado',
+            'servicioExtra:id,nombre,descripcion',
+            'destino:id,nombre_destino',
+        ]);
+
+        return view('paquetes_ems.solicitud-ticket', [
+            'solicitud' => $solicitud,
+        ]);
     }
 
     public function almacen()
@@ -484,6 +739,58 @@ class PaquetesEmsController extends Controller
     protected function buildProvinciasPorDestino(): array
     {
         return self::PROVINCIAS_POR_DEPARTAMENTO;
+    }
+
+    private function resolveTarifarioYPrecio(int $servicioExtraId, string $origen, int $destinoId, float $peso, bool $pagoDestinatario = false): array
+    {
+        $origenNombre = strtoupper(trim($origen));
+
+        $origenId = (int) (Origen::query()
+            ->whereRaw('trim(upper(nombre_origen)) = ?', [$origenNombre])
+            ->value('id') ?? 0);
+
+        if ($origenId <= 0) {
+            throw new \RuntimeException('No existe el origen ' . $origenNombre . ' en la tabla origen.');
+        }
+
+        $tarifario = TarifarioTiktoker::query()
+            ->where('origen_id', $origenId)
+            ->where('destino_id', $destinoId)
+            ->where('servicio_extra_id', $servicioExtraId)
+            ->first();
+
+        if (!$tarifario) {
+            throw new \RuntimeException('No existe tarifario tiktoker para el servicio, origen y destino seleccionados.');
+        }
+
+        return [$tarifario, $this->calculatePrecioTiktoker($tarifario, $peso, $pagoDestinatario)];
+    }
+
+    private function calculatePrecioTiktoker(TarifarioTiktoker $tarifario, float $peso, bool $pagoDestinatario = false): float
+    {
+        if ($peso <= 0.500) {
+            $precioBase = (float) $tarifario->peso1;
+        } elseif ($peso <= 2.000) {
+            $precioBase = (float) $tarifario->peso2;
+        } elseif ($peso <= 5.000) {
+            $precioBase = (float) $tarifario->peso3;
+        } else {
+            $bloquesExtra = (int) ceil($peso - 5);
+            $precioBase = (float) $tarifario->peso3 + ($bloquesExtra * (float) $tarifario->peso_extra);
+        }
+
+        if ($pagoDestinatario) {
+            $precioBase += 2.50;
+        }
+
+        return round($precioBase, 2);
+    }
+
+    private function nullableTrim(?string $value): ?string
+    {
+        $text = trim((string) $value);
+
+        return $text === '' ? null : $text;
     }
 
     private function authorizeAnyPermission(Request $request, array $permissions): void

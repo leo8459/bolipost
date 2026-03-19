@@ -163,6 +163,12 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
     Route::get('/paquetes-ems/create', [PaquetesEmsController::class, 'create'])->name('paquetes-ems.create');
+    Route::get('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'indexSolicitudes'])->name('paquetes-ems.solicitudes.index');
+    Route::get('/paquetes-ems/solicitudes/nueva', [PaquetesEmsController::class, 'createSolicitud'])->name('paquetes-ems.solicitudes.create');
+    Route::get('/paquetes-ems/solicitudes/buscar', [PaquetesEmsController::class, 'findSolicitud'])->name('paquetes-ems.solicitudes.find');
+    Route::get('/paquetes-ems/solicitudes/cotizar', [PaquetesEmsController::class, 'quoteSolicitud'])->name('paquetes-ems.solicitudes.quote');
+    Route::get('/paquetes-ems/solicitudes/{solicitud}/ticket', [PaquetesEmsController::class, 'ticketSolicitud'])->name('paquetes-ems.solicitudes.ticket');
+    Route::post('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'storeSolicitud'])->name('paquetes-ems.solicitudes.store');
     Route::get('/paquetes-ems/almacen', [PaquetesEmsController::class, 'almacen'])->name('paquetes-ems.almacen');
     Route::get('/paquetes-ems/almacen-admisiones', [PaquetesEmsController::class, 'almacenAdmisiones'])->name('paquetes-ems.almacen-admisiones');
     Route::get('/paquetes-ems/ventanilla', [PaquetesEmsController::class, 'ventanilla'])->name('paquetes-ems.ventanilla');

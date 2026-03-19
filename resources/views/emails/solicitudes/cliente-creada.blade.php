@@ -73,7 +73,7 @@
                     </tr>
                     <tr>
                         <td style="padding:8px 0;color:#526075;">Estado inicial</td>
-                        <td style="padding:8px 0;color:#172033;font-weight:600;">{{ $solicitud->estado }}</td>
+                        <td style="padding:8px 0;color:#172033;font-weight:600;">{{ optional($solicitud->estadoRegistro)->nombre_estado ?: '-' }}</td>
                     </tr>
                 </table>
             </div>

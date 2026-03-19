@@ -383,6 +383,11 @@ return [
                     'url' => 'paquetes-ems',
                     'icon' => 'fas fa-plus-circle',
                 ],
+                [
+                    'text' => 'Nueva Solicitud',
+                    'url' => 'paquetes-ems/solicitudes',
+                    'icon' => 'fas fa-file-signature',
+                ],
             ],
         ],
         [

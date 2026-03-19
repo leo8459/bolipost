@@ -27,12 +27,12 @@ Route::middleware(['cliente.guard', 'auth:cliente'])->group(function () {
     Route::get('clientes/completar-perfil', [ClienteAuthController::class, 'showCompleteProfile'])->name('clientes.profile.complete');
     Route::post('clientes/completar-perfil', [ClienteAuthController::class, 'completeProfile'])->name('clientes.profile.complete.store');
 
-    Route::middleware('cliente.profile.complete')->group(function () {
-        Route::get('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])->name('clientes.solicitudes.index');
-        Route::get('clientes/solicitudes/nueva', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])->name('clientes.solicitudes.create');
-        Route::post('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'store'])->name('clientes.solicitudes.store');
-        Route::get('clientes/mis-solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'history'])->name('clientes.solicitudes.history');
-    });
+        Route::middleware('cliente.profile.complete')->group(function () {
+            Route::get('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])->name('clientes.solicitudes.index');
+            Route::get('clientes/solicitudes/nueva', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])->name('clientes.solicitudes.create');
+            Route::post('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'store'])->name('clientes.solicitudes.store');
+            Route::get('clientes/mis-solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'history'])->name('clientes.solicitudes.history');
+        });
 });
 
 Route::middleware('guest')->group(function () {

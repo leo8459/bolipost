@@ -52,7 +52,7 @@
                                 <th>Remitente</th>
                                 <th>Destinatario</th>
                                 <th>Peso</th>
-                                <th>Tarifa estimada</th>
+                                <th>Precio</th>
                                 <th>Creado</th>
                                 <th>Codigo EMS</th>
                                 <th></th>
@@ -70,7 +70,7 @@
                                     <td>{{ $preregistro->nombre_remitente }}</td>
                                     <td>{{ $preregistro->nombre_destinatario }}</td>
                                     <td>{{ number_format((float) $preregistro->peso, 3) }}</td>
-                                    <td>{{ $preregistro->tarifa_estimada !== null ? number_format((float) $preregistro->tarifa_estimada, 2) : '-' }}</td>
+                                    <td>{{ $preregistro->precio !== null ? number_format((float) $preregistro->precio, 2) : '-' }}</td>
                                     <td>{{ optional($preregistro->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>{{ $preregistro->codigo_generado ?: '-' }}</td>
                                     <td class="text-nowrap">
