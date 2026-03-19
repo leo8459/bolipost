@@ -13,5 +13,10 @@ class Servicio extends Model
 
     protected $fillable = [
         'nombre_servicio',
+        'actividadEconomica',
+        'codigoSin',
+        'codigo',
+        'descripcion',
+        'unidadMedida',
     ];
 }
