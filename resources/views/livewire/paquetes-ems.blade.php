@@ -433,6 +433,9 @@
                             <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
                                 Anadir peso contrato
                             </button>
+                            <button class="btn btn-outline-light2" type="button" wire:click="openTiktokerPesoModal">
+                                Asignar peso a TIKTOKEROS
+                            </button>
                             @endif
                             @if ($canEmsSendVentanilla)
                             <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
@@ -731,8 +734,8 @@
                     </div>
                     @if ($this->canSelect)
                         @php
-                            $seleccionadosTotal = ($this->isAlmacenEms || $this->isTransitoEms)
-                                ? (count($selectedPaquetes) + count($selectedContratos))
+                            $seleccionadosTotal = ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
+                                ? (count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes))
                                 : count($selectedPaquetes);
                         @endphp
                         <div class="muted small">
@@ -761,9 +764,9 @@
                                     <th>Cod. especial</th>
                                     <th>Traspaso</th>
                                 </tr>
-                            @elseif ($this->isAlmacenEms || $this->isTransitoEms)
+                            @elseif ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
                                 <tr>
-                                    @if ($this->isAlmacenEms || $this->isTransitoEms)
+                                    @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
                                         <th></th>
                                     @endif
                                     <th>Codigo</th>
@@ -826,15 +829,17 @@
                                         </td>
                                     </tr>
                                 @endforelse
-                            @elseif ($this->isAlmacenEms || $this->isTransitoEms)
+                            @elseif ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
                                 @forelse ($paquetes as $row)
                                     <tr>
-                                        @if ($this->isAlmacenEms || $this->isTransitoEms)
+                                        @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
                                             <td>
                                                 @if (($row->record_type ?? '') === 'EMS')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes">
-                                                @else
+                                                @elseif (($row->record_type ?? '') === 'CONTRATO')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedContratos">
+                                                @else
+                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedSolicitudes">
                                                 @endif
                                             </td>
                                         @endif
@@ -883,18 +888,27 @@
                                                     @endif
                                                 @endif
                                             @else
-                                                <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
-                                                   target="_blank"
-                                                   class="btn btn-sm btn-outline-azul"
-                                                   title="Reimprimir rotulo">
-                                                    <i class="fas fa-print"></i>
-                                                </a>
+                                                @if (($row->record_type ?? '') === 'CONTRATO')
+                                                    <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
+                                                       target="_blank"
+                                                       class="btn btn-sm btn-outline-azul"
+                                                       title="Reimprimir rotulo">
+                                                        <i class="fas fa-print"></i>
+                                                    </a>
+                                                @else
+                                                    <a href="{{ route('paquetes-ems.solicitudes.ticket', $row->record_id) }}"
+                                                       target="_blank"
+                                                       class="btn btn-sm btn-outline-azul"
+                                                       title="Imprimir ticket de solicitud">
+                                                        <i class="fas fa-print"></i>
+                                                    </a>
+                                                @endif
                                             @endif
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms) ? 17 : 16 }}" class="text-center py-5">
+                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms) ? 17 : 16 }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -1664,6 +1678,70 @@
         </div>
     </div>
 
+    <div class="modal fade" id="tiktokerPesoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Asignar peso a TIKTOKEROS</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Codigo de solicitud</label>
+                        <div class="d-flex gap-2">
+                            <input
+                                type="text"
+                                class="form-control"
+                                placeholder="Pega el codigo SOL y presiona Enter"
+                                wire:model.defer="tiktokerCodigoPeso"
+                                wire:keydown.enter.prevent="buscarSolicitudTiktokerParaPeso"
+                            >
+                            @if ($canEmsWeighContract)
+                            <button type="button" class="btn btn-outline-azul" wire:click="buscarSolicitudTiktokerParaPeso">
+                                Detectar
+                            </button>
+                            @endif
+                        </div>
+                        @error('tiktokerCodigoPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    @if (!empty($tiktokerPesoResumen))
+                        <div class="section-block mb-3">
+                            <div class="section-title">Solicitud detectada</div>
+                            <div><strong>Codigo:</strong> {{ $tiktokerPesoResumen['codigo'] ?? '-' }}</div>
+                            <div><strong>Origen:</strong> {{ $tiktokerPesoResumen['origen'] ?? '-' }}</div>
+                            <div><strong>Destino:</strong> {{ $tiktokerPesoResumen['destino'] ?? '-' }}</div>
+                            <div><strong>Remitente:</strong> {{ $tiktokerPesoResumen['remitente'] ?? '-' }}</div>
+                            <div><strong>Destinatario:</strong> {{ $tiktokerPesoResumen['destinatario'] ?? '-' }}</div>
+                            <div><strong>Precio actual:</strong> {{ ($tiktokerPesoResumen['precio'] ?? null) !== null ? 'Bs ' . $tiktokerPesoResumen['precio'] : '-' }}</div>
+                        </div>
+                    @endif
+
+                    <div class="form-group mb-0">
+                        <x-peso-qz-field
+                            model="tiktokerPeso"
+                            input-id="peso-tiktoker-modal"
+                            min="0.001"
+                            :required="true"
+                            :use-scale="true"
+                            :show-clear="true"
+                        />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsWeighContract)
+                    <button type="button" class="btn btn-primary" wire:click="guardarPesoSolicitudTiktoker">
+                        Guardar peso
+                    </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="entregaVentanillaModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
@@ -1796,6 +1874,8 @@
             closeContratoRegistrarModal: '#contratoRegistrarModal',
             openContratoPesoModal: '#contratoPesoModal',
             closeContratoPesoModal: '#contratoPesoModal',
+            openTiktokerPesoModal: '#tiktokerPesoModal',
+            closeTiktokerPesoModal: '#tiktokerPesoModal',
             openEntregaVentanillaModal: '#entregaVentanillaModal',
             closeEntregaVentanillaModal: '#entregaVentanillaModal',
             openRecibirRegionalModal: '#recibirRegionalModal',

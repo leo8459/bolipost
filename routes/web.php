@@ -174,6 +174,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/paquetes-ems/solicitudes/cotizar', [PaquetesEmsController::class, 'quoteSolicitud'])->name('paquetes-ems.solicitudes.quote');
     Route::get('/paquetes-ems/solicitudes/{solicitud}/ticket', [PaquetesEmsController::class, 'ticketSolicitud'])->name('paquetes-ems.solicitudes.ticket');
     Route::post('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'storeSolicitud'])->name('paquetes-ems.solicitudes.store');
+    Route::post('/paquetes-ems/solicitudes/mandar-almacen', [PaquetesEmsController::class, 'sendSolicitudesToAlmacen'])->name('paquetes-ems.solicitudes.send-almacen');
     Route::get('/paquetes-ems/almacen', [PaquetesEmsController::class, 'almacen'])->name('paquetes-ems.almacen');
     Route::get('/paquetes-ems/almacen-admisiones', [PaquetesEmsController::class, 'almacenAdmisiones'])->name('paquetes-ems.almacen-admisiones');
     Route::get('/paquetes-ems/ventanilla', [PaquetesEmsController::class, 'ventanilla'])->name('paquetes-ems.ventanilla');

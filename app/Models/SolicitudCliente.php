@@ -17,6 +17,7 @@ class SolicitudCliente extends Model
         'cliente_id',
         'codigo_solicitud',
         'barcode',
+        'cod_especial',
         'estado_id',
         'origen',
         'tipo_correspondencia',

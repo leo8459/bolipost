@@ -124,6 +124,10 @@ class PaquetesEmsController extends Controller
             'paquetes-ems.create',
         ]);
 
+        $estadoSolicitudId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
+            ->value('id') ?? 0);
+
         $solicitudes = SolicitudCliente::query()
             ->with([
                 'cliente:id,name,email',
@@ -131,6 +135,11 @@ class PaquetesEmsController extends Controller
                 'servicioExtra:id,nombre,descripcion',
                 'destino:id,nombre_destino',
             ])
+            ->when($estadoSolicitudId > 0, function ($query) use ($estadoSolicitudId) {
+                $query->where('estado_id', $estadoSolicitudId);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
             ->latest()
             ->paginate(20)
             ->withQueryString();
@@ -138,6 +147,60 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.solicitudes-index', [
             'solicitudes' => $solicitudes,
         ]);
+    }
+
+    public function sendSolicitudesToAlmacen(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+            'paquetes-ems.create',
+        ]);
+
+        $data = $request->validate([
+            'solicitud_ids' => ['required', 'array', 'min:1'],
+            'solicitud_ids.*' => ['integer', 'exists:solicitud_clientes,id'],
+        ], [], [
+            'solicitud_ids' => 'solicitudes',
+            'solicitud_ids.*' => 'solicitud',
+        ]);
+
+        $estadoSolicitudId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
+            ->value('id') ?? 0);
+
+        $estadoAlmacenId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ALMACEN'])
+            ->value('id') ?? 0);
+
+        if ($estadoSolicitudId <= 0 || $estadoAlmacenId <= 0) {
+            return redirect()
+                ->route('paquetes-ems.solicitudes.index')
+                ->with('error', 'No existen los estados SOLICITUD o ALMACEN en la tabla estados.');
+        }
+
+        $ids = collect($data['solicitud_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $updated = SolicitudCliente::query()
+            ->whereIn('id', $ids)
+            ->where('estado_id', $estadoSolicitudId)
+            ->update([
+                'estado_id' => $estadoAlmacenId,
+                'updated_at' => now(),
+            ]);
+
+        return redirect()
+            ->route('paquetes-ems.solicitudes.index')
+            ->with(
+                $updated > 0 ? 'success' : 'error',
+                $updated > 0
+                    ? $updated . ' solicitud(es) enviada(s) a ALMACEN correctamente.'
+                    : 'No se actualizo ninguna solicitud. Verifica que sigan en estado SOLICITUD.'
+            );
     }
 
     public function findSolicitud(Request $request): JsonResponse
