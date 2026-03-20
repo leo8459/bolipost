@@ -462,6 +462,10 @@ class AclPermissionRegistry
             'feature.paquetes-ems.index.create',
             'feature.paquetes-ems.almacen.create',
         ],
+        'sacas.index' => [
+            'sacas.index',
+            'feature.despachos.abiertos.assign',
+        ],
         'paquetes-ems.boleta' => [
             'paquetes-ems.boleta',
             'feature.paquetes-ems.index.print',

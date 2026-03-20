@@ -207,7 +207,7 @@
                                                 <i class="fas fa-paper-plane"></i>
                                             </button>
                                         @endif
-                                        @if (optional($despacho->estado)->nombre_estado !== 'CLAUSURA' && $canDespachoAssign && $canSacasWindow)
+                                        @if (optional($despacho->estado)->nombre_estado !== 'CLAUSURA' && $canDespachoAssign)
                                             <a href="{{ route('sacas.index', ['despacho_id' => $despacho->id], false) }}"
                                                 class="btn btn-sm btn-success"
                                                 title="Asignar sacas">

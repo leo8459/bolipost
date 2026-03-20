@@ -425,7 +425,6 @@ class Despacho extends Component
             'canDespachoAssign' => $this->userCan($this->featurePermission('assign')),
             'canDespachoConfirm' => $this->userCan($this->featurePermission('confirm')),
             'canDespachoRestore' => $this->userCan($this->featurePermission('restore')),
-            'canSacasWindow' => $this->userCan(self::SACAS_ROUTE_PERMISSION),
         ]);
     }
 
