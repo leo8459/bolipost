@@ -40,6 +40,9 @@ class SolicitudCliente extends Model
         'servicio_id',
         'destino_id',
         'tarifario_tiktoker_id',
+        'recepcionado_por',
+        'observacion',
+        'imagen',
     ];
 
     protected $casts = [

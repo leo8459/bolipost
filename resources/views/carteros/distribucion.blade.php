@@ -108,6 +108,7 @@
                                 <div class="selection-type-card"><strong>CERTI</strong><span>0</span></div>
                                 <div class="selection-type-card"><strong>ORDI</strong><span>0</span></div>
                                 <div class="selection-type-card"><strong>CONTRATO</strong><span>0</span></div>
+                                <div class="selection-type-card"><strong>SOLICITUD</strong><span>0</span></div>
                             </div>
 
                             <div class="selection-actions mb-3">
@@ -243,12 +244,12 @@
 
             function renderSelectedSummary() {
                 const items = Object.values(selectedItems);
-                const counts = { EMS: 0, CERTI: 0, ORDI: 0, CONTRATO: 0 };
+                const counts = { EMS: 0, CERTI: 0, ORDI: 0, CONTRATO: 0, SOLICITUD: 0 };
                 items.forEach(function(item) { if (counts[item.tipo_paquete] !== undefined) counts[item.tipo_paquete] += 1; });
                 selectedCountBadge.textContent = String(items.length);
                 selectionTarget.textContent = 'Destino actual: ' + getAssigneeName();
                 selectedSummary.textContent = items.length ? items.length + ' paquete(s) listos para asignar.' : 'No hay paquetes seleccionados.';
-                selectedTypeSummary.innerHTML = ['EMS', 'CERTI', 'ORDI', 'CONTRATO'].map(function(type) {
+                selectedTypeSummary.innerHTML = ['EMS', 'CERTI', 'ORDI', 'CONTRATO', 'SOLICITUD'].map(function(type) {
                     return '<div class="selection-type-card"><strong>' + type + '</strong><span>' + counts[type] + '</span></div>';
                 }).join('');
             }

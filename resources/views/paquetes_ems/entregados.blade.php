@@ -21,7 +21,7 @@
                 <form method="GET" action="{{ route('paquetes-ems.entregados') }}" class="row mb-3">
                     <div class="col-md-10 mb-2 mb-md-0">
                         <input type="text" name="q" value="{{ $search }}" class="form-control"
-                            placeholder="Buscar EMS/Contrato por codigo, destinatario, telefono, ciudad, recibido por o descripcion...">
+                            placeholder="Buscar EMS/Contrato/Solicitud por codigo, destinatario, telefono, ciudad, recibido por o descripcion...">
                     </div>
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-primary btn-block">Buscar</button>

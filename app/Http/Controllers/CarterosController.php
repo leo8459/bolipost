@@ -9,6 +9,7 @@ use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo as RecojoContrato;
+use App\Models\SolicitudCliente;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -82,7 +83,7 @@ class CarterosController extends Controller
     public function entregaForm(Request $request)
     {
         $data = $request->validate([
-            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
+            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
             'id' => ['required', 'integer'],
         ]);
 
@@ -187,7 +188,7 @@ class CarterosController extends Controller
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
-            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
         ]);
 
         if ($validated['assignment_mode'] === 'auto') {
@@ -259,19 +260,29 @@ class CarterosController extends Controller
             ->unique()
             ->values()
             ->all();
+        $solicitudIds = collect($validated['items'])
+            ->where('tipo_paquete', 'SOLICITUD')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
         $updatedEms = 0;
         $updatedCerti = 0;
         $updatedOrdi = 0;
         $updatedContrato = 0;
+        $updatedSolicitud = 0;
         DB::transaction(function () use (
             &$updatedEms,
             &$updatedCerti,
             &$updatedOrdi,
             &$updatedContrato,
+            &$updatedSolicitud,
             $emsIds,
             $certiIds,
             $ordiIds,
             $contratoIds,
+            $solicitudIds,
             $estadoAsignadoId,
             $assigneeUserId,
             $eventoId
@@ -287,6 +298,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAsignadoId;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
@@ -304,6 +316,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAsignadoId;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
@@ -321,6 +334,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAsignadoId;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
@@ -338,11 +352,30 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAsignadoId;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
                 $this->insertEventosPorTipoDesdeIds('CONTRATO', $contratoIds, $eventoId, $assigneeUserId);
+            }
+            if (!empty($solicitudIds)) {
+                $updatedSolicitud = SolicitudCliente::query()
+                    ->whereIn('id', $solicitudIds)
+                    ->update([
+                        'estado_id' => $estadoAsignadoId,
+                    ]);
+                foreach ($solicitudIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_solicitud_cliente' => $id]);
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_estados = $estadoAsignadoId;
+                    $asignacion->id_user = $assigneeUserId;
+                    $asignacion->save();
+                }
+                $this->insertEventosPorTipoDesdeIds('SOLICITUD', $solicitudIds, $eventoId, $assigneeUserId);
             }
         });
         return response()->json([
@@ -352,7 +385,8 @@ class CarterosController extends Controller
                 'certi' => $updatedCerti,
                 'ordi' => $updatedOrdi,
                 'contrato' => $updatedContrato,
-                'total' => $updatedEms + $updatedCerti + $updatedOrdi + $updatedContrato,
+                'solicitud' => $updatedSolicitud,
+                'total' => $updatedEms + $updatedCerti + $updatedOrdi + $updatedContrato + $updatedSolicitud,
             ],
             'report_url' => route('carteros.distribucion.report', [
                 'token' => $this->storeAssignmentReport(
@@ -372,7 +406,7 @@ class CarterosController extends Controller
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
-            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
         ]);
         $estadoAlmacenId = $this->resolveEstadoByName('ALMACEN');
         $actorUserId = (int) $request->user()->id;
@@ -380,11 +414,13 @@ class CarterosController extends Controller
         $certiIds = collect($validated['items'])->where('tipo_paquete', 'CERTI')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $ordiIds = collect($validated['items'])->where('tipo_paquete', 'ORDI')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $contratoIds = collect($validated['items'])->where('tipo_paquete', 'CONTRATO')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $solicitudIds = collect($validated['items'])->where('tipo_paquete', 'SOLICITUD')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $updatedEms = 0;
         $updatedCerti = 0;
         $updatedOrdi = 0;
         $updatedContrato = 0;
-        DB::transaction(function () use (&$updatedEms, &$updatedCerti, &$updatedOrdi, &$updatedContrato, $emsIds, $certiIds, $ordiIds, $contratoIds, $estadoAlmacenId, $actorUserId) {
+        $updatedSolicitud = 0;
+        DB::transaction(function () use (&$updatedEms, &$updatedCerti, &$updatedOrdi, &$updatedContrato, &$updatedSolicitud, $emsIds, $certiIds, $ordiIds, $contratoIds, $solicitudIds, $estadoAlmacenId, $actorUserId) {
             if (!empty($emsIds)) {
                 $updatedEms = PaqueteEms::query()->whereIn('id', $emsIds)->update(['estado_id' => $estadoAlmacenId]);
                 foreach ($emsIds as $id) {
@@ -392,6 +428,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAlmacenId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -404,6 +441,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAlmacenId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -416,6 +454,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAlmacenId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -428,6 +467,20 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_solicitud_cliente = null;
+                    $asignacion->id_estados = $estadoAlmacenId;
+                    $asignacion->id_user = $actorUserId;
+                    $asignacion->save();
+                }
+            }
+            if (!empty($solicitudIds)) {
+                $updatedSolicitud = SolicitudCliente::query()->whereIn('id', $solicitudIds)->update(['estado_id' => $estadoAlmacenId]);
+                foreach ($solicitudIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_solicitud_cliente' => $id]);
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_estados = $estadoAlmacenId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -441,7 +494,8 @@ class CarterosController extends Controller
                 'certi' => $updatedCerti,
                 'ordi' => $updatedOrdi,
                 'contrato' => $updatedContrato,
-                'total' => $updatedEms + $updatedCerti + $updatedOrdi + $updatedContrato,
+                'solicitud' => $updatedSolicitud,
+                'total' => $updatedEms + $updatedCerti + $updatedOrdi + $updatedContrato + $updatedSolicitud,
             ],
         ]);
     }
@@ -452,7 +506,7 @@ class CarterosController extends Controller
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
-            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
         ]);
         $estadoCarteroId = $this->resolveEstadoCarteroId();
         $actorUserId = (int) $request->user()->id;
@@ -460,11 +514,13 @@ class CarterosController extends Controller
         $certiIds = collect($validated['items'])->where('tipo_paquete', 'CERTI')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $ordiIds = collect($validated['items'])->where('tipo_paquete', 'ORDI')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $contratoIds = collect($validated['items'])->where('tipo_paquete', 'CONTRATO')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $solicitudIds = collect($validated['items'])->where('tipo_paquete', 'SOLICITUD')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $updatedEms = 0;
         $updatedCerti = 0;
         $updatedOrdi = 0;
         $updatedContrato = 0;
-        DB::transaction(function () use (&$updatedEms, &$updatedCerti, &$updatedOrdi, &$updatedContrato, $emsIds, $certiIds, $ordiIds, $contratoIds, $estadoCarteroId, $actorUserId) {
+        $updatedSolicitud = 0;
+        DB::transaction(function () use (&$updatedEms, &$updatedCerti, &$updatedOrdi, &$updatedContrato, &$updatedSolicitud, $emsIds, $certiIds, $ordiIds, $contratoIds, $solicitudIds, $estadoCarteroId, $actorUserId) {
             if (!empty($emsIds)) {
                 $updatedEms = PaqueteEms::query()->whereIn('id', $emsIds)->update(['estado_id' => $estadoCarteroId]);
                 foreach ($emsIds as $id) {
@@ -472,6 +528,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoCarteroId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -484,6 +541,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoCarteroId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -496,6 +554,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoCarteroId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -508,6 +567,20 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_solicitud_cliente = null;
+                    $asignacion->id_estados = $estadoCarteroId;
+                    $asignacion->id_user = $actorUserId;
+                    $asignacion->save();
+                }
+            }
+            if (!empty($solicitudIds)) {
+                $updatedSolicitud = SolicitudCliente::query()->whereIn('id', $solicitudIds)->update(['estado_id' => $estadoCarteroId]);
+                foreach ($solicitudIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_solicitud_cliente' => $id]);
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_estados = $estadoCarteroId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
@@ -521,7 +594,8 @@ class CarterosController extends Controller
                 'certi' => $updatedCerti,
                 'ordi' => $updatedOrdi,
                 'contrato' => $updatedContrato,
-                'total' => $updatedEms + $updatedCerti + $updatedOrdi + $updatedContrato,
+                'solicitud' => $updatedSolicitud,
+                'total' => $updatedEms + $updatedCerti + $updatedOrdi + $updatedContrato + $updatedSolicitud,
             ],
         ]);
     }
@@ -539,7 +613,7 @@ class CarterosController extends Controller
             'peso_total' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'integer'],
-            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
         ]);
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
@@ -558,6 +632,7 @@ class CarterosController extends Controller
         $certiIds = $items->where('tipo_paquete', 'CERTI')->pluck('id')->all();
         $contratoIds = $items->where('tipo_paquete', 'CONTRATO')->pluck('id')->all();
         $ordiIds = $items->where('tipo_paquete', 'ORDI')->pluck('id')->all();
+        $solicitudIds = $items->where('tipo_paquete', 'SOLICITUD')->pluck('id')->all();
 
         $allowedBase = Cartero::query()
             ->where('id_user', $userId)
@@ -586,13 +661,19 @@ class CarterosController extends Controller
             ->pluck('id_paquetes_ordi')
             ->map(fn ($id) => (int) $id)
             ->all();
+        $allowedSolicitudIds = (clone $allowedBase)
+            ->whereNotNull('id_solicitud_cliente')
+            ->pluck('id_solicitud_cliente')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
         $invalidEms = collect($emsIds)->diff($allowedEmsIds)->values()->all();
         $invalidCerti = collect($certiIds)->diff($allowedCertiIds)->values()->all();
         $invalidContrato = collect($contratoIds)->diff($allowedContratoIds)->values()->all();
         $invalidOrdi = collect($ordiIds)->diff($allowedOrdiIds)->values()->all();
+        $invalidSolicitud = collect($solicitudIds)->diff($allowedSolicitudIds)->values()->all();
 
-        if (!empty($invalidEms) || !empty($invalidCerti) || !empty($invalidContrato) || !empty($invalidOrdi)) {
+        if (!empty($invalidEms) || !empty($invalidCerti) || !empty($invalidContrato) || !empty($invalidOrdi) || !empty($invalidSolicitud)) {
             throw ValidationException::withMessages([
                 'items' => 'Incluiste paquetes que no pertenecen a tu bandeja CARTERO.',
             ]);
@@ -617,6 +698,10 @@ class CarterosController extends Controller
             ->whereIn('id', $ordiIds ?: [0])
             ->get(['id', 'codigo', 'peso'])
             ->keyBy('id');
+        $solicitudRows = SolicitudCliente::query()
+            ->whereIn('id', $solicitudIds ?: [0])
+            ->get(['id', 'codigo_solicitud', 'barcode', 'peso', 'precio'])
+            ->keyBy('id');
 
         foreach ($items as $item) {
             if ($item['tipo_paquete'] === 'EMS' && !isset($emsRows[$item['id']])) {
@@ -639,9 +724,14 @@ class CarterosController extends Controller
                     'items' => 'Uno o mas paquetes ORDI ya no existen.',
                 ]);
             }
+            if ($item['tipo_paquete'] === 'SOLICITUD' && !isset($solicitudRows[$item['id']])) {
+                throw ValidationException::withMessages([
+                    'items' => 'Una o mas solicitudes ya no existen.',
+                ]);
+            }
         }
 
-        $result = DB::transaction(function () use ($validated, $userId, $items, $emsIds, $certiIds, $contratoIds, $ordiIds, $emsRows, $certiRows, $contratoRows, $ordiRows, $estadoProvinciaId) {
+        $result = DB::transaction(function () use ($validated, $userId, $items, $emsIds, $certiIds, $contratoIds, $ordiIds, $solicitudIds, $emsRows, $certiRows, $contratoRows, $ordiRows, $solicitudRows, $estadoProvinciaId) {
             $guia = $this->nextGuideNumber();
             $rowsToInsert = [];
             $manualPesoTotal = $validated['peso_total'] ?? null;
@@ -655,6 +745,8 @@ class CarterosController extends Controller
                     $pkg = $contratoRows[$item['id']];
                 } elseif ($item['tipo_paquete'] === 'ORDI') {
                     $pkg = $ordiRows[$item['id']];
+                } elseif ($item['tipo_paquete'] === 'SOLICITUD') {
+                    $pkg = $solicitudRows[$item['id']];
                 } else {
                     $pkg = $certiRows[$item['id']];
                 }
@@ -665,7 +757,7 @@ class CarterosController extends Controller
                     'provincia' => $validated['provincia'],
                     'user_id' => $userId,
                     'factura' => $validated['factura'] ?? null,
-                    'codigo' => (string) $pkg->codigo,
+                    'codigo' => (string) ($pkg->codigo ?? $pkg->codigo_solicitud ?? $pkg->barcode ?? 'SIN CODIGO'),
                     'precio_total' => $index === $lastIndex ? $manualPrecioTotal : null,
                     'peso_total' => $index === $lastIndex ? $manualPesoTotal : null,
                     'created_at' => now(),
@@ -698,10 +790,15 @@ class CarterosController extends Controller
                     ->whereIn('id', $ordiIds)
                     ->update(['fk_estado' => $estadoProvinciaId]);
             }
+            if (!empty($solicitudIds)) {
+                SolicitudCliente::query()
+                    ->whereIn('id', $solicitudIds)
+                    ->update(['estado_id' => $estadoProvinciaId]);
+            }
 
             Cartero::query()
                 ->where('id_user', $userId)
-                ->where(function ($query) use ($emsIds, $certiIds, $contratoIds, $ordiIds) {
+                ->where(function ($query) use ($emsIds, $certiIds, $contratoIds, $ordiIds, $solicitudIds) {
                     if (!empty($emsIds)) {
                         $query->whereIn('id_paquetes_ems', $emsIds);
                     }
@@ -713,6 +810,9 @@ class CarterosController extends Controller
                     }
                     if (!empty($ordiIds)) {
                         $query->orWhereIn('id_paquetes_ordi', $ordiIds);
+                    }
+                    if (!empty($solicitudIds)) {
+                        $query->orWhereIn('id_solicitud_cliente', $solicitudIds);
                     }
                 })
                 ->update(['id_estados' => $estadoProvinciaId]);
@@ -736,7 +836,7 @@ class CarterosController extends Controller
         $this->authorizeFeaturePermission('feature.carteros.entrega.deliver');
 
         $validated = $request->validate([
-            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
+            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
             'id' => ['required', 'integer'],
             'recibido_por' => ['required', 'string', 'max:255'],
             'descripcion' => ['nullable', 'string'],
@@ -779,6 +879,14 @@ class CarterosController extends Controller
             $asignacion->imagen = $imagenPath;
             $asignacion->save();
             $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath);
+            if ($validated['tipo_paquete'] === 'SOLICITUD') {
+                $this->updateSolicitudDeliveryData(
+                    (int) $validated['id'],
+                    $validated['recibido_por'],
+                    $validated['descripcion'] ?? null,
+                    $imagenPath
+                );
+            }
             $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoEntregaId, $userId);
         });
 
@@ -807,7 +915,7 @@ class CarterosController extends Controller
         $this->authorizeFeaturePermission('feature.carteros.entrega.attempt');
 
         $validated = $request->validate([
-            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI'],
+            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
             'id' => ['required', 'integer'],
             'descripcion' => ['nullable', 'string'],
             'foto' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
@@ -844,6 +952,14 @@ class CarterosController extends Controller
             $asignacion->descripcion = $validated['descripcion'] ?? $asignacion->descripcion;
             $asignacion->imagen_devolucion = $imagenDevolucionPath;
             $asignacion->save();
+            if ($validated['tipo_paquete'] === 'SOLICITUD') {
+                $this->updateSolicitudDeliveryData(
+                    (int) $validated['id'],
+                    null,
+                    $validated['descripcion'] ?? $asignacion->descripcion,
+                    $imagenDevolucionPath
+                );
+            }
             $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoIntentoId, $userId);
         });
 
@@ -892,7 +1008,7 @@ class CarterosController extends Controller
                 'id' => (int) ($item['id'] ?? 0),
                 'tipo_paquete' => strtoupper(trim((string) ($item['tipo_paquete'] ?? ''))),
             ])
-            ->filter(fn ($item) => $item['id'] > 0 && in_array($item['tipo_paquete'], ['EMS', 'CERTI', 'ORDI', 'CONTRATO'], true))
+            ->filter(fn ($item) => $item['id'] > 0 && in_array($item['tipo_paquete'], ['EMS', 'CERTI', 'ORDI', 'CONTRATO', 'SOLICITUD'], true))
             ->unique(fn ($item) => $item['tipo_paquete'] . ':' . $item['id'])
             ->values();
 
@@ -900,6 +1016,7 @@ class CarterosController extends Controller
         $certiIds = $items->where('tipo_paquete', 'CERTI')->pluck('id')->all();
         $ordiIds = $items->where('tipo_paquete', 'ORDI')->pluck('id')->all();
         $contratoIds = $items->where('tipo_paquete', 'CONTRATO')->pluck('id')->all();
+        $solicitudIds = $items->where('tipo_paquete', 'SOLICITUD')->pluck('id')->all();
 
         $emsRows = PaqueteEms::query()
             ->whereIn('id', $emsIds ?: [0])
@@ -920,8 +1037,12 @@ class CarterosController extends Controller
             ->whereIn('id', $contratoIds ?: [0])
             ->get(['id', 'codigo', 'nombre_d', 'direccion_d', 'destino', 'peso'])
             ->keyBy('id');
+        $solicitudRows = SolicitudCliente::query()
+            ->whereIn('id', $solicitudIds ?: [0])
+            ->get(['id', 'codigo_solicitud', 'barcode', 'nombre_destinatario', 'direccion', 'ciudad', 'peso'])
+            ->keyBy('id');
 
-        return $items->values()->map(function ($item, $index) use ($emsRows, $certiRows, $ordiRows, $contratoRows) {
+        return $items->values()->map(function ($item, $index) use ($emsRows, $certiRows, $ordiRows, $contratoRows, $solicitudRows) {
             $tipo = $item['tipo_paquete'];
             $id = $item['id'];
 
@@ -981,6 +1102,20 @@ class CarterosController extends Controller
                 ];
             }
 
+            if ($tipo === 'SOLICITUD' && isset($solicitudRows[$id])) {
+                $pkg = $solicitudRows[$id];
+
+                return [
+                    'no' => $index + 1,
+                    'tipo_paquete' => $tipo,
+                    'codigo' => (string) ($pkg->codigo_solicitud ?: $pkg->barcode ?: 'SIN CODIGO'),
+                    'destinatario' => (string) $pkg->nombre_destinatario,
+                    'direccion' => (string) ($pkg->direccion ?? ''),
+                    'ciudad' => (string) ($pkg->ciudad ?? ''),
+                    'peso' => $pkg->peso,
+                ];
+            }
+
             return null;
         })->filter()->values()->all();
     }
@@ -1018,6 +1153,7 @@ class CarterosController extends Controller
         $certiFilterIds = null;
         $ordiFilterIds = null;
         $contratoFilterIds = null;
+        $solicitudFilterIds = null;
 
         if ($estadoId !== null || $userId !== null) {
             $base = Cartero::query();
@@ -1057,6 +1193,14 @@ class CarterosController extends Controller
             $ordiFilterIds = (clone $base)
                 ->whereNotNull('id_paquetes_ordi')
                 ->pluck('id_paquetes_ordi')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            $solicitudFilterIds = (clone $base)
+                ->whereNotNull('id_solicitud_cliente')
+                ->pluck('id_solicitud_cliente')
                 ->map(fn ($id) => (int) $id)
                 ->unique()
                 ->values()
@@ -1230,10 +1374,58 @@ class CarterosController extends Controller
                 ];
             });
 
+        $solicitudes = SolicitudCliente::query()
+            ->select([
+                'id',
+                DB::raw("COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO') as codigo"),
+                'nombre_destinatario as destinatario',
+                'telefono_destinatario as telefono',
+                'ciudad',
+                'direccion',
+                'peso',
+                'precio',
+                'estado_id',
+                'created_at',
+            ])
+            ->when($codigo !== '', function ($query) use ($codigo) {
+                $query->where(function ($sub) use ($codigo) {
+                    $sub->whereRaw('LOWER(COALESCE(codigo_solicitud, \'\')) LIKE ?', ['%' . mb_strtolower($codigo) . '%'])
+                        ->orWhereRaw('LOWER(COALESCE(barcode, \'\')) LIKE ?', ['%' . mb_strtolower($codigo) . '%'])
+                        ->orWhereRaw('LOWER(COALESCE(cod_especial, \'\')) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
+                });
+            })
+            ->when($estadoId !== null || $userId !== null, function ($query) use ($solicitudFilterIds) {
+                $query->whereIn('id', $solicitudFilterIds ?: [0]);
+            })
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'tipo_paquete' => 'SOLICITUD',
+                    'codigo' => $item->codigo,
+                    'destinatario' => $item->destinatario,
+                    'telefono' => $item->telefono,
+                    'ciudad' => $item->ciudad,
+                    'zona' => $item->direccion,
+                    'peso' => $item->peso,
+                    'precio' => $item->precio,
+                    'estado_id' => $item->estado_id,
+                    'user_id' => null,
+                    'asignado_a' => null,
+                    'intento' => 0,
+                    'recibido_por' => null,
+                    'descripcion' => null,
+                    'imagen' => null,
+                    'imagen_devolucion' => null,
+                    'created_at' => optional($item->created_at)->toDateTimeString(),
+                ];
+            });
+
         $all = $ems
             ->concat($certi)
             ->concat($ordi)
             ->concat($contratos)
+            ->concat($solicitudes)
             ->sortByDesc('created_at')
             ->values();
 
@@ -1296,14 +1488,21 @@ class CarterosController extends Controller
             ->unique()
             ->values()
             ->all();
+        $solicitudIds = collect($rows)
+            ->where('tipo_paquete', 'SOLICITUD')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
 
-        if (empty($emsIds) && empty($certiIds) && empty($ordiIds) && empty($contratoIds)) {
+        if (empty($emsIds) && empty($certiIds) && empty($ordiIds) && empty($contratoIds) && empty($solicitudIds)) {
             return $rows;
         }
 
         $asignaciones = Cartero::query()
             ->with('user:id,name')
-            ->where(function ($query) use ($emsIds, $certiIds, $ordiIds, $contratoIds) {
+            ->where(function ($query) use ($emsIds, $certiIds, $ordiIds, $contratoIds, $solicitudIds) {
                 if (!empty($emsIds)) {
                     $query->whereIn('id_paquetes_ems', $emsIds);
                 }
@@ -1316,6 +1515,9 @@ class CarterosController extends Controller
                 if (!empty($contratoIds)) {
                     $query->orWhereIn('id_paquetes_contrato', $contratoIds);
                 }
+                if (!empty($solicitudIds)) {
+                    $query->orWhereIn('id_solicitud_cliente', $solicitudIds);
+                }
             })
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
@@ -1325,6 +1527,7 @@ class CarterosController extends Controller
         $mapCerti = [];
         $mapOrdi = [];
         $mapContrato = [];
+        $mapSolicitud = [];
 
         foreach ($asignaciones as $a) {
             if ($a->id_paquetes_ems && !isset($mapEms[$a->id_paquetes_ems])) {
@@ -1339,9 +1542,12 @@ class CarterosController extends Controller
             if ($a->id_paquetes_contrato && !isset($mapContrato[$a->id_paquetes_contrato])) {
                 $mapContrato[$a->id_paquetes_contrato] = $a;
             }
+            if ($a->id_solicitud_cliente && !isset($mapSolicitud[$a->id_solicitud_cliente])) {
+                $mapSolicitud[$a->id_solicitud_cliente] = $a;
+            }
         }
 
-        return collect($rows)->map(function ($row) use ($mapEms, $mapCerti, $mapOrdi, $mapContrato) {
+        return collect($rows)->map(function ($row) use ($mapEms, $mapCerti, $mapOrdi, $mapContrato, $mapSolicitud) {
             $asignacion = null;
             if ($row['tipo_paquete'] === 'EMS' && isset($mapEms[$row['id']])) {
                 $asignacion = $mapEms[$row['id']];
@@ -1354,6 +1560,9 @@ class CarterosController extends Controller
             }
             if ($row['tipo_paquete'] === 'CONTRATO' && isset($mapContrato[$row['id']])) {
                 $asignacion = $mapContrato[$row['id']];
+            }
+            if ($row['tipo_paquete'] === 'SOLICITUD' && isset($mapSolicitud[$row['id']])) {
+                $asignacion = $mapSolicitud[$row['id']];
             }
 
             if ($asignacion) {
@@ -1412,6 +1621,12 @@ class CarterosController extends Controller
         string $carteroNombre
     ): ?string {
         if ($tipoPaquete !== 'CONTRATO') {
+            if ($tipoPaquete !== 'SOLICITUD') {
+                return null;
+            }
+        }
+
+        if ($tipoPaquete === 'SOLICITUD') {
             return null;
         }
 
@@ -1520,10 +1735,39 @@ class CarterosController extends Controller
             RecojoContrato::query()->where('id', $id)->update(['imagen' => $imagePath]);
             return;
         }
+
+        if ($tipoPaquete === 'SOLICITUD' && \Illuminate\Support\Facades\Schema::hasColumn('solicitud_clientes', 'imagen')) {
+            SolicitudCliente::query()->where('id', $id)->update(['imagen' => $imagePath]);
+        }
+    }
+
+    private function updateSolicitudDeliveryData(int $id, ?string $recepcionadoPor, ?string $observacion, ?string $imagePath): void
+    {
+        $updates = [];
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('solicitud_clientes', 'recepcionado_por')) {
+            $updates['recepcionado_por'] = $recepcionadoPor;
+        }
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('solicitud_clientes', 'observacion')) {
+            $updates['observacion'] = $observacion;
+        }
+
+        if (!empty($imagePath) && \Illuminate\Support\Facades\Schema::hasColumn('solicitud_clientes', 'imagen')) {
+            $updates['imagen'] = $imagePath;
+        }
+
+        if (!empty($updates)) {
+            SolicitudCliente::query()->where('id', $id)->update($updates);
+        }
     }
 
     private function insertEventosPorTipoDesdeIds(string $tipoPaquete, array $ids, int $eventoId, int $userId): void
     {
+        if ($tipoPaquete === 'SOLICITUD') {
+            return;
+        }
+
         $ids = collect($ids)
             ->map(fn ($id) => (int) $id)
             ->filter(fn ($id) => $id > 0)
@@ -1541,6 +1785,10 @@ class CarterosController extends Controller
 
     private function insertEventoPorPaquete(string $tipoPaquete, int $id, int $eventoId, int $userId): void
     {
+        if ($tipoPaquete === 'SOLICITUD') {
+            return;
+        }
+
         if ($id <= 0) {
             return;
         }
@@ -1599,6 +1847,13 @@ class CarterosController extends Controller
         if ($tipoPaquete === 'CONTRATO') {
             return RecojoContrato::query()
                 ->whereIn('id', $ids)
+                ->pluck('codigo');
+        }
+
+        if ($tipoPaquete === 'SOLICITUD') {
+            return SolicitudCliente::query()
+                ->whereIn('id', $ids)
+                ->selectRaw("COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), '')) as codigo")
                 ->pluck('codigo');
         }
 
@@ -1661,6 +1916,8 @@ class CarterosController extends Controller
             ->where(function ($q) use ($tipoPaquete, $id) {
                 if ($tipoPaquete === 'EMS') {
                     $q->where('id_paquetes_ems', $id);
+                } elseif ($tipoPaquete === 'SOLICITUD') {
+                    $q->where('id_solicitud_cliente', $id);
                 } elseif ($tipoPaquete === 'ORDI') {
                     $q->where('id_paquetes_ordi', $id);
                 } elseif ($tipoPaquete === 'CONTRATO') {
@@ -1680,6 +1937,8 @@ class CarterosController extends Controller
             ->where(function ($q) use ($tipoPaquete, $id) {
                 if ($tipoPaquete === 'EMS') {
                     $q->where('id_paquetes_ems', $id);
+                } elseif ($tipoPaquete === 'SOLICITUD') {
+                    $q->where('id_solicitud_cliente', $id);
                 } elseif ($tipoPaquete === 'ORDI') {
                     $q->where('id_paquetes_ordi', $id);
                 } elseif ($tipoPaquete === 'CONTRATO') {
@@ -1729,6 +1988,18 @@ class CarterosController extends Controller
             ];
         }
 
+        if ($tipoPaquete === 'SOLICITUD') {
+            $pkg = SolicitudCliente::query()
+                ->where('id', $id)
+                ->firstOrFail(['id', 'codigo_solicitud', 'barcode', 'nombre_destinatario as destinatario', 'ciudad']);
+
+            return [
+                'codigo' => (string) ($pkg->codigo_solicitud ?: $pkg->barcode ?: 'SIN CODIGO'),
+                'destinatario' => $pkg->destinatario,
+                'ciudad' => $pkg->ciudad,
+            ];
+        }
+
         $pkg = PaqueteCerti::query()
             ->where('id', $id)
             ->firstOrFail(['id', 'codigo', 'destinatario', 'cuidad as ciudad']);
@@ -1754,6 +2025,11 @@ class CarterosController extends Controller
 
         if ($tipoPaquete === 'ORDI') {
             PaqueteOrdi::query()->where('id', $id)->update(['fk_estado' => $estadoId]);
+            return;
+        }
+
+        if ($tipoPaquete === 'SOLICITUD') {
+            SolicitudCliente::query()->where('id', $id)->update(['estado_id' => $estadoId]);
             return;
         }
 

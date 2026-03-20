@@ -557,8 +557,38 @@ class PaquetesEmsController extends Controller
                 });
             });
 
+        $solicitudesQuery = SolicitudCliente::query()
+            ->select([
+                DB::raw("'SOLICITUD' as tipo_paquete"),
+                'solicitud_clientes.id',
+                DB::raw("COALESCE(NULLIF(TRIM(solicitud_clientes.codigo_solicitud), ''), NULLIF(TRIM(solicitud_clientes.barcode), ''), 'SIN CODIGO') as codigo"),
+                DB::raw('solicitud_clientes.nombre_destinatario as destinatario'),
+                DB::raw('solicitud_clientes.telefono_destinatario as telefono'),
+                DB::raw('solicitud_clientes.ciudad as ciudad'),
+                'solicitud_clientes.peso',
+                DB::raw('solicitud_clientes.updated_at as fecha_entrega'),
+                DB::raw("'-' as recibido_por"),
+                DB::raw("'-' as descripcion"),
+                DB::raw('NULL as imagen'),
+                DB::raw("'-' as asignado_a"),
+            ])
+            ->when($estadoEntregadoId, function ($query) use ($estadoEntregadoId) {
+                $query->where('solicitud_clientes.estado_id', (int) $estadoEntregadoId);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('solicitud_clientes.codigo_solicitud', 'like', '%' . $search . '%')
+                        ->orWhere('solicitud_clientes.barcode', 'like', '%' . $search . '%')
+                        ->orWhere('solicitud_clientes.nombre_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('solicitud_clientes.telefono_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('solicitud_clientes.ciudad', 'like', '%' . $search . '%');
+                });
+            });
+
         $paquetes = DB::query()
-            ->fromSub($emsQuery->unionAll($contratosQuery), 'entregados')
+            ->fromSub($emsQuery->unionAll($contratosQuery)->unionAll($solicitudesQuery), 'entregados')
             ->orderByDesc('fecha_entrega')
             ->paginate(20)
             ->withQueryString();

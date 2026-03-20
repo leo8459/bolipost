@@ -35,13 +35,14 @@
                                 <th>Asignado a</th>
                                 <th>Intento</th>
                                 <th>Descripcion</th>
+                                <th>Imagen</th>
                                 <th>Fecha</th>
                                 <th>Accion</th>
                             </tr>
                         </thead>
                         <tbody id="tabla-devolucion-body">
                             <tr>
-                                <td colspan="13" class="text-center py-4">Cargando datos...</td>
+                                <td colspan="14" class="text-center py-4">Cargando datos...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -95,20 +96,23 @@
             }
 
             function setLoading() {
-                body.innerHTML = '<tr><td colspan="13" class="text-center py-4">Cargando datos...</td></tr>';
+                body.innerHTML = '<tr><td colspan="14" class="text-center py-4">Cargando datos...</td></tr>';
             }
 
             function setError() {
-                body.innerHTML = '<tr><td colspan="13" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
+                body.innerHTML = '<tr><td colspan="14" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
             }
 
             function renderRows(rows) {
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="13" class="text-center py-4">No hay paquetes en DEVOLUCION para este usuario.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="14" class="text-center py-4">No hay paquetes en DEVOLUCION para este usuario.</td></tr>';
                     return;
                 }
 
                 body.innerHTML = rows.map(function(row) {
+                    const imageHtml = row.imagen_devolucion
+                        ? '<a href="/storage/' + encodeURIComponent(row.imagen_devolucion).replace(/%2F/g, '/') + '" target="_blank" class="btn btn-sm btn-outline-secondary">Ver foto</a>'
+                        : '<span class="text-muted small">Sin foto</span>';
                     const actionHtml = canCarteroRestore
                         ? '<button class="btn btn-sm btn-carteros-primary btn-recuperar" data-id="' + row.id + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '">RECUPERAR</button>'
                         : '<span class="text-muted small">Sin accion</span>';
@@ -125,6 +129,7 @@
                         '<td>' + escapeHtml(row.asignado_a) + '</td>' +
                         '<td>' + escapeHtml(row.intento) + '</td>' +
                         '<td>' + escapeHtml(row.descripcion) + '</td>' +
+                        '<td>' + imageHtml + '</td>' +
                         '<td>' + escapeHtml(row.created_at) + '</td>' +
                         '<td>' + actionHtml + '</td>' +
                         '</tr>';

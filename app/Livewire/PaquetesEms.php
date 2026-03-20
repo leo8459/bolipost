@@ -2262,30 +2262,36 @@ class PaquetesEms extends Component
             if ($solicitudes->isNotEmpty()) {
                 SolicitudCliente::query()
                     ->whereIn('id', $solicitudes->pluck('id')->all())
-                    ->update(['estado_id' => $estadoEntregadoId]);
+                    ->update([
+                        'estado_id' => $estadoEntregadoId,
+                        'recepcionado_por' => $recibidoPor !== '' ? $recibidoPor : null,
+                        'observacion' => $descripcion !== '' ? $descripcion : null,
+                    ]);
             }
         });
 
+        $paquetesPdf = collect($paquetes->map(function ($paquete) {
+            return (object) [
+                'codigo' => $paquete->codigo,
+                'nombre_destinatario' => $paquete->nombre_destinatario,
+                'telefono_destinatario' => $paquete->telefono_destinatario,
+                'ciudad' => $paquete->ciudad,
+                'direccion' => $paquete->direccion,
+                'peso' => $paquete->peso,
+            ];
+        })->all())->merge($solicitudes->map(function ($solicitud) {
+            return (object) [
+                'codigo' => $solicitud->codigo_solicitud ?: $solicitud->barcode,
+                'nombre_destinatario' => $solicitud->nombre_destinatario,
+                'telefono_destinatario' => $solicitud->telefono_destinatario,
+                'ciudad' => $solicitud->ciudad,
+                'direccion' => $solicitud->direccion,
+                'peso' => $solicitud->peso,
+            ];
+        })->all());
+
         $pdf = Pdf::loadView('paquetes_ems.guia-entrega', [
-            'paquetes' => $paquetes->map(function ($paquete) {
-                return (object) [
-                    'codigo' => $paquete->codigo,
-                    'nombre_destinatario' => $paquete->nombre_destinatario,
-                    'telefono_destinatario' => $paquete->telefono_destinatario,
-                    'ciudad' => $paquete->ciudad,
-                    'direccion' => $paquete->direccion,
-                    'peso' => $paquete->peso,
-                ];
-            })->merge($solicitudes->map(function ($solicitud) {
-                return (object) [
-                    'codigo' => $solicitud->codigo_solicitud ?: $solicitud->barcode,
-                    'nombre_destinatario' => $solicitud->nombre_destinatario,
-                    'telefono_destinatario' => $solicitud->telefono_destinatario,
-                    'ciudad' => $solicitud->ciudad,
-                    'direccion' => $solicitud->direccion,
-                    'peso' => $solicitud->peso,
-                ];
-            })),
+            'paquetes' => $paquetesPdf,
             'generatedAt' => $generatedAt,
             'estadoEntrega' => strtoupper(trim($estadoEntregadoNombre)),
             'recibidoPor' => $recibidoPor,
