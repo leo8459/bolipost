@@ -123,7 +123,7 @@ return [
         'feature.despachos.abiertos.create',
         'feature.despachos.abiertos.edit',
         'feature.despachos.abiertos.delete',
-        'feature.despachos.abiertos.assign',
+        'feature.despachos.abiertos.opensacas',
         'feature.despachos.abiertos.confirm',
         'feature.despachos.abiertos.restore',
         'feature.despachos.expedicion.print',

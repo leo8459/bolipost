@@ -692,7 +692,7 @@
                         <div class="d-flex justify-content-end gap-2">
                             <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-azul">Cancelar</a>
                             @if ($canEmsCreate)
-                            <button type="submit" class="btn btn-dorado">Crear y continuar</button>
+                            <button type="button" wire:click="save" class="btn btn-dorado">Crear y continuar</button>
                             @endif
                         </div>
                     </form>
@@ -1376,12 +1376,21 @@
     </div>
     @endunless
 
-    <div class="modal fade" id="paqueteConfirmModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+    <div
+        class="modal fade @if($showPaqueteConfirmModal) show d-block @endif"
+        id="paqueteConfirmModal"
+        tabindex="-1"
+        aria-hidden="{{ $showPaqueteConfirmModal ? 'false' : 'true' }}"
+        wire:ignore.self
+        @if($showPaqueteConfirmModal)
+            style="background: rgba(0, 0, 0, 0.5);"
+        @endif
+    >
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Confirmar datos</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <button type="button" class="close" wire:click="closePaqueteConfirmModal" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
@@ -1414,7 +1423,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-secondary" wire:click="closePaqueteConfirmModal">Cancelar</button>
                     @if ($editingId ? $canEmsEdit : $canEmsCreate)
                     <button type="button" class="btn btn-primary" wire:click="saveConfirmed">
                         {{ $this->isCreateEms ? 'Confirmar y volver' : 'Confirmar y guardar' }}
@@ -1882,14 +1891,27 @@
             closeRecibirRegionalModal: '#recibirRegionalModal',
         };
 
+        const handleModalEvent = (eventName, selector) => {
+            if (!window.jQuery || !$(selector).length) {
+                return;
+            }
+
+            const action = eventName.startsWith('open') ? 'show' : 'hide';
+            $(selector).modal(action);
+        };
+
         Object.entries(modalMap).forEach(([eventName, selector]) => {
-            window.addEventListener(eventName, () => {
-                if (!window.jQuery || !$(selector).length) {
+            window.addEventListener(eventName, () => handleModalEvent(eventName, selector));
+            document.addEventListener(eventName, () => handleModalEvent(eventName, selector));
+        });
+
+        document.addEventListener('livewire:init', () => {
+            Object.entries(modalMap).forEach(([eventName, selector]) => {
+                if (!window.Livewire || typeof window.Livewire.on !== 'function') {
                     return;
                 }
 
-                const action = eventName.startsWith('open') ? 'show' : 'hide';
-                $(selector).modal(action);
+                window.Livewire.on(eventName, () => handleModalEvent(eventName, selector));
             });
         });
     })();

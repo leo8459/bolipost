@@ -139,6 +139,7 @@ class PaquetesEms extends Component
     public $auto_codigo = true;
     public $precio = '';
     public $precio_confirm = null;
+    public $showPaqueteConfirmModal = false;
     public $nombre_remitente = '';
     public $nombre_envia = '';
     public $carnet = '';
@@ -1485,7 +1486,14 @@ class PaquetesEms extends Component
 
         $this->validate($this->rules());
 
+        $this->showPaqueteConfirmModal = true;
         $this->dispatch('openPaqueteConfirm');
+    }
+
+    public function closePaqueteConfirmModal()
+    {
+        $this->showPaqueteConfirmModal = false;
+        $this->dispatch('closePaqueteConfirm');
     }
 
     public function saveConfirmed()
@@ -1535,6 +1543,7 @@ class PaquetesEms extends Component
             });
 
             session()->flash('success', 'Paquete creado correctamente.');
+            $this->showPaqueteConfirmModal = false;
             $this->dispatch('closePaqueteConfirm');
             $this->dispatch('closePaqueteModal');
             $this->resetForm();
@@ -1549,6 +1558,7 @@ class PaquetesEms extends Component
             return $this->redirect(route('paquetes-ems.boleta', $paquete->id, false), navigate: false);
         }
 
+        $this->showPaqueteConfirmModal = false;
         $this->dispatch('closePaqueteConfirm');
         $this->dispatch('closePaqueteModal');
         $this->resetForm();
