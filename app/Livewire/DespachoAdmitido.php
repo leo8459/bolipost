@@ -8,6 +8,7 @@ use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo as RecojoContrato;
 use App\Models\Saca as SacaModel;
+use App\Models\SolicitudCliente;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -321,6 +322,21 @@ class DespachoAdmitido extends Component
                     RecojoContrato::query()
                         ->whereIn('id', $paqueteContratoIds->all())
                         ->update(['estados_id' => $estadoEnviadoId]);
+                }
+
+                $solicitudIds = SolicitudCliente::query()
+                    ->whereNotNull('cod_especial')
+                    ->where(function ($query) use ($codEspeciales) {
+                        foreach ($codEspeciales as $codigo) {
+                            $query->orWhereRaw('TRIM(UPPER(cod_especial)) = ?', [$codigo]);
+                        }
+                    })
+                    ->pluck('id');
+
+                if ($solicitudIds->isNotEmpty()) {
+                    SolicitudCliente::query()
+                        ->whereIn('id', $solicitudIds->all())
+                        ->update(['estado_id' => $estadoEnviadoId]);
                 }
             }
 

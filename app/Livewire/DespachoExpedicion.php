@@ -8,6 +8,7 @@ use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo as RecojoModel;
 use App\Models\Saca as SacaModel;
+use App\Models\SolicitudCliente;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -447,6 +448,22 @@ class DespachoExpedicion extends Component
             ];
         }
 
+        $solicitud = SolicitudCliente::query()
+            ->where(function ($query) use ($codigoPaquete) {
+                $query->whereRaw('TRIM(UPPER(codigo_solicitud)) = ?', [$codigoPaquete])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(barcode, \'\'))) = ?', [$codigoPaquete]);
+            })
+            ->whereRaw('TRIM(UPPER(cod_especial)) = ?', [$codEspecial])
+            ->first(['id', 'peso']);
+        if ($solicitud) {
+            $hits[] = [
+                'fuente' => 'SOLICITUD',
+                'tabla' => 'solicitud',
+                'id' => (int) $solicitud->id,
+                'peso' => (float) ($solicitud->peso ?? 0),
+            ];
+        }
+
         if (count($hits) !== 1) {
             return null;
         }
@@ -475,6 +492,11 @@ class DespachoExpedicion extends Component
 
         if ($tabla === 'contrato') {
             RecojoModel::query()->whereKey($id)->update(['estados_id' => $estadoIntervenirId]);
+            return;
+        }
+
+        if ($tabla === 'solicitud') {
+            SolicitudCliente::query()->whereKey($id)->update(['estado_id' => $estadoIntervenirId]);
         }
     }
 

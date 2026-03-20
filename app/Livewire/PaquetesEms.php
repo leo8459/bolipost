@@ -3230,7 +3230,7 @@ class PaquetesEms extends Component
             ->selectRaw("'SOLICITUD' as tipo")
             ->selectRaw("coalesce(servicio_extras.descripcion, servicio_extras.nombre, '-') as servicio_especial")
             ->selectRaw("'SOLICITUD CLIENTE' as servicio")
-            ->selectRaw("coalesce(destino.nombre_destino, solicitud_clientes.ciudad, '-') as destino")
+            ->selectRaw("coalesce(solicitud_clientes.ciudad, destino.nombre_destino, '-') as destino")
             ->selectRaw("coalesce(solicitud_clientes.contenido, '-') as contenido")
             ->selectRaw('coalesce(solicitud_clientes.cantidad, 1) as cantidad')
             ->selectRaw('coalesce(solicitud_clientes.peso, 0) as peso')
@@ -3288,7 +3288,7 @@ class PaquetesEms extends Component
 
                     if ($this->almacenEstadoFiltro === 'RECIBIDO' && $estadoRecibidoId) {
                         $sub->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId)
-                            ->whereRaw('trim(upper(coalesce(destino.nombre_destino, solicitud_clientes.ciudad))) = trim(upper(?))', [$userCity]);
+                            ->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
                         return;
                     }
 
@@ -3302,7 +3302,7 @@ class PaquetesEms extends Component
                     })->orWhere(function ($q2) use ($estadoRecibidoId, $userCity) {
                         if ($estadoRecibidoId) {
                             $q2->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId)
-                                ->whereRaw('trim(upper(coalesce(destino.nombre_destino, solicitud_clientes.ciudad))) = trim(upper(?))', [$userCity]);
+                                ->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
                         } else {
                             $q2->whereRaw('1 = 0');
                         }
@@ -3446,7 +3446,7 @@ class PaquetesEms extends Component
 
                     if ($this->almacenEstadoFiltro === 'RECIBIDO' && $estadoRecibidoId) {
                         $sub->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId)
-                            ->whereRaw('trim(upper(coalesce(destino.nombre_destino, solicitud_clientes.ciudad))) = trim(upper(?))', [$userCity]);
+                            ->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
                         return;
                     }
 
@@ -3460,7 +3460,7 @@ class PaquetesEms extends Component
                     })->orWhere(function ($q2) use ($estadoRecibidoId, $userCity) {
                         if ($estadoRecibidoId) {
                             $q2->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId)
-                                ->whereRaw('trim(upper(coalesce(destino.nombre_destino, solicitud_clientes.ciudad))) = trim(upper(?))', [$userCity]);
+                                ->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
                         } else {
                             $q2->whereRaw('1 = 0');
                         }
