@@ -27,16 +27,16 @@
                     </button>
                 </form>
             @else
-                <a class="btn btn-public-login" href="{{ route('clientes.login') }}">
+                <!-- <a class="btn btn-public-login" href="{{ route('clientes.login') }}">
                     Login publico
                 </a>
                 <a class="btn btn-public-register" href="{{ route('clientes.register') }}">
                     Registro publico
-                </a>
+                </a> -->
             @endif
-            <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}">
+            <!-- <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}">
                 Hacer envio desde casa
-            </a>
+            </a> -->
             <button class="menu-toggle" id="menuToggle" type="button" aria-label="Abrir menu" aria-expanded="false">
                 <span class="menu-toggle-bars" aria-hidden="true">
                     <i></i>
