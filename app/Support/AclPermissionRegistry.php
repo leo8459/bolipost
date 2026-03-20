@@ -66,6 +66,7 @@ class AclPermissionRegistry
         'attempt' => 'Botones de intento',
         'guide' => 'Botones de guia/provincia',
         'province' => 'Botones de vista provincia',
+        'opensacas' => 'Botones de apertura de sacas',
         'report' => 'Botones de reporte',
         'print' => 'Botones de impresion/boleta',
         'manage' => 'Botones de administracion general',
@@ -286,7 +287,7 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const WINDOW_FEATURE_ALLOWLIST = [
-        'despachos.abiertos' => ['create', 'edit', 'delete', 'assign', 'confirm', 'restore'],
+        'despachos.abiertos' => ['create', 'edit', 'delete', 'opensacas', 'confirm', 'restore'],
         'despachos.expedicion' => ['print', 'confirm', 'restore', 'edit'],
         'despachos.admitidos' => ['assign', 'confirm'],
         'despachos.todos' => [],
@@ -464,7 +465,7 @@ class AclPermissionRegistry
         ],
         'sacas.index' => [
             'sacas.index',
-            'feature.despachos.abiertos.assign',
+            'feature.despachos.abiertos.opensacas',
         ],
         'paquetes-ems.boleta' => [
             'paquetes-ems.boleta',
@@ -1446,7 +1447,7 @@ class AclPermissionRegistry
             'feature.despachos.abiertos.create' => 'Boton: Nuevo despacho',
             'feature.despachos.abiertos.edit' => 'Boton: Editar despacho',
             'feature.despachos.abiertos.delete' => 'Boton: Eliminar despacho',
-            'feature.despachos.abiertos.assign' => 'Boton: Abrir sacas',
+            'feature.despachos.abiertos.opensacas' => 'Boton: Abrir sacas',
             'feature.despachos.abiertos.confirm' => 'Boton: Enviar a expedicion',
             'feature.despachos.abiertos.restore' => 'Boton: Reapertura de saca',
             'feature.despachos.expedicion.print' => 'Boton: Reimprimir CN',
@@ -1683,7 +1684,7 @@ class AclPermissionRegistry
             'feature.despachos.abiertos.create' => 'Controla el boton Nuevo en la ventana Despachos abiertos.',
             'feature.despachos.abiertos.edit' => 'Controla el boton Editar en la ventana Despachos abiertos.',
             'feature.despachos.abiertos.delete' => 'Controla el boton Eliminar en la ventana Despachos abiertos.',
-            'feature.despachos.abiertos.assign' => 'Controla el boton Abrir/Asignar sacas desde la ventana Despachos abiertos.',
+            'feature.despachos.abiertos.opensacas' => 'Controla solo el boton Abrir sacas desde la ventana Despachos abiertos.',
             'feature.despachos.abiertos.confirm' => 'Controla el boton Enviar a expedicion y su impresion automatica.',
             'feature.despachos.abiertos.restore' => 'Controla el boton Reapertura de saca en la ventana Despachos abiertos.',
             'feature.despachos.expedicion.print' => 'Controla el boton Reimprimir CN dentro de la ventana Despachos expedicion.',

@@ -20,7 +20,6 @@ class Despacho extends Component
     private const EVENTO_ID_DESPACHO_MARCADO_ELIMINADO = 228;
     private const EVENTO_ID_DESPACHO_ACTUALIZADO_SALIDA = 229;
     private const ROUTE_PERMISSION = 'despachos.abiertos';
-    private const SACAS_ROUTE_PERMISSION = 'sacas.index';
     protected array $estadoIdCache = [];
 
     public $search = '';
@@ -422,7 +421,7 @@ class Despacho extends Component
             'canDespachoCreate' => $this->userCan($this->featurePermission('create')),
             'canDespachoEdit' => $this->userCan($this->featurePermission('edit')),
             'canDespachoDelete' => $this->userCan($this->featurePermission('delete')),
-            'canDespachoAssign' => $this->userCan($this->featurePermission('assign')),
+            'canDespachoOpenSacas' => $this->userCan($this->featurePermission('opensacas')),
             'canDespachoConfirm' => $this->userCan($this->featurePermission('confirm')),
             'canDespachoRestore' => $this->userCan($this->featurePermission('restore')),
         ]);
