@@ -48,6 +48,8 @@
                             Entregado - Paquetes Ordinarios
                         @elseif ($this->isRezago)
                             Rezago - Paquetes Ordinarios
+                        @elseif ($this->isTodos)
+                            Todos los Paquetes Ordinarios
                         @else
                             Paquetes Ordinarios - Clasificacion
                         @endif
