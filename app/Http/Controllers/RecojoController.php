@@ -117,8 +117,8 @@ class RecojoController extends Controller
         return view('paquetes_contrato.create', [
             'origen' => $origen,
             'departamentos' => self::DEPARTAMENTOS,
-            'canContratoCreateSubmit' => $user->can('feature.paquetes-contrato.create.create'),
-            'canContratoCreateFrecuente' => $user->can('feature.paquetes-contrato.create.manage'),
+            'canContratoCreateSubmit' => $this->canSubmitContratoCreate($user),
+            'canContratoCreateFrecuente' => $this->canManageContratoFrecuente($user),
         ]);
     }
 
@@ -176,7 +176,7 @@ class RecojoController extends Controller
             'departamentos' => self::DEPARTAMENTOS,
             'serviciosTarifa' => $serviciosTarifa,
             'provinciasPorDestino' => $provinciasPorDestino,
-            'canContratoCreateTarifaSubmit' => $user->can('feature.paquetes-contrato.create-con-tarifa.create'),
+            'canContratoCreateTarifaSubmit' => $this->canSubmitContratoCreateConTarifa($user),
         ]);
     }
 
@@ -193,12 +193,6 @@ class RecojoController extends Controller
                 ->withInput()
                 ->with('error', 'Tu usuario no tiene empresa asignada. Asigna empresa al usuario para generar codigo.');
         }
-
-        abort_unless(
-            $user->can('feature.paquetes-contrato.create-con-tarifa.create'),
-            403,
-            'No tienes permiso para guardar contratos con tarifa.'
-        );
 
         $data = $request->validate([
             'nombre_r' => 'required|string|max:255',
@@ -357,11 +351,7 @@ class RecojoController extends Controller
             return redirect()->route('login');
         }
 
-        abort_unless(
-            $user->can('feature.paquetes-contrato.create.create'),
-            403,
-            'No tienes permiso para guardar contratos.'
-        );
+        abort_unless($this->canSubmitContratoCreate($user), 403, 'No tienes permiso para guardar contratos.');
 
         $data = $request->validate($this->storeRules());
 
@@ -738,6 +728,24 @@ class RecojoController extends Controller
     protected function missingEmpresaMessage(): string
     {
         return 'Entra con un usuario que tenga empresa asociada.';
+    }
+
+    protected function canSubmitContratoCreate(User $user): bool
+    {
+        return $user->can('feature.paquetes-contrato.create.create')
+            || $user->can('paquetes-contrato.store');
+    }
+
+    protected function canManageContratoFrecuente(User $user): bool
+    {
+        return $user->can('feature.paquetes-contrato.create.manage')
+            || $user->can('paquetes-contrato.create');
+    }
+
+    protected function canSubmitContratoCreateConTarifa(User $user): bool
+    {
+        return $user->can('feature.paquetes-contrato.create-con-tarifa.create')
+            || $user->can('paquetes-contrato.store-con-tarifa');
     }
 
     protected function authorizeAnyPermission(Request $request, array $permissions): void
