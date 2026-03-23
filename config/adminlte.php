@@ -518,6 +518,11 @@ return [
             'icon' => 'fas fa-box-open',
             'submenu' => [
                 [
+                    'text' => 'Todos los paquetes',
+                    'url' => 'paquetes-ordinarios/todos',
+                    'icon' => 'fas fa-list',
+                ],
+                [
                     'text' => 'Clasificacion',
                     'url' => 'paquetes-ordinarios',
                     'icon' => 'fas fa-layer-group',

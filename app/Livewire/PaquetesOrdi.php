@@ -75,11 +75,12 @@ class PaquetesOrdi extends Component
         'almacen' => 'paquetes-ordinarios.almacen',
         'entregado' => 'paquetes-ordinarios.entregado',
         'rezago' => 'paquetes-ordinarios.rezago',
+        'todos' => 'paquetes-ordinarios.todos',
     ];
 
     public function mount($mode = 'clasificacion')
     {
-        $allowedModes = ['clasificacion', 'despacho', 'almacen', 'entregado', 'rezago'];
+        $allowedModes = ['clasificacion', 'despacho', 'almacen', 'entregado', 'rezago', 'todos'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'clasificacion';
     }
 
@@ -106,6 +107,11 @@ class PaquetesOrdi extends Component
     public function getIsRezagoProperty()
     {
         return $this->mode === 'rezago';
+    }
+
+    public function getIsTodosProperty()
+    {
+        return $this->mode === 'todos';
     }
 
     public function searchPaquetes()
@@ -1316,6 +1322,8 @@ class PaquetesOrdi extends Component
     {
         $q = trim($this->searchQuery);
         $userCity = $this->upper((string) optional(auth()->user())->ciudad);
+        $skipEstadoFilter = $this->isTodos;
+
         if ($this->isDespacho) {
             $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
         } elseif ($this->isAlmacen) {
@@ -1324,16 +1332,18 @@ class PaquetesOrdi extends Component
             $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
         } elseif ($this->isRezago) {
             $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_REZAGO);
+        } elseif ($this->isTodos) {
+            $estadoModoId = null;
         } else {
             $estadoModoId = $this->getClasificacionEstadoId();
         }
 
         return $this->accessiblePaquetesQuery()
             ->with(['estado', 'ventanillaRef'])
-            ->when($estadoModoId, function ($query) use ($estadoModoId) {
+            ->when(!$skipEstadoFilter && $estadoModoId, function ($query) use ($estadoModoId) {
                 $query->where('fk_estado', $estadoModoId);
             })
-            ->when(!$estadoModoId, function ($query) {
+            ->when(!$skipEstadoFilter && !$estadoModoId, function ($query) {
                 $query->whereRaw('1 = 0');
             })
             ->when($this->isClasificacion && $this->selectedCiudadMarcado !== '', function ($query) {

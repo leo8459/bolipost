@@ -252,6 +252,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/paquetes-ordinarios/almacen', [PaquetesOrdiController::class, 'almacen'])->name('paquetes-ordinarios.almacen');
     Route::get('/paquetes-ordinarios/entregado', [PaquetesOrdiController::class, 'entregado'])->name('paquetes-ordinarios.entregado');
     Route::get('/paquetes-ordinarios/rezago', [PaquetesOrdiController::class, 'rezago'])->name('paquetes-ordinarios.rezago');
+    Route::get('/paquetes-ordinarios/todos', [PaquetesOrdiController::class, 'todos'])->name('paquetes-ordinarios.todos');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/eventos', [EventoController::class, 'index'])->name('eventos.index');
     Route::get('/eventos-ems', [EventoController::class, 'emsIndex'])->name('eventos-ems.index');
