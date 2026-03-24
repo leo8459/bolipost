@@ -109,7 +109,6 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.solicitud-create', [
             'destinos' => Destino::query()->orderBy('nombre_destino')->get(),
             'servicioExtras' => ServicioExtra::query()
-                ->whereIn('nombre', ['serviciotiktokero', 'serviciotiktokeroventanilla'])
                 ->orderBy('id')
                 ->get(['id', 'nombre', 'descripcion']),
             'ciudades' => self::CIUDADES_BOLIVIA,
