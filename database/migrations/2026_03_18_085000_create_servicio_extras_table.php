@@ -9,6 +9,15 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('servicio_extras')) {
+            Schema::create('servicio_extras', function (Blueprint $table) {
+                $table->id();
+                $table->string('nombre')->unique();
+                $table->string('descripcion')->nullable();
+                $table->timestamps();
+            });
+        }
+
         DB::table('servicio_extras')->upsert([
             [
                 'nombre' => 'POR COBRAR',
@@ -35,25 +44,10 @@ return new class extends Migration
                 'updated_at' => now(),
             ],
         ], ['nombre'], ['descripcion', 'updated_at']);
-
-        if (Schema::hasTable('tarifario_tiktoker') && ! Schema::hasColumn('tarifario_tiktoker', 'servicio_extra_id')) {
-            Schema::table('tarifario_tiktoker', function (Blueprint $table) {
-                $table->foreignId('servicio_extra_id')
-                    ->nullable()
-                    ->constrained('servicio_extras')
-                    ->cascadeOnUpdate()
-                    ->nullOnDelete();
-            });
-        }
     }
 
     public function down(): void
     {
-        if (Schema::hasTable('tarifario_tiktoker') && Schema::hasColumn('tarifario_tiktoker', 'servicio_extra_id')) {
-            Schema::table('tarifario_tiktoker', function (Blueprint $table) {
-                $table->dropForeign(['servicio_extra_id']);
-                $table->dropColumn('servicio_extra_id');
-            });
-        }
+        Schema::dropIfExists('servicio_extras');
     }
 };

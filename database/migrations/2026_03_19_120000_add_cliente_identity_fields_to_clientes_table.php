@@ -3,6 +3,7 @@
 use App\Models\Cliente;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -40,9 +41,21 @@ return new class extends Migration
                 ])->save();
             });
 
-        Schema::table('clientes', function (Blueprint $table) {
-            $table->unique('codigo_cliente');
-        });
+        if (! Schema::hasTable('clientes')) {
+            return;
+        }
+
+        $uniqueExists = DB::table('pg_indexes')
+            ->where('schemaname', 'public')
+            ->where('tablename', 'clientes')
+            ->where('indexname', 'clientes_codigo_cliente_unique')
+            ->exists();
+
+        if (! $uniqueExists) {
+            Schema::table('clientes', function (Blueprint $table) {
+                $table->unique('codigo_cliente');
+            });
+        }
     }
 
     public function down(): void
