@@ -23,10 +23,16 @@ class TarifaContratoController extends Controller
 {
     private const SERVICIOS = [
         'ENVIO NACIONAL (REGULAR)',
+        'ENVIO NACIONAL (REGULAR) TERRESTRE',
+        'ENVIO NACIONAL (REGULAR) AEREO',
         'ENVIO NACIONAL (EXPRESS)',
+        'ENVIO NACIONAL (EXPRESS) TERRESTRE',
+        'ENVIO NACIONAL (EXPRESS) AEREO',
         'ENVIO LOCAL(REGULAR)',
         'ENVIO LOCAL(EXPRESS)',
         'ENVIO INTERPROVINCIAL',
+        'ENVIO INTERPROVINCIAL TERRESTRE',
+        'ENVIO INTERPROVINCIAL AEREO',
     ];
 
     private const DEPARTAMENTOS = [
@@ -94,6 +100,9 @@ class TarifaContratoController extends Controller
         'origen',
         'destino',
         'servicio',
+        'direccion',
+        'zona',
+        'kilo_de_1_a_2',
         'kilo',
         'kilo_extra',
         'provincia',
@@ -106,6 +115,9 @@ class TarifaContratoController extends Controller
         'origen',
         'destino',
         'servicio',
+        'direccion',
+        'zona',
+        'peso',
         'kilo',
         'kilo_extra',
         'provincia',
@@ -374,6 +386,9 @@ class TarifaContratoController extends Controller
                 'origen' => strtoupper((string) ($data['origen'] ?? '')),
                 'destino' => strtoupper((string) ($data['destino'] ?? '')),
                 'servicio' => $this->normalizeServicio((string) ($data['servicio'] ?? '')),
+                'direccion' => $this->normalizeNullableUpper($data['direccion'] ?? null),
+                'zona' => $this->normalizeNullableUpper($data['zona'] ?? null),
+                'peso' => $this->parseDecimal($data['kilo_de_1_a_2'] ?? ($data['peso'] ?? null)),
                 'kilo' => $this->parseDecimal($data['kilo'] ?? null),
                 'kilo_extra' => $this->parseDecimal($data['kilo_extra'] ?? null),
                 'provincia' => $this->normalizeNullableUpper($data['provincia'] ?? null),
@@ -390,6 +405,9 @@ class TarifaContratoController extends Controller
                     'origen' => 'origen',
                     'destino' => 'destino',
                     'servicio' => 'servicio',
+                    'direccion' => 'direccion',
+                    'zona' => 'zona',
+                    'peso' => 'peso',
                     'kilo' => 'kilo',
                     'kilo_extra' => 'kilo extra',
                     'provincia' => 'provincia',
@@ -414,7 +432,7 @@ class TarifaContratoController extends Controller
                 'provincia',
             ]);
 
-            $values = Arr::only($validated, ['retencion', 'horas_entrega']);
+            $values = Arr::only($validated, ['direccion', 'zona', 'peso', 'retencion', 'horas_entrega']);
 
             $tarifa = TarifaContrato::query()->where($unique)->first();
             if ($tarifa) {
@@ -454,7 +472,7 @@ class TarifaContratoController extends Controller
 
             $sheet->fromArray($columns, null, 'A1');
 
-            $sheet->getStyle('A1:I1')->applyFromArray([
+            $sheet->getStyle('A1:L1')->applyFromArray([
                 'font' => [
                     'bold' => true,
                     'color' => ['argb' => 'FFFFFFFF'],
@@ -476,26 +494,29 @@ class TarifaContratoController extends Controller
             ]);
 
             $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:I1');
+            $sheet->setAutoFilter('A1:L1');
 
             $columnWidths = [
                 'A' => 38,
                 'B' => 18,
                 'C' => 18,
                 'D' => 34,
-                'E' => 12,
-                'F' => 12,
-                'G' => 18,
+                'E' => 28,
+                'F' => 20,
+                'G' => 12,
                 'H' => 12,
-                'I' => 14,
+                'I' => 12,
+                'J' => 18,
+                'K' => 12,
+                'L' => 14,
             ];
             foreach ($columnWidths as $column => $width) {
                 $sheet->getColumnDimension($column)->setWidth($width);
             }
 
-            $sheet->getStyle('E2:F5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('H2:H5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('I2:I5000')->getNumberFormat()->setFormatCode('0');
+            $sheet->getStyle('G2:I5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('K2:K5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('L2:L5000')->getNumberFormat()->setFormatCode('0');
 
             $sheetEmpresas = $spreadsheet->createSheet();
             $sheetEmpresas->setTitle('Empresas');
@@ -567,7 +588,7 @@ class TarifaContratoController extends Controller
             $sheetInstrucciones->setCellValue('A3', '1) No cambies los nombres de columnas en la hoja TarifaContrato.');
             $sheetInstrucciones->setCellValue('A4', '2) Empieza a llenar datos desde la fila 2.');
             $sheetInstrucciones->setCellValue('A5', '3) Usa empresa_nombre igual al nombre exacto en hoja Empresas.');
-            $sheetInstrucciones->setCellValue('A6', '4) provincia es opcional.');
+            $sheetInstrucciones->setCellValue('A6', '4) direccion, zona, peso y provincia son opcionales.');
             $sheetInstrucciones->setCellValue('A7', '5) origen, destino y servicio tienen listas desplegables.');
             $sheetInstrucciones->getStyle('A1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 14],
@@ -638,10 +659,16 @@ class TarifaContratoController extends Controller
             'origen' => strtoupper(trim((string) $request->input('origen'))),
             'destino' => strtoupper(trim((string) $request->input('destino'))),
             'servicio' => $this->normalizeServicio((string) $request->input('servicio')),
+            'direccion' => $this->normalizeNullableUpper($request->input('direccion')),
+            'zona' => $this->normalizeNullableUpper($request->input('zona')),
             'provincia' => $provincia === '' ? null : strtoupper($provincia),
         ]);
 
         $data = $request->validate($this->validationRules((string) $request->input('destino')));
+
+        if ($request->filled('peso')) {
+            $data['peso'] = $this->parseDecimal($request->input('peso'));
+        }
 
         return $data;
     }
@@ -656,6 +683,9 @@ class TarifaContratoController extends Controller
             'origen' => ['required', 'string', Rule::in(self::DEPARTAMENTOS)],
             'destino' => ['required', 'string', Rule::in(self::DEPARTAMENTOS)],
             'servicio' => ['required', 'string', Rule::in(self::SERVICIOS)],
+            'direccion' => ['nullable', 'string', 'max:255'],
+            'zona' => ['nullable', 'string', 'max:255'],
+            'peso' => ['nullable', 'numeric', 'min:0'],
             'kilo' => 'required|numeric|min:0',
             'kilo_extra' => 'required|numeric|min:0',
             'provincia' => ['nullable', 'string', 'max:255', Rule::in($provinciasDestino)],
@@ -666,7 +696,12 @@ class TarifaContratoController extends Controller
 
     private function normalizeHeader($value): string
     {
-        return strtolower(trim((string) $value));
+        $value = strtolower(trim((string) $value));
+
+        return match ($value) {
+            'kilo de 1 a 2', 'kilo 1 a 2', 'kilo_de_1_a_2' => 'kilo_de_1_a_2',
+            default => $value,
+        };
     }
 
     private function normalizeCompanyName(string $value): string

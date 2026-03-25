@@ -174,6 +174,9 @@
                                         <th>Servicio</th>
                                         <th>Origen</th>
                                         <th>Destino</th>
+                                        <th>Direccion</th>
+                                        <th>Zona</th>
+                                        <th>Peso</th>
                                         <th>Kilo</th>
                                         <th>Kilo Extra</th>
                                         <th>Provincia</th>
@@ -190,6 +193,9 @@
                                             <td>{{ $tarifa->servicio }}</td>
                                             <td>{{ $tarifa->origen }}</td>
                                             <td>{{ $tarifa->destino }}</td>
+                                            <td>{{ $tarifa->direccion ?: '-' }}</td>
+                                            <td>{{ $tarifa->zona ?: '-' }}</td>
+                                            <td>{{ $tarifa->peso !== null ? number_format((float) $tarifa->peso, 2) : '-' }}</td>
                                             <td>{{ $tarifa->kilo }}</td>
                                             <td>{{ $tarifa->kilo_extra }}</td>
                                             <td>{{ $tarifa->provincia }}</td>
@@ -228,7 +234,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="11" class="text-center py-4">No hay registros</td>
+                                            <td colspan="14" class="text-center py-4">No hay registros</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
