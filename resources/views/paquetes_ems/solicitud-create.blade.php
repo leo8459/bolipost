@@ -233,9 +233,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function syncDireccionEntrega() {
         const selectedOption = servicioSelect.options[servicioSelect.selectedIndex];
         const servicioNombre = (selectedOption?.dataset?.servicioNombre || '').toLowerCase();
-        const esRecojoVentanilla = servicioNombre.includes('ventanilla');
+        const esVentanillaAVentanilla = servicioNombre.includes('ventanilla a ventanilla');
 
-        if (esRecojoVentanilla) {
+        if (esVentanillaAVentanilla) {
             direccionInput.value = 'CORREOS DE BOLIVIA';
             direccionInput.setAttribute('readonly', 'readonly');
             return;
