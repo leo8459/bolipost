@@ -109,7 +109,7 @@
                             class="btn btn-outline-light2"
                             type="button"
                             wire:click="bajaPaquetes"
-                            onclick="return confirm('Deseas enviar a ENTREGADO los paquetes seleccionados?')"
+                            wire:confirm="Deseas enviar a ENTREGADO los paquetes seleccionados?"
                         >
                             Baja de paquetes
                         </button>
@@ -119,7 +119,7 @@
                             class="btn btn-outline-light2"
                             type="button"
                             wire:click="rezagoPaquetes"
-                            onclick="return confirm('Deseas enviar a REZAGO los paquetes seleccionados?')"
+                            wire:confirm="Deseas enviar a REZAGO los paquetes seleccionados?"
                         >
                             Rezago
                         </button>
