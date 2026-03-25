@@ -253,11 +253,15 @@
             <a href="{{ route('tarifa-contrato.index') }}" class="btn btn-secondary">Volver</a>
             <div class="d-flex" style="gap:8px;">
                 @if($isCreate)
+                    @aclcan('save', null, 'tarifa-contrato')
                     <button type="submit" name="action" value="save_and_new" class="btn btn-info">
                         Guardar y crear otro
                     </button>
+                    @endaclcan
                 @endif
+                @aclcan('save', null, 'tarifa-contrato')
                 <button type="submit" name="action" value="save" class="btn btn-primary">Guardar</button>
+                @endaclcan
             </div>
         </div>
     </div>

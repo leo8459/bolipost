@@ -13,12 +13,16 @@
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                             <span id="card_title">Administracion de Tarifas de Contrato</span>
                             <div class="d-flex" style="gap:8px;">
+                                @aclcan('import', null, 'tarifa-contrato')
                                 <a href="{{ route('tarifa-contrato.import-form') }}" class="btn btn-info btn-sm">
                                     Importar Excel
                                 </a>
+                                @endaclcan
+                                @aclcan('create', null, 'tarifa-contrato')
                                 <a href="{{ route('tarifa-contrato.create') }}" class="btn btn-primary btn-sm">
                                     Crear Nuevo
                                 </a>
+                                @endaclcan
                             </div>
                         </div>
                     </div>
@@ -199,6 +203,7 @@
                                             <td>{{ $tarifa->horas_entrega }}</td>
                                             <td>
                                                 <form action="{{ route('tarifa-contrato.destroy', $tarifa->id) }}" method="POST">
+                                                    @aclcan('duplicate', null, 'tarifa-contrato')
                                                     <a
                                                         class="btn btn-sm btn-info"
                                                         href="{{ route('tarifa-contrato.create', ['copy_id' => $tarifa->id]) }}"
@@ -206,9 +211,13 @@
                                                     >
                                                         <i class="fa fa-fw fa-copy"></i>
                                                     </a>
+                                                    @endaclcan
+                                                    @aclcan('edit', null, 'tarifa-contrato')
                                                     <a class="btn btn-sm btn-success" href="{{ route('tarifa-contrato.edit', $tarifa->id) }}" title="Editar">
                                                         <i class="fa fa-fw fa-edit"></i>
                                                     </a>
+                                                    @endaclcan
+                                                    @aclcan('delete', null, 'tarifa-contrato')
                                                     @csrf
                                                     @method('DELETE')
                                                     <button
@@ -219,6 +228,7 @@
                                                     >
                                                         <i class="fa fa-fw fa-trash"></i>
                                                     </button>
+                                                    @endaclcan
                                                 </form>
                                             </td>
                                         </tr>

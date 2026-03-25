@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Empresa;
 use App\Models\TarifaContrato;
+use App\Support\AclPermissionRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -209,13 +210,15 @@ class TarifaContratoController extends Controller
 
     public function create(Request $request)
     {
+        $copyId = (int) $request->query('copy_id', 0);
+        $this->authorizeTarifaContratoButtonAction($copyId > 0 ? 'duplicate' : 'create');
+
         if ($request->boolean('reset')) {
             $request->session()->forget('tarifa_contrato_defaults');
         }
 
         $defaults = (array) $request->session()->get('tarifa_contrato_defaults', []);
         $copySource = null;
-        $copyId = (int) $request->query('copy_id', 0);
 
         if ($copyId > 0) {
             $copySource = TarifaContrato::query()->find($copyId);
@@ -237,6 +240,8 @@ class TarifaContratoController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorizeTarifaContratoButtonAction('save');
+
         $data = $this->validateData($request);
         TarifaContrato::query()->create($data);
 
@@ -254,6 +259,8 @@ class TarifaContratoController extends Controller
 
     public function importForm()
     {
+        $this->authorizeTarifaContratoButtonAction('import');
+
         return view('tarifa_contrato.import', [
             'servicios' => self::SERVICIOS,
             'departamentos' => self::DEPARTAMENTOS,
@@ -263,6 +270,8 @@ class TarifaContratoController extends Controller
 
     public function import(Request $request)
     {
+        $this->authorizeTarifaContratoButtonAction('import');
+
         $request->validate([
             'archivo' => 'required|file|mimes:xlsx,xls|max:10240',
         ]);
@@ -448,6 +457,8 @@ class TarifaContratoController extends Controller
 
     public function downloadTemplateExcel()
     {
+        $this->authorizeTarifaContratoButtonAction('export');
+
         $filename = 'plantilla_tarifa_contrato.xlsx';
         $columns = self::IMPORT_COLUMNS;
         $empresas = Empresa::query()
@@ -605,6 +616,8 @@ class TarifaContratoController extends Controller
 
     public function edit(TarifaContrato $tarifaContrato)
     {
+        $this->authorizeTarifaContratoButtonAction('edit');
+
         return view('tarifa_contrato.edit', [
             'tarifaContrato' => $tarifaContrato,
             'empresas' => Empresa::query()->orderBy('nombre')->get(),
@@ -617,6 +630,8 @@ class TarifaContratoController extends Controller
 
     public function update(Request $request, TarifaContrato $tarifaContrato)
     {
+        $this->authorizeTarifaContratoButtonAction('save');
+
         $data = $this->validateData($request);
         $tarifaContrato->update($data);
 
@@ -627,6 +642,8 @@ class TarifaContratoController extends Controller
 
     public function destroy(TarifaContrato $tarifaContrato)
     {
+        $this->authorizeTarifaContratoButtonAction('delete');
+
         $tarifaContrato->delete();
 
         return redirect()
@@ -748,6 +765,41 @@ class TarifaContratoController extends Controller
         }
 
         return is_numeric($text) ? (float) $text : null;
+    }
+
+    private function authorizeTarifaContratoButtonAction(string $action): void
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+            return;
+        }
+
+        $permissions = AclPermissionRegistry::existingPermissionsFrom([
+            'feature.tarifa-contrato.'.$action,
+        ]);
+
+        if ($permissions === []) {
+            if ((bool) config('acl.route_permission.allow_when_permission_missing', true)) {
+                return;
+            }
+
+            abort(403, 'No se encontro la configuracion de permisos para esta accion.');
+        }
+
+        foreach ($permissions as $permission) {
+            if ($user->can($permission)) {
+                return;
+            }
+        }
+
+        abort(403, 'No tienes permiso para realizar esta accion.');
     }
 
     private function normalizeServicio(string $value): string
