@@ -283,14 +283,17 @@ class PaquetesOrdi extends Component
         }
 
         $estadoEnviadoId = $this->getEstadoIdByNombre(self::ESTADO_ENVIADO);
+        $estadoTransitoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
         if (!$estadoEnviadoId) {
             session()->flash('success', 'No existe el estado ENVIADO en la tabla estados.');
             return;
         }
 
+        $estadosAceptados = array_filter([$estadoEnviadoId, $estadoTransitoId]);
+
         $paquete = PaqueteOrdi::query()
             ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
-            ->where('fk_estado', $estadoEnviadoId)
+            ->whereIn('fk_estado', $estadosAceptados)
             ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->first();
 
@@ -302,7 +305,7 @@ class PaquetesOrdi extends Component
 
         if (!$paquete) {
             if (!session()->has('success')) {
-                session()->flash('success', 'El paquete no existe, no esta ENVIADO o no pertenece a tu ciudad.');
+                session()->flash('success', 'El paquete no existe, no esta ENVIADO/TRANSITO o no pertenece a tu ciudad.');
             }
             return;
         }
@@ -346,6 +349,7 @@ class PaquetesOrdi extends Component
         }
 
         $estadoEnviadoId = $this->getEstadoIdByNombre(self::ESTADO_ENVIADO);
+        $estadoTransitoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
         $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
 
         if (!$estadoEnviadoId || !$estadoRecibidoId) {
@@ -353,9 +357,11 @@ class PaquetesOrdi extends Component
             return;
         }
 
+        $estadosAceptados = array_filter([$estadoEnviadoId, $estadoTransitoId]);
+
         $idsActualizar = PaqueteOrdi::query()
             ->whereIn('id', $ids)
-            ->where('fk_estado', $estadoEnviadoId)
+            ->whereIn('fk_estado', $estadosAceptados)
             ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
