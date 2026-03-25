@@ -137,6 +137,13 @@ return [
         'feature.sacas.index.delete',
         'feature.sacas.index.assign',
         'feature.sacas.index.confirm',
+        'feature.tarifa-contrato.create',
+        'feature.tarifa-contrato.duplicate',
+        'feature.tarifa-contrato.edit',
+        'feature.tarifa-contrato.delete',
+        'feature.tarifa-contrato.save',
+        'feature.tarifa-contrato.import',
+        'feature.tarifa-contrato.export',
     ],
 
     /*
@@ -170,6 +177,7 @@ return [
     'default_roles' => [
         'administrador',
         'gestor',
+        'gestor_tarifario_contratos',
         'encargado',
         'auxiliar',
         'cartero',
@@ -228,6 +236,9 @@ return [
             'eventos-auditoria.index',
             'tarifa-contrato.*',
             'importar.paquets*',
+        ],
+        'gestor_tarifario_contratos' => [
+            'tarifa-contrato.*',
         ],
         'encargado' => [
             'dashboard*',
