@@ -1191,11 +1191,15 @@ class PaquetesOrdi extends Component
                 $query->where(function ($sub) {
                     $sub->whereRaw('trim(upper(nombre_ventanilla)) = ?', ['DD'])
                         ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['DND'])
-                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['CASILLA']);
+                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['CASILLA'])
+                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['ECA']);
                 });
             })
             ->when($ciudad !== '' && $ciudad !== 'LA PAZ', function ($query) {
-                $query->whereRaw('trim(upper(nombre_ventanilla)) = ?', ['UNICA']);
+                $query->where(function ($sub) {
+                    $sub->whereRaw('trim(upper(nombre_ventanilla)) = ?', ['UNICA'])
+                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['ECA']);
+                });
             })
             ->orderBy('nombre_ventanilla')
             ->get();
