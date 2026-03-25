@@ -110,6 +110,16 @@
         .users-muted {
             color: var(--muted);
         }
+
+        .users-user-modal .modal-dialog {
+            max-width: 1140px;
+            width: calc(100% - 1rem);
+            margin: 1.5rem auto;
+        }
+
+        .users-user-modal .modal-body {
+            overflow-y: visible;
+        }
     </style>
 
     <div class="users-wrap">
@@ -274,8 +284,8 @@
         </div>
     </div>
 
-    <div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal fade users-user-modal" id="userModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <form wire:submit.prevent="saveUser">
                     <div class="modal-header">
