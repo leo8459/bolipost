@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Confirmacion de solicitud</title>
+    <title>Solicitud registrada</title>
 </head>
 <body style="margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;background:#eef2f7;color:#172033;">
     @php
@@ -30,9 +30,9 @@
     <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d8e1ec;border-radius:18px;overflow:hidden;box-shadow:0 18px 40px rgba(17,24,39,0.08);">
         <div style="background:linear-gradient(135deg,#173f75 0%,#20539a 100%);color:#ffffff;padding:28px 32px;">
             <div style="font-size:12px;letter-spacing:1.2px;text-transform:uppercase;opacity:0.85;">Correos de Bolivia</div>
-            <h1 style="margin:8px 0 0 0;font-size:26px;line-height:1.2;">Confirmacion de solicitud registrada</h1>
+            <h1 style="margin:8px 0 0 0;font-size:26px;line-height:1.2;">Solicitud registrada</h1>
             <p style="margin:10px 0 0 0;font-size:14px;line-height:1.6;opacity:0.92;">
-                Tu solicitud fue recibida correctamente y ya cuenta con un codigo de seguimiento.
+                Tu solicitud fue registrada correctamente en nuestro sistema.
             </p>
         </div>
 
@@ -40,7 +40,7 @@
             <p style="margin-top:0;font-size:15px;">Estimado/a {{ $cliente->name }},</p>
 
             <p style="margin:0 0 18px 0;font-size:15px;line-height:1.7;">
-                Te confirmamos que tu solicitud fue registrada satisfactoriamente en el sistema de <strong>Correos de Bolivia</strong>.
+                Te informamos que tu solicitud fue registrada satisfactoriamente en el sistema de <strong>Correos de Bolivia</strong>.
             </p>
 
             <div style="margin:0 0 24px 0;padding:22px;border:1px solid #d7e0eb;border-radius:16px;background:#f8fafc;text-align:center;">

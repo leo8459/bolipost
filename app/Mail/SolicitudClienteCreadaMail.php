@@ -24,7 +24,7 @@ class SolicitudClienteCreadaMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Confirmacion de solicitud ' . $this->solicitud->codigo_solicitud . ' | Correos de Bolivia',
+            subject: 'Solicitud registrada ' . $this->solicitud->codigo_solicitud . ' | Correos de Bolivia',
         );
     }
 
