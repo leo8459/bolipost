@@ -21,6 +21,7 @@ use Illuminate\Validation\Rule;
 class PaquetesEmsController extends Controller
 {
     private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
+    private const EVENTO_ID_TIKTOKER_SOLICITUD_CREADA = 295;
 
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
@@ -191,6 +192,23 @@ class PaquetesEmsController extends Controller
                 'estado_id' => $estadoAlmacenId,
                 'updated_at' => now(),
             ]);
+
+        if ($updated > 0) {
+            $actorUserId = (int) optional(Auth::user())->id;
+
+            if ($actorUserId > 0) {
+                $solicitudes = SolicitudCliente::query()
+                    ->whereIn('id', $ids)
+                    ->where('estado_id', $estadoAlmacenId)
+                    ->get(['codigo_solicitud', 'barcode']);
+
+                $this->registrarEventosTiktoker(
+                    $solicitudes,
+                    $actorUserId,
+                    self::EVENTO_ID_TIKTOKER_SOLICITUD_CREADA
+                );
+            }
+        }
 
         return redirect()
             ->route('paquetes-ems.solicitudes.index')
@@ -385,6 +403,15 @@ class PaquetesEmsController extends Controller
             'codigo_solicitud' => $codigoSolicitud,
             'barcode' => $codigoSolicitud,
         ]);
+
+        $actorUserId = (int) optional(Auth::user())->id;
+        if ($actorUserId > 0) {
+            $this->registrarEventosTiktoker(
+                [$solicitud],
+                $actorUserId,
+                self::EVENTO_ID_TIKTOKER_SOLICITUD_CREADA
+            );
+        }
 
         return redirect()
             ->route('paquetes-ems.solicitudes.ticket', $solicitud);
@@ -883,6 +910,39 @@ class PaquetesEmsController extends Controller
         $text = trim((string) $value);
 
         return $text === '' ? null : $text;
+    }
+
+    private function registrarEventosTiktoker(iterable $solicitudes, int $userId, int $eventoId): void
+    {
+        if ($userId <= 0 || $eventoId <= 0) {
+            return;
+        }
+
+        $now = now();
+
+        $rows = collect($solicitudes)
+            ->map(function ($solicitud) use ($userId, $eventoId, $now) {
+                $codigo = trim((string) ($solicitud->codigo_solicitud ?? $solicitud->barcode ?? ''));
+                if ($codigo === '') {
+                    return null;
+                }
+
+                return [
+                    'codigo' => $codigo,
+                    'evento_id' => $eventoId,
+                    'user_id' => $userId,
+                    'cliente_id' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        if (!empty($rows)) {
+            DB::table('eventos_tiktoker')->insert($rows);
+        }
     }
 
     private function authorizeAnyPermission(Request $request, array $permissions): void

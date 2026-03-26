@@ -815,6 +815,11 @@ return [
                     'icon' => 'fas fa-file-contract',
                 ],
                 [
+                    'text' => 'Eventos Tiktoker',
+                    'url' => 'eventos-tiktoker',
+                    'icon' => 'fas fa-hashtag',
+                ],
+                [
                     'text' => 'Eventos Auditoria',
                     'url' => 'eventos-auditoria',
                     'icon' => 'fas fa-history',

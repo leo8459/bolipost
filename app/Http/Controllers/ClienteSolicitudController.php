@@ -10,12 +10,15 @@ use App\Models\SolicitudCliente;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class ClienteSolicitudController extends Controller
 {
+    private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 295;
+
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
@@ -127,6 +130,8 @@ class ClienteSolicitudController extends Controller
             'barcode' => $codigoSolicitud,
         ]);
 
+        $this->registrarEventoTiktokerCreacionCliente($solicitud, (int) $cliente->id);
+
         $message = 'Solicitud registrada correctamente con codigo ' . $solicitud->codigo_solicitud . '.';
 
         try {
@@ -185,5 +190,23 @@ class ClienteSolicitudController extends Controller
         $text = trim((string) $value);
 
         return $text === '' ? null : $text;
+    }
+
+    private function registrarEventoTiktokerCreacionCliente(SolicitudCliente $solicitud, int $clienteId): void
+    {
+        $codigo = trim((string) ($solicitud->codigo_solicitud ?: $solicitud->barcode));
+
+        if ($codigo === '' || $clienteId <= 0) {
+            return;
+        }
+
+        DB::table('eventos_tiktoker')->insert([
+            'codigo' => $codigo,
+            'evento_id' => self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE,
+            'user_id' => null,
+            'cliente_id' => $clienteId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 }

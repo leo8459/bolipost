@@ -152,6 +152,7 @@ class AclPermissionRegistry
         'ordi' => 'eventos-ordi',
         'despacho' => 'eventos-despacho',
         'contrato' => 'eventos-contrato',
+        'tiktoker' => 'eventos-tiktoker',
     ];
 
     /**
@@ -165,6 +166,7 @@ class AclPermissionRegistry
         'ordi' => 'eventos-ordi.index',
         'despacho' => 'eventos-despacho.index',
         'contrato' => 'eventos-contrato.index',
+        'tiktoker' => 'eventos-tiktoker.index',
     ];
 
     /**
@@ -296,6 +298,7 @@ class AclPermissionRegistry
         'eventos-ordi.index' => ['create', 'edit', 'delete'],
         'eventos-despacho.index' => ['create', 'edit', 'delete'],
         'eventos-contrato.index' => ['create', 'edit', 'delete'],
+        'eventos-tiktoker.index' => ['create', 'edit', 'delete'],
         'paquetes-contrato.index' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.almacen' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.recoger-envios' => ['assign', 'print'],
@@ -1438,6 +1441,9 @@ class AclPermissionRegistry
             'feature.eventos-contrato.index.create' => 'Boton: Nuevo registro Contrato',
             'feature.eventos-contrato.index.edit' => 'Boton: Editar registro Contrato',
             'feature.eventos-contrato.index.delete' => 'Boton: Eliminar registro Contrato',
+            'feature.eventos-tiktoker.index.create' => 'Boton: Nuevo registro Tiktoker',
+            'feature.eventos-tiktoker.index.edit' => 'Boton: Editar registro Tiktoker',
+            'feature.eventos-tiktoker.index.delete' => 'Boton: Eliminar registro Tiktoker',
             'feature.servicios.create' => 'Boton: Nuevo servicio / Guardar servicio',
             'feature.servicios.edit' => 'Boton: Editar servicio / Guardar cambios',
             'feature.servicios.delete' => 'Boton: Dar de baja servicio',
@@ -1675,6 +1681,9 @@ class AclPermissionRegistry
             'feature.eventos-contrato.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos Contrato.',
             'feature.eventos-contrato.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Eventos Contrato.',
             'feature.eventos-contrato.index.delete' => 'Controla el boton Eliminar dentro de la ventana Eventos Contrato.',
+            'feature.eventos-tiktoker.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos Tiktoker.',
+            'feature.eventos-tiktoker.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Eventos Tiktoker.',
+            'feature.eventos-tiktoker.index.delete' => 'Controla el boton Eliminar dentro de la ventana Eventos Tiktoker.',
             'feature.servicios.create' => 'Controla el boton Crear Nuevo y Guardar dentro del modulo Servicios.',
             'feature.servicios.edit' => 'Controla el boton Editar y Guardar cambios dentro del modulo Servicios.',
             'feature.servicios.delete' => 'Controla el boton Dar de baja dentro del modulo Servicios.',

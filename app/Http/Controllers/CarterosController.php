@@ -1764,10 +1764,6 @@ class CarterosController extends Controller
 
     private function insertEventosPorTipoDesdeIds(string $tipoPaquete, array $ids, int $eventoId, int $userId): void
     {
-        if ($tipoPaquete === 'SOLICITUD') {
-            return;
-        }
-
         $ids = collect($ids)
             ->map(fn ($id) => (int) $id)
             ->filter(fn ($id) => $id > 0)
@@ -1785,10 +1781,6 @@ class CarterosController extends Controller
 
     private function insertEventoPorPaquete(string $tipoPaquete, int $id, int $eventoId, int $userId): void
     {
-        if ($tipoPaquete === 'SOLICITUD') {
-            return;
-        }
-
         if ($id <= 0) {
             return;
         }
@@ -1876,6 +1868,10 @@ class CarterosController extends Controller
 
         if ($tipoPaquete === 'CONTRATO') {
             return 'eventos_contrato';
+        }
+
+        if ($tipoPaquete === 'SOLICITUD') {
+            return 'eventos_tiktoker';
         }
 
         throw ValidationException::withMessages([

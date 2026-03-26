@@ -1070,6 +1070,15 @@ class PaquetesEms extends Component
         $solicitud->estado_id = (int) $estadoAlmacenId;
         $solicitud->save();
 
+        $actorUserId = (int) optional(Auth::user())->id;
+        if ($actorUserId > 0) {
+            $this->registerEventosTiktoker(
+                [$solicitud],
+                $actorUserId,
+                self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE
+            );
+        }
+
         $this->selectedSolicitudes = collect($this->selectedSolicitudes)
             ->map(fn ($id) => (string) $id)
             ->push((string) $solicitud->id)
@@ -1806,6 +1815,12 @@ class PaquetesEms extends Component
                 $actorUserId,
                 self::EVENTO_ID_SACA_INTERNA_CREADA_SALIDA
             );
+
+            $this->registerEventosTiktoker(
+                $solicitudes,
+                $actorUserId,
+                self::EVENTO_ID_SACA_INTERNA_CREADA_SALIDA
+            );
         });
 
         if ($paquetes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
@@ -2087,6 +2102,12 @@ class PaquetesEms extends Component
                 SolicitudCliente::query()
                     ->whereIn('id', $solicitudes->pluck('id')->all())
                     ->update(['estado_id' => $estadoVentanillaId]);
+
+                $this->registerEventosTiktoker(
+                    $solicitudes,
+                    $actorUserId,
+                    self::EVENTO_ID_PAQUETE_ENVIADO_VENTANILLA_EMS
+                );
             }
         });
 
@@ -2267,6 +2288,12 @@ class PaquetesEms extends Component
                         'recepcionado_por' => $recibidoPor !== '' ? $recibidoPor : null,
                         'observacion' => $descripcion !== '' ? $descripcion : null,
                     ]);
+
+                $this->registerEventosTiktoker(
+                    $solicitudes,
+                    $actorUserId,
+                    $eventoEntregaId
+                );
             }
         });
 
@@ -2651,6 +2678,12 @@ class PaquetesEms extends Component
                     $solicitud->save();
                     $updatedSolicitudes++;
                 }
+
+                $this->registerEventosTiktoker(
+                    $solicitudesRecibir,
+                    $actorUserId,
+                    self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                );
             }
         });
 
@@ -3811,6 +3844,41 @@ class PaquetesEms extends Component
         }
 
         DB::table('eventos_contrato')->insert($rows);
+    }
+
+    protected function registerEventosTiktoker(iterable $solicitudes, int $userId, int $eventoId): void
+    {
+        if ($userId <= 0 || $eventoId <= 0) {
+            return;
+        }
+
+        $now = now();
+
+        $rows = collect($solicitudes)
+            ->map(function ($solicitud) use ($eventoId, $userId, $now) {
+                $codigo = trim((string) ($solicitud->codigo_solicitud ?? $solicitud->barcode ?? ''));
+                if ($codigo === '') {
+                    return null;
+                }
+
+                return [
+                    'codigo' => $codigo,
+                    'evento_id' => (int) $eventoId,
+                    'user_id' => $userId,
+                    'cliente_id' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        if (empty($rows)) {
+            return;
+        }
+
+        DB::table('eventos_tiktoker')->insert($rows);
     }
 
     protected function setUserOrigenId()
