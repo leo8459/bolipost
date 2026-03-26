@@ -280,6 +280,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/paquetes-contrato/{contrato}/reporte', [RecojoController::class, 'reporte'])->name('paquetes-contrato.reporte');
     Route::get('/area-contratos/todos', [AreaContratosController::class, 'todos'])->name('area-contratos.todos');
     Route::get('/area-contratos/entregados', [AreaContratosController::class, 'entregados'])->name('area-contratos.entregados');
+    Route::get('/area-contratos/reportes', [AreaContratosController::class, 'reportes'])->name('area-contratos.reportes');
+    Route::get('/area-contratos/reportes/excel', [AreaContratosController::class, 'exportReportesExcel'])->name('area-contratos.reportes.excel');
     Route::get('/indicadores/contratos/entregados', [IndicadorController::class, 'contratosEntregados'])->name('indicadores.contratos.entregados');
     Route::get('/indicadores/contratos/inventario', [IndicadorController::class, 'contratosInventario'])->name('indicadores.contratos.inventario');
     Route::get('/indicadores/ems/entregados', [IndicadorController::class, 'emsEntregados'])->name('indicadores.ems.entregados');

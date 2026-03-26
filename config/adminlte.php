@@ -410,6 +410,11 @@ return [
                             'url' => 'area-contratos/entregados',
                             'icon' => 'fas fa-check-circle',
                         ],
+                        [
+                            'text' => 'Reportes',
+                            'url' => 'area-contratos/reportes',
+                            'icon' => 'fas fa-file-excel',
+                        ],
                     ],
                 ],
                 [
