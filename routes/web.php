@@ -181,6 +181,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/paquetes-ems/en-transito', [PaquetesEmsController::class, 'enTransito'])->name('paquetes-ems.en-transito');
     Route::get('/paquetes-ems/recibir-regional', [PaquetesEmsController::class, 'recibirRegional'])->name('paquetes-ems.recibir-regional');
     Route::get('/paquetes-ems/entregados', [PaquetesEmsController::class, 'entregados'])->name('paquetes-ems.entregados');
+    Route::get('/paquetes-ems/entregados/solicitud', [PaquetesEmsController::class, 'createSolicitudDesdeEntregados'])->name('paquetes-ems.entregados.solicitud.create');
+    Route::post('/paquetes-ems/entregados/solicitud', [PaquetesEmsController::class, 'storeSolicitudDesdeEntregados'])->name('paquetes-ems.entregados.solicitud.store');
+    Route::get('/paquetes-ems/entregados/planilla', [PaquetesEmsController::class, 'planillaEntregados'])->name('paquetes-ems.entregados.planilla');
     Route::get('/paquetes-ems/registro-rapido-contrato', [PaquetesEmsController::class, 'createRegistroRapidoContrato'])->name('paquetes-ems.contrato-rapido.create');
     Route::post('/paquetes-ems/registro-rapido-contrato', [PaquetesEmsController::class, 'storeRegistroRapidoContrato'])->name('paquetes-ems.contrato-rapido.store');
     Route::get('/paquetes-ems/{paquete}/boleta', [PaquetesEmsBoletaController::class, 'show'])->name('paquetes-ems.boleta');

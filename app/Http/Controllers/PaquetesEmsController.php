@@ -12,6 +12,7 @@ use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +21,8 @@ use Illuminate\Validation\Rule;
 
 class PaquetesEmsController extends Controller
 {
+    private const EVENTO_ID_CONTRATO_CREADO = 318;
+    private const EVENTO_ID_CONTRATO_RECIBIDO = 295;
     private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
     private const EVENTO_ID_TIKTOKER_SOLICITUD_CREADA = 295;
 
@@ -626,6 +629,204 @@ class PaquetesEmsController extends Controller
         ]);
     }
 
+    public function planillaEntregados(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.index.print',
+            'feature.paquetes-ems.almacen.print',
+            'feature.paquetes-ems.ventanilla.print',
+            'feature.paquetes-ems.recibir-regional.print',
+            'feature.paquetes-ems.en-transito.print',
+        ]);
+
+        $search = trim((string) $request->query('q', ''));
+        $estadoEntregadoId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
+            ->value('id') ?? 0);
+
+        if ($estadoEntregadoId <= 0) {
+            return redirect()
+                ->route('paquetes-ems.entregados', ['q' => $search])
+                ->with('error', 'No existe el estado ENTREGADO en la tabla estados.');
+        }
+
+        $paquetes = PaqueteEms::query()
+            ->with(['tarifario.destino', 'formulario'])
+            ->leftJoin('cartero as asignacion', 'asignacion.id_paquetes_ems', '=', 'paquetes_ems.id')
+            ->select('paquetes_ems.*')
+            ->where('paquetes_ems.estado_id', $estadoEntregadoId)
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('paquetes_ems.codigo', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.telefono_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.ciudad', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.nombre_remitente', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.contenido', 'like', '%' . $search . '%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
+                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderBy('paquetes_ems.id')
+            ->distinct()
+            ->get();
+
+        if ($paquetes->isEmpty()) {
+            return redirect()
+                ->route('paquetes-ems.entregados', ['q' => $search])
+                ->with('error', 'No hay paquetes EMS entregados para generar la planilla.');
+        }
+
+        $generatedAt = now();
+        $pdf = Pdf::loadView('paquetes_ems.planilla-entregados', [
+            'paquetes' => $paquetes,
+            'generatedAt' => $generatedAt,
+            'search' => $search,
+        ])->setPaper('letter', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'planilla-ems-entregados-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
+    public function createSolicitudDesdeEntregados(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-contrato.create.create',
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+        ]);
+
+        return view('paquetes_ems.solicitud-desde-entregados', [
+            'empresas' => Empresa::query()
+                ->orderBy('nombre')
+                ->get(['id', 'nombre', 'sigla', 'codigo_cliente']),
+            'ciudades' => self::CIUDADES_BOLIVIA,
+            'returnQuery' => trim((string) $request->query('q', '')),
+        ]);
+    }
+
+    public function storeSolicitudDesdeEntregados(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-contrato.create.create',
+            'feature.paquetes-ems.index.create',
+            'feature.paquetes-ems.almacen.create',
+        ]);
+
+        $data = $request->validate([
+            'empresa_id' => ['required', 'integer', 'exists:empresa,id'],
+            'origen' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
+            'destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
+            'peso' => ['required', 'numeric', 'min:0.001'],
+            'observacion' => ['nullable', 'string', 'max:1000'],
+            'return_query' => ['nullable', 'string', 'max:255'],
+        ], [], [
+            'empresa_id' => 'empresa',
+            'origen' => 'origen',
+            'destino' => 'destino',
+            'peso' => 'peso',
+            'observacion' => 'observacion',
+        ]);
+
+        $empresa = Empresa::query()->findOrFail((int) $data['empresa_id']);
+        $user = Auth::user();
+
+        if (! $user) {
+            abort(403, 'No autenticado.');
+        }
+
+        $codigoCliente = strtoupper(trim((string) $empresa->codigo_cliente));
+        $codigoCliente = preg_replace('/\s+/', '', $codigoCliente) ?: '';
+
+        if ($codigoCliente === '') {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'La empresa seleccionada no tiene codigo_cliente valido para seguir el correlativo.');
+        }
+
+        $estadoRecibidoId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['RECIBIDO'])
+            ->value('id') ?? 0);
+
+        if ($estadoRecibidoId <= 0) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'No existe el estado RECIBIDO en la tabla estados.');
+        }
+
+        $eventoExiste = DB::table('eventos')
+            ->where('id', self::EVENTO_ID_CONTRATO_RECIBIDO)
+            ->exists();
+
+        if (! $eventoExiste) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'No existe el evento con ID '.self::EVENTO_ID_CONTRATO_RECIBIDO.' en la tabla eventos.');
+        }
+
+        $contrato = null;
+
+        DB::transaction(function () use ($empresa, $user, $data, $codigoCliente, $estadoRecibidoId, &$contrato) {
+            $correlativo = $this->nextCorrelativoEmpresa((int) $empresa->id, $codigoCliente);
+            $codigo = $this->buildCodigoEmpresa($codigoCliente, $correlativo);
+
+            $contrato = RecojoContrato::query()->create([
+                'user_id' => (int) $user->id,
+                'empresa_id' => (int) $empresa->id,
+                'codigo' => $codigo,
+                'cod_especial' => null,
+                'estados_id' => $estadoRecibidoId,
+                'origen' => strtoupper(trim((string) $data['origen'])),
+                'destino' => strtoupper(trim((string) $data['destino'])),
+                'nombre_r' => strtoupper(trim((string) ($empresa->nombre ?: 'SIN REMITENTE'))),
+                'telefono_r' => '-',
+                'contenido' => 'SOLICITUD GENERADA DESDE EMS ENTREGADOS',
+                'direccion_r' => 'SIN DIRECCION',
+                'nombre_d' => 'SIN DESTINATARIO',
+                'telefono_d' => null,
+                'direccion_d' => 'SIN DIRECCION',
+                'mapa' => null,
+                'provincia' => null,
+                'peso' => (float) $data['peso'],
+                'precio' => null,
+                'tarifa_contrato_id' => null,
+                'fecha_recojo' => null,
+                'observacion' => $this->nullableTrim($data['observacion'] ?? null),
+                'justificacion' => null,
+                'imagen' => null,
+            ]);
+
+            CodigoEmpresa::query()->create([
+                'codigo' => $codigo,
+                'barcode' => $codigo,
+                'empresa_id' => (int) $empresa->id,
+            ]);
+
+            DB::table('eventos_contrato')->insert([
+                'codigo' => $codigo,
+                'evento_id' => self::EVENTO_ID_CONTRATO_RECIBIDO,
+                'user_id' => (int) $user->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $contrato->loadMissing('empresa:id,nombre,sigla,codigo_cliente');
+        $generatedAt = now();
+        $pdf = Pdf::loadView('paquetes_ems.solicitud-desde-entregados-boleta', [
+            'contrato' => $contrato,
+            'generatedAt' => $generatedAt,
+        ])->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'boleta-recibido-' . $contrato->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
     public function createRegistroRapidoContrato()
     {
         $user = Auth::user();
@@ -960,5 +1161,41 @@ class PaquetesEmsController extends Controller
         }
 
         abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
+    }
+
+    private function nextCorrelativoEmpresa(int $empresaId, string $codigoCliente): int
+    {
+        $cliente = strtoupper(trim($codigoCliente));
+        $pattern = '/^C'.preg_quote($cliente, '/').'A(\d{5})BO$/';
+        $prefix = 'C'.$cliente.'A';
+        $max = 0;
+
+        $codigosEmpresa = CodigoEmpresa::query()
+            ->where('empresa_id', $empresaId)
+            ->pluck('codigo');
+
+        foreach ($codigosEmpresa as $codigo) {
+            if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
+                $max = max($max, (int) $matches[1]);
+            }
+        }
+
+        $codigosContrato = RecojoContrato::query()
+            ->where('empresa_id', $empresaId)
+            ->where('codigo', 'like', $prefix.'%BO')
+            ->pluck('codigo');
+
+        foreach ($codigosContrato as $codigo) {
+            if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
+                $max = max($max, (int) $matches[1]);
+            }
+        }
+
+        return $max + 1;
+    }
+
+    private function buildCodigoEmpresa(string $codigoCliente, int $correlativo): string
+    {
+        return 'C'.$codigoCliente.'A'.str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT).'BO';
     }
 }
