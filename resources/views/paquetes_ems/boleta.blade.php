@@ -3,67 +3,172 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Boleta CN22</title>
+    <title>Boleta EMS</title>
     <style>
-        @page { size: letter; margin: 8mm; }
+        @page { size: 80mm 260mm; margin: 4mm; }
+        * { box-sizing: border-box; }
         html, body {
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
-            width: 200mm;
-            height: 263mm;
-            box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #000;
+            background: #fff;
         }
-        body { padding: 8mm; }
-        .boleta { position: relative; height: 65mm; width: 200mm; }
-        .boleta + .boleta { margin-top: 0.1mm; border-top: 0; padding-top: 0; }
-        table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9px; }
-        @media print{
-            html, body { width: 200mm; height: 263mm; }
-            body { padding: 8mm; }
-            .boleta { width: 200mm; }
+        body {
+            width: 72mm;
+            margin: 0 auto;
+            font-size: 10px;
+            line-height: 1.35;
         }
-        th, td { border: 1px solid #000; padding: 1px; vertical-align: top; }
-        thead { background-color: #ffffff; }
-        .watermark-local {
-            position: absolute;
-            top: 10%;
-            left: 35%;
-            transform: translate(-50%, -50%) rotate(-30deg);
-            font-size: 42px;
-            color: rgba(120, 120, 120, .18);
-            white-space: nowrap;
-            pointer-events: none;
-            user-select: none;
-            z-index: 5;
+        .ticket {
+            width: 72mm;
+            margin: 0 auto 6mm;
+            page-break-inside: avoid;
         }
-        .barcode { text-align: center; }
+        .ticket:last-child {
+            margin-bottom: 0;
+        }
+        .center { text-align: center; }
+        .brand {
+            border: 1px solid #000;
+            padding: 2mm;
+        }
+        .brand img {
+            max-width: 100%;
+            height: auto;
+        }
+        .brand-title {
+            font-size: 12px;
+            font-weight: 700;
+            margin-top: 2mm;
+        }
+        .copy-label {
+            font-size: 9px;
+            font-weight: 700;
+            margin-top: 1mm;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+        .watermark {
+            margin-top: 1mm;
+            font-size: 8px;
+            font-weight: 700;
+        }
+        .divider {
+            border-top: 1px dashed #000;
+            margin: 2.5mm 0;
+        }
+        .barcode {
+            text-align: center;
+        }
+        .barcode img {
+            max-width: 100%;
+            height: auto;
+        }
+        .code {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: .06em;
+            margin-top: 1mm;
+            word-break: break-word;
+        }
+        .grid-2 {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        .grid-2 > div {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+            padding-right: 1.5mm;
+        }
+        .grid-2 > div:last-child {
+            padding-right: 0;
+            padding-left: 1.5mm;
+        }
+        .section {
+            margin-bottom: 2mm;
+            word-break: break-word;
+        }
+        .label {
+            display: block;
+            font-size: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            margin-bottom: .5mm;
+        }
+        .value {
+            font-size: 10px;
+            min-height: 4mm;
+        }
+        .value-sm {
+            font-size: 9px;
+        }
+        .box {
+            border: 1px solid #000;
+            padding: 2mm;
+        }
+        .qr-row {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        .qr-item {
+            display: table-cell;
+            width: 50%;
+            text-align: center;
+            vertical-align: top;
+        }
+        .qr-item img {
+            width: 22mm;
+            height: 22mm;
+            object-fit: contain;
+        }
+        .qr-caption {
+            font-size: 8px;
+            margin-bottom: 1mm;
+        }
+        .footer-note {
+            font-size: 8px;
+            text-align: center;
+        }
+        .signature-line {
+            display: block;
+            margin-top: 3mm;
+            border-top: 1px solid #000;
+            height: 0;
+        }
     </style>
 </head>
 @php
-    $codigo = $paquete->codigo ?? '';
+    $codigo = (string) ($paquete->codigo ?? '');
     $barcodePngB64 = null;
-    if (!empty($codigo)) {
+
+    if ($codigo !== '' && class_exists('\DNS1D')) {
         try {
-            $barcodePngB64 = DNS1D::getBarcodePNG($codigo, 'C128');
+            $barcodePngB64 = DNS1D::getBarcodePNG($codigo, 'C128', 1.5, 42);
         } catch (\Throwable $e) {
             $barcodePngB64 = null;
         }
     }
-    $origen = $paquete->origen ?? '';
-    $ciudad = $paquete->ciudad ?? '';
-    $nombre_remitente = $paquete->nombre_remitente ?? '';
-    $nombre_destinatario = $paquete->nombre_destinatario ?? '';
-    $telefono_remitente = $paquete->telefono_remitente ?? '';
-    $telefono_destinatario = $paquete->telefono_destinatario ?? '';
-    $contenido = $paquete->contenido ?? '';
-    $peso = $paquete->peso ?? '';
-    $precio = $paquete->precio ?? '';
-    $fecha = $paquete->created_at ?? now();
-    $destino = optional(optional($paquete->tarifario)->destino)->nombre_destino ?? '';
-    $direccion = $paquete->direccion ?? optional($paquete->formulario)->direccion ?? '';
 
-    $marcaAgua = match ($destino) {
+    $origen = (string) ($paquete->origen ?? '');
+    $ciudad = (string) ($paquete->ciudad ?? '');
+    $nombreRemitente = (string) ($paquete->nombre_remitente ?? '');
+    $nombreDestinatario = (string) ($paquete->nombre_destinatario ?? '');
+    $telefonoRemitente = (string) ($paquete->telefono_remitente ?? '');
+    $telefonoDestinatario = (string) ($paquete->telefono_destinatario ?? '');
+    $contenido = (string) ($paquete->contenido ?? '');
+    $peso = $paquete->peso !== null && $paquete->peso !== '' ? number_format((float) $paquete->peso, 3, '.', '') . ' kg' : '-';
+    $precio = $paquete->precio !== null && $paquete->precio !== '' ? number_format((float) $paquete->precio, 2, '.', '') . ' Bs' : '-';
+    $fecha = $paquete->created_at ?? now();
+    $destinoTarifa = (string) (optional(optional($paquete->tarifario)->destino)->nombre_destino ?? '');
+    $direccion = (string) ($paquete->direccion ?? optional($paquete->formulario)->direccion ?? '');
+    $usuario = trim((string) (Auth::user()->name ?? ''));
+
+    $marcaAgua = match ($destinoTarifa) {
         'SUPEREXPRESS' => 'NACIONAL SUPEREXPRESS',
         'DEVOLUCION' => 'NACIONAL CON DEVOLUCION',
         'NACIONAL' => 'NACIONAL EMS',
@@ -78,120 +183,138 @@
         default => '',
     };
 
-    $logoPath = public_path('images/images.png');
+    $logoPath = public_path('images/AGBClogo2.png');
     $qrRastreoPath = public_path('images/qr_trackingbo_8100.png');
-    $qrWebPath     = public_path('images/qr_correos_gob_bo.png');
+    $qrWebPath = public_path('images/qr_correos_gob_bo.png');
 
     $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
     $qrRastreoPngB64 = file_exists($qrRastreoPath) ? base64_encode(file_get_contents($qrRastreoPath)) : null;
-    $qrWebPngB64     = file_exists($qrWebPath) ? base64_encode(file_get_contents($qrWebPath)) : null;
+    $qrWebPngB64 = file_exists($qrWebPath) ? base64_encode(file_get_contents($qrWebPath)) : null;
 @endphp
-
 <body>
 @for ($i = 0; $i < 2; $i++)
-    <div class="boleta">
-        <table>
-            <colgroup>
-                <col style="width: 10%">
-                <col style="width: 12%">
-                <col style="width: 11%">
-                <col style="width: 12%">
-                <col style="width: 20%">
-                <col style="width: 17%">
-                <col style="width: 8%">
-                <col style="width: 10%">
-            </colgroup>
-            <thead>
-                <tr>
-                    <td colspan="3">
-                        @if($logoB64)
-                            <img src="data:image/png;base64,{{ $logoB64 }}" alt="AGBC" width="150" height="50"><br>
-                        @endif
-                    </td>
-                    <td colspan="3" rowspan="2" class="barcode">
-                        <div style="display: inline-block; text-align: center;">
-                            <div style="margin-bottom: 5px;">
-                                @if($barcodePngB64)
-                                    <img src="data:image/png;base64,{{ $barcodePngB64 }}" alt="Barcode" width="180" height="40">
-                                @else
-                                    {!! DNS1D::getBarcodeHTML($codigo, 'C128', 1.0, 40) !!}
-                                @endif
-                            </div>
-                            <span style="font-size: 16px; font-weight: bold;">{{ $codigo }}</span>
-                        </div>
-                    </td>
-                    <td rowspan="8" style="text-align:center;font-size:7px;vertical-align:middle;">
-                        <div style="font-size:8px; margin-bottom:2px;">Código de rastreo</div>
-                        @if($qrRastreoPngB64)
-                            <img src="data:image/png;base64,{{ $qrRastreoPngB64 }}" alt="QR Rastreo" width="60" height="60"><br>
-                        @endif
-                        <hr style="border:0;border-top:1px dotted #000;margin:4px 0;">
-                        <div style="font-size:8px; margin-bottom:2px;">Sitio web</div>
-                        @if($qrWebPngB64)
-                            <img src="data:image/png;base64,{{ $qrWebPngB64 }}" alt="QR Web" width="60" height="60"><br>
-                        @endif
-                        <span style="font-size:8px;">correos.gob.bo</span>
-                    </td>
-                </tr>
-                <tr>
-                    <td>OF. ORIGEN: <br>
-                        <div style="text-align: right;">{{ $origen }}</div>
-                    </td>
-                    <td>OF. DESTINO: <br>
-                        <div style="text-align: right;">{{ $ciudad }}</div>
-                    </td>
-                    <td></td>
-                </tr>
-                <tr>
-                    <td colspan="3" rowspan="2">
-                        NOMBRE REMITENTE: <br>
-                        <div style="text-align: right; font-size: 8px;">{{ $nombre_remitente }}</div>
-                    </td>
-                    <td colspan="3" rowspan="2">NOMBRE DESTINATARIO: <br>
-                        <div style="text-align: right; font-size: 8px;">{{ $nombre_destinatario }}</div>
-                    </td>
-                </tr>
-                <tr></tr>
-                <tr>
-                    <td colspan="3" rowspan="2">DIRECCIÓN Y TELÉFONO:
-                        <div style="text-align: right; font-size: 8px;"><br>{{ $telefono_remitente }}</div>
-                    </td>
-                    <td colspan="3" rowspan="2">DIRECCIÓN Y TELÉFONO:<br>
-                        <div style="text-align: right; font-size: 8px;">
-                            {{ $direccion }}<br>{{ $telefono_destinatario }}</div>
-                    </td>
-                </tr>
-                <tr></tr>
-                <tr>
-                    <td colspan="3">DESCRIPCIÓN:
-                        <div style="text-align: justify; font-size: 8px; word-wrap: break-word; white-space: pre-line;">
-                            @if (!empty($contenido))
-                                {{ $contenido }}<br>
-                            @endif
-                            DESTINO: {{ $destino }}
-                        </div>
-                    </td>
-                    <td rowspan="2" style="vertical-align: top;">
-                        {{ Auth::user()->name ?? '' }}:<br>
-                    </td>
-                    <td colspan="2" rowspan="2" style="vertical-align: top;">FIRMA :<br></td>
-                </tr>
-                <tr>
-                    <td>FECHA Y HORA:<br>
-                        <div style="text-align: right;">{{ \Carbon\Carbon::parse($fecha)->format('Y-m-d H:i:s') }}</div>
-                    </td>
-                    <td>PESO:<br>
-                        <div style="text-align: right;">{{ $peso }} kg</div>
-                    </td>
-                    <td>IMPORTE: <br>
-                        <div style="text-align: right;">{{ $precio }}</div>
-                    </td>
-                </tr>
-            </thead>
-        </table>
-        @if ($marcaAgua)
-            <div class="watermark-local">{{ $marcaAgua }}</div>
-        @endif
+    <div class="ticket">
+        <div class="brand center">
+            @if($logoB64)
+                <img src="data:image/png;base64,{{ $logoB64 }}" alt="Correos de Bolivia">
+            @endif
+            <div class="brand-title">Boleta EMS</div>
+            <div class="copy-label">Copia {{ $i + 1 }} de 2</div>
+            @if($marcaAgua !== '')
+                <div class="watermark">{{ $marcaAgua }}</div>
+            @endif
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="barcode">
+            @if($barcodePngB64)
+                <img src="data:image/png;base64,{{ $barcodePngB64 }}" alt="Codigo de barras {{ $codigo }}">
+            @elseif($codigo !== '' && class_exists('\DNS1D'))
+                {!! DNS1D::getBarcodeHTML($codigo, 'C128', 1.0, 42) !!}
+            @endif
+            <div class="code">{{ $codigo !== '' ? $codigo : 'SIN CODIGO' }}</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="grid-2">
+            <div>
+                <div class="section">
+                    <span class="label">Of. origen</span>
+                    <div class="value">{{ $origen !== '' ? $origen : '-' }}</div>
+                </div>
+            </div>
+            <div>
+                <div class="section">
+                    <span class="label">Of. destino</span>
+                    <div class="value">{{ $ciudad !== '' ? $ciudad : '-' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="box">
+            <div class="section">
+                <span class="label">Nombre remitente</span>
+                <div class="value">{{ $nombreRemitente !== '' ? $nombreRemitente : '-' }}</div>
+            </div>
+            <div class="section">
+                <span class="label">Telefono remitente</span>
+                <div class="value">{{ $telefonoRemitente !== '' ? $telefonoRemitente : '-' }}</div>
+            </div>
+            <div class="section">
+                <span class="label">Nombre destinatario</span>
+                <div class="value">{{ $nombreDestinatario !== '' ? $nombreDestinatario : '-' }}</div>
+            </div>
+            <div class="section">
+                <span class="label">Direccion y telefono destinatario</span>
+                <div class="value value-sm">
+                    {{ $direccion !== '' ? $direccion : '-' }}<br>
+                    {{ $telefonoDestinatario !== '' ? $telefonoDestinatario : '-' }}
+                </div>
+            </div>
+            <div class="section">
+                <span class="label">Descripcion</span>
+                <div class="value value-sm">
+                    {{ $contenido !== '' ? $contenido : '-' }}<br>
+                    DESTINO: {{ $destinoTarifa !== '' ? $destinoTarifa : '-' }}
+                </div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="grid-2">
+            <div>
+                <div class="section">
+                    <span class="label">Fecha y hora</span>
+                    <div class="value value-sm">{{ \Carbon\Carbon::parse($fecha)->format('Y-m-d H:i:s') }}</div>
+                </div>
+                <div class="section">
+                    <span class="label">Peso</span>
+                    <div class="value">{{ $peso }}</div>
+                </div>
+            </div>
+            <div>
+                <div class="section">
+                    <span class="label">Importe</span>
+                    <div class="value">{{ $precio }}</div>
+                </div>
+                <div class="section">
+                    <span class="label">Usuario</span>
+                    <div class="value value-sm">{{ $usuario !== '' ? $usuario : '-' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <span class="label">Firma</span>
+            <span class="signature-line"></span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="qr-row">
+            <div class="qr-item">
+                <div class="qr-caption">Codigo de rastreo</div>
+                @if($qrRastreoPngB64)
+                    <img src="data:image/png;base64,{{ $qrRastreoPngB64 }}" alt="QR rastreo">
+                @endif
+            </div>
+            <div class="qr-item">
+                <div class="qr-caption">Sitio web</div>
+                @if($qrWebPngB64)
+                    <img src="data:image/png;base64,{{ $qrWebPngB64 }}" alt="QR web">
+                @endif
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="footer-note">
+            Rastreo: tracking.correos.gob.bo<br>
+            Web: correos.gob.bo
+        </div>
     </div>
 @endfor
 </body>

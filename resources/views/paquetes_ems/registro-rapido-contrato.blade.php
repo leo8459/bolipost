@@ -190,6 +190,12 @@
                         </div>
                         <div class="col-lg-2 col-md-4">
                             <div class="form-group">
+                                <label>Cantidad</label>
+                                <input type="text" name="cantidad" id="registroRapidoCantidad" class="form-control" value="{{ old('cantidad') }}" placeholder="Opcional: cajas, sobres, 3 paquetes...">
+                            </div>
+                        </div>
+                        <div class="col-lg-2 col-md-4">
+                            <div class="form-group">
                                 <label>Origen (usuario logueado)</label>
                                 <input type="text" id="registroRapidoOrigen" class="form-control origin-input" value="{{ $origen }}" readonly>
                             </div>
@@ -238,6 +244,7 @@
                                 <tr>
                                     <th>#</th>
                                     <th>Codigo</th>
+                                    <th>Cantidad</th>
                                     <th>Peso</th>
                                     <th>Origen</th>
                                     <th>Destino</th>
@@ -250,6 +257,7 @@
                                     <tr>
                                         <td>{{ $idx + 1 }}</td>
                                         <td>{{ $item['codigo'] ?? '-' }}</td>
+                                        <td>{{ !empty($item['cantidad']) ? $item['cantidad'] : '-' }}</td>
                                         <td>{{ $item['peso'] ?? '-' }}</td>
                                         <td>{{ $item['origen'] ?? '-' }}</td>
                                         <td>{{ $item['destino'] ?? '-' }}</td>
@@ -265,7 +273,7 @@
                                     </tr>
                                 @empty
                                     <tr id="registroRapidoListadoEmpty">
-                                        <td colspan="7" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
+                                        <td colspan="8" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -283,6 +291,7 @@
 
         const codigoInput = document.getElementById('registroRapidoCodigo');
         const pesoInput = document.getElementById('registroRapidoPeso');
+        const cantidadInput = document.getElementById('registroRapidoCantidad');
         const origenInput = document.getElementById('registroRapidoOrigen');
         const destinoInput = document.getElementById('registroRapidoDestino');
         const provinciaInput = document.getElementById('registroRapidoProvincia');
@@ -356,7 +365,7 @@
             listBody.innerHTML = '';
 
             if (!prelista.length) {
-                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="7" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
+                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="8" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
                 if (listCount) listCount.textContent = '0';
                 return;
             }
@@ -376,6 +385,7 @@
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${escapeHtml(item.codigo)}</td>
+                    <td>${escapeHtml(item.cantidad || '-')}</td>
                     <td>${escapeHtml(item.peso)}</td>
                     <td>${escapeHtml(item.origen)}</td>
                     <td>${escapeHtml(item.destino)}</td>
@@ -395,6 +405,7 @@
         function addCurrentToPrelista() {
             const codigo = normalizeCodigo(codigoInput.value);
             const peso = String(pesoInput.value || '').trim();
+            const cantidad = String(cantidadInput?.value || '').trim();
             const destino = String(destinoInput.value || '').trim().toUpperCase();
             const origen = String(origenInput.value || '').trim().toUpperCase();
             const provincia = String(provinciaInput?.value || '').trim().toUpperCase();
@@ -426,6 +437,7 @@
 
             prelista.push({
                 codigo: codigo,
+                cantidad: cantidad,
                 peso: Number(peso).toFixed(3),
                 origen: origen,
                 destino: destino,
@@ -448,6 +460,9 @@
             if (!item) return;
 
             pesoInput.value = item.peso;
+            if (cantidadInput) {
+                    cantidadInput.value = item.cantidad || '';
+            }
             destinoInput.value = item.destino;
             renderProvinciaOptions(item.destino, item.provincia || '');
 
@@ -510,6 +525,7 @@
                     body: JSON.stringify({
                         items: prelista.map((item) => ({
                             codigo: item.codigo,
+                            cantidad: item.cantidad || null,
                             peso: item.peso,
                             destino: item.destino,
                             provincia: item.provincia || null,
@@ -547,6 +563,9 @@
                 }
                 if (pesoInput) {
                     pesoInput.value = '';
+                }
+                if (cantidadInput) {
+                    cantidadInput.value = '';
                 }
                 if (provinciaInput) {
                     provinciaInput.value = '';

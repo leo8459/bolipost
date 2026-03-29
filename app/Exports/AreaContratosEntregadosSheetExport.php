@@ -155,7 +155,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                     $drawing->setWorksheet($sheet);
                 }
 
-                $sheet->setCellValue('A4', 'REPORTE DE CONTRATOS ENTREGADOS');
+                $sheet->setCellValue('A4', 'REPORTE DE CONTRATOS ENTREGADOS Y DEVUELTOS');
                 $sheet->setCellValue('A5', 'ORIGEN:');
                 $sheet->setCellValue('C5', $this->origin);
                 $sheet->setCellValue('A6', 'SERVICIO:');

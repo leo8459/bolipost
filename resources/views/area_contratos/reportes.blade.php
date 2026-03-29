@@ -8,13 +8,13 @@
     <div class="area-contratos-wrap">
         <div class="card area-contratos-card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h3 class="card-title mb-2 mb-md-0">Reportes de contratos entregados</h3>
+                <h3 class="card-title mb-2 mb-md-0">Reportes de contratos entregados y devueltos</h3>
                 <span class="area-badge">Total filtrado: {{ $totalReportes }}</span>
             </div>
             <div class="card-body">
-                @if (!$estadoEntregadoDisponible)
+                @if (!$estadoReporteDisponible)
                     <div class="alert alert-warning">
-                        No existe el estado ENTREGADO en la tabla estados.
+                        No existen los estados ENTREGADO o DEVOLUCION en la tabla estados.
                     </div>
                 @endif
 
@@ -32,12 +32,12 @@
                     </div>
 
                     <div class="col-md-2 mb-2">
-                        <label class="small font-weight-bold mb-1">Fecha entrega desde</label>
+                        <label class="small font-weight-bold mb-1">Fecha proceso desde</label>
                         <input type="date" name="from" value="{{ $from }}" class="form-control">
                     </div>
 
                     <div class="col-md-2 mb-2">
-                        <label class="small font-weight-bold mb-1">Fecha entrega hasta</label>
+                        <label class="small font-weight-bold mb-1">Fecha proceso hasta</label>
                         <input type="date" name="to" value="{{ $to }}" class="form-control">
                     </div>
 
@@ -60,7 +60,7 @@
 
                 <div class="d-flex flex-wrap align-items-center justify-content-between report-toolbar">
                     <div class="text-muted mb-2 mb-md-0">
-                        El Excel se genera solo con contratos en estado <strong>ENTREGADO</strong> y se separa por hoja segun el departamento de origen.
+                        El Excel se genera con contratos en estado <strong>ENTREGADO</strong> y <strong>DEVOLUCION</strong>, separados por hoja segun el departamento de origen.
                     </div>
                     <a
                         href="{{ route('area-contratos.reportes.excel', request()->query()) }}"
@@ -111,7 +111,7 @@
             <div class="col-lg-8 mb-3">
                 <div class="card area-contratos-card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                        <h3 class="card-title mb-2 mb-md-0">Vista previa de contratos entregados</h3>
+                        <h3 class="card-title mb-2 mb-md-0">Vista previa de contratos entregados y devueltos</h3>
                         <span class="area-badge">Mostrando: {{ $contratos->count() }}</span>
                     </div>
                     <div class="card-body p-0">
@@ -126,7 +126,9 @@
                                         <th>Remitente</th>
                                         <th>Destinatario</th>
                                         <th>Empresa</th>
-                                        <th>Fecha entrega</th>
+                                        <th>Cantidad</th>
+                                        <th>Estado</th>
+                                        <th>Fecha proceso</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -144,12 +146,14 @@
                                                     ({{ optional($contrato->empresa)->sigla }})
                                                 @endif
                                             </td>
+                                            <td>{{ $contrato->cantidad ?: '-' }}</td>
+                                            <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?: '-' }}</td>
                                             <td>{{ optional($contrato->updated_at)->format('d/m/Y H:i') }}</td>
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="8" class="text-center py-4 text-muted">
-                                                No hay contratos entregados con los filtros seleccionados.
+                                            <td colspan="10" class="text-center py-4 text-muted">
+                                                No hay contratos entregados o devueltos con los filtros seleccionados.
                                             </td>
                                         </tr>
                                     @endforelse

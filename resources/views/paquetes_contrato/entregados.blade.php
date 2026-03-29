@@ -25,6 +25,7 @@
                                 <th>Codigo</th>
                                 <th>Origen</th>
                                 <th>Destino</th>
+                                <th>Cantidad</th>
                                 <th>Receptor</th>
                                 <th>Fecha registro</th>
                                 <th>Imagen</th>
@@ -37,6 +38,7 @@
                                     <td><span class="pill-id">{{ $c->codigo }}</span></td>
                                     <td>{{ $c->origen }}</td>
                                     <td>{{ $c->destino }}</td>
+                                    <td>{{ $c->cantidad ?: '-' }}</td>
                                     <td>{{ $c->nombre_r }}</td>
                                     <td>{{ optional($c->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
@@ -63,7 +65,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="text-center py-5">
+                                    <td colspan="8" class="text-center py-5">
                                         <div class="fw-bold text-color-main">No hay contratos entregados</div>
                                         <div class="muted">No existen registros en estado ENTREGADO para tu empresa.</div>
                                     </td>

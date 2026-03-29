@@ -178,9 +178,11 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/paquetes-ems/almacen', [PaquetesEmsController::class, 'almacen'])->name('paquetes-ems.almacen');
     Route::get('/paquetes-ems/almacen-admisiones', [PaquetesEmsController::class, 'almacenAdmisiones'])->name('paquetes-ems.almacen-admisiones');
     Route::get('/paquetes-ems/ventanilla', [PaquetesEmsController::class, 'ventanilla'])->name('paquetes-ems.ventanilla');
+    Route::get('/paquetes-ems/devolucion', [PaquetesEmsController::class, 'devolucion'])->name('paquetes-ems.devolucion');
     Route::get('/paquetes-ems/en-transito', [PaquetesEmsController::class, 'enTransito'])->name('paquetes-ems.en-transito');
     Route::get('/paquetes-ems/recibir-regional', [PaquetesEmsController::class, 'recibirRegional'])->name('paquetes-ems.recibir-regional');
     Route::get('/paquetes-ems/entregados', [PaquetesEmsController::class, 'entregados'])->name('paquetes-ems.entregados');
+    Route::get('/paquetes-ems/devueltos', [PaquetesEmsController::class, 'devueltos'])->name('paquetes-ems.devueltos');
     Route::get('/paquetes-ems/entregados/solicitud', [PaquetesEmsController::class, 'createSolicitudDesdeEntregados'])->name('paquetes-ems.entregados.solicitud.create');
     Route::post('/paquetes-ems/entregados/solicitud', [PaquetesEmsController::class, 'storeSolicitudDesdeEntregados'])->name('paquetes-ems.entregados.solicitud.store');
     Route::get('/paquetes-ems/entregados/planilla', [PaquetesEmsController::class, 'planillaEntregados'])->name('paquetes-ems.entregados.planilla');

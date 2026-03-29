@@ -500,6 +500,11 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.ventanilla');
     }
 
+    public function devolucion()
+    {
+        return view('paquetes_ems.devolucion');
+    }
+
     public function recibirRegional()
     {
         return view('paquetes_ems.recibir-regional');
@@ -626,6 +631,130 @@ class PaquetesEmsController extends Controller
             'paquetes' => $paquetes,
             'search' => $search,
             'estadoEntregadoDisponible' => (bool) $estadoEntregadoId,
+        ]);
+    }
+
+    public function devueltos(Request $request)
+    {
+        $search = trim((string) $request->query('q', ''));
+
+        $estadoDevolucionId = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['DEVOLUCION'])
+            ->value('id');
+
+        $emsQuery = PaqueteEms::query()
+            ->leftJoin('cartero as asignacion', 'asignacion.id_paquetes_ems', '=', 'paquetes_ems.id')
+            ->leftJoin('users as cartero_user', 'cartero_user.id', '=', 'asignacion.id_user')
+            ->select([
+                DB::raw("'EMS' as tipo_paquete"),
+                'paquetes_ems.id',
+                'paquetes_ems.codigo',
+                DB::raw('paquetes_ems.nombre_destinatario as destinatario'),
+                DB::raw('paquetes_ems.telefono_destinatario as telefono'),
+                DB::raw('paquetes_ems.ciudad as ciudad'),
+                'paquetes_ems.peso',
+                DB::raw('paquetes_ems.updated_at as fecha_devolucion'),
+                'asignacion.recibido_por',
+                'asignacion.descripcion',
+                DB::raw('COALESCE(asignacion.imagen_devolucion, asignacion.imagen, paquetes_ems.imagen) as imagen'),
+                'cartero_user.name as asignado_a',
+            ])
+            ->when($estadoDevolucionId, function ($query) use ($estadoDevolucionId) {
+                $query->where('paquetes_ems.estado_id', (int) $estadoDevolucionId);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('paquetes_ems.codigo', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.telefono_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.ciudad', 'like', '%' . $search . '%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
+                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%')
+                        ->orWhere('cartero_user.name', 'like', '%' . $search . '%');
+                });
+            });
+
+        $contratosQuery = RecojoContrato::query()
+            ->leftJoin('cartero as asignacion', 'asignacion.id_paquetes_contrato', '=', 'paquetes_contrato.id')
+            ->leftJoin('users as cartero_user', 'cartero_user.id', '=', 'asignacion.id_user')
+            ->select([
+                DB::raw("'CONTRATO' as tipo_paquete"),
+                'paquetes_contrato.id',
+                'paquetes_contrato.codigo',
+                DB::raw('paquetes_contrato.nombre_d as destinatario'),
+                DB::raw('paquetes_contrato.telefono_d as telefono'),
+                DB::raw('paquetes_contrato.destino as ciudad'),
+                'paquetes_contrato.peso',
+                DB::raw('paquetes_contrato.updated_at as fecha_devolucion'),
+                'asignacion.recibido_por',
+                'asignacion.descripcion',
+                DB::raw('COALESCE(asignacion.imagen_devolucion, asignacion.imagen, paquetes_contrato.imagen) as imagen'),
+                'cartero_user.name as asignado_a',
+            ])
+            ->when($estadoDevolucionId, function ($query) use ($estadoDevolucionId) {
+                $query->where('paquetes_contrato.estados_id', (int) $estadoDevolucionId);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('paquetes_contrato.codigo', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_contrato.nombre_d', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_contrato.telefono_d', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_contrato.destino', 'like', '%' . $search . '%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
+                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%')
+                        ->orWhere('cartero_user.name', 'like', '%' . $search . '%');
+                });
+            });
+
+        $solicitudesQuery = SolicitudCliente::query()
+            ->leftJoin('cartero as asignacion', 'asignacion.id_solicitud_cliente', '=', 'solicitud_clientes.id')
+            ->leftJoin('users as cartero_user', 'cartero_user.id', '=', 'asignacion.id_user')
+            ->select([
+                DB::raw("'SOLICITUD' as tipo_paquete"),
+                'solicitud_clientes.id',
+                DB::raw("COALESCE(NULLIF(TRIM(solicitud_clientes.codigo_solicitud), ''), NULLIF(TRIM(solicitud_clientes.barcode), ''), 'SIN CODIGO') as codigo"),
+                DB::raw('solicitud_clientes.nombre_destinatario as destinatario'),
+                DB::raw('solicitud_clientes.telefono_destinatario as telefono'),
+                DB::raw('solicitud_clientes.ciudad as ciudad'),
+                'solicitud_clientes.peso',
+                DB::raw('solicitud_clientes.updated_at as fecha_devolucion'),
+                DB::raw("COALESCE(asignacion.recibido_por, solicitud_clientes.recepcionado_por, '-') as recibido_por"),
+                DB::raw("COALESCE(asignacion.descripcion, solicitud_clientes.observacion, '-') as descripcion"),
+                DB::raw('COALESCE(asignacion.imagen_devolucion, solicitud_clientes.imagen) as imagen'),
+                DB::raw("COALESCE(cartero_user.name, '-') as asignado_a"),
+            ])
+            ->when($estadoDevolucionId, function ($query) use ($estadoDevolucionId) {
+                $query->where('solicitud_clientes.estado_id', (int) $estadoDevolucionId);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('solicitud_clientes.codigo_solicitud', 'like', '%' . $search . '%')
+                        ->orWhere('solicitud_clientes.barcode', 'like', '%' . $search . '%')
+                        ->orWhere('solicitud_clientes.nombre_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('solicitud_clientes.telefono_destinatario', 'like', '%' . $search . '%')
+                        ->orWhere('solicitud_clientes.ciudad', 'like', '%' . $search . '%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
+                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%')
+                        ->orWhere('cartero_user.name', 'like', '%' . $search . '%');
+                });
+            });
+
+        $paquetes = DB::query()
+            ->fromSub($emsQuery->unionAll($contratosQuery)->unionAll($solicitudesQuery), 'devueltos')
+            ->orderByDesc('fecha_devolucion')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('paquetes_ems.devueltos', [
+            'paquetes' => $paquetes,
+            'search' => $search,
+            'estadoDevolucionDisponible' => (bool) $estadoDevolucionId,
         ]);
     }
 
@@ -871,12 +1000,14 @@ class PaquetesEmsController extends Controller
             'items.*.codigo' => 'required|string|max:50',
             'items.*.destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
             'items.*.provincia' => 'nullable|string|max:255',
+            'items.*.cantidad' => 'nullable|string|max:255',
             'items.*.peso' => 'required|numeric|min:0.001',
         ], [], [
             'items' => 'prelista',
             'items.*.codigo' => 'codigo',
             'items.*.destino' => 'destino',
             'items.*.provincia' => 'provincia',
+            'items.*.cantidad' => 'cantidad',
             'items.*.peso' => 'peso',
         ]);
 
@@ -916,6 +1047,7 @@ class PaquetesEmsController extends Controller
                     'codigo' => $codigo,
                     'destino' => strtoupper(trim((string) ($item['destino'] ?? ''))),
                     'provincia' => $provincia === '' ? null : $provincia,
+                    'cantidad' => trim((string) ($item['cantidad'] ?? '')),
                     'peso' => (float) ($item['peso'] ?? 0),
                 ];
             })
@@ -978,6 +1110,7 @@ class PaquetesEmsController extends Controller
                     'nombre_r' => 'SIN REMITENTE',
                     'telefono_r' => '-',
                     'contenido' => 'CONTRATO',
+                    'cantidad' => $item['cantidad'] !== '' ? $item['cantidad'] : null,
                     'direccion_r' => 'SIN DIRECCION',
                     'nombre_d' => 'SIN DESTINATARIO',
                     'telefono_d' => null,
@@ -994,6 +1127,7 @@ class PaquetesEmsController extends Controller
                 $creados->push([
                     'id' => (int) $contrato->id,
                     'codigo' => (string) $contrato->codigo,
+                    'cantidad' => (string) ($contrato->cantidad ?? ''),
                     'peso' => (string) $contrato->peso,
                     'origen' => (string) $contrato->origen,
                     'destino' => (string) $contrato->destino,

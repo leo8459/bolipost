@@ -82,7 +82,7 @@ class DespachoController extends Controller
             'categoria' => $despacho->categoria,
             'subclase' => $despacho->subclase,
             'ano' => (string) $despacho->anio,
-            'created_at' => optional($despacho->created_at)->format('Y-m-d'),
+            'created_at' => optional($despacho->created_at)->format('Y-m-d H:i:s'),
             'totalContenido' => $sacas->count(),
             'totalContenidoR' => 0,
             'totalContenidoB' => 0,

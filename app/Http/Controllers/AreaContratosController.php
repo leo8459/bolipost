@@ -72,9 +72,9 @@ class AreaContratosController extends Controller
     public function entregados(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
-        $estadoEntregadoId = $this->resolveEstadoEntregadoId();
+        $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
 
-        $contratos = $this->buildEntregadosQuery($search, $estadoEntregadoId)
+        $contratos = $this->buildEntregadosQuery($search, $estadoEntregadoId > 0 ? [$estadoEntregadoId] : [])
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();
@@ -92,13 +92,13 @@ class AreaContratosController extends Controller
         $empresaId = (int) $request->query('empresa_id', 0);
         $from = trim((string) $request->query('from', ''));
         $to = trim((string) $request->query('to', ''));
-        $estadoEntregadoId = $this->resolveEstadoEntregadoId();
+        $estadoReporteIds = $this->resolveEstadoReporteIds();
 
         $empresas = Empresa::query()
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'sigla']);
 
-        $query = $this->buildEntregadosReportQuery($search, $empresaId, $from, $to, $estadoEntregadoId);
+        $query = $this->buildEntregadosReportQuery($search, $empresaId, $from, $to, $estadoReporteIds);
 
         $contratos = (clone $query)
             ->orderByDesc('updated_at')
@@ -128,7 +128,7 @@ class AreaContratosController extends Controller
             'search' => $search,
             'from' => $from,
             'to' => $to,
-            'estadoEntregadoDisponible' => $estadoEntregadoId > 0,
+            'estadoReporteDisponible' => !empty($estadoReporteIds),
             'groupedSummary' => $groupedSummary,
             'totalReportes' => $rows->count(),
         ]);
@@ -140,13 +140,13 @@ class AreaContratosController extends Controller
         $empresaId = (int) $request->query('empresa_id', 0);
         $from = trim((string) $request->query('from', ''));
         $to = trim((string) $request->query('to', ''));
-        $estadoEntregadoId = $this->resolveEstadoEntregadoId();
+        $estadoReporteIds = $this->resolveEstadoReporteIds();
 
         $empresa = $empresaId > 0
             ? Empresa::query()->find($empresaId, ['id', 'nombre', 'sigla'])
             : null;
 
-        $rows = $this->buildEntregadosReportQuery($search, $empresaId, $from, $to, $estadoEntregadoId)
+        $rows = $this->buildEntregadosReportQuery($search, $empresaId, $from, $to, $estadoReporteIds)
             ->orderBy('origen')
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
@@ -173,7 +173,7 @@ class AreaContratosController extends Controller
         );
     }
 
-    private function buildEntregadosQuery(string $search, int $estadoEntregadoId)
+    private function buildEntregadosQuery(string $search, array $estadoIds)
     {
         return Recojo::query()
             ->with([
@@ -181,8 +181,8 @@ class AreaContratosController extends Controller
                 'empresa:id,nombre,sigla',
                 'user:id,name',
             ])
-            ->when($estadoEntregadoId > 0, function ($query) use ($estadoEntregadoId) {
-                $query->where('estados_id', $estadoEntregadoId);
+            ->when(!empty($estadoIds), function ($query) use ($estadoIds) {
+                $query->whereIn('estados_id', $estadoIds);
             }, function ($query) {
                 $query->whereRaw('1 = 0');
             })
@@ -211,9 +211,9 @@ class AreaContratosController extends Controller
         int $empresaId,
         string $from,
         string $to,
-        int $estadoEntregadoId
+        array $estadoIds
     ) {
-        return $this->buildEntregadosQuery($search, $estadoEntregadoId)
+        return $this->buildEntregadosQuery($search, $estadoIds)
             ->when($empresaId > 0, function ($query) use ($empresaId) {
                 $query->where('empresa_id', $empresaId);
             })
@@ -225,10 +225,18 @@ class AreaContratosController extends Controller
             });
     }
 
-    private function resolveEstadoEntregadoId(): int
+    private function resolveEstadoReporteIds(): array
+    {
+        return collect([
+            $this->resolveEstadoIdByName('ENTREGADO'),
+            $this->resolveEstadoIdByName('DEVOLUCION'),
+        ])->filter()->unique()->values()->all();
+    }
+
+    private function resolveEstadoIdByName(string $nombre): int
     {
         return (int) (Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [strtoupper(trim($nombre))])
             ->value('id') ?? 0);
     }
 

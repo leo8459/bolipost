@@ -325,6 +325,8 @@
                             Nuevo paquete EMS
                         @elseif ($this->isAlmacenEms)
                             Paquetes ALMACEN
+                        @elseif ($this->isDevolucionEms)
+                            Devolver paquetes
                         @elseif ($this->isEnTransitoEms)
                             Paquetes en transito
                         @elseif ($this->isVentanillaEms)
@@ -367,6 +369,13 @@
                                 </span>
                             @elseif ($this->isVentanillaEms)
                                 <span class="header-chip">VENTANILLA EMS</span>
+                            @elseif ($this->isDevolucionEms)
+                                <span class="header-chip">ALMACEN</span>
+                                <span class="header-chip">RECIBIDO</span>
+                                <span class="header-chip">VENTANILLA EMS</span>
+                                <span class="header-city">
+                                    Ciudad aplicada: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
+                                </span>
                             @elseif ($this->isTransitoEms)
                                 <span class="header-chip">{{ $this->regionalEstadoLabel }}</span>
                             @else
@@ -456,6 +465,12 @@
                             @if ($canEmsDeliver)
                             <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
                                 Entregar seleccionados
+                            </button>
+                            @endif
+                        @elseif ($this->isDevolucionEms)
+                            @if ($canEmsDeliver)
+                            <button class="btn btn-outline-light2" type="button" wire:click="openDevolucionEmsModal">
+                                Devolver seleccionados
                             </button>
                             @endif
                         @elseif ($this->isTransitoEms)
@@ -734,7 +749,7 @@
                     </div>
                     @if ($this->canSelect)
                         @php
-                            $seleccionadosTotal = ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
+                            $seleccionadosTotal = ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                 ? (count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes))
                                 : count($selectedPaquetes);
                         @endphp
@@ -764,9 +779,9 @@
                                     <th>Cod. especial</th>
                                     <th>Traspaso</th>
                                 </tr>
-                            @elseif ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
+                            @elseif ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                 <tr>
-                                    @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
+                                    @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                         <th></th>
                                     @endif
                                     <th>Codigo</th>
@@ -829,10 +844,10 @@
                                         </td>
                                     </tr>
                                 @endforelse
-                            @elseif ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
+                            @elseif ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                 @forelse ($paquetes as $row)
                                     <tr>
-                                        @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms)
+                                        @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                             <td>
                                                 @if (($row->record_type ?? '') === 'EMS')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes">
@@ -908,7 +923,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms) ? 17 : 16 }}" class="text-center py-5">
+                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms) ? 17 : 16 }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -1036,12 +1051,13 @@
                                         <th></th>
                                         <th>Codigo</th>
                                         <th>Cod. especial</th>
-                                        <th>Estado</th>
-                                        <th>Origen</th>
-                                        <th>Destino</th>
-                                        <th>Remitente</th>
-                                        <th>Destinatario</th>
-                                        <th>Empresa</th>
+                                         <th>Estado</th>
+                                         <th>Origen</th>
+                                         <th>Destino</th>
+                                         <th>Cantidad</th>
+                                         <th>Remitente</th>
+                                         <th>Destinatario</th>
+                                         <th>Empresa</th>
                                         <th>Telefono R</th>
                                         <th>Telefono D</th>
                                         <th>Creado</th>
@@ -1056,11 +1072,12 @@
                                             </td>
                                             <td><span class="pill-id">{{ $contrato->codigo }}</span></td>
                                             <td>{{ $contrato->cod_especial ?: '-' }}</td>
-                                            <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?? '-' }}</td>
-                                            <td>{{ $contrato->origen }}</td>
-                                            <td>{{ $contrato->destino }}</td>
-                                            <td>{{ $contrato->nombre_r }}</td>
-                                            <td>{{ $contrato->nombre_d }}</td>
+                                             <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?? '-' }}</td>
+                                             <td>{{ $contrato->origen }}</td>
+                                             <td>{{ $contrato->destino }}</td>
+                                             <td>{{ $contrato->cantidad ?: '-' }}</td>
+                                             <td>{{ $contrato->nombre_r }}</td>
+                                             <td>{{ $contrato->nombre_d }}</td>
                                             <td>
                                                 {{ optional($contrato->empresa)->nombre ?? optional(optional($contrato->user)->empresa)->nombre ?? '-' }}
                                                 @if(!empty(optional($contrato->empresa)->sigla))
@@ -1784,6 +1801,45 @@
         </div>
     </div>
 
+    <div class="modal fade" id="devolucionEmsModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar devolucion</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Recibido por</label>
+                        <input type="text" class="form-control" wire:model.defer="devolucionRecibidoPor">
+                        @error('devolucionRecibidoPor') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group">
+                        <label>Detalle de devolucion (opcional)</label>
+                        <textarea class="form-control" rows="3" wire:model.defer="devolucionDescripcion"></textarea>
+                        @error('devolucionDescripcion') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group mb-0">
+                        <label>Imagen de la guia</label>
+                        <input type="file" class="form-control-file" wire:model="devolucionImagen" accept="image/*">
+                        @error('devolucionImagen') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                        <small class="text-muted">Se guardara la misma imagen para los registros seleccionados.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsDeliver)
+                    <button type="button" class="btn btn-primary" wire:click="confirmarDevolucionEms">
+                        Confirmar devolucion
+                    </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="recibirRegionalModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -1887,6 +1943,8 @@
             closeTiktokerPesoModal: '#tiktokerPesoModal',
             openEntregaVentanillaModal: '#entregaVentanillaModal',
             closeEntregaVentanillaModal: '#entregaVentanillaModal',
+            openDevolucionEmsModal: '#devolucionEmsModal',
+            closeDevolucionEmsModal: '#devolucionEmsModal',
             openRecibirRegionalModal: '#recibirRegionalModal',
             closeRecibirRegionalModal: '#recibirRegionalModal',
         };

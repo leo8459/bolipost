@@ -22,6 +22,7 @@ class Recojo extends Model
         'nombre_r',
         'telefono_r',
         'contenido',
+        'cantidad',
         'direccion_r',
         'nombre_d',
         'telefono_d',

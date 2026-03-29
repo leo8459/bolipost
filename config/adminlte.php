@@ -476,6 +476,11 @@ return [
                     'icon' => 'fas fa-door-open',
                 ],
                 [
+                    'text' => 'Devolver paquetes',
+                    'url' => 'paquetes-ems/devolucion',
+                    'icon' => 'fas fa-undo',
+                ],
+                [
                     'text' => 'En transito',
                     'url' => 'paquetes-ems/en-transito',
                     'icon' => 'fas fa-shipping-fast',
@@ -489,6 +494,11 @@ return [
                     'text' => 'Entregados',
                     'url' => 'paquetes-ems/entregados',
                     'icon' => 'fas fa-check-circle',
+                ],
+                [
+                    'text' => 'Devueltos',
+                    'url' => 'paquetes-ems/devueltos',
+                    'icon' => 'fas fa-reply-all',
                 ],
             ],
         ],
