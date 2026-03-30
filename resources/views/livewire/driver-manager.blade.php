@@ -34,6 +34,22 @@
             font-weight: 600;
             color: #1f2937;
         }
+        .memorandum-viewer {
+            width: 100%;
+            min-height: 70vh;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            background: #fff;
+        }
+        .memorandum-image {
+            display: block;
+            max-width: 100%;
+            max-height: 70vh;
+            margin: 0 auto;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+            background: #fff;
+        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
@@ -97,6 +113,28 @@
                                 <span class="profile-label">Vencimiento</span>
                                 <span class="profile-value">{{ optional($driverProfile?->fecha_vencimiento_licencia)->format('d/m/Y') ?? '-' }}</span>
                             </div>
+                            <div class="profile-field">
+                                <span class="profile-label">Memorandum</span>
+                                <span class="profile-value">
+                                    @if($driverProfile?->memorandum_path)
+                                        @php
+                                            $memoExt = strtolower(pathinfo((string) $driverProfile->memorandum_path, PATHINFO_EXTENSION));
+                                            $memoKind = $memoExt === 'pdf' ? 'pdf' : 'image';
+                                        @endphp
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-primary driver-view-memorandum-btn"
+                                            data-url="{{ route('drivers.memorandum.download', $driverProfile->id) }}"
+                                            data-kind="{{ $memoKind }}"
+                                            data-name="Memorandum de {{ $driverProfile->nombre }}"
+                                        >
+                                            Ver memorandum
+                                        </button>
+                                    @else
+                                        -
+                                    @endif
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -133,7 +171,12 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="tipo_licencia" class="form-label fw-bold">Tipo Licencia</label>
-                            <input type="text" id="tipo_licencia" wire:model="tipo_licencia" class="form-control" placeholder="A, B, C, etc.">
+                            <select id="tipo_licencia" wire:model="tipo_licencia" class="form-select">
+                                <option value="">Seleccionar tipo</option>
+                                @foreach ($licenseTypes as $licenseType)
+                                    <option value="{{ $licenseType }}">{{ $licenseType }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="fecha_vencimiento_licencia" class="form-label fw-bold">Vencimiento Licencia</label>
@@ -159,7 +202,19 @@
                                 <div class="form-text mt-1">
                                     Archivo actual:
                                     @if($editingDriverId)
-                                        <a href="{{ route('drivers.memorandum.download', $editingDriverId) }}" target="_blank" rel="noopener noreferrer">abrir memorandum</a>
+                                        @php
+                                            $editMemoExt = strtolower(pathinfo((string) $memorandum_path, PATHINFO_EXTENSION));
+                                            $editMemoKind = $editMemoExt === 'pdf' ? 'pdf' : 'image';
+                                        @endphp
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-primary driver-view-memorandum-btn"
+                                            data-url="{{ route('drivers.memorandum.download', $editingDriverId) }}"
+                                            data-kind="{{ $editMemoKind }}"
+                                            data-name="Memorandum actual"
+                                        >
+                                            abrir memorandum
+                                        </button>
                                     @else
                                         <span class="text-muted">guarda primero para habilitar apertura</span>
                                     @endif
@@ -201,6 +256,7 @@
                                 <tr>
                                     <th>Nombre</th>
                                     <th>Licencia</th>
+                                    <th>Memorandum</th>
                                     <th>Telefono</th>
                                     <th>Estado</th>
                                     @if(auth()->user()?->role !== 'conductor')
@@ -213,6 +269,25 @@
                                     <tr>
                                         <td>{{ $driver->nombre }}</td>
                                         <td>{{ $driver->licencia }}</td>
+                                        <td>
+                                            @if($driver->memorandum_path)
+                                                @php
+                                                    $rowMemoExt = strtolower(pathinfo((string) $driver->memorandum_path, PATHINFO_EXTENSION));
+                                                    $rowMemoKind = $rowMemoExt === 'pdf' ? 'pdf' : 'image';
+                                                @endphp
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-outline-primary driver-view-memorandum-btn"
+                                                    data-url="{{ route('drivers.memorandum.download', $driver->id) }}"
+                                                    data-kind="{{ $rowMemoKind }}"
+                                                    data-name="Memorandum de {{ $driver->nombre }}"
+                                                >
+                                                    Ver memorandum
+                                                </button>
+                                            @else
+                                                <span class="text-muted">Sin archivo</span>
+                                            @endif
+                                        </td>
                                         <td>{{ $driver->telefono }}</td>
                                         <td>
                                             <span class="badge {{ $driver->activo ? 'bg-success' : 'bg-danger' }}">
@@ -255,4 +330,99 @@
             </div>
         </div>
     @endif
+
+    <div class="modal fade" id="driverMemorandumModal" tabindex="-1" aria-labelledby="driverMemorandumLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="driverMemorandumLabel">Memorandum</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <img id="driver-memorandum-image" class="memorandum-image d-none" alt="Memorandum">
+                    <iframe id="driver-memorandum-frame" class="memorandum-viewer d-none" title="Memorandum"></iframe>
+                    <div id="driver-memorandum-empty" class="text-muted text-center py-4">No se pudo cargar el memorandum.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+<script>
+    (function () {
+        if (window.__driverMemorandumModalInitialized) return;
+        window.__driverMemorandumModalInitialized = true;
+
+        function getModalInstance(el) {
+            if (!el) return null;
+
+            if (window.bootstrap && window.bootstrap.Modal) {
+                if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                    return window.bootstrap.Modal.getOrCreateInstance(el);
+                }
+                if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                    return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                }
+                return new window.bootstrap.Modal(el);
+            }
+
+            if (window.jQuery) {
+                return {
+                    show: () => window.jQuery(el).modal('show'),
+                    hide: () => window.jQuery(el).modal('hide'),
+                };
+            }
+
+            return null;
+        }
+
+        const modalEl = document.getElementById('driverMemorandumModal');
+        if (!modalEl) return;
+        if (modalEl.parentElement !== document.body) {
+            document.body.appendChild(modalEl);
+        }
+
+        const titleEl = document.getElementById('driverMemorandumLabel');
+        const imageEl = document.getElementById('driver-memorandum-image');
+        const frameEl = document.getElementById('driver-memorandum-frame');
+        const emptyEl = document.getElementById('driver-memorandum-empty');
+
+        document.addEventListener('click', function (event) {
+            const btn = event.target.closest('.driver-view-memorandum-btn');
+            if (!btn) return;
+
+            const url = btn.getAttribute('data-url') || '';
+            const kind = btn.getAttribute('data-kind') || 'image';
+            const name = btn.getAttribute('data-name') || 'Memorandum';
+
+            if (titleEl) {
+                titleEl.textContent = name;
+            }
+
+            imageEl?.classList.add('d-none');
+            frameEl?.classList.add('d-none');
+            emptyEl?.classList.add('d-none');
+            imageEl?.removeAttribute('src');
+            frameEl?.removeAttribute('src');
+
+            if (!url) {
+                emptyEl?.classList.remove('d-none');
+            } else if (kind === 'pdf') {
+                if (frameEl) {
+                    frameEl.src = url;
+                    frameEl.classList.remove('d-none');
+                }
+            } else {
+                if (imageEl) {
+                    imageEl.src = url;
+                    imageEl.classList.remove('d-none');
+                }
+            }
+
+            const modal = getModalInstance(modalEl);
+            if (modal) modal.show();
+        });
+    })();
+</script>

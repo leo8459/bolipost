@@ -5,23 +5,28 @@ namespace App\Livewire;
 use App\Models\FuelLog;
 use App\Models\FuelInvoice;
 use App\Models\GasStation;
+use App\Models\ActivityLog;
 use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
 use App\Models\VehicleLog;
+use App\Services\FuelInvoiceDocumentService;
 use App\Services\MaintenanceAlertService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Livewire\Attributes\Validate;
 
 class FuelLogManager extends Component
 {
     use WithPagination;
+    use WithFileUploads;
 
     protected string $paginationTheme = 'bootstrap';
 
@@ -77,6 +82,12 @@ class FuelLogManager extends Component
     public string $razon_social_emisor = '';
     public string $nit_emisor = '';
     public string $direccion_emisor = '';
+    public array $scannedInvoicePreview = [];
+    public ?string $scannedInvoiceDocumentUrl = null;
+    public ?string $scannedInvoiceRolloDocumentUrl = null;
+    public ?string $scannedInvoiceSourceUrl = null;
+    public ?string $invoicePhotoUrl = null;
+    public $invoice_photo_file = null;
 
     public bool $isEdit = false;
     public ?int $editingLogId = null;
@@ -84,11 +95,13 @@ class FuelLogManager extends Component
     public ?int $editingBitacoraId = null;
     public bool $showForm = false;
     public string $formView = 'fuel';
-    public string $tableView = 'combined';
+    public string $tableView = 'fuel';
     public string $search = '';
     public ?string $fecha_desde = null;
     public ?string $fecha_hasta = null;
     public string $placa_filtro = '';
+    public ?int $vehicle_filter_id = null;
+    public ?int $driver_filter_id = null;
     public string $driverAssignmentMessage = '';
     public bool $driverAssigned = true;
     private bool $syncingAssignment = false;
@@ -100,6 +113,9 @@ class FuelLogManager extends Component
     public function mount(): void
     {
         abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        $today = now()->toDateString();
+        $this->fecha_desde = $today;
+        $this->fecha_hasta = $today;
     }
 
     public function render()
@@ -172,7 +188,7 @@ class FuelLogManager extends Component
         $this->ensureDriverInOptions($this->driver_id);
 
         $query = FuelLog::query()
-            ->with(['invoice', 'vehicle', 'driver', 'vehicleLog'])
+            ->with(['invoice', 'vehicle.brand', 'vehicle.vehicleClass', 'driver', 'vehicleLog'])
             ->orderByDesc('created_at')
             ->orderByDesc('id');
 
@@ -190,7 +206,16 @@ class FuelLogManager extends Component
                     ->toArray();
 
                 $query->whereIn('id', $ids);
+                $this->driver_filter_id = (int) $driver->id;
             }
+        }
+
+        if ($this->vehicle_filter_id) {
+            $query->whereHas('vehicle', fn ($vehicleQuery) => $vehicleQuery->whereKey((int) $this->vehicle_filter_id));
+        }
+
+        if ($this->driver_filter_id) {
+            $query->whereHas('driver', fn ($driverQuery) => $driverQuery->whereKey((int) $this->driver_filter_id));
         }
 
         $placaFiltro = mb_strtoupper(trim($this->placa_filtro));
@@ -225,9 +250,9 @@ class FuelLogManager extends Component
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->whereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$search}%"])
-                    ->orWhereRaw('CAST(galones AS TEXT) ILIKE ?', ["%{$search}%"])
-                    ->orWhereRaw('CAST(precio_galon AS TEXT) ILIKE ?', ["%{$search}%"])
-                    ->orWhereRaw('CAST(total_calculado AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(cantidad AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(precio_unitario AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(subtotal AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereRaw('CAST(created_at AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereHas('invoice', function ($invoiceQuery) use ($search) {
                         $invoiceQuery->where('numero_factura', 'like', "%{$search}%")
@@ -248,7 +273,7 @@ class FuelLogManager extends Component
         $fuelLogs = $query->paginate(6, ['*'], 'fuelPage');
 
         $vehicleLogQuery = VehicleLog::query()
-            ->with(['vehicle', 'driver', 'fuelLog'])
+            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'fuelLog'])
             ->orderByDesc('fecha')
             ->orderByDesc('id');
 
@@ -259,6 +284,14 @@ class FuelLogManager extends Component
             } else {
                 $vehicleLogQuery->where('drivers_id', $driverId);
             }
+        }
+
+        if ($this->vehicle_filter_id) {
+            $vehicleLogQuery->where('vehicles_id', (int) $this->vehicle_filter_id);
+        }
+
+        if ($this->driver_filter_id) {
+            $vehicleLogQuery->where('drivers_id', (int) $this->driver_filter_id);
         }
 
         if ($placaFiltro !== '') {
@@ -303,7 +336,7 @@ class FuelLogManager extends Component
                 'tipo' => 'vale',
                 'fecha' => optional($date)->format('d/m/Y H:i') ?? '-',
                 'fecha_sort' => $date?->timestamp ?? 0,
-                'vehiculo' => $log->vehicle?->placa ?? '-',
+                'vehiculo' => $log->vehicle?->bitacora_display_name ?? '-',
                 'conductor' => $log->driver?->nombre ?? '-',
                 'detalle_titulo' => 'Factura',
                 'detalle_principal' => (string) ($log->invoice?->numero_factura ?? '-'),
@@ -320,7 +353,7 @@ class FuelLogManager extends Component
                 'tipo' => 'bitacora',
                 'fecha' => optional($date)->format('d/m/Y H:i') ?? '-',
                 'fecha_sort' => $date?->timestamp ?? 0,
-                'vehiculo' => $log->vehicle?->placa ?? '-',
+                'vehiculo' => $log->vehicle?->display_name ?? '-',
                 'conductor' => $log->driver?->nombre ?? '-',
                 'detalle_titulo' => 'Recorrido',
                 'detalle_principal' => (string) ($log->recorrido_inicio ?? '-'),
@@ -338,10 +371,24 @@ class FuelLogManager extends Component
 
         $combinedRows = $this->paginateCollection($combinedRows, 5, 'combinedPage');
 
+        $antiFraudAlerts = collect();
+        if (auth()->user()?->role !== 'conductor') {
+            $antiFraudAlerts = ActivityLog::query()
+                ->where('module', 'combustible')
+                ->whereIn('action', [
+                    'FUEL_INVOICE_DUPLICATE_ALERT',
+                    'FUEL_CAPACITY_EXCEEDED_ALERT',
+                ])
+                ->latestEvent()
+                ->limit(6)
+                ->get();
+        }
+
         return view('livewire.fuel-log-manager', [
             'fuelLogs' => $fuelLogs,
             'vehicleLogs' => $vehicleLogs,
             'combinedRows' => $combinedRows,
+            'antiFraudAlerts' => $antiFraudAlerts,
         ]);
     }
 
@@ -447,6 +494,10 @@ class FuelLogManager extends Component
 
     public function save()
     {
+        $this->validate([
+            'invoice_photo_file' => 'nullable|file|max:5120|mimes:jpg,jpeg,png,webp',
+        ]);
+
         if (auth()->user()?->role === 'conductor' && $this->isEdit) {
             session()->flash('error', 'No tiene permiso para editar vales de combustible.');
             return;
@@ -474,19 +525,31 @@ class FuelLogManager extends Component
         $this->numero_factura = trim($this->numero_factura);
         $this->gas_station_id = $this->resolveGasStationId();
 
+        $vehicle = $this->vehicle_id ? Vehicle::query()->find((int) $this->vehicle_id) : null;
+        $liters = (float) ($this->cantidad_combustible ?? $this->galones ?? 0);
+        if ($vehicle && !is_null($vehicle->capacidad_tanque) && $liters > ((float) $vehicle->capacidad_tanque * 1.05)) {
+            $this->logCapacityExceededAlert($vehicle, $liters, (float) $vehicle->capacidad_tanque);
+            $this->addError('galones', 'La cantidad cargada excede la capacidad registrada del tanque del vehiculo.');
+            return;
+        }
+
         try {
             DB::transaction(function () {
-                $existingInvoice = FuelInvoice::query()
-                    ->where('numero_factura', $this->numero_factura)
-                    ->first();
+                $existingInvoiceQuery = FuelInvoice::query()
+                    ->where('numero_factura', $this->numero_factura);
+                if (Schema::hasColumn('fuel_invoices', 'gas_station_id') && $this->gas_station_id) {
+                    $existingInvoiceQuery->where('gas_station_id', $this->gas_station_id);
+                }
+                $existingInvoice = $existingInvoiceQuery->first();
 
                 if ($this->isEdit && $this->editingLogId && $existingInvoice) {
                     $currentLog = FuelLog::find($this->editingLogId);
                     $currentInvoiceId = $currentLog?->fuel_invoice_id;
-                    if ((int) $existingInvoice->id !== (int) $currentInvoiceId) {
-                        $this->addError('numero_factura', 'La factura ya esta registrada en otro vale.');
-                        throw new \RuntimeException('duplicate_invoice_on_edit');
-                    }
+                        if ((int) $existingInvoice->id !== (int) $currentInvoiceId) {
+                            $this->logDuplicateInvoiceAlert($this->numero_factura, $existingInvoice->id);
+                            $this->addError('numero_factura', 'La factura ya esta registrada en otro vale.');
+                            throw new \RuntimeException('duplicate_invoice_on_edit');
+                        }
                 }
 
                 // first create or find invoice header (update attributes when editing)
@@ -519,6 +582,7 @@ class FuelLogManager extends Component
                             ->exists();
 
                         if ($invoiceHasFuelLog) {
+                            $this->logDuplicateInvoiceAlert($this->numero_factura, $existingInvoice->id);
                             $this->addError('numero_factura', 'La factura ya esta registrada en el sistema.');
                             throw new \RuntimeException('duplicate_invoice');
                         }
@@ -533,16 +597,19 @@ class FuelLogManager extends Component
                     }
                 }
 
+                $currentLog = $this->isEdit && $this->editingLogId ? FuelLog::find($this->editingLogId) : null;
+
                 $data = [
                     'fuel_invoice_id' => $invoice->id,
                     'gas_station_id' => $this->gas_station_id,
                     'galones' => $this->cantidad_combustible ?? $this->galones,
                     'precio_galon' => $this->precio_galon,
                     'total_calculado' => $this->total_calculado ?? (($this->cantidad_combustible ?? $this->galones) * $this->precio_galon),
+                    'estado' => $this->resolveFuelLogEstado($currentLog),
                 ];
 
                 if ($this->isEdit && $this->editingLogId) {
-                    $log = FuelLog::find($this->editingLogId);
+                    $log = $currentLog;
                     if ($log) {
                         $log->update($data);
                         $this->upsertVehicleLog($log->id);
@@ -555,6 +622,26 @@ class FuelLogManager extends Component
                 // update invoice total after detail saved
                 $invoice->monto_total = $invoice->details()->sum('subtotal');
                 $invoice->save();
+
+                $snapshot = $this->buildScannedInvoiceSnapshot($invoice);
+                if (!empty($snapshot)) {
+                    $invoice = app(FuelInvoiceDocumentService::class)->persistFromSnapshot(
+                        $invoice,
+                        $snapshot,
+                        $this->scannedInvoiceSourceUrl
+                    );
+                    $this->scannedInvoiceDocumentUrl = $invoice->siat_document_path
+                        ? route('fuel-invoices.document', ['fuelInvoice' => $invoice->id])
+                        : null;
+                    $this->scannedInvoiceRolloDocumentUrl = $invoice->siat_rollo_document_path
+                        ? route('fuel-invoices.rollo', ['fuelInvoice' => $invoice->id])
+                        : null;
+                }
+
+                $invoice = $this->persistEditableEvidenceFiles($invoice);
+                $this->invoicePhotoUrl = !empty($invoice->invoice_photo_path)
+                    ? route('fuel-invoices.photo', ['fuelInvoice' => $invoice->id])
+                    : null;
             });
         } catch (\RuntimeException $e) {
             if (in_array($e->getMessage(), ['duplicate_invoice', 'duplicate_invoice_on_edit'], true)) {
@@ -583,6 +670,10 @@ class FuelLogManager extends Component
         if($log->invoice) {
             $this->numero_factura = $log->invoice->numero_factura;
             $this->nombre_cliente = $log->invoice->nombre_cliente;
+            $this->loadInvoicePreviewFromModel($log->invoice);
+            $this->invoicePhotoUrl = !empty($log->invoice->invoice_photo_path)
+                ? route('fuel-invoices.photo', ['fuelInvoice' => $log->invoice->id])
+                : null;
         }
 
         // detail fields
@@ -623,6 +714,22 @@ class FuelLogManager extends Component
         session()->flash('message', 'Registro de combustible eliminado correctamente.');
     }
 
+    public function markAsVerificado(int $logId): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para verificar vales de combustible.');
+            return;
+        }
+
+        $log = FuelLog::find($logId);
+        if (!$log) {
+            return;
+        }
+
+        $log->update(['estado' => 'Verificado']);
+        session()->flash('message', 'Registro de combustible marcado como verificado.');
+    }
+
     public function resetForm()
     {
         $this->gas_station_id = null;
@@ -642,6 +749,12 @@ class FuelLogManager extends Component
         $this->razon_social_emisor = '';
         $this->nit_emisor = '';
         $this->direccion_emisor = '';
+        $this->scannedInvoicePreview = [];
+        $this->scannedInvoiceDocumentUrl = null;
+        $this->scannedInvoiceRolloDocumentUrl = null;
+        $this->scannedInvoiceSourceUrl = null;
+        $this->invoicePhotoUrl = null;
+        $this->invoice_photo_file = null;
         $this->kilometraje = null;
         $this->kilometraje_salida = null;
         $this->kilometraje_llegada = null;
@@ -718,6 +831,16 @@ class FuelLogManager extends Component
         $this->resetAllTablePages();
     }
 
+    public function updatedVehicleFilterId(): void
+    {
+        $this->resetAllTablePages();
+    }
+
+    public function updatedDriverFilterId(): void
+    {
+        $this->resetAllTablePages();
+    }
+
     public function searchLogs(): void
     {
         $this->search = trim((string) $this->search);
@@ -726,8 +849,9 @@ class FuelLogManager extends Component
 
     public function limpiarFiltrosFecha(): void
     {
-        $this->fecha_desde = null;
-        $this->fecha_hasta = null;
+        $today = now()->toDateString();
+        $this->fecha_desde = $today;
+        $this->fecha_hasta = $today;
         $this->resetAllTablePages();
     }
 
@@ -740,6 +864,19 @@ class FuelLogManager extends Component
     public function limpiarFiltroPlaca(): void
     {
         $this->placa_filtro = '';
+        $this->resetAllTablePages();
+    }
+
+    public function limpiarFiltrosListado(): void
+    {
+        $today = now()->toDateString();
+        $this->fecha_desde = $today;
+        $this->fecha_hasta = $today;
+        $this->placa_filtro = '';
+        $this->vehicle_filter_id = null;
+        $this->driver_filter_id = auth()->user()?->role === 'conductor'
+            ? (int) (auth()->user()->resolvedDriver()?->id ?? 0) ?: null
+            : null;
         $this->resetAllTablePages();
     }
 
@@ -897,6 +1034,36 @@ class FuelLogManager extends Component
             return ['ok' => false, 'message' => $message];
         }
 
+        if (!$this->isSiatQrPayload($this->qr_url)) {
+            $message = $this->verificationMessageFromQr($this->qr_url);
+            $this->scannedInvoicePreview = [
+                'estado' => 'Falta verificar',
+                'numero_factura' => '',
+                'fecha_emision' => '',
+                'nombre_cliente' => '',
+                'monto_total' => null,
+                'nit_emisor' => '',
+                'razon_social_emisor' => '',
+                'direccion_emisor' => '',
+                'cantidad' => null,
+                'precio_unitario' => null,
+                'cuf' => '',
+                'producto_codigo' => '',
+                'producto_descripcion' => '',
+            ];
+            $this->scannedInvoiceSourceUrl = $this->qr_url;
+            $this->scannedInvoiceDocumentUrl = null;
+            $this->scannedInvoiceRolloDocumentUrl = null;
+            session()->flash('message', $message);
+
+            return [
+                'ok' => true,
+                'message' => $message,
+                'verification_status' => 'Falta verificar',
+                'fields' => [],
+            ];
+        }
+
         $parsedUrl = parse_url($this->qr_url);
         parse_str($parsedUrl['query'] ?? '', $query);
 
@@ -905,9 +1072,27 @@ class FuelLogManager extends Component
         $numeroFactura = $this->pickQueryValue($query, ['numeroFactura', 'numero_factura', 'nro_factura', 'factura', 'nf', 'numero']);
 
         if (!$nitEmisor || !$cuf || !$numeroFactura) {
-            $message = 'No se pudo extraer nitEmisor, cuf y numeroFactura de la URL del QR.';
-            $this->addError('qr_url', $message);
-            return ['ok' => false, 'message' => $message];
+            $message = 'QR SIAT detectado, pero no se pudieron extraer todos los datos automaticos. El registro quedara como Verificado.';
+            $this->scannedInvoicePreview = [
+                'estado' => 'Verificado',
+                'numero_factura' => '',
+                'fecha_emision' => '',
+                'nombre_cliente' => '',
+                'monto_total' => null,
+                'nit_emisor' => (string) ($nitEmisor ?? ''),
+                'razon_social_emisor' => '',
+                'direccion_emisor' => '',
+                'cantidad' => null,
+                'precio_unitario' => null,
+                'cuf' => (string) ($cuf ?? ''),
+                'producto_codigo' => '',
+                'producto_descripcion' => '',
+            ];
+            $this->scannedInvoiceSourceUrl = $this->qr_url;
+            $this->scannedInvoiceDocumentUrl = null;
+            $this->scannedInvoiceRolloDocumentUrl = null;
+            session()->flash('message', $message);
+            return ['ok' => true, 'message' => $message, 'verification_status' => 'Verificado', 'fields' => []];
         }
 
         $payload = [
@@ -982,7 +1167,9 @@ class FuelLogManager extends Component
                 $this->precio_galon = round($this->total_calculado / $this->galones, 2);
             }
 
-            $message = 'Factura consultada correctamente desde SIAT.';
+            $this->loadInvoicePreviewFromSiatResponse($factura, 'Verificado');
+
+            $message = 'Factura consultada correctamente desde SIAT. El registro quedara como Verificado.';
             session()->flash('message', $message);
             Log::info('Consulta SIAT exitosa desde Livewire', [
                 'numero_factura' => $this->numero_factura,
@@ -992,6 +1179,7 @@ class FuelLogManager extends Component
             return [
                 'ok' => true,
                 'message' => $message,
+                'verification_status' => 'Verificado',
                 'fields' => [
                     'numero_factura' => $this->numero_factura,
                     'nombre_cliente' => $this->nombre_cliente,
@@ -1203,6 +1391,172 @@ class FuelLogManager extends Component
         $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje_llegada ?? $this->kilometraje_salida, $this->kilometraje_salida);
     }
 
+    private function resolveFuelLogEstado(?FuelLog $existing = null): string
+    {
+        $currentEstado = trim((string) ($existing?->estado ?? ''));
+        if ($this->isSiatQrPayload($this->qr_url)) {
+            return 'Verificado';
+        }
+
+        if ($this->qr_url !== '') {
+            return 'Falta verificar';
+        }
+
+        if (in_array($currentEstado, ['Verificado', 'Falta verificar', 'No verificar'], true)) {
+            return $currentEstado === 'No verificar' ? 'Falta verificar' : $currentEstado;
+        }
+
+        return 'Falta verificar';
+    }
+
+    private function isSiatQrPayload(?string $payload): bool
+    {
+        $value = trim((string) $payload);
+        if ($value === '') {
+            return false;
+        }
+
+        $normalized = mb_strtolower($value);
+        if (!str_contains($normalized, 'siat.impuestos.gob.bo/consulta')) {
+            return false;
+        }
+
+        $parts = parse_url($value);
+        if (!is_array($parts)) {
+            return str_contains($normalized, 'siat.impuestos.gob.bo/consulta');
+        }
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $path = strtolower((string) ($parts['path'] ?? ''));
+
+        return $host === 'siat.impuestos.gob.bo' && str_starts_with($path, '/consulta');
+    }
+
+    private function verificationMessageFromQr(string $payload): string
+    {
+        if ($this->isSiatQrPayload($payload)) {
+            return 'QR SIAT detectado. El registro quedara como Verificado.';
+        }
+
+        return 'QR detectado, pero no corresponde a SIAT. El registro quedara como Falta verificar.';
+    }
+
+    private function loadInvoicePreviewFromModel(FuelInvoice $invoice): void
+    {
+        $snapshot = is_array($invoice->siat_snapshot_json) ? $invoice->siat_snapshot_json : [];
+        $details = data_get($snapshot, 'details', []);
+        $firstDetail = is_array($details) ? ($details[0] ?? []) : [];
+
+        $this->scannedInvoicePreview = [
+            'estado' => 'Verificado',
+            'numero_factura' => (string) ($invoice->numero_factura ?? ''),
+            'fecha_emision' => optional($invoice->fecha_emision)->format('Y-m-d H:i'),
+            'nombre_cliente' => (string) ($invoice->nombre_cliente ?? ''),
+            'monto_total' => $invoice->monto_total,
+            'nit_emisor' => (string) (data_get($snapshot, 'nit_emisor') ?? $this->nit_emisor),
+            'razon_social_emisor' => (string) (data_get($snapshot, 'gas_station.razon_social') ?? data_get($snapshot, 'razon_social_emisor') ?? $this->razon_social_emisor),
+            'direccion_emisor' => (string) (data_get($snapshot, 'gas_station.direccion') ?? data_get($snapshot, 'direccion_emisor') ?? $this->direccion_emisor),
+            'cantidad' => data_get($snapshot, 'cantidad') ?? $this->galones,
+            'precio_unitario' => data_get($snapshot, 'precio_unitario') ?? $this->precio_galon,
+            'cuf' => (string) (data_get($snapshot, 'cuf') ?? ''),
+            'producto_codigo' => (string) (data_get($firstDetail, 'codigoProducto') ?? data_get($firstDetail, 'codigo') ?? ''),
+            'producto_descripcion' => (string) (data_get($firstDetail, 'descripcion') ?? ''),
+        ];
+        $this->scannedInvoiceSourceUrl = $invoice->siat_source_url ? (string) $invoice->siat_source_url : null;
+        $this->scannedInvoiceDocumentUrl = $invoice->siat_document_path
+            ? route('fuel-invoices.document', ['fuelInvoice' => $invoice->id])
+            : null;
+        $this->scannedInvoiceRolloDocumentUrl = $invoice->siat_rollo_document_path
+            ? route('fuel-invoices.rollo', ['fuelInvoice' => $invoice->id])
+            : null;
+        $this->invoicePhotoUrl = $invoice->invoice_photo_path
+            ? route('fuel-invoices.photo', ['fuelInvoice' => $invoice->id])
+            : null;
+    }
+
+    private function loadInvoicePreviewFromSiatResponse(array $factura, string $verificationStatus): void
+    {
+        $detalle = data_get($factura, 'listaDetalle.0', []);
+
+        $this->scannedInvoicePreview = [
+            'estado' => $verificationStatus,
+            'numero_factura' => (string) (data_get($factura, 'numeroFactura') ?? $this->numero_factura),
+            'fecha_emision' => (string) ($this->fecha_emision ?? ''),
+            'nombre_cliente' => (string) (data_get($factura, 'nombreRazonSocial') ?? data_get($factura, 'nombreCliente') ?? $this->nombre_cliente),
+            'monto_total' => $this->total_calculado,
+            'nit_emisor' => (string) (data_get($factura, 'nitEmisor') ?? ''),
+            'razon_social_emisor' => (string) (data_get($factura, 'razonSocialEmisor') ?? ''),
+            'direccion_emisor' => (string) (data_get($factura, 'direccion') ?? ''),
+            'cantidad' => data_get($detalle, 'cantidad') ?? $this->galones,
+            'precio_unitario' => data_get($detalle, 'precioUnitario') ?? $this->precio_galon,
+            'cuf' => (string) (data_get($factura, 'cuf') ?? ''),
+            'producto_codigo' => (string) (data_get($detalle, 'codigoProducto') ?? ''),
+            'producto_descripcion' => (string) (data_get($detalle, 'descripcion') ?? ''),
+        ];
+        $this->scannedInvoiceSourceUrl = $this->qr_url !== '' ? $this->qr_url : null;
+        $this->scannedInvoiceDocumentUrl = null;
+        $this->scannedInvoiceRolloDocumentUrl = null;
+    }
+
+    private function buildScannedInvoiceSnapshot(FuelInvoice $invoice): array
+    {
+        if (empty($this->scannedInvoicePreview)) {
+            return is_array($invoice->siat_snapshot_json) ? $invoice->siat_snapshot_json : [];
+        }
+
+        return [
+            'numero_factura' => (string) ($this->scannedInvoicePreview['numero_factura'] ?? $invoice->numero_factura ?? ''),
+            'fecha_emision' => (string) ($this->scannedInvoicePreview['fecha_emision'] ?? optional($invoice->fecha_emision)->format('d/m/Y H:i:s') ?? ''),
+            'nombre_cliente' => (string) ($this->scannedInvoicePreview['nombre_cliente'] ?? $invoice->nombre_cliente ?? ''),
+            'monto_total' => $this->scannedInvoicePreview['monto_total'] ?? $invoice->monto_total,
+            'cuf' => (string) ($this->scannedInvoicePreview['cuf'] ?? ''),
+            'nit_emisor' => (string) ($this->scannedInvoicePreview['nit_emisor'] ?? ''),
+            'razon_social_emisor' => (string) ($this->scannedInvoicePreview['razon_social_emisor'] ?? ''),
+            'direccion_emisor' => (string) ($this->scannedInvoicePreview['direccion_emisor'] ?? ''),
+            'cantidad' => $this->scannedInvoicePreview['cantidad'] ?? null,
+            'precio_unitario' => $this->scannedInvoicePreview['precio_unitario'] ?? null,
+            'details' => [[
+                'codigo' => (string) ($this->scannedInvoicePreview['producto_codigo'] ?? ''),
+                'descripcion' => (string) ($this->scannedInvoicePreview['producto_descripcion'] ?? 'Combustible'),
+                'cantidad' => $this->scannedInvoicePreview['cantidad'] ?? null,
+                'precio_unitario' => $this->scannedInvoicePreview['precio_unitario'] ?? null,
+                'subtotal' => $this->scannedInvoicePreview['monto_total'] ?? $invoice->monto_total,
+            ]],
+            'siat_source_url' => (string) ($this->scannedInvoiceSourceUrl ?? ''),
+        ];
+    }
+
+    private function persistEditableEvidenceFiles(FuelInvoice $invoice): FuelInvoice
+    {
+        $updates = [];
+
+        if ($this->invoice_photo_file && Schema::hasColumn('fuel_invoices', 'invoice_photo_path')) {
+            $updates['invoice_photo_path'] = $this->replaceStoredEvidenceFile(
+                $invoice->invoice_photo_path,
+                $this->invoice_photo_file,
+                'fuel-invoices/photos/manual-factura'
+            );
+        }
+
+        if (!empty($updates)) {
+            $invoice->forceFill($updates)->save();
+        }
+
+        return $invoice->fresh() ?? $invoice;
+    }
+
+    private function replaceStoredEvidenceFile(?string $existingPath, $uploadedFile, string $directory): string
+    {
+        $newPath = (string) $uploadedFile->store($directory, 'public');
+        $existingPath = trim((string) $existingPath);
+
+        if ($existingPath !== '' && Storage::disk('public')->exists($existingPath)) {
+            Storage::disk('public')->delete($existingPath);
+        }
+
+        return $newPath;
+    }
+
     private function resolveGasStationId(): ?int
     {
         $nit = trim($this->nit_emisor);
@@ -1325,6 +1679,16 @@ class FuelLogManager extends Component
             return false;
         }
 
+        if ($kmSalida === null || $kmSalida <= 0) {
+            $this->addError('kilometraje_salida', 'El kilometraje de salida debe ser mayor a 0.');
+            return false;
+        }
+
+        if ($kmLlegada !== null && $kmLlegada <= 0) {
+            $this->addError('kilometraje_llegada', 'El kilometraje de llegada debe ser mayor a 0.');
+            return false;
+        }
+
         [$latInicio, $lngInicio] = $this->resolveCoordinates($this->latitud_inicio, $this->logitud_inicio, $this->recorrido_inicio);
         [$latDestino, $lngDestino] = $this->resolveCoordinates($this->latitud_destino, $this->logitud_destino, $this->recorrido_destino);
 
@@ -1359,6 +1723,55 @@ class FuelLogManager extends Component
     private function sameCoordinatePair(float $latA, float $lngA, float $latB, float $lngB): bool
     {
         return abs($latA - $latB) < 0.0000001 && abs($lngA - $lngB) < 0.0000001;
+    }
+
+    private function logDuplicateInvoiceAlert(string $invoiceNumber, int $invoiceId): void
+    {
+        try {
+            ActivityLog::create(ActivityLog::prepareAttributes([
+                'user_id' => (int) (auth()->id() ?? 0) ?: null,
+                'action' => 'FUEL_INVOICE_DUPLICATE_ALERT',
+                'model' => 'FuelInvoice',
+                'module' => 'combustible',
+                'record_id' => $invoiceId,
+                'changes_json' => [
+                    'invoice_number' => $invoiceNumber,
+                    'source' => 'web_livewire',
+                ],
+                'details' => 'Intento de registro duplicado de factura en gestion web.',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'fecha' => now(),
+            ]));
+        } catch (\Throwable) {
+            // Ignorar errores de auditoria.
+        }
+    }
+
+    private function logCapacityExceededAlert(Vehicle $vehicle, float $liters, float $capacity): void
+    {
+        try {
+            ActivityLog::create(ActivityLog::prepareAttributes([
+                'user_id' => (int) (auth()->id() ?? 0) ?: null,
+                'action' => 'FUEL_CAPACITY_EXCEEDED_ALERT',
+                'model' => 'FuelInvoice',
+                'module' => 'combustible',
+                'record_id' => (int) $vehicle->id ?: null,
+                'changes_json' => [
+                    'vehicle_id' => (int) $vehicle->id,
+                    'vehicle_plate' => (string) ($vehicle->placa ?? ''),
+                    'liters_attempted' => round($liters, 3),
+                    'tank_capacity' => round($capacity, 3),
+                    'source' => 'web_livewire',
+                ],
+                'details' => 'Intento de carga que excede la capacidad del tanque del vehiculo.',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'fecha' => now(),
+            ]));
+        } catch (\Throwable) {
+            // Ignorar errores de auditoria.
+        }
     }
 
     private function assignedVehicleIdsForDriver(int $driverId, string $date): array
@@ -1463,6 +1876,10 @@ class FuelLogManager extends Component
 
         $vehicle = Vehicle::find($vehicleId);
         if (!$vehicle) {
+            return;
+        }
+
+        if ((bool) ($vehicle->tacometro_danado ?? false)) {
             return;
         }
 

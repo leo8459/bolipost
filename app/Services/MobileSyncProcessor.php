@@ -73,7 +73,7 @@ class MobileSyncProcessor
                 'drivers_id' => (int) $driver->id,
                 'vehicles_id' => $vehicleId,
                 'fecha' => $fecha->toDateString(),
-                'kilometraje_salida' => $currentVehicleKm ?? 0,
+                'kilometraje_salida' => $currentVehicleKm,
                 'kilometraje_llegada' => (!is_null($currentVehicleKm) && !is_null($distanceKm))
                     ? ($currentVehicleKm + $distanceKm)
                     : null,

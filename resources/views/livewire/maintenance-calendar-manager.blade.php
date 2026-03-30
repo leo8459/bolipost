@@ -92,9 +92,7 @@
                     <input type="date" wire:model.live="selected_date" class="form-control form-control-sm">
                 </div>
                 <div class="d-flex flex-wrap gap-2 small">
-                    <span class="badge border border-success bg-success-subtle text-success-emphasis">Verde: En ventana segura</span>
-                    <span class="badge border border-warning bg-warning-subtle text-warning-emphasis">Amarillo: <=2 dias o <=5 km</span>
-                    <span class="badge border border-danger bg-danger-subtle text-danger-emphasis">Rojo: Vencido/no realizado</span>
+                    <span class="badge border border-danger bg-danger-subtle text-danger-emphasis">Rojo: Alertas pendientes por terminar</span>
                 </div>
             </div>
         </div>
@@ -180,7 +178,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td class="small text-muted">No hay mantenimientos para esta fecha.</td>
+                                    <td class="small text-muted">No hay alertas pendientes para esta fecha.</td>
                                 </tr>
                             @endforelse
                             @for($i = count($topEvents); $i < 5; $i++)

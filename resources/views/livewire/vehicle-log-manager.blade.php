@@ -134,6 +134,23 @@
             font-size: 1.2rem;
             margin-top: 8px;
         }
+        .odometro-thumb {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #d8e2f4;
+            background: #fff;
+        }
+        .odometro-modal-image {
+            display: block;
+            max-width: 100%;
+            max-height: 70vh;
+            margin: 0 auto;
+            border-radius: 10px;
+            border: 1px solid #d8e2f4;
+            background: #fff;
+        }
         @media (max-width: 768px) {
             .bitacora-shell__toolbar {
                 width: 100%;
@@ -202,15 +219,17 @@
                                 </div>
                                 <div class="col-12 col-md-6">
                                     <label for="kilometraje_salida" class="form-label fw-bold">Km Salida <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" id="kilometraje_salida" wire:model="kilometraje_salida" class="form-control @error('kilometraje_salida') is-invalid @enderror" required>
+                                    <input type="number" step="0.01" id="kilometraje_salida" wire:model="kilometraje_salida" class="form-control @error('kilometraje_salida') is-invalid @enderror bg-light" readonly required>
                                     @error('kilometraje_salida') <div class="invalid-feedback">{{ $message }}</div> @enderror
                                 </div>
                             </div>
 
                             <div class="row g-3 mb-3">
                                 <div class="col-12 col-md-6">
-                                    <label for="kilometraje_llegada" class="form-label fw-bold">Km Llegada</label>
-                                    <input type="number" step="0.01" id="kilometraje_llegada" wire:model="kilometraje_llegada" class="form-control">
+                                    <label for="kilometraje_recorrido" class="form-label fw-bold">Km Recorrido <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.01" id="kilometraje_recorrido" wire:model.live="kilometraje_recorrido" class="form-control @error('kilometraje_recorrido') is-invalid @enderror" required>
+                                    @error('kilometraje_recorrido') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                    <div class="form-text">El sistema sumara este valor al Km Salida para calcular el kilometraje final.</div>
                                 </div>
                                 <div class="col-12 col-md-6">
                                     <label for="recorrido_inicio" class="form-label fw-bold">Recorrido Inicio <span class="text-danger">*</span></label>
@@ -239,6 +258,28 @@
                             </div>
 
                             <div class="row g-3 mb-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-bold">Km Final Calculado</label>
+                                    <input type="number" step="0.01" class="form-control bg-light" value="{{ $kilometraje_llegada ?? '' }}" readonly>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label for="odometro_photo" class="form-label fw-bold">Foto de odometro</label>
+                                    <input type="file" id="odometro_photo" wire:model="odometro_photo" class="form-control @error('odometro_photo') is-invalid @enderror" accept="image/*">
+                                    @error('odometro_photo') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                    <div class="d-flex align-items-center gap-2 mt-2">
+                                        @if ($odometro_photo)
+                                            <img src="{{ $odometro_photo->temporaryUrl() }}" alt="Vista previa odometro" class="odometro-thumb">
+                                        @elseif ($currentOdometroPhotoUrl)
+                                            <img src="{{ $currentOdometroPhotoUrl }}" alt="Foto actual odometro" class="odometro-thumb">
+                                        @endif
+                                        @if ($odometro_photo || $currentOdometroPhotoUrl)
+                                            <span class="small text-muted">Vista previa 50x50</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row g-3 mb-3">
+
                                 <div class="col-12 col-md-6">
                                     <label for="recorrido_destino" class="form-label fw-bold">Recorrido Destino <span class="text-danger">*</span></label>
                                     <div class="input-group">
@@ -317,25 +358,13 @@
                     >
                     <button type="button" wire:click="searchLogs" class="btn btn-outline-light bitacora-shell__btn-find">Buscar</button>
                     @if(auth()->user()?->role !== 'conductor')
-                        <a
+                        <button
+                            type="button"
+                            id="vehicle-document-trigger"
                             class="btn btn-outline-light bitacora-shell__btn-find"
-                            href="{{ route('vehicle-logs.pdf', array_filter([
-                                'q' => trim($search) !== '' ? trim($search) : null,
-                            ])) }}"
-                            target="_blank"
-                            rel="noopener noreferrer"
                         >
-                            <i class="fas fa-print me-2"></i>Imprimir PDF
-                        </a>
-                        <a
-                            class="btn btn-outline-light bitacora-shell__btn-find"
-                            href="{{ route('vehicle-logs.pdf', array_filter([
-                                'q' => trim($search) !== '' ? trim($search) : null,
-                                'download' => 1,
-                            ])) }}"
-                        >
-                            <i class="fas fa-file-arrow-down me-2"></i>Descargar PDF
-                        </a>
+                            <i class="fas fa-file-lines me-2"></i>Documento
+                        </button>
                     @endif
                     @if(auth()->user()?->role !== 'conductor')
                         <button type="button" wire:click="create" class="btn bitacora-shell__btn-new">Nuevo</button>
@@ -345,14 +374,41 @@
 
             <div class="bitacora-shell__body">
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                    <div class="bitacora-shell__meta">
-                        @if (trim($search) === '')
-                            Mostrando todos los registros
-                        @else
-                            Resultados para: "{{ $search }}"
-                        @endif
-                    </div>
                     <div class="bitacora-shell__count">Total en pagina: {{ $logs->count() }}</div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-3">
+                        <label class="form-label fw-bold mb-1">Fecha desde</label>
+                        <input type="date" wire:model.live="fecha_desde" class="form-control">
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label fw-bold mb-1">Fecha hasta</label>
+                        <input type="date" wire:model.live="fecha_hasta" class="form-control">
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label fw-bold mb-1">Vehiculo</label>
+                        <select wire:model.live="vehicle_filter_id" class="form-select">
+                            <option value="">Todos los vehiculos</option>
+                            @foreach($vehicles as $vehicle)
+                                <option value="{{ $vehicle->id }}">{{ $vehicle->placa }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label fw-bold mb-1">Conductor</label>
+                        <select wire:model.live="driver_filter_id" class="form-select">
+                            <option value="">Todos los conductores</option>
+                            @foreach($drivers as $driver)
+                                <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12 d-flex justify-content-end">
+                        <button type="button" wire:click="limpiarFiltrosListado" class="btn btn-outline-secondary">
+                            Limpiar filtros
+                        </button>
+                    </div>
                 </div>
 
                 <div class="row g-3">
@@ -366,39 +422,43 @@
                                             <th>Conductor</th>
                                             <th>Fecha</th>
                                             <th>Km salida</th>
-                                            <th>Km llegada</th>
+                                            <th>Km recorrido</th>
                                             <th>Inicio</th>
                                             <th>Destino</th>
+                                            <th>Gasolina</th>
                                             <th class="text-center">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @forelse ($logs as $log)
                                             <tr>
-                                                <td>{{ $log->vehicle?->placa ?? 'N/A' }}</td>
+                                                <td>{{ $log->vehicle?->bitacora_display_name ?? 'N/A' }}</td>
                                                 <td>{{ $log->driver?->nombre ?? 'N/A' }}</td>
-                                                <td>{{ optional($log->fecha)->format('d/m/Y') }}</td>
-                                                <td>{{ $log->kilometraje_salida }}</td>
-                                                <td>{{ $log->kilometraje_llegada ?? '-' }}</td>
-                                                <td>{{ $log->recorrido_inicio ?: '-' }}</td>
-                                                <td>{{ $log->recorrido_destino ?: '-' }}</td>
-                                                <td class="text-center">
+                                        <td>{{ optional($log->fecha)->format('d/m/Y') }}</td>
+                                        <td>{{ $log->kilometraje_salida }}</td>
+                                        <td>{{ $log->kilometraje_recorrido ?? (($log->kilometraje_llegada !== null && $log->kilometraje_salida !== null) ? number_format((float) $log->kilometraje_llegada - (float) $log->kilometraje_salida, 2) : '-') }}</td>
+                                        <td>{{ $log->recorrido_inicio ?: '-' }}</td>
+                                        <td>{{ $log->recorrido_destino ?: '-' }}</td>
+                                        <td>{{ $log->fuel_log_id ? 'Si' : 'No' }}</td>
+                                        <td class="text-center">
                                                     <div class="btn-group">
-                                                        @if(($log->latitud_inicio && $log->logitud_inicio) || ($log->latitud_destino && $log->logitud_destino))
-                                                        <button
-                                                            type="button"
-                                                            class="btn btn-sm btn-outline-info vehicle-view-map-btn"
-                                                            data-start-lat="{{ $log->latitud_inicio }}"
-                                                            data-start-lng="{{ $log->logitud_inicio }}"
-                                                            data-start-name="{{ $log->recorrido_inicio }}"
-                                                            data-end-lat="{{ $log->latitud_destino }}"
-                                                            data-end-lng="{{ $log->logitud_destino }}"
-                                                            data-end-name="{{ $log->recorrido_destino }}"
-                                                            data-date="{{ optional($log->fecha)->format('d/m/Y') }}"
-                                                            data-vehicle="{{ $log->vehicle?->placa ?? 'N/A' }}"
-                                                            data-route='@json($log->points_json ?? [])'
+                                                        @if((($log->latitud_inicio !== null) && ($log->logitud_inicio !== null)) || (($log->latitud_destino !== null) && ($log->logitud_destino !== null)) || count($log->ruta_json ?? $log->points_json ?? []) > 0)
+                                                        <a
+                                                            href="{{ route('vehicle-logs.map', $log->id) }}"
+                                                            class="btn btn-sm btn-outline-info"
                                                         >
                                                             <i class="fas fa-map-marked-alt"></i>
+                                                        </a>
+                                                        @endif
+                                                            @if($log->odometro_photo_path)
+                                                        <button
+                                                                type="button"
+                                                                class="btn btn-sm btn-outline-primary vehicle-view-odometro-btn"
+                                                                data-photo-url="{{ route('vehicle-logs.odometro.photo', $log->id) }}"
+                                                                data-vehicle="{{ $log->vehicle?->placa ?? 'N/A' }}"
+                                                                data-date="{{ optional($log->fecha)->format('d/m/Y') }}"
+                                                            >
+                                                                <i class="fas fa-camera"></i>
                                                         </button>
                                                         @endif
                                                         @if(auth()->user()?->role !== 'conductor')
@@ -414,7 +474,7 @@
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="8" class="text-center text-muted py-5 bitacora-shell__empty">
+                                                <td colspan="9" class="text-center text-muted py-5 bitacora-shell__empty">
                                                     No hay registros<br>Prueba con otro texto de busqueda.
                                                 </td>
                                             </tr>
@@ -432,7 +492,7 @@
 
     
 
-    <div class="modal fade" id="vehicleLocationPickerModal" wire:ignore.self tabindex="-1" aria-labelledby="vehicleLocationPickerLabel" aria-hidden="true">
+    <div class="modal fade" id="vehicleLocationPickerModal" wire:ignore tabindex="-1" aria-labelledby="vehicleLocationPickerLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -454,7 +514,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="vehicleViewMapModal" wire:ignore.self tabindex="-1" aria-labelledby="vehicleViewMapLabel" aria-hidden="true">
+    <div class="modal fade" id="vehicleViewMapModal" wire:ignore tabindex="-1" aria-labelledby="vehicleViewMapLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -465,7 +525,35 @@
                 </div>
                 <div class="modal-body">
                     <div class="small text-muted mb-2" id="vehicle-view-map-meta">Sin datos</div>
+                    <div class="small text-primary mb-2 d-none" id="vehicle-view-map-status">Cargando mapa...</div>
                     <div id="vehicle-view-map" wire:ignore></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" id="vehicle-reload-points-btn">
+                        <i class="fas fa-map-pin me-1"></i>Cargar puntos
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="vehicle-reload-map-btn">
+                        <i class="fas fa-sync-alt me-1"></i>Recargar mapa
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="vehicleOdometroModal" wire:ignore tabindex="-1" aria-labelledby="vehicleOdometroLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="vehicleOdometroLabel">
+                        <i class="fas fa-camera me-2"></i>Foto de odometro
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-3" id="vehicle-odometro-meta">Sin datos</div>
+                    <img id="vehicle-odometro-image" class="odometro-modal-image d-none" alt="Foto de odometro">
+                    <div id="vehicle-odometro-empty" class="text-muted text-center py-4">No hay imagen disponible.</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
@@ -659,6 +747,23 @@
             document.querySelectorAll('.modal-backdrop').forEach((backdrop) => backdrop.remove());
         }
 
+        function forceShowModalEl(el) {
+            if (!el) return;
+
+            el.classList.add('show');
+            el.style.display = 'block';
+            el.removeAttribute('aria-hidden');
+            el.setAttribute('aria-modal', 'true');
+            el.setAttribute('role', 'dialog');
+            document.body.classList.add('modal-open');
+
+            if (!document.querySelector('.modal-backdrop')) {
+                const backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop fade show';
+                document.body.appendChild(backdrop);
+            }
+        }
+
         function destroyLeafletMap(instance) {
             if (!instance) return null;
             try {
@@ -671,6 +776,17 @@
         function formatNearestPlaceFromNominatim(data) {
             if (!data || typeof data !== 'object') return null;
             const address = data.address || {};
+            const streetLine = [
+                address.road,
+                address.house_number,
+            ].filter(Boolean).join(' ').trim();
+            const areaLine =
+                address.neighbourhood ||
+                address.suburb ||
+                address.city_district ||
+                address.quarter ||
+                address.hamlet ||
+                null;
             const city =
                 address.city ||
                 address.town ||
@@ -681,7 +797,8 @@
                 address.state ||
                 null;
             const country = address.country || 'Bolivia';
-            if (city) return `${city}, ${country}`;
+            const parts = [streetLine || null, areaLine, city, country].filter(Boolean);
+            if (parts.length > 0) return parts.join(', ');
             return data.display_name || null;
         }
 
@@ -933,12 +1050,25 @@
             document.body.appendChild(viewModalEl);
         }
         const viewMetaEl = document.getElementById('vehicle-view-map-meta');
+        const viewStatusEl = document.getElementById('vehicle-view-map-status');
+        const reloadViewPointsBtn = document.getElementById('vehicle-reload-points-btn');
+        const reloadViewMapBtn = document.getElementById('vehicle-reload-map-btn');
+        const odometroModalEl = document.getElementById('vehicleOdometroModal');
+        if (odometroModalEl && odometroModalEl.parentElement !== document.body) {
+            document.body.appendChild(odometroModalEl);
+        }
+        const odometroMetaEl = document.getElementById('vehicle-odometro-meta');
+        const odometroImageEl = document.getElementById('vehicle-odometro-image');
+        const odometroEmptyEl = document.getElementById('vehicle-odometro-empty');
         const sideMapEl = document.getElementById('vehicle-side-map');
         const sideMetaEl = document.getElementById('vehicle-side-map-meta');
         const sideHelpEl = document.getElementById('vehicle-side-map-help');
         let viewMap = null;
         let viewLayer = null;
         let pendingViewPayload = null;
+        let currentViewMapUrl = '';
+        let currentViewMapRequest = 0;
+        let currentViewMapFetchController = null;
         let sideMap = null;
         let sideLayer = null;
         let formSideMap = null;
@@ -949,14 +1079,8 @@
             const container = document.getElementById('vehicle-view-map');
             if (!window.L || !viewModalEl || !container) return;
 
-            if (viewMap) {
-                const currentContainer = viewMap.getContainer ? viewMap.getContainer() : null;
-                if (currentContainer === container && document.body.contains(container)) {
-                    return;
-                }
-
-                viewMap = destroyLeafletMap(viewMap);
-                viewLayer = null;
+            if (viewMap && viewMap.getContainer && viewMap.getContainer() === container) {
+                return;
             }
 
             viewMap = L.map(container).setView([-16.5, -68.15], 6);
@@ -964,6 +1088,38 @@
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(viewMap);
+            viewLayer = L.layerGroup().addTo(viewMap);
+            setTimeout(() => viewMap && viewMap.invalidateSize(), 80);
+            setTimeout(() => viewMap && viewMap.invalidateSize(), 220);
+            setTimeout(() => viewMap && viewMap.invalidateSize(), 420);
+        }
+
+        function recreateViewMap() {
+            if (viewMap) {
+                viewMap = destroyLeafletMap(viewMap);
+                viewLayer = null;
+            }
+
+            ensureViewMap();
+        }
+
+        function setViewMapStatus(text = '', tone = 'primary') {
+            if (!viewStatusEl) return;
+            viewStatusEl.textContent = text;
+            viewStatusEl.classList.remove('d-none', 'text-primary', 'text-danger', 'text-success', 'text-muted');
+            viewStatusEl.classList.add(`text-${tone}`);
+            if (!text) {
+                viewStatusEl.classList.add('d-none');
+            }
+        }
+
+        function payloadHasDrawableData(payload) {
+            if (!payload) return false;
+            const hasRoute = Array.isArray(payload.route) && payload.route.length > 0;
+            const hasStart = payload.startLat !== null && payload.startLng !== null;
+            const hasEnd = payload.endLat !== null && payload.endLng !== null;
+
+            return hasRoute || hasStart || hasEnd;
         }
 
         function ensureSideMap() {
@@ -1115,50 +1271,70 @@
             if (!viewMap) return;
             if (viewLayer) {
                 viewLayer.clearLayers();
-            } else {
-                viewLayer = L.layerGroup().addTo(viewMap);
             }
 
-            const routePoints = normalizeRoutePoints(payload.route);
             const bounds = [];
-            const linePoints = routePoints.length > 1
-                ? routePoints.map((point) => {
-                    const latLng = [point.lat, point.lng];
-                    bounds.push(latLng);
-                    return latLng;
-                })
-                : [];
+            const routePoints = normalizeRoutePoints(payload.route);
+            let start = null;
+            let end = null;
+
+            routePoints.forEach((point) => {
+                const coords = [point.lat, point.lng];
+                bounds.push(coords);
+            });
 
             if (payload.startLat !== null && payload.startLng !== null) {
-                const start = [payload.startLat, payload.startLng];
-                L.marker(start).addTo(viewLayer).bindPopup(`<strong>Inicio</strong><br>${payload.startName || '-'}`);
-                if (linePoints.length === 0) bounds.push(start);
+                start = [payload.startLat, payload.startLng];
+                bounds.push(start);
             }
             if (payload.endLat !== null && payload.endLng !== null) {
-                const end = [payload.endLat, payload.endLng];
-                L.marker(end).addTo(viewLayer).bindPopup(`<strong>Destino</strong><br>${payload.endName || '-'}`);
-                if (linePoints.length === 0) bounds.push(end);
+                end = [payload.endLat, payload.endLng];
+                bounds.push(end);
+            }
+
+            if (routePoints.length > 1) {
+                L.polyline(
+                    routePoints.map((point) => [point.lat, point.lng]),
+                    { color: '#2563eb', weight: 4, opacity: 0.9 }
+                ).addTo(viewLayer);
+            } else if (start && end) {
+                L.polyline([start, end], { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(viewLayer);
             }
 
             routePoints.forEach((point, index) => {
                 const coords = [point.lat, point.lng];
-                const popupText = point.address || `Punto ${index + 1}`;
+                const popupText = point.address || point.label || `Punto ${index + 1}`;
                 L.circleMarker(coords, {
                     radius: 5,
-                    color: '#2563eb',
+                    color: '#1d4ed8',
                     weight: 2,
                     fillColor: '#93c5fd',
                     fillOpacity: 0.95,
                 }).addTo(viewLayer).bindPopup(popupText);
             });
 
-            if (linePoints.length > 1) {
-                L.polyline(linePoints, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(viewLayer);
-            } else if (bounds.length === 2) {
-                L.polyline(bounds, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(viewLayer);
+            if (start) {
+                L.circleMarker(start, {
+                    radius: 11,
+                    color: '#14532d',
+                    weight: 4,
+                    fillColor: '#22c55e',
+                    fillOpacity: 1,
+                }).addTo(viewLayer).bindPopup(`<strong>Inicio</strong><br>${payload.startName || '-'}`).bringToFront();
+            }
+
+            if (end) {
+                L.circleMarker(end, {
+                    radius: 11,
+                    color: '#7f1d1d',
+                    weight: 4,
+                    fillColor: '#ef4444',
+                    fillOpacity: 1,
+                }).addTo(viewLayer).bindPopup(`<strong>Destino</strong><br>${payload.endName || '-'}`).bringToFront();
             }
             if (bounds.length > 0) {
-                viewMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+                const latLngBounds = L.latLngBounds(bounds).pad(0.2);
+                viewMap.fitBounds(latLngBounds, { padding: [90, 90], maxZoom: 15 });
             } else {
                 centerMapNearUser(viewMap);
             }
@@ -1169,6 +1345,7 @@
                 ensureViewMap();
                 if (!viewMap) return;
                 viewMap.invalidateSize();
+                window.dispatchEvent(new Event('resize'));
                 if (payload) {
                     drawTripOnViewMap(payload);
                 }
@@ -1177,6 +1354,116 @@
             setTimeout(render, 80);
             setTimeout(render, 220);
             setTimeout(render, 420);
+            setTimeout(render, 700);
+        }
+
+        function forceReloadViewMap() {
+            if (!pendingViewPayload || !payloadHasDrawableData(pendingViewPayload)) {
+                setViewMapStatus('Esta bitacora no tiene coordenadas suficientes para mostrar el mapa.', 'danger');
+                return;
+            }
+
+            recreateViewMap();
+
+            const render = () => {
+                if (!viewMap) return;
+                viewMap.invalidateSize();
+                drawTripOnViewMap(pendingViewPayload);
+            };
+
+            window.setTimeout(render, 120);
+            window.setTimeout(render, 320);
+            window.setTimeout(render, 620);
+
+            window.setTimeout(() => {
+                const layerCount = viewLayer && typeof viewLayer.getLayers === 'function'
+                    ? viewLayer.getLayers().length
+                    : 0;
+
+                if (layerCount <= 0) {
+                    setViewMapStatus('No se pudo dibujar el mapa. Usa "Recargar mapa" para intentarlo otra vez.', 'danger');
+                    return;
+                }
+
+                setViewMapStatus('Mapa cargado correctamente.', 'success');
+                window.setTimeout(() => setViewMapStatus(''), 1200);
+            }, 900);
+        }
+
+        function resetViewMapState() {
+            if (currentViewMapFetchController) {
+                try {
+                    currentViewMapFetchController.abort();
+                } catch (_) {}
+                currentViewMapFetchController = null;
+            }
+
+            if (viewLayer) {
+                viewLayer.clearLayers();
+            }
+            pendingViewPayload = null;
+            currentViewMapRequest++;
+
+            if (viewMap) {
+                viewMap = destroyLeafletMap(viewMap);
+                viewLayer = null;
+            }
+        }
+
+        async function fetchViewMapPayload(mapUrl, fallbackPayload = null) {
+            const requestId = ++currentViewMapRequest;
+            currentViewMapUrl = mapUrl || currentViewMapUrl || '';
+
+            if (viewMetaEl) {
+                viewMetaEl.textContent = 'Cargando recorrido...';
+            }
+            setViewMapStatus('Consultando datos de la bitacora...', 'primary');
+
+            if (!currentViewMapUrl) {
+                return fallbackPayload;
+            }
+
+            try {
+                currentViewMapFetchController = typeof AbortController !== 'undefined'
+                    ? new AbortController()
+                    : null;
+
+                const response = await fetch(currentViewMapUrl, {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    signal: currentViewMapFetchController?.signal,
+                });
+
+                if (requestId !== currentViewMapRequest) return null;
+
+                if (!response.ok) {
+                    setViewMapStatus('No se pudieron obtener los datos del mapa.', 'danger');
+                    return fallbackPayload;
+                }
+
+                const data = await response.json();
+
+                return {
+                    startLat: parseCoord(data.startLat),
+                    startLng: parseCoord(data.startLng),
+                    startName: data.startName || '',
+                    endLat: parseCoord(data.endLat),
+                    endLng: parseCoord(data.endLng),
+                    endName: data.endName || '',
+                    date: data.date || '',
+                    vehicle: data.vehicle || '',
+                    route: Array.isArray(data.route) ? data.route : [],
+                };
+            } catch (_) {
+                if (requestId !== currentViewMapRequest) return null;
+                setViewMapStatus('Fallo la carga de la bitacora. Intenta nuevamente.', 'danger');
+                return fallbackPayload;
+            } finally {
+                if (requestId === currentViewMapRequest) {
+                    currentViewMapFetchController = null;
+                }
+            }
         }
 
         function drawTripOnSideMap(payload) {
@@ -1209,31 +1496,62 @@
         }
 
         if (viewModalEl) {
-            viewModalEl.addEventListener('shown.bs.modal', function () {
-                ensureViewMap();
-                refreshViewMapLayout(pendingViewPayload);
-            });
-
             viewModalEl.addEventListener('hidden.bs.modal', function () {
-                if (viewLayer) {
-                    viewLayer.clearLayers();
+                resetViewMapState();
+                if (viewMetaEl) {
+                    viewMetaEl.textContent = 'Sin datos';
                 }
-                pendingViewPayload = null;
+                currentViewMapUrl = '';
+                setViewMapStatus('');
             });
-
-            if (window.jQuery) {
-                window.jQuery(viewModalEl).on('shown.bs.modal', function () {
-                    ensureViewMap();
-                    refreshViewMapLayout(pendingViewPayload);
-                });
-            }
         }
 
         document.addEventListener('click', function (event) {
-            const btn = event.target.closest('.vehicle-view-map-btn');
-            if (!btn) return;
+            const closeBtn = event.target.closest("#vehicleViewMapModal .btn-close, #vehicleViewMapModal [data-bs-dismiss='modal'], #vehicleViewMapModal [data-dismiss='modal']");
+            if (!closeBtn || !viewModalEl) return;
+            event.preventDefault();
+            resetViewMapState();
+            if (viewMetaEl) {
+                viewMetaEl.textContent = 'Sin datos';
+            }
+            currentViewMapUrl = '';
+            setViewMapStatus('');
+            forceHideModalEl(viewModalEl);
+        });
 
-            const payload = {
+        document.addEventListener('click', function (event) {
+            const closeBtn = event.target.closest("#vehicleOdometroModal .btn-close, #vehicleOdometroModal [data-bs-dismiss='modal'], #vehicleOdometroModal [data-dismiss='modal']");
+            if (!closeBtn || !odometroModalEl) return;
+            event.preventDefault();
+            odometroImageEl?.classList.add('d-none');
+            odometroImageEl?.removeAttribute('src');
+            odometroEmptyEl?.classList.remove('d-none');
+            forceHideModalEl(odometroModalEl);
+        });
+
+        reloadViewMapBtn?.addEventListener('click', function () {
+            forceReloadViewMap();
+        });
+
+        reloadViewPointsBtn?.addEventListener('click', async function () {
+            if (!currentViewMapUrl) {
+                setViewMapStatus('No hay una bitacora seleccionada para recargar.', 'danger');
+                return;
+            }
+
+            const payload = await fetchViewMapPayload(currentViewMapUrl, pendingViewPayload);
+            if (!payload) return;
+
+            pendingViewPayload = payload;
+            if (viewMetaEl) {
+                viewMetaEl.textContent = `Vehiculo: ${payload.vehicle} | Fecha: ${payload.date} | Inicio: ${payload.startName || '-'} | Destino: ${payload.endName || '-'}`;
+            }
+            setViewMapStatus('Cargando puntos de la bitacora...', 'primary');
+            forceReloadViewMap();
+        });
+
+        function buildMapPayloadFromButton(btn) {
+            return {
                 startLat: parseCoord(btn.getAttribute('data-start-lat')),
                 startLng: parseCoord(btn.getAttribute('data-start-lng')),
                 startName: btn.getAttribute('data-start-name') || '',
@@ -1242,8 +1560,24 @@
                 endName: btn.getAttribute('data-end-name') || '',
                 date: btn.getAttribute('data-date') || '',
                 vehicle: btn.getAttribute('data-vehicle') || '',
-                route: parseRoute(btn.getAttribute('data-route')),
+                route: [],
             };
+        }
+
+        document.addEventListener('click', async function (event) {
+            const btn = event.target.closest('.vehicle-view-map-btn');
+            if (!btn) return;
+
+            let payload = buildMapPayloadFromButton(btn);
+            const mapUrl = btn.getAttribute('data-map-url') || '';
+
+            if (!viewModalEl) return;
+            resetViewMapState();
+            currentViewMapUrl = mapUrl;
+            forceShowModalEl(viewModalEl);
+
+            payload = await fetchViewMapPayload(mapUrl, payload);
+            if (!payload) return;
 
             if (sideMapEl) {
                 ensureSideMap();
@@ -1263,14 +1597,46 @@
                 return;
             }
 
-            if (!viewModalEl) return;
             if (viewMetaEl) {
                 viewMetaEl.textContent = `Vehiculo: ${payload.vehicle} | Fecha: ${payload.date} | Inicio: ${payload.startName || '-'} | Destino: ${payload.endName || '-'}`;
             }
             pendingViewPayload = payload;
-            const modal = getModalInstance(viewModalEl);
-            if (modal) modal.show();
-            refreshViewMapLayout(payload);
+            if (!payloadHasDrawableData(payload)) {
+                setViewMapStatus('Esta bitacora no tiene coordenadas para mostrar en el mapa.', 'danger');
+                return;
+            }
+            setViewMapStatus('Construyendo mapa...', 'primary');
+            forceReloadViewMap();
+        });
+
+        document.addEventListener('click', function (event) {
+            const btn = event.target.closest('.vehicle-view-odometro-btn');
+            if (!btn || !odometroModalEl) return;
+
+            const photoUrl = btn.getAttribute('data-photo-url') || '';
+            const vehicle = btn.getAttribute('data-vehicle') || 'N/A';
+            const date = btn.getAttribute('data-date') || '';
+
+            if (odometroMetaEl) {
+                odometroMetaEl.textContent = `Vehiculo: ${vehicle} | Fecha: ${date}`;
+            }
+
+            if (photoUrl && odometroImageEl) {
+                odometroImageEl.src = photoUrl;
+                odometroImageEl.classList.remove('d-none');
+                odometroEmptyEl?.classList.add('d-none');
+                odometroImageEl.onerror = function () {
+                    odometroImageEl.classList.add('d-none');
+                    odometroImageEl.removeAttribute('src');
+                    odometroEmptyEl?.classList.remove('d-none');
+                };
+            } else {
+                odometroImageEl?.classList.add('d-none');
+                odometroImageEl?.removeAttribute('src');
+                odometroEmptyEl?.classList.remove('d-none');
+            }
+
+            forceShowModalEl(odometroModalEl);
         });
     })();
 </script>
@@ -1299,4 +1665,252 @@
         new MutationObserver(() => scheduleDismiss(document)).observe(document.body, { childList: true, subtree: true });
     })();
 </script>
+@if(auth()->user()?->role !== 'conductor')
+<div class="modal fade" id="vehicleDocumentModal" tabindex="-1" aria-labelledby="vehicleDocumentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="vehicleDocumentModalLabel">Generar documento de bitacoras</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Elige si quieres imprimir, generar PDF o Excel, define el rango de fechas y marca exactamente los campos que deseas incluir.
+                    </p>
+                    <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Accion</label>
+                        <select class="form-select" id="vehicle-report-action">
+                            <option value="print_pdf">Imprimir PDF</option>
+                            <option value="download_pdf">Descargar PDF</option>
+                            <option value="download_excel">Descargar Excel</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label fw-bold">Fecha desde</label>
+                        <input type="date" class="form-control" id="vehicle-report-fecha-desde" value="{{ $fecha_desde }}">
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label fw-bold">Fecha hasta</label>
+                        <input type="date" class="form-control" id="vehicle-report-fecha-hasta" value="{{ $fecha_hasta }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Filtrar por</label>
+                        <select class="form-select" id="vehicle-report-scope">
+                            <option value="all">Todos los registros</option>
+                            <option value="vehicle" {{ $vehicle_filter_id ? 'selected' : '' }}>Vehiculo especifico</option>
+                            <option value="driver" {{ !$vehicle_filter_id && $driver_filter_id ? 'selected' : '' }}>Conductor especifico</option>
+                        </select>
+                    </div>
+                    <div class="col-12" id="vehicle-report-vehicle-wrap">
+                        <label class="form-label fw-bold">Vehiculo</label>
+                        <select class="form-select" id="vehicle-report-vehicle-id">
+                            <option value="">Todos los vehiculos</option>
+                            @foreach($vehicles as $vehicle)
+                                <option value="{{ $vehicle->id }}" {{ (int) $vehicle_filter_id === (int) $vehicle->id ? 'selected' : '' }}>{{ $vehicle->placa }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12" id="vehicle-report-driver-wrap">
+                        <label class="form-label fw-bold">Conductor</label>
+                        <select class="form-select" id="vehicle-report-driver-id">
+                            <option value="">Todos los conductores</option>
+                            @foreach($drivers as $driver)
+                                <option value="{{ $driver->id }}" {{ (int) $driver_filter_id === (int) $driver->id ? 'selected' : '' }}>{{ $driver->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Busqueda libre</label>
+                        <input type="text" class="form-control" id="vehicle-report-search" value="{{ trim($search) }}" placeholder="Opcional">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold d-block">Campos del documento</label>
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="vehicle-report-select-all">Todos</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="vehicle-report-clear-all">Ninguno</button>
+                        </div>
+                        <div class="row g-2" id="vehicle-report-columns">
+                            @php
+                                $vehicleDocumentColumns = [
+                                    'fecha' => 'Fecha',
+                                    'placa' => 'Placa',
+                                    'vehiculo' => 'Vehiculo',
+                                    'driver_name' => 'Conductor',
+                                    'kilometraje_salida' => 'KM salida',
+                                    'kilometraje_recorrido' => 'KM recorrido',
+                                    'kilometraje_llegada' => 'KM llegada',
+                                    'recorrido' => 'Recorrido',
+                                    'combustible' => 'Combustible',
+                                ];
+                            @endphp
+                            @foreach($vehicleDocumentColumns as $value => $label)
+                                <div class="col-6 col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input vehicle-report-column" type="checkbox" value="{{ $value }}" id="vehicle-column-{{ $value }}" checked>
+                                        <label class="form-check-label" for="vehicle-column-{{ $value }}">{{ $label }}</label>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                        <small class="text-muted">Puedes decidir exactamente que columnas quieres ver antes de imprimir o exportar.</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button
+                    type="button"
+                    class="btn btn-primary"
+                    id="vehicle-report-submit"
+                    data-pdf-url="{{ route('vehicle-logs.pdf') }}"
+                    data-excel-url="{{ route('vehicle-logs.excel') }}"
+                >
+                    Generar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (function () {
+        if (window.__vehicleReportModalInitialized) return;
+        window.__vehicleReportModalInitialized = true;
+
+        const scopeEl = document.getElementById('vehicle-report-scope');
+        const vehicleWrap = document.getElementById('vehicle-report-vehicle-wrap');
+        const driverWrap = document.getElementById('vehicle-report-driver-wrap');
+        const vehicleEl = document.getElementById('vehicle-report-vehicle-id');
+        const driverEl = document.getElementById('vehicle-report-driver-id');
+        const actionEl = document.getElementById('vehicle-report-action');
+        const fechaDesdeEl = document.getElementById('vehicle-report-fecha-desde');
+        const fechaHastaEl = document.getElementById('vehicle-report-fecha-hasta');
+        const searchEl = document.getElementById('vehicle-report-search');
+        const submitEl = document.getElementById('vehicle-report-submit');
+        const triggerEl = document.getElementById('vehicle-document-trigger');
+        const modalEl = document.getElementById('vehicleDocumentModal');
+        const selectAllEl = document.getElementById('vehicle-report-select-all');
+        const clearAllEl = document.getElementById('vehicle-report-clear-all');
+
+        if (!scopeEl || !submitEl) return;
+
+        function setVehicleColumns(checked) {
+            document.querySelectorAll('.vehicle-report-column').forEach((checkbox) => {
+                checkbox.checked = checked;
+            });
+        }
+
+        function getVehicleBootstrapModalInstance(el) {
+            if (!el || typeof window.bootstrap === 'undefined' || !window.bootstrap.Modal) {
+                return null;
+            }
+
+            if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                return window.bootstrap.Modal.getOrCreateInstance(el);
+            }
+
+            if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+            }
+
+            return new window.bootstrap.Modal(el);
+        }
+
+        function syncVehicleModalFromFilters() {
+            const pageDateInputs = Array.from(document.querySelectorAll('input[type="date"]'));
+            if (pageDateInputs[0] && fechaDesdeEl && !fechaDesdeEl.value) fechaDesdeEl.value = pageDateInputs[0].value;
+            if (pageDateInputs[1] && fechaHastaEl && !fechaHastaEl.value) fechaHastaEl.value = pageDateInputs[1].value;
+        }
+
+        function syncVehicleScope() {
+            const scope = scopeEl.value || 'all';
+            if (vehicleWrap) vehicleWrap.style.display = scope === 'vehicle' ? '' : 'none';
+            if (driverWrap) driverWrap.style.display = scope === 'driver' ? '' : 'none';
+        }
+
+        function buildVehicleUrl() {
+            const params = new URLSearchParams();
+            const action = actionEl ? actionEl.value : 'print_pdf';
+            const baseUrl = action === 'download_excel'
+                ? submitEl.getAttribute('data-excel-url')
+                : submitEl.getAttribute('data-pdf-url');
+
+            if (!baseUrl) return null;
+            if (fechaDesdeEl && fechaDesdeEl.value) params.set('fecha_desde', fechaDesdeEl.value);
+            if (fechaHastaEl && fechaHastaEl.value) params.set('fecha_hasta', fechaHastaEl.value);
+
+            const search = searchEl ? searchEl.value.trim() : '';
+            if (search !== '') params.set('q', search);
+
+            const scope = scopeEl.value || 'all';
+            if (scope === 'vehicle') {
+                const vehicleId = vehicleEl ? vehicleEl.value : '';
+                if (!vehicleId) {
+                    window.alert('Selecciona un vehiculo para generar el documento.');
+                    return null;
+                }
+                params.set('vehicle_id', vehicleId);
+            }
+
+            if (scope === 'driver') {
+                const driverId = driverEl ? driverEl.value : '';
+                if (!driverId) {
+                    window.alert('Selecciona un conductor para generar el documento.');
+                    return null;
+                }
+                params.set('driver_id', driverId);
+            }
+
+            if (action === 'download_pdf') {
+                params.set('download', '1');
+            }
+
+            const selectedColumns = Array.from(document.querySelectorAll('.vehicle-report-column:checked'))
+                .map((checkbox) => checkbox.value)
+                .filter(Boolean);
+
+            if (selectedColumns.length === 0) {
+                window.alert('Selecciona al menos un campo para generar el documento.');
+                return null;
+            }
+
+            selectedColumns.forEach((column) => params.append('columns[]', column));
+
+            const query = params.toString();
+            return query ? `${baseUrl}?${query}` : baseUrl;
+        }
+
+        scopeEl.addEventListener('change', syncVehicleScope);
+        syncVehicleScope();
+
+        selectAllEl?.addEventListener('click', function () {
+            setVehicleColumns(true);
+        });
+
+        clearAllEl?.addEventListener('click', function () {
+            setVehicleColumns(false);
+        });
+
+        triggerEl?.addEventListener('click', function () {
+            syncVehicleModalFromFilters();
+            const modalInstance = getVehicleBootstrapModalInstance(modalEl);
+            if (!modalInstance) return;
+            modalInstance.show();
+        });
+
+        submitEl.addEventListener('click', function () {
+            const url = buildVehicleUrl();
+            if (!url) return;
+
+            const action = actionEl ? actionEl.value : 'print_pdf';
+            if (action === 'print_pdf') {
+                window.open(url, '_blank', 'noopener');
+                return;
+            }
+
+            window.location.href = url;
+        });
+    })();
+</script>
+@endif
 </div>

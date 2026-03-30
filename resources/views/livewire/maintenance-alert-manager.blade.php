@@ -45,10 +45,9 @@
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold">Estado</label>
                     <select wire:model.live="filterEstado" class="form-select">
+                        <option value="todas">Todas</option>
                         <option value="activa">Activas</option>
                         <option value="resuelta">Resueltas</option>
-                        <option value="omitida">Omitidas</option>
-                        <option value="todas">Todas</option>
                     </select>
                 </div>
                 <div class="col-12 col-md-3">
@@ -94,10 +93,22 @@
                                     <td>{{ $alert->mensaje }}</td>
                                     <td>{{ $alert->kilometraje_actual ?? '-' }}</td>
                                     <td>{{ $alert->kilometraje_objetivo ?? '-' }}</td>
-                                    <td>{{ $alert->faltante_km ?? '-' }}</td>
                                     <td>
-                                        <span class="badge {{ $alert->status === 'Activa' ? 'bg-danger' : ($alert->status === 'Resuelta' ? 'bg-success' : 'bg-secondary') }}">
-                                            {{ $alert->status ?? 'Activa' }}
+                                        @if($alert->faltante_km !== null)
+                                            <span class="{{ (float) $alert->faltante_km < 0 ? 'text-danger fw-bold' : '' }}">
+                                                {{ $alert->faltante_km }}
+                                            </span>
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @php
+                                            $isOverdue = $alert->status === 'Activa' && $alert->faltante_km !== null && (float) $alert->faltante_km < 0;
+                                            $isPostponed = $alert->status === 'Activa' && $alert->postponed_until && $alert->postponed_until->isFuture();
+                                        @endphp
+                                        <span class="badge {{ $alert->status === 'Activa' ? ($isPostponed ? 'bg-warning text-dark' : 'bg-danger') : ($alert->status === 'Resuelta' ? 'bg-success' : 'bg-secondary') }}">
+                                            {{ $isPostponed ? ('Pospuesta hasta ' . $alert->postponed_until->format('d/m/Y')) : ($isOverdue ? 'Vencida' : ($alert->status ?? 'Activa')) }}
                                         </span>
                                     </td>
                                     <td>{{ optional($alert->created_at)->format('d/m/Y H:i') }}</td>
@@ -108,6 +119,9 @@
                                                     <i class="fas fa-check me-1"></i>Leida
                                                 </button>
                                             @else
+                                                <button type="button" wire:click="dispatchToWorkshop({{ $alert->id }})" class="btn btn-sm btn-outline-warning ms-1">
+                                                    <i class="fas fa-truck-moving me-1"></i>Despachar a taller
+                                                </button>
                                                 <button type="button" wire:click="registerMaintenance({{ $alert->id }})" class="btn btn-sm btn-outline-primary ms-1">
                                                     <i class="fas fa-tools me-1"></i>Registrar mantenimiento
                                                 </button>
@@ -115,9 +129,11 @@
                                             <button type="button" wire:click="resolveAlert({{ $alert->id }})" class="btn btn-sm btn-outline-success ms-1">
                                                 <i class="fas fa-check-circle me-1"></i>Resolver
                                             </button>
-                                            <button type="button" wire:click="omitAlert({{ $alert->id }})" class="btn btn-sm btn-outline-secondary ms-1">
-                                                <i class="fas fa-ban me-1"></i>Omitir
-                                            </button>
+                                            @if(!($alert->postponed_once ?? false))
+                                                <button type="button" wire:click="postponeAlert({{ $alert->id }})" class="btn btn-sm btn-outline-secondary ms-1">
+                                                    <i class="fas fa-clock me-1"></i>Posponer 3 dias
+                                                </button>
+                                            @endif
                                         @elseif($alert->status === 'Activa' && $alert->leida)
                                             <button type="button" wire:click="markAsUnread({{ $alert->id }})" class="btn btn-sm btn-outline-warning">
                                                 <i class="fas fa-undo me-1"></i>Pendiente

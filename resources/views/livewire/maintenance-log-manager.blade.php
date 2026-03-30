@@ -84,13 +84,23 @@
                             <label for="kilometraje" class="form-label fw-bold">Kilometraje <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" id="kilometraje" wire:model="kilometraje" class="form-control @error('kilometraje') is-invalid @enderror" required>
                             <div class="form-text">
-                                @if((int) ($from_alert_id ?? 0) > 0)
+                                @if($tacometro_danado_vehiculo)
+                                    Si el tacometro esta danado, puede conservar el ultimo kilometraje valido.
+                                @elseif((int) ($from_alert_id ?? 0) > 0)
                                     Debe ser igual o mayor al KM actual del vehiculo.
                                 @else
                                     Debe ser mayor al KM actual del vehiculo.
                                 @endif
                             </div>
                             @error('kilometraje') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input type="checkbox" id="tacometro_danado_vehiculo" wire:model="tacometro_danado_vehiculo" class="form-check-input">
+                                <label class="form-check-label fw-bold" for="tacometro_danado_vehiculo">
+                                    Marcar vehiculo con tacometro danado
+                                </label>
+                            </div>
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="costo" class="form-label fw-bold">Costo <span class="text-danger">*</span></label>
@@ -162,7 +172,7 @@
                             <tbody>
                                 @foreach ($maintenanceLogs as $log)
                                     <tr>
-                                        <td>{{ $log->vehicle->placa }}</td>
+                                        <td>{{ $log->vehicle?->display_name ?? 'N/A' }}</td>
                                         <td>{{ $log->tipo }}</td>
                                         <td>{{ optional($log->fecha)->format('d/m/Y') }}</td>
                                         <td>

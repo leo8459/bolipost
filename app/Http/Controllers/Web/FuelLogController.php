@@ -19,11 +19,39 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Browsershot\Browsershot;
+use App\Exports\FuelBitacoraExport;
+use App\Exports\VehicleLogsExport;
 
 class FuelLogController extends Controller
 {
     use AuthorizesRequests;
+
+    private const FUEL_REPORT_COLUMNS = [
+        'station_name',
+        'invoice_number',
+        'regional',
+        'fecha_carga',
+        'litros',
+        'importe_bs',
+        'total_km',
+        'placa',
+        'vehiculo',
+        'driver_name',
+    ];
+
+    private const VEHICLE_REPORT_COLUMNS = [
+        'fecha',
+        'placa',
+        'vehiculo',
+        'driver_name',
+        'kilometraje_salida',
+        'kilometraje_recorrido',
+        'kilometraje_llegada',
+        'recorrido',
+        'combustible',
+    ];
 
     public function index()
     {
@@ -96,6 +124,7 @@ class FuelLogController extends Controller
                         'cantidad' => $row['cantidad'],
                         'precio_unitario' => $row['precio_unitario'],
                         'subtotal' => $subtotal,
+                        'estado' => 'Falta verificar',
                     ]);
 
                     VehicleLog::create([
@@ -208,6 +237,7 @@ class FuelLogController extends Controller
                         'cantidad' => $row['cantidad'],
                         'precio_unitario' => $row['precio_unitario'],
                         'subtotal' => $subtotal,
+                        'estado' => 'Falta verificar',
                     ]);
 
                     VehicleLog::create([
@@ -271,85 +301,12 @@ class FuelLogController extends Controller
         $user = $request->user();
         abort_unless($user && in_array($user->role, ['admin', 'recepcion'], true), 403);
 
-        $fechaDesde = $request->query('fecha_desde');
-        $fechaHasta = $request->query('fecha_hasta');
-        $placaFiltro = mb_strtoupper(trim((string) $request->query('placa_filtro', '')));
-
-        $query = VehicleLog::query()
-            ->with(['vehicle.brand', 'driver'])
-            ->orderBy('fecha')
-            ->orderBy('id');
-
-        if ($user->role === 'conductor') {
-            $driverId = (int) ($user->resolvedDriver()?->id ?? 0);
-            if ($driverId <= 0) {
-                abort(403);
-            }
-            $query->where('drivers_id', $driverId);
-        }
-
-        if ($placaFiltro !== '') {
-            $query->whereHas('vehicle', function ($q) use ($placaFiltro) {
-                $q->whereRaw('UPPER(placa) LIKE ?', ['%' . $placaFiltro . '%']);
-            });
-        }
-
-        if ($fechaDesde) {
-            $query->whereDate('fecha', '>=', $fechaDesde);
-        }
-
-        if ($fechaHasta) {
-            $query->whereDate('fecha', '<=', $fechaHasta);
-        }
-
-        $logs = $query->get();
-
-        $groups = $logs
-            ->groupBy(fn (VehicleLog $log) => (int) ($log->vehicles_id ?? 0))
-            ->map(function ($rows, $vehicleId) {
-                $rows = $rows->sortBy('fecha')->values();
-                $latestRow = $rows->sortByDesc('fecha')->first();
-                $vehicle = $rows->first()?->vehicle;
-
-                $assignment = VehicleAssignment::query()
-                    ->with('driver')
-                    ->where('vehicle_id', (int) $vehicleId)
-                    ->where(function ($q) {
-                        $q->where('activo', true)
-                            ->orWhere(function ($sub) {
-                                $sub->whereNull('activo');
-                            });
-                    })
-                    ->orderByDesc('fecha_inicio')
-                    ->orderByDesc('id')
-                    ->first();
-
-                $designatedDriver = $assignment?->driver ?: $latestRow?->driver;
-                $first = $rows->first();
-                $driversUsed = $rows
-                    ->map(fn (VehicleLog $row) => trim((string) ($row->driver?->nombre ?? '')))
-                    ->filter(fn (string $name) => $name !== '')
-                    ->unique()
-                    ->values();
-                $rowChunks = $rows->chunk(12)->values();
-
-                return [
-                    'vehicle' => $vehicle,
-                    'driver' => $designatedDriver,
-                    'drivers_used' => $driversUsed,
-                    'rows' => $rows->values(),
-                    'row_chunks' => $rowChunks,
-                ];
-            })
-            ->sortBy(fn (array $group) => (string) ($group['vehicle']?->placa ?? ''))
-            ->values();
+        $reportData = $this->buildFuelBitacoraReportData($request);
 
         $html = view('reports.fuel-log-bitacora-pdf', [
-            'groups' => $groups,
-            'fechaDesde' => $fechaDesde,
-            'fechaHasta' => $fechaHasta,
-            'placaFiltro' => $placaFiltro,
+            ...$reportData,
             'generatedAt' => now(),
+            'reportMode' => 'fuel_bitacora',
         ])->render();
 
         $download = $request->boolean('download');
@@ -362,78 +319,30 @@ class FuelLogController extends Controller
         );
     }
 
+    public function bitacoraExcel(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user && in_array($user->role, ['admin', 'recepcion'], true), 403);
+
+        $reportData = $this->buildFuelBitacoraReportData($request);
+
+        return Excel::download(
+            new FuelBitacoraExport($reportData),
+            'planilla-combustible-' . now()->format('Ymd-His') . '.xlsx'
+        );
+    }
+
     public function vehicleLogsPdf(Request $request)
     {
         $user = $request->user();
         abort_unless($user && in_array($user->role, ['admin', 'recepcion'], true), 403);
 
-        $search = trim((string) $request->query('q', ''));
-
-        $query = VehicleLog::query()
-            ->with(['vehicle.brand', 'driver'])
-            ->orderBy('fecha')
-            ->orderBy('id');
-
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('recorrido_inicio', 'like', '%' . $search . '%')
-                    ->orWhere('recorrido_destino', 'like', '%' . $search . '%')
-                    ->orWhereHas('vehicle', function ($vehicleQuery) use ($search) {
-                        $vehicleQuery->where('placa', 'like', '%' . $search . '%');
-                    })
-                    ->orWhereHas('driver', function ($driverQuery) use ($search) {
-                        $driverQuery->where('nombre', 'like', '%' . $search . '%');
-                    });
-            });
-        }
-
-        $logs = $query->get();
-
-        $groups = $logs
-            ->groupBy(fn (VehicleLog $log) => (int) ($log->vehicles_id ?? 0))
-            ->map(function ($rows, $vehicleId) {
-                $rows = $rows->sortBy('fecha')->values();
-                $latestRow = $rows->sortByDesc('fecha')->first();
-                $vehicle = $rows->first()?->vehicle;
-
-                $assignment = VehicleAssignment::query()
-                    ->with('driver')
-                    ->where('vehicle_id', (int) $vehicleId)
-                    ->where(function ($q) {
-                        $q->where('activo', true)
-                            ->orWhere(function ($sub) {
-                                $sub->whereNull('activo');
-                            });
-                    })
-                    ->orderByDesc('fecha_inicio')
-                    ->orderByDesc('id')
-                    ->first();
-
-                $designatedDriver = $assignment?->driver ?: $latestRow?->driver;
-                $driversUsed = $rows
-                    ->map(fn (VehicleLog $row) => trim((string) ($row->driver?->nombre ?? '')))
-                    ->filter(fn (string $name) => $name !== '')
-                    ->unique()
-                    ->values();
-                $rowChunks = $rows->chunk(12)->values();
-
-                return [
-                    'vehicle' => $vehicle,
-                    'driver' => $designatedDriver,
-                    'drivers_used' => $driversUsed,
-                    'rows' => $rows->values(),
-                    'row_chunks' => $rowChunks,
-                ];
-            })
-            ->sortBy(fn (array $group) => (string) ($group['vehicle']?->placa ?? ''))
-            ->values();
+        $reportData = $this->buildVehicleLogsReportData($request);
 
         $html = view('reports.fuel-log-bitacora-pdf', [
-            'groups' => $groups,
-            'fechaDesde' => null,
-            'fechaHasta' => null,
-            'placaFiltro' => $search,
+            ...$reportData,
             'generatedAt' => now(),
+            'reportMode' => 'vehicle_logs',
         ])->render();
 
         $download = $request->boolean('download');
@@ -443,6 +352,19 @@ class FuelLogController extends Controller
             'bitacora-vehicular-' . now()->format('Ymd-His') . '.pdf',
             $download,
             'bitacora vehicular'
+        );
+    }
+
+    public function vehicleLogsExcel(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user && in_array($user->role, ['admin', 'recepcion'], true), 403);
+
+        $reportData = $this->buildVehicleLogsReportData($request);
+
+        return Excel::download(
+            new VehicleLogsExport($reportData),
+            'bitacora-vehicular-' . now()->format('Ymd-His') . '.xlsx'
         );
     }
 
@@ -491,6 +413,231 @@ class FuelLogController extends Controller
                 'Content-Type' => 'text/html; charset=UTF-8',
             ]);
         }
+    }
+
+    private function buildFuelBitacoraReportData(Request $request): array
+    {
+        $user = $request->user();
+        $fechaDesde = $request->query('fecha_desde');
+        $fechaHasta = $request->query('fecha_hasta');
+        $placaFiltro = mb_strtoupper(trim((string) $request->query('placa_filtro', '')));
+        $vehicleId = (int) $request->query('vehicle_id', 0);
+        $driverId = (int) $request->query('driver_id', 0);
+        $visibleColumns = $this->normalizeReportColumns(
+            $request->query('columns'),
+            self::FUEL_REPORT_COLUMNS
+        );
+
+        $query = VehicleLog::query()
+            ->with(['vehicle.brand', 'driver', 'fuelLog.invoice', 'fuelLog.gasStation'])
+            ->where('abastecimiento_combustible', true)
+            ->whereNotNull('fuel_log_id')
+            ->orderBy('fecha')
+            ->orderBy('id');
+
+        if ($user?->role === 'conductor') {
+            $driverId = (int) ($user->resolvedDriver()?->id ?? 0);
+            if ($driverId <= 0) {
+                abort(403);
+            }
+            $query->where('drivers_id', $driverId);
+        }
+
+        if ($placaFiltro !== '') {
+            $query->whereHas('vehicle', function ($q) use ($placaFiltro) {
+                $q->whereRaw('UPPER(placa) LIKE ?', ['%' . $placaFiltro . '%']);
+            });
+        }
+
+        if ($vehicleId > 0) {
+            $query->where('vehicles_id', $vehicleId);
+        }
+
+        if ($driverId > 0) {
+            $query->where('drivers_id', $driverId);
+        }
+
+        if ($fechaDesde) {
+            $query->whereDate('fecha', '>=', $fechaDesde);
+        }
+
+        if ($fechaHasta) {
+            $query->whereDate('fecha', '<=', $fechaHasta);
+        }
+
+        $rows = $query->get()->map(function (VehicleLog $row) {
+            $fuel = $row->fuelLog;
+            $kmSalida = $row->kilometraje_salida !== null ? (float) $row->kilometraje_salida : null;
+            $kmLlegada = $row->kilometraje_llegada !== null ? (float) $row->kilometraje_llegada : null;
+            $totalKm = ($kmSalida !== null && $kmLlegada !== null) ? max(0, $kmLlegada - $kmSalida) : null;
+
+            return [
+                'station_name' => trim((string) ($fuel?->gasStation?->razon_social ?? $fuel?->gasStation?->nombre ?? 'SIN ESTACION')),
+                'invoice_number' => trim((string) ($fuel?->invoice?->numero_factura ?? $fuel?->invoice?->numero ?? '')),
+                'regional' => trim((string) ($fuel?->gasStation?->ciudad ?? '-')),
+                'fecha_carga' => optional($fuel?->fecha_emision)->format('j/n/Y')
+                    ?? optional($row->fecha)->format('j/n/Y')
+                    ?? '-',
+                'litros' => $fuel?->cantidad !== null ? (float) $fuel->cantidad : (float) ($fuel?->galones ?? 0),
+                'importe_bs' => $fuel?->subtotal !== null ? (float) $fuel->subtotal : (float) ($fuel?->invoice?->monto_total ?? 0),
+                'total_km' => $totalKm,
+                'placa' => (string) ($row->vehicle?->placa ?? 'SIN PLACA'),
+                'vehiculo' => trim((string) (($row->vehicle?->brand?->nombre ?? '') . ' ' . ($row->vehicle?->modelo ?? ''))),
+                'driver_name' => trim((string) ($row->driver?->nombre ?? 'SIN CONDUCTOR')),
+            ];
+        })->values();
+
+        return [
+            'rows' => $rows,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
+            'placaFiltro' => $placaFiltro,
+            'visibleColumns' => $visibleColumns,
+            'selectedVehicleLabel' => $vehicleId > 0 ? (string) (Vehicle::query()->whereKey($vehicleId)->value('placa') ?? '') : '',
+            'selectedDriverLabel' => $driverId > 0 ? (string) (\App\Models\Driver::withTrashed()->whereKey($driverId)->value('nombre') ?? '') : '',
+            'totals' => [
+                'litros' => (float) $rows->sum('litros'),
+                'importe_bs' => (float) $rows->sum('importe_bs'),
+                'total_km' => (float) $rows->sum(fn (array $row) => (float) ($row['total_km'] ?? 0)),
+            ],
+            // Compatibilidad con la otra salida del mismo blade.
+            'groups' => collect(),
+        ];
+    }
+
+    private function buildVehicleLogsReportData(Request $request): array
+    {
+        $search = trim((string) $request->query('q', ''));
+        $fechaDesde = $request->query('fecha_desde');
+        $fechaHasta = $request->query('fecha_hasta');
+        $vehicleId = (int) $request->query('vehicle_id', 0);
+        $driverId = (int) $request->query('driver_id', 0);
+        $visibleColumns = $this->normalizeReportColumns(
+            $request->query('columns'),
+            self::VEHICLE_REPORT_COLUMNS
+        );
+
+        $query = VehicleLog::query()
+            ->with(['vehicle.brand', 'driver', 'fuelLog'])
+            ->orderBy('fecha')
+            ->orderBy('id');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('recorrido_inicio', 'like', '%' . $search . '%')
+                    ->orWhere('recorrido_destino', 'like', '%' . $search . '%')
+                    ->orWhereHas('vehicle', function ($vehicleQuery) use ($search) {
+                        $vehicleQuery->where('placa', 'like', '%' . $search . '%');
+                    })
+                    ->orWhereHas('driver', function ($driverQuery) use ($search) {
+                        $driverQuery->where('nombre', 'like', '%' . $search . '%');
+                    });
+            });
+        }
+
+        if ($fechaDesde) {
+            $query->whereDate('fecha', '>=', $fechaDesde);
+        }
+
+        if ($fechaHasta) {
+            $query->whereDate('fecha', '<=', $fechaHasta);
+        }
+
+        if ($vehicleId > 0) {
+            $query->where('vehicles_id', $vehicleId);
+        }
+
+        if ($driverId > 0) {
+            $query->where('drivers_id', $driverId);
+        }
+
+        $logs = $query->get();
+
+        $groups = $logs
+            ->groupBy(fn (VehicleLog $log) => (int) ($log->vehicles_id ?? 0))
+            ->map(function ($rows) {
+                $rows = $rows->sortBy('fecha')->values();
+                $vehicle = $rows->first()?->vehicle;
+                $startDriver = $rows->first()?->driver;
+                $driversUsed = $rows
+                    ->map(fn (VehicleLog $row) => trim((string) ($row->driver?->nombre ?? '')))
+                    ->filter(fn (string $name) => $name !== '')
+                    ->unique()
+                    ->values();
+                $rowChunks = $rows->chunk(12)->values();
+
+                return [
+                    'vehicle' => $vehicle,
+                    'driver' => $startDriver,
+                    'drivers_used' => $driversUsed,
+                    'rows' => $rows->values(),
+                    'row_chunks' => $rowChunks,
+                ];
+            })
+            ->sortBy(fn (array $group) => (string) ($group['vehicle']?->placa ?? ''))
+            ->values();
+
+        $rows = $logs->map(function (VehicleLog $row) {
+            $kmSalida = $row->kilometraje_salida !== null ? (float) $row->kilometraje_salida : null;
+            $kmLlegada = $row->kilometraje_llegada !== null ? (float) $row->kilometraje_llegada : null;
+            $kmRecorrido = $row->kilometraje_recorrido !== null
+                ? (float) $row->kilometraje_recorrido
+                : (($kmSalida !== null && $kmLlegada !== null) ? max(0, $kmLlegada - $kmSalida) : null);
+            $fuelLabel = 'No';
+            if ($row->fuel_log_id) {
+                $litros = $row->fuelLog?->cantidad ?? $row->fuelLog?->galones;
+                $fuelLabel = $litros !== null ? 'Si - ' . number_format((float) $litros, 2) . ' L' : 'Si';
+            }
+
+            return [
+                'fecha' => optional($row->fecha)->format('d/m/Y') ?? '-',
+                'placa' => (string) ($row->vehicle?->placa ?? 'SIN PLACA'),
+                'vehiculo' => trim((string) (($row->vehicle?->brand?->nombre ?? '') . ' ' . ($row->vehicle?->modelo ?? ''))),
+                'driver_name' => trim((string) ($row->driver?->nombre ?? 'SIN CONDUCTOR')),
+                'kilometraje_salida' => $kmSalida,
+                'kilometraje_recorrido' => $kmRecorrido,
+                'kilometraje_llegada' => $kmLlegada,
+                'recorrido' => trim(((string) ($row->recorrido_inicio ?? '-')) . ' -> ' . ((string) ($row->recorrido_destino ?? '-'))),
+                'recorrido_inicio' => (string) ($row->recorrido_inicio ?? ''),
+                'recorrido_destino' => (string) ($row->recorrido_destino ?? ''),
+                'combustible' => $fuelLabel,
+            ];
+        })->values();
+
+        return [
+            'groups' => $groups,
+            'rows' => $rows,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
+            'placaFiltro' => $search,
+            'visibleColumns' => $visibleColumns,
+            'selectedVehicleLabel' => $vehicleId > 0 ? (string) (Vehicle::query()->whereKey($vehicleId)->value('placa') ?? '') : '',
+            'selectedDriverLabel' => $driverId > 0 ? (string) (\App\Models\Driver::withTrashed()->whereKey($driverId)->value('nombre') ?? '') : '',
+            'totals' => [
+                'kilometraje_recorrido' => (float) $rows->sum(fn (array $row) => (float) ($row['kilometraje_recorrido'] ?? 0)),
+            ],
+        ];
+    }
+
+    /**
+     * @param mixed $requestedColumns
+     * @param array<int, string> $allowedColumns
+     * @return array<int, string>
+     */
+    private function normalizeReportColumns(mixed $requestedColumns, array $allowedColumns): array
+    {
+        $columns = is_array($requestedColumns)
+            ? $requestedColumns
+            : (is_string($requestedColumns) ? explode(',', $requestedColumns) : []);
+
+        $normalized = collect($columns)
+            ->map(fn ($column) => trim((string) $column))
+            ->filter(fn (string $column) => in_array($column, $allowedColumns, true))
+            ->unique()
+            ->values()
+            ->all();
+
+        return $normalized !== [] ? $normalized : $allowedColumns;
     }
 
     public function scrapeFromQr(Request $request)
@@ -627,7 +774,8 @@ class FuelLogController extends Controller
             $data['cantidad'] = $normalizeNumber($encodedPayload['cantidad'] ?? null);
         }
 
-        $upsertStationByNit = function (?string $nit, ?string $razonSocial = null, ?string $direccion = null): ?int {
+        $persistStations = !$request->is('api/*');
+        $upsertStationByNit = function (?string $nit, ?string $razonSocial = null, ?string $direccion = null) use ($persistStations): ?int {
             if (!$nit || !Schema::hasColumn('gas_stations', 'nit_emisor')) {
                 return null;
             }
@@ -645,6 +793,10 @@ class FuelLogController extends Controller
                     $station->fill($updates)->save();
                 }
                 return $station->id;
+            }
+
+            if (!$persistStations) {
+                return null;
             }
 
             $label = $razonSocial ?: ('NIT ' . $nit);

@@ -1,11 +1,11 @@
 <div>
     <div class="page-title mb-4 d-flex justify-content-between align-items-center gap-2">
         <h1 class="h3 mb-0">
-            <i class="fas fa-calendar-check me-2 text-primary"></i>Gestion de Citas de Mantenimiento
+            <i class="fas fa-calendar-check me-2 text-primary"></i>Gestion de Solicitudes y Citas de Mantenimiento
         </h1>
         @if(!$showForm)
             <button wire:click="openForm" class="btn btn-primary">
-                <i class="fas fa-calendar-plus me-2"></i>Agendar Nueva Cita
+                <i class="fas fa-calendar-plus me-2"></i>Registrar Solicitud
             </button>
         @endif
     </div>
@@ -21,17 +21,64 @@
         <div class="bp-gestiones-form-overlay">
         <div class="card shadow-sm mb-4 bp-gestiones-form-card">
             <div class="card-header">
-                {{ $isEdit ? 'Editar Cita de Mantenimiento' : 'Nueva Cita de Mantenimiento' }}
+                {{ $isEdit ? 'Editar Solicitud de Mantenimiento' : 'Nueva Solicitud de Mantenimiento' }}
             </div>
             <div class="card-body">
                 <form wire:submit.prevent="save">
                     <div class="row g-3">
+                        <div class="col-12">
+                            <div class="alert alert-info py-2 mb-0">
+                                Este formulario registra una solicitud. La agencia puede aprobarla o rechazarla antes de ejecutar el mantenimiento.
+                            </div>
+                        </div>
+                        @if($isEdit && $editingRequiresAgencyForm)
+                            <div class="col-12">
+                                <div class="alert alert-warning py-2 mb-0">
+                                    Esta solicitud llego con un documento adjunto. La agencia debe revisar ese documento y completar o corregir el formulario interno antes de aprobarla.
+                                </div>
+                            </div>
+                        @endif
+                        @if($isEdit && $editingEvidenceUrl)
+                            <div class="col-12">
+                                <div class="border rounded-3 p-3 bg-light">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div>
+                                            <div class="fw-bold">Documento de solicitud enviado</div>
+                                            <div class="text-muted small">Origen: {{ $editingOriginLabel ?? 'Documento' }}</div>
+                                        </div>
+                                        <a
+                                            href="{{ $editingEvidenceUrl }}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="btn btn-sm btn-outline-primary"
+                                        >
+                                            <i class="fas fa-up-right-from-square me-1"></i>Abrir documento
+                                        </a>
+                                    </div>
+                                    @if($this->evidenceIsPdf())
+                                        <iframe
+                                            src="{{ $editingEvidenceUrl }}"
+                                            title="Documento de solicitud"
+                                            class="w-100 rounded mt-3 border bg-white"
+                                            style="height: 420px;"
+                                        ></iframe>
+                                    @else
+                                        <img
+                                            src="{{ $editingEvidenceUrl }}"
+                                            alt="Documento de solicitud"
+                                            class="img-fluid rounded mt-3 border"
+                                            style="max-height: 320px; object-fit: cover;"
+                                        >
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Vehiculo <span class="text-danger">*</span></label>
                             <select wire:model="vehicle_id" class="form-select @error('vehicle_id') is-invalid @enderror">
                                 <option value="0">Seleccionar vehiculo</option>
                                 @foreach ($vehicles as $vehicle)
-                                    <option value="{{ $vehicle->id }}">{{ $vehicle->placa }} - {{ $vehicle->marca }}</option>
+                                    <option value="{{ $vehicle->id }}">{{ $vehicle->display_name }}</option>
                                 @endforeach
                             </select>
                             @error('vehicle_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
@@ -60,9 +107,11 @@
                             @error('fecha_programada') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label fw-bold">Estado <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold">Estado de solicitud <span class="text-danger">*</span></label>
                             <select wire:model="estado" class="form-select @error('estado') is-invalid @enderror">
                                 <option value="Pendiente">Pendiente</option>
+                                <option value="Aprobado">Aprobado</option>
+                                <option value="Rechazado">Rechazado</option>
                                 <option value="Realizado">Realizado</option>
                                 <option value="Cancelado">Cancelado</option>
                             </select>
@@ -76,16 +125,70 @@
                                 </label>
                             </div>
                         </div>
-                        <div class="col-12">
-                            <label class="form-label fw-bold">Descripcion del Problema / Observaciones</label>
-                            <textarea wire:model="descripcion_problema" class="form-control" rows="3" placeholder="Detalle los trabajos a realizar..."></textarea>
-                            @error('descripcion_problema') <div class="text-danger small">{{ $message }}</div> @enderror
+                        <div class="col-12 col-md-6">
+                            <label for="formulario_documento_file" class="form-label fw-bold">Adjuntar foto o PDF del formulario</label>
+                            <input
+                                type="file"
+                                id="formulario_documento_file"
+                                wire:model="formulario_documento_file"
+                                class="form-control @error('formulario_documento_file') is-invalid @enderror"
+                                accept="image/*,.pdf,application/pdf"
+                            >
+                            @error('formulario_documento_file') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <div class="form-text">Puedes seleccionar una fotografia o un archivo PDF del formulario completado.</div>
+                            @if($formulario_documento_file)
+                                <div class="mt-3 border rounded-3 p-3 bg-light">
+                                    <div class="fw-bold mb-2">Archivo seleccionado</div>
+                                    <div class="text-muted small">{{ method_exists($formulario_documento_file, 'getClientOriginalName') ? $formulario_documento_file->getClientOriginalName() : 'Adjunto pendiente de guardar' }}</div>
+                                    @if($this->uploadedFormIsPdf())
+                                        <div class="small text-secondary mt-2">Se cargara como PDF al guardar la solicitud.</div>
+                                    @else
+                                        <img
+                                            src="{{ $formulario_documento_file->temporaryUrl() }}"
+                                            alt="Vista previa del formulario"
+                                            class="img-fluid rounded mt-3 border"
+                                            style="max-height: 320px; object-fit: contain;"
+                                        >
+                                    @endif
+                                </div>
+                            @elseif($formulario_documento_path)
+                                <div class="mt-2">
+                                    <a
+                                        href="{{ $editingFormUrl ?? '#' }}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="btn btn-sm btn-outline-primary{{ $editingFormUrl ? '' : ' disabled' }}"
+                                    >
+                                        <i class="fas fa-file-alt me-1"></i>Ver documento actual
+                                    </a>
+                                </div>
+                                @if($editingFormUrl)
+                                    <div class="mt-3 border rounded-3 p-3 bg-light">
+                                        <div class="fw-bold mb-2">Adjunto actual</div>
+                                        @if($this->currentFormIsPdf())
+                                            <iframe
+                                                src="{{ $editingFormUrl }}"
+                                                title="Formulario actual"
+                                                class="w-100 rounded border bg-white"
+                                                style="height: 420px;"
+                                            ></iframe>
+                                        @else
+                                            <img
+                                                src="{{ $editingFormUrl }}"
+                                                alt="Formulario actual"
+                                                class="img-fluid rounded border"
+                                                style="max-height: 320px; object-fit: contain;"
+                                            >
+                                        @endif
+                                    </div>
+                                @endif
+                            @endif
                         </div>
                     </div>
 
                     <div class="d-flex flex-wrap gap-2 border-top pt-3 mt-4">
                         <button type="submit" class="btn btn-primary px-4">
-                            <i class="fas fa-save me-2"></i>{{ $isEdit ? 'Actualizar Cita' : 'Programar Cita' }}
+                            <i class="fas fa-save me-2"></i>{{ $isEdit ? 'Actualizar Solicitud' : 'Guardar Solicitud' }}
                         </button>
                         <button type="button" wire:click="resetForm" class="btn btn-secondary px-4">Volver al listado</button>
                     </div>
@@ -94,6 +197,70 @@
         </div>
         </div>
     @else
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Citas aprobadas</div>
+                        <div class="fs-3 fw-bold text-primary">{{ $approvedCount }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Solicitudes pendientes</div>
+                        <div class="fs-3 fw-bold text-warning">{{ $pendingCount }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <label class="form-label fw-bold">Filtro de citas</label>
+                        <select wire:model.live="statusFilter" class="form-select">
+                            <option value="">Todas</option>
+                            <option value="Pendiente">Pendientes</option>
+                            <option value="Aprobado">Aprobadas</option>
+                            <option value="Realizado">Realizadas</option>
+                            <option value="Rechazado">Rechazadas</option>
+                            <option value="Cancelado">Canceladas</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if($approvedAppointments->count() > 0)
+            <div class="card shadow-sm mb-3 border-0">
+                <div class="card-header bg-success text-white">
+                    <i class="fas fa-calendar-check me-2"></i>Listado de citas aprobadas
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        @foreach($approvedAppointments as $approvedAppointment)
+                            <div class="col-12 col-lg-6">
+                                <div class="border rounded-3 p-3 h-100">
+                                    <div class="fw-bold">{{ $approvedAppointment->vehicle?->placa ?? '-' }}</div>
+                                    <div class="text-muted small">
+                                        {{ $approvedAppointment->vehicle?->brand?->nombre ?? '-' }}
+                                        | {{ $approvedAppointment->driver?->nombre ?? 'Sin conductor' }}
+                                    </div>
+                                    <div class="mt-2">
+                                        <span class="badge bg-info text-dark">{{ $approvedAppointment->tipoMantenimiento?->nombre ?? 'Mantenimiento' }}</span>
+                                        <span class="badge bg-primary">Aprobado</span>
+                                    </div>
+                                    <div class="small text-muted mt-2">
+                                        Cita: {{ optional($approvedAppointment->fecha_programada)->format('d/m/Y H:i') ?? '-' }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="p-3 border-bottom">
@@ -107,10 +274,13 @@
                     <table class="table table-hover mb-0 align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th>Vehiculo</th>
+                                <th>Tipo de vehiculo</th>
+                                <th>Marca</th>
+                                <th>Placa</th>
                                 <th>Conductor</th>
+                                <th>Solicitud</th>
                                 <th>Tipo / Motivo</th>
-                                <th>Fecha y Hora</th>
+                                <th>Solicitud / Cita</th>
                                 <th>Estado</th>
                                 <th class="text-end px-4">Acciones</th>
                             </tr>
@@ -118,8 +288,37 @@
                         <tbody>
                             @forelse ($appointments as $appointment)
                                 <tr>
-                                    <td><strong>{{ $appointment->vehicle?->placa }}</strong></td>
+                                    <td>{{ $appointment->vehicle?->vehicleClass?->nombre ?? '-' }}</td>
+                                    <td>{{ $appointment->vehicle?->brand?->nombre ?? $appointment->vehicle?->marca ?? '-' }}</td>
+                                    <td><strong>{{ $appointment->vehicle?->placa ?? '-' }}</strong></td>
                                     <td>{{ $appointment->driver?->nombre ?? 'Sin asignar' }}</td>
+                                    <td>
+                                        <div class="d-flex flex-column gap-2">
+                                        @if($appointment->formulario_documento_path)
+                                            <a
+                                                href="{{ route('maintenance-appointments.form', $appointment) }}"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="btn btn-sm btn-outline-secondary"
+                                            >
+                                                <i class="fas fa-file-alt me-1"></i>Ver formulario
+                                            </a>
+                                        @endif
+                                        @if($appointment->evidencia_path)
+                                            <a
+                                                href="{{ route('maintenance-appointments.evidence', $appointment) }}"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="btn btn-sm btn-outline-primary"
+                                            >
+                                                <i class="fas fa-file-lines me-1"></i>Ver documento solicitud
+                                            </a>
+                                        @endif
+                                        @if(!$appointment->formulario_documento_path && !$appointment->evidencia_path)
+                                            <span class="text-muted small">Sin formulario</span>
+                                        @endif
+                                        </div>
+                                    </td>
                                     <td>
                                         @if($appointment->es_accidente)
                                             <span class="badge bg-danger">ACCIDENTE</span>
@@ -127,11 +326,16 @@
                                             <span class="badge bg-info text-dark">{{ $appointment->tipoMantenimiento?->nombre ?? 'Mantenimiento' }}</span>
                                         @endif
                                     </td>
-                                    <td>{{ optional($appointment->fecha_programada)->format('d/m/Y H:i') }}</td>
+                                    <td>
+                                        <div><strong>Solicitud:</strong> {{ optional($appointment->solicitud_fecha ?? $appointment->created_at)->format('d/m/Y H:i') }}</div>
+                                        <div class="text-muted small"><strong>Cita:</strong> {{ optional($appointment->fecha_programada)->format('d/m/Y H:i') ?? '-' }}</div>
+                                    </td>
                                     <td>
                                         @php
                                             $color = match($appointment->estado) {
+                                                'Aprobado' => 'primary',
                                                 'Realizado' => 'success',
+                                                'Rechazado' => 'danger',
                                                 'Cancelado' => 'secondary',
                                                 default => 'warning'
                                             };
@@ -139,6 +343,24 @@
                                         <span class="badge bg-{{ $color }}">{{ $appointment->estado }}</span>
                                     </td>
                                     <td class="text-end px-4">
+                                        @if($appointment->estado === 'Pendiente')
+                                            <div class="btn-group me-1">
+                                                <button
+                                                    wire:click="approve({{ $appointment->id }})"
+                                                    class="btn btn-sm btn-outline-primary"
+                                                    title="Aprobar solicitud"
+                                                >
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                                <button
+                                                    wire:click="reject({{ $appointment->id }})"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    title="Rechazar solicitud"
+                                                >
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        @endif
                                         <button wire:click="edit({{ $appointment->id }})" class="btn btn-sm btn-outline-warning">
                                             <i class="fas fa-edit"></i>
                                         </button>
@@ -150,9 +372,9 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center py-5 text-muted">
+                                    <td colspan="9" class="text-center py-5 text-muted">
                                         <i class="fas fa-calendar-times d-block mb-2" style="font-size: 2rem;"></i>
-                                        No hay citas programadas.
+                                        No hay solicitudes o citas registradas.
                                     </td>
                                 </tr>
                             @endforelse

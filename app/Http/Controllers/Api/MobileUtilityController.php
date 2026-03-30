@@ -141,6 +141,7 @@ class MobileUtilityController extends Controller
         $segments = is_array($payload['point_to_point_segments'] ?? null) ? array_values($payload['point_to_point_segments']) : [];
         $createdCount = 0;
         $createdIds = [];
+        $fuelRouteContext = $this->resolveFuelRouteContextFromTimeline($timelineSanitized);
         $qrDataPayload = $payload['qr_data'] ?? $payload['qrData'] ?? $payload['qr_urls'] ?? null;
         $qrUrls = $this->extractQrUrls($qrDataPayload);
         $structuredFuelEntries = $this->extractStructuredFuelEntries($qrDataPayload);
@@ -231,7 +232,8 @@ class MobileUtilityController extends Controller
                     $request,
                     $qrUrls,
                     (int) $payload['vehicle_id'],
-                    (int) ($payload['driver_id'] ?? 0)
+                    (int) ($payload['driver_id'] ?? 0),
+                    $fuelRouteContext
                 );
                 $fuelSync = $this->mergeFuelSyncResults($fuelSync, $urlSync);
             }
@@ -241,7 +243,8 @@ class MobileUtilityController extends Controller
                     $request,
                     $structuredFuelEntries,
                     (int) $payload['vehicle_id'],
-                    (int) ($payload['driver_id'] ?? 0)
+                    (int) ($payload['driver_id'] ?? 0),
+                    $fuelRouteContext
                 );
                 $fuelSync = $this->mergeFuelSyncResults($fuelSync, $entrySync);
             }
@@ -753,7 +756,7 @@ class MobileUtilityController extends Controller
         return $entries;
     }
 
-    private function syncMobileStructuredFuelEntries(Request $request, array $entries, int $vehicleId, int $driverId): array
+    private function syncMobileStructuredFuelEntries(Request $request, array $entries, int $vehicleId, int $driverId, array $fuelRouteContext = []): array
     {
         $result = [
             'requested' => count($entries),
@@ -798,7 +801,7 @@ class MobileUtilityController extends Controller
                     'qr_payload' => $qrPayload !== '' ? $qrPayload : null,
                     'vehicle_id' => $vehicleId > 0 ? $vehicleId : null,
                     'driver_id' => $driverId > 0 ? $driverId : null,
-                ]);
+                ] + $fuelRouteContext);
                 $storeRequest->setUserResolver(fn () => $request->user());
 
                 $storeResponse = app(FuelLogApiController::class)->store($storeRequest);
@@ -849,7 +852,65 @@ class MobileUtilityController extends Controller
         ];
     }
 
-    private function syncMobileQrDataAsFuel(Request $request, array $urls, int $vehicleId, int $driverId): array
+    private function resolveFuelRouteContextFromTimeline(array $timeline): array
+    {
+        if (empty($timeline)) {
+            return [];
+        }
+
+        $first = is_array($timeline[0] ?? null) ? $timeline[0] : null;
+        $last = is_array($timeline[array_key_last($timeline)] ?? null) ? $timeline[array_key_last($timeline)] : null;
+
+        if (!$first && !$last) {
+            return [];
+        }
+
+        $startLabel = $this->resolveTimelinePointLabel($first, 'Punto de inicio');
+        $endLabel = $this->resolveTimelinePointLabel($last, 'Punto final');
+        $startLat = $this->asFloat($first['latitude'] ?? $first['lat'] ?? null);
+        $startLng = $this->asFloat($first['longitude'] ?? $first['lng'] ?? null);
+        $endLat = $this->asFloat($last['latitude'] ?? $last['lat'] ?? null);
+        $endLng = $this->asFloat($last['longitude'] ?? $last['lng'] ?? null);
+
+        return array_filter([
+            'location_label' => $endLabel,
+            'route_start_label' => $startLabel,
+            'route_end_label' => $endLabel,
+            'route_start_latitude' => $startLat,
+            'route_start_longitude' => $startLng,
+            'route_end_latitude' => $endLat,
+            'route_end_longitude' => $endLng,
+            'latitude' => $endLat,
+            'longitude' => $endLng,
+        ], fn ($value) => !is_null($value) && $value !== '');
+    }
+
+    private function resolveTimelinePointLabel(?array $point, string $fallback): string
+    {
+        if (!$point) {
+            return $fallback;
+        }
+
+        $address = trim((string) ($point['address'] ?? ''));
+        if ($address !== '') {
+            return $address;
+        }
+
+        $label = trim((string) ($point['label'] ?? ''));
+        if ($label !== '') {
+            return $label;
+        }
+
+        $lat = $this->asFloat($point['latitude'] ?? $point['lat'] ?? null);
+        $lng = $this->asFloat($point['longitude'] ?? $point['lng'] ?? null);
+        if (!is_null($lat) && !is_null($lng)) {
+            return sprintf('%.6f, %.6f', $lat, $lng);
+        }
+
+        return $fallback;
+    }
+
+    private function syncMobileQrDataAsFuel(Request $request, array $urls, int $vehicleId, int $driverId, array $fuelRouteContext = []): array
     {
         $result = [
             'requested' => count($urls),
@@ -908,7 +969,7 @@ class MobileUtilityController extends Controller
                     'qr_payload' => $url,
                     'vehicle_id' => $vehicleId > 0 ? $vehicleId : null,
                     'driver_id' => $driverId > 0 ? $driverId : null,
-                ]);
+                ] + $fuelRouteContext);
                 $storeRequest->setUserResolver(fn () => $request->user());
 
                 $storeResponse = app(FuelLogApiController::class)->store($storeRequest);

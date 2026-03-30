@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\MaintenanceAlert;
 use App\Models\VehicleAssignment;
+use App\Models\Workshop;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -13,7 +14,7 @@ class MaintenanceAlertManager extends Component
 
     public string $search = '';
     public string $filterTipo = '';
-    public string $filterEstado = 'activa';
+    public string $filterEstado = 'todas';
 
     public function mount(): void
     {
@@ -23,12 +24,11 @@ class MaintenanceAlertManager extends Component
     public function render()
     {
         $query = MaintenanceAlert::query()
-            ->with(['vehicle', 'maintenanceType', 'maintenanceAppointment'])
+            ->with(['vehicle', 'maintenanceType', 'maintenanceAppointment', 'workshops'])
             ->orderByDesc('created_at')
             ->orderByDesc('id');
 
         $query = $this->applyVisibilityScope($query);
-
         $search = trim($this->search);
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -180,6 +180,51 @@ class MaintenanceAlertManager extends Component
         ]);
     }
 
+    public function dispatchToWorkshop(int $alertId)
+    {
+        $alert = MaintenanceAlert::query()->with(['vehicle', 'maintenanceType', 'maintenanceAppointment'])->find($alertId);
+        if (!$alert) {
+            return;
+        }
+
+        if (!$this->canAccessAlert($alert)) {
+            return;
+        }
+
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para despachar vehiculos a taller.');
+            return;
+        }
+
+        if ($alert->status !== MaintenanceAlert::STATUS_ACTIVE) {
+            session()->flash('error', 'Solo se puede despachar a taller desde alertas activas.');
+            return;
+        }
+
+        $existingWorkshop = Workshop::query()
+            ->where('maintenance_alert_id', $alert->id)
+            ->whereIn('estado', [
+                Workshop::STATUS_DISPATCHED,
+                Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_REPAIR,
+            ])
+            ->first();
+
+        $alert->update([
+            'leida' => true,
+        ]);
+
+        if ($existingWorkshop) {
+            return redirect()->route('livewire.workshops', [
+                'edit_workshop_id' => $existingWorkshop->id,
+            ]);
+        }
+
+        return redirect()->route('livewire.workshops', [
+            'from_alert_id' => $alert->id,
+        ]);
+    }
+
     public function resolveAlert(int $alertId): void
     {
         $alert = MaintenanceAlert::find($alertId);
@@ -200,6 +245,37 @@ class MaintenanceAlertManager extends Component
         ]);
 
         session()->flash('message', 'Alerta resuelta.');
+    }
+
+    public function postponeAlert(int $alertId): void
+    {
+        $alert = MaintenanceAlert::find($alertId);
+        if (!$alert || !$this->canAccessAlert($alert)) {
+            return;
+        }
+
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para posponer alertas.');
+            return;
+        }
+
+        if ($alert->status !== MaintenanceAlert::STATUS_ACTIVE) {
+            session()->flash('error', 'Solo se pueden posponer alertas activas.');
+            return;
+        }
+
+        if ((bool) ($alert->postponed_once ?? false)) {
+            session()->flash('error', 'Esta alerta ya fue pospuesta una vez y no puede volver a posponerse.');
+            return;
+        }
+
+        $alert->update([
+            'postponed_until' => now()->addDays(3),
+            'postponed_once' => true,
+            'leida' => true,
+        ]);
+
+        session()->flash('message', 'Alerta pospuesta por 3 dias.');
     }
 
     public function omitAlert(int $alertId): void

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class MaintenanceLog extends Model
@@ -49,6 +50,11 @@ class MaintenanceLog extends Model
     public function maintenanceType(): BelongsTo
     {
         return $this->belongsTo(MaintenanceType::class, 'maintenance_type_id');
+    }
+
+    public function workshops(): HasMany
+    {
+        return $this->hasMany(Workshop::class);
     }
 
     /**

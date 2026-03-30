@@ -14,6 +14,15 @@ class DriverManager extends Component
     use WithPagination;
     use WithFileUploads;
 
+    private const LICENSE_TYPES = [
+        'M',
+        'P',
+        'A',
+        'B',
+        'C',
+        'T',
+    ];
+
     public string $search = '';
 
     #[Validate('required|string|max:255')]
@@ -103,6 +112,7 @@ class DriverManager extends Component
             'drivers' => $drivers,
             'users' => $users,
             'driverProfile' => $driverProfile,
+            'licenseTypes' => self::LICENSE_TYPES,
         ]);
     }
 

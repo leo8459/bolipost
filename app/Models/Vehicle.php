@@ -9,10 +9,14 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough; // <--- IMPORTANTE
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\VehicleLog; // <--- IMPORTANTE
 use App\Models\FuelLog;
+use App\Models\Workshop;
 
 class Vehicle extends Model
 {
     use SoftDeletes;
+
+    public const OPERATIONAL_STATUS_AVAILABLE = 'Disponible';
+    public const OPERATIONAL_STATUS_IN_MAINTENANCE = 'En Mantenimiento';
 
     protected $table = 'vehicles';
 
@@ -20,6 +24,7 @@ class Vehicle extends Model
         'placa',
         'marca_id',
         'vehicle_class_id',
+        'maintenance_form_type',
         'modelo',
         'tipo_combustible',
         'color',
@@ -29,11 +34,14 @@ class Vehicle extends Model
         'kilometraje_actual',
         'kilometraje',
         'activo',
+        'operational_status',
+        'tacometro_danado',
     ];
 
     protected $casts = [
         'vehicle_class_id' => 'integer',
         'activo' => 'boolean',
+        'tacometro_danado' => 'boolean',
         'anio' => 'integer',
         'capacidad_tanque' => 'decimal:2',
         'kilometraje_inicial' => 'decimal:2',
@@ -43,6 +51,19 @@ class Vehicle extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
+
+    public function scopeOperationallyAvailable($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('operational_status')
+                ->orWhere('operational_status', self::OPERATIONAL_STATUS_AVAILABLE);
+        });
+    }
+
+    public function isInMaintenance(): bool
+    {
+        return (string) ($this->operational_status ?? self::OPERATIONAL_STATUS_AVAILABLE) === self::OPERATIONAL_STATUS_IN_MAINTENANCE;
+    }
 
     /**
      * Relación con las asignaciones de vehículos a conductores
@@ -62,6 +83,11 @@ class Vehicle extends Model
         return $this->belongsTo(VehicleClass::class, 'vehicle_class_id');
     }
 
+    public function getMaintenanceFormTypeLabelAttribute(): string
+    {
+        return ($this->maintenance_form_type ?? 'vehiculo') === 'moto' ? 'Moto' : 'Vehiculo';
+    }
+
     public function getMarcaAttribute(): string
     {
         if (array_key_exists('marca', $this->attributes) && !empty($this->attributes['marca'])) {
@@ -69,6 +95,28 @@ class Vehicle extends Model
         }
 
         return (string) ($this->brand?->nombre ?? '');
+    }
+
+    public function getDisplayNameAttribute(): string
+    {
+        $parts = array_filter([
+            $this->vehicleClass?->nombre,
+            $this->brand?->nombre ?: $this->marca,
+            $this->placa,
+        ], fn ($value) => filled($value));
+
+        return !empty($parts) ? implode(' - ', $parts) : 'N/A';
+    }
+
+    public function getBitacoraDisplayNameAttribute(): string
+    {
+        $parts = array_filter([
+            $this->anio,
+            $this->brand?->nombre ?: $this->marca,
+            $this->placa,
+        ], fn ($value) => filled($value));
+
+        return !empty($parts) ? implode(' - ', $parts) : 'N/A';
     }
 
     public function getKilometrajeAttribute(): ?float
@@ -140,6 +188,11 @@ class Vehicle extends Model
     public function maintenanceLogs(): HasMany
     {
         return $this->hasMany(MaintenanceLog::class, 'vehicle_id');
+    }
+
+    public function workshops(): HasMany
+    {
+        return $this->hasMany(Workshop::class, 'vehicle_id');
     }
 
     public function maintenanceAlerts(): HasMany

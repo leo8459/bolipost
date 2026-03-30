@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Exports;
+
+use Illuminate\Contracts\View\View;
+use Maatwebsite\Excel\Concerns\FromView;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithTitle;
+
+class FuelBitacoraExport implements FromView, ShouldAutoSize, WithTitle
+{
+    public function __construct(
+        private readonly array $reportData
+    ) {
+    }
+
+    public function view(): View
+    {
+        return view('reports.fuel-log-bitacora-excel', $this->reportData);
+    }
+
+    public function title(): string
+    {
+        return 'Planilla combustible';
+    }
+}

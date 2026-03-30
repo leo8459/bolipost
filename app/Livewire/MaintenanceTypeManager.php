@@ -3,7 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\MaintenanceType;
-use App\Models\VehicleClass;
+use App\Models\Vehicle;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -14,6 +14,11 @@ class MaintenanceTypeManager extends Component
     use WithPagination;
     public string $search = '';
 
+    private const MAINTENANCE_FORM_TYPES = [
+        'vehiculo',
+        'moto',
+    ];
+
     //public bool $isEdit = false;
     //public ?int $editingId = null;
     
@@ -22,7 +27,10 @@ class MaintenanceTypeManager extends Component
 
     #[Validate('required|string|max:255')]
     public string $nombre = '';
-    public ?int $vehicle_class_id = null;
+    public array $selected_vehicle_ids = [];
+    public ?string $vehicle_to_add = null;
+    public string $maintenance_form_type = 'vehiculo';
+    public bool $es_preventivo = false;
 
     #[Validate('nullable|integer|min:1')]
     public ?int $cada_km = null;
@@ -44,7 +52,7 @@ class MaintenanceTypeManager extends Component
 
     public function render()
     {
-        $query = MaintenanceType::with('vehicleClass')->orderBy('nombre');
+        $query = MaintenanceType::with(['vehicles:id,placa'])->orderBy('nombre');
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -52,7 +60,7 @@ class MaintenanceTypeManager extends Component
                 $q->where('nombre', 'like', "%{$search}%")
                     ->orWhere('descripcion', 'like', "%{$search}%")
                     ->orWhereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$search}%"])
-                    ->orWhereHas('vehicleClass', fn ($classQuery) => $classQuery->where('nombre', 'like', "%{$search}%"));
+                    ->orWhereHas('vehicles', fn ($vehicleQuery) => $vehicleQuery->where('placa', 'like', "%{$search}%"));
 
                 if (Schema::hasColumn('maintenance_types', 'cada_km')) {
                     $q->orWhereRaw('CAST(cada_km AS TEXT) ILIKE ?', ["%{$search}%"]);
@@ -73,11 +81,17 @@ class MaintenanceTypeManager extends Component
         }
 
         $types = $query->paginate(10);
-        $classes = VehicleClass::query()->where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        $vehicles = $this->filteredVehicles();
+        $selectedVehicles = Vehicle::query()
+            ->whereIn('id', collect($this->selected_vehicle_ids)->map(fn ($id) => (int) $id)->all())
+            ->orderBy('placa')
+            ->get(['id', 'placa']);
 
         return view('livewire.maintenance-type-manager', [
             'types' => $types,
-            'classes' => $classes,
+            'vehicles' => $vehicles,
+            'selectedVehicles' => $selectedVehicles,
+            'maintenanceFormTypes' => self::MAINTENANCE_FORM_TYPES,
         ]);
     }
 
@@ -86,17 +100,93 @@ class MaintenanceTypeManager extends Component
         $this->resetPage();
     }
 
+    public function updatedMaintenanceFormType(): void
+    {
+        $allowedVehicleIds = $this->filteredVehicles()
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+
+        $this->selected_vehicle_ids = collect($this->selected_vehicle_ids)
+            ->filter(fn ($id) => in_array((string) $id, $allowedVehicleIds, true))
+            ->values()
+            ->all();
+
+        $this->vehicle_to_add = null;
+    }
+
+    public function addSelectedVehicle(): void
+    {
+        $vehicleId = (int) ($this->vehicle_to_add ?? 0);
+        if ($vehicleId <= 0) {
+            return;
+        }
+
+        $exists = Vehicle::query()->whereKey($vehicleId)->exists();
+        if (!$exists) {
+            $this->addError('vehicle_to_add', 'El vehiculo seleccionado no existe.');
+            return;
+        }
+
+        $this->selected_vehicle_ids = collect($this->selected_vehicle_ids)
+            ->push((string) $vehicleId)
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->resetErrorBag('vehicle_to_add');
+        $this->vehicle_to_add = null;
+    }
+
+    public function addAllVisibleVehicles(): void
+    {
+        $visibleVehicleIds = $this->filteredVehicles()
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+
+        $this->selected_vehicle_ids = collect($this->selected_vehicle_ids)
+            ->merge($visibleVehicleIds)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function removeSelectedVehicle(int $vehicleId): void
+    {
+        $this->selected_vehicle_ids = collect($this->selected_vehicle_ids)
+            ->reject(fn ($id) => (int) $id === $vehicleId)
+            ->values()
+            ->all();
+    }
+
+    public function clearSelectedVehicles(): void
+    {
+        $this->selected_vehicle_ids = [];
+        $this->vehicle_to_add = null;
+    }
+
     public function save()
     {
         $this->validate();
-        if ($this->vehicle_class_id !== null && $this->vehicle_class_id > 0) {
-            $exists = VehicleClass::query()->whereKey((int) $this->vehicle_class_id)->exists();
-            if (!$exists) {
-                $this->addError('vehicle_class_id', 'La clase de vehiculo seleccionada no existe.');
+        if (!in_array($this->maintenance_form_type, self::MAINTENANCE_FORM_TYPES, true)) {
+            $this->addError('maintenance_form_type', 'El tipo de vehiculo no es valido.');
+            return;
+        }
+
+        $selectedVehicleIds = collect($this->selected_vehicle_ids)
+            ->filter(fn ($id) => filled($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($selectedVehicleIds->isNotEmpty()) {
+            $validVehicleCount = Vehicle::query()->whereIn('id', $selectedVehicleIds->all())->count();
+            if ($validVehicleCount !== $selectedVehicleIds->count()) {
+                $this->addError('selected_vehicle_ids', 'Uno o mas vehiculos seleccionados no existen.');
                 return;
             }
-        } else {
-            $this->vehicle_class_id = null;
         }
 
         if ($this->isEdit && $this->editingId) {
@@ -104,21 +194,27 @@ class MaintenanceTypeManager extends Component
             if ($type) {
                 $type->update([
                     'nombre' => $this->nombre,
+                    'maintenance_form_type' => $this->maintenance_form_type,
+                    'es_preventivo' => $this->es_preventivo,
                     ...$this->resolveClassPayload(),
                     ...$this->resolveIntervalPayload(),
                     ...$this->resolveAlertPayload(),
                     'descripcion' => $this->descripcion,
                 ]);
+                $type->vehicles()->sync($selectedVehicleIds->all());
                 session()->flash('message', 'Tipo de mantenimiento actualizado correctamente.');
             }
         } else {
-            MaintenanceType::create([
+            $type = MaintenanceType::create([
                 'nombre' => $this->nombre,
+                'maintenance_form_type' => $this->maintenance_form_type,
+                'es_preventivo' => $this->es_preventivo,
                 ...$this->resolveClassPayload(),
                 ...$this->resolveIntervalPayload(),
                 ...$this->resolveAlertPayload(),
                 'descripcion' => $this->descripcion,
             ]);
+            $type->vehicles()->sync($selectedVehicleIds->all());
             session()->flash('message', 'Tipo de mantenimiento creado correctamente.');
         }
 
@@ -132,7 +228,9 @@ class MaintenanceTypeManager extends Component
         $this->isEdit = true;
         $this->editingId = $type->id;
         $this->nombre = $type->nombre;
-        $this->vehicle_class_id = $type->vehicle_class_id ? (int) $type->vehicle_class_id : null;
+        $this->selected_vehicle_ids = $type->vehicles()->pluck('vehicles.id')->map(fn ($id) => (string) $id)->all();
+        $this->maintenance_form_type = (string) ($type->maintenance_form_type ?: 'vehiculo');
+        $this->es_preventivo = (bool) ($type->es_preventivo ?? false);
         $this->cada_km = $type->cada_km !== null ? (int) $type->cada_km : null;
         $this->intervalo_km_init = $type->intervalo_km_init ?? $type->intervalo_km;
         $this->intervalo_km_fh = $type->intervalo_km_fh ?? $type->intervalo_km;
@@ -151,7 +249,10 @@ class MaintenanceTypeManager extends Component
     public function resetForm()
     {
         $this->nombre = '';
-        $this->vehicle_class_id = null;
+        $this->selected_vehicle_ids = [];
+        $this->vehicle_to_add = null;
+        $this->maintenance_form_type = 'vehiculo';
+        $this->es_preventivo = false;
         $this->cada_km = null;
         $this->intervalo_km_init = null;
         $this->intervalo_km_fh = null;
@@ -195,13 +296,7 @@ class MaintenanceTypeManager extends Component
 
     private function resolveClassPayload(): array
     {
-        if (!Schema::hasColumn('maintenance_types', 'vehicle_class_id')) {
-            return [];
-        }
-
-        return [
-            'vehicle_class_id' => $this->vehicle_class_id,
-        ];
+        return [];
     }
 
     private function resolveAlertPayload(): array
@@ -213,5 +308,27 @@ class MaintenanceTypeManager extends Component
         return [
             'km_alerta_previa' => $this->km_alerta_previa ?? 15,
         ];
+    }
+
+    private function filteredVehicles()
+    {
+        $selectedType = trim((string) $this->maintenance_form_type);
+
+        return Vehicle::query()
+            ->with('vehicleClass:id,maintenance_form_type')
+            ->where('activo', true)
+            ->where(function ($vehicleQuery) use ($selectedType) {
+                $vehicleQuery
+                    ->where('maintenance_form_type', $selectedType)
+                    ->orWhere(function ($fallbackQuery) use ($selectedType) {
+                        $fallbackQuery
+                            ->whereNull('maintenance_form_type')
+                            ->whereHas('vehicleClass', function ($classQuery) use ($selectedType) {
+                                $classQuery->where('maintenance_form_type', $selectedType);
+                            });
+                    });
+            })
+            ->orderBy('placa')
+            ->get(['id', 'placa', 'vehicle_class_id', 'maintenance_form_type']);
     }
 }

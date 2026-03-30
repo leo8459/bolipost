@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class VehicleLogApiController extends Controller
 {
@@ -60,11 +61,12 @@ class VehicleLogApiController extends Controller
         );
         $resolvedVehicleId = $this->resolveVehicleId($candidateVehicleId, $resolvedDriverId);
 
+        $vehicle = ($resolvedVehicleId ?? 0) > 0 ? Vehicle::query()->find($resolvedVehicleId) : null;
         $kilometrajeSalida = $this->asFloat(
             $input['kilometraje_salida']
                 ?? $input['odometer_start']
                 ?? $input['km_start']
-                ?? 0
+                ?? ($vehicle?->kilometraje_actual ?? $vehicle?->kilometraje_inicial ?? $vehicle?->kilometraje ?? null)
         );
 
         $distance = $this->asFloat($input['distance_km'] ?? $input['distancia'] ?? null);
@@ -87,7 +89,7 @@ class VehicleLogApiController extends Controller
             'drivers_id' => $resolvedDriverId,
             'vehicles_id' => $resolvedVehicleId,
             'fecha' => $input['fecha'] ?? $input['date'] ?? $input['date_time'] ?? now()->toDateString(),
-            'kilometraje_salida' => $kilometrajeSalida ?? 0,
+            'kilometraje_salida' => $kilometrajeSalida,
             'kilometraje_llegada' => $kilometrajeLlegada,
             'recorrido_inicio' => (string) ($input['recorrido_inicio'] ?? $input['origen'] ?? $input['origin'] ?? ''),
             'recorrido_destino' => (string) ($input['recorrido_destino'] ?? $input['destino'] ?? $input['destination'] ?? ''),
@@ -190,7 +192,7 @@ class VehicleLogApiController extends Controller
             'drivers_id' => 'nullable|integer|min:1',
             'vehicles_id' => 'required|integer|exists:vehicles,id',
             'fecha' => 'required|date',
-            'kilometraje_salida' => 'required|numeric|min:0',
+            'kilometraje_salida' => 'required|numeric|min:0.01',
             'kilometraje_llegada' => 'nullable|numeric|gte:kilometraje_salida',
             'recorrido_inicio' => 'required|string|max:255',
             'recorrido_destino' => 'required|string|max:255',
@@ -214,6 +216,18 @@ class VehicleLogApiController extends Controller
         }
 
         $payload = validator($payload, $rules)->validate();
+
+        if ((float) $payload['kilometraje_salida'] <= 0) {
+            throw ValidationException::withMessages([
+                'kilometraje_salida' => 'El kilometraje de salida debe ser mayor a 0.',
+            ]);
+        }
+
+        if (!is_null($payload['kilometraje_llegada'] ?? null) && (float) $payload['kilometraje_llegada'] <= 0) {
+            throw ValidationException::withMessages([
+                'kilometraje_llegada' => 'El kilometraje de llegada debe ser mayor a 0.',
+            ]);
+        }
 
         $log = VehicleLog::create($payload);
 

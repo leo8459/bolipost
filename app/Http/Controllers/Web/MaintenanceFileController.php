@@ -3,18 +3,38 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\MaintenanceAppointment;
 use App\Models\MaintenanceLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class MaintenanceFileController extends Controller
 {
+    public function appointmentEvidence(Request $request, MaintenanceAppointment $maintenanceAppointment)
+    {
+        abort_unless(in_array($request->user()?->role, ['admin', 'recepcion'], true), 403);
+
+        return $this->serveFromPublicDisk((string) ($maintenanceAppointment->evidencia_path ?? ''), 'Evidencia de solicitud no encontrada.');
+    }
+
+    public function appointmentForm(Request $request, MaintenanceAppointment $maintenanceAppointment)
+    {
+        abort_unless(in_array($request->user()?->role, ['admin', 'recepcion'], true), 403);
+
+        return $this->serveFromPublicDisk((string) ($maintenanceAppointment->formulario_documento_path ?? ''), 'Documento de formulario no encontrado.');
+    }
+
     public function comprobante(Request $request, MaintenanceLog $maintenanceLog)
     {
         abort_unless(in_array($request->user()?->role, ['admin', 'recepcion'], true), 403);
 
-        $stored = trim((string) ($maintenanceLog->comprobante ?? ''));
-        abort_if($stored === '', 404, 'Comprobante no encontrado.');
+        return $this->serveFromPublicDisk((string) ($maintenanceLog->comprobante ?? ''), 'Archivo de comprobante no encontrado en almacenamiento.');
+    }
+
+    private function serveFromPublicDisk(string $stored, string $notFoundMessage)
+    {
+        $stored = trim($stored);
+        abort_if($stored === '', 404, $notFoundMessage);
 
         $candidates = $this->candidatePaths($stored);
         $disk = Storage::disk('public');
@@ -32,7 +52,7 @@ class MaintenanceFileController extends Controller
             ]);
         }
 
-        abort(404, 'Archivo de comprobante no encontrado en almacenamiento.');
+        abort(404, $notFoundMessage);
     }
 
     private function candidatePaths(string $stored): array

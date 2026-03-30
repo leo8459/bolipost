@@ -41,6 +41,7 @@ class MaintenanceLogManager extends Component
     #[Validate('required|numeric|min:0')]
     public ?float $kilometraje = null;
     public ?float $kilometraje_actual_vehiculo = null;
+    public bool $tacometro_danado_vehiculo = false;
 
     public string $taller = '';
     public string $descripcion = '';
@@ -67,7 +68,7 @@ class MaintenanceLogManager extends Component
 
     public function render()
     {
-        $query = MaintenanceLog::with(['vehicle', 'maintenanceType'])->orderBy('fecha', 'desc');
+        $query = MaintenanceLog::with(['vehicle.brand', 'vehicle.vehicleClass', 'maintenanceType'])->orderBy('fecha', 'desc');
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -119,22 +120,31 @@ class MaintenanceLogManager extends Component
             $this->addError('maintenance_type_id', 'Tipo de mantenimiento no valido.');
             return;
         }
-        if (Schema::hasColumn('maintenance_types', 'vehicle_class_id')) {
-            $vehicleClassId = Vehicle::query()->whereKey($this->vehicle_id)->value('vehicle_class_id');
-            $typeClassId = $selectedType->vehicle_class_id ? (int) $selectedType->vehicle_class_id : null;
-            if ($typeClassId !== null && (int) $vehicleClassId !== $typeClassId) {
-                $this->addError('maintenance_type_id', 'El tipo de mantenimiento no corresponde a la clase del vehiculo.');
-                return;
-            }
+
+        $vehicle = Vehicle::with('vehicleClass')->find((int) $this->vehicle_id);
+        if (!$vehicle) {
+            $this->addError('vehicle_id', 'El vehiculo seleccionado no existe.');
+            return;
         }
 
-        $vehicle = Vehicle::find((int) $this->vehicle_id);
+        $typeAllowedForVehicle = MaintenanceType::query()
+            ->applicableToVehicle($vehicle)
+            ->whereKey((int) $this->maintenance_type_id)
+            ->exists();
+
+        if (!$typeAllowedForVehicle) {
+            $this->addError('maintenance_type_id', 'El tipo de mantenimiento no corresponde al vehiculo seleccionado.');
+            return;
+        }
+
         $currentKm = $vehicle?->kilometraje_actual ?? $vehicle?->kilometraje_inicial ?? $vehicle?->kilometraje;
         if ($currentKm !== null && $this->kilometraje !== null) {
             $isFromAlert = (int) ($this->from_alert_id ?? 0) > 0;
             $isInvalid = $isFromAlert
                 ? ((float) $this->kilometraje < (float) $currentKm)
-                : ((float) $this->kilometraje <= (float) $currentKm);
+                : ($this->tacometro_danado_vehiculo
+                    ? ((float) $this->kilometraje < (float) $currentKm)
+                    : ((float) $this->kilometraje <= (float) $currentKm));
 
             if ($isInvalid) {
                 $this->addError(
@@ -200,12 +210,14 @@ class MaintenanceLogManager extends Component
             if ($maintenance) {
                 $maintenance->update($data);
                 $this->markResolvedAlertsAsRead();
+                $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
                 $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
                 session()->flash('message', 'Registro de mantenimiento actualizado correctamente.');
             }
         } else {
             MaintenanceLog::create($data);
             $this->markResolvedAlertsAsRead();
+            $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
             $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
             session()->flash('message', 'Registro de mantenimiento creado correctamente.');
         }
@@ -230,6 +242,7 @@ class MaintenanceLogManager extends Component
         $this->comprobante_file = null;
         $this->observaciones = $maintenance->observaciones;
         $this->syncVehicleKilometrajeActual($this->vehicle_id);
+        $this->tacometro_danado_vehiculo = (bool) ($maintenance->vehicle?->tacometro_danado ?? false);
         $this->intervalo_km_fh = $maintenance->proximo_kilometraje !== null ? (int) $maintenance->proximo_kilometraje : null;
         $this->manual_proximo_km = $maintenance->proximo_kilometraje !== null;
 
@@ -272,6 +285,7 @@ class MaintenanceLogManager extends Component
         $this->costo = null;
         $this->kilometraje = null;
         $this->kilometraje_actual_vehiculo = null;
+        $this->tacometro_danado_vehiculo = false;
         $this->taller = '';
         $this->descripcion = '';
         $this->comprobante = '';
@@ -308,6 +322,7 @@ class MaintenanceLogManager extends Component
             return;
         }
 
+        $this->tacometro_danado_vehiculo = (bool) ($vehicle->tacometro_danado ?? false);
         $km = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
         $this->kilometraje_actual_vehiculo = $km !== null ? (float) $km : null;
         if ($km !== null) {
@@ -424,18 +439,8 @@ class MaintenanceLogManager extends Component
             return collect();
         }
 
-        if (Schema::hasColumn('maintenance_types', 'vehicle_class_id')) {
-            $select[] = 'vehicle_class_id';
-            $vehicleClassId = Vehicle::query()->whereKey($this->vehicle_id)->value('vehicle_class_id');
-            if ($vehicleClassId) {
-                $query->where(function ($q) use ($vehicleClassId) {
-                    $q->whereNull('vehicle_class_id')
-                        ->orWhere('vehicle_class_id', (int) $vehicleClassId);
-                });
-            } else {
-                $query->whereNull('vehicle_class_id');
-            }
-        }
+        $vehicle = Vehicle::with('vehicleClass')->find((int) $this->vehicle_id);
+        $query->applicableToVehicle($vehicle);
 
         return $query->orderBy('nombre')->get($select);
     }
@@ -562,6 +567,10 @@ class MaintenanceLogManager extends Component
             return;
         }
 
+        if ((bool) ($vehicle->tacometro_danado ?? false)) {
+            return;
+        }
+
         $hasInicial = Schema::hasColumn('vehicles', 'kilometraje_inicial');
         $hasActual = Schema::hasColumn('vehicles', 'kilometraje_actual');
         $hasLegacy = Schema::hasColumn('vehicles', 'kilometraje');
@@ -653,6 +662,7 @@ class MaintenanceLogManager extends Component
 
         $km = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
         $this->kilometraje_actual_vehiculo = $km !== null ? (float) $km : null;
+        $this->tacometro_danado_vehiculo = (bool) ($vehicle->tacometro_danado ?? false);
     }
 
 }

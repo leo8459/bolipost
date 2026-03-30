@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MaintenanceAlert extends Model
 {
@@ -22,6 +23,8 @@ class MaintenanceAlert extends Model
         'leida',
         'status',
         'fecha_resolucion',
+        'postponed_until',
+        'postponed_once',
         'usuario_id',
         'kilometraje_actual',
         'kilometraje_objetivo',
@@ -31,6 +34,8 @@ class MaintenanceAlert extends Model
     protected $casts = [
         'leida' => 'boolean',
         'fecha_resolucion' => 'datetime',
+        'postponed_until' => 'datetime',
+        'postponed_once' => 'boolean',
         'kilometraje_actual' => 'decimal:2',
         'kilometraje_objetivo' => 'decimal:2',
         'faltante_km' => 'decimal:2',
@@ -56,5 +61,10 @@ class MaintenanceAlert extends Model
     public function resolvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    public function workshops(): HasMany
+    {
+        return $this->hasMany(Workshop::class, 'maintenance_alert_id');
     }
 }

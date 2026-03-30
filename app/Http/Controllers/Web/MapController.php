@@ -744,11 +744,13 @@ class MapController extends Controller
                 'point_label' => (string) ($hb['estado'] ?? ($hb['waiting_stop'] ?? false ? 'ESPERA' : 'EN_RUTA')),
                 'speed_kmh' => $this->asFloat($hb['speed_kmh'] ?? null),
             ];
+            $currentStatus = strtoupper(trim((string) ($lastPoint['point_label'] ?? 'EN_RUTA')));
 
             $existing = $vehiclesById->get($vehicleId);
             if (is_array($existing)) {
                 $existing['last_point'] = $lastPoint;
                 $existing['current_address'] = $lastPoint['point_label'];
+                $existing['current_status'] = $currentStatus;
                 $existing['heartbeat_received_at'] = (string) ($hb['received_at'] ?? '');
                 $existing['current_speed_kmh'] = $this->asFloat($hb['speed_kmh'] ?? null);
                 if (($existing['driver_id'] ?? 0) <= 0 && $driverId > 0) {
@@ -784,6 +786,7 @@ class MapController extends Controller
                 'recorrido_inicio' => 'Heartbeat',
                 'recorrido_destino' => 'Heartbeat',
                 'current_address' => $lastPoint['point_label'],
+                'current_status' => $currentStatus,
                 'last_point' => $lastPoint,
                 'points' => [$lastPoint],
                 'points_count' => 1,

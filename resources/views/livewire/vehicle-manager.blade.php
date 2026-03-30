@@ -75,10 +75,11 @@
                         <div class="profile-field"><span class="profile-label">Placa</span><span class="profile-value">{{ $assignedVehicle->placa ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Marca</span><span class="profile-value">{{ $assignedVehicle->brand?->nombre ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Modelo</span><span class="profile-value">{{ $assignedVehicle->modelo ?? '-' }}</span></div>
-                        <div class="profile-field"><span class="profile-label">Clase</span><span class="profile-value">{{ $assignedVehicle->vehicleClass?->nombre ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">Formulario</span><span class="profile-value">{{ $assignedVehicle->maintenance_form_type_label ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Combustible</span><span class="profile-value">{{ $assignedVehicle->tipo_combustible ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Color</span><span class="profile-value">{{ $assignedVehicle->color ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Año</span><span class="profile-value">{{ $assignedVehicle->anio ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">Tacometro</span><span class="profile-value">{{ ($assignedVehicle->tacometro_danado ?? false) ? 'Danado' : 'Operativo' }}</span></div>
                         <div class="profile-field"><span class="profile-label">KM Actual</span><span class="profile-value">{{ $assignedVehicle->kilometraje_actual ?? $assignedVehicle->kilometraje_inicial ?? $assignedVehicle->kilometraje ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Capacidad tanque</span><span class="profile-value">{{ $assignedVehicle->capacidad_tanque ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Tipo asignacion</span><span class="profile-value">{{ $currentAssignment?->tipo_asignacion ?? '-' }}</span></div>
@@ -181,6 +182,15 @@
                             </select>
                             @error('tipo_combustible') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Tipo de formulario mantenimiento *</label>
+                            <select wire:model="maintenance_form_type" class="form-select @error('maintenance_form_type') is-invalid @enderror">
+                                @foreach($maintenanceFormTypes as $formType)
+                                    <option value="{{ $formType }}">{{ $formType === 'moto' ? 'Moto' : 'Vehiculo' }}</option>
+                                @endforeach
+                            </select>
+                            @error('maintenance_form_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Color</label>
                             <input type="text" wire:model="color" class="form-control">
@@ -192,10 +202,17 @@
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Kilometraje Inicial</label>
                             <input type="number" step="0.01" wire:model="kilometraje" class="form-control">
+                            <div class="form-text">Si ingresa danado, el sistema guardara 0 al crear el vehiculo.</div>
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Capacidad Tanque</label>
                             <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="vehiculo_tacometro_danado" wire:model="tacometro_danado">
+                                <label class="form-check-label" for="vehiculo_tacometro_danado">Tacometro danado</label>
+                            </div>
                         </div>
                         <div class="col-12">
                             <div class="form-check">
@@ -232,6 +249,8 @@
                                     <th>Marca</th>
                                     <th>Modelo</th>
                                     <th>Clase</th>
+                                    <th>Formulario</th>
+                                    <th>Tacometro</th>
                                     <th>Km Inicial</th>
                                     <th>Combustible</th>
                                     <th>Estado</th>
@@ -247,6 +266,12 @@
                                         <td>{{ $vehicle->brand?->nombre ?? $vehicle->marca ?? '-' }}</td>
                                         <td>{{ $vehicle->modelo }}</td>
                                         <td>{{ $vehicle->vehicleClass?->nombre ?? '-' }}</td>
+                                        <td>{{ $vehicle->maintenance_form_type_label ?? '-' }}</td>
+                                        <td>
+                                            <span class="badge {{ ($vehicle->tacometro_danado ?? false) ? 'bg-danger' : 'bg-success' }}">
+                                                {{ ($vehicle->tacometro_danado ?? false) ? 'Danado' : 'Operativo' }}
+                                            </span>
+                                        </td>
                                         <td>{{ number_format((float) ($vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje ?? 0), 2) }}</td>
                                         <td>{{ $vehicle->tipo_combustible }}</td>
                                         <td>

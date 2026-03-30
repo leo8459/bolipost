@@ -17,6 +17,7 @@ class VehicleLog extends Model
         'fecha',
         'kilometraje_salida',
         'kilometraje_llegada',
+        'kilometraje_recorrido',
         'recorrido_inicio',
         'latitud_inicio',
         'logitud_inicio',
@@ -25,6 +26,7 @@ class VehicleLog extends Model
         'logitud_destino',
         'abastecimiento_combustible',
         'firma_digital',
+        'odometro_photo_path',
         'ruta_json', // <--- Agregamos esto
         'points_json',
     ];
@@ -33,6 +35,7 @@ class VehicleLog extends Model
         'fecha' => 'date',
         'kilometraje_salida' => 'decimal:2',
         'kilometraje_llegada' => 'decimal:2',
+        'kilometraje_recorrido' => 'decimal:2',
         'latitud_inicio' => 'decimal:8',
         'logitud_inicio' => 'decimal:8',
         'latitud_destino' => 'decimal:8',
@@ -84,6 +87,10 @@ class VehicleLog extends Model
      */
     public function getDistanceTravelledAttribute(): ?float
     {
+        if ($this->kilometraje_recorrido !== null) {
+            return (float) $this->kilometraje_recorrido;
+        }
+
         if ($this->kilometraje_llegada && $this->kilometraje_salida) {
             return $this->kilometraje_llegada - $this->kilometraje_salida;
         }

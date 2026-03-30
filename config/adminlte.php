@@ -740,6 +740,16 @@ return [
                             'url' => 'livewire/maintenance-logs',
                             'icon' => 'fas fa-tools',
                         ],
+                        [
+                            'text' => 'Incentivos',
+                            'url' => 'livewire/maintenance-incentives',
+                            'icon' => 'fas fa-star',
+                        ],
+                        [
+                            'text' => 'Talleres',
+                            'url' => 'livewire/workshops',
+                            'icon' => 'fas fa-warehouse',
+                        ],
                     ],
                 ],
                 [

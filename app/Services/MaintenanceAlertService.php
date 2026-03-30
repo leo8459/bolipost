@@ -112,7 +112,6 @@ class MaintenanceAlertService
         }
 
         $select = ['id', 'nombre'];
-        $hasVehicleClass = Schema::hasColumn('maintenance_types', 'vehicle_class_id');
         if ($hasCadaKm) {
             $select[] = 'cada_km';
         }
@@ -128,22 +127,11 @@ class MaintenanceAlertService
         if ($hasAlert) {
             $select[] = 'km_alerta_previa';
         }
-        if ($hasVehicleClass) {
+        if (Schema::hasColumn('maintenance_types', 'vehicle_class_id')) {
             $select[] = 'vehicle_class_id';
         }
 
-        $query = MaintenanceType::query();
-        if ($hasVehicleClass) {
-            $vehicleClassId = $vehicle->vehicle_class_id ?? null;
-            if ($vehicleClassId) {
-                $query->where(function ($q) use ($vehicleClassId) {
-                    $q->whereNull('vehicle_class_id')
-                        ->orWhere('vehicle_class_id', (int) $vehicleClassId);
-                });
-            } else {
-                $query->whereNull('vehicle_class_id');
-            }
-        }
+        $query = MaintenanceType::query()->applicableToVehicle($vehicle);
 
         $types = $query->orderBy('id')->get($select);
         if ($types->isEmpty()) {

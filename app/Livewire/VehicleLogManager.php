@@ -11,13 +11,18 @@ use App\Models\VehicleLog;
 use App\Services\MaintenanceAlertService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 class VehicleLogManager extends Component
 {
+    use WithFileUploads;
     use WithPagination;
+
+    protected string $paginationTheme = 'bootstrap';
 
     #[Validate('required|integer|exists:vehicles,id')]
     public ?int $vehicles_id = null;
@@ -30,6 +35,9 @@ class VehicleLogManager extends Component
 
     #[Validate('required|numeric|min:0')]
     public ?float $kilometraje_salida = null;
+
+    #[Validate('required|numeric|min:0')]
+    public ?float $kilometraje_recorrido = null;
 
     public ?float $kilometraje_llegada = null;
 
@@ -45,20 +53,30 @@ class VehicleLogManager extends Component
 
     public bool $abastecimiento_combustible = false;
     public ?string $firma_digital = null;
+    public $odometro_photo = null;
+    public ?string $currentOdometroPhotoPath = null;
+    public ?string $currentOdometroPhotoUrl = null;
 
     public bool $isEdit = false;
     public ?int $editingLogId = null;
     public bool $showForm = false;
     public string $search = '';
+    public ?string $fecha_desde = null;
+    public ?string $fecha_hasta = null;
+    public ?int $vehicle_filter_id = null;
+    public ?int $driver_filter_id = null;
 
     public function mount(): void
     {
         abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        $today = now()->toDateString();
+        $this->fecha_desde = $today;
+        $this->fecha_hasta = $today;
     }
 
     public function render()
     {
-        $query = VehicleLog::with(['vehicle', 'driver', 'fuelLog'])
+        $query = VehicleLog::with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'fuelLog'])
             ->orderByDesc('fecha')
             ->orderByDesc('id');
 
@@ -70,8 +88,8 @@ class VehicleLogManager extends Component
                     ->orWhereRaw('CAST(fecha AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereRaw('CAST(kilometraje_salida AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereRaw('CAST(kilometraje_llegada AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(kilometraje_recorrido AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$search}%"])
-                    ->orWhereRaw('CAST(abastecimiento_combustible AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereHas('vehicle', fn ($vehicleQuery) => $vehicleQuery->where('placa', 'like', "%{$search}%"))
                     ->orWhereHas('driver', fn ($driverQuery) => $driverQuery->where('nombre', 'like', "%{$search}%"));
             });
@@ -83,7 +101,24 @@ class VehicleLogManager extends Component
                 $query->whereRaw('1=0');
             } else {
                 $query->where('drivers_id', $driverId);
+                $this->driver_filter_id = $driverId;
             }
+        }
+
+        if ($this->fecha_desde) {
+            $query->whereDate('fecha', '>=', $this->fecha_desde);
+        }
+
+        if ($this->fecha_hasta) {
+            $query->whereDate('fecha', '<=', $this->fecha_hasta);
+        }
+
+        if ($this->vehicle_filter_id) {
+            $query->where('vehicles_id', (int) $this->vehicle_filter_id);
+        }
+
+        if ($this->driver_filter_id) {
+            $query->where('drivers_id', (int) $this->driver_filter_id);
         }
 
         $logs = $query->paginate(10);
@@ -109,6 +144,7 @@ class VehicleLogManager extends Component
 
             $vehicles = Vehicle::query()
                 ->where('activo', true)
+                ->operationallyAvailable()
                 ->whereIn('id', $vehicleIds)
                 ->get(['id', 'placa', 'kilometraje_actual', 'kilometraje_inicial', 'kilometraje']);
 
@@ -147,6 +183,7 @@ class VehicleLogManager extends Component
 
             $vehicles = Vehicle::query()
                 ->where('activo', true)
+                ->operationallyAvailable()
                 ->whereIn('id', $vehicleIds)
                 ->get(['id', 'placa', 'kilometraje_actual', 'kilometraje_inicial', 'kilometraje']);
 
@@ -188,7 +225,7 @@ class VehicleLogManager extends Component
         ]);
     }
 
-    public function save()
+    public function save(): void
     {
         if ($this->currentUser()?->role === 'conductor' && $this->isEdit) {
             session()->flash('error', 'No tiene permiso para editar registros de bitacora.');
@@ -223,16 +260,33 @@ class VehicleLogManager extends Component
             }
         }
 
-        $this->validate();
+        $this->validate([
+            'vehicles_id' => 'required|integer|exists:vehicles,id',
+            'fecha' => 'required|date',
+            'kilometraje_salida' => 'required|numeric|min:0',
+            'kilometraje_recorrido' => 'required|numeric|min:0',
+            'recorrido_inicio' => 'required|string|max:255',
+            'recorrido_destino' => 'required|string|max:255',
+            'odometro_photo' => 'nullable|image|max:5120',
+        ]);
+
+        $vehicle = Vehicle::query()->find($this->vehicles_id);
+        if (!$vehicle || $vehicle->isInMaintenance()) {
+            $this->addError('vehicles_id', 'El vehiculo esta en mantenimiento y no puede registrar bitacoras.');
+            return;
+        }
 
         $this->recorrido_inicio = trim($this->recorrido_inicio);
         $this->recorrido_destino = trim($this->recorrido_destino);
+        $this->kilometraje_salida = $this->resolveReadonlyKilometrajeSalida($this->vehicles_id);
+        $this->kilometraje_llegada = $this->calculateKilometrajeLlegada();
 
         if (!$this->validateTripAndKmRules()) {
             return;
         }
 
         $locationPayload = $this->resolveLocationPayload();
+        $photoPath = $this->storeOdometroPhoto();
 
         $data = [
             ...$locationPayload,
@@ -241,11 +295,13 @@ class VehicleLogManager extends Component
             'fuel_log_id' => $this->fuel_log_id,
             'fecha' => $this->fecha,
             'kilometraje_salida' => $this->kilometraje_salida,
+            'kilometraje_recorrido' => $this->kilometraje_recorrido,
             'kilometraje_llegada' => $this->kilometraje_llegada,
             'recorrido_inicio' => $this->recorrido_inicio,
             'recorrido_destino' => $this->recorrido_destino,
-            'abastecimiento_combustible' => $this->abastecimiento_combustible,
+            'abastecimiento_combustible' => $this->resolveAbastecimientoCombustible(),
             'firma_digital' => $this->firma_digital,
+            'odometro_photo_path' => $photoPath,
             'ruta_json' => $this->buildRoutePoints($locationPayload),
         ];
 
@@ -255,7 +311,7 @@ class VehicleLogManager extends Component
                 $log->update($data);
                 $this->updateVehicleKilometraje(
                     $this->vehicles_id,
-                    $this->kilometraje_llegada ?? $this->kilometraje_salida,
+                    $this->kilometraje_llegada,
                     $this->kilometraje_salida
                 );
                 session()->flash('message', 'Registro de bitacora actualizado correctamente.');
@@ -264,7 +320,7 @@ class VehicleLogManager extends Component
             VehicleLog::create($data);
             $this->updateVehicleKilometraje(
                 $this->vehicles_id,
-                $this->kilometraje_llegada ?? $this->kilometraje_salida,
+                $this->kilometraje_llegada,
                 $this->kilometraje_salida
             );
             session()->flash('message', 'Registro de bitacora creado correctamente.');
@@ -273,7 +329,7 @@ class VehicleLogManager extends Component
         $this->resetForm();
     }
 
-    public function edit(VehicleLog $log)
+    public function edit(VehicleLog $log): void
     {
         if ($this->currentUser()?->role === 'conductor') {
             session()->flash('error', 'No tiene permiso para editar registros de bitacora.');
@@ -289,34 +345,50 @@ class VehicleLogManager extends Component
         $this->fecha = optional($log->fecha)->format('Y-m-d');
         $this->kilometraje_salida = $log->kilometraje_salida !== null ? (float) $log->kilometraje_salida : null;
         $this->kilometraje_llegada = $log->kilometraje_llegada !== null ? (float) $log->kilometraje_llegada : null;
+        $this->kilometraje_recorrido = $log->kilometraje_recorrido !== null
+            ? (float) $log->kilometraje_recorrido
+            : (($this->kilometraje_llegada !== null && $this->kilometraje_salida !== null)
+                ? max(0, $this->kilometraje_llegada - $this->kilometraje_salida)
+                : null);
         $this->recorrido_inicio = (string) $log->recorrido_inicio;
         $this->recorrido_destino = (string) $log->recorrido_destino;
         $this->latitud_inicio = $log->latitud_inicio !== null ? (float) $log->latitud_inicio : null;
         $this->logitud_inicio = $log->logitud_inicio !== null ? (float) $log->logitud_inicio : null;
         $this->latitud_destino = $log->latitud_destino !== null ? (float) $log->latitud_destino : null;
         $this->logitud_destino = $log->logitud_destino !== null ? (float) $log->logitud_destino : null;
-        $this->abastecimiento_combustible = (bool) $log->abastecimiento_combustible;
+        $this->abastecimiento_combustible = $this->resolveFuelLinkedFlag($log);
         $this->firma_digital = $log->firma_digital;
+        $this->odometro_photo = null;
+        $this->currentOdometroPhotoPath = $log->odometro_photo_path;
+        $this->currentOdometroPhotoUrl = $log->odometro_photo_path
+            ? asset('storage/' . ltrim($log->odometro_photo_path, '/'))
+            : null;
     }
 
-    public function delete(VehicleLog $log)
+    public function delete(VehicleLog $log): void
     {
         if ($this->currentUser()?->role === 'conductor') {
             session()->flash('error', 'No tiene permiso para eliminar registros de bitacora.');
             return;
         }
 
+        $photoPath = trim((string) ($log->odometro_photo_path ?? ''));
+        if ($photoPath !== '' && Storage::disk('public')->exists($photoPath)) {
+            Storage::disk('public')->delete($photoPath);
+        }
+
         $log->delete();
         session()->flash('message', 'Registro de bitacora eliminado correctamente.');
     }
 
-    public function resetForm()
+    public function resetForm(): void
     {
         $this->vehicles_id = null;
         $this->drivers_id = null;
         $this->fuel_log_id = null;
         $this->fecha = null;
         $this->kilometraje_salida = null;
+        $this->kilometraje_recorrido = null;
         $this->kilometraje_llegada = null;
         $this->recorrido_inicio = '';
         $this->recorrido_destino = '';
@@ -326,24 +398,47 @@ class VehicleLogManager extends Component
         $this->logitud_destino = null;
         $this->abastecimiento_combustible = false;
         $this->firma_digital = null;
+        $this->odometro_photo = null;
+        $this->currentOdometroPhotoPath = null;
+        $this->currentOdometroPhotoUrl = null;
         $this->isEdit = false;
         $this->editingLogId = null;
         $this->showForm = false;
         $this->resetPage();
     }
 
-    public function create()
+    public function create(): void
     {
         $this->resetForm();
         $this->showForm = true;
     }
 
-    public function cancelForm()
+    public function cancelForm(): void
     {
         $this->resetForm();
     }
 
     public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFechaDesde(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFechaHasta(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedVehicleFilterId(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedDriverFilterId(): void
     {
         $this->resetPage();
     }
@@ -354,11 +449,29 @@ class VehicleLogManager extends Component
         $this->resetPage();
     }
 
+    public function limpiarFiltrosListado(): void
+    {
+        $today = now()->toDateString();
+        $this->fecha_desde = $today;
+        $this->fecha_hasta = $today;
+        $this->vehicle_filter_id = null;
+        $this->driver_filter_id = $this->currentUser()?->role === 'conductor'
+            ? (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0) ?: null
+            : null;
+        $this->resetPage();
+    }
+
     public function updatedVehiclesId($value): void
     {
         $vehicleId = $value !== null && $value !== '' ? (int) $value : null;
         $this->syncKmSalidaFromVehicle($vehicleId);
         $this->syncDriverFromVehicle($vehicleId);
+    }
+
+    public function updatedKilometrajeRecorrido($value): void
+    {
+        $this->kilometraje_recorrido = $value !== null && $value !== '' ? (float) $value : null;
+        $this->kilometraje_llegada = $this->calculateKilometrajeLlegada();
     }
 
     public function onVehicleChanged($value): void
@@ -436,6 +549,10 @@ class VehicleLogManager extends Component
             return;
         }
 
+        if ((bool) ($vehicle->tacometro_danado ?? false)) {
+            return;
+        }
+
         $updates = [];
         if ($kmInicial !== null && $vehicle->kilometraje_inicial === null) {
             $updates['kilometraje_inicial'] = $kmInicial;
@@ -460,6 +577,7 @@ class VehicleLogManager extends Component
     {
         if (!$vehicleId) {
             $this->kilometraje_salida = null;
+            $this->kilometraje_llegada = null;
             return;
         }
 
@@ -469,11 +587,13 @@ class VehicleLogManager extends Component
 
         if (!$vehicle) {
             $this->kilometraje_salida = null;
+            $this->kilometraje_llegada = null;
             return;
         }
 
         $km = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
         $this->kilometraje_salida = $km !== null ? (float) $km : null;
+        $this->kilometraje_llegada = $this->calculateKilometrajeLlegada();
     }
 
     private function resolveAssignmentDate(): string
@@ -518,10 +638,21 @@ class VehicleLogManager extends Component
     private function validateTripAndKmRules(): bool
     {
         $kmSalida = $this->kilometraje_salida !== null ? (float) $this->kilometraje_salida : null;
+        $kmRecorrido = $this->kilometraje_recorrido !== null ? (float) $this->kilometraje_recorrido : null;
         $kmLlegada = $this->kilometraje_llegada !== null ? (float) $this->kilometraje_llegada : null;
 
-        if ($kmSalida !== null && $kmLlegada !== null && $kmLlegada < $kmSalida) {
-            $this->addError('kilometraje_llegada', 'El kilometraje de llegada no puede ser menor al kilometraje de salida.');
+        if ($kmSalida === null || $kmSalida <= 0) {
+            $this->addError('kilometraje_salida', 'El kilometraje de salida debe ser mayor a 0.');
+            return false;
+        }
+
+        if ($kmRecorrido === null || $kmRecorrido < 0) {
+            $this->addError('kilometraje_recorrido', 'El kilometraje recorrido debe ser 0 o mayor.');
+            return false;
+        }
+
+        if ($kmLlegada === null || $kmLlegada < $kmSalida) {
+            $this->addError('kilometraje_recorrido', 'El kilometraje final no puede ser menor al kilometraje de salida.');
             return false;
         }
 
@@ -590,6 +721,73 @@ class VehicleLogManager extends Component
         }
 
         return $route;
+    }
+
+    private function calculateKilometrajeLlegada(): ?float
+    {
+        if ($this->kilometraje_salida === null || $this->kilometraje_recorrido === null) {
+            return null;
+        }
+
+        return round((float) $this->kilometraje_salida + (float) $this->kilometraje_recorrido, 2);
+    }
+
+    private function resolveReadonlyKilometrajeSalida(?int $vehicleId): ?float
+    {
+        if ($this->isEdit && $this->editingLogId && $this->kilometraje_salida !== null) {
+            return (float) $this->kilometraje_salida;
+        }
+
+        if (!$vehicleId) {
+            return $this->kilometraje_salida;
+        }
+
+        $vehicle = Vehicle::query()
+            ->select(['id', 'kilometraje_actual', 'kilometraje_inicial', 'kilometraje'])
+            ->find($vehicleId);
+
+        if (!$vehicle) {
+            return $this->kilometraje_salida;
+        }
+
+        $km = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
+
+        return $km !== null ? (float) $km : $this->kilometraje_salida;
+    }
+
+    private function storeOdometroPhoto(): ?string
+    {
+        if ($this->odometro_photo) {
+            if ($this->currentOdometroPhotoPath && Storage::disk('public')->exists($this->currentOdometroPhotoPath)) {
+                Storage::disk('public')->delete($this->currentOdometroPhotoPath);
+            }
+
+            $path = (string) $this->odometro_photo->store('vehicle-log/odometro', 'public');
+            $this->currentOdometroPhotoPath = $path;
+            $this->currentOdometroPhotoUrl = asset('storage/' . $path);
+
+            return $path;
+        }
+
+        return $this->currentOdometroPhotoPath;
+    }
+
+    private function resolveAbastecimientoCombustible(): bool
+    {
+        if ($this->fuel_log_id) {
+            return true;
+        }
+
+        return (bool) $this->abastecimiento_combustible;
+    }
+
+    private function resolveFuelLinkedFlag(VehicleLog $log): bool
+    {
+        if ($log->fuel_log_id) {
+            return true;
+        }
+
+        return (bool) $log->abastecimiento_combustible;
     }
 
     private function currentUser(): ?User

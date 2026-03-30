@@ -54,6 +54,24 @@
                 border-color: #bbf7d0;
                 color: #dcfce7;
             }
+            .map-vehicle-icon.status-en_ruta,
+            .map-vehicle-icon.status-espera,
+            .map-vehicle-icon.status-inicio,
+            .map-vehicle-icon.status-continuar {
+                background: #16a34a;
+                border-color: #dcfce7;
+                color: #f0fdf4;
+            }
+            .map-vehicle-icon.status-carga {
+                background: #2563eb;
+                border-color: #dbeafe;
+                color: #eff6ff;
+            }
+            .map-vehicle-icon.status-entrega {
+                background: #eab308;
+                border-color: #fef3c7;
+                color: #422006;
+            }
         </style>
     @endpush
 @endonce
@@ -79,7 +97,7 @@
                 <option value="">Todos los vehiculos</option>
             </select>
             <div class="text-muted small">
-                Actualizacion cada <strong>20s</strong> |
+                Actualizacion cada <strong>3s</strong> |
                 Ultima carga: <span id="last-update">-</span>
             </div>
         </div>
@@ -127,16 +145,29 @@
                 let selectedLastPoint = null;
                 let filteredVehicleId = '';
                 let currentOfflineDate = queryParams.get('date') || @json(now()->toDateString());
-                const refreshIntervalMs = 20000;
+                const refreshIntervalMs = 3000;
 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19,
                     attribution: '&copy; OpenStreetMap'
                 }).addTo(map);
 
-                function createVehicleIcon(isStale) {
+                function normalizeVehicleStatus(rawStatus) {
+                    const normalized = String(rawStatus || '').trim().toUpperCase();
+                    if (!normalized) return 'EN_RUTA';
+                    if (['CARGA', 'ENTREGA', 'ESPERA', 'INICIO', 'CONTINUAR', 'EN_RUTA'].includes(normalized)) {
+                        return normalized;
+                    }
+                    return 'EN_RUTA';
+                }
+
+                function resolveStatusBadgeClass(status) {
+                    return `status-${normalizeVehicleStatus(status).toLowerCase()}`;
+                }
+
+                function createVehicleIcon(isStale, status) {
                     return L.divIcon({
-                        html: `<div class="map-vehicle-icon ${isStale ? 'stale' : 'live'}"><i class="fas fa-car-side"></i></div>`,
+                        html: `<div class="map-vehicle-icon ${isStale ? 'stale' : `live ${resolveStatusBadgeClass(status)}`}"><i class="fas fa-car-side"></i></div>`,
                         className: '',
                         iconSize: [30, 30],
                         iconAnchor: [15, 15],
@@ -187,12 +218,14 @@
                     vehicles.forEach((item) => {
                         const div = document.createElement('div');
                         const isSelected = selectedVehicleId !== null && Number(selectedVehicleId) === Number(item.vehicle_id);
+                        const currentStatus = normalizeVehicleStatus(item.current_status || item.last_point?.point_label);
                         div.className = `vehicle-item${isSelected ? ' selected' : ''}`;
                         div.innerHTML = `
                             <div class="fw-bold">${item.placa || 'SIN PLACA'}</div>
                             <div class="small text-muted">${item.marca || ''} ${item.modelo || ''}</div>
                             <div class="small">Conductor: ${item.driver_name || 'N/A'}</div>
                             <div class="small">Destino: ${item.recorrido_destino || 'N/A'}</div>
+                            <div class="small fw-semibold">Estado actual: ${currentStatus}</div>
                             ${effectiveMode === 'online'
                                 ? `<div class="small ${item.is_stale ? 'text-danger' : 'text-success'}">${item.is_stale ? 'Ultima ubicacion' : 'Direccion actual'}: ${item.current_address || 'Sin direccion'}</div>`
                                 : `<div class="small text-success">Ruta del dia: ${item.recorrido_inicio || 'Sin origen'} -> ${item.recorrido_destino || 'Sin destino'}</div>
@@ -247,10 +280,12 @@
                         const lng = Number(item.last_point.lng);
                         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
+                        const currentStatus = normalizeVehicleStatus(item.current_status || item.last_point?.point_label);
                         const popup = `
                             <div>
                                 <strong>${item.placa || 'SIN PLACA'}</strong><br>
                                 Conductor: ${item.driver_name || 'N/A'}<br>
+                                Estado de bitacora: ${currentStatus}<br>
                                 ${item.is_stale ? 'Ultima ubicacion' : 'Direccion actual'}: ${item.current_address || 'Sin direccion'}<br>
                                 Estado: ${item.is_stale ? 'Sin señal' : 'En línea'} (${formatAge(item.seconds_since_update)})<br>
                                 Velocidad: ${formatSpeed(item.current_speed_kmh)}<br>
@@ -260,7 +295,9 @@
                             </div>
                         `;
 
-                        const marker = L.marker([lat, lng], { icon: createVehicleIcon(Boolean(item.is_stale)) }).addTo(map).bindPopup(popup);
+                        const marker = L.marker([lat, lng], {
+                            icon: createVehicleIcon(Boolean(item.is_stale), currentStatus)
+                        }).addTo(map).bindPopup(popup);
                         let path = null;
                         const segmentPaths = [];
                         const marked = [];

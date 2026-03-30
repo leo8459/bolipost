@@ -34,14 +34,64 @@
                             @error('nombre') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
-                            <label for="vehicle_class_id" class="form-label fw-bold">Clase de Vehiculo (global)</label>
-                            <select id="vehicle_class_id" wire:model="vehicle_class_id" class="form-select">
-                                <option value="">Todas las clases (regla general)</option>
-                                @foreach($classes as $class)
-                                    <option value="{{ $class->id }}">{{ $class->nombre }}</option>
+                            <label for="maintenance_form_type" class="form-label fw-bold">Tipo de Vehiculo</label>
+                            <select id="maintenance_form_type" wire:model.live="maintenance_form_type" class="form-select @error('maintenance_form_type') is-invalid @enderror">
+                                @foreach($maintenanceFormTypes as $formType)
+                                    <option value="{{ $formType }}">{{ $formType === 'moto' ? 'Moto' : 'Vehiculo' }}</option>
                                 @endforeach
                             </select>
-                            <div class="form-text">Ejemplo: Toyota 2025 y Honda 2023 pueden tener intervalos distintos.</div>
+                            @error('maintenance_form_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-12 col-lg-8">
+                            <label for="selected_vehicle_ids" class="form-label fw-bold">{{ $maintenance_form_type === 'moto' ? 'Motos especificas para este mantenimiento' : 'Vehiculos especificos para este mantenimiento' }}</label>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-6">
+                                    <select id="selected_vehicle_ids" wire:model="vehicle_to_add" class="form-select @error('vehicle_to_add') is-invalid @enderror">
+                                        <option value="">{{ $maintenance_form_type === 'moto' ? 'Seleccionar moto para agregar' : 'Seleccionar vehiculo para agregar' }}</option>
+                                        @foreach($vehicles as $vehicle)
+                                            <option value="{{ $vehicle->id }}">{{ $vehicle->placa }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6 d-flex gap-2">
+                                    <button type="button" wire:click="addSelectedVehicle" class="btn btn-outline-primary flex-fill">
+                                        <i class="fas fa-plus me-1"></i>Anadir
+                                    </button>
+                                    <button type="button" wire:click="addAllVisibleVehicles" class="btn btn-outline-warning flex-fill">
+                                        <i class="fas fa-layer-group me-1"></i>Anadir todo
+                                    </button>
+                                    <button type="button" wire:click="clearSelectedVehicles" class="btn btn-outline-secondary flex-fill">
+                                        Limpiar lista
+                                    </button>
+                                </div>
+                            </div>
+                            @error('vehicle_to_add') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                            @error('selected_vehicle_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                            <div class="form-text">El combo se filtra por tipo. Si eliges Moto, veras solo motos; si eliges Vehiculo, veras solo vehiculos.</div>
+                            <div class="form-text">Puedes anadir uno por uno o usar Anadir todo para cargar todos los visibles del tipo seleccionado.</div>
+                        </div>
+                        <div class="col-12 col-lg-4 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <input type="checkbox" id="es_preventivo" wire:model="es_preventivo" class="form-check-input">
+                                <label class="form-check-label fw-bold" for="es_preventivo">Es mantenimiento preventivo</label>
+                                <div class="form-text">Si esta marcado, las solicitudes de este tipo no rebajan estrellas del incentivo.</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Vehiculos seleccionados</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @forelse($selectedVehicles as $selectedVehicle)
+                                    <span class="badge bg-primary d-inline-flex align-items-center gap-2 px-3 py-2">
+                                        {{ $selectedVehicle->placa }}
+                                        <button type="button" wire:click="removeSelectedVehicle({{ $selectedVehicle->id }})" class="btn btn-sm btn-link text-white p-0 text-decoration-none">x</button>
+                                    </span>
+                                @empty
+                                    <span class="text-muted small">Aun no seleccionaste vehiculos especificos.</span>
+                                @endforelse
+                            </div>
+                            @if($selectedVehicles->count() > 0)
+                                <div class="small text-success mt-2">Al guardar, todos estos vehiculos recibiran este mantenimiento.</div>
+                            @endif
                         </div>
                         <div class="col-12 col-md-3">
                             <label for="cada_km" class="form-label fw-bold">Cada Cuantos KM</label>
@@ -118,7 +168,9 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Nombre</th>
-                                <th>Clase de Vehiculo</th>
+                                <th>Tipo</th>
+                                <th>Impacto incentivo</th>
+                                <th>Vehiculos asignados</th>
                                 <th>Cada KM</th>
                                 <th>Intervalo KM</th>
                                 <th>Alerta Previa</th>
@@ -130,7 +182,23 @@
                             @forelse ($types as $type)
                                 <tr>
                                     <td class="fw-bold">{{ $type->nombre }}</td>
-                                    <td>{{ $type->vehicleClass?->nombre ?? 'General' }}</td>
+                                    <td>{{ $type->maintenance_form_type_label ?? 'Vehiculo' }}</td>
+                                    <td>
+                                        <span class="badge {{ ($type->es_preventivo ?? false) ? 'bg-success' : 'bg-warning text-dark' }}">
+                                            {{ ($type->es_preventivo ?? false) ? 'No descuenta estrellas' : 'Descuenta estrellas' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if($type->vehicles->count() > 0)
+                                            <div class="d-flex flex-wrap gap-1">
+                                                @foreach($type->vehicles as $vehicle)
+                                                    <span class="badge bg-secondary">{{ $vehicle->placa }}</span>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <span class="text-muted small">Todos los {{ ($type->maintenance_form_type ?? 'vehiculo') === 'moto' ? 'tipo moto' : 'tipo vehiculo' }}</span>
+                                        @endif
+                                    </td>
                                     <td>
                                         <span class="badge bg-primary">{{ $type->cada_km ?? $type->intervalo_km ?? $type->intervalo_km_init ?? 'N/A' }} KM</span>
                                     </td>
@@ -155,7 +223,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-muted">No hay registros disponibles.</td>
+                                    <td colspan="9" class="text-center py-4 text-muted">No hay registros disponibles.</td>
                                 </tr>
                             @endforelse
                         </tbody>

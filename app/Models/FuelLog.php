@@ -20,6 +20,7 @@ class FuelLog extends Model
         'precio_galon',    // Alias para compatibilidad
         'subtotal',        // Nombre real en BD
         'total_calculado', // Alias para compatibilidad
+        'estado',
         'kilometraje',
         'recibo',
         'observaciones',
@@ -30,6 +31,7 @@ class FuelLog extends Model
         'cantidad' => 'decimal:2',
         'precio_unitario' => 'decimal:2',
         'subtotal' => 'decimal:2',
+        'estado' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

@@ -30,6 +30,11 @@ class VehicleManager extends Component
         'electrico',
     ];
 
+    private const MAINTENANCE_FORM_TYPES = [
+        'vehiculo',
+        'moto',
+    ];
+
     #[Validate('required|string|max:20|unique:vehicles,placa')]
     public string $placa = '';
 
@@ -40,11 +45,13 @@ class VehicleManager extends Component
     public string $modelo = '';
 
     public string $tipo_combustible = '';
+    public string $maintenance_form_type = 'vehiculo';
     public string $color = '';
     public ?int $anio = null;
     public ?float $capacidad_tanque = null;
     public ?float $kilometraje = null;
     public bool $activo = true;
+    public bool $tacometro_danado = false;
 
     public bool $isEdit = false;
     public ?int $editingVehicleId = null;
@@ -73,6 +80,7 @@ class VehicleManager extends Component
                     ->orWhereRaw('CAST(anio AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereRaw('CAST(activo AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(tacometro_danado AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereHas('brand', fn ($brandQuery) => $brandQuery->where('nombre', 'like', "%{$search}%"))
                     ->orWhereHas('vehicleClass', fn ($classQuery) => $classQuery->where('nombre', 'like', "%{$search}%"));
             });
@@ -123,6 +131,7 @@ class VehicleManager extends Component
             'vehicles' => $vehicles,
             'brands' => $brands,
             'fuelTypes' => self::FUEL_TYPES,
+            'maintenanceFormTypes' => self::MAINTENANCE_FORM_TYPES,
             'currentAssignment' => $currentAssignment,
             'assignedVehicle' => $assignedVehicle,
             'scheduledMaintenances' => $scheduledMaintenances,
@@ -154,6 +163,11 @@ class VehicleManager extends Component
             return;
         }
 
+        if ($assignment?->vehicle?->isInMaintenance()) {
+            session()->flash('error', 'El vehiculo asignado esta en mantenimiento y no puede generar nuevas operaciones hasta volver a disponible.');
+            return;
+        }
+
         $type = MaintenanceType::find($maintenanceTypeId);
         if (!$type) {
             session()->flash('error', 'El tipo de mantenimiento no existe.');
@@ -178,7 +192,8 @@ class VehicleManager extends Component
             return;
         }
 
-        $kmActual = $vehicle?->kilometraje_actual ?? $vehicle?->kilometraje_inicial ?? $vehicle?->kilometraje;
+        $kmActual = $this->resolveVehicleCurrentKilometraje($vehicle);
+        $requestedSnapshot = $this->buildRequestedAlertKilometrageSnapshot($vehicle, $type);
 
         MaintenanceAlert::create([
             'vehicle_id' => $vehicleId,
@@ -195,9 +210,9 @@ class VehicleManager extends Component
             'status' => MaintenanceAlert::STATUS_ACTIVE,
             'fecha_resolucion' => null,
             'usuario_id' => null,
-            'kilometraje_actual' => $kmActual !== null ? (float) $kmActual : null,
-            'kilometraje_objetivo' => null,
-            'faltante_km' => null,
+            'kilometraje_actual' => $kmActual,
+            'kilometraje_objetivo' => $requestedSnapshot['target_km'],
+            'faltante_km' => $requestedSnapshot['remaining_km'],
         ]);
 
         session()->flash('message', 'Solicitud de mantenimiento enviada correctamente.');
@@ -261,6 +276,7 @@ class VehicleManager extends Component
             'marca_id' => 'required|integer|min:1|exists:vehicle_brands,id',
             'modelo' => 'required|string|max:50',
             'tipo_combustible' => ['required', 'string', Rule::in(self::FUEL_TYPES)],
+            'maintenance_form_type' => ['required', 'string', Rule::in(self::MAINTENANCE_FORM_TYPES)],
             'anio' => 'nullable|integer|min:1900|max:' . (date('Y') + 1),
             'capacidad_tanque' => 'nullable|numeric|min:0',
             'kilometraje' => 'nullable|numeric|min:0',
@@ -274,6 +290,7 @@ class VehicleManager extends Component
             'placa' => $this->placa,
             'marca_id' => $this->marca_id,
             'vehicle_class_id' => $this->resolveVehicleClassId(),
+            'maintenance_form_type' => $this->maintenance_form_type,
             'modelo' => $this->modelo,
             'tipo_combustible' => $this->tipo_combustible,
             'color' => $this->color,
@@ -282,6 +299,7 @@ class VehicleManager extends Component
             'kilometraje_actual' => $this->kilometraje,
             'kilometraje' => $this->kilometraje,
             'activo' => $this->activo,
+            'tacometro_danado' => $this->tacometro_danado,
         ];
 
         if ($this->isEdit && $this->editingVehicleId) {
@@ -294,7 +312,11 @@ class VehicleManager extends Component
                 session()->flash('message', 'Vehiculo actualizado correctamente.');
             }
         } else {
-            $payload['kilometraje_inicial'] = $this->kilometraje;
+            $payload['kilometraje_inicial'] = $this->tacometro_danado ? 0 : $this->kilometraje;
+            if ($this->tacometro_danado) {
+                $payload['kilometraje_actual'] = 0;
+                $payload['kilometraje'] = 0;
+            }
             Vehicle::create($payload);
             session()->flash('message', 'Vehiculo creado correctamente.');
         }
@@ -316,6 +338,7 @@ class VehicleManager extends Component
         $this->marca_id = (int) ($vehicle->marca_id ?? 0);
         $this->modelo = $vehicle->modelo;
         $this->tipo_combustible = (string) ($vehicle->tipo_combustible ?? '');
+        $this->maintenance_form_type = (string) ($vehicle->maintenance_form_type ?: 'vehiculo');
         $this->color = (string) ($vehicle->color ?? '');
         $this->anio = $vehicle->anio;
         $this->capacidad_tanque = $vehicle->capacidad_tanque !== null ? (float) $vehicle->capacidad_tanque : null;
@@ -323,6 +346,7 @@ class VehicleManager extends Component
             ? (float) $vehicle->kilometraje_actual
             : ($vehicle->kilometraje_inicial !== null ? (float) $vehicle->kilometraje_inicial : ($vehicle->kilometraje !== null ? (float) $vehicle->kilometraje : null));
         $this->activo = (bool) $vehicle->activo;
+        $this->tacometro_danado = (bool) ($vehicle->tacometro_danado ?? false);
     }
 
     public function delete(Vehicle $vehicle)
@@ -342,11 +366,13 @@ class VehicleManager extends Component
         $this->marca_id = 0;
         $this->modelo = '';
         $this->tipo_combustible = '';
+        $this->maintenance_form_type = 'vehiculo';
         $this->color = '';
         $this->anio = null;
         $this->capacidad_tanque = null;
         $this->kilometraje = null;
         $this->activo = true;
+        $this->tacometro_danado = false;
         $this->isEdit = false;
         $this->editingVehicleId = null;
         $this->showForm = false;
@@ -386,6 +412,11 @@ class VehicleManager extends Component
             ->first();
 
         if ($existing) {
+            if (($existing->maintenance_form_type ?? null) !== $this->maintenance_form_type) {
+                $existing->update([
+                    'maintenance_form_type' => $this->maintenance_form_type,
+                ]);
+            }
             return (int) $existing->id;
         }
 
@@ -394,6 +425,7 @@ class VehicleManager extends Component
             'modelo' => $modelo,
             'anio' => (int) $this->anio,
             'nombre' => $nombreClase !== '' ? $nombreClase : ($modelo . ' ' . $this->anio),
+            'maintenance_form_type' => $this->maintenance_form_type,
             'activo' => true,
         ]);
 
@@ -419,7 +451,7 @@ class VehicleManager extends Component
         $scheduled = MaintenanceAppointment::query()
             ->with(['tipoMantenimiento:id,nombre,cada_km,vehicle_class_id'])
             ->where('vehicle_id', (int) $vehicle->id)
-            ->whereNotIn('estado', ['Realizado', 'Cancelado'])
+            ->whereNotIn('estado', ['Realizado', 'Cancelado', 'Rechazado'])
             ->orderBy('fecha_programada')
             ->get()
             ->map(function ($appointment) {
@@ -440,16 +472,9 @@ class VehicleManager extends Component
             })
             ->filter();
 
-        $classTypeQuery = MaintenanceType::query()->select(['id', 'nombre', 'cada_km', 'vehicle_class_id']);
-        $vehicleClassId = $vehicle->vehicle_class_id ? (int) $vehicle->vehicle_class_id : null;
-        if ($vehicleClassId) {
-            $classTypeQuery->where(function ($q) use ($vehicleClassId) {
-                $q->whereNull('vehicle_class_id')
-                    ->orWhere('vehicle_class_id', $vehicleClassId);
-            });
-        } else {
-            $classTypeQuery->whereNull('vehicle_class_id');
-        }
+        $classTypeQuery = MaintenanceType::query()
+            ->select(['id', 'nombre', 'cada_km', 'vehicle_class_id'])
+            ->applicableToVehicle($vehicle);
 
         $baseTypes = $classTypeQuery
             ->orderBy('nombre')
@@ -468,6 +493,50 @@ class VehicleManager extends Component
             ->concat($baseTypes)
             ->unique('maintenance_type_id')
             ->values();
+    }
+
+    private function resolveVehicleCurrentKilometraje(?Vehicle $vehicle): ?float
+    {
+        if (!$vehicle) {
+            return null;
+        }
+
+        $current = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
+        return is_numeric($current) ? (float) $current : null;
+    }
+
+    /**
+     * @return array{target_km: ?float, remaining_km: ?float}
+     */
+    private function buildRequestedAlertKilometrageSnapshot(?Vehicle $vehicle, MaintenanceType $type): array
+    {
+        $currentKm = $this->resolveVehicleCurrentKilometraje($vehicle);
+        if ($currentKm === null) {
+            return ['target_km' => null, 'remaining_km' => null];
+        }
+
+        $interval = null;
+        if ($type->cada_km !== null) {
+            $interval = (float) $type->cada_km;
+        } elseif ($type->intervalo_km_init !== null) {
+            $interval = (float) $type->intervalo_km_init;
+        } elseif ($type->intervalo_km !== null) {
+            $interval = (float) $type->intervalo_km;
+        } elseif ($type->intervalo_km_fh !== null) {
+            $interval = (float) $type->intervalo_km_fh;
+        }
+
+        if ($interval !== null && $interval > 0) {
+            return [
+                'target_km' => $currentKm + $interval,
+                'remaining_km' => $interval,
+            ];
+        }
+
+        return [
+            'target_km' => $currentKm,
+            'remaining_km' => 0.0,
+        ];
     }
 
     private function validateKilometrajeIntegrity(): bool

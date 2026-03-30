@@ -5,6 +5,7 @@ use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\Api\AuthTokenController;
 use App\Http\Controllers\Api\FuelLogApiController;
 use App\Http\Controllers\Api\FuelScrapeApiController;
+use App\Http\Controllers\Api\MaintenanceRequestApiController;
 use App\Http\Controllers\Api\MobileCrudApiController;
 use App\Http\Controllers\Api\MobileDbSnapshotController;
 use App\Http\Controllers\Api\MobileSnapshotController;
@@ -29,6 +30,11 @@ Route::post('/fuel-logs/scrape-from-qr', [FuelScrapeApiController::class, 'scrap
 
 Route::middleware('web')->group(function () {
     Route::post('/mobile/login', [AuthTokenController::class, 'login']);
+    Route::post('/maintenance-requests', [MaintenanceRequestApiController::class, 'store']);
+    Route::get('/maintenance-requests', [MaintenanceRequestApiController::class, 'index']);
+    Route::post('/fuel-logs', [FuelLogApiController::class, 'store']);
+    Route::post('/qr/decode-from-image', [QrDecoderApiController::class, 'decodeFromImage']);
+    Route::put('/siat/consulta-factura', [MobileUtilityController::class, 'siatConsultaFactura']);
 
     Route::middleware('auth:web')->group(function () {
         Route::get('/mobile/me', [AuthTokenController::class, 'me']);
@@ -37,16 +43,12 @@ Route::middleware('web')->group(function () {
         Route::post('/mobile/snapshot', [MobileSnapshotController::class, 'store']);
 
         Route::get('/fuel-logs', [FuelLogApiController::class, 'index']);
-        Route::post('/fuel-logs', [FuelLogApiController::class, 'store']);
         Route::get('/fuel-logs/{fuelLog}', [FuelLogApiController::class, 'show']);
         Route::get('/fuel-logs/by-vehicle/{vehicle}', [FuelLogApiController::class, 'byVehicle']);
         Route::get('/vehicle-logs', [VehicleLogApiController::class, 'index']);
         Route::post('/vehicle-logs', [VehicleLogApiController::class, 'store']);
         Route::post('/vehicle-logs/point-to-point', [VehicleLogApiController::class, 'pointToPoint']);
         Route::get('/vehicle-logs/{vehicleLog}', [VehicleLogApiController::class, 'show']);
-
-        Route::post('/qr/decode-from-image', [QrDecoderApiController::class, 'decodeFromImage']);
-        Route::put('/siat/consulta-factura', [MobileUtilityController::class, 'siatConsultaFactura']);
 
         Route::post('/emergency-alerts', [MobileUtilityController::class, 'emergencyAlert']);
         Route::get('/activity-logs', [MobileUtilityController::class, 'activityIndex']);

@@ -8,8 +8,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 // 💡 ESTA ES LA LÍNEA QUE FALTA:
-use App\Models\VehicleLog; 
+use App\Models\VehicleLog;
 use App\Models\FuelLog;
+use App\Models\DriverIncentiveReport;
+use App\Models\Workshop;
 
 class Driver extends Model
 {
@@ -75,6 +77,16 @@ class Driver extends Model
     public function maintenanceAppointments(): HasMany
     {
         return $this->hasMany(MaintenanceAppointment::class, 'driver_id');
+    }
+
+    public function incentiveReports(): HasMany
+    {
+        return $this->hasMany(DriverIncentiveReport::class, 'driver_id');
+    }
+
+    public function workshops(): HasMany
+    {
+        return $this->hasMany(Workshop::class, 'driver_id');
     }
 
     /**
