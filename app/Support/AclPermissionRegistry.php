@@ -314,7 +314,7 @@ class AclPermissionRegistry
         'paquetes-ems.recibir-regional' => ['assign', 'edit', 'print'],
         'paquetes-ems.en-transito' => ['edit', 'print'],
         'paquetes-ordinarios.index' => ['create', 'edit', 'delete', 'assign'],
-        'paquetes-ordinarios.almacen' => ['edit', 'reencaminar', 'assign', 'dropoff', 'rezago'],
+        'paquetes-ordinarios.almacen' => ['create', 'edit', 'reencaminar', 'assign', 'dropoff', 'rezago'],
         'paquetes-ordinarios.despacho' => ['edit', 'restore', 'print'],
         'paquetes-ordinarios.entregado' => ['edit', 'restore', 'print'],
         'paquetes-ordinarios.rezago' => ['edit', 'restore'],
@@ -418,7 +418,10 @@ class AclPermissionRegistry
             'savereencaminar' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'reencaminar']],
             'bajapaquetes' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'dropoff']],
             'rezagopaquetes' => [['module' => 'paquetes-ordinarios.almacen', 'action' => 'rezago']],
-            'opencreatemodal' => [['module' => 'paquetes-ordinarios.index', 'action' => 'create']],
+            'opencreatemodal' => [
+                ['module' => 'paquetes-ordinarios.index', 'action' => 'create'],
+                ['module' => 'paquetes-ordinarios.almacen', 'action' => 'create'],
+            ],
             'despacharseleccionados' => [['module' => 'paquetes-ordinarios.index', 'action' => 'assign']],
             'reimprimirmanifiesto' => [['module' => 'paquetes-ordinarios.despacho', 'action' => 'print']],
             'delete' => [['module' => 'paquetes-ordinarios.index', 'action' => 'delete']],
@@ -1379,6 +1382,7 @@ class AclPermissionRegistry
             'feature.paquetes-ordinarios.index.create' => 'Boton: Nuevo',
             'feature.paquetes-ordinarios.index.assign' => 'Boton: Despachar',
             'feature.paquetes-ordinarios.index.delete' => 'Boton: Borrar',
+            'feature.paquetes-ordinarios.almacen.create' => 'Boton: Nuevo',
             'feature.paquetes-ordinarios.almacen.assign' => 'Boton: Recibir paquetes',
             'feature.paquetes-ordinarios.almacen.dropoff' => 'Boton: Baja de paquetes',
             'feature.paquetes-ordinarios.almacen.rezago' => 'Boton: Enviar a rezago',
@@ -1619,6 +1623,7 @@ class AclPermissionRegistry
             'feature.paquetes-ordinarios.index.create' => 'Controla el boton Nuevo de la ventana Clasificacion.',
             'feature.paquetes-ordinarios.index.assign' => 'Controla el boton Despachar de la ventana Clasificacion.',
             'feature.paquetes-ordinarios.index.delete' => 'Controla el boton Borrar dentro de la ventana Clasificacion.',
+            'feature.paquetes-ordinarios.almacen.create' => 'Controla el boton Nuevo en la ventana Almacen.',
             'feature.paquetes-ordinarios.almacen.assign' => 'Controla Recibir paquetes en la ventana Almacen.',
             'feature.paquetes-ordinarios.almacen.dropoff' => 'Controla Baja de paquetes en la ventana Almacen.',
             'feature.paquetes-ordinarios.almacen.rezago' => 'Controla el boton Rezago en la ventana Almacen.',
@@ -1790,3 +1795,4 @@ class AclPermissionRegistry
         return false;
     }
 }
+
