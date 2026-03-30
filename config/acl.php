@@ -112,6 +112,9 @@ return [
         'feature.paquetes-contrato.create-con-tarifa.create',
         'feature.paquetes-contrato.entregados.print',
         'feature.paquetes-contrato.entregados.export',
+        'feature.paquetes-ems.contrato-rapido.create.create',
+        'feature.paquetes-ems.contrato-rapido.create.save',
+        'feature.paquetes-ems.contrato-rapido.create.delete',
         'feature.paquetes-ems.almacen.registercontract',
         'feature.paquetes-ems.almacen.weighcontract',
         'feature.paquetes-ems.almacen.sendventanilla',
@@ -120,7 +123,7 @@ return [
         'feature.despachos.abiertos.create',
         'feature.despachos.abiertos.edit',
         'feature.despachos.abiertos.delete',
-        'feature.despachos.abiertos.assign',
+        'feature.despachos.abiertos.opensacas',
         'feature.despachos.abiertos.confirm',
         'feature.despachos.abiertos.restore',
         'feature.despachos.expedicion.print',
@@ -134,6 +137,13 @@ return [
         'feature.sacas.index.delete',
         'feature.sacas.index.assign',
         'feature.sacas.index.confirm',
+        'feature.tarifa-contrato.create',
+        'feature.tarifa-contrato.duplicate',
+        'feature.tarifa-contrato.edit',
+        'feature.tarifa-contrato.delete',
+        'feature.tarifa-contrato.save',
+        'feature.tarifa-contrato.import',
+        'feature.tarifa-contrato.export',
     ],
 
     /*
@@ -167,6 +177,7 @@ return [
     'default_roles' => [
         'administrador',
         'gestor',
+        'gestor_tarifario_contratos',
         'encargado',
         'auxiliar',
         'cartero',
@@ -225,6 +236,9 @@ return [
             'eventos-auditoria.index',
             'tarifa-contrato.*',
             'importar.paquets*',
+        ],
+        'gestor_tarifario_contratos' => [
+            'tarifa-contrato.*',
         ],
         'encargado' => [
             'dashboard*',

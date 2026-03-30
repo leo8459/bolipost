@@ -12,6 +12,18 @@
                 <span class="ems-badge">Total: {{ $paquetes->total() }}</span>
             </div>
             <div class="card-body">
+                @if (session('success'))
+                    <div class="alert alert-success">
+                        {{ session('success') }}
+                    </div>
+                @endif
+
+                @if (session('error'))
+                    <div class="alert alert-danger">
+                        {{ session('error') }}
+                    </div>
+                @endif
+
                 @if (!$estadoEntregadoDisponible)
                     <div class="alert alert-warning">
                         No existe el estado ENTREGADO en la tabla estados.
@@ -19,12 +31,18 @@
                 @endif
 
                 <form method="GET" action="{{ route('paquetes-ems.entregados') }}" class="row mb-3">
-                    <div class="col-md-10 mb-2 mb-md-0">
+                    <div class="col-md-8 mb-2 mb-md-0">
                         <input type="text" name="q" value="{{ $search }}" class="form-control"
-                            placeholder="Buscar EMS/Contrato por codigo, destinatario, telefono, ciudad, recibido por o descripcion...">
+                            placeholder="Buscar EMS/Contrato/Solicitud por codigo, destinatario, telefono, ciudad, recibido por o descripcion...">
+                    </div>
+                    <div class="col-md-2 mb-2 mb-md-0">
+                        <button type="submit" class="btn btn-primary btn-block">Buscar</button>
                     </div>
                     <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary btn-block">Buscar</button>
+                        <a href="{{ route('paquetes-ems.entregados.solicitud.create', ['q' => $search]) }}"
+                           class="btn btn-outline-success btn-block">
+                            Generar Planilla de Entrega
+                        </a>
                     </div>
                 </form>
 
@@ -133,6 +151,10 @@
             text-transform: uppercase;
             letter-spacing: 0.35px;
             white-space: nowrap;
+        }
+
+        .btn-block {
+            min-height: 38px;
         }
 
     </style>

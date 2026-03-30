@@ -20,7 +20,7 @@ class Preregistro extends Model
         'contenido',
         'cantidad',
         'peso',
-        'tarifa_estimada',
+        'precio',
         'nombre_remitente',
         'nombre_envia',
         'carnet',
@@ -39,7 +39,7 @@ class Preregistro extends Model
 
     protected $casts = [
         'peso' => 'decimal:3',
-        'tarifa_estimada' => 'decimal:2',
+        'precio' => 'decimal:2',
         'validado_at' => 'datetime',
     ];
 

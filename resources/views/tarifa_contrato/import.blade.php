@@ -24,9 +24,11 @@
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
+                            @aclcan('export', null, 'tarifa-contrato')
                             <a href="{{ route('tarifa-contrato.template-excel') }}" class="btn btn-outline-primary btn-sm">
                                 Descargar Plantilla Excel
                             </a>
+                            @endaclcan
                         </div>
 
                         <form method="POST" action="{{ route('tarifa-contrato.import') }}" enctype="multipart/form-data">
@@ -72,7 +74,9 @@
 
                             <div class="d-flex justify-content-between">
                                 <a href="{{ route('tarifa-contrato.index') }}" class="btn btn-secondary">Volver</a>
+                                @aclcan('import', null, 'tarifa-contrato')
                                 <button type="submit" class="btn btn-primary">Importar</button>
+                                @endaclcan
                             </div>
                         </form>
                     </div>

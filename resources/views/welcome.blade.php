@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>TrackingBO | Plataforma Empresarial Postal</title>
-    <meta name="description" content="TrackingBO ofrece rastreo postal y gesti&#xF3;n operativa con enfoque empresarial e institucional.">
+    <meta name="description"
+        content="TrackingBO ofrece rastreo postal y gesti&#xF3;n operativa con enfoque empresarial e institucional.">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
     <link rel="shortcut icon" href="{{ asset('favicon-32x32.png') }}">
@@ -12,10 +14,13 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/landing-shared.css') }}">
     <link rel="stylesheet" href="{{ asset('css/welcome.css') }}">
 </head>
+
 <body>
     @include('partials.landing-header')
 
@@ -25,49 +30,41 @@
                 <div>
                     <p class="kicker reveal">&#xBF;Est&#xE1;s buscando tu paquete?</p>
                     <h1 class="reveal">RASTREA TU C&#xD3;DIGO</h1>
-                    <p class="reveal">Este es un servicio de seguimiento de c&#xF3;digo de rastreo postal a nivel internacional y nacional de Correos de Bolivia.</p>
+                    <p class="reveal">Este es un servicio de seguimiento de c&#xF3;digo de rastreo postal a nivel
+                        internacional y nacional de Correos de Bolivia.</p>
                     <div class="hero-track reveal">
                         <div class="hero-track-title">Rastrea tu c&#xF3;digo</div>
-                        <form class="hero-track-form" id="trackForm" action="{{ route('tracking.demo') }}" method="GET">
+                        <form class="hero-track-form" id="trackForm" action="{{ route('tracking.demo') }}"
+                            method="GET">
                             <div class="hero-track-main">
-                                <input
-                                    class="track-input"
-                                    type="text"
-                                    name="codigo"
+                                <input class="track-input" type="text" name="codigo"
                                     placeholder="INSERTE C&#xD3;DIGO"
                                     value="{{ old('codigo', session('tracking_codigo', '')) }}"
-                                    aria-label="C&#xF3;digo de rastreo"
-                                    required
-                                >
+                                    aria-label="C&#xF3;digo de rastreo" required>
                             </div>
                             <div class="hero-captcha-block">
-                                <label class="hero-captcha-label" for="captchaAnswer">Verificaci&#xF3;n de seguridad</label>
+                                <label class="hero-captcha-label" for="captchaAnswer">Verificaci&#xF3;n de
+                                    seguridad</label>
                                 <div class="hero-captcha-row">
                                     <div class="hero-captcha-code" id="captchaQuestion">{{ $captchaPregunta }}</div>
                                 </div>
                                 <div class="hero-captcha-entry">
-                                    <input
-                                        id="captchaAnswer"
-                                        class="track-captcha-input"
-                                        type="text"
-                                        name="captcha_answer"
-                                        inputmode="text"
-                                        autocomplete="off"
-                                        autocapitalize="characters"
-                                        placeholder="ESCRIBE EL CAPTCHA"
-                                        aria-label="Respuesta del captcha"
-                                        required
-                                    >
+                                    <input id="captchaAnswer" class="track-captcha-input" type="text"
+                                        name="captcha_answer" inputmode="text" autocomplete="off"
+                                        autocapitalize="characters" placeholder="ESCRIBE EL CAPTCHA"
+                                        aria-label="Respuesta del captcha" required>
                                     <button class="btn btn-light hero-track-btn" type="submit">Buscar</button>
                                 </div>
-                                <p class="hero-captcha-help">Escribe los caracteres que ves en la imagen para continuar.</p>
+                                <p class="hero-captcha-help">Escribe los caracteres que ves en la imagen para continuar.
+                                </p>
                             </div>
                         </form>
-                        <p class="hero-track-feedback {{ session('tracking_error') ? 'is-error' : '' }}" id="trackFeedback" role="status" aria-live="polite">
+                        <p class="hero-track-feedback {{ session('tracking_error') ? 'is-error' : '' }}"
+                            id="trackFeedback" role="status" aria-live="polite">
                             {{ session('tracking_error', '') }}
                         </p>
-                      
-                        
+
+
                     </div>
                 </div>
 
@@ -114,7 +111,9 @@
                             <div class="service-copy">
                                 <span class="service-pill">Env&#xED;o de paquetes</span>
                                 <h4>Env&#xED;a tus paquetes en nuestras oficinas</h4>
-                                <p>Env&#xED;a tus paquetes en Correos de Bolivia de manera sencilla. Visita nuestras oficinas cercanas, empaca bien tu paquete y proporciona la direcci&#xF3;n del destinatario.</p>
+                                <p>Env&#xED;a tus paquetes en Correos de Bolivia de manera sencilla. Visita nuestras
+                                    oficinas cercanas, empaca bien tu paquete y proporciona la direcci&#xF3;n del
+                                    destinatario.</p>
                                 <h5>Requerimientos para el env&#xED;o de paquetes:</h5>
                                 <ul class="service-list">
                                     <li>Fotocopia de C.I.</li>
@@ -124,18 +123,22 @@
                                 </ul>
                             </div>
                             <div class="service-art" aria-hidden="true">
-                                <img src="{{ asset('images/carta.png') }}" alt="Ilustraci&#xF3;n de carta para envio">
+                                <img src="{{ asset('images/carta.png') }}"
+                                    alt="Ilustraci&#xF3;n de carta para envio">
                             </div>
                         </article>
 
                         <article class="service-row">
                             <div class="service-art" aria-hidden="true">
-                                <img src="{{ asset('images/mano.png') }}" alt="Ilustraci&#xF3;n de mano recibiendo carta">
+                                <img src="{{ asset('images/mano.png') }}"
+                                    alt="Ilustraci&#xF3;n de mano recibiendo carta">
                             </div>
                             <div class="service-copy">
                                 <span class="service-pill">Recojo de paquetes</span>
                                 <h4>Recoge tus paquetes en nuestras oficinas</h4>
-                                <p>Para recoger paquetes en Correos de Bolivia, sigue pasos simples: ve a nuestras oficinas cuando recibas un aviso, lleva una identificaci&#xF3;n v&#xE1;lida y el c&#xF3;digo de rastreo.</p>
+                                <p>Para recoger paquetes en Correos de Bolivia, sigue pasos simples: ve a nuestras
+                                    oficinas cuando recibas un aviso, lleva una identificaci&#xF3;n v&#xE1;lida y el
+                                    c&#xF3;digo de rastreo.</p>
                                 <h5>Requerimientos para recoger tus paquetes:</h5>
                                 <ul class="service-list">
                                     <li>C.I. o pasaporte vigente.</li>
@@ -218,12 +221,9 @@
                         <div class="compliance-foot">
                             <span class="label">SI</span>
                             <div class="sub">Art&#xED;culos u Objetos Permitidos</div>
-                            <a
-                                class="btn"
+                            <a class="btn"
                                 href="https://www.upu.int/UPU/media/upu/files/UPU/outreachAndCampaigns/Dangerous%20Goods%20Campaign/UPU_Flyer_es_web.pdf"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
+                                target="_blank" rel="noopener noreferrer">
                                 Consulte Aqu&#xED;
                             </a>
                         </div>
@@ -250,14 +250,16 @@
 
     </main>
 
-    <div class="search-loading-modal" id="searchLoadingModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="searchLoadingTitle">
+    <div class="search-loading-modal" id="searchLoadingModal" aria-hidden="true" role="dialog" aria-modal="true"
+        aria-labelledby="searchLoadingTitle">
         <div class="search-loading-card" role="status" aria-live="polite">
             <div class="search-loading-spinner" aria-hidden="true"></div>
             <h3 id="searchLoadingTitle">Buscando tu env&#xED;o...</h3>
             <p id="searchLoadingText">Estamos consultando los eventos del c&#xF3;digo.</p>
         </div>
     </div>
-    <div class="search-loading-modal search-error-modal" id="searchErrorModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="searchErrorTitle">
+    <div class="search-loading-modal search-error-modal" id="searchErrorModal" aria-hidden="true" role="dialog"
+        aria-modal="true" aria-labelledby="searchErrorTitle">
         <div class="search-loading-card search-error-card" role="alertdialog" aria-live="assertive">
             <div class="search-error-icon" aria-hidden="true">!</div>
             <h3 id="searchErrorTitle">Error de b&#xFA;squeda</h3>
@@ -266,7 +268,8 @@
         </div>
     </div>
 
-    <div class="preregistro-modal" id="preregistroModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="preregistroTitle">
+    <div class="preregistro-modal" id="preregistroModal" aria-hidden="true" role="dialog" aria-modal="true"
+        aria-labelledby="preregistroTitle">
         <div class="preregistro-panel">
             <button class="preregistro-close" type="button" id="preregistroClose" aria-label="Cerrar formulario">
                 &times;
@@ -276,7 +279,8 @@
                 <div>
                     <p class="preregistro-kicker">Preregistro publico</p>
                     <h3 id="preregistroTitle">Hacer envio desde casa</h3>
-                    <p>Completa tus datos, guarda tu codigo y presentalo en admision para recuperar tu envio de forma rapida.</p>
+                    <p>Completa tus datos, guarda tu codigo y presentalo en admision para recuperar tu envio de forma
+                        rapida.</p>
                 </div>
             </div>
 
@@ -305,7 +309,8 @@
                         <div class="preregistro-code-card mt-2">
                             <span class="preregistro-code-label">Tu codigo generado</span>
                             <strong class="preregistro-code-value">{{ session('preregistro_codigo') }}</strong>
-                            <span class="preregistro-code-help">Presenta este codigo en admision para recuperar tus datos.</span>
+                            <span class="preregistro-code-help">Presenta este codigo en admision para recuperar tus
+                                datos.</span>
                         </div>
                     @endif
                 </div>
@@ -325,80 +330,102 @@
                         <span class="preregistro-section-pill">Datos del envio</span>
                         <p>Selecciona origen, servicio, destino y caracteristicas del paquete.</p>
                     </div>
-                <div class="preregistro-grid">
-                    <div class="preregistro-field">
-                        <label>Origen</label>
-                        <select name="origen">
-                            <option value="">Seleccione...</option>
-                            @foreach($preregistroCiudades as $ciudad)
-                                <option value="{{ $ciudad }}" @selected(old('origen') === $ciudad)>{{ $ciudad }}</option>
-                            @endforeach
-                        </select>
-                        @error('origen') <small>{{ $message }}</small> @enderror
-                    </div>
+                    <div class="preregistro-grid">
+                        <div class="preregistro-field">
+                            <label>Origen</label>
+                            <select name="origen">
+                                <option value="">Seleccione...</option>
+                                @foreach ($preregistroCiudades as $ciudad)
+                                    <option value="{{ $ciudad }}" @selected(old('origen') === $ciudad)>
+                                        {{ $ciudad }}</option>
+                                @endforeach
+                            </select>
+                            @error('origen')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Tipo de correspondencia</label>
-                        <input type="text" name="tipo_correspondencia" value="{{ old('tipo_correspondencia') }}" placeholder="Ej: DOCUMENTO, OFICIAL">
-                        @error('tipo_correspondencia') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Tipo de correspondencia</label>
+                            <input type="text" name="tipo_correspondencia"
+                                value="{{ old('tipo_correspondencia') }}" placeholder="Ej: DOCUMENTO, OFICIAL">
+                            @error('tipo_correspondencia')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Servicio</label>
-                        <select name="servicio_id" class="preregistro-select-compact" title="Selecciona el servicio">
-                            <option value="">Seleccione...</option>
-                            @foreach($preregistroServicios as $servicio)
-                                @php
-                                    $serviceLabel = (string) \Illuminate\Support\Str::of($servicio->nombre_servicio)
-                                        ->replace('_', ' ')
-                                        ->squish()
-                                        ->limit(28, '...');
-                                @endphp
-                                <option value="{{ $servicio->id }}" title="{{ $servicio->nombre_servicio }}" @selected((int) old('servicio_id') === (int) $servicio->id)>{{ $serviceLabel }}</option>
-                            @endforeach
-                        </select>
-                        @error('servicio_id') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Servicio</label>
+                            <select name="servicio_id" class="preregistro-select-compact"
+                                title="Selecciona el servicio">
+                                <option value="">Seleccione...</option>
+                                @foreach ($preregistroServicios as $servicio)
+                                    @php
+                                        $serviceLabel = (string) \Illuminate\Support\Str::of($servicio->nombre_servicio)
+                                            ->replace('_', ' ')
+                                            ->squish()
+                                            ->limit(28, '...');
+                                    @endphp
+                                    <option value="{{ $servicio->id }}" title="{{ $servicio->nombre_servicio }}"
+                                        @selected((int) old('servicio_id') === (int) $servicio->id)>{{ $serviceLabel }}</option>
+                                @endforeach
+                            </select>
+                            @error('servicio_id')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Destino</label>
-                        <select name="destino_id">
-                            <option value="">Seleccione...</option>
-                            @foreach($preregistroDestinos as $destino)
-                                <option value="{{ $destino->id }}" @selected((int) old('destino_id') === (int) $destino->id)>{{ $destino->nombre_destino }}</option>
-                            @endforeach
-                        </select>
-                        @error('destino_id') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Destino</label>
+                            <select name="destino_id">
+                                <option value="">Seleccione...</option>
+                                @foreach ($preregistroDestinos as $destino)
+                                    <option value="{{ $destino->id }}" @selected((int) old('destino_id') === (int) $destino->id)>
+                                        {{ $destino->nombre_destino }}</option>
+                                @endforeach
+                            </select>
+                            @error('destino_id')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Servicio especial</label>
-                        <select name="servicio_especial">
-                            <option value="">Seleccione...</option>
-                            <option value="POR COBRAR" @selected(old('servicio_especial') === 'POR COBRAR')>POR COBRAR</option>
-                            <option value="IDA Y VUELTA" @selected(old('servicio_especial') === 'IDA Y VUELTA')>IDA Y VUELTA</option>
-                        </select>
-                        @error('servicio_especial') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Servicio especial</label>
+                            <select name="servicio_especial">
+                                <option value="">Seleccione...</option>
+                                <option value="POR COBRAR" @selected(old('servicio_especial') === 'POR COBRAR')>POR COBRAR</option>
+                                <option value="IDA Y VUELTA" @selected(old('servicio_especial') === 'IDA Y VUELTA')>IDA Y VUELTA</option>
+                            </select>
+                            @error('servicio_especial')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Cantidad</label>
-                        <input type="number" min="1" name="cantidad" value="{{ old('cantidad', 1) }}">
-                        @error('cantidad') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Cantidad</label>
+                            <input type="number" min="1" name="cantidad" value="{{ old('cantidad', 1) }}">
+                            @error('cantidad')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field preregistro-field-full">
-                        <label>Contenido</label>
-                        <textarea name="contenido" rows="2">{{ old('contenido') }}</textarea>
-                        @error('contenido') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field preregistro-field-full">
+                            <label>Contenido</label>
+                            <textarea name="contenido" rows="2">{{ old('contenido') }}</textarea>
+                            @error('contenido')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Peso</label>
-                        <input type="number" step="0.001" min="0.001" name="peso" value="{{ old('peso') }}">
-                        @error('peso') <small>{{ $message }}</small> @enderror
+                        <div class="preregistro-field">
+                            <label>Peso</label>
+                            <input type="number" step="0.001" min="0.001" name="peso"
+                                value="{{ old('peso') }}">
+                            @error('peso')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
                     </div>
-                </div>
                 </div>
 
                 <div class="preregistro-section-card">
@@ -406,49 +433,65 @@
                         <span class="preregistro-section-pill">Datos de contacto</span>
                         <p>Estos datos se recuperaran luego en admision usando tu codigo generado.</p>
                     </div>
-                <div class="preregistro-grid">
-                    <div class="preregistro-field">
-                        <label>Nombre remitente</label>
-                        <input type="text" name="nombre_remitente" value="{{ old('nombre_remitente') }}">
-                        @error('nombre_remitente') <small>{{ $message }}</small> @enderror
-                    </div>
+                    <div class="preregistro-grid">
+                        <div class="preregistro-field">
+                            <label>Nombre remitente</label>
+                            <input type="text" name="nombre_remitente" value="{{ old('nombre_remitente') }}">
+                            @error('nombre_remitente')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Nombre envia</label>
-                        <input type="text" name="nombre_envia" value="{{ old('nombre_envia') }}">
-                        @error('nombre_envia') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Nombre envia</label>
+                            <input type="text" name="nombre_envia" value="{{ old('nombre_envia') }}">
+                            @error('nombre_envia')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Carnet</label>
-                        <input type="text" name="carnet" value="{{ old('carnet') }}">
-                        @error('carnet') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Carnet</label>
+                            <input type="text" name="carnet" value="{{ old('carnet') }}">
+                            @error('carnet')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Telefono remitente</label>
-                        <input type="text" name="telefono_remitente" value="{{ old('telefono_remitente') }}">
-                        @error('telefono_remitente') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Telefono remitente</label>
+                            <input type="text" name="telefono_remitente" value="{{ old('telefono_remitente') }}">
+                            @error('telefono_remitente')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Nombre destinatario</label>
-                        <input type="text" name="nombre_destinatario" value="{{ old('nombre_destinatario') }}">
-                        @error('nombre_destinatario') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Nombre destinatario</label>
+                            <input type="text" name="nombre_destinatario"
+                                value="{{ old('nombre_destinatario') }}">
+                            @error('nombre_destinatario')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field">
-                        <label>Telefono destinatario</label>
-                        <input type="text" name="telefono_destinatario" value="{{ old('telefono_destinatario') }}">
-                        @error('telefono_destinatario') <small>{{ $message }}</small> @enderror
-                    </div>
+                        <div class="preregistro-field">
+                            <label>Telefono destinatario</label>
+                            <input type="text" name="telefono_destinatario"
+                                value="{{ old('telefono_destinatario') }}">
+                            @error('telefono_destinatario')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
 
-                    <div class="preregistro-field preregistro-field-full">
-                        <label>Direccion</label>
-                        <input type="text" name="direccion" value="{{ old('direccion') }}">
-                        @error('direccion') <small>{{ $message }}</small> @enderror
+                        <div class="preregistro-field preregistro-field-full">
+                            <label>Direccion</label>
+                            <input type="text" name="direccion" value="{{ old('direccion') }}">
+                            @error('direccion')
+                                <small>{{ $message }}</small>
+                            @enderror
+                        </div>
                     </div>
-                </div>
                 </div>
 
                 <div class="preregistro-actions">
@@ -459,16 +502,19 @@
         </div>
     </div>
 
-    <div class="preregistro-success-modal" id="preregistroSuccessModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="preregistroSuccessTitle">
+    <div class="preregistro-success-modal" id="preregistroSuccessModal" aria-hidden="true" role="dialog"
+        aria-modal="true" aria-labelledby="preregistroSuccessTitle">
         <div class="preregistro-success-card">
             <div class="preregistro-success-icon" aria-hidden="true">OK</div>
             <p class="preregistro-success-kicker">Preregistro guardado</p>
             <h3 id="preregistroSuccessTitle">Su codigo es</h3>
-            <div class="preregistro-success-code" id="preregistroSuccessCode">{{ session('preregistro_codigo') }}</div>
+            <div class="preregistro-success-code" id="preregistroSuccessCode">{{ session('preregistro_codigo') }}
+            </div>
             <p class="preregistro-success-copy">Guarda este codigo. En admision lo usaran para recuperar tus datos.</p>
             <div class="preregistro-success-actions">
                 <button class="btn btn-light" type="button" id="copyPreregistroCode">Copiar codigo</button>
-                <a class="btn btn-light" href="{{ session('preregistro_ticket_url', '#') }}" id="downloadPreregistroTicket" @if(!session('preregistro_ticket_url')) style="display:none" @endif>
+                <a class="btn btn-light" href="{{ session('preregistro_ticket_url', '#') }}"
+                    id="downloadPreregistroTicket" @if (!session('preregistro_ticket_url')) style="display:none" @endif>
                     Descargar ticket PDF
                 </a>
                 <button class="btn btn-primary" type="button" id="closePreregistroSuccess">Entendido</button>
@@ -481,7 +527,17 @@
     </button>
 
     @include('partials.landing-footer')
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-27HR41ZF2X"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
 
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-27HR41ZF2X');
+    </script>
     <script>
         const topbar = document.getElementById('topbar');
         const menuToggle = document.getElementById('menuToggle');
@@ -581,11 +637,19 @@
             }
         @endif
 
-        menuToggle?.addEventListener('click', () => { const isOpen = menu.classList.toggle('open'); menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); });
-        menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { menu.classList.remove('open'); menuToggle?.setAttribute('aria-expanded', 'false'); }));
+        menuToggle?.addEventListener('click', () => {
+            const isOpen = menu.classList.toggle('open');
+            menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+        menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => {
+            menu.classList.remove('open');
+            menuToggle?.setAttribute('aria-expanded', 'false');
+        }));
 
         const onScroll = () => topbar.classList.toggle('scrolled', window.scrollY > 8);
-        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('scroll', onScroll, {
+            passive: true
+        });
         onScroll();
 
         const reveals = document.querySelectorAll('.reveal');
@@ -597,7 +661,9 @@
                 entry.target.style.transition = 'opacity .55s ease, transform .55s ease';
                 observer.unobserve(entry.target);
             });
-        }, { threshold: 0.16 });
+        }, {
+            threshold: 0.16
+        });
 
         reveals.forEach((el, i) => {
             el.style.transitionDelay = `${Math.min(i * 35, 220)}ms`;
@@ -645,7 +711,10 @@
             if (!target) return;
             const offset = (topbar?.offsetHeight || 0) + 14;
             const y = target.getBoundingClientRect().top + window.scrollY - offset;
-            window.scrollTo({ top: y, behavior: 'smooth' });
+            window.scrollTo({
+                top: y,
+                behavior: 'smooth'
+            });
         };
 
         bandLinks.forEach((link) => {
@@ -682,7 +751,9 @@
             setActive(activeId);
         };
 
-        window.addEventListener('scroll', detectActiveByScroll, { passive: true });
+        window.addEventListener('scroll', detectActiveByScroll, {
+            passive: true
+        });
 
         const initial = window.location.hash.replace('#', '');
         if (sectionIds.includes(initial)) {
@@ -698,11 +769,16 @@
             if (!backToTop) return;
             backToTop.classList.toggle('is-visible', window.scrollY > 420);
         };
-        window.addEventListener('scroll', handleBackButton, { passive: true });
+        window.addEventListener('scroll', handleBackButton, {
+            passive: true
+        });
         handleBackButton();
 
         backToTop?.addEventListener('click', () => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
             history.replaceState(null, '', '#inicio');
             setActive('inicio');
         });
@@ -771,7 +847,9 @@
         const loadCaptcha = async () => {
             try {
                 const response = await fetch("{{ route('api.busqueda.captcha') }}", {
-                    headers: { 'Accept': 'application/json' },
+                    headers: {
+                        'Accept': 'application/json'
+                    },
                 });
                 const data = await response.json();
                 updateCaptchaQuestion(data?.pregunta || '{{ $captchaPregunta }}');
@@ -785,8 +863,14 @@
         // Evita que el modal quede "pegado" al volver con el boton atras (bfcache/historial).
         hideLoadingModal();
         hideErrorModal();
-        window.addEventListener('pageshow', () => { hideLoadingModal(); hideErrorModal(); });
-        window.addEventListener('popstate', () => { hideLoadingModal(); hideErrorModal(); });
+        window.addEventListener('pageshow', () => {
+            hideLoadingModal();
+            hideErrorModal();
+        });
+        window.addEventListener('popstate', () => {
+            hideLoadingModal();
+            hideErrorModal();
+        });
         searchErrorClose?.addEventListener('click', hideErrorModal);
         searchErrorModal?.addEventListener('click', (e) => {
             if (e.target === searchErrorModal) hideErrorModal();
@@ -868,9 +952,12 @@
             showLoadingModal('Estamos consultando los eventos del código.');
 
             try {
-                const response = await fetch(`/api/busqueda/ems-eventos?codigo=${encodeURIComponent(codigo)}&captcha_answer=${encodeURIComponent(captchaValue)}`, {
-                    headers: { 'Accept': 'application/json' },
-                });
+                const response = await fetch(
+                    `/api/busqueda/ems-eventos?codigo=${encodeURIComponent(codigo)}&captcha_answer=${encodeURIComponent(captchaValue)}`, {
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                    });
 
                 const data = await response.json();
                 if (!response.ok) {
@@ -886,7 +973,8 @@
 
                 showLoadingModal('Paquete encontrado. Redirigiendo al detalle...');
                 clearTrackingForm();
-                window.location.href = `${trackForm.getAttribute('action')}?codigo=${encodeURIComponent(codigo)}`;
+                window.location.href =
+                    `${trackForm.getAttribute('action')}?codigo=${encodeURIComponent(codigo)}`;
             } catch (error) {
                 hideLoadingModal();
                 const message = error.message || 'No existe dicho paquete';
@@ -900,10 +988,7 @@
         if (!captchaQuestion?.textContent?.trim()) {
             loadCaptcha();
         }
-
     </script>
 </body>
+
 </html>
-
-
-

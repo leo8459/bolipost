@@ -26,9 +26,11 @@
                         @if (!empty($defaults))
                             <div class="alert alert-info">
                                 Modo rapido activo: se precargaron datos del ultimo registro.
+                                @aclcan('create', null, 'tarifa-contrato')
                                 <a href="{{ route('tarifa-contrato.create', ['reset' => 1]) }}" class="btn btn-sm btn-outline-secondary ml-2">
                                     Limpiar precarga
                                 </a>
+                                @endaclcan
                             </div>
                         @endif
                         @if (!empty($copySource))

@@ -38,6 +38,7 @@ class Recojo extends Component
     public $nombre_r = '';
     public $telefono_r = '';
     public $contenido = '';
+    public $cantidad = '';
     public $direccion_r = '';
     public $nombre_d = '';
     public $telefono_d = '';
@@ -97,6 +98,7 @@ class Recojo extends Component
         $this->nombre_r = (string) $recojo->nombre_r;
         $this->telefono_r = (string) $recojo->telefono_r;
         $this->contenido = (string) $recojo->contenido;
+        $this->cantidad = (string) ($recojo->cantidad ?? '');
         $this->direccion_r = (string) $recojo->direccion_r;
         $this->nombre_d = (string) $recojo->nombre_d;
         $this->telefono_d = (string) $recojo->telefono_d;
@@ -151,6 +153,7 @@ class Recojo extends Component
             'nombre_r',
             'telefono_r',
             'contenido',
+            'cantidad',
             'direccion_r',
             'nombre_d',
             'telefono_d',
@@ -181,6 +184,7 @@ class Recojo extends Component
             'nombre_r' => 'required|string|max:255',
             'telefono_r' => 'required|string|max:50',
             'contenido' => 'required|string',
+            'cantidad' => 'nullable|string|max:255',
             'direccion_r' => 'required|string|max:255',
             'nombre_d' => 'required|string|max:255',
             'telefono_d' => 'nullable|string|max:50',
@@ -210,6 +214,7 @@ class Recojo extends Component
             'nombre_r' => $this->normalizeUpper($this->nombre_r),
             'telefono_r' => $this->normalize($this->telefono_r),
             'contenido' => $this->normalize($this->contenido),
+            'cantidad' => $this->nullIfEmpty($this->cantidad),
             'direccion_r' => $this->normalizeUpper($this->direccion_r),
             'nombre_d' => $this->normalizeUpper($this->nombre_d),
             'telefono_d' => $this->nullIfEmpty($this->telefono_d),
@@ -341,6 +346,7 @@ class Recojo extends Component
                     ->orWhere('destino', 'like', "%{$q}%")
                     ->orWhere('nombre_r', 'like', "%{$q}%")
                     ->orWhere('nombre_d', 'like', "%{$q}%")
+                    ->orWhere('cantidad', 'like', "%{$q}%")
                     ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($q) {
                         $estadoQuery->where('nombre_estado', 'like', "%{$q}%");
                     })

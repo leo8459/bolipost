@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Laravel\Socialite\Facades\Socialite;
 use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
@@ -42,7 +43,7 @@ class ClienteAuthController extends Controller
     {
         return redirect()
             ->route('auth.google.redirect')
-            ->with('status', 'El registro publico usa Google para validar el correo.');
+            ->with('status', 'Continua con Google para crear tu cuenta.');
     }
 
     public function logout(Request $request): RedirectResponse
@@ -55,11 +56,58 @@ class ClienteAuthController extends Controller
         return redirect()->route('welcome');
     }
 
-    public function dashboard(): View
+    public function dashboard()
     {
+        $cliente = Auth::guard('cliente')->user();
+
+        if (! $cliente->perfilCompleto()) {
+            return redirect()->route('clientes.profile.complete');
+        }
+
         return view('clientes.dashboard', [
-            'cliente' => Auth::guard('cliente')->user(),
+            'cliente' => $cliente,
         ]);
+    }
+
+    public function showCompleteProfile()
+    {
+        $cliente = Auth::guard('cliente')->user();
+
+        if ($cliente->perfilCompleto()) {
+            return redirect()->route('clientes.dashboard');
+        }
+
+        return view('auth.clientes-complete-profile', [
+            'cliente' => $cliente,
+            'tiposDocumento' => Cliente::tiposDocumentoIdentidad(),
+        ]);
+    }
+
+    public function completeProfile(Request $request): RedirectResponse
+    {
+        $cliente = Auth::guard('cliente')->user();
+
+        $validated = $request->validate([
+            'tipodocumentoidentidad' => ['required', 'string', 'in:1,2,3,4,5'],
+            'complemento' => ['nullable', 'string', 'max:50'],
+            'numero_carnet' => ['required', 'string', 'max:50'],
+            'razon_social' => ['required', 'string', 'max:255'],
+            'telefono' => ['required', 'string', 'max:50'],
+            'direccion' => ['required', 'string', 'max:255'],
+        ]);
+
+        $cliente->forceFill([
+            'tipodocumentoidentidad' => trim((string) $validated['tipodocumentoidentidad']),
+            'complemento' => trim((string) ($validated['complemento'] ?? '')) ?: null,
+            'numero_carnet' => trim((string) $validated['numero_carnet']),
+            'razon_social' => trim((string) $validated['razon_social']),
+            'telefono' => trim((string) $validated['telefono']),
+            'direccion' => trim((string) $validated['direccion']),
+        ])->save();
+
+        return redirect()
+            ->route('clientes.dashboard')
+            ->with('success', 'Tus datos fueron actualizados correctamente.');
     }
 
     public function redirectToGoogle(): SymfonyRedirectResponse
@@ -95,22 +143,26 @@ class ClienteAuthController extends Controller
                 'provider' => 'google',
                 'rol' => 'tiktokero',
                 'email_verified_at' => now(),
-                'password' => Hash::make(\Illuminate\Support\Str::random(32)),
+                'password' => Hash::make(Str::random(32)),
             ]
         );
 
-        $cliente->forceFill([
+        $updates = [
             'name' => trim((string) $googleUser->getName()) ?: $cliente->name,
             'provider' => 'google',
             'google_id' => (string) $googleUser->getId(),
             'avatar' => $googleUser->getAvatar(),
             'email_verified_at' => now(),
             'rol' => 'tiktokero',
-        ])->save();
+        ];
+
+        $cliente->forceFill($updates)->save();
 
         Auth::guard('cliente')->login($cliente, true);
         $request->session()->regenerate();
 
-        return redirect()->route('clientes.dashboard');
+        return $cliente->perfilCompleto()
+            ? redirect()->route('clientes.dashboard')
+            : redirect()->route('clientes.profile.complete');
     }
 }

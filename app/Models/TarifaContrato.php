@@ -16,6 +16,9 @@ class TarifaContrato extends Model
         'origen',
         'destino',
         'servicio',
+        'direccion',
+        'zona',
+        'peso',
         'kilo',
         'kilo_extra',
         'provincia',
@@ -24,6 +27,7 @@ class TarifaContrato extends Model
     ];
 
     protected $casts = [
+        'peso' => 'decimal:2',
         'kilo' => 'decimal:2',
         'kilo_extra' => 'decimal:2',
         'retencion' => 'decimal:2',

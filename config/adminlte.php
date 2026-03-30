@@ -383,6 +383,11 @@ return [
                     'url' => 'paquetes-ems',
                     'icon' => 'fas fa-plus-circle',
                 ],
+                [
+                    'text' => 'Nueva Solicitud',
+                    'url' => 'paquetes-ems/solicitudes',
+                    'icon' => 'fas fa-file-signature',
+                ],
             ],
         ],
         [
@@ -404,6 +409,11 @@ return [
                             'text' => 'Todos los entregados',
                             'url' => 'area-contratos/entregados',
                             'icon' => 'fas fa-check-circle',
+                        ],
+                        [
+                            'text' => 'Reportes',
+                            'url' => 'area-contratos/reportes',
+                            'icon' => 'fas fa-file-excel',
                         ],
                     ],
                 ],
@@ -466,6 +476,11 @@ return [
                     'icon' => 'fas fa-door-open',
                 ],
                 [
+                    'text' => 'Devolver paquetes',
+                    'url' => 'paquetes-ems/devolucion',
+                    'icon' => 'fas fa-undo',
+                ],
+                [
                     'text' => 'En transito',
                     'url' => 'paquetes-ems/en-transito',
                     'icon' => 'fas fa-shipping-fast',
@@ -479,6 +494,11 @@ return [
                     'text' => 'Entregados',
                     'url' => 'paquetes-ems/entregados',
                     'icon' => 'fas fa-check-circle',
+                ],
+                [
+                    'text' => 'Devueltos',
+                    'url' => 'paquetes-ems/devueltos',
+                    'icon' => 'fas fa-reply-all',
                 ],
             ],
         ],
@@ -512,6 +532,11 @@ return [
             'text' => 'Paquetes Ordinarios',
             'icon' => 'fas fa-box-open',
             'submenu' => [
+                [
+                    'text' => 'Todos los paquetes',
+                    'url' => 'paquetes-ordinarios/todos',
+                    'icon' => 'fas fa-list',
+                ],
                 [
                     'text' => 'Clasificacion',
                     'url' => 'paquetes-ordinarios',
@@ -810,6 +835,11 @@ return [
                     'icon' => 'fas fa-file-contract',
                 ],
                 [
+                    'text' => 'Eventos Tiktoker',
+                    'url' => 'eventos-tiktoker',
+                    'icon' => 'fas fa-hashtag',
+                ],
+                [
                     'text' => 'Eventos Auditoria',
                     'url' => 'eventos-auditoria',
                     'icon' => 'fas fa-history',
@@ -930,6 +960,11 @@ return [
                     'text' => 'Ventanillas',
                     'url' => 'ventanillas',
                     'icon' => 'fas fa-window-restore',
+                ],
+                [
+                    'text' => 'Sucursales',
+                    'url' => 'sucursales',
+                    'icon' => 'fas fa-building',
                 ],
                 [
                     'text' => 'Rendimiento',

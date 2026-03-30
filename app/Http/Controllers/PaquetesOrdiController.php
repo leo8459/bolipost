@@ -28,4 +28,9 @@ class PaquetesOrdiController extends Controller
     {
         return view('paquetes_ordi.rezago');
     }
+
+    public function todos()
+    {
+        return view('paquetes_ordi.todos');
+    }
 }

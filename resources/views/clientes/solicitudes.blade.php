@@ -26,6 +26,12 @@
         </div>
     @endif
 
+    @if (session('warning'))
+        <div class="alert alert-warning">
+            {{ session('warning') }}
+        </div>
+    @endif
+
     @if ($errors->any())
         <div class="alert alert-danger">
             Revisa los campos del formulario y vuelve a intentar.
@@ -44,18 +50,18 @@
                     <div class="row">
                         <div class="col-md-6 form-group">
                             <label>Servicio</label>
-                            <select name="servicio_extra_id" class="form-control">
+                            <select name="servicio_extra_id" id="servicio_extra_id" class="form-control">
                                 <option value="">Seleccione...</option>
                                 @foreach($servicioExtras as $servicioExtra)
-                                    <option value="{{ $servicioExtra->id }}" @selected((int) old('servicio_extra_id') === (int) $servicioExtra->id)>
+                                    <option
+                                        value="{{ $servicioExtra->id }}"
+                                        data-servicio-nombre="{{ strtolower((string) $servicioExtra->nombre) }}"
+                                        @selected((int) old('servicio_extra_id') === (int) $servicioExtra->id)
+                                    >
                                         {{ $servicioExtra->descripcion ?: $servicioExtra->nombre }}
                                     </option>
                                 @endforeach
                             </select>
-                        </div>
-                        <div class="col-md-6 form-group">
-                            <label>Tipo de correspondencia</label>
-                            <input type="text" name="tipo_correspondencia" value="{{ old('tipo_correspondencia') }}" class="form-control" placeholder="Documento, paquete, sobre...">
                         </div>
                         <div class="col-md-6 form-group">
                             <label>Origen</label>
@@ -95,15 +101,20 @@
                         </div>
                         <div class="col-md-6 form-group">
                             <label>Carnet</label>
-                            <input type="text" name="carnet" value="{{ old('carnet') }}" class="form-control">
+                            <input
+                                type="text"
+                                name="carnet"
+                                value="{{ old('carnet', trim($cliente->numero_carnet . ' ' . ($cliente->complemento ?: ''))) }}"
+                                class="form-control"
+                            >
                         </div>
                         <div class="col-md-6 form-group">
                             <label>Telefono remitente</label>
-                            <input type="text" name="telefono_remitente" value="{{ old('telefono_remitente') }}" class="form-control">
+                            <input type="text" name="telefono_remitente" value="{{ old('telefono_remitente', $cliente->telefono) }}" class="form-control">
                         </div>
                         <div class="col-md-6 form-group mb-0">
                             <label>Direccion de recojo</label>
-                            <input type="text" name="direccion_recojo" value="{{ old('direccion_recojo') }}" class="form-control">
+                            <input type="text" name="direccion_recojo" value="{{ old('direccion_recojo', $cliente->direccion) }}" class="form-control">
                         </div>
                     </div>
                 </div>
@@ -121,7 +132,13 @@
                         </div>
                         <div class="col-md-12 form-group mb-0">
                             <label>Direccion de entrega</label>
-                            <input type="text" name="direccion_entrega" value="{{ old('direccion_entrega') }}" class="form-control">
+                            <input
+                                type="text"
+                                id="direccion_entrega"
+                                name="direccion_entrega"
+                                value="{{ old('direccion_entrega') }}"
+                                class="form-control"
+                            >
                         </div>
                     </div>
                 </div>
@@ -134,3 +151,39 @@
         </form>
     </div>
 @endsection
+
+@push('js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const servicioSelect = document.getElementById('servicio_extra_id');
+    const direccionInput = document.getElementById('direccion_entrega');
+
+    if (!servicioSelect || !direccionInput) {
+        return;
+    }
+
+    const defaultDireccion = direccionInput.value;
+
+    function syncDireccionEntrega() {
+        const selectedOption = servicioSelect.options[servicioSelect.selectedIndex];
+        const servicioNombre = (selectedOption?.dataset?.servicioNombre || '').toLowerCase();
+        const esVentanillaAVentanilla = servicioNombre.includes('ventanilla a ventanilla');
+
+        if (esVentanillaAVentanilla) {
+            direccionInput.value = 'CORREOS DE BOLIVIA';
+            direccionInput.setAttribute('readonly', 'readonly');
+            return;
+        }
+
+        direccionInput.removeAttribute('readonly');
+
+        if (direccionInput.value === 'CORREOS DE BOLIVIA' && defaultDireccion !== 'CORREOS DE BOLIVIA') {
+            direccionInput.value = defaultDireccion;
+        }
+    }
+
+    servicioSelect.addEventListener('change', syncDireccionEntrega);
+    syncDireccionEntrega();
+});
+</script>
+@endpush

@@ -15,6 +15,7 @@ class EventosTabla extends Component
         'certi' => 'eventos-certi.index',
         'ordi' => 'eventos-ordi.index',
         'contrato' => 'eventos-contrato.index',
+        'tiktoker' => 'eventos-tiktoker.index',
         'despacho' => 'eventos-despacho.index',
     ];
 
@@ -25,6 +26,7 @@ class EventosTabla extends Component
     public $codigo = '';
     public $evento_id = '';
     public $user_id = '';
+    public $cliente_id = '';
 
     protected $paginationTheme = 'bootstrap';
 
@@ -60,6 +62,9 @@ class EventosTabla extends Component
         $this->codigo = (string) $registro->codigo;
         $this->evento_id = (string) $registro->evento_id;
         $this->user_id = (string) $registro->user_id;
+        $this->cliente_id = property_exists($registro, 'cliente_id') && $registro->cliente_id !== null
+            ? (string) $registro->cliente_id
+            : '';
 
         $this->dispatch('openEventosTablaModal');
     }
@@ -72,8 +77,12 @@ class EventosTabla extends Component
         $payload = [
             'codigo' => trim((string) $this->codigo),
             'evento_id' => (int) $this->evento_id,
-            'user_id' => (int) $this->user_id,
+            'user_id' => $this->user_id !== '' ? (int) $this->user_id : null,
         ];
+
+        if ($this->supportsClienteId()) {
+            $payload['cliente_id'] = $this->cliente_id !== '' ? (int) $this->cliente_id : null;
+        }
 
         if ($this->editingId) {
             DB::table($this->tableName())
@@ -103,7 +112,7 @@ class EventosTabla extends Component
 
     public function resetForm(): void
     {
-        $this->reset(['codigo', 'evento_id', 'user_id']);
+        $this->reset(['codigo', 'evento_id', 'user_id', 'cliente_id']);
         $this->resetValidation();
     }
 
@@ -115,20 +124,25 @@ class EventosTabla extends Component
         $registros = DB::table($table . ' as t')
             ->leftJoin('eventos as e', 'e.id', '=', 't.evento_id')
             ->leftJoin('users as u', 'u.id', '=', 't.user_id')
+            ->leftJoin('clientes as c', 'c.id', '=', 't.cliente_id')
             ->select([
                 't.id',
                 't.codigo',
                 't.evento_id',
                 't.user_id',
+                't.cliente_id',
                 't.created_at',
                 'e.nombre_evento as evento_nombre',
                 'u.name as usuario_nombre',
+                DB::raw("COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(c.name), '')) as actor_nombre"),
+                'c.name as cliente_nombre',
             ])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('t.codigo', 'ILIKE', '%' . $q . '%')
                         ->orWhere('e.nombre_evento', 'ILIKE', '%' . $q . '%')
-                        ->orWhere('u.name', 'ILIKE', '%' . $q . '%');
+                        ->orWhere('u.name', 'ILIKE', '%' . $q . '%')
+                        ->orWhere('c.name', 'ILIKE', '%' . $q . '%');
                 });
             })
             ->orderByDesc('t.id')
@@ -138,10 +152,14 @@ class EventosTabla extends Component
             'registros' => $registros,
             'eventos' => DB::table('eventos')->orderBy('nombre_evento')->get(['id', 'nombre_evento']),
             'users' => DB::table('users')->orderBy('name')->get(['id', 'name']),
+            'clientes' => $this->supportsClienteId()
+                ? DB::table('clientes')->orderBy('name')->get(['id', 'name'])
+                : collect(),
             'config' => $this->pageConfig(),
             'canEventosCreate' => $this->userCan($this->featurePermission('create')),
             'canEventosEdit' => $this->userCan($this->featurePermission('edit')),
             'canEventosDelete' => $this->userCan($this->featurePermission('delete')),
+            'supportsClienteId' => $this->supportsClienteId(),
         ]);
     }
 
@@ -150,7 +168,12 @@ class EventosTabla extends Component
         return [
             'codigo' => ['required', 'string', 'max:255'],
             'evento_id' => ['required', 'integer', Rule::exists('eventos', 'id')],
-            'user_id' => ['required', 'integer', Rule::exists('users', 'id')],
+            'user_id' => $this->supportsClienteId()
+                ? ['nullable', 'integer', Rule::exists('users', 'id')]
+                : ['required', 'integer', Rule::exists('users', 'id')],
+            'cliente_id' => $this->supportsClienteId()
+                ? ['nullable', 'integer', Rule::exists('clientes', 'id')]
+                : ['nullable'],
         ];
     }
 
@@ -162,7 +185,7 @@ class EventosTabla extends Component
     protected function normalizeTipo(string $tipo): string
     {
         $tipo = strtolower(trim($tipo));
-        return in_array($tipo, ['ems', 'certi', 'ordi', 'contrato', 'despacho'], true) ? $tipo : 'ems';
+        return in_array($tipo, ['ems', 'certi', 'ordi', 'contrato', 'tiktoker', 'despacho'], true) ? $tipo : 'ems';
     }
 
     protected function pageConfig(): array
@@ -182,6 +205,11 @@ class EventosTabla extends Component
                 'title' => 'Eventos CONTRATO',
                 'singular' => 'Registro CONTRATO',
                 'table' => 'eventos_contrato',
+            ],
+            'tiktoker' => [
+                'title' => 'Eventos TIKTOKER',
+                'singular' => 'Registro TIKTOKER',
+                'table' => 'eventos_tiktoker',
             ],
             'despacho' => [
                 'title' => 'Eventos Despacho',
@@ -211,6 +239,11 @@ class EventosTabla extends Component
         $user = auth()->user();
 
         return $user ? $user->can($permission) : false;
+    }
+
+    private function supportsClienteId(): bool
+    {
+        return $this->tipo === 'tiktoker';
     }
 
     private function authorizePermission(string $permission): void

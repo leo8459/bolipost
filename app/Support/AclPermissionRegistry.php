@@ -50,7 +50,9 @@ class AclPermissionRegistry
     private const FEATURE_ACTION_LABELS = [
         'view' => 'Botones de visualizacion',
         'create' => 'Botones de registro',
+        'save' => 'Botones de guardado',
         'edit' => 'Botones de edicion',
+        'duplicate' => 'Botones de duplicado',
         'reencaminar' => 'Botones de reencaminado',
         'delete' => 'Botones de eliminacion',
         'dropoff' => 'Botones de baja',
@@ -64,6 +66,7 @@ class AclPermissionRegistry
         'attempt' => 'Botones de intento',
         'guide' => 'Botones de guia/provincia',
         'province' => 'Botones de vista provincia',
+        'opensacas' => 'Botones de apertura de sacas',
         'report' => 'Botones de reporte',
         'print' => 'Botones de impresion/boleta',
         'manage' => 'Botones de administracion general',
@@ -149,6 +152,7 @@ class AclPermissionRegistry
         'ordi' => 'eventos-ordi',
         'despacho' => 'eventos-despacho',
         'contrato' => 'eventos-contrato',
+        'tiktoker' => 'eventos-tiktoker',
     ];
 
     /**
@@ -162,6 +166,7 @@ class AclPermissionRegistry
         'ordi' => 'eventos-ordi.index',
         'despacho' => 'eventos-despacho.index',
         'contrato' => 'eventos-contrato.index',
+        'tiktoker' => 'eventos-tiktoker.index',
     ];
 
     /**
@@ -284,7 +289,7 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const WINDOW_FEATURE_ALLOWLIST = [
-        'despachos.abiertos' => ['create', 'edit', 'delete', 'assign', 'confirm', 'restore'],
+        'despachos.abiertos' => ['create', 'edit', 'delete', 'opensacas', 'confirm', 'restore'],
         'despachos.expedicion' => ['print', 'confirm', 'restore', 'edit'],
         'despachos.admitidos' => ['assign', 'confirm'],
         'despachos.todos' => [],
@@ -293,6 +298,7 @@ class AclPermissionRegistry
         'eventos-ordi.index' => ['create', 'edit', 'delete'],
         'eventos-despacho.index' => ['create', 'edit', 'delete'],
         'eventos-contrato.index' => ['create', 'edit', 'delete'],
+        'eventos-tiktoker.index' => ['create', 'edit', 'delete'],
         'paquetes-contrato.index' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.almacen' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.recoger-envios' => ['assign', 'print'],
@@ -303,7 +309,7 @@ class AclPermissionRegistry
         'paquetes-ems.index' => ['create', 'edit', 'delete', 'print', 'assign'],
         'paquetes-ems.create' => ['create'],
         'paquetes-ems.almacen' => ['create', 'edit', 'print', 'restore', 'registercontract', 'weighcontract', 'sendventanilla', 'sendregional', 'reprintcn33'],
-        'paquetes-ems.contrato-rapido.create' => ['create', 'delete'],
+        'paquetes-ems.contrato-rapido.create' => ['create', 'save', 'delete'],
         'paquetes-ems.ventanilla' => ['deliver', 'edit', 'print'],
         'paquetes-ems.recibir-regional' => ['assign', 'edit', 'print'],
         'paquetes-ems.en-transito' => ['edit', 'print'],
@@ -316,6 +322,8 @@ class AclPermissionRegistry
         'paquetes-certificados.inventario' => ['edit', 'delete', 'assign', 'export'],
         'paquetes-certificados.rezago' => ['edit', 'delete', 'assign'],
         'paquetes-certificados.todos' => ['edit', 'delete'],
+        'servicios.index' => ['create', 'edit', 'delete'],
+        'sucursales.index' => ['create', 'edit', 'delete'],
         'sacas.index' => ['create', 'edit', 'delete', 'assign', 'confirm'],
     ];
 
@@ -458,6 +466,10 @@ class AclPermissionRegistry
             'feature.paquetes-ems.index.create',
             'feature.paquetes-ems.almacen.create',
         ],
+        'sacas.index' => [
+            'sacas.index',
+            'feature.despachos.abiertos.opensacas',
+        ],
         'paquetes-ems.boleta' => [
             'paquetes-ems.boleta',
             'feature.paquetes-ems.index.print',
@@ -467,6 +479,11 @@ class AclPermissionRegistry
             'feature.paquetes-ems.en-transito.print',
             'feature.paquetes-ems.index.create',
             'feature.paquetes-ems.almacen.create',
+        ],
+        'paquetes-ems.contrato-rapido.store' => [
+            'paquetes-ems.contrato-rapido.store',
+            'feature.paquetes-ems.contrato-rapido.create.save',
+            'feature.paquetes-ems.contrato-rapido.create.create',
         ],
     ];
 
@@ -1390,7 +1407,8 @@ class AclPermissionRegistry
             'feature.paquetes-ems.almacen.sendventanilla' => 'Boton: Enviar a ventanilla EMS',
             'feature.paquetes-ems.almacen.sendregional' => 'Boton: Manda a regional',
             'feature.paquetes-ems.almacen.reprintcn33' => 'Boton: Reimprimir CN-33',
-            'feature.paquetes-ems.contrato-rapido.create.create' => 'Boton: Anadir / Guardar prelista',
+            'feature.paquetes-ems.contrato-rapido.create.create' => 'Boton: Anadir a prelista / Duplicar',
+            'feature.paquetes-ems.contrato-rapido.create.save' => 'Boton: Guardar todos',
             'feature.paquetes-ems.contrato-rapido.create.delete' => 'Boton: Quitar de prelista',
             'feature.paquetes-ems.ventanilla.deliver' => 'Boton: Entregar seleccionados',
             'feature.paquetes-ems.ventanilla.print' => 'Boton: Reimprimir boleta',
@@ -1423,10 +1441,19 @@ class AclPermissionRegistry
             'feature.eventos-contrato.index.create' => 'Boton: Nuevo registro Contrato',
             'feature.eventos-contrato.index.edit' => 'Boton: Editar registro Contrato',
             'feature.eventos-contrato.index.delete' => 'Boton: Eliminar registro Contrato',
+            'feature.eventos-tiktoker.index.create' => 'Boton: Nuevo registro Tiktoker',
+            'feature.eventos-tiktoker.index.edit' => 'Boton: Editar registro Tiktoker',
+            'feature.eventos-tiktoker.index.delete' => 'Boton: Eliminar registro Tiktoker',
+            'feature.servicios.create' => 'Boton: Nuevo servicio / Guardar servicio',
+            'feature.servicios.edit' => 'Boton: Editar servicio / Guardar cambios',
+            'feature.servicios.delete' => 'Boton: Dar de baja servicio',
+            'feature.sucursales.create' => 'Boton: Nueva sucursal / Guardar sucursal',
+            'feature.sucursales.edit' => 'Boton: Editar sucursal / Guardar cambios',
+            'feature.sucursales.delete' => 'Boton: Dar de baja sucursal',
             'feature.despachos.abiertos.create' => 'Boton: Nuevo despacho',
             'feature.despachos.abiertos.edit' => 'Boton: Editar despacho',
             'feature.despachos.abiertos.delete' => 'Boton: Eliminar despacho',
-            'feature.despachos.abiertos.assign' => 'Boton: Abrir sacas',
+            'feature.despachos.abiertos.opensacas' => 'Boton: Abrir sacas',
             'feature.despachos.abiertos.confirm' => 'Boton: Enviar a expedicion',
             'feature.despachos.abiertos.restore' => 'Boton: Reapertura de saca',
             'feature.despachos.expedicion.print' => 'Boton: Reimprimir CN',
@@ -1620,7 +1647,8 @@ class AclPermissionRegistry
             'feature.paquetes-ems.almacen.sendventanilla' => 'Controla el boton Enviar a ventanilla EMS dentro de la ventana Almacen EMS.',
             'feature.paquetes-ems.almacen.sendregional' => 'Controla el boton Manda a regional y su modal dentro de la ventana Almacen EMS.',
             'feature.paquetes-ems.almacen.reprintcn33' => 'Controla el boton Reimprimir CN-33 dentro de la ventana Almacen EMS.',
-            'feature.paquetes-ems.contrato-rapido.create.create' => 'Controla Anadir a prelista y Guardar todos dentro del submenu Registro rapido contrato.',
+            'feature.paquetes-ems.contrato-rapido.create.create' => 'Controla Anadir a prelista y el boton Duplicar dentro del submenu Registro rapido contrato.',
+            'feature.paquetes-ems.contrato-rapido.create.save' => 'Controla el boton Guardar todos dentro del submenu Registro rapido contrato.',
             'feature.paquetes-ems.contrato-rapido.create.delete' => 'Controla Quitar dentro del submenu Registro rapido contrato.',
             'feature.paquetes-ems.ventanilla.deliver' => 'Controla Entregar seleccionados dentro de la ventana Ventanilla EMS.',
             'feature.paquetes-ems.ventanilla.print' => 'Controla Reimprimir boleta dentro de la ventana Ventanilla EMS.',
@@ -1653,10 +1681,19 @@ class AclPermissionRegistry
             'feature.eventos-contrato.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos Contrato.',
             'feature.eventos-contrato.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Eventos Contrato.',
             'feature.eventos-contrato.index.delete' => 'Controla el boton Eliminar dentro de la ventana Eventos Contrato.',
+            'feature.eventos-tiktoker.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos Tiktoker.',
+            'feature.eventos-tiktoker.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Eventos Tiktoker.',
+            'feature.eventos-tiktoker.index.delete' => 'Controla el boton Eliminar dentro de la ventana Eventos Tiktoker.',
+            'feature.servicios.create' => 'Controla el boton Crear Nuevo y Guardar dentro del modulo Servicios.',
+            'feature.servicios.edit' => 'Controla el boton Editar y Guardar cambios dentro del modulo Servicios.',
+            'feature.servicios.delete' => 'Controla el boton Dar de baja dentro del modulo Servicios.',
+            'feature.sucursales.create' => 'Controla el boton Crear Nuevo y Guardar dentro del modulo Sucursales.',
+            'feature.sucursales.edit' => 'Controla el boton Editar y Guardar cambios dentro del modulo Sucursales.',
+            'feature.sucursales.delete' => 'Controla el boton Dar de baja dentro del modulo Sucursales.',
             'feature.despachos.abiertos.create' => 'Controla el boton Nuevo en la ventana Despachos abiertos.',
             'feature.despachos.abiertos.edit' => 'Controla el boton Editar en la ventana Despachos abiertos.',
             'feature.despachos.abiertos.delete' => 'Controla el boton Eliminar en la ventana Despachos abiertos.',
-            'feature.despachos.abiertos.assign' => 'Controla el boton Abrir/Asignar sacas desde la ventana Despachos abiertos.',
+            'feature.despachos.abiertos.opensacas' => 'Controla solo el boton Abrir sacas desde la ventana Despachos abiertos.',
             'feature.despachos.abiertos.confirm' => 'Controla el boton Enviar a expedicion y su impresion automatica.',
             'feature.despachos.abiertos.restore' => 'Controla el boton Reapertura de saca en la ventana Despachos abiertos.',
             'feature.despachos.expedicion.print' => 'Controla el boton Reimprimir CN dentro de la ventana Despachos expedicion.',

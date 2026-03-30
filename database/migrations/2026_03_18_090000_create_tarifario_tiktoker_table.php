@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('origen_id')->constrained('origen')->cascadeOnUpdate()->restrictOnDelete();
             $table->foreignId('destino_id')->constrained('destino')->cascadeOnUpdate()->restrictOnDelete();
+            $table->foreignId('servicio_extra_id')->nullable()->constrained('servicio_extras')->cascadeOnUpdate()->nullOnDelete();
             $table->decimal('peso1', 10, 2);
             $table->decimal('peso2', 10, 2);
             $table->decimal('peso3', 10, 2);

@@ -1,0 +1,994 @@
+(() => {
+    if (window.__casPesoQzInit) {
+        return;
+    }
+    window.__casPesoQzInit = true;
+
+    const fullCfg = window.CAS_PESAJE_CONFIG ?? {};
+    const cfg = fullCfg.serial ?? {};
+    const endpoints = {
+        certificate: fullCfg.endpoints?.certificate ?? '/qz/certificate',
+        sign: fullCfg.endpoints?.sign ?? '/qz/sign',
+    };
+
+    const state = {
+        booted: false,
+        port: null,
+        connecting: false,
+        recovering: false,
+        pollTimer: null,
+        dataWatchdogTimer: null,
+        lastSerialDataAt: 0,
+        lifecycleBound: false,
+        inputActivationBound: false,
+        serialCallbacksBound: false,
+        serialBuffer: '',
+        serialBufferUpdatedAt: 0,
+        activeInputId: null,
+    };
+
+    const serial = {
+        baudRate: Number(cfg.baudRate ?? 9600),
+        dataBits: Number(cfg.dataBits ?? 7),
+        stopBits: Number(cfg.stopBits ?? 1),
+        parity: cfg.parity ?? 'EVEN',
+        flowControl: cfg.flowControl ?? 'NONE',
+        encoding: cfg.encoding ?? 'UTF-8',
+        rxStart: cfg.rxStart ?? '',
+        rxEnd: cfg.rxEnd ?? '\r',
+        rxUntilNewline: Boolean(cfg.rxUntilNewline ?? false),
+        rxWidth: cfg.rxWidth ?? null,
+        rxRaw: Boolean(cfg.rxRaw ?? false),
+        startCommand: decodeEscaped(cfg.startCommand ?? 'W'),
+        stopCommand: decodeEscaped(cfg.stopCommand ?? ''),
+        portRegex: cfg.portRegex ?? '^COM\\d+$',
+        pollCommands: normalizePollCommands(cfg.pollCommands ?? []),
+        pollGapMs: Number(cfg.pollGapMs ?? 120),
+        pollEveryMs: Number(cfg.pollEveryMs ?? 900),
+        noDataTimeoutMs: Number(cfg.noDataTimeoutMs ?? 8000),
+    };
+
+    waitForPesoFieldsAndBoot();
+
+    function waitForPesoFieldsAndBoot() {
+        if (hasPesoInputs()) {
+            boot();
+            return;
+        }
+
+        const observer = new MutationObserver(() => {
+            if (!hasPesoInputs()) {
+                return;
+            }
+
+            observer.disconnect();
+            boot();
+        });
+
+        observer.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+        });
+    }
+
+    function hasPesoInputs() {
+        return Boolean(document.querySelector('[data-cas-peso-input]'));
+    }
+
+    function boot() {
+        if (state.booted) {
+            return;
+        }
+
+        state.booted = true;
+        bindLifecycleEvents();
+        bindInputActivation();
+
+        document.addEventListener('click', async (event) => {
+            const togglePanelBtn = event.target.closest('[data-cas-toggle-panel]');
+            if (togglePanelBtn) {
+                toggleStatusPanel(togglePanelBtn);
+                return;
+            }
+
+            const clearBtn = event.target.closest('[data-cas-clear]');
+            if (clearBtn) {
+                clearPesoInput(clearBtn);
+                return;
+            }
+
+            const reconnectBtn = event.target.closest('[data-cas-reconnect]');
+            if (!reconnectBtn) {
+                return;
+            }
+
+            reconnectBtn.disabled = true;
+            try {
+                await reconnect();
+            } finally {
+                reconnectBtn.disabled = false;
+            }
+        });
+
+        connectAndRead().catch(() => {
+            // El estado visual ya queda reflejado en los pills
+        });
+    }
+
+    function bindInputActivation() {
+        if (state.inputActivationBound) {
+            return;
+        }
+
+        state.inputActivationBound = true;
+
+        const markFromEvent = (event) => {
+            const input = event.target?.closest?.('[data-cas-peso-input]');
+            if (!input) {
+                return;
+            }
+
+            rememberActivePesoInput(input);
+        };
+
+        document.addEventListener('focusin', markFromEvent);
+        document.addEventListener('pointerdown', markFromEvent);
+
+        const initialInput = resolveTargetPesoInput();
+        if (initialInput) {
+            rememberActivePesoInput(initialInput);
+        }
+    }
+
+    function bindLifecycleEvents() {
+        if (state.lifecycleBound) {
+            return;
+        }
+
+        state.lifecycleBound = true;
+
+        window.addEventListener('pagehide', () => {
+            releasePortForBackground(true).catch(() => {});
+        });
+
+        window.addEventListener('beforeunload', () => {
+            releasePortForBackground(true).catch(() => {});
+        });
+    }
+
+    async function reconnect() {
+        stopPolling();
+        stopDataWatchdog();
+        await closeCurrentPort();
+        await connectAndRead();
+    }
+
+    async function connectAndRead() {
+        if (!hasPesoInputs() || state.connecting) {
+            return;
+        }
+
+        state.connecting = true;
+
+        try {
+            markQzPending('Esperando libreria QZ...');
+            await waitForQz();
+            ensureQzApi();
+            configureSecuritySigned();
+            bindWebSocketClose();
+            bindSerialCallbacks();
+
+            await ensureSocket();
+            const port = await openPortAuto();
+            state.port = port;
+
+            await sendStartCommand(port);
+
+            state.lastSerialDataAt = Date.now();
+            markQzOk('QZ conectado');
+            markPortOk(`Leyendo ${port}`);
+            startPolling();
+            startDataWatchdog();
+        } catch (error) {
+            markQzError(errorMessage(error, 'Error de conexion'));
+            markPortError('Sin puerto');
+            stopPolling();
+            stopDataWatchdog();
+            await closeCurrentPort();
+            throw error;
+        } finally {
+            state.connecting = false;
+        }
+    }
+
+    async function waitForQz() {
+        const timeoutAt = Date.now() + 10000;
+
+        while (Date.now() < timeoutAt) {
+            if (window.qz) {
+                return;
+            }
+            await sleep(200);
+        }
+
+        throw new Error('QZ Tray JS no esta disponible');
+    }
+
+    function ensureQzApi() {
+        if (!window.qz) {
+            throw new Error('QZ no esta cargado');
+        }
+
+        if (!qz.security || !qz.websocket || !qz.serial) {
+            throw new Error('La API de QZ Tray esta incompleta');
+        }
+    }
+
+    function configureSecuritySigned() {
+        qz.security.setCertificatePromise((resolve, reject) => {
+            fetch(endpoints.certificate, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { Accept: 'text/plain' },
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error(`Certificado no disponible (${response.status})`);
+                    }
+                    return response.text();
+                })
+                .then((text) => {
+                    const certificate = text.trim();
+
+                    if (!certificate.startsWith('-----BEGIN CERTIFICATE-----')) {
+                        throw new Error('Certificado invalido. Revisa el endpoint /qz/certificate');
+                    }
+
+                    return certificate;
+                })
+                .then(resolve)
+                .catch((error) => reject(errorMessage(error, 'No se pudo obtener certificado')));
+        });
+
+        qz.security.setSignatureAlgorithm('SHA512');
+
+        qz.security.setSignaturePromise((toSign) => {
+            const signPayload = Array.isArray(toSign) ? toSign[0] : toSign;
+
+            return (resolve, reject) => {
+                fetch(endpoints.sign, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'text/plain',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken(),
+                    },
+                    body: JSON.stringify({ request: signPayload }),
+                })
+                    .then(async (response) => {
+                        const text = await response.text();
+
+                        if (!response.ok) {
+                            throw new Error(text || `Firma no disponible (${response.status})`);
+                        }
+
+                        const signature = text.trim();
+
+                        if (!isLikelyBase64(signature)) {
+                            throw new Error('Firma invalida. Revisa sesion/autenticacion y endpoint /qz/sign');
+                        }
+
+                        return signature;
+                    })
+                    .then(resolve)
+                    .catch((error) => reject(errorMessage(error, 'No se pudo firmar solicitud')));
+            };
+        });
+    }
+
+    function bindWebSocketClose() {
+        if (typeof qz.websocket.setClosedCallbacks === 'function') {
+            qz.websocket.setClosedCallbacks(() => {
+                stopPolling();
+                stopDataWatchdog();
+                state.port = null;
+                markQzPending('QZ desconectado');
+                markPortError('Sin puerto');
+            });
+        }
+    }
+
+    function bindSerialCallbacks() {
+        if (state.serialCallbacksBound) {
+            return;
+        }
+
+        qz.serial.setSerialCallbacks((event) => {
+            if (isSerialErrorEvent(event)) {
+                handlePortFailure('Balanza desconectada');
+                return;
+            }
+
+            const output = toOutput(event);
+            if (!output) {
+                return;
+            }
+            state.lastSerialDataAt = Date.now();
+
+            const chunks = splitIncomingChunks(output);
+
+            for (const chunk of chunks) {
+                const frame = sanitize(chunk);
+                if (!frame) {
+                    continue;
+                }
+
+                setFrameText(frame);
+
+                const parsed = parseCasWeight(frame);
+                if (!parsed) {
+                    continue;
+                }
+
+                setPesoValue(parsed.kg);
+
+                if (parsed.stable) {
+                    markPortOk(`Leyendo ${state.port} (estable)`);
+                } else {
+                    markPortPending(`Leyendo ${state.port} (inestable)`);
+                }
+            }
+        });
+
+        state.serialCallbacksBound = true;
+    }
+
+    async function ensureSocket() {
+        if (qz.websocket.isActive()) {
+            return;
+        }
+
+        await qz.websocket.connect({
+            retries: 0,
+            delay: 0,
+        });
+    }
+
+    async function openPortAuto() {
+        const ports = await qz.serial.findPorts();
+
+        if (!Array.isArray(ports) || ports.length === 0) {
+            throw new Error('No hay puertos seriales detectados');
+        }
+
+        const ordered = orderPorts(ports);
+
+        const openOptions = {
+            baudRate: serial.baudRate,
+            dataBits: serial.dataBits,
+            stopBits: serial.stopBits,
+            parity: serial.parity,
+            flowControl: serial.flowControl,
+            encoding: serial.encoding,
+        };
+
+        const rxOptions = buildRxOptions();
+        if (rxOptions !== null) {
+            openOptions.rx = rxOptions;
+        }
+
+        for (const port of ordered) {
+            try {
+                await closeCurrentPort();
+                await qz.serial.openPort(port, openOptions);
+                localStorage.setItem('cas:last_port', port);
+                return port;
+            } catch (_error) {
+                // prueba con el siguiente puerto
+            }
+        }
+
+        throw new Error('No se pudo abrir un puerto para la CAS PR II');
+    }
+
+    function orderPorts(ports) {
+        const remembered = localStorage.getItem('cas:last_port');
+        const regex = safeRegex(serial.portRegex, /^COM\d+$/i);
+        const all = [...new Set(ports)];
+        const preferred = all.filter((port) => regex.test(port));
+        const rest = all.filter((port) => !regex.test(port));
+        const ordered = [...preferred, ...rest];
+
+        if (remembered && ordered.includes(remembered)) {
+            return [remembered, ...ordered.filter((port) => port !== remembered)];
+        }
+
+        return ordered;
+    }
+
+    function startPolling() {
+        stopPolling();
+
+        const commands = serial.pollCommands;
+        if (commands.length === 0) {
+            return;
+        }
+
+        state.pollTimer = setInterval(async () => {
+            if (!state.port) {
+                return;
+            }
+
+            try {
+                await sendPollCommands(state.port, commands);
+            } catch (_error) {
+                handlePortFailure('Error de lectura');
+            }
+        }, serial.pollEveryMs);
+    }
+
+    function stopPolling() {
+        if (state.pollTimer) {
+            clearInterval(state.pollTimer);
+            state.pollTimer = null;
+        }
+
+        state.serialBuffer = '';
+    }
+
+    function startDataWatchdog() {
+        stopDataWatchdog();
+
+        const timeoutMs = Number(serial.noDataTimeoutMs);
+        if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+            return;
+        }
+
+        const tickMs = Math.max(1000, Math.min(2500, Math.floor(timeoutMs / 3)));
+        state.dataWatchdogTimer = setInterval(() => {
+            if (!state.port || state.connecting || state.recovering) {
+                return;
+            }
+
+            const lastDataAt = Number(state.lastSerialDataAt);
+            if (!Number.isFinite(lastDataAt) || lastDataAt <= 0) {
+                return;
+            }
+
+            if (Date.now() - lastDataAt < timeoutMs) {
+                return;
+            }
+
+            handlePortFailure('Sin datos de balanza');
+        }, tickMs);
+    }
+
+    function stopDataWatchdog() {
+        if (!state.dataWatchdogTimer) {
+            return;
+        }
+
+        clearInterval(state.dataWatchdogTimer);
+        state.dataWatchdogTimer = null;
+    }
+
+    function handlePortFailure(message = 'Sin puerto') {
+        if (state.recovering) {
+            return;
+        }
+
+        state.recovering = true;
+        stopPolling();
+        stopDataWatchdog();
+        markPortError(message);
+
+        Promise.resolve()
+            .then(async () => {
+                await closeCurrentPort();
+            })
+            .finally(() => {
+                state.recovering = false;
+            });
+    }
+
+    async function releasePortForBackground(silent = false) {
+        stopPolling();
+        stopDataWatchdog();
+        await closeCurrentPort();
+
+        if (window.qz?.websocket?.isActive?.()) {
+            try {
+                await qz.websocket.disconnect();
+            } catch (_error) {
+                // ignore
+            }
+        }
+
+        if (!silent) {
+            markQzPending('Pestana inactiva');
+            markPortPending('Puerto liberado');
+        }
+    }
+
+    async function closeCurrentPort() {
+        if (!state.port) {
+            return;
+        }
+
+        const port = state.port;
+
+        try {
+            await sendStopCommand(port);
+        } catch (_error) {
+            // ignore
+        }
+
+        try {
+            await qz.serial.closePort(port);
+        } catch (_error) {
+            // ignore
+        } finally {
+            state.port = null;
+            state.serialBuffer = '';
+            state.serialBufferUpdatedAt = 0;
+            state.lastSerialDataAt = 0;
+        }
+    }
+
+    function parseCasWeight(frame) {
+        if (!frame) {
+            return null;
+        }
+
+        const normalized = frame.toLowerCase();
+        if (
+            normalized === 'k' ||
+            normalized === 'g' ||
+            normalized === 'kg' ||
+            normalized === 'lb' ||
+            normalized === '.'
+        ) {
+            return null;
+        }
+
+        const compactCas = frame.match(/^0(\d{4})$/);
+        if (compactCas) {
+            const kgCompact = Number.parseInt(compactCas[1], 10) / 100;
+            if (!Number.isNaN(kgCompact)) {
+                return { kg: kgCompact, stable: true };
+            }
+        }
+
+        const stable = /\bST\b/i.test(frame) || !/\bUS\b/i.test(frame);
+        const match = frame.match(/([-+]?\d{1,6}(?:[.,]\d{1,3})?)\s*(kg|g|lb)?/i);
+
+        if (!match) {
+            return null;
+        }
+
+        const raw = match[1].replace(',', '.');
+        const value = Number.parseFloat(raw);
+
+        if (Number.isNaN(value)) {
+            return null;
+        }
+
+        const unit = (match[2] || 'kg').toLowerCase();
+        let kg = value;
+
+        if (unit === 'g') {
+            kg = value / 1000;
+        } else if (unit === 'lb') {
+            kg = value * 0.45359237;
+        }
+
+        if (kg < 0) {
+            kg = 0;
+        }
+
+        return { kg, stable };
+    }
+
+    function sanitize(text) {
+        return String(text)
+            .replace(/[\x00-\x1F\x7F]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 120);
+    }
+
+    function toOutput(event) {
+        if (typeof event === 'string') {
+            return event;
+        }
+
+        if (typeof event?.data === 'string') {
+            return event.data;
+        }
+
+        if (typeof event?.output === 'string') {
+            return event.output;
+        }
+
+        if (Array.isArray(event?.data)) {
+            return decodeByteArray(event.data);
+        }
+
+        if (Array.isArray(event?.output)) {
+            return decodeByteArray(event.output);
+        }
+
+        return '';
+    }
+
+    function splitIncomingChunks(text) {
+        const source = String(text ?? '');
+        if (source === '') {
+            return [];
+        }
+
+        const now = Date.now();
+
+        if (state.serialBuffer && now - state.serialBufferUpdatedAt > 300) {
+            state.serialBuffer = '';
+        }
+
+        state.serialBufferUpdatedAt = now;
+        state.serialBuffer += source;
+
+        const chunks = [];
+        let current = '';
+
+        for (const ch of state.serialBuffer) {
+            if (ch === '\r' || ch === '\n' || ch.charCodeAt(0) === 0x04) {
+                if (current !== '') {
+                    chunks.push(current);
+                    current = '';
+                }
+                continue;
+            }
+
+            current += ch;
+        }
+
+        state.serialBuffer = current;
+
+        if (state.serialBuffer.length > 80) {
+            chunks.push(state.serialBuffer);
+            state.serialBuffer = '';
+        }
+
+        return chunks;
+    }
+
+    function decodeByteArray(values) {
+        if (!Array.isArray(values)) {
+            return '';
+        }
+
+        const allNumeric = values.every((v) => Number.isFinite(Number(v)));
+        if (!allNumeric) {
+            return values.join(' ');
+        }
+
+        return values
+            .map((v) => String.fromCharCode(Number(v) & 0xff))
+            .join('');
+    }
+
+    function normalizePollCommands(rawCommands) {
+        if (Array.isArray(rawCommands)) {
+            return rawCommands
+                .map((cmd) => decodeEscaped(cmd))
+                .filter((cmd) => cmd !== '');
+        }
+
+        const single = decodeEscaped(rawCommands);
+        if (!single) {
+            return [];
+        }
+
+        return [single];
+    }
+
+    function buildRxOptions() {
+        if (serial.rxRaw) {
+            return {};
+        }
+
+        const start = decodeEscaped(serial.rxStart ?? '');
+        const end = decodeEscaped(serial.rxEnd ?? '');
+        const untilNewline = Boolean(serial.rxUntilNewline);
+        const widthNumber = Number.parseInt(String(serial.rxWidth), 10);
+        const hasWidth = Number.isFinite(widthNumber) && widthNumber > 0;
+
+        const rx = {};
+
+        if (start) {
+            rx.start = start;
+        }
+
+        if (end) {
+            rx.end = end;
+        }
+
+        if (hasWidth) {
+            rx.width = widthNumber;
+        }
+
+        if (untilNewline) {
+            rx.untilNewline = true;
+        }
+
+        return Object.keys(rx).length > 0 ? rx : null;
+    }
+
+    async function sendPollCommands(port, commands) {
+        for (let i = 0; i < commands.length; i += 1) {
+            await qz.serial.sendData(port, commands[i]);
+
+            if (i < commands.length - 1) {
+                await sleep(serial.pollGapMs);
+            }
+        }
+    }
+
+    async function sendStartCommand(port) {
+        if (!serial.startCommand) {
+            return;
+        }
+
+        await qz.serial.sendData(port, serial.startCommand);
+    }
+
+    async function sendStopCommand(port) {
+        if (!serial.stopCommand) {
+            return;
+        }
+
+        await qz.serial.sendData(port, serial.stopCommand);
+    }
+
+    function decodeEscaped(text) {
+        return String(text)
+            .replace(/\\x([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+            .replace(/\\r/g, '\r')
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t');
+    }
+
+    function safeRegex(pattern, fallback) {
+        try {
+            return new RegExp(pattern, 'i');
+        } catch (_error) {
+            return fallback;
+        }
+    }
+
+    function isSerialErrorEvent(event) {
+        if (!event || typeof event !== 'object') {
+            return false;
+        }
+
+        if (String(event.type ?? '').toUpperCase() === 'ERROR') {
+            return true;
+        }
+
+        if (event.exception instanceof Error) {
+            return true;
+        }
+
+        if (typeof event.exception === 'string' && event.exception.trim() !== '') {
+            return true;
+        }
+
+        return false;
+    }
+
+    function csrfToken() {
+        const fromMeta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        if (fromMeta !== '') {
+            return fromMeta;
+        }
+
+        return document.querySelector('input[name="_token"]')?.value ?? '';
+    }
+
+    function isLikelyBase64(value) {
+        if (!value || value.length % 4 !== 0) {
+            return false;
+        }
+
+        return /^[A-Za-z0-9+/=]+$/.test(value);
+    }
+
+    function errorMessage(error, fallback) {
+        if (typeof error === 'string' && error.trim() !== '') {
+            return error;
+        }
+
+        if (typeof error?.message === 'string' && error.message.trim() !== '') {
+            return error.message;
+        }
+
+        return fallback;
+    }
+
+    function clearPesoInput(triggerButton) {
+        if (!triggerButton) {
+            return;
+        }
+
+        const targetId = triggerButton.getAttribute('data-cas-clear-target') ?? '';
+        let input = targetId ? document.getElementById(targetId) : null;
+
+        if (!input) {
+            const inputGroup = triggerButton.closest('.input-group');
+            if (inputGroup) {
+                input = inputGroup.querySelector('input[type="number"]');
+            }
+        }
+
+        if (!input) {
+            return;
+        }
+
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.focus();
+        rememberActivePesoInput(input);
+    }
+
+    function toggleStatusPanel(button) {
+        if (!button) {
+            return;
+        }
+
+        const targetId = button.getAttribute('data-cas-target') ?? '';
+        const panel = targetId ? document.getElementById(targetId) : null;
+        if (!panel) {
+            return;
+        }
+
+        const showText = button.getAttribute('data-cas-text-show') ?? 'Mostrar estado de balanza';
+        const hideText = button.getAttribute('data-cas-text-hide') ?? 'Ocultar estado de balanza';
+        const isHidden = panel.classList.contains('d-none');
+
+        if (isHidden) {
+            panel.classList.remove('d-none');
+            button.setAttribute('aria-expanded', 'true');
+            button.textContent = hideText;
+            return;
+        }
+
+        panel.classList.add('d-none');
+        button.setAttribute('aria-expanded', 'false');
+        button.textContent = showText;
+    }
+
+    function setText(selector, value) {
+        document.querySelectorAll(selector).forEach((el) => {
+            el.textContent = value;
+        });
+    }
+
+    function setPill(selector, klass, value) {
+        document.querySelectorAll(selector).forEach((el) => {
+            el.className = `status-pill ${klass}`;
+            el.textContent = value;
+        });
+    }
+
+    function setFrameText(value) {
+        setText('[data-cas-frame-text]', value);
+    }
+
+    function setPesoValue(kg) {
+        const value = Number(kg).toFixed(3);
+        const input = resolveTargetPesoInput();
+
+        if (!input || input.value === value) {
+            return;
+        }
+
+        rememberActivePesoInput(input);
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function rememberActivePesoInput(input) {
+        if (!input || !input.id) {
+            return;
+        }
+
+        state.activeInputId = input.id;
+    }
+
+    function resolveTargetPesoInput() {
+        const byId = state.activeInputId ? document.getElementById(state.activeInputId) : null;
+        if (isEligiblePesoInput(byId)) {
+            return byId;
+        }
+
+        const activeEl = document.activeElement;
+        if (isEligiblePesoInput(activeEl)) {
+            return activeEl;
+        }
+
+        const visibleInputs = Array.from(document.querySelectorAll('[data-cas-peso-input]')).filter((input) =>
+            isEligiblePesoInput(input)
+        );
+
+        if (visibleInputs.length === 0) {
+            return null;
+        }
+
+        const visibleInsideOpenModal = visibleInputs.find((input) => input.closest('.modal.show'));
+        if (visibleInsideOpenModal) {
+            return visibleInsideOpenModal;
+        }
+
+        return visibleInputs[0];
+    }
+
+    function isEligiblePesoInput(input) {
+        if (!(input instanceof HTMLElement)) {
+            return false;
+        }
+
+        if (!input.matches('[data-cas-peso-input]') || input.disabled) {
+            return false;
+        }
+
+        return isVisibleElement(input);
+    }
+
+    function isVisibleElement(element) {
+        if (!(element instanceof HTMLElement) || !element.isConnected) {
+            return false;
+        }
+
+        if (element.closest('.d-none,[hidden],.modal:not(.show)')) {
+            return false;
+        }
+
+        return element.offsetParent !== null || element.getClientRects().length > 0;
+    }
+
+    function markQzOk(message) {
+        setText('[data-cas-qz-text]', message);
+        setPill('[data-cas-qz-pill]', 'status-ok', 'CONECTADO');
+    }
+
+    function markQzPending(message) {
+        setText('[data-cas-qz-text]', message);
+        setPill('[data-cas-qz-pill]', 'status-warn', 'PENDIENTE');
+    }
+
+    function markQzError(message) {
+        setText('[data-cas-qz-text]', message);
+        setPill('[data-cas-qz-pill]', 'status-bad', 'ERROR');
+    }
+
+    function markPortOk(message) {
+        setText('[data-cas-port-text]', message);
+        setPill('[data-cas-port-pill]', 'status-ok', 'LEYENDO');
+    }
+
+    function markPortPending(message) {
+        setText('[data-cas-port-text]', message);
+        setPill('[data-cas-port-pill]', 'status-warn', 'PENDIENTE');
+    }
+
+    function markPortError(message) {
+        setText('[data-cas-port-text]', message);
+        setPill('[data-cas-port-pill]', 'status-bad', 'DESCONECTADO');
+    }
+
+    function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+})();

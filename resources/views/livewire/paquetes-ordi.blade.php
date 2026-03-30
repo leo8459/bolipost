@@ -48,6 +48,8 @@
                             Entregado - Paquetes Ordinarios
                         @elseif ($this->isRezago)
                             Rezago - Paquetes Ordinarios
+                        @elseif ($this->isTodos)
+                            Todos los Paquetes Ordinarios
                         @else
                             Paquetes Ordinarios - Clasificacion
                         @endif
@@ -107,7 +109,7 @@
                             class="btn btn-outline-light2"
                             type="button"
                             wire:click="bajaPaquetes"
-                            onclick="return confirm('Deseas enviar a ENTREGADO los paquetes seleccionados?')"
+                            wire:confirm="Deseas enviar a ENTREGADO los paquetes seleccionados?"
                         >
                             Baja de paquetes
                         </button>
@@ -117,7 +119,7 @@
                             class="btn btn-outline-light2"
                             type="button"
                             wire:click="rezagoPaquetes"
-                            onclick="return confirm('Deseas enviar a REZAGO los paquetes seleccionados?')"
+                            wire:confirm="Deseas enviar a REZAGO los paquetes seleccionados?"
                         >
                             Rezago
                         </button>
@@ -322,9 +324,19 @@
                                 @error('ciudad') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Peso</label>
-                                <input type="number" step="0.001" min="0" wire:model.defer="peso" class="form-control">
-                                @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                @if(!$editingId)
+                                    <x-peso-qz-field
+                                        model="peso"
+                                        input-id="peso-create-ordi"
+                                        :required="true"
+                                        :use-scale="true"
+                                        :show-clear="true"
+                                    />
+                                @else
+                                    <label>Peso</label>
+                                    <input type="number" step="0.001" min="0" wire:model.defer="peso" class="form-control">
+                                    @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                @endif
                             </div>
                             @if ($editingId)
                             <div class="form-group col-md-6">

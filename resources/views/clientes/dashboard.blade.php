@@ -20,6 +20,12 @@
 @section('content')
     <div class="row">
         <div class="col-12">
+            @if (session('success'))
+                <div class="alert alert-success">
+                    {{ session('success') }}
+                </div>
+            @endif
+
             <div class="card card-outline card-warning">
                 <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between">
                     <div>
@@ -82,13 +88,36 @@
                         <div class="col-md-4">
                             <div class="small-box bg-warning">
                                 <div class="inner">
-                                    <h4>Rol</h4>
-                                    <p>{{ $cliente->rol }}</p>
+                                    <h4>Codigo</h4>
+                                    <p>{{ $cliente->codigo_cliente }}</p>
                                 </div>
                                 <div class="icon">
-                                    <i class="fas fa-id-badge"></i>
+                                    <i class="fas fa-id-card"></i>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row mb-0">
+                                <dt class="col-sm-5">Tipo documento</dt>
+                                <dd class="col-sm-7">{{ $cliente->tipodocumentoidentidad }} - {{ $cliente->tipoDocumentoIdentidadLabel() }}</dd>
+                                <dt class="col-sm-5">Numero documento</dt>
+                                <dd class="col-sm-7">{{ $cliente->numero_carnet }}</dd>
+                                <dt class="col-sm-5">Complemento</dt>
+                                <dd class="col-sm-7">{{ $cliente->complemento ?: '-' }}</dd>
+                                <dt class="col-sm-5">Razon social</dt>
+                                <dd class="col-sm-7">{{ $cliente->razon_social }}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4">Telefono</dt>
+                                <dd class="col-sm-8">{{ $cliente->telefono }}</dd>
+                                <dt class="col-sm-4">Direccion</dt>
+                                <dd class="col-sm-8">{{ $cliente->direccion }}</dd>
+                            </dl>
                         </div>
                     </div>
 

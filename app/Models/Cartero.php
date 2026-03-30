@@ -16,6 +16,7 @@ class Cartero extends Model
         'id_paquetes_certi',
         'id_paquetes_ordi',
         'id_paquetes_contrato',
+        'id_solicitud_cliente',
         'id_estados',
         'id_user',
         'intento',

@@ -325,6 +325,8 @@
                             Nuevo paquete EMS
                         @elseif ($this->isAlmacenEms)
                             Paquetes ALMACEN
+                        @elseif ($this->isDevolucionEms)
+                            Devolver paquetes
                         @elseif ($this->isEnTransitoEms)
                             Paquetes en transito
                         @elseif ($this->isVentanillaEms)
@@ -367,6 +369,13 @@
                                 </span>
                             @elseif ($this->isVentanillaEms)
                                 <span class="header-chip">VENTANILLA EMS</span>
+                            @elseif ($this->isDevolucionEms)
+                                <span class="header-chip">ALMACEN</span>
+                                <span class="header-chip">RECIBIDO</span>
+                                <span class="header-chip">VENTANILLA EMS</span>
+                                <span class="header-city">
+                                    Ciudad aplicada: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
+                                </span>
                             @elseif ($this->isTransitoEms)
                                 <span class="header-chip">{{ $this->regionalEstadoLabel }}</span>
                             @else
@@ -433,6 +442,9 @@
                             <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
                                 Anadir peso contrato
                             </button>
+                            <button class="btn btn-outline-light2" type="button" wire:click="openTiktokerPesoModal">
+                                Asignar peso a TIKTOKEROS
+                            </button>
                             @endif
                             @if ($canEmsSendVentanilla)
                             <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
@@ -453,6 +465,12 @@
                             @if ($canEmsDeliver)
                             <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
                                 Entregar seleccionados
+                            </button>
+                            @endif
+                        @elseif ($this->isDevolucionEms)
+                            @if ($canEmsDeliver)
+                            <button class="btn btn-outline-light2" type="button" wire:click="openDevolucionEmsModal">
+                                Devolver seleccionados
                             </button>
                             @endif
                         @elseif ($this->isTransitoEms)
@@ -556,9 +574,14 @@
                                     @error('cantidad') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-6">
-                                    <label>Peso<span class="required-star">*</span></label>
-                                    <input type="number" wire:model.live.debounce.300ms="peso" class="form-control" step="0.001" min="0" required>
-                                    @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                    <x-peso-qz-field
+                                        model="peso"
+                                        input-id="peso-create-ems"
+                                        :required="true"
+                                        :use-scale="true"
+                                        :show-clear="true"
+                                        :live="true"
+                                    />
                                 </div>
                             </div>
 
@@ -684,7 +707,7 @@
                         <div class="d-flex justify-content-end gap-2">
                             <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-azul">Cancelar</a>
                             @if ($canEmsCreate)
-                            <button type="submit" class="btn btn-dorado">Crear y continuar</button>
+                            <button type="button" wire:click="save" class="btn btn-dorado">Crear y continuar</button>
                             @endif
                         </div>
                     </form>
@@ -726,8 +749,8 @@
                     </div>
                     @if ($this->canSelect)
                         @php
-                            $seleccionadosTotal = ($this->isAlmacenEms || $this->isTransitoEms)
-                                ? (count($selectedPaquetes) + count($selectedContratos))
+                            $seleccionadosTotal = ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
+                                ? (count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes))
                                 : count($selectedPaquetes);
                         @endphp
                         <div class="muted small">
@@ -756,9 +779,9 @@
                                     <th>Cod. especial</th>
                                     <th>Traspaso</th>
                                 </tr>
-                            @elseif ($this->isAlmacenEms || $this->isTransitoEms)
+                            @elseif ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                 <tr>
-                                    @if ($this->isAlmacenEms || $this->isTransitoEms)
+                                    @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                         <th></th>
                                     @endif
                                     <th>Codigo</th>
@@ -821,15 +844,17 @@
                                         </td>
                                     </tr>
                                 @endforelse
-                            @elseif ($this->isAlmacenEms || $this->isTransitoEms)
+                            @elseif ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                 @forelse ($paquetes as $row)
                                     <tr>
-                                        @if ($this->isAlmacenEms || $this->isTransitoEms)
+                                        @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                             <td>
                                                 @if (($row->record_type ?? '') === 'EMS')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes">
-                                                @else
+                                                @elseif (($row->record_type ?? '') === 'CONTRATO')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedContratos">
+                                                @else
+                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedSolicitudes">
                                                 @endif
                                             </td>
                                         @endif
@@ -878,18 +903,27 @@
                                                     @endif
                                                 @endif
                                             @else
-                                                <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
-                                                   target="_blank"
-                                                   class="btn btn-sm btn-outline-azul"
-                                                   title="Reimprimir rotulo">
-                                                    <i class="fas fa-print"></i>
-                                                </a>
+                                                @if (($row->record_type ?? '') === 'CONTRATO')
+                                                    <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
+                                                       target="_blank"
+                                                       class="btn btn-sm btn-outline-azul"
+                                                       title="Reimprimir rotulo">
+                                                        <i class="fas fa-print"></i>
+                                                    </a>
+                                                @else
+                                                    <a href="{{ route('paquetes-ems.solicitudes.ticket', $row->record_id) }}"
+                                                       target="_blank"
+                                                       class="btn btn-sm btn-outline-azul"
+                                                       title="Imprimir ticket de solicitud">
+                                                        <i class="fas fa-print"></i>
+                                                    </a>
+                                                @endif
                                             @endif
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms) ? 17 : 16 }}" class="text-center py-5">
+                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms) ? 17 : 16 }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -1017,12 +1051,13 @@
                                         <th></th>
                                         <th>Codigo</th>
                                         <th>Cod. especial</th>
-                                        <th>Estado</th>
-                                        <th>Origen</th>
-                                        <th>Destino</th>
-                                        <th>Remitente</th>
-                                        <th>Destinatario</th>
-                                        <th>Empresa</th>
+                                         <th>Estado</th>
+                                         <th>Origen</th>
+                                         <th>Destino</th>
+                                         <th>Cantidad</th>
+                                         <th>Remitente</th>
+                                         <th>Destinatario</th>
+                                         <th>Empresa</th>
                                         <th>Telefono R</th>
                                         <th>Telefono D</th>
                                         <th>Creado</th>
@@ -1037,11 +1072,12 @@
                                             </td>
                                             <td><span class="pill-id">{{ $contrato->codigo }}</span></td>
                                             <td>{{ $contrato->cod_especial ?: '-' }}</td>
-                                            <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?? '-' }}</td>
-                                            <td>{{ $contrato->origen }}</td>
-                                            <td>{{ $contrato->destino }}</td>
-                                            <td>{{ $contrato->nombre_r }}</td>
-                                            <td>{{ $contrato->nombre_d }}</td>
+                                             <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?? '-' }}</td>
+                                             <td>{{ $contrato->origen }}</td>
+                                             <td>{{ $contrato->destino }}</td>
+                                             <td>{{ $contrato->cantidad ?: '-' }}</td>
+                                             <td>{{ $contrato->nombre_r }}</td>
+                                             <td>{{ $contrato->nombre_d }}</td>
                                             <td>
                                                 {{ optional($contrato->empresa)->nombre ?? optional(optional($contrato->user)->empresa)->nombre ?? '-' }}
                                                 @if(!empty(optional($contrato->empresa)->sigla))
@@ -1202,7 +1238,14 @@
                                 </div>
                                 <div class="form-group col-md-6">
                                     <label>Peso</label>
-                                    <input type="number" wire:model.live.debounce.300ms="peso" class="form-control" step="0.001" min="0">
+                                    <input
+                                        type="number"
+                                        id="peso-edit-ems"
+                                        wire:model.live.debounce.300ms="peso"
+                                        class="form-control"
+                                        step="0.001"
+                                        min="0"
+                                    >
                                     @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -1350,12 +1393,21 @@
     </div>
     @endunless
 
-    <div class="modal fade" id="paqueteConfirmModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+    <div
+        class="modal fade @if($showPaqueteConfirmModal) show d-block @endif"
+        id="paqueteConfirmModal"
+        tabindex="-1"
+        aria-hidden="{{ $showPaqueteConfirmModal ? 'false' : 'true' }}"
+        wire:ignore.self
+        @if($showPaqueteConfirmModal)
+            style="background: rgba(0, 0, 0, 0.5);"
+        @endif
+    >
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Confirmar datos</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <button type="button" class="close" wire:click="closePaqueteConfirmModal" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
@@ -1388,7 +1440,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-secondary" wire:click="closePaqueteConfirmModal">Cancelar</button>
                     @if ($editingId ? $canEmsEdit : $canEmsCreate)
                     <button type="button" class="btn btn-primary" wire:click="saveConfirmed">
                         {{ $this->isCreateEms ? 'Confirmar y volver' : 'Confirmar y guardar' }}
@@ -1561,15 +1613,14 @@
                     </div>
 
                     <div class="form-group mb-0">
-                        <label>Peso</label>
-                        <input
-                            type="number"
-                            class="form-control"
-                            wire:model.defer="registroContratoPeso"
-                            step="0.001"
+                        <x-peso-qz-field
+                            model="registroContratoPeso"
+                            input-id="peso-create-ems-contrato-rapido"
                             min="0.001"
-                        >
-                        @error('registroContratoPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                            :required="true"
+                            :use-scale="true"
+                            :show-clear="true"
+                        />
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1625,9 +1676,14 @@
                     @endif
 
                     <div class="form-group">
-                        <label>Peso</label>
-                        <input type="number" class="form-control" wire:model.defer="contratoPeso" step="0.001" min="0.001">
-                        @error('contratoPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                        <x-peso-qz-field
+                            model="contratoPeso"
+                            input-id="peso-contrato-modal"
+                            min="0.001"
+                            :required="true"
+                            :use-scale="true"
+                            :show-clear="true"
+                        />
                     </div>
 
                     <div class="form-group mb-0">
@@ -1640,6 +1696,70 @@
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                     @if ($canEmsWeighContract)
                     <button type="button" class="btn btn-primary" wire:click="guardarPesoContratoPorCodigo">
+                        Guardar peso
+                    </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="tiktokerPesoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Asignar peso a TIKTOKEROS</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Codigo de solicitud</label>
+                        <div class="d-flex gap-2">
+                            <input
+                                type="text"
+                                class="form-control"
+                                placeholder="Pega el codigo SOL y presiona Enter"
+                                wire:model.defer="tiktokerCodigoPeso"
+                                wire:keydown.enter.prevent="buscarSolicitudTiktokerParaPeso"
+                            >
+                            @if ($canEmsWeighContract)
+                            <button type="button" class="btn btn-outline-azul" wire:click="buscarSolicitudTiktokerParaPeso">
+                                Detectar
+                            </button>
+                            @endif
+                        </div>
+                        @error('tiktokerCodigoPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    @if (!empty($tiktokerPesoResumen))
+                        <div class="section-block mb-3">
+                            <div class="section-title">Solicitud detectada</div>
+                            <div><strong>Codigo:</strong> {{ $tiktokerPesoResumen['codigo'] ?? '-' }}</div>
+                            <div><strong>Origen:</strong> {{ $tiktokerPesoResumen['origen'] ?? '-' }}</div>
+                            <div><strong>Destino:</strong> {{ $tiktokerPesoResumen['destino'] ?? '-' }}</div>
+                            <div><strong>Remitente:</strong> {{ $tiktokerPesoResumen['remitente'] ?? '-' }}</div>
+                            <div><strong>Destinatario:</strong> {{ $tiktokerPesoResumen['destinatario'] ?? '-' }}</div>
+                            <div><strong>Precio actual:</strong> {{ ($tiktokerPesoResumen['precio'] ?? null) !== null ? 'Bs ' . $tiktokerPesoResumen['precio'] : '-' }}</div>
+                        </div>
+                    @endif
+
+                    <div class="form-group mb-0">
+                        <x-peso-qz-field
+                            model="tiktokerPeso"
+                            input-id="peso-tiktoker-modal"
+                            min="0.001"
+                            :required="true"
+                            :use-scale="true"
+                            :show-clear="true"
+                        />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsWeighContract)
+                    <button type="button" class="btn btn-primary" wire:click="guardarPesoSolicitudTiktoker">
                         Guardar peso
                     </button>
                     @endif
@@ -1674,6 +1794,45 @@
                     @if ($canEmsDeliver)
                     <button type="button" class="btn btn-primary" wire:click="confirmarEntregaVentanilla">
                         Confirmar entrega
+                    </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="devolucionEmsModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar devolucion</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Recibido por</label>
+                        <input type="text" class="form-control" wire:model.defer="devolucionRecibidoPor">
+                        @error('devolucionRecibidoPor') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group">
+                        <label>Detalle de devolucion (opcional)</label>
+                        <textarea class="form-control" rows="3" wire:model.defer="devolucionDescripcion"></textarea>
+                        @error('devolucionDescripcion') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group mb-0">
+                        <label>Imagen de la guia</label>
+                        <input type="file" class="form-control-file" wire:model="devolucionImagen" accept="image/*">
+                        @error('devolucionImagen') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                        <small class="text-muted">Se guardara la misma imagen para los registros seleccionados.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsDeliver)
+                    <button type="button" class="btn btn-primary" wire:click="confirmarDevolucionEms">
+                        Confirmar devolucion
                     </button>
                     @endif
                 </div>
@@ -1755,78 +1914,65 @@
     </div>
 </div>
 
+<x-peso-qz-assets />
+
+@once
 <script>
-    window.addEventListener('openPaqueteModal', () => {
-        $('#paqueteModal').modal('show');
-    });
+    (() => {
+        if (window.__emsPaquetesUiInit) {
+            return;
+        }
+        window.__emsPaquetesUiInit = true;
 
-    window.addEventListener('closePaqueteModal', () => {
-        $('#paqueteModal').modal('hide');
-    });
+        const modalMap = {
+            openPaqueteModal: '#paqueteModal',
+            closePaqueteModal: '#paqueteModal',
+            openPaqueteConfirm: '#paqueteConfirmModal',
+            closePaqueteConfirm: '#paqueteConfirmModal',
+            openGeneradosHoyModal: '#generadosHoyModal',
+            closeGeneradosHoyModal: '#generadosHoyModal',
+            openRegionalModal: '#regionalModal',
+            closeRegionalModal: '#regionalModal',
+            openRegionalContratoModal: '#regionalContratoModal',
+            closeRegionalContratoModal: '#regionalContratoModal',
+            openContratoRegistrarModal: '#contratoRegistrarModal',
+            closeContratoRegistrarModal: '#contratoRegistrarModal',
+            openContratoPesoModal: '#contratoPesoModal',
+            closeContratoPesoModal: '#contratoPesoModal',
+            openTiktokerPesoModal: '#tiktokerPesoModal',
+            closeTiktokerPesoModal: '#tiktokerPesoModal',
+            openEntregaVentanillaModal: '#entregaVentanillaModal',
+            closeEntregaVentanillaModal: '#entregaVentanillaModal',
+            openDevolucionEmsModal: '#devolucionEmsModal',
+            closeDevolucionEmsModal: '#devolucionEmsModal',
+            openRecibirRegionalModal: '#recibirRegionalModal',
+            closeRecibirRegionalModal: '#recibirRegionalModal',
+        };
 
-    window.addEventListener('openPaqueteConfirm', () => {
-        $('#paqueteConfirmModal').modal('show');
-    });
+        const handleModalEvent = (eventName, selector) => {
+            if (!window.jQuery || !$(selector).length) {
+                return;
+            }
 
-    window.addEventListener('closePaqueteConfirm', () => {
-        $('#paqueteConfirmModal').modal('hide');
-    });
+            const action = eventName.startsWith('open') ? 'show' : 'hide';
+            $(selector).modal(action);
+        };
 
-    window.addEventListener('openGeneradosHoyModal', () => {
-        $('#generadosHoyModal').modal('show');
-    });
+        Object.entries(modalMap).forEach(([eventName, selector]) => {
+            window.addEventListener(eventName, () => handleModalEvent(eventName, selector));
+            document.addEventListener(eventName, () => handleModalEvent(eventName, selector));
+        });
 
-    window.addEventListener('closeGeneradosHoyModal', () => {
-        $('#generadosHoyModal').modal('hide');
-    });
+        document.addEventListener('livewire:init', () => {
+            Object.entries(modalMap).forEach(([eventName, selector]) => {
+                if (!window.Livewire || typeof window.Livewire.on !== 'function') {
+                    return;
+                }
 
-    window.addEventListener('openRegionalModal', () => {
-        $('#regionalModal').modal('show');
-    });
-
-    window.addEventListener('closeRegionalModal', () => {
-        $('#regionalModal').modal('hide');
-    });
-
-    window.addEventListener('openRegionalContratoModal', () => {
-        $('#regionalContratoModal').modal('show');
-    });
-
-    window.addEventListener('closeRegionalContratoModal', () => {
-        $('#regionalContratoModal').modal('hide');
-    });
-
-    window.addEventListener('openContratoRegistrarModal', () => {
-        $('#contratoRegistrarModal').modal('show');
-    });
-
-    window.addEventListener('closeContratoRegistrarModal', () => {
-        $('#contratoRegistrarModal').modal('hide');
-    });
-
-    window.addEventListener('openContratoPesoModal', () => {
-        $('#contratoPesoModal').modal('show');
-    });
-
-    window.addEventListener('closeContratoPesoModal', () => {
-        $('#contratoPesoModal').modal('hide');
-    });
-
-    window.addEventListener('openEntregaVentanillaModal', () => {
-        $('#entregaVentanillaModal').modal('show');
-    });
-
-    window.addEventListener('closeEntregaVentanillaModal', () => {
-        $('#entregaVentanillaModal').modal('hide');
-    });
-
-    window.addEventListener('openRecibirRegionalModal', () => {
-        $('#recibirRegionalModal').modal('show');
-    });
-
-    window.addEventListener('closeRecibirRegionalModal', () => {
-        $('#recibirRegionalModal').modal('hide');
-    });
-
+                window.Livewire.on(eventName, () => handleModalEvent(eventName, selector));
+            });
+        });
+    })();
 </script>
+@endonce
 

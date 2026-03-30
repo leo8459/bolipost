@@ -70,8 +70,9 @@
                                     <td>{{ $solicitud->origen }}</td>
                                     <td>{{ $solicitud->destino?->nombre_destino }}</td>
                                     <td>
-                                        <span class="badge badge-{{ strtoupper((string) $solicitud->estado) === 'PENDIENTE' ? 'warning' : 'success' }}">
-                                            {{ $solicitud->estado }}
+                                        @php($estadoNombre = (string) optional($solicitud->estadoRegistro)->nombre_estado)
+                                        <span class="badge badge-{{ strtoupper($estadoNombre) === 'SOLICITUD' ? 'warning' : 'success' }}">
+                                            {{ $estadoNombre !== '' ? $estadoNombre : '-' }}
                                         </span>
                                     </td>
                                     <td>{{ optional($solicitud->created_at)->format('d/m/Y H:i') }}</td>

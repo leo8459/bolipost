@@ -30,12 +30,13 @@
                                 <th>Intento</th>
                                 <th>Recibido por</th>
                                 <th>Descripcion</th>
+                                <th>Imagen</th>
                                 <th>Fecha</th>
                             </tr>
                         </thead>
                         <tbody id="tabla-domicilio-body">
                             <tr>
-                                <td colspan="13" class="text-center py-4">Cargando datos...</td>
+                                <td colspan="14" class="text-center py-4">Cargando datos...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -86,20 +87,23 @@
             }
 
             function setLoading() {
-                body.innerHTML = '<tr><td colspan="13" class="text-center py-4">Cargando datos...</td></tr>';
+                body.innerHTML = '<tr><td colspan="14" class="text-center py-4">Cargando datos...</td></tr>';
             }
 
             function setError() {
-                body.innerHTML = '<tr><td colspan="13" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
+                body.innerHTML = '<tr><td colspan="14" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
             }
 
             function renderRows(rows) {
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="13" class="text-center py-4">No hay paquetes en estado ENTREGADO.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="14" class="text-center py-4">No hay paquetes en estado ENTREGADO.</td></tr>';
                     return;
                 }
 
                 body.innerHTML = rows.map(function(row) {
+                    const imageHtml = row.imagen
+                        ? '<a href="/storage/' + encodeURIComponent(row.imagen).replace(/%2F/g, '/') + '" target="_blank" class="btn btn-sm btn-outline-secondary">Ver foto</a>'
+                        : '<span class="text-muted small">Sin foto</span>';
                     return '<tr>' +
                         '<td>' + escapeHtml(row.tipo_paquete) + '</td>' +
                         '<td>' + escapeHtml(row.codigo) + '</td>' +
@@ -113,6 +117,7 @@
                         '<td>' + escapeHtml(row.intento) + '</td>' +
                         '<td>' + escapeHtml(row.recibido_por) + '</td>' +
                         '<td>' + escapeHtml(row.descripcion) + '</td>' +
+                        '<td>' + imageHtml + '</td>' +
                         '<td>' + escapeHtml(row.created_at) + '</td>' +
                         '</tr>';
                 }).join('');

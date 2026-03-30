@@ -8,6 +8,7 @@ use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo as RecojoModel;
 use App\Models\Saca as SacaModel;
+use App\Models\SolicitudCliente;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -533,9 +534,17 @@ class Saca extends Component
             ->limit(8)
             ->pluck('cod_especial');
 
+        $solicitudes = SolicitudCliente::query()
+            ->whereNotNull('cod_especial')
+            ->where('cod_especial', 'ILIKE', '%' . $term . '%')
+            ->orderByDesc('id')
+            ->limit(8)
+            ->pluck('cod_especial');
+
         $this->codEspecialSugerencias = $ems
             ->merge($ordi)
             ->merge($contratos)
+            ->merge($solicitudes)
             ->unique()
             ->values()
             ->take(8)
@@ -564,8 +573,13 @@ class Saca extends Component
             ->whereRaw('UPPER(cod_especial) = ?', [strtoupper($busqueda)])
             ->get(['id', 'cod_especial', 'estados_id']);
 
-        if ($paquetesEms->isEmpty() && $paquetesOrdi->isEmpty() && $paquetesContrato->isEmpty()) {
-            $this->addError('busqueda', 'El codigo no existe en paquetes_ems, paquetes_ordi ni paquetes_contrato.');
+        $solicitudes = SolicitudCliente::query()
+            ->with('estadoRegistro:id,nombre_estado')
+            ->whereRaw('UPPER(cod_especial) = ?', [strtoupper($busqueda)])
+            ->get(['id', 'cod_especial', 'estado_id']);
+
+        if ($paquetesEms->isEmpty() && $paquetesOrdi->isEmpty() && $paquetesContrato->isEmpty() && $solicitudes->isEmpty()) {
+            $this->addError('busqueda', 'El codigo no existe en paquetes_ems, paquetes_ordi, paquetes_contrato ni solicitud_clientes.');
             return false;
         }
 
@@ -584,10 +598,16 @@ class Saca extends Component
             return $estadoNombre !== 'TRANSITO';
         });
 
+        $solicitudesNoTransito = $solicitudes->filter(function ($paquete) {
+            $estadoNombre = strtoupper(trim((string) optional($paquete->estadoRegistro)->nombre_estado));
+            return $estadoNombre !== 'TRANSITO';
+        });
+
         if (
             $paquetesEmsNoTransito->isNotEmpty()
             || $paquetesOrdiNoTransito->isNotEmpty()
             || $paquetesContratoNoTransito->isNotEmpty()
+            || $solicitudesNoTransito->isNotEmpty()
         ) {
             $this->addError('busqueda', 'Todos los paquetes con ese cod_especial deben estar en estado TRANSITO.');
             return false;
@@ -595,7 +615,8 @@ class Saca extends Component
 
         $this->busqueda = (string) optional($paquetesEms->first())->cod_especial
             ?: ((string) optional($paquetesOrdi->first())->cod_especial
-            ?: (string) optional($paquetesContrato->first())->cod_especial);
+            ?: ((string) optional($paquetesContrato->first())->cod_especial
+            ?: (string) optional($solicitudes->first())->cod_especial));
 
         return true;
     }

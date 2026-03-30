@@ -75,11 +75,12 @@ class PaquetesOrdi extends Component
         'almacen' => 'paquetes-ordinarios.almacen',
         'entregado' => 'paquetes-ordinarios.entregado',
         'rezago' => 'paquetes-ordinarios.rezago',
+        'todos' => 'paquetes-ordinarios.todos',
     ];
 
     public function mount($mode = 'clasificacion')
     {
-        $allowedModes = ['clasificacion', 'despacho', 'almacen', 'entregado', 'rezago'];
+        $allowedModes = ['clasificacion', 'despacho', 'almacen', 'entregado', 'rezago', 'todos'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'clasificacion';
     }
 
@@ -106,6 +107,11 @@ class PaquetesOrdi extends Component
     public function getIsRezagoProperty()
     {
         return $this->mode === 'rezago';
+    }
+
+    public function getIsTodosProperty()
+    {
+        return $this->mode === 'todos';
     }
 
     public function searchPaquetes()
@@ -277,14 +283,17 @@ class PaquetesOrdi extends Component
         }
 
         $estadoEnviadoId = $this->getEstadoIdByNombre(self::ESTADO_ENVIADO);
+        $estadoTransitoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
         if (!$estadoEnviadoId) {
             session()->flash('success', 'No existe el estado ENVIADO en la tabla estados.');
             return;
         }
 
+        $estadosAceptados = array_filter([$estadoEnviadoId, $estadoTransitoId]);
+
         $paquete = PaqueteOrdi::query()
             ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
-            ->where('fk_estado', $estadoEnviadoId)
+            ->whereIn('fk_estado', $estadosAceptados)
             ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->first();
 
@@ -296,7 +305,7 @@ class PaquetesOrdi extends Component
 
         if (!$paquete) {
             if (!session()->has('success')) {
-                session()->flash('success', 'El paquete no existe, no esta ENVIADO o no pertenece a tu ciudad.');
+                session()->flash('success', 'El paquete no existe, no esta ENVIADO/TRANSITO o no pertenece a tu ciudad.');
             }
             return;
         }
@@ -340,6 +349,7 @@ class PaquetesOrdi extends Component
         }
 
         $estadoEnviadoId = $this->getEstadoIdByNombre(self::ESTADO_ENVIADO);
+        $estadoTransitoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
         $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
 
         if (!$estadoEnviadoId || !$estadoRecibidoId) {
@@ -347,9 +357,11 @@ class PaquetesOrdi extends Component
             return;
         }
 
+        $estadosAceptados = array_filter([$estadoEnviadoId, $estadoTransitoId]);
+
         $idsActualizar = PaqueteOrdi::query()
             ->whereIn('id', $ids)
-            ->where('fk_estado', $estadoEnviadoId)
+            ->whereIn('fk_estado', $estadosAceptados)
             ->tap(fn (Builder $query) => $this->applyAccessScope($query))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
@@ -636,7 +648,7 @@ class PaquetesOrdi extends Component
 
     public function updatedDestinatario($value)
     {
-        $this->destinatario = $this->upper($value);
+        $this->destinatario = strtoupper((string) $value);
         $this->autocompletarDatosDestinatario();
     }
 
@@ -1179,11 +1191,15 @@ class PaquetesOrdi extends Component
                 $query->where(function ($sub) {
                     $sub->whereRaw('trim(upper(nombre_ventanilla)) = ?', ['DD'])
                         ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['DND'])
-                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['CASILLA']);
+                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['CASILLA'])
+                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['ECA']);
                 });
             })
             ->when($ciudad !== '' && $ciudad !== 'LA PAZ', function ($query) {
-                $query->whereRaw('trim(upper(nombre_ventanilla)) = ?', ['UNICA']);
+                $query->where(function ($sub) {
+                    $sub->whereRaw('trim(upper(nombre_ventanilla)) = ?', ['UNICA'])
+                        ->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', ['ECA']);
+                });
             })
             ->orderBy('nombre_ventanilla')
             ->get();
@@ -1239,15 +1255,16 @@ class PaquetesOrdi extends Component
         if ($ciudad === '') {
             $this->selectAll = false;
             $this->selectedPaquetes = [];
+            $this->resetPage();
             return;
         }
 
         $this->selectedPaquetes = $this->basePaquetesQuery()
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$ciudad])
             ->pluck('id')
             ->map(fn ($id) => (string) $id)
             ->all();
 
+        $this->resetPage();
         $this->updatedSelectedPaquetes();
     }
 
@@ -1264,6 +1281,24 @@ class PaquetesOrdi extends Component
         } else {
             $estadoModoId = $this->getClasificacionEstadoId();
         }
+        if ($this->isClasificacion) {
+            if (!$estadoModoId) {
+                return [];
+            }
+            return PaqueteOrdi::query()
+                ->where('fk_estado', $estadoModoId)
+                ->whereNotNull('ciudad')
+                ->select('ciudad')
+                ->distinct()
+                ->orderBy('ciudad')
+                ->pluck('ciudad')
+                ->map(fn ($ciudad) => $this->upper($ciudad))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
+
         $userCity = $this->upper((string) optional(auth()->user())->ciudad);
 
         if (!$estadoModoId || $userCity === '') {
@@ -1297,6 +1332,8 @@ class PaquetesOrdi extends Component
     {
         $q = trim($this->searchQuery);
         $userCity = $this->upper((string) optional(auth()->user())->ciudad);
+        $skipEstadoFilter = $this->isTodos;
+
         if ($this->isDespacho) {
             $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
         } elseif ($this->isAlmacen) {
@@ -1305,17 +1342,22 @@ class PaquetesOrdi extends Component
             $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
         } elseif ($this->isRezago) {
             $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_REZAGO);
+        } elseif ($this->isTodos) {
+            $estadoModoId = null;
         } else {
             $estadoModoId = $this->getClasificacionEstadoId();
         }
 
         return $this->accessiblePaquetesQuery()
             ->with(['estado', 'ventanillaRef'])
-            ->when($estadoModoId, function ($query) use ($estadoModoId) {
+            ->when(!$skipEstadoFilter && $estadoModoId, function ($query) use ($estadoModoId) {
                 $query->where('fk_estado', $estadoModoId);
             })
-            ->when(!$estadoModoId, function ($query) {
+            ->when(!$skipEstadoFilter && !$estadoModoId, function ($query) {
                 $query->whereRaw('1 = 0');
+            })
+            ->when($this->isClasificacion && $this->selectedCiudadMarcado !== '', function ($query) {
+                $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$this->selectedCiudadMarcado]);
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
@@ -1465,6 +1507,20 @@ class PaquetesOrdi extends Component
 
     private function applyAccessScope(Builder $query): void
     {
+        if ($this->isClasificacion) {
+            $ventanillas = $this->restrictedVentanillaNames();
+            if ($ventanillas !== null) {
+                $query->whereHas('ventanillaRef', function (Builder $ventanillaQuery) use ($ventanillas) {
+                    $ventanillaQuery->where(function (Builder $restrictedQuery) use ($ventanillas) {
+                        foreach ($ventanillas as $ventanilla) {
+                            $restrictedQuery->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', [$ventanilla]);
+                        }
+                    });
+                });
+            }
+            return;
+        }
+
         $userCity = $this->upper((string) optional(auth()->user())->ciudad);
 
         if ($userCity !== '') {

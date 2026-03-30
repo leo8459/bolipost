@@ -155,7 +155,7 @@
             <td class="no-border">Medio de Transporte: {{ $subclaseTranslation[$categoria] ?? $categoria }}</td>
         </tr>
         <tr>
-            <td class="no-border">Fecha: {{ optional($despacho->created_at)->format('Y-m-d') }}</td>
+            <td class="no-border">Fecha: {{ optional($despacho->created_at)->format('Y-m-d H:i:s') }}</td>
             <td class="no-border" colspan="2">Clase: {{ $subclase }}</td>
         </tr>
     </table>
@@ -241,7 +241,7 @@
                 <td style="border-left-color: transparent;">- {{ $ciudadOrigen }}</td>
             </tr>
             <tr>
-                <td colspan="2" class="text-center">{{ optional($despacho->created_at)->format('Y-m-d') }}</td>
+                <td colspan="2" class="text-center">{{ optional($despacho->created_at)->format('Y-m-d H:i:s') }}</td>
                 <td colspan="2" class="text-center" style="border-bottom-color: transparent;">AGENCIA BOLIVIANA DE CORREOS</td>
             </tr>
             <tr>

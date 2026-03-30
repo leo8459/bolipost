@@ -111,6 +111,7 @@
                                 <th>Remitente</th>
                                 <th>Destinatario</th>
                                 <th>Empresa</th>
+                                <th>Cantidad</th>
                                 <th>Peso</th>
                                 <th>Fecha recojo</th>
                                 <th>Usuario</th>
@@ -134,6 +135,7 @@
                                             ({{ optional(optional($recojo->user)->empresa)->sigla }})
                                         @endif
                                     </td>
+                                    <td>{{ $recojo->cantidad ?: '-' }}</td>
                                     <td>{{ $recojo->peso }}</td>
                                     <td>{{ optional($recojo->fecha_recojo)->format('d/m/Y H:i:s') ?? '-' }}</td>
                                     <td>{{ optional($recojo->user)->name ?? '-' }}</td>
@@ -161,7 +163,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-5">
+                                    <td colspan="12" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -269,9 +271,24 @@
 
                         <div class="form-row">
                             <div class="form-group col-md-4">
-                                <label>Peso</label>
-                                <input type="number" step="0.001" min="0" wire:model.defer="peso" class="form-control">
-                                @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                @if(!$editingId)
+                                    <x-peso-qz-field
+                                        model="peso"
+                                        input-id="peso-create-contrato"
+                                        :required="true"
+                                        :use-scale="true"
+                                        :show-clear="true"
+                                    />
+                                @else
+                                    <label>Peso</label>
+                                    <input type="number" step="0.001" min="0" wire:model.defer="peso" class="form-control">
+                                    @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
+                                @endif
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Cantidad</label>
+                                <input type="text" wire:model.defer="cantidad" class="form-control">
+                                @error('cantidad') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-4">
                                 <label>Mapa (URL o referencia)</label>

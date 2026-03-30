@@ -40,6 +40,7 @@
                                 <th>Destino</th>
                                 <th>Direccion destinatario</th>
                                 <th>Empresa</th>
+                                <th>Cantidad</th>
                                 <th>Imagen</th>
                                 <th>Fecha</th>
                             </tr>
@@ -60,6 +61,7 @@
                                             ({{ optional($contrato->empresa)->sigla }})
                                         @endif
                                     </td>
+                                    <td>{{ $contrato->cantidad ?: '-' }}</td>
                                     <td>
                                         @if (!empty($contrato->imagen))
                                             <a href="{{ asset('storage/' . $contrato->imagen) }}"
@@ -75,7 +77,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-4">
+                                    <td colspan="11" class="text-center py-4">
                                         No hay contratos entregados.
                                     </td>
                                 </tr>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\QzSecurityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\ServicioController;
 use App\Http\Controllers\DestinoController;
 use App\Http\Controllers\PesoController;
 use App\Http\Controllers\OrigenController;
+use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\TarifarioController;
 use App\Http\Controllers\TarifaContratoController;
 use App\Http\Controllers\TarifarioTiktokerController;
@@ -90,6 +92,10 @@ Route::post('/hacer-envio-desde-casa', [PreregistroController::class, 'publicSto
 Route::get('/hacer-envio-desde-casa/{preregistro}/ticket', [PreregistroController::class, 'ticket'])->name('preregistros.public.ticket');
 Route::middleware(['auth'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
+Route::middleware(['auth'])->group(function () {
+    Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
+    Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
+});
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'route.permission'])
@@ -170,22 +176,45 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
     Route::get('/paquetes-ems/create', [PaquetesEmsController::class, 'create'])->name('paquetes-ems.create');
+    Route::get('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'indexSolicitudes'])->name('paquetes-ems.solicitudes.index');
+    Route::get('/paquetes-ems/solicitudes/nueva', [PaquetesEmsController::class, 'createSolicitud'])->name('paquetes-ems.solicitudes.create');
+    Route::get('/paquetes-ems/solicitudes/buscar', [PaquetesEmsController::class, 'findSolicitud'])->name('paquetes-ems.solicitudes.find');
+    Route::get('/paquetes-ems/solicitudes/cotizar', [PaquetesEmsController::class, 'quoteSolicitud'])->name('paquetes-ems.solicitudes.quote');
+    Route::get('/paquetes-ems/solicitudes/{solicitud}/ticket', [PaquetesEmsController::class, 'ticketSolicitud'])->name('paquetes-ems.solicitudes.ticket');
+    Route::post('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'storeSolicitud'])->name('paquetes-ems.solicitudes.store');
+    Route::post('/paquetes-ems/solicitudes/mandar-almacen', [PaquetesEmsController::class, 'sendSolicitudesToAlmacen'])->name('paquetes-ems.solicitudes.send-almacen');
     Route::get('/paquetes-ems/almacen', [PaquetesEmsController::class, 'almacen'])->name('paquetes-ems.almacen');
     Route::get('/paquetes-ems/almacen-admisiones', [PaquetesEmsController::class, 'almacenAdmisiones'])->name('paquetes-ems.almacen-admisiones');
     Route::get('/paquetes-ems/ventanilla', [PaquetesEmsController::class, 'ventanilla'])->name('paquetes-ems.ventanilla');
+    Route::get('/paquetes-ems/devolucion', [PaquetesEmsController::class, 'devolucion'])->name('paquetes-ems.devolucion');
     Route::get('/paquetes-ems/en-transito', [PaquetesEmsController::class, 'enTransito'])->name('paquetes-ems.en-transito');
     Route::get('/paquetes-ems/recibir-regional', [PaquetesEmsController::class, 'recibirRegional'])->name('paquetes-ems.recibir-regional');
     Route::get('/paquetes-ems/entregados', [PaquetesEmsController::class, 'entregados'])->name('paquetes-ems.entregados');
+    Route::get('/paquetes-ems/devueltos', [PaquetesEmsController::class, 'devueltos'])->name('paquetes-ems.devueltos');
+    Route::get('/paquetes-ems/entregados/solicitud', [PaquetesEmsController::class, 'createSolicitudDesdeEntregados'])->name('paquetes-ems.entregados.solicitud.create');
+    Route::post('/paquetes-ems/entregados/solicitud', [PaquetesEmsController::class, 'storeSolicitudDesdeEntregados'])->name('paquetes-ems.entregados.solicitud.store');
+    Route::get('/paquetes-ems/entregados/planilla', [PaquetesEmsController::class, 'planillaEntregados'])->name('paquetes-ems.entregados.planilla');
     Route::get('/paquetes-ems/registro-rapido-contrato', [PaquetesEmsController::class, 'createRegistroRapidoContrato'])->name('paquetes-ems.contrato-rapido.create');
     Route::post('/paquetes-ems/registro-rapido-contrato', [PaquetesEmsController::class, 'storeRegistroRapidoContrato'])->name('paquetes-ems.contrato-rapido.store');
     Route::get('/paquetes-ems/{paquete}/boleta', [PaquetesEmsBoletaController::class, 'show'])->name('paquetes-ems.boleta');
     Route::get('/servicios', [ServicioController::class, 'index'])->name('servicios.index');
+    Route::get('/servicios/create', [ServicioController::class, 'create'])->name('servicios.create');
+    Route::post('/servicios', [ServicioController::class, 'store'])->name('servicios.store');
+    Route::get('/servicios/{servicio}/edit', [ServicioController::class, 'edit'])->name('servicios.edit');
+    Route::put('/servicios/{servicio}', [ServicioController::class, 'update'])->name('servicios.update');
+    Route::delete('/servicios/{servicio}', [ServicioController::class, 'destroy'])->name('servicios.destroy');
     Route::get('/servicio-extras', [ServicioExtraController::class, 'index'])->name('servicio-extras.index');
     Route::get('/servicio-extras/create', [ServicioExtraController::class, 'create'])->name('servicio-extras.create');
     Route::post('/servicio-extras', [ServicioExtraController::class, 'store'])->name('servicio-extras.store');
     Route::get('/servicio-extras/{servicioExtra}/edit', [ServicioExtraController::class, 'edit'])->name('servicio-extras.edit');
     Route::put('/servicio-extras/{servicioExtra}', [ServicioExtraController::class, 'update'])->name('servicio-extras.update');
     Route::delete('/servicio-extras/{servicioExtra}', [ServicioExtraController::class, 'destroy'])->name('servicio-extras.destroy');
+    Route::get('/sucursales', [SucursalController::class, 'index'])->name('sucursales.index');
+    Route::get('/sucursales/create', [SucursalController::class, 'create'])->name('sucursales.create');
+    Route::post('/sucursales', [SucursalController::class, 'store'])->name('sucursales.store');
+    Route::get('/sucursales/{sucursal}/edit', [SucursalController::class, 'edit'])->name('sucursales.edit');
+    Route::put('/sucursales/{sucursal}', [SucursalController::class, 'update'])->name('sucursales.update');
+    Route::delete('/sucursales/{sucursal}', [SucursalController::class, 'destroy'])->name('sucursales.destroy');
     Route::get('/destinos', [DestinoController::class, 'index'])->name('destinos.index');
     Route::get('/pesos', [PesoController::class, 'index'])->name('pesos.index');
     Route::get('/origenes', [OrigenController::class, 'index'])->name('origenes.index');
@@ -236,6 +265,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/paquetes-ordinarios/almacen', [PaquetesOrdiController::class, 'almacen'])->name('paquetes-ordinarios.almacen');
     Route::get('/paquetes-ordinarios/entregado', [PaquetesOrdiController::class, 'entregado'])->name('paquetes-ordinarios.entregado');
     Route::get('/paquetes-ordinarios/rezago', [PaquetesOrdiController::class, 'rezago'])->name('paquetes-ordinarios.rezago');
+    Route::get('/paquetes-ordinarios/todos', [PaquetesOrdiController::class, 'todos'])->name('paquetes-ordinarios.todos');
     Route::get('/estados', [EstadoController::class, 'index'])->name('estados.index');
     Route::get('/eventos', [EventoController::class, 'index'])->name('eventos.index');
     Route::get('/eventos-ems', [EventoController::class, 'emsIndex'])->name('eventos-ems.index');
@@ -243,6 +273,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/eventos-ordi', [EventoController::class, 'ordiIndex'])->name('eventos-ordi.index');
     Route::get('/eventos-despacho', [EventoController::class, 'despachoIndex'])->name('eventos-despacho.index');
     Route::get('/eventos-contrato', [EventoController::class, 'contratoIndex'])->name('eventos-contrato.index');
+    Route::get('/eventos-tiktoker', [EventoController::class, 'tiktokerIndex'])->name('eventos-tiktoker.index');
     Route::get('/auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
     Route::get('/eventos-auditoria', [EventosAuditoriaController::class, 'index'])->name('eventos-auditoria.index');
     Route::get('/empresas', [EmpresaController::class, 'index'])->name('empresas.index');
@@ -263,6 +294,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/paquetes-contrato/{contrato}/reporte', [RecojoController::class, 'reporte'])->name('paquetes-contrato.reporte');
     Route::get('/area-contratos/todos', [AreaContratosController::class, 'todos'])->name('area-contratos.todos');
     Route::get('/area-contratos/entregados', [AreaContratosController::class, 'entregados'])->name('area-contratos.entregados');
+    Route::get('/area-contratos/reportes', [AreaContratosController::class, 'reportes'])->name('area-contratos.reportes');
+    Route::get('/area-contratos/reportes/excel', [AreaContratosController::class, 'exportReportesExcel'])->name('area-contratos.reportes.excel');
     Route::get('/indicadores/contratos/entregados', [IndicadorController::class, 'contratosEntregados'])->name('indicadores.contratos.entregados');
     Route::get('/indicadores/contratos/inventario', [IndicadorController::class, 'contratosInventario'])->name('indicadores.contratos.inventario');
     Route::get('/indicadores/ems/entregados', [IndicadorController::class, 'emsEntregados'])->name('indicadores.ems.entregados');

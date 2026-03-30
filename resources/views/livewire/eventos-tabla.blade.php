@@ -182,7 +182,7 @@
                             <tr>
                                 <th>Codigo</th>
                                 <th>Evento</th>
-                                <th>Usuario</th>
+                                <th>{{ $supportsClienteId ? 'Actor' : 'Usuario' }}</th>
                                 <th>Momento de creacion</th>
                                 <th>Acciones</th>
                             </tr>
@@ -192,7 +192,13 @@
                                 <tr>
                                     <td><span class="pill-id">{{ $registro->codigo }}</span></td>
                                     <td>{{ $registro->evento_nombre ?? ('#' . $registro->evento_id) }}</td>
-                                    <td>{{ $registro->usuario_nombre ?? ('#' . $registro->user_id) }}</td>
+                                    <td>
+                                        @if ($supportsClienteId)
+                                            {{ $registro->actor_nombre ?? ($registro->user_id ? ('#' . $registro->user_id) : ($registro->cliente_id ? ('Cliente #' . $registro->cliente_id) : '-')) }}
+                                        @else
+                                            {{ $registro->usuario_nombre ?? ('#' . $registro->user_id) }}
+                                        @endif
+                                    </td>
                                     <td class="muted small">
                                         @if(!empty($registro->created_at))
                                             @php
@@ -282,6 +288,18 @@
                             </select>
                             @error('user_id') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>
+                        @if ($supportsClienteId)
+                            <div class="form-group mt-3 mb-0">
+                                <label>Cliente</label>
+                                <select wire:model.defer="cliente_id" class="form-control">
+                                    <option value="">Seleccione...</option>
+                                    @foreach ($clientes as $cliente)
+                                        <option value="{{ $cliente->id }}">{{ $cliente->name }}</option>
+                                    @endforeach
+                                </select>
+                                @error('cliente_id') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                        @endif
                     </div>
 
                     <div class="modal-footer">

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Empresa;
 use App\Models\TarifaContrato;
+use App\Support\AclPermissionRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -22,10 +23,16 @@ class TarifaContratoController extends Controller
 {
     private const SERVICIOS = [
         'ENVIO NACIONAL (REGULAR)',
+        'ENVIO NACIONAL (REGULAR) TERRESTRE',
+        'ENVIO NACIONAL (REGULAR) AEREO',
         'ENVIO NACIONAL (EXPRESS)',
+        'ENVIO NACIONAL (EXPRESS) TERRESTRE',
+        'ENVIO NACIONAL (EXPRESS) AEREO',
         'ENVIO LOCAL(REGULAR)',
         'ENVIO LOCAL(EXPRESS)',
         'ENVIO INTERPROVINCIAL',
+        'ENVIO INTERPROVINCIAL TERRESTRE',
+        'ENVIO INTERPROVINCIAL AEREO',
     ];
 
     private const DEPARTAMENTOS = [
@@ -93,6 +100,9 @@ class TarifaContratoController extends Controller
         'origen',
         'destino',
         'servicio',
+        'direccion',
+        'zona',
+        'kilo_de_1_a_2',
         'kilo',
         'kilo_extra',
         'provincia',
@@ -105,6 +115,9 @@ class TarifaContratoController extends Controller
         'origen',
         'destino',
         'servicio',
+        'direccion',
+        'zona',
+        'peso',
         'kilo',
         'kilo_extra',
         'provincia',
@@ -197,13 +210,15 @@ class TarifaContratoController extends Controller
 
     public function create(Request $request)
     {
+        $copyId = (int) $request->query('copy_id', 0);
+        $this->authorizeTarifaContratoButtonAction($copyId > 0 ? 'duplicate' : 'create');
+
         if ($request->boolean('reset')) {
             $request->session()->forget('tarifa_contrato_defaults');
         }
 
         $defaults = (array) $request->session()->get('tarifa_contrato_defaults', []);
         $copySource = null;
-        $copyId = (int) $request->query('copy_id', 0);
 
         if ($copyId > 0) {
             $copySource = TarifaContrato::query()->find($copyId);
@@ -225,6 +240,8 @@ class TarifaContratoController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorizeTarifaContratoButtonAction('save');
+
         $data = $this->validateData($request);
         TarifaContrato::query()->create($data);
 
@@ -242,6 +259,8 @@ class TarifaContratoController extends Controller
 
     public function importForm()
     {
+        $this->authorizeTarifaContratoButtonAction('import');
+
         return view('tarifa_contrato.import', [
             'servicios' => self::SERVICIOS,
             'departamentos' => self::DEPARTAMENTOS,
@@ -251,6 +270,8 @@ class TarifaContratoController extends Controller
 
     public function import(Request $request)
     {
+        $this->authorizeTarifaContratoButtonAction('import');
+
         $request->validate([
             'archivo' => 'required|file|mimes:xlsx,xls|max:10240',
         ]);
@@ -365,6 +386,9 @@ class TarifaContratoController extends Controller
                 'origen' => strtoupper((string) ($data['origen'] ?? '')),
                 'destino' => strtoupper((string) ($data['destino'] ?? '')),
                 'servicio' => $this->normalizeServicio((string) ($data['servicio'] ?? '')),
+                'direccion' => $this->normalizeNullableUpper($data['direccion'] ?? null),
+                'zona' => $this->normalizeNullableUpper($data['zona'] ?? null),
+                'peso' => $this->parseDecimal($data['kilo_de_1_a_2'] ?? ($data['peso'] ?? null)),
                 'kilo' => $this->parseDecimal($data['kilo'] ?? null),
                 'kilo_extra' => $this->parseDecimal($data['kilo_extra'] ?? null),
                 'provincia' => $this->normalizeNullableUpper($data['provincia'] ?? null),
@@ -381,6 +405,9 @@ class TarifaContratoController extends Controller
                     'origen' => 'origen',
                     'destino' => 'destino',
                     'servicio' => 'servicio',
+                    'direccion' => 'direccion',
+                    'zona' => 'zona',
+                    'peso' => 'peso',
                     'kilo' => 'kilo',
                     'kilo_extra' => 'kilo extra',
                     'provincia' => 'provincia',
@@ -405,7 +432,7 @@ class TarifaContratoController extends Controller
                 'provincia',
             ]);
 
-            $values = Arr::only($validated, ['retencion', 'horas_entrega']);
+            $values = Arr::only($validated, ['direccion', 'zona', 'peso', 'retencion', 'horas_entrega']);
 
             $tarifa = TarifaContrato::query()->where($unique)->first();
             if ($tarifa) {
@@ -430,6 +457,8 @@ class TarifaContratoController extends Controller
 
     public function downloadTemplateExcel()
     {
+        $this->authorizeTarifaContratoButtonAction('export');
+
         $filename = 'plantilla_tarifa_contrato.xlsx';
         $columns = self::IMPORT_COLUMNS;
         $empresas = Empresa::query()
@@ -443,7 +472,7 @@ class TarifaContratoController extends Controller
 
             $sheet->fromArray($columns, null, 'A1');
 
-            $sheet->getStyle('A1:I1')->applyFromArray([
+            $sheet->getStyle('A1:L1')->applyFromArray([
                 'font' => [
                     'bold' => true,
                     'color' => ['argb' => 'FFFFFFFF'],
@@ -465,26 +494,29 @@ class TarifaContratoController extends Controller
             ]);
 
             $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:I1');
+            $sheet->setAutoFilter('A1:L1');
 
             $columnWidths = [
                 'A' => 38,
                 'B' => 18,
                 'C' => 18,
                 'D' => 34,
-                'E' => 12,
-                'F' => 12,
-                'G' => 18,
+                'E' => 28,
+                'F' => 20,
+                'G' => 12,
                 'H' => 12,
-                'I' => 14,
+                'I' => 12,
+                'J' => 18,
+                'K' => 12,
+                'L' => 14,
             ];
             foreach ($columnWidths as $column => $width) {
                 $sheet->getColumnDimension($column)->setWidth($width);
             }
 
-            $sheet->getStyle('E2:F5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('H2:H5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('I2:I5000')->getNumberFormat()->setFormatCode('0');
+            $sheet->getStyle('G2:I5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('K2:K5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('L2:L5000')->getNumberFormat()->setFormatCode('0');
 
             $sheetEmpresas = $spreadsheet->createSheet();
             $sheetEmpresas->setTitle('Empresas');
@@ -556,7 +588,7 @@ class TarifaContratoController extends Controller
             $sheetInstrucciones->setCellValue('A3', '1) No cambies los nombres de columnas en la hoja TarifaContrato.');
             $sheetInstrucciones->setCellValue('A4', '2) Empieza a llenar datos desde la fila 2.');
             $sheetInstrucciones->setCellValue('A5', '3) Usa empresa_nombre igual al nombre exacto en hoja Empresas.');
-            $sheetInstrucciones->setCellValue('A6', '4) provincia es opcional.');
+            $sheetInstrucciones->setCellValue('A6', '4) direccion, zona, peso y provincia son opcionales.');
             $sheetInstrucciones->setCellValue('A7', '5) origen, destino y servicio tienen listas desplegables.');
             $sheetInstrucciones->getStyle('A1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 14],
@@ -584,6 +616,8 @@ class TarifaContratoController extends Controller
 
     public function edit(TarifaContrato $tarifaContrato)
     {
+        $this->authorizeTarifaContratoButtonAction('edit');
+
         return view('tarifa_contrato.edit', [
             'tarifaContrato' => $tarifaContrato,
             'empresas' => Empresa::query()->orderBy('nombre')->get(),
@@ -596,6 +630,8 @@ class TarifaContratoController extends Controller
 
     public function update(Request $request, TarifaContrato $tarifaContrato)
     {
+        $this->authorizeTarifaContratoButtonAction('save');
+
         $data = $this->validateData($request);
         $tarifaContrato->update($data);
 
@@ -606,6 +642,8 @@ class TarifaContratoController extends Controller
 
     public function destroy(TarifaContrato $tarifaContrato)
     {
+        $this->authorizeTarifaContratoButtonAction('delete');
+
         $tarifaContrato->delete();
 
         return redirect()
@@ -621,10 +659,16 @@ class TarifaContratoController extends Controller
             'origen' => strtoupper(trim((string) $request->input('origen'))),
             'destino' => strtoupper(trim((string) $request->input('destino'))),
             'servicio' => $this->normalizeServicio((string) $request->input('servicio')),
+            'direccion' => $this->normalizeNullableUpper($request->input('direccion')),
+            'zona' => $this->normalizeNullableUpper($request->input('zona')),
             'provincia' => $provincia === '' ? null : strtoupper($provincia),
         ]);
 
         $data = $request->validate($this->validationRules((string) $request->input('destino')));
+
+        if ($request->filled('peso')) {
+            $data['peso'] = $this->parseDecimal($request->input('peso'));
+        }
 
         return $data;
     }
@@ -639,6 +683,9 @@ class TarifaContratoController extends Controller
             'origen' => ['required', 'string', Rule::in(self::DEPARTAMENTOS)],
             'destino' => ['required', 'string', Rule::in(self::DEPARTAMENTOS)],
             'servicio' => ['required', 'string', Rule::in(self::SERVICIOS)],
+            'direccion' => ['nullable', 'string', 'max:255'],
+            'zona' => ['nullable', 'string', 'max:255'],
+            'peso' => ['nullable', 'numeric', 'min:0'],
             'kilo' => 'required|numeric|min:0',
             'kilo_extra' => 'required|numeric|min:0',
             'provincia' => ['nullable', 'string', 'max:255', Rule::in($provinciasDestino)],
@@ -649,7 +696,12 @@ class TarifaContratoController extends Controller
 
     private function normalizeHeader($value): string
     {
-        return strtolower(trim((string) $value));
+        $value = strtolower(trim((string) $value));
+
+        return match ($value) {
+            'kilo de 1 a 2', 'kilo 1 a 2', 'kilo_de_1_a_2' => 'kilo_de_1_a_2',
+            default => $value,
+        };
     }
 
     private function normalizeCompanyName(string $value): string
@@ -713,6 +765,41 @@ class TarifaContratoController extends Controller
         }
 
         return is_numeric($text) ? (float) $text : null;
+    }
+
+    private function authorizeTarifaContratoButtonAction(string $action): void
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            abort(403, 'No tienes permiso para realizar esta accion.');
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+            return;
+        }
+
+        $permissions = AclPermissionRegistry::existingPermissionsFrom([
+            'feature.tarifa-contrato.'.$action,
+        ]);
+
+        if ($permissions === []) {
+            if ((bool) config('acl.route_permission.allow_when_permission_missing', true)) {
+                return;
+            }
+
+            abort(403, 'No se encontro la configuracion de permisos para esta accion.');
+        }
+
+        foreach ($permissions as $permission) {
+            if ($user->can($permission)) {
+                return;
+            }
+        }
+
+        abort(403, 'No tienes permiso para realizar esta accion.');
     }
 
     private function normalizeServicio(string $value): string

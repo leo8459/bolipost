@@ -55,6 +55,68 @@
         .list-table .table {
             margin-bottom: 0;
         }
+        .quick-form-row .form-group {
+            margin-bottom: 10px;
+        }
+        .quick-form-row .form-group label {
+            color: #0f172a;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        .quick-form-row .peso-cell .form-control {
+            min-height: 42px;
+        }
+        .quick-form-row .peso-cell .input-group .form-control {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+        .quick-form-row .peso-cell .input-group-append .btn {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            min-height: 42px;
+        }
+        .quick-form-row .peso-cell .form-group {
+            position: relative;
+        }
+        .quick-form-row .peso-cell .peso-cas-toggle {
+            position: relative;
+            z-index: 4;
+        }
+        .quick-form-row .peso-cell .peso-cas-panel {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            width: min(430px, calc(100vw - 48px));
+            margin-top: 0;
+            min-height: 0;
+            z-index: 30;
+            box-shadow: 0 14px 26px rgba(15, 23, 42, .16);
+        }
+        .quick-actions {
+            margin-top: 4px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .quick-actions .btn {
+            border-radius: 10px;
+            font-weight: 800;
+            padding: 8px 14px;
+        }
+        @media (max-width: 991.98px) {
+            .quick-form-row .peso-cell .peso-cas-panel {
+                position: static;
+                width: auto;
+                margin-top: 8px;
+                z-index: auto;
+                box-shadow: none;
+            }
+            .quick-actions {
+                justify-content: flex-start;
+                margin-top: 0;
+            }
+        }
     </style>
 
     <div id="registroRapidoAjaxAlert"></div>
@@ -103,26 +165,42 @@
                         $destinoPrefill = old('destino', '');
                         $provinciaPrefill = strtoupper(trim((string) old('provincia', '')));
                     @endphp
-                    <div class="row align-items-end">
-                        <div class="col-md-3">
+                    <div class="row align-items-start quick-form-row">
+                        <div class="col-lg-3 col-md-6">
                             <div class="form-group">
                                 <label>Codigo</label>
                                 <input type="text" name="codigo" id="registroRapidoCodigo" class="form-control" value="{{ old('codigo') }}" placeholder="Ej: C0007A02011BO" required>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-3 col-md-6 peso-cell">
                             <div class="form-group">
-                                <label>Peso</label>
-                                <input type="number" name="peso" id="registroRapidoPeso" class="form-control" value="{{ old('peso') }}" step="0.001" min="0.001" required>
+                                <x-peso-qz-field
+                                    model="peso"
+                                    name="peso"
+                                    input-id="registroRapidoPeso"
+                                    :value="old('peso')"
+                                    min="0.001"
+                                    :required="true"
+                                    :use-scale="true"
+                                    :show-clear="true"
+                                    :livewire="false"
+                                    :status-collapsed="true"
+                                />
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-lg-2 col-md-4">
+                            <div class="form-group">
+                                <label>Cantidad</label>
+                                <input type="text" name="cantidad" id="registroRapidoCantidad" class="form-control" value="{{ old('cantidad') }}" placeholder="Opcional: cajas, sobres, 3 paquetes...">
+                            </div>
+                        </div>
+                        <div class="col-lg-2 col-md-4">
                             <div class="form-group">
                                 <label>Origen (usuario logueado)</label>
                                 <input type="text" id="registroRapidoOrigen" class="form-control origin-input" value="{{ $origen }}" readonly>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-4">
                             <div class="form-group">
                                 <label>Destino</label>
                                 <select name="destino" id="registroRapidoDestino" class="form-control" required>
@@ -133,7 +211,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-4">
                             <div class="form-group">
                                 <label>Provincia (opcional)</label>
                                 <select name="provincia" id="registroRapidoProvincia" class="form-control">
@@ -143,9 +221,13 @@
                         </div>
                         <div class="col-md-2">
                             <div class="form-group mb-0 d-flex gap-2">
-                                @if ($canQuickContractCreate ?? false)
+                                @if (($canQuickContractCreate ?? false) || ($canQuickContractSave ?? false))
+                                    @if ($canQuickContractCreate ?? false)
                                     <button type="button" class="btn btn-outline-primary" id="btnAgregarPrelista">Anadir a prelista</button>
+                                    @endif
+                                    @if ($canQuickContractSave ?? false)
                                     <button type="button" class="btn btn-primary" id="btnGuardarTodos">Guardar todos</button>
+                                    @endif
                                 @endif
                             </div>
                         </div>
@@ -162,6 +244,7 @@
                                 <tr>
                                     <th>#</th>
                                     <th>Codigo</th>
+                                    <th>Cantidad</th>
                                     <th>Peso</th>
                                     <th>Origen</th>
                                     <th>Destino</th>
@@ -174,11 +257,15 @@
                                     <tr>
                                         <td>{{ $idx + 1 }}</td>
                                         <td>{{ $item['codigo'] ?? '-' }}</td>
+                                        <td>{{ !empty($item['cantidad']) ? $item['cantidad'] : '-' }}</td>
                                         <td>{{ $item['peso'] ?? '-' }}</td>
                                         <td>{{ $item['origen'] ?? '-' }}</td>
                                         <td>{{ $item['destino'] ?? '-' }}</td>
                                         <td>{{ $item['provincia'] ?? '-' }}</td>
                                         <td>
+                                            @if ($canQuickContractCreate ?? false)
+                                                <button type="button" class="btn btn-xs btn-outline-secondary" disabled>Duplicar</button>
+                                            @endif
                                             @if ($canQuickContractDelete ?? false)
                                                 <button type="button" class="btn btn-xs btn-outline-danger" disabled>Quitar</button>
                                             @endif
@@ -186,7 +273,7 @@
                                     </tr>
                                 @empty
                                     <tr id="registroRapidoListadoEmpty">
-                                        <td colspan="7" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
+                                        <td colspan="8" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -204,6 +291,7 @@
 
         const codigoInput = document.getElementById('registroRapidoCodigo');
         const pesoInput = document.getElementById('registroRapidoPeso');
+        const cantidadInput = document.getElementById('registroRapidoCantidad');
         const origenInput = document.getElementById('registroRapidoOrigen');
         const destinoInput = document.getElementById('registroRapidoDestino');
         const provinciaInput = document.getElementById('registroRapidoProvincia');
@@ -215,13 +303,15 @@
         const listCount = document.getElementById('registroRapidoListadoCount');
         const btnAgregar = document.getElementById('btnAgregarPrelista');
         const btnGuardarTodos = document.getElementById('btnGuardarTodos');
+        const canQuickContractCreate = @json((bool) ($canQuickContractCreate ?? false));
+        const canQuickContractSave = @json((bool) ($canQuickContractSave ?? false));
         const canQuickContractDelete = @json((bool) ($canQuickContractDelete ?? false));
         const csrfToken = form.querySelector('input[name="_token"]')?.value || '';
         const prelista = [];
 
         function setButtonsDisabled(disabled) {
             if (btnAgregar) btnAgregar.disabled = disabled;
-            if (btnGuardarTodos) btnGuardarTodos.disabled = disabled;
+            if (btnGuardarTodos) btnGuardarTodos.disabled = disabled || !prelista.length;
         }
 
         function escapeHtml(value) {
@@ -275,21 +365,32 @@
             listBody.innerHTML = '';
 
             if (!prelista.length) {
-                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="7" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
+                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="8" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
                 if (listCount) listCount.textContent = '0';
                 return;
             }
 
             prelista.forEach((item, index) => {
                 const row = document.createElement('tr');
+                const actionButtons = [];
+
+                if (canQuickContractCreate) {
+                    actionButtons.push(`<button type="button" class="btn btn-xs btn-outline-secondary mr-1" data-duplicate-index="${index}">Duplicar</button>`);
+                }
+
+                if (canQuickContractDelete) {
+                    actionButtons.push(`<button type="button" class="btn btn-xs btn-outline-danger" data-remove-index="${index}">Quitar</button>`);
+                }
+
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${escapeHtml(item.codigo)}</td>
+                    <td>${escapeHtml(item.cantidad || '-')}</td>
                     <td>${escapeHtml(item.peso)}</td>
                     <td>${escapeHtml(item.origen)}</td>
                     <td>${escapeHtml(item.destino)}</td>
                     <td>${escapeHtml(item.provincia || '-')}</td>
-                    <td>${canQuickContractDelete ? `<button type="button" class="btn btn-xs btn-outline-danger" data-remove-index="${index}">Quitar</button>` : ''}</td>
+                    <td>${actionButtons.join('')}</td>
                 `;
                 listBody.appendChild(row);
             });
@@ -297,11 +398,14 @@
             if (listCount) {
                 listCount.textContent = String(prelista.length);
             }
+
+            setButtonsDisabled(false);
         }
 
         function addCurrentToPrelista() {
             const codigo = normalizeCodigo(codigoInput.value);
             const peso = String(pesoInput.value || '').trim();
+            const cantidad = String(cantidadInput?.value || '').trim();
             const destino = String(destinoInput.value || '').trim().toUpperCase();
             const origen = String(origenInput.value || '').trim().toUpperCase();
             const provincia = String(provinciaInput?.value || '').trim().toUpperCase();
@@ -333,6 +437,7 @@
 
             prelista.push({
                 codigo: codigo,
+                cantidad: cantidad,
                 peso: Number(peso).toFixed(3),
                 origen: origen,
                 destino: destino,
@@ -350,6 +455,26 @@
             codigoInput.focus();
         }
 
+        function duplicateRow(index) {
+            const item = prelista[index];
+            if (!item) return;
+
+            pesoInput.value = item.peso;
+            if (cantidadInput) {
+                    cantidadInput.value = item.cantidad || '';
+            }
+            destinoInput.value = item.destino;
+            renderProvinciaOptions(item.destino, item.provincia || '');
+
+            if (provinciaInput) {
+                provinciaInput.value = item.provincia || '';
+            }
+
+            codigoInput.value = '';
+            codigoInput.focus();
+            showAlert('success', 'Fila cargada para duplicar. Ingresa un nuevo codigo y vuelve a anadirla.');
+        }
+
         if (btnAgregar) {
             btnAgregar.addEventListener('click', function () {
                 addCurrentToPrelista();
@@ -364,6 +489,15 @@
 
         if (listBody) {
             listBody.addEventListener('click', function (event) {
+                const duplicateTarget = event.target.closest('[data-duplicate-index]');
+                if (duplicateTarget) {
+                    const duplicateIndex = Number(duplicateTarget.getAttribute('data-duplicate-index'));
+                    if (!Number.isNaN(duplicateIndex)) {
+                        duplicateRow(duplicateIndex);
+                    }
+                    return;
+                }
+
                 const target = event.target.closest('[data-remove-index]');
                 if (!target) return;
                 const index = Number(target.getAttribute('data-remove-index'));
@@ -374,6 +508,11 @@
         }
 
         async function guardarTodos() {
+            if (!canQuickContractSave) {
+                showAlert('danger', 'No tienes permiso para guardar la prelista.');
+                return;
+            }
+
             if (!prelista.length) {
                 showAlert('danger', 'No hay elementos en la prelista.');
                 return;
@@ -386,6 +525,7 @@
                     body: JSON.stringify({
                         items: prelista.map((item) => ({
                             codigo: item.codigo,
+                            cantidad: item.cantidad || null,
                             peso: item.peso,
                             destino: item.destino,
                             provincia: item.provincia || null,
@@ -424,6 +564,9 @@
                 if (pesoInput) {
                     pesoInput.value = '';
                 }
+                if (cantidadInput) {
+                    cantidadInput.value = '';
+                }
                 if (provinciaInput) {
                     provinciaInput.value = '';
                 }
@@ -443,6 +586,7 @@
 
         renderPrelista();
         renderProvinciaOptions(destinoInput ? destinoInput.value : '', oldProvincia);
+        setButtonsDisabled(false);
     })();
 </script>
 @endsection

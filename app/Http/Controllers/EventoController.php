@@ -29,6 +29,11 @@ class EventoController extends Controller
         return view('eventos_contrato.index');
     }
 
+    public function tiktokerIndex()
+    {
+        return view('eventos_tiktoker.index');
+    }
+
     public function despachoIndex()
     {
         return view('eventos_despacho.index');

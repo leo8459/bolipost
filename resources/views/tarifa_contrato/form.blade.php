@@ -86,6 +86,58 @@
         </div>
 
         <div class="row">
+            <div class="col-md-3">
+                <div class="form-group mb-3">
+                    <label for="direccion">Direccion (Opcional)</label>
+                    <input
+                        type="text"
+                        id="direccion"
+                        name="direccion"
+                        value="{{ old('direccion', $tarifaContrato->direccion ?? ($defaults['direccion'] ?? '')) }}"
+                        class="form-control @error('direccion') is-invalid @enderror"
+                    >
+                    @error('direccion')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="form-group mb-3">
+                    <label for="zona">Zona (Opcional)</label>
+                    <input
+                        type="text"
+                        id="zona"
+                        name="zona"
+                        value="{{ old('zona', $tarifaContrato->zona ?? ($defaults['zona'] ?? '')) }}"
+                        class="form-control @error('zona') is-invalid @enderror"
+                    >
+                    @error('zona')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="form-group mb-3">
+                    <label for="peso">Peso (Opcional)</label>
+                    <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        id="peso"
+                        name="peso"
+                        value="{{ old('peso', $tarifaContrato->peso ?? ($defaults['peso'] ?? '')) }}"
+                        class="form-control @error('peso') is-invalid @enderror"
+                    >
+                    @error('peso')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
             <div class="col-md-4">
                 <div class="form-group mb-3">
                     <label for="kilo">Kilo</label>
@@ -201,11 +253,15 @@
             <a href="{{ route('tarifa-contrato.index') }}" class="btn btn-secondary">Volver</a>
             <div class="d-flex" style="gap:8px;">
                 @if($isCreate)
+                    @aclcan('save', null, 'tarifa-contrato')
                     <button type="submit" name="action" value="save_and_new" class="btn btn-info">
                         Guardar y crear otro
                     </button>
+                    @endaclcan
                 @endif
+                @aclcan('save', null, 'tarifa-contrato')
                 <button type="submit" name="action" value="save" class="btn btn-primary">Guardar</button>
+                @endaclcan
             </div>
         </div>
     </div>
