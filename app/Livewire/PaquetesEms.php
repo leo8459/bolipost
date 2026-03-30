@@ -4670,6 +4670,28 @@ class PaquetesEms extends Component
             return 'BC';
         }
 
+        return $this->resolveOriginIsoSuffix();
+    }
+
+    protected function resolveOriginIsoSuffix(): string
+    {
+        $candidates = [
+            strtoupper(trim((string) $this->origen)),
+            strtoupper(trim((string) optional(Auth::user())->ciudad)),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate === '') {
+                continue;
+            }
+
+            foreach (self::SPECIAL_CODE_PREFIX_BY_CITY as $city => $isoCode) {
+                if ($candidate === $city || str_contains($candidate, $city)) {
+                    return $isoCode;
+                }
+            }
+        }
+
         return 'BO';
     }
 
