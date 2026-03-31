@@ -78,6 +78,8 @@ Route::get('/', [BusquedaController::class, 'landing'])->name('welcome');
 
 Route::redirect('/rastreo-demo', '/trackingbo', 301);
 Route::get('/trackingbo', [BusquedaController::class, 'mostrarTracking'])->name('tracking.demo');
+Route::get('/trackingbo/resultado', [BusquedaController::class, 'mostrarTrackingFirmado'])
+    ->name('tracking.demo.signed');
 
 Route::match(['GET', 'POST'], '/api/busqueda/ems-eventos', [BusquedaController::class, 'consultarEventosTracking'])
     ->name('api.busqueda.ems-eventos');

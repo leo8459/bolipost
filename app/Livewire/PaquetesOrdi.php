@@ -583,7 +583,8 @@ class PaquetesOrdi extends Component
 
     public function openCreateModal()
     {
-        $this->authorizePermission($this->modeFeaturePermission('create', 'clasificacion'));
+        $createMode = $this->isAlmacen ? 'almacen' : 'clasificacion';
+        $this->authorizePermission($this->modeFeaturePermission('create', $createMode));
 
         $this->resetForm();
         $this->editingId = null;
@@ -591,6 +592,17 @@ class PaquetesOrdi extends Component
         $userCity = trim((string) optional(auth()->user())->ciudad);
         if ($userCity !== '') {
             $this->ciudad = $userCity;
+        }
+
+        if ($this->isAlmacen) {
+            $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
+
+            if (! $estadoRecibidoId) {
+                session()->flash('success', 'No existe el estado RECIBIDO en la tabla estados.');
+                return;
+            }
+
+            $this->fk_estado = (string) $estadoRecibidoId;
         }
 
         $this->dispatch('openPaqueteOrdiModal');
@@ -660,18 +672,24 @@ class PaquetesOrdi extends Component
 
     public function save()
     {
+        $createMode = $this->isAlmacen ? 'almacen' : 'clasificacion';
         $permission = $this->editingId
             ? $this->modeFeaturePermission('edit')
-            : $this->modeFeaturePermission('create', 'clasificacion');
+            : $this->modeFeaturePermission('create', $createMode);
         $this->authorizePermission($permission);
 
         if (!$this->editingId) {
-            $estadoClasificacionId = $this->getClasificacionEstadoId();
-            if (!$estadoClasificacionId) {
-                session()->flash('success', 'No existe el estado CLASIFICACION en la tabla estados.');
+            $estadoCreacionId = $this->isAlmacen
+                ? $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO)
+                : $this->getClasificacionEstadoId();
+
+            if (!$estadoCreacionId) {
+                session()->flash('success', $this->isAlmacen
+                    ? 'No existe el estado RECIBIDO en la tabla estados.'
+                    : 'No existe el estado CLASIFICACION en la tabla estados.');
                 return;
             }
-            $this->fk_estado = (string) $estadoClasificacionId;
+            $this->fk_estado = (string) $estadoCreacionId;
         }
 
         $this->validate($this->rules());

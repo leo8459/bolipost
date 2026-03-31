@@ -76,9 +76,9 @@
                             Despachar
                         </button>
                         @endif
-                        @if ($canOrdiCreate)
+                    @endif
+                    @if (($this->isClasificacion || $this->isAlmacen) && $canOrdiCreate)
                         <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
-                        @endif
                     @endif
                     @if ($this->isDespacho)
                         @if ($canOrdiPrint)

@@ -9,9 +9,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Illuminate\View\View;
 
 class BusquedaController extends Controller
@@ -58,6 +60,13 @@ class BusquedaController extends Controller
         ]);
     }
 
+    public function captchaTrackingPublico(): JsonResponse
+    {
+        $captcha = $this->generarCaptchaTracking();
+
+        return response()->json($this->formatearCaptchaPublico($captcha));
+    }
+
     public function mostrarTracking(Request $request): View|RedirectResponse
     {
         if ($captchaError = $this->validarCaptchaTracking($request)) {
@@ -65,34 +74,14 @@ class BusquedaController extends Controller
                 ->with('tracking_error', $captchaError);
         }
 
-        $codigo = $this->obtenerCodigoValidado($request);
-        $resultado = $this->buscarEventosPorCodigo($codigo);
-        $eventos = $resultado['eventos'];
+        return $this->renderTrackingDetalle($request);
+    }
 
-        if ($eventos->isEmpty()) {
-            return redirect('/')
-                ->with('tracking_error', 'Paquete no encontrado');
-        }
+    public function mostrarTrackingFirmado(Request $request): View|RedirectResponse
+    {
+        abort_unless($request->hasValidSignature(), 403);
 
-        return view('tracking-demo', [
-            'codigo' => strtoupper($codigo),
-            'eventos' => $eventos,
-            'ultimoEvento' => $eventos->first(),
-            'fuenteTracking' => $resultado['fuente'],
-            'preregistroServicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
-            'preregistroDestinos' => Destino::query()->orderBy('nombre_destino')->get(),
-            'preregistroCiudades' => [
-                'LA PAZ',
-                'SANTA CRUZ',
-                'PANDO',
-                'BENI',
-                'TARIJA',
-                'CHUQUISACA',
-                'ORURO',
-                'COCHABAMBA',
-                'POTOSI',
-            ],
-        ]);
+        return $this->renderTrackingDetalle($request);
     }
 
     public function consultarEventosTracking(Request $request): JsonResponse
@@ -110,6 +99,36 @@ class BusquedaController extends Controller
     public function consultarEventosTrackingPublico(Request $request): JsonResponse
     {
         return $this->responderEventosTracking($request);
+    }
+
+    public function autorizarTrackingPublico(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'codigo' => ['required', 'string', 'max:50'],
+            'captcha_answer' => ['required', 'string', 'max:20'],
+            'captcha_challenge' => ['required', 'string'],
+        ]);
+
+        $codigo = trim((string) $validated['codigo']);
+
+        if (! $this->validarCaptchaPublico(
+            (string) $validated['captcha_answer'],
+            (string) $validated['captcha_challenge']
+        )) {
+            return response()->json([
+                'message' => 'La verificacion de seguridad no es correcta.',
+                'captcha' => $this->formatearCaptchaPublico($this->generarCaptchaTracking()),
+            ], 422);
+        }
+
+        return response()->json([
+            'codigo' => strtoupper($codigo),
+            'redirect_url' => URL::temporarySignedRoute(
+                'tracking.demo.signed',
+                now()->addMinutes(self::TRACKING_CAPTCHA_VERIFIED_MINUTES),
+                ['codigo' => $codigo]
+            ),
+        ]);
     }
 
     private function responderEventosTracking(Request $request): JsonResponse
@@ -137,6 +156,38 @@ class BusquedaController extends Controller
             'fuente' => $resultado['fuente'],
             'total_registros' => $eventos->count(),
             'resultado' => $this->formatearEventosAgrupados($eventos),
+        ]);
+    }
+
+    private function renderTrackingDetalle(Request $request): View|RedirectResponse
+    {
+        $codigo = $this->obtenerCodigoValidado($request);
+        $resultado = $this->buscarEventosPorCodigo($codigo);
+        $eventos = $resultado['eventos'];
+
+        if ($eventos->isEmpty()) {
+            return redirect('/')
+                ->with('tracking_error', 'Paquete no encontrado');
+        }
+
+        return view('tracking-demo', [
+            'codigo' => strtoupper($codigo),
+            'eventos' => $eventos,
+            'ultimoEvento' => $eventos->first(),
+            'fuenteTracking' => $resultado['fuente'],
+            'preregistroServicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
+            'preregistroDestinos' => Destino::query()->orderBy('nombre_destino')->get(),
+            'preregistroCiudades' => [
+                'LA PAZ',
+                'SANTA CRUZ',
+                'PANDO',
+                'BENI',
+                'TARIJA',
+                'CHUQUISACA',
+                'ORURO',
+                'COCHABAMBA',
+                'POTOSI',
+            ],
         ]);
     }
 
@@ -229,6 +280,43 @@ class BusquedaController extends Controller
             'question' => $codigo,
             'answer' => $codigo,
         ];
+    }
+
+    private function formatearCaptchaPublico(array $captcha): array
+    {
+        $expiresAt = now()->addMinutes(self::TRACKING_CAPTCHA_VERIFIED_MINUTES)->timestamp;
+
+        return [
+            'pregunta' => $captcha['question'],
+            'challenge' => Crypt::encryptString(json_encode([
+                'answer' => $captcha['answer'],
+                'expires_at' => $expiresAt,
+            ], JSON_THROW_ON_ERROR)),
+            'expires_at' => $expiresAt,
+        ];
+    }
+
+    private function validarCaptchaPublico(string $answer, string $challenge): bool
+    {
+        try {
+            $payload = json_decode(Crypt::decryptString($challenge), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $exception) {
+            return false;
+        }
+
+        if (! is_array($payload)) {
+            return false;
+        }
+
+        $expected = strtoupper(trim((string) ($payload['answer'] ?? '')));
+        $expiresAt = (int) ($payload['expires_at'] ?? 0);
+        $provided = strtoupper(trim($answer));
+
+        if ($expected === '' || $provided === '' || $expiresAt <= now()->timestamp) {
+            return false;
+        }
+
+        return hash_equals($expected, $provided);
     }
 
     private function formatearEventosAgrupados(Collection $eventos): Collection

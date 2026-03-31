@@ -20,6 +20,12 @@ Route::post('/public/paquetes-contrato', [RecojoController::class, 'storePublic'
 
 Route::get('/public/tracking/eventos', [BusquedaController::class, 'consultarEventosTrackingPublico'])
     ->name('api.public.tracking.eventos');
+Route::get('/public/tracking/captcha', [BusquedaController::class, 'captchaTrackingPublico'])
+    ->middleware('throttle:30,1')
+    ->name('api.public.tracking.captcha');
+Route::post('/public/tracking/access', [BusquedaController::class, 'autorizarTrackingPublico'])
+    ->middleware('throttle:30,1')
+    ->name('api.public.tracking.access');
 Route::post('/public/preregistros', [PreregistroController::class, 'publicStoreApi'])
     ->name('api.public.preregistros.store');
 
