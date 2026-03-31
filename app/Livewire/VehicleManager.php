@@ -287,23 +287,61 @@ class VehicleManager extends Component
         $this->modelo = $this->sanitizeText($this->modelo);
         $this->color = $this->sanitizeText($this->color);
 
-        $this->validate([
-            'placa' => [
-                'required',
-                'string',
-                'max:20',
-                'regex:/^[\pL\pN\s\-\/\.]+$/u',
-                Rule::unique('vehicles', 'placa')->ignore($this->editingVehicleId),
+        $this->validate(
+            [
+                'placa' => [
+                    'required',
+                    'string',
+                    'max:20',
+                    'regex:/^[\pL\pN\s\-\/\.]+$/u',
+                    Rule::unique('vehicles', 'placa')->ignore($this->editingVehicleId),
+                ],
+                'marca_id' => 'required|integer|min:1|exists:vehicle_brands,id',
+                'modelo' => ['required', 'string', 'max:50', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
+                'tipo_combustible' => ['required', 'string', Rule::in(self::FUEL_TYPES)],
+                'maintenance_form_type' => ['required', 'string', Rule::in(self::MAINTENANCE_FORM_TYPES)],
+                'color' => ['required', 'string', 'max:50', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
+                'anio' => 'required|integer|min:1900|max:' . date('Y'),
+                'capacidad_tanque' => 'required|numeric|min:3|max:150',
+                'kilometraje' => 'required|numeric|min:5',
             ],
-            'marca_id' => 'required|integer|min:1|exists:vehicle_brands,id',
-            'modelo' => ['required', 'string', 'max:50', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
-            'tipo_combustible' => ['required', 'string', Rule::in(self::FUEL_TYPES)],
-            'maintenance_form_type' => ['required', 'string', Rule::in(self::MAINTENANCE_FORM_TYPES)],
-            'color' => ['nullable', 'string', 'max:50', 'regex:/^[\pL\pN\s\-\/\.\(\)]*$/u'],
-            'anio' => 'nullable|integer|min:1900|max:' . (date('Y') + 1),
-            'capacidad_tanque' => 'nullable|numeric|min:0',
-            'kilometraje' => 'nullable|numeric|min:0',
-        ]);
+            [
+                'placa.required' => 'La placa es obligatoria.',
+                'placa.string' => 'La placa debe ser texto.',
+                'placa.max' => 'La placa no debe superar :max caracteres.',
+                'placa.regex' => 'La placa contiene caracteres no permitidos.',
+                'placa.unique' => 'La placa ya esta registrada.',
+                'marca_id.required' => 'La marca es obligatoria.',
+                'marca_id.integer' => 'La marca seleccionada no es valida.',
+                'marca_id.min' => 'Debe seleccionar una marca valida.',
+                'marca_id.exists' => 'La marca seleccionada no existe.',
+                'modelo.required' => 'El modelo es obligatorio.',
+                'modelo.string' => 'El modelo debe ser texto.',
+                'modelo.max' => 'El modelo no debe superar :max caracteres.',
+                'modelo.regex' => 'El modelo contiene caracteres no permitidos.',
+                'tipo_combustible.required' => 'El tipo de combustible es obligatorio.',
+                'tipo_combustible.string' => 'El tipo de combustible debe ser texto.',
+                'tipo_combustible.in' => 'El tipo de combustible seleccionado no es valido.',
+                'maintenance_form_type.required' => 'El tipo de formulario es obligatorio.',
+                'maintenance_form_type.string' => 'El tipo de formulario debe ser texto.',
+                'maintenance_form_type.in' => 'El tipo de formulario seleccionado no es valido.',
+                'color.required' => 'El color es obligatorio.',
+                'color.string' => 'El color debe ser texto.',
+                'color.max' => 'El color no debe superar :max caracteres.',
+                'color.regex' => 'El color contiene caracteres no permitidos.',
+                'anio.required' => 'El anio es obligatorio.',
+                'anio.integer' => 'El anio debe ser un numero entero.',
+                'anio.min' => 'El anio debe ser mayor o igual a :min.',
+                'anio.max' => 'El anio no puede ser mayor al anio actual (:max).',
+                'capacidad_tanque.required' => 'La capacidad del tanque es obligatoria.',
+                'capacidad_tanque.numeric' => 'La capacidad del tanque debe ser un numero.',
+                'capacidad_tanque.min' => 'La capacidad del tanque no puede ser menor a :min.',
+                'capacidad_tanque.max' => 'La capacidad del tanque no puede ser mayor a :max.',
+                'kilometraje.required' => 'El kilometraje es obligatorio.',
+                'kilometraje.numeric' => 'El kilometraje debe ser un numero.',
+                'kilometraje.min' => 'El kilometraje no puede ser menor a :min.',
+            ]
+        );
 
         if (!$this->validateKilometrajeIntegrity()) {
             return;

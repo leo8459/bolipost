@@ -52,6 +52,26 @@
             box-shadow: 0 22px 50px rgba(15, 23, 42, 0.28);
             overflow: hidden;
         }
+        .vehicle-form-field {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+        .vehicle-form-field:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+        select.vehicle-form-field {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
@@ -172,12 +192,12 @@
                     <div class="row g-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Placa *</label>
-                            <input type="text" wire:model="placa" class="form-control @error('placa') is-invalid @enderror" required>
+                            <input type="text" wire:model="placa" class="form-control vehicle-form-field @error('placa') is-invalid @enderror" required>
                             @error('placa') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Marca *</label>
-                            <select wire:model="marca_id" class="form-select @error('marca_id') is-invalid @enderror" required>
+                            <select wire:model="marca_id" class="form-control vehicle-form-field @error('marca_id') is-invalid @enderror" required>
                                 <option value="0">Seleccionar marca</option>
                                 @foreach ($brands as $brand)
                                     <option value="{{ $brand->id }}">{{ $brand->nombre }}</option>
@@ -187,12 +207,12 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Modelo *</label>
-                            <input type="text" wire:model="modelo" class="form-control @error('modelo') is-invalid @enderror" required>
+                            <input type="text" wire:model="modelo" class="form-control vehicle-form-field @error('modelo') is-invalid @enderror" required>
                             @error('modelo') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Tipo Combustible</label>
-                            <select wire:model="tipo_combustible" class="form-select @error('tipo_combustible') is-invalid @enderror">
+                            <select wire:model="tipo_combustible" class="form-control vehicle-form-field @error('tipo_combustible') is-invalid @enderror" required>
                                 <option value="">Seleccionar tipo</option>
                                 @foreach($fuelTypes as $fuelType)
                                     <option value="{{ $fuelType }}">{{ ucfirst($fuelType) }}</option>
@@ -202,7 +222,7 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Tipo de formulario mantenimiento *</label>
-                            <select wire:model="maintenance_form_type" class="form-select @error('maintenance_form_type') is-invalid @enderror">
+                            <select wire:model="maintenance_form_type" class="form-control vehicle-form-field @error('maintenance_form_type') is-invalid @enderror" required>
                                 @foreach($maintenanceFormTypes as $formType)
                                     <option value="{{ $formType }}">{{ $formType === 'moto' ? 'Moto' : 'Vehiculo' }}</option>
                                 @endforeach
@@ -211,21 +231,24 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Color</label>
-                            <input type="text" wire:model="color" class="form-control @error('color') is-invalid @enderror">
+                            <input type="text" wire:model="color" class="form-control vehicle-form-field @error('color') is-invalid @enderror" required>
                             @error('color') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Año</label>
-                            <input type="number" wire:model="anio" class="form-control">
+                            <input type="number" wire:model="anio" class="form-control vehicle-form-field @error('anio') is-invalid @enderror" required max="{{ date('Y') }}">
+                            @error('anio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Kilometraje Inicial</label>
-                            <input type="number" step="0.01" wire:model="kilometraje" class="form-control">
+                            <input type="number" step="0.01" wire:model="kilometraje" class="form-control vehicle-form-field @error('kilometraje') is-invalid @enderror" required min="5">
                             <div class="form-text">Si ingresa danado, el sistema guardara 0 al crear el vehiculo.</div>
+                            @error('kilometraje') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Capacidad Tanque</label>
-                            <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control">
+                            <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control vehicle-form-field @error('capacidad_tanque') is-invalid @enderror" required min="3" max="150">
+                            @error('capacidad_tanque') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12">
                             <div class="form-check">
