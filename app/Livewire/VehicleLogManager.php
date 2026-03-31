@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Driver;
+use App\Models\Estado;
 use App\Models\FuelLog;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -11,6 +12,7 @@ use App\Models\VehicleLog;
 use App\Services\MaintenanceAlertService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -122,6 +124,7 @@ class VehicleLogManager extends Component
         }
 
         $logs = $query->paginate(10);
+        $crossSummary = $this->buildOperationalSummary($logs);
 
         if ($this->currentUser()?->role === 'conductor') {
             $driverId = (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0);
@@ -222,6 +225,7 @@ class VehicleLogManager extends Component
             'vehicles' => $vehicles,
             'drivers' => $drivers,
             'fuelLogs' => $fuelLogs,
+            'crossSummary' => $crossSummary,
         ]);
     }
 
@@ -271,8 +275,9 @@ class VehicleLogManager extends Component
         ]);
 
         $vehicle = Vehicle::query()->find($this->vehicles_id);
-        if (!$vehicle || $vehicle->isInMaintenance()) {
-            $this->addError('vehicles_id', 'El vehiculo esta en mantenimiento y no puede registrar bitacoras.');
+        $blockReason = MaintenanceAlertService::resolveVehicleLogBlockReason($vehicle);
+        if ($blockReason !== null) {
+            $this->addError('vehicles_id', $blockReason);
             return;
         }
 
@@ -788,6 +793,103 @@ class VehicleLogManager extends Component
         }
 
         return (bool) $log->abastecimiento_combustible;
+    }
+
+    private function buildOperationalSummary($logs): array
+    {
+        $items = collect($logs->items());
+        $default = [
+            'plate_label' => 'Todas las placas',
+            'month_label' => 'Sin rango',
+            'date_label' => 'Sin fechas',
+            'fuel_total' => 0.0,
+            'package_total' => 0,
+            'guides_label' => 'Guias entregadas',
+        ];
+
+        if ($items->isEmpty()) {
+            return $default;
+        }
+
+        $driverUserIds = $items
+            ->map(fn ($log) => (int) ($log->driver?->user_id ?? 0))
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $dates = $items
+            ->map(fn ($log) => optional($log->fecha)->format('Y-m-d'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $deliveryCounts = collect();
+        $deliveredStateIds = Estado::query()
+            ->whereRaw('UPPER(nombre_estado) LIKE ?', ['%ENTREGADO%'])
+            ->pluck('id');
+
+        if ($driverUserIds->isNotEmpty() && $dates->isNotEmpty() && $deliveredStateIds->isNotEmpty()) {
+            $minDate = $dates->min();
+            $maxDate = $dates->max();
+
+            $deliveryCounts = DB::table('cartero')
+                ->selectRaw('id_user, DATE(COALESCE(updated_at, created_at)) as event_date, COUNT(*) as delivered_count')
+                ->whereIn('id_user', $driverUserIds->all())
+                ->whereIn('id_estados', $deliveredStateIds->all())
+                ->whereBetween(DB::raw('DATE(COALESCE(updated_at, created_at))'), [$minDate, $maxDate])
+                ->groupBy('id_user', DB::raw('DATE(COALESCE(updated_at, created_at))'))
+                ->get()
+                ->mapWithKeys(fn ($row) => [
+                    ((int) $row->id_user) . '|' . (string) $row->event_date => (int) $row->delivered_count,
+                ]);
+        }
+
+        $items->transform(function ($log) use ($deliveryCounts) {
+            $userId = (int) ($log->driver?->user_id ?? 0);
+            $date = optional($log->fecha)->format('Y-m-d');
+            $log->package_count = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
+
+            return $log;
+        });
+
+        $logs->setCollection($items);
+
+        $selectedVehicle = $this->vehicle_filter_id
+            ? Vehicle::query()->find((int) $this->vehicle_filter_id)
+            : null;
+
+        $plateLabel = $selectedVehicle?->placa
+            ?: (($items->pluck('vehicle.placa')->filter()->unique()->count() === 1)
+                ? (string) $items->pluck('vehicle.placa')->filter()->first()
+                : 'Todas las placas');
+
+        $monthLabel = 'Sin rango';
+        if ($this->fecha_desde && $this->fecha_hasta) {
+            $from = Carbon::parse($this->fecha_desde);
+            $to = Carbon::parse($this->fecha_hasta);
+            $monthLabel = ucfirst($from->translatedFormat('F Y'));
+            if ($from->format('Y-m') !== $to->format('Y-m')) {
+                $monthLabel .= ' - ' . ucfirst($to->translatedFormat('F Y'));
+            }
+        } elseif ($this->fecha_desde) {
+            $monthLabel = ucfirst(Carbon::parse($this->fecha_desde)->translatedFormat('F Y'));
+        }
+
+        $dateLabel = 'Sin fechas';
+        if ($this->fecha_desde && $this->fecha_hasta) {
+            $dateLabel = Carbon::parse($this->fecha_desde)->format('d/m/Y') . ' - ' . Carbon::parse($this->fecha_hasta)->format('d/m/Y');
+        } elseif ($this->fecha_desde) {
+            $dateLabel = Carbon::parse($this->fecha_desde)->format('d/m/Y');
+        }
+
+        return [
+            'plate_label' => $plateLabel,
+            'month_label' => $monthLabel,
+            'date_label' => $dateLabel,
+            'fuel_total' => round((float) $items->sum(fn ($log) => (float) ($log->fuelLog?->cantidad ?? 0)), 2),
+            'package_total' => (int) $items->sum(fn ($log) => (int) ($log->package_count ?? 0)),
+            'guides_label' => 'Guias entregadas',
+        ];
     }
 
     private function currentUser(): ?User

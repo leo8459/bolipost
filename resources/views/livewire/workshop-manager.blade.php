@@ -49,6 +49,10 @@
                                         {{ optional($activeWorkshop->fecha_prometida_entrega)->format('d/m/Y') ?: 'Pendiente' }}
                                     </div>
                                     <div class="small">
+                                        <strong>Costo acumulado:</strong>
+                                        Bs {{ number_format((float) ($activeWorkshop->total_cost ?? 0), 2) }}
+                                    </div>
+                                    <div class="small">
                                         <strong>Mantenimiento:</strong>
                                         {{ $activeWorkshop->maintenanceAlert?->maintenanceType?->nombre ?? 'Orden general' }}
                                     </div>
@@ -153,13 +157,37 @@
                             <div class="col-12 col-md-4">
                                 <label class="form-label fw-bold">Estado de orden <span class="text-danger">*</span></label>
                                 <select wire:model="estado" class="form-select @error('estado') is-invalid @enderror">
-                                    <option value="Despachado">Despachado</option>
-                                    <option value="En diagnostico">En diagnostico</option>
-                                    <option value="En reparacion">En reparacion</option>
-                                    <option value="Listo">Listo</option>
-                                    <option value="Entregado">Entregado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_PENDING }}">Pendiente</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_DISPATCHED }}">Despachado a taller</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_DIAGNOSIS }}">Diagnosticado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_APPROVED }}">Aprobado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_REPAIR }}">En reparacion</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_READY }}">Listo para recoger</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_DELIVERED }}">Entregado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_CLOSED }}">Cerrado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_REJECTED }}">Rechazado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_CANCELLED }}">Cancelado</option>
                                 </select>
                                 @error('estado') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-bold">Flujo del mantenimiento <span class="text-danger">*</span></label>
+                                <select wire:model.live="workflow_kind" class="form-select @error('workflow_kind') is-invalid @enderror">
+                                    <option value="{{ \App\Models\Workshop::FLOW_LIGHT }}">Leve</option>
+                                    <option value="{{ \App\Models\Workshop::FLOW_HEAVY }}">Grave</option>
+                                </select>
+                                @error('workflow_kind') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                <div class="form-text">
+                                    Leve: catalogo + costo fijo. Grave: diagnostico + repuestos + mano de obra + aprobacion.
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-4 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input type="checkbox" id="approval_required" wire:model="approval_required" class="form-check-input">
+                                    <label for="approval_required" class="form-check-label fw-bold">Requiere aprobacion</label>
+                                </div>
                             </div>
 
                             <div class="col-12 col-md-4">
@@ -223,6 +251,24 @@
                                 @error('fecha_salida') <div class="invalid-feedback">{{ $message }}</div> @enderror
                             </div>
 
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-bold">Costo catalogado</label>
+                                <input type="number" step="0.01" min="0" wire:model="fixed_catalog_cost" class="form-control @error('fixed_catalog_cost') is-invalid @enderror">
+                                @error('fixed_catalog_cost') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-bold">Mano de obra</label>
+                                <input type="number" step="0.01" min="0" wire:model="labor_cost" class="form-control @error('labor_cost') is-invalid @enderror">
+                                @error('labor_cost') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-bold">Costo adicional</label>
+                                <input type="number" step="0.01" min="0" wire:model="additional_cost" class="form-control @error('additional_cost') is-invalid @enderror">
+                                @error('additional_cost') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            </div>
+
                             <div class="col-12">
                                 <label class="form-label fw-bold">Pre entrada: estado del vehiculo al dejarlo <span class="text-danger">*</span></label>
                                 <textarea wire:model="pre_entrada_estado" rows="3" class="form-control @error('pre_entrada_estado') is-invalid @enderror"></textarea>
@@ -245,6 +291,77 @@
                                 <label class="form-label fw-bold">Observaciones adicionales</label>
                                 <textarea wire:model="observaciones" rows="3" class="form-control @error('observaciones') is-invalid @enderror"></textarea>
                                 @error('observaciones') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            </div>
+
+                            @if($estado === \App\Models\Workshop::STATUS_REJECTED)
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Motivo de rechazo <span class="text-danger">*</span></label>
+                                    <textarea wire:model="rejection_reason" rows="2" class="form-control @error('rejection_reason') is-invalid @enderror"></textarea>
+                                    @error('rejection_reason') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                </div>
+                            @endif
+
+                            @if($estado === \App\Models\Workshop::STATUS_CANCELLED)
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Motivo de cancelacion <span class="text-danger">*</span></label>
+                                    <textarea wire:model="cancellation_reason" rows="2" class="form-control @error('cancellation_reason') is-invalid @enderror"></textarea>
+                                    @error('cancellation_reason') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                </div>
+                            @endif
+
+                            <div class="col-12">
+                                <div class="border rounded-3 p-3 bg-light">
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6 col-xl-3">
+                                            <label class="form-label fw-bold">Foto de ingreso</label>
+                                            <input type="file" wire:model="reception_photo_file" class="form-control @error('reception_photo_file') is-invalid @enderror" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                                            @error('reception_photo_file') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                            @if($reception_photo_path)
+                                                <div class="form-text">Archivo cargado en la orden actual.</div>
+                                            @endif
+                                        </div>
+                                        <div class="col-12 col-md-6 col-xl-3">
+                                            <label class="form-label fw-bold">Foto del dano</label>
+                                            <input type="file" wire:model="damage_photo_file" class="form-control @error('damage_photo_file') is-invalid @enderror" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                                            @error('damage_photo_file') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                            @if($damage_photo_path)
+                                                <div class="form-text">Archivo cargado en la orden actual.</div>
+                                            @endif
+                                        </div>
+                                        <div class="col-12 col-md-6 col-xl-3">
+                                            <label class="form-label fw-bold">Factura</label>
+                                            <input type="file" wire:model="invoice_file" class="form-control @error('invoice_file') is-invalid @enderror" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                                            @error('invoice_file') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                            @if($invoice_file_path)
+                                                <div class="form-text">Archivo cargado en la orden actual.</div>
+                                            @endif
+                                        </div>
+                                        <div class="col-12 col-md-6 col-xl-3">
+                                            <label class="form-label fw-bold">Comprobante / recibo</label>
+                                            <input type="file" wire:model="receipt_file" class="form-control @error('receipt_file') is-invalid @enderror" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                                            @error('receipt_file') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                            @if($receipt_file_path)
+                                                <div class="form-text">Archivo cargado en la orden actual.</div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    @if($isEdit && $editingId)
+                                        <div class="d-flex flex-wrap gap-2 mt-3">
+                                            @if($reception_photo_path)
+                                                <a href="{{ route('workshops.reception', $editingId) }}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver ingreso</a>
+                                            @endif
+                                            @if($damage_photo_path)
+                                                <a href="{{ route('workshops.damage', $editingId) }}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver dano</a>
+                                            @endif
+                                            @if($invoice_file_path)
+                                                <a href="{{ route('workshops.invoice', $editingId) }}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver factura</a>
+                                            @endif
+                                            @if($receipt_file_path)
+                                                <a href="{{ route('workshops.receipt', $editingId) }}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver comprobante</a>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
                             </div>
 
                             <div class="col-12">
@@ -296,6 +413,10 @@
                             <button type="submit" class="btn btn-primary px-4">
                                 <i class="fas fa-save me-2"></i>{{ $isEdit ? 'Actualizar orden' : 'Guardar orden' }}
                             </button>
+                            <div class="btn btn-light border px-3 disabled">
+                                Total estimado: Bs
+                                {{ number_format((float) collect($partChanges)->sum(fn ($row) => (float) (($row['costo'] ?? '') !== '' && ($row['costo'] ?? null) !== null ? $row['costo'] : 0)) + (float) ($fixed_catalog_cost ?: 0) + (float) ($labor_cost ?: 0) + (float) ($additional_cost ?: 0), 2) }}
+                            </div>
                             <button type="button" wire:click="cancelForm" class="btn btn-secondary">Volver al listado</button>
                         </div>
                     </form>
@@ -313,11 +434,16 @@
                         <div class="col-12 col-md-4">
                             <select wire:model.live="statusFilter" class="form-select">
                                 <option value="">Todos los estados</option>
-                                <option value="Despachado">Despachado</option>
-                                <option value="En diagnostico">En diagnostico</option>
-                                <option value="En reparacion">En reparacion</option>
-                                <option value="Listo">Listo</option>
-                                <option value="Entregado">Entregado</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_PENDING }}">Pendiente</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_DISPATCHED }}">Despachado a taller</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_DIAGNOSIS }}">Diagnosticado</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_APPROVED }}">Aprobado</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_REPAIR }}">En reparacion</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_READY }}">Listo para recoger</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_DELIVERED }}">Entregado</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_CLOSED }}">Cerrado</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_REJECTED }}">Rechazado</option>
+                                <option value="{{ \App\Models\Workshop::STATUS_CANCELLED }}">Cancelado</option>
                             </select>
                         </div>
                     </div>
@@ -332,6 +458,8 @@
                                 <th>Ingreso</th>
                                 <th>Entrega estimada</th>
                                 <th>Estado</th>
+                                <th>Flujo</th>
+                                <th>Costo</th>
                                 <th>Observaciones tecnicas</th>
                                 <th>Repuestos</th>
                                 <th class="text-end">Acciones</th>
@@ -357,10 +485,17 @@
                                     <td>{{ optional($workshop->fecha_ingreso)->format('d/m/Y') }}</td>
                                     <td>{{ optional($workshop->fecha_prometida_entrega)->format('d/m/Y') ?: 'Pendiente' }}</td>
                                     <td>
-                                        <span class="badge {{ in_array($workshop->estado, ['Listo', 'Entregado']) ? 'bg-success' : 'bg-warning text-dark' }}">
+                                        <span class="badge {{ in_array($workshop->estado, [\App\Models\Workshop::STATUS_READY, \App\Models\Workshop::STATUS_DELIVERED, \App\Models\Workshop::STATUS_CLOSED]) ? 'bg-success' : (in_array($workshop->estado, [\App\Models\Workshop::STATUS_REJECTED, \App\Models\Workshop::STATUS_CANCELLED]) ? 'bg-danger' : 'bg-warning text-dark') }}">
                                             {{ $workshop->estado }}
                                         </span>
                                     </td>
+                                    <td>
+                                        <div>{{ $workshop->workflow_kind }}</div>
+                                        @if($workshop->approval_required)
+                                            <div class="small text-muted">Con aprobacion</div>
+                                        @endif
+                                    </td>
+                                    <td>Bs {{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</td>
                                     <td><small class="text-muted">{{ \Illuminate\Support\Str::limit($workshop->observaciones_tecnicas ?: $workshop->diagnostico, 90) }}</small></td>
                                     <td>
                                         @if($workshop->partChanges->count() > 0)
@@ -371,6 +506,11 @@
                                         @endif
                                     </td>
                                     <td class="text-end">
+                                        @if($workshop->reception_photo_path)
+                                            <a href="{{ route('workshops.reception', $workshop) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-camera"></i>
+                                            </a>
+                                        @endif
                                         <button wire:click="edit({{ $workshop->id }})" class="btn btn-sm btn-outline-warning">
                                             <i class="fas fa-edit"></i>
                                         </button>
@@ -381,7 +521,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-4 text-muted">No hay ordenes de taller registradas.</td>
+                                    <td colspan="11" class="text-center py-4 text-muted">No hay ordenes de taller registradas.</td>
                                 </tr>
                             @endforelse
                         </tbody>

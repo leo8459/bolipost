@@ -34,6 +34,24 @@
             font-weight: 600;
             color: #1f2937;
         }
+        .vehicle-confirm-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.48);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 20;
+            border-radius: 14px;
+        }
+        .vehicle-confirm-card {
+            width: min(760px, 100%);
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 22px 50px rgba(15, 23, 42, 0.28);
+            overflow: hidden;
+        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
@@ -147,7 +165,7 @@
 
     @if($showForm)
         <div class="bp-gestiones-form-overlay">
-        <div class="card shadow-sm mb-4 bp-gestiones-form-card">
+        <div class="card shadow-sm mb-4 bp-gestiones-form-card position-relative">
             <div class="card-header">{{ $isEdit ? 'Editar Vehiculo' : 'Nuevo Vehiculo' }}</div>
             <div class="card-body">
                 <form wire:submit.prevent="save">
@@ -193,7 +211,8 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Color</label>
-                            <input type="text" wire:model="color" class="form-control">
+                            <input type="text" wire:model="color" class="form-control @error('color') is-invalid @enderror">
+                            @error('color') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Año</label>
@@ -228,6 +247,63 @@
                     </div>
                 </form>
             </div>
+            @if($showMaintenanceBackfillConfirm)
+                <div class="vehicle-confirm-overlay">
+                    <div class="vehicle-confirm-card">
+                        <div class="card-header bg-warning text-dark fw-bold">
+                            <i class="fas fa-triangle-exclamation me-2"></i>Advertencia de mantenimientos
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-3">
+                                Este vehiculo no tiene informacion de si ya se le realizaron estos mantenimientos
+                                y su kilometraje actual supera varios intervalos programados.
+                                Decide si se asignaran o no se asignaran estos mantenimientos segun la lista.
+                            </p>
+                            @if(count($maintenanceBackfillPreview))
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Asignar</th>
+                                                <th>Mantenimiento</th>
+                                                <th>Cada KM</th>
+                                                <th>KM objetivo</th>
+                                                <th>KM excedidos</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($maintenanceBackfillPreview as $item)
+                                                <tr>
+                                                    <td>
+                                                        <div class="form-check">
+                                                            <input
+                                                                class="form-check-input"
+                                                                type="checkbox"
+                                                                wire:model="maintenanceBackfillSelections.{{ $item['key'] }}"
+                                                                id="backfill-{{ $item['key'] }}">
+                                                            <label class="form-check-label small" for="backfill-{{ $item['key'] }}">
+                                                                Si
+                                                            </label>
+                                                        </div>
+                                                    </td>
+                                                    <td>{{ $item['nombre'] ?? '-' }}</td>
+                                                    <td>{{ number_format((float) ($item['interval_km'] ?? 0), 0) }}</td>
+                                                    <td>{{ number_format((float) ($item['target_km'] ?? 0), 0) }}</td>
+                                                    <td>{{ number_format((float) ($item['overdue_km'] ?? 0), 2) }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
+                        </div>
+                        <div class="card-footer d-flex justify-content-end gap-2">
+                            <button type="button" wire:click="cancelMaintenanceBackfill" class="btn btn-outline-secondary">No asignar</button>
+                            <button type="button" wire:click="confirmMaintenanceBackfill" class="btn btn-warning text-dark">Guardar y aplicar seleccionados</button>
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
         </div>
     @elseif(auth()->user()?->role !== 'conductor')

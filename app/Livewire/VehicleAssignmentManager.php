@@ -151,7 +151,22 @@ class VehicleAssignmentManager extends Component
 
     public function save(): void
     {
-        $this->validate();
+        $this->validate([
+            'driver_id' => ['required', 'integer', 'min:1', 'exists:drivers,id'],
+            'vehicle_id' => ['required', 'integer', 'min:1', 'exists:vehicles,id'],
+            'tipo_asignacion' => ['nullable', 'string', 'max:100'],
+            'fecha_inicio' => ['required', 'date'],
+            'fecha_fin' => [
+                'nullable',
+                'date',
+                'after_or_equal:fecha_inicio',
+                'required_if:tipo_asignacion,Temporal',
+            ],
+            'activo' => ['boolean'],
+        ], [
+            'fecha_fin.required_if' => 'Debe indicar hasta cuando sera la asignacion temporal.',
+            'fecha_fin.after_or_equal' => 'La fecha fin no puede ser anterior a la fecha de inicio.',
+        ]);
 
         $vehicle = Vehicle::query()->find($this->vehicle_id);
         if (!$vehicle || $vehicle->isInMaintenance()) {
@@ -273,6 +288,14 @@ class VehicleAssignmentManager extends Component
         $this->closeReassignConfirm();
         $this->showForm = false;
         $this->resetPage();
+    }
+
+    public function updatedTipoAsignacion($value): void
+    {
+        if ($value !== 'Temporal') {
+            $this->fecha_fin = null;
+            $this->resetValidation('fecha_fin');
+        }
     }
 
     private function persistAssignment(): void

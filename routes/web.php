@@ -52,6 +52,7 @@ use App\Http\Controllers\Web\QrDecoderController;
 use App\Http\Controllers\Web\VehicleLogMapController;
 use App\Http\Controllers\Web\VehicleLogMapPageController;
 use App\Http\Controllers\Web\VehicleLogOdometerController;
+use App\Http\Controllers\Web\VehicleLogStagePhotoController;
 use App\Livewire\FuelLogManager;
 use App\Livewire\MapTracker;
 use App\Livewire\MaintenanceAlertManager;
@@ -356,6 +357,14 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
         ->name('maintenance-appointments.evidence');
     Route::get('/maintenance-appointments/{maintenanceAppointment}/form', [MaintenanceFileController::class, 'appointmentForm'])
         ->name('maintenance-appointments.form');
+    Route::get('/workshops/{workshop}/reception', [MaintenanceFileController::class, 'workshopReception'])
+        ->name('workshops.reception');
+    Route::get('/workshops/{workshop}/damage', [MaintenanceFileController::class, 'workshopDamage'])
+        ->name('workshops.damage');
+    Route::get('/workshops/{workshop}/invoice', [MaintenanceFileController::class, 'workshopInvoice'])
+        ->name('workshops.invoice');
+    Route::get('/workshops/{workshop}/receipt', [MaintenanceFileController::class, 'workshopReceipt'])
+        ->name('workshops.receipt');
     Route::get('/fuel-invoices/{fuelInvoice}/document', [FuelInvoiceFileController::class, 'document'])
         ->name('fuel-invoices.document');
     Route::get('/fuel-invoices/{fuelInvoice}/rollo', [FuelInvoiceFileController::class, 'rollo'])
@@ -370,6 +379,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
         ->name('vehicle-logs.map-data');
     Route::get('/vehicle-logs/{vehicleLog}/odometro-photo', [VehicleLogOdometerController::class, 'show'])
         ->name('vehicle-logs.odometro.photo');
+    Route::get('/vehicle-log-stage-events/{stageEvent}/photo', [VehicleLogStagePhotoController::class, 'show'])
+        ->name('vehicle-log-stage-events.photo');
 
     Route::redirect('/vehicles', '/livewire/vehicles')->name('vehicles.index');
     Route::redirect('/drivers', '/livewire/drivers')->name('drivers.index');

@@ -18,6 +18,7 @@ class DriverIncentiveReport extends Model
         'stars_end',
         'non_preventive_requests',
         'preventive_requests',
+        'discountable_events',
         'generated_at',
     ];
 

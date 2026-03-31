@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class VehicleLog extends Model
 {
@@ -27,6 +28,9 @@ class VehicleLog extends Model
         'abastecimiento_combustible',
         'firma_digital',
         'odometro_photo_path',
+        'session_reference',
+        'responsible_driver_id',
+        'current_driver_id',
         'ruta_json', // <--- Agregamos esto
         'points_json',
     ];
@@ -41,6 +45,8 @@ class VehicleLog extends Model
         'latitud_destino' => 'decimal:8',
         'logitud_destino' => 'decimal:8',
         'abastecimiento_combustible' => 'boolean',
+        'responsible_driver_id' => 'integer',
+        'current_driver_id' => 'integer',
         'ruta_json' => 'array', // <--- Importante: esto lo convierte en array de PHP
         'points_json' => 'array',
         'created_at' => 'datetime',
@@ -80,6 +86,12 @@ class VehicleLog extends Model
     public function fuelLog(): BelongsTo
     {
         return $this->belongsTo(FuelLog::class, 'fuel_log_id');
+    }
+
+    public function stageEvents(): HasMany
+    {
+        return $this->hasMany(VehicleLogStageEvent::class, 'session_reference', 'session_reference')
+            ->orderBy('event_at');
     }
 
     /**

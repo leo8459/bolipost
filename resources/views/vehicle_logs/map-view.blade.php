@@ -59,6 +59,55 @@
             background: #fff;
             padding: 16px;
         }
+        .vehicle-log-map-panel--full {
+            height: 100%;
+        }
+        .vehicle-log-map-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr);
+            gap: 16px;
+            align-items: stretch;
+        }
+        .vehicle-log-info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .vehicle-log-info-card--wide {
+            grid-column: 1 / -1;
+        }
+        .vehicle-log-photos-panel {
+            margin-top: 16px;
+        }
+        .vehicle-log-stage-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+        }
+        .vehicle-log-stage-card {
+            border: 1px solid #e3ebfb;
+            border-radius: 14px;
+            background: #fff;
+            padding: 12px;
+        }
+        .vehicle-log-stage-card img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 1px solid #d8e2f4;
+            background: #fff;
+        }
+        .vehicle-log-stage-card__title {
+            color: #20539a;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .vehicle-log-stage-card__meta {
+            color: #667085;
+            font-size: 0.9rem;
+            margin-top: 8px;
+        }
         .vehicle-log-map-back-btn {
             border-radius: 12px;
             padding-inline: 18px;
@@ -80,6 +129,19 @@
                 padding: 14px;
             }
         }
+        @media (max-width: 1200px) {
+            .vehicle-log-map-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 640px) {
+            .vehicle-log-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .vehicle-log-info-card--wide {
+                grid-column: auto;
+            }
+        }
     </style>
 
     <div class="vehicle-log-page">
@@ -98,65 +160,77 @@
         </div>
 
         <div class="vehicle-log-map-shell__body">
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-md-4 col-xl-2">
-                    <div class="vehicle-log-info-card">
-                        <div class="vehicle-log-info-card__label">Conductor</div>
-                        <div class="vehicle-log-info-card__value">{{ $vehicleLog->driver?->nombre ?? 'Sin conductor' }}</div>
+            <div class="vehicle-log-map-grid">
+                <div class="vehicle-log-map-panel vehicle-log-map-panel--full">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div class="fw-bold text-primary">Mapa del recorrido</div>
+                        <button type="button" id="vehicle-log-map-recenter" class="btn btn-outline-primary btn-sm">Recentrar mapa</button>
                     </div>
+                    <div id="vehicle-log-map" style="height: 70vh; border-radius: 10px;"></div>
+                    <div id="vehicle-log-map-status" class="small text-muted mt-3">Cargando mapa...</div>
                 </div>
-                <div class="col-12 col-md-4 col-xl-2">
-                    <div class="vehicle-log-info-card">
-                        <div class="vehicle-log-info-card__label">Km salida</div>
-                        <div class="vehicle-log-info-card__value">{{ number_format((float) ($vehicleLog->kilometraje_salida ?? 0), 2) }}</div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4 col-xl-2">
-                    <div class="vehicle-log-info-card">
-                        <div class="vehicle-log-info-card__label">Km recorrido</div>
-                        <div class="vehicle-log-info-card__value">{{ number_format((float) ($vehicleLog->kilometraje_recorrido ?? 0), 2) }}</div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4 col-xl-2">
-                    <div class="vehicle-log-info-card">
-                        <div class="vehicle-log-info-card__label">Km llegada</div>
-                        <div class="vehicle-log-info-card__value">{{ number_format((float) ($vehicleLog->kilometraje_llegada ?? 0), 2) }}</div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4 col-xl-2">
-                    <div class="vehicle-log-info-card">
-                        <div class="vehicle-log-info-card__label">Gasolina</div>
-                        <div class="vehicle-log-info-card__value">{{ $vehicleLog->fuel_log_id ? 'Si' : 'No' }}</div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4 col-xl-2">
-                    <div class="vehicle-log-info-card">
-                        <div class="vehicle-log-info-card__label">Bitacora</div>
-                        <div class="vehicle-log-info-card__value">#{{ $vehicleLog->id }}</div>
-                    </div>
-                </div>
-                <div class="col-12 col-lg-6">
-                    <div class="vehicle-log-info-card">
-                        <div class="vehicle-log-info-card__label">Inicio</div>
-                        <div class="vehicle-log-info-card__value">{{ $mapPayload['startName'] ?: '-' }}</div>
-                    </div>
-                </div>
-                <div class="col-12 col-lg-6">
-                    <div class="vehicle-log-info-card">
-                        <div class="vehicle-log-info-card__label">Destino</div>
-                        <div class="vehicle-log-info-card__value">{{ $mapPayload['endName'] ?: '-' }}</div>
+
+                <div class="vehicle-log-map-panel vehicle-log-map-panel--full">
+                    <div class="fw-bold text-primary mb-3">Informacion de la bitacora</div>
+                    <div class="vehicle-log-info-grid">
+                        <div class="vehicle-log-info-card">
+                            <div class="vehicle-log-info-card__label">Conductor</div>
+                            <div class="vehicle-log-info-card__value">{{ $vehicleLog->driver?->nombre ?? 'Sin conductor' }}</div>
+                        </div>
+                        <div class="vehicle-log-info-card">
+                            <div class="vehicle-log-info-card__label">Bitacora</div>
+                            <div class="vehicle-log-info-card__value">#{{ $vehicleLog->id }}</div>
+                        </div>
+                        <div class="vehicle-log-info-card">
+                            <div class="vehicle-log-info-card__label">Km salida</div>
+                            <div class="vehicle-log-info-card__value">{{ number_format((float) ($vehicleLog->kilometraje_salida ?? 0), 2) }}</div>
+                        </div>
+                        <div class="vehicle-log-info-card">
+                            <div class="vehicle-log-info-card__label">Km recorrido</div>
+                            <div class="vehicle-log-info-card__value">{{ number_format((float) ($vehicleLog->kilometraje_recorrido ?? 0), 2) }}</div>
+                        </div>
+                        <div class="vehicle-log-info-card">
+                            <div class="vehicle-log-info-card__label">Km llegada</div>
+                            <div class="vehicle-log-info-card__value">{{ number_format((float) ($vehicleLog->kilometraje_llegada ?? 0), 2) }}</div>
+                        </div>
+                        <div class="vehicle-log-info-card">
+                            <div class="vehicle-log-info-card__label">Gasolina</div>
+                            <div class="vehicle-log-info-card__value">{{ $vehicleLog->fuel_log_id ? 'Si' : 'No' }}</div>
+                        </div>
+                        <div class="vehicle-log-info-card vehicle-log-info-card--wide">
+                            <div class="vehicle-log-info-card__label">Inicio</div>
+                            <div class="vehicle-log-info-card__value">{{ $mapPayload['startName'] ?: '-' }}</div>
+                        </div>
+                        <div class="vehicle-log-info-card vehicle-log-info-card--wide">
+                            <div class="vehicle-log-info-card__label">Destino</div>
+                            <div class="vehicle-log-info-card__value">{{ $mapPayload['endName'] ?: '-' }}</div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="vehicle-log-map-panel">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                    <div class="fw-bold text-primary">Mapa del recorrido</div>
-                    <button type="button" id="vehicle-log-map-recenter" class="btn btn-outline-primary btn-sm">Recentrar mapa</button>
-                </div>
-                <div id="vehicle-log-map" style="height: 70vh; border-radius: 10px;"></div>
-                <div id="vehicle-log-map-status" class="small text-muted mt-3">Cargando mapa...</div>
+            <div class="vehicle-log-map-panel vehicle-log-photos-panel">
+                <div class="fw-bold text-primary mb-3">Fotos tomadas</div>
+                @if(($stagePhotos ?? collect())->isNotEmpty())
+                    <div class="vehicle-log-stage-grid">
+                        @foreach($stagePhotos as $photo)
+                            <div class="vehicle-log-stage-card">
+                                <div class="vehicle-log-stage-card__title">{{ $photo['stage_name'] }}</div>
+                                <a href="{{ $photo['photo_url'] }}" target="_blank" rel="noopener noreferrer">
+                                    <img src="{{ $photo['photo_url'] }}" alt="Foto {{ $photo['stage_name'] }}">
+                                </a>
+                                <div class="vehicle-log-stage-card__meta">
+                                    {{ $photo['event_at'] ?: 'Sin fecha' }}<br>
+                                    {{ $photo['address'] ?: 'Sin ubicacion registrada' }}
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="text-muted">No hay fotos registradas para esta bitacora.</div>
+                @endif
             </div>
+
         </div>
     </div>
     </div>

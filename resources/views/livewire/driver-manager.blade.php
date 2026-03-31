@@ -149,6 +149,12 @@
                 {{ $isEdit ? 'Editar Conductor' : 'Nuevo Conductor' }}
             </div>
             <div class="card-body">
+                @if($errors->has('licencia') || $errors->has('telefono') || $errors->has('email'))
+                    <div class="alert alert-danger">
+                        {{ $errors->first('licencia') ?: ($errors->first('telefono') ?: $errors->first('email')) }}
+                    </div>
+                @endif
+
                 <form wire:submit.prevent="save">
                     <div class="row g-3">
                         <div class="col-12 col-md-6">
@@ -167,7 +173,8 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="licencia" class="form-label fw-bold">Licencia</label>
-                            <input type="text" id="licencia" wire:model="licencia" class="form-control">
+                            <input type="text" id="licencia" wire:model.live="licencia" class="form-control @error('licencia') is-invalid @enderror" maxlength="50">
+                            @error('licencia') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="tipo_licencia" class="form-label fw-bold">Tipo Licencia</label>
@@ -184,11 +191,17 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="telefono" class="form-label fw-bold">Telefono</label>
-                            <input type="text" id="telefono" wire:model="telefono" class="form-control">
+                            <input type="text" id="telefono" wire:model.live="telefono" class="form-control @error('telefono') is-invalid @enderror" inputmode="numeric" maxlength="20">
+                            @error('telefono') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
-                            <label for="email" class="form-label fw-bold">Email</label>
-                            <input type="email" id="email" wire:model="email" class="form-control">
+                            <label for="email" class="form-label fw-bold">Email institucional</label>
+                            <div class="input-group">
+                                <input type="text" id="email" wire:model.live="email" class="form-control @error('email') is-invalid @enderror" maxlength="100" autocomplete="off" placeholder="usuario">
+                                <span class="input-group-text">@correos.gob.bo</span>
+                                @error('email') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                            </div>
+                            <div class="form-text">Solo escribe la primera parte del correo. El dominio se agrega automaticamente.</div>
                         </div>
                         <div class="col-12 col-md-8">
                             <label for="memorandum_file" class="form-label fw-bold">Memorandum (imagen o PDF)</label>
@@ -349,80 +362,80 @@
             </div>
         </div>
     </div>
+    <script>
+        (function () {
+            if (window.__driverMemorandumModalInitialized) return;
+            window.__driverMemorandumModalInitialized = true;
+
+            function getModalInstance(el) {
+                if (!el) return null;
+
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                        return window.bootstrap.Modal.getOrCreateInstance(el);
+                    }
+                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                    }
+                    return new window.bootstrap.Modal(el);
+                }
+
+                if (window.jQuery) {
+                    return {
+                        show: () => window.jQuery(el).modal('show'),
+                        hide: () => window.jQuery(el).modal('hide'),
+                    };
+                }
+
+                return null;
+            }
+
+            const modalEl = document.getElementById('driverMemorandumModal');
+            if (!modalEl) return;
+            if (modalEl.parentElement !== document.body) {
+                document.body.appendChild(modalEl);
+            }
+
+            const titleEl = document.getElementById('driverMemorandumLabel');
+            const imageEl = document.getElementById('driver-memorandum-image');
+            const frameEl = document.getElementById('driver-memorandum-frame');
+            const emptyEl = document.getElementById('driver-memorandum-empty');
+
+            document.addEventListener('click', function (event) {
+                const btn = event.target.closest('.driver-view-memorandum-btn');
+                if (!btn) return;
+
+                const url = btn.getAttribute('data-url') || '';
+                const kind = btn.getAttribute('data-kind') || 'image';
+                const name = btn.getAttribute('data-name') || 'Memorandum';
+
+                if (titleEl) {
+                    titleEl.textContent = name;
+                }
+
+                imageEl?.classList.add('d-none');
+                frameEl?.classList.add('d-none');
+                emptyEl?.classList.add('d-none');
+                imageEl?.removeAttribute('src');
+                frameEl?.removeAttribute('src');
+
+                if (!url) {
+                    emptyEl?.classList.remove('d-none');
+                } else if (kind === 'pdf') {
+                    if (frameEl) {
+                        frameEl.src = url;
+                        frameEl.classList.remove('d-none');
+                    }
+                } else {
+                    if (imageEl) {
+                        imageEl.src = url;
+                        imageEl.classList.remove('d-none');
+                    }
+                }
+
+                const modal = getModalInstance(modalEl);
+                if (modal) modal.show();
+            });
+        })();
+    </script>
 </div>
-<script>
-    (function () {
-        if (window.__driverMemorandumModalInitialized) return;
-        window.__driverMemorandumModalInitialized = true;
-
-        function getModalInstance(el) {
-            if (!el) return null;
-
-            if (window.bootstrap && window.bootstrap.Modal) {
-                if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
-                    return window.bootstrap.Modal.getOrCreateInstance(el);
-                }
-                if (typeof window.bootstrap.Modal.getInstance === 'function') {
-                    return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
-                }
-                return new window.bootstrap.Modal(el);
-            }
-
-            if (window.jQuery) {
-                return {
-                    show: () => window.jQuery(el).modal('show'),
-                    hide: () => window.jQuery(el).modal('hide'),
-                };
-            }
-
-            return null;
-        }
-
-        const modalEl = document.getElementById('driverMemorandumModal');
-        if (!modalEl) return;
-        if (modalEl.parentElement !== document.body) {
-            document.body.appendChild(modalEl);
-        }
-
-        const titleEl = document.getElementById('driverMemorandumLabel');
-        const imageEl = document.getElementById('driver-memorandum-image');
-        const frameEl = document.getElementById('driver-memorandum-frame');
-        const emptyEl = document.getElementById('driver-memorandum-empty');
-
-        document.addEventListener('click', function (event) {
-            const btn = event.target.closest('.driver-view-memorandum-btn');
-            if (!btn) return;
-
-            const url = btn.getAttribute('data-url') || '';
-            const kind = btn.getAttribute('data-kind') || 'image';
-            const name = btn.getAttribute('data-name') || 'Memorandum';
-
-            if (titleEl) {
-                titleEl.textContent = name;
-            }
-
-            imageEl?.classList.add('d-none');
-            frameEl?.classList.add('d-none');
-            emptyEl?.classList.add('d-none');
-            imageEl?.removeAttribute('src');
-            frameEl?.removeAttribute('src');
-
-            if (!url) {
-                emptyEl?.classList.remove('d-none');
-            } else if (kind === 'pdf') {
-                if (frameEl) {
-                    frameEl.src = url;
-                    frameEl.classList.remove('d-none');
-                }
-            } else {
-                if (imageEl) {
-                    imageEl.src = url;
-                    imageEl.classList.remove('d-none');
-                }
-            }
-
-            const modal = getModalInstance(modalEl);
-            if (modal) modal.show();
-        });
-    })();
-</script>

@@ -23,6 +23,7 @@ use App\Models\VehicleLog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class MobileCrudApiController extends Controller
 {
@@ -83,6 +84,33 @@ class MobileCrudApiController extends Controller
         /** @var Model $model */
         $model = new $modelClass();
         $query = $modelClass::query();
+
+        if ($resource === 'maintenance_types') {
+            $authUserId = (int) ($request->user()?->id ?? 0);
+            if ($authUserId > 0) {
+                $driver = Driver::query()->where('user_id', $authUserId)->first();
+                $vehicle = null;
+
+                if ($driver) {
+                    $assignment = VehicleAssignment::query()
+                        ->where('driver_id', (int) $driver->id)
+                        ->where(function ($q) {
+                            $q->where('activo', true)->orWhereNull('activo');
+                        })
+                        ->orderByDesc('fecha_inicio')
+                        ->orderByDesc('id')
+                        ->first();
+
+                    if ($assignment?->vehicle_id) {
+                        $vehicle = Vehicle::query()->find((int) $assignment->vehicle_id);
+                    }
+                }
+
+                if ($vehicle) {
+                    $query->applicableToVehicle($vehicle)->with('vehicles');
+                }
+            }
+        }
 
         $with = $this->parseWith($request, $model);
         if (!empty($with)) {

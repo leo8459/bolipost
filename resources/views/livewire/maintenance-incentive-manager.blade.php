@@ -7,8 +7,12 @@
 
     <div class="row g-3 mb-3">
         <div class="col-12 col-md-4">
-            <label class="form-label fw-bold">Mes del reporte</label>
-            <input type="month" wire:model.live="month" class="form-control">
+            <label class="form-label fw-bold">Fecha desde</label>
+            <input type="date" wire:model.live="date_from" class="form-control">
+        </div>
+        <div class="col-12 col-md-4">
+            <label class="form-label fw-bold">Fecha hasta</label>
+            <input type="date" wire:model.live="date_to" class="form-control">
         </div>
         <div class="col-12 col-md-4 d-flex align-items-end">
             <div class="form-check">
@@ -16,12 +20,12 @@
                 <label for="onlyPerfect" class="form-check-label fw-bold">Mostrar solo quienes mantienen {{ $maxStars }} estrellas</label>
             </div>
         </div>
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-12">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body">
                     <div class="text-muted small text-uppercase">Periodo</div>
                     <div class="fw-bold">{{ $periodLabel }}</div>
-                    <div class="small text-muted">El reporte se recalcula con solicitudes del mes seleccionado.</div>
+                    <div class="small text-muted">Mientras menos mantenimientos aprobados o realizados que descuenten tenga el conductor en el rango elegido, mas estrellas conserva.</div>
                 </div>
             </div>
         </div>
@@ -54,6 +58,8 @@
                         <tr>
                             <th>Conductor</th>
                             <th>Inicio</th>
+                            <th>Total solicitudes</th>
+                            <th>Eventos que descuentan</th>
                             <th>Solicitudes no preventivas</th>
                             <th>Solicitudes preventivas</th>
                             <th>Estrellas finales</th>
@@ -64,6 +70,8 @@
                             <tr>
                                 <td>{{ $report->driver?->nombre ?? 'Sin conductor' }}</td>
                                 <td><span class="badge bg-secondary">{{ $report->stars_start }}</span></td>
+                                <td><span class="badge bg-dark">{{ $report->total_requests }}</span></td>
+                                <td><span class="badge bg-warning text-dark">{{ $report->discountable_events }}</span></td>
                                 <td><span class="badge bg-danger">{{ $report->non_preventive_requests }}</span></td>
                                 <td><span class="badge bg-info text-dark">{{ $report->preventive_requests }}</span></td>
                                 <td>
@@ -74,7 +82,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center py-4 text-muted">No hay conductores para este reporte.</td>
+                                <td colspan="7" class="text-center py-4 text-muted">No hay conductores para este reporte.</td>
                             </tr>
                         @endforelse
                     </tbody>

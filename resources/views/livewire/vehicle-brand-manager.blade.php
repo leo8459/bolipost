@@ -29,31 +29,12 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Pais de Origen</label>
-                            <input type="text" wire:model="pais_origen" class="form-control" list="paises-origen-lista" placeholder="Seleccionar o escribir pais">
-                            <datalist id="paises-origen-lista">
-                                <option value="Japon"></option>
-                                <option value="Corea del Sur"></option>
-                                <option value="China"></option>
-                                <option value="India"></option>
-                                <option value="Tailandia"></option>
-                                <option value="Indonesia"></option>
-                                <option value="Estados Unidos"></option>
-                                <option value="Mexico"></option>
-                                <option value="Canada"></option>
-                                <option value="Brasil"></option>
-                                <option value="Argentina"></option>
-                                <option value="Alemania"></option>
-                                <option value="Francia"></option>
-                                <option value="Italia"></option>
-                                <option value="Espana"></option>
-                                <option value="Reino Unido"></option>
-                                <option value="Suecia"></option>
-                                <option value="Republica Checa"></option>
-                                <option value="Turquia"></option>
-                                <option value="Sudafrica"></option>
-                                <option value="Rusia"></option>
-                                <option value="Hungria"></option>
-                            </datalist>
+                            <select wire:model="pais_origen" class="form-select">
+                                <option value="">Seleccionar pais</option>
+                                @foreach($countryOptions as $country)
+                                    <option value="{{ $country }}">{{ $country }}</option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
 

@@ -53,8 +53,6 @@ class MaintenanceAlertManager extends Component
             $query->where('status', MaintenanceAlert::STATUS_ACTIVE);
         } elseif ($this->filterEstado === 'resuelta') {
             $query->where('status', MaintenanceAlert::STATUS_RESOLVED);
-        } elseif ($this->filterEstado === 'omitida') {
-            $query->where('status', MaintenanceAlert::STATUS_OMITTED);
         }
 
         $pendingCountQuery = MaintenanceAlert::query();
@@ -149,37 +147,6 @@ class MaintenanceAlertManager extends Component
         session()->flash('message', 'Alertas pendientes marcadas como leidas.');
     }
 
-    public function registerMaintenance(int $alertId)
-    {
-        $alert = MaintenanceAlert::find($alertId);
-        if (!$alert) {
-            return;
-        }
-
-        if (!$this->canAccessAlert($alert)) {
-            return;
-        }
-
-        if (auth()->user()?->role === 'conductor') {
-            session()->flash('error', 'No tiene permiso para registrar mantenimientos.');
-            return;
-        }
-
-        if ($alert->status !== MaintenanceAlert::STATUS_ACTIVE) {
-            session()->flash('error', 'Solo se puede registrar mantenimiento desde alertas activas.');
-            return;
-        }
-
-        if (!$alert->leida) {
-            session()->flash('error', 'Primero debe marcar la alerta como leida para habilitar el registro de mantenimiento.');
-            return;
-        }
-
-        return redirect()->route('livewire.maintenance-logs', [
-            'from_alert_id' => $alert->id,
-        ]);
-    }
-
     public function dispatchToWorkshop(int $alertId)
     {
         $alert = MaintenanceAlert::query()->with(['vehicle', 'maintenanceType', 'maintenanceAppointment'])->find($alertId);
@@ -204,9 +171,12 @@ class MaintenanceAlertManager extends Component
         $existingWorkshop = Workshop::query()
             ->where('maintenance_alert_id', $alert->id)
             ->whereIn('estado', [
+                Workshop::STATUS_PENDING,
                 Workshop::STATUS_DISPATCHED,
                 Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_APPROVED,
                 Workshop::STATUS_REPAIR,
+                Workshop::STATUS_READY,
             ])
             ->first();
 
@@ -222,6 +192,55 @@ class MaintenanceAlertManager extends Component
 
         return redirect()->route('livewire.workshops', [
             'from_alert_id' => $alert->id,
+        ]);
+    }
+
+    public function requestDiagnosis(int $alertId)
+    {
+        $alert = MaintenanceAlert::query()->with(['vehicle', 'maintenanceType', 'maintenanceAppointment'])->find($alertId);
+        if (!$alert) {
+            return;
+        }
+
+        if (!$this->canAccessAlert($alert)) {
+            return;
+        }
+
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para solicitar diagnostico a taller.');
+            return;
+        }
+
+        if ($alert->status !== MaintenanceAlert::STATUS_ACTIVE) {
+            session()->flash('error', 'Solo se puede solicitar diagnostico desde alertas activas.');
+            return;
+        }
+
+        $existingWorkshop = Workshop::query()
+            ->where('maintenance_alert_id', $alert->id)
+            ->whereIn('estado', [
+                Workshop::STATUS_PENDING,
+                Workshop::STATUS_DISPATCHED,
+                Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_APPROVED,
+                Workshop::STATUS_REPAIR,
+                Workshop::STATUS_READY,
+            ])
+            ->first();
+
+        $alert->update([
+            'leida' => true,
+        ]);
+
+        if ($existingWorkshop) {
+            return redirect()->route('livewire.workshops', [
+                'edit_workshop_id' => $existingWorkshop->id,
+            ]);
+        }
+
+        return redirect()->route('livewire.workshops', [
+            'from_alert_id' => $alert->id,
+            'request_diagnosis' => 1,
         ]);
     }
 

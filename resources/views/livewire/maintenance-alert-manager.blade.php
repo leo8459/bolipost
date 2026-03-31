@@ -119,16 +119,13 @@
                                                     <i class="fas fa-check me-1"></i>Leida
                                                 </button>
                                             @else
+                                                <button type="button" wire:click="requestDiagnosis({{ $alert->id }})" class="btn btn-sm btn-outline-secondary ms-1">
+                                                    <i class="fas fa-stethoscope me-1"></i>Solicitar diagnostico
+                                                </button>
                                                 <button type="button" wire:click="dispatchToWorkshop({{ $alert->id }})" class="btn btn-sm btn-outline-warning ms-1">
                                                     <i class="fas fa-truck-moving me-1"></i>Despachar a taller
                                                 </button>
-                                                <button type="button" wire:click="registerMaintenance({{ $alert->id }})" class="btn btn-sm btn-outline-primary ms-1">
-                                                    <i class="fas fa-tools me-1"></i>Registrar mantenimiento
-                                                </button>
                                             @endif
-                                            <button type="button" wire:click="resolveAlert({{ $alert->id }})" class="btn btn-sm btn-outline-success ms-1">
-                                                <i class="fas fa-check-circle me-1"></i>Resolver
-                                            </button>
                                             @if(!($alert->postponed_once ?? false))
                                                 <button type="button" wire:click="postponeAlert({{ $alert->id }})" class="btn btn-sm btn-outline-secondary ms-1">
                                                     <i class="fas fa-clock me-1"></i>Posponer 3 dias

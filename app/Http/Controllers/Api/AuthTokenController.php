@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
+use App\Models\MaintenanceAlert;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\DriverIncentiveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +16,11 @@ use Illuminate\Support\Facades\Schema;
 
 class AuthTokenController extends Controller
 {
+    public function __construct(
+        private readonly DriverIncentiveService $driverIncentiveService
+    ) {
+    }
+
     public function login(Request $request)
     {
         $credentials = $request->validate([
@@ -70,6 +77,7 @@ class AuthTokenController extends Controller
         $driver = $user?->resolvedDriver();
         $roleId = $this->resolveRoleId($user);
         $roleName = $user?->role;
+        $incentive = $this->resolveDriverIncentivePayload($driver);
 
         return response()->json([
             'id' => $user?->id,
@@ -82,6 +90,9 @@ class AuthTokenController extends Controller
             'driver_license' => $driver?->licencia,
             'phone' => $driver?->telefono,
             'status' => $driver ? ($driver->activo ? 'Activo' : 'Inactivo') : null,
+            'incentive_stars' => $incentive['stars'],
+            'incentive_max_stars' => $incentive['max_stars'],
+            'incentive_period_label' => $incentive['period_label'],
             'user' => [
                 'id' => $user?->id,
                 'name' => $user?->name,
@@ -89,6 +100,9 @@ class AuthTokenController extends Controller
                 'role' => $roleName,
                 'role_id' => $roleId,
                 'driver_id' => $driver?->id,
+                'incentive_stars' => $incentive['stars'],
+                'incentive_max_stars' => $incentive['max_stars'],
+                'incentive_period_label' => $incentive['period_label'],
             ],
             'bootstrap' => $this->buildBootstrapPayload($user),
         ]);
@@ -143,8 +157,10 @@ class AuthTokenController extends Controller
         $vales = collect();
         $fuelInvoices = collect();
         $gasStations = collect();
+        $maintenanceAlerts = collect();
         $resolvedDriverId = $driver ? (int) $driver->id : null;
         $resolvedVehicleId = $vehicle ? (int) $vehicle->id : null;
+        $incentive = $this->resolveDriverIncentivePayload($driver);
 
         if ($driver) {
             $vehicleLogsQuery = \App\Models\VehicleLog::query()
@@ -302,6 +318,38 @@ class AuthTokenController extends Controller
                     ];
                 })
                 ->values();
+
+            $maintenanceAlerts = MaintenanceAlert::query()
+                ->with(['maintenanceType:id,nombre', 'vehicle:id,placa'])
+                ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+                ->when($resolvedVehicleId, fn ($query) => $query->where('vehicle_id', $resolvedVehicleId))
+                ->orderByDesc('created_at')
+                ->limit(50)
+                ->get()
+                ->map(function (MaintenanceAlert $alert) {
+                    return [
+                        'id' => (int) $alert->id,
+                        'tipo' => (string) $alert->tipo,
+                        'type' => (string) $alert->tipo,
+                        'status' => (string) $alert->status,
+                        'titulo' => (string) ($alert->maintenanceType?->nombre ?: $alert->tipo),
+                        'title' => (string) ($alert->maintenanceType?->nombre ?: $alert->tipo),
+                        'mensaje' => (string) $alert->mensaje,
+                        'vehicle_id' => $alert->vehicle_id ? (int) $alert->vehicle_id : null,
+                        'vehicle_plate' => (string) ($alert->vehicle?->placa ?? ''),
+                        'placa' => (string) ($alert->vehicle?->placa ?? ''),
+                        'maintenance_type_id' => $alert->maintenance_type_id ? (int) $alert->maintenance_type_id : null,
+                        'maintenance_type_name' => (string) ($alert->maintenanceType?->nombre ?? ''),
+                        'kilometraje_actual' => $alert->kilometraje_actual !== null ? (float) $alert->kilometraje_actual : null,
+                        'kilometraje_objetivo' => $alert->kilometraje_objetivo !== null ? (float) $alert->kilometraje_objetivo : null,
+                        'faltante_km' => $alert->faltante_km !== null ? (float) $alert->faltante_km : null,
+                        'leida' => (bool) $alert->leida,
+                        'read' => (bool) $alert->leida,
+                        'due_date' => optional($alert->created_at)->toDateString(),
+                        'created_at' => optional($alert->created_at)?->toIso8601String(),
+                    ];
+                })
+                ->values();
         }
 
         $usersPayload = $user ? [[
@@ -315,6 +363,9 @@ class AuthTokenController extends Controller
             'driver_license' => $driver?->licencia,
             'phone' => $driver?->telefono,
             'status' => $driver ? ($driver->activo ? 'Activo' : 'Inactivo') : null,
+            'incentive_stars' => $incentive['stars'],
+            'incentive_max_stars' => $incentive['max_stars'],
+            'incentive_period_label' => $incentive['period_label'],
         ]] : [];
 
         $rolesPayload = $user?->role ? [[
@@ -385,6 +436,31 @@ class AuthTokenController extends Controller
             'fuel_logs' => $vales->values()->all(),
             'gas_stations' => $gasStations->values()->all(),
             'vales' => $vales->values()->all(),
+            'maintenance_alerts' => $maintenanceAlerts->values()->all(),
+            'incentive' => $incentive,
+        ];
+    }
+
+    private function resolveDriverIncentivePayload(?Driver $driver): array
+    {
+        $period = $this->driverIncentiveService->latestClosedMonth();
+
+        if (!$driver) {
+            return [
+                'stars' => DriverIncentiveService::MAX_STARS,
+                'max_stars' => DriverIncentiveService::MAX_STARS,
+                'period_label' => $period->translatedFormat('F Y'),
+            ];
+        }
+
+        $report = $this->driverIncentiveService
+            ->reportsForMonth($period)
+            ->firstWhere('driver_id', (int) $driver->id);
+
+        return [
+            'stars' => (int) ($report->stars_end ?? DriverIncentiveService::MAX_STARS),
+            'max_stars' => DriverIncentiveService::MAX_STARS,
+            'period_label' => $period->translatedFormat('F Y'),
         ];
     }
 

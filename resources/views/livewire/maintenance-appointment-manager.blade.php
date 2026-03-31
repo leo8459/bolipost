@@ -1,4 +1,23 @@
 <div>
+    <style>
+        .maintenance-file-viewer {
+            width: 100%;
+            min-height: 70vh;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            background: #fff;
+        }
+        .maintenance-file-image {
+            display: block;
+            max-width: 100%;
+            max-height: 70vh;
+            margin: 0 auto;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+            background: #fff;
+        }
+    </style>
+
     <div class="page-title mb-4 d-flex justify-content-between align-items-center gap-2">
         <h1 class="h3 mb-0">
             <i class="fas fa-calendar-check me-2 text-primary"></i>Gestion de Solicitudes y Citas de Mantenimiento
@@ -46,30 +65,16 @@
                                             <div class="fw-bold">Documento de solicitud enviado</div>
                                             <div class="text-muted small">Origen: {{ $editingOriginLabel ?? 'Documento' }}</div>
                                         </div>
-                                        <a
-                                            href="{{ $editingEvidenceUrl }}"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            class="btn btn-sm btn-outline-primary"
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-primary maintenance-view-file-btn"
+                                            data-url="{{ $editingEvidenceUrl }}"
+                                            data-kind="{{ $this->evidenceIsPdf() ? 'pdf' : 'image' }}"
+                                            data-name="Documento de solicitud"
                                         >
-                                            <i class="fas fa-up-right-from-square me-1"></i>Abrir documento
-                                        </a>
+                                            <i class="fas fa-eye me-1"></i>Ver documento
+                                        </button>
                                     </div>
-                                    @if($this->evidenceIsPdf())
-                                        <iframe
-                                            src="{{ $editingEvidenceUrl }}"
-                                            title="Documento de solicitud"
-                                            class="w-100 rounded mt-3 border bg-white"
-                                            style="height: 420px;"
-                                        ></iframe>
-                                    @else
-                                        <img
-                                            src="{{ $editingEvidenceUrl }}"
-                                            alt="Documento de solicitud"
-                                            class="img-fluid rounded mt-3 border"
-                                            style="max-height: 320px; object-fit: cover;"
-                                        >
-                                    @endif
                                 </div>
                             </div>
                         @endif
@@ -143,45 +148,30 @@
                                     @if($this->uploadedFormIsPdf())
                                         <div class="small text-secondary mt-2">Se cargara como PDF al guardar la solicitud.</div>
                                     @else
-                                        <img
-                                            src="{{ $formulario_documento_file->temporaryUrl() }}"
-                                            alt="Vista previa del formulario"
-                                            class="img-fluid rounded mt-3 border"
-                                            style="max-height: 320px; object-fit: contain;"
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-primary mt-3 maintenance-view-file-btn"
+                                            data-url="{{ $formulario_documento_file->temporaryUrl() }}"
+                                            data-kind="image"
+                                            data-name="Vista previa del formulario"
                                         >
+                                            <i class="fas fa-eye me-1"></i>Ver imagen seleccionada
+                                        </button>
                                     @endif
                                 </div>
                             @elseif($formulario_documento_path)
                                 <div class="mt-2">
-                                    <a
-                                        href="{{ $editingFormUrl ?? '#' }}"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="btn btn-sm btn-outline-primary{{ $editingFormUrl ? '' : ' disabled' }}"
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-primary maintenance-view-file-btn{{ $editingFormUrl ? '' : ' disabled' }}"
+                                        data-url="{{ $editingFormUrl ?? '' }}"
+                                        data-kind="{{ $this->currentFormIsPdf() ? 'pdf' : 'image' }}"
+                                        data-name="Formulario actual"
+                                        {{ $editingFormUrl ? '' : 'disabled' }}
                                     >
-                                        <i class="fas fa-file-alt me-1"></i>Ver documento actual
-                                    </a>
+                                        <i class="fas fa-eye me-1"></i>Ver documento actual
+                                    </button>
                                 </div>
-                                @if($editingFormUrl)
-                                    <div class="mt-3 border rounded-3 p-3 bg-light">
-                                        <div class="fw-bold mb-2">Adjunto actual</div>
-                                        @if($this->currentFormIsPdf())
-                                            <iframe
-                                                src="{{ $editingFormUrl }}"
-                                                title="Formulario actual"
-                                                class="w-100 rounded border bg-white"
-                                                style="height: 420px;"
-                                            ></iframe>
-                                        @else
-                                            <img
-                                                src="{{ $editingFormUrl }}"
-                                                alt="Formulario actual"
-                                                class="img-fluid rounded border"
-                                                style="max-height: 320px; object-fit: contain;"
-                                            >
-                                        @endif
-                                    </div>
-                                @endif
                             @endif
                         </div>
                     </div>
@@ -295,24 +285,26 @@
                                     <td>
                                         <div class="d-flex flex-column gap-2">
                                         @if($appointment->formulario_documento_path)
-                                            <a
-                                                href="{{ route('maintenance-appointments.form', $appointment) }}"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                class="btn btn-sm btn-outline-secondary"
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-outline-secondary maintenance-view-file-btn"
+                                                data-url="{{ route('maintenance-appointments.form', $appointment) }}"
+                                                data-kind="{{ strtolower(pathinfo((string) $appointment->formulario_documento_path, PATHINFO_EXTENSION)) === 'pdf' ? 'pdf' : 'image' }}"
+                                                data-name="Formulario de la solicitud #{{ $appointment->id }}"
                                             >
                                                 <i class="fas fa-file-alt me-1"></i>Ver formulario
-                                            </a>
+                                            </button>
                                         @endif
                                         @if($appointment->evidencia_path)
-                                            <a
-                                                href="{{ route('maintenance-appointments.evidence', $appointment) }}"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                class="btn btn-sm btn-outline-primary"
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-outline-primary maintenance-view-file-btn"
+                                                data-url="{{ route('maintenance-appointments.evidence', $appointment) }}"
+                                                data-kind="{{ strtolower(pathinfo((string) $appointment->evidencia_path, PATHINFO_EXTENSION)) === 'pdf' ? 'pdf' : 'image' }}"
+                                                data-name="Documento de solicitud #{{ $appointment->id }}"
                                             >
                                                 <i class="fas fa-file-lines me-1"></i>Ver documento solicitud
-                                            </a>
+                                            </button>
                                         @endif
                                         @if(!$appointment->formulario_documento_path && !$appointment->evidencia_path)
                                             <span class="text-muted small">Sin formulario</span>
@@ -387,4 +379,99 @@
             {{ $appointments->links() }}
         </div>
     @endif
+
+    <div class="modal fade" id="maintenanceAppointmentFileModal" tabindex="-1" aria-labelledby="maintenanceAppointmentFileModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="maintenanceAppointmentFileModalLabel">Documento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <img id="maintenance-appointment-file-image" class="maintenance-file-image d-none" alt="Documento">
+                    <iframe id="maintenance-appointment-file-frame" class="maintenance-file-viewer d-none" title="Documento"></iframe>
+                    <div id="maintenance-appointment-file-empty" class="text-muted text-center py-4">No se pudo cargar el archivo.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+<script>
+    (function () {
+        if (window.__maintenanceAppointmentFileModalInitialized) return;
+        window.__maintenanceAppointmentFileModalInitialized = true;
+
+        function getModalInstance(el) {
+            if (!el) return null;
+
+            if (window.bootstrap && window.bootstrap.Modal) {
+                if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                    return window.bootstrap.Modal.getOrCreateInstance(el);
+                }
+                if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                    return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                }
+                return new window.bootstrap.Modal(el);
+            }
+
+            if (window.jQuery) {
+                return {
+                    show: () => window.jQuery(el).modal('show'),
+                    hide: () => window.jQuery(el).modal('hide'),
+                };
+            }
+
+            return null;
+        }
+
+        const modalEl = document.getElementById('maintenanceAppointmentFileModal');
+        if (!modalEl) return;
+        if (modalEl.parentElement !== document.body) {
+            document.body.appendChild(modalEl);
+        }
+
+        const titleEl = document.getElementById('maintenanceAppointmentFileModalLabel');
+        const imageEl = document.getElementById('maintenance-appointment-file-image');
+        const frameEl = document.getElementById('maintenance-appointment-file-frame');
+        const emptyEl = document.getElementById('maintenance-appointment-file-empty');
+
+        document.addEventListener('click', function (event) {
+            const btn = event.target.closest('.maintenance-view-file-btn');
+            if (!btn || btn.hasAttribute('disabled')) return;
+
+            const url = btn.getAttribute('data-url') || '';
+            const kind = btn.getAttribute('data-kind') || 'image';
+            const name = btn.getAttribute('data-name') || 'Documento';
+
+            if (titleEl) {
+                titleEl.textContent = name;
+            }
+
+            imageEl?.classList.add('d-none');
+            frameEl?.classList.add('d-none');
+            emptyEl?.classList.add('d-none');
+            imageEl?.removeAttribute('src');
+            frameEl?.removeAttribute('src');
+
+            if (!url) {
+                emptyEl?.classList.remove('d-none');
+            } else if (kind === 'pdf') {
+                if (frameEl) {
+                    frameEl.src = url;
+                    frameEl.classList.remove('d-none');
+                }
+            } else {
+                if (imageEl) {
+                    imageEl.src = url;
+                    imageEl.classList.remove('d-none');
+                }
+            }
+
+            const modal = getModalInstance(modalEl);
+            if (modal) modal.show();
+        });
+    })();
+</script>

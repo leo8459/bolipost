@@ -48,6 +48,9 @@ Route::middleware('web')->group(function () {
         Route::get('/vehicle-logs', [VehicleLogApiController::class, 'index']);
         Route::post('/vehicle-logs', [VehicleLogApiController::class, 'store']);
         Route::post('/vehicle-logs/point-to-point', [VehicleLogApiController::class, 'pointToPoint']);
+        Route::post('/vehicle-logs/stage-event', [VehicleLogApiController::class, 'storeStageEvent']);
+        Route::post('/vehicle-logs/reassignment/qr', [VehicleLogApiController::class, 'createReassignmentQr']);
+        Route::post('/vehicle-logs/reassignment/accept', [VehicleLogApiController::class, 'acceptReassignment']);
         Route::get('/vehicle-logs/{vehicleLog}', [VehicleLogApiController::class, 'show']);
 
         Route::post('/emergency-alerts', [MobileUtilityController::class, 'emergencyAlert']);
@@ -55,6 +58,7 @@ Route::middleware('web')->group(function () {
         Route::post('/activity-logs', [MobileUtilityController::class, 'activityStore']);
         Route::post('/mobile/location/heartbeat', [MobileUtilityController::class, 'locationHeartbeat']);
         Route::post('/mobile/bitacora/load', [MobileUtilityController::class, 'bitacoraLoad']);
+        Route::get('/mobile/bitacora/session-health', [MobileUtilityController::class, 'sessionHealth']);
         Route::post('/mobile/db-snapshot/chunk', [MobileDbSnapshotController::class, 'chunk']);
         Route::post('/mobile/db-snapshot/finish', [MobileDbSnapshotController::class, 'finish']);
 

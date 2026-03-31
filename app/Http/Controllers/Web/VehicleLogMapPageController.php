@@ -57,8 +57,23 @@ class VehicleLogMapPageController extends Controller
             $endLng = $last['lng'] ?? null;
         }
 
+        $stagePhotos = $vehicleLog->stageEvents()
+            ->whereNotNull('photo_path')
+            ->get()
+            ->map(function ($event) {
+                return [
+                    'id' => (int) $event->id,
+                    'stage_name' => (string) $event->stage_name,
+                    'event_at' => optional($event->event_at)->format('d/m/Y H:i'),
+                    'address' => (string) ($event->address ?? ''),
+                    'photo_url' => route('vehicle-log-stage-events.photo', $event->id),
+                ];
+            })
+            ->values();
+
         return view('vehicle_logs.map-view', [
             'vehicleLog' => $vehicleLog,
+            'stagePhotos' => $stagePhotos,
             'mapPayload' => [
                 'vehicle' => (string) ($vehicleLog->vehicle?->placa ?? 'N/A'),
                 'date' => optional($vehicleLog->fecha)->format('d/m/Y') ?? '',

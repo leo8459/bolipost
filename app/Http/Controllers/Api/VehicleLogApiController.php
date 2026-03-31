@@ -7,10 +7,14 @@ use App\Models\Driver;
 use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
 use App\Models\VehicleLog;
+use App\Models\VehicleLogSession;
+use App\Models\VehicleLogStageEvent;
+use App\Services\MaintenanceAlertService;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -62,6 +66,13 @@ class VehicleLogApiController extends Controller
         $resolvedVehicleId = $this->resolveVehicleId($candidateVehicleId, $resolvedDriverId);
 
         $vehicle = ($resolvedVehicleId ?? 0) > 0 ? Vehicle::query()->find($resolvedVehicleId) : null;
+        $blockReason = MaintenanceAlertService::resolveVehicleLogBlockReason($vehicle);
+        if ($blockReason !== null) {
+            throw ValidationException::withMessages([
+                'vehicles_id' => $blockReason,
+            ]);
+        }
+
         $kilometrajeSalida = $this->asFloat(
             $input['kilometraje_salida']
                 ?? $input['odometer_start']
@@ -140,6 +151,15 @@ class VehicleLogApiController extends Controller
         if (Schema::hasColumn('vehicle_log', 'logitud_destino') && !is_null($lngDestino)) {
             $payload['logitud_destino'] = $lngDestino;
         }
+        if (Schema::hasColumn('vehicle_log', 'session_reference')) {
+            $payload['session_reference'] = $this->resolveSessionReference($input);
+        }
+        if (Schema::hasColumn('vehicle_log', 'responsible_driver_id')) {
+            $payload['responsible_driver_id'] = $this->resolveResponsibleDriverId($input, $resolvedDriverId);
+        }
+        if (Schema::hasColumn('vehicle_log', 'current_driver_id')) {
+            $payload['current_driver_id'] = $this->resolveCurrentDriverId($input, $resolvedDriverId);
+        }
 
         $startRouteLabel = $this->sanitizeRouteLabel((string) ($payload['recorrido_inicio'] ?? ''));
         $endRouteLabel = $this->sanitizeRouteLabel((string) ($payload['recorrido_destino'] ?? ''));
@@ -214,6 +234,15 @@ class VehicleLogApiController extends Controller
         if (Schema::hasColumn('vehicle_log', 'logitud_destino')) {
             $rules['logitud_destino'] = 'required|numeric|between:-180,180';
         }
+        if (Schema::hasColumn('vehicle_log', 'session_reference')) {
+            $rules['session_reference'] = 'nullable|string|max:120';
+        }
+        if (Schema::hasColumn('vehicle_log', 'responsible_driver_id')) {
+            $rules['responsible_driver_id'] = 'nullable|integer|min:1';
+        }
+        if (Schema::hasColumn('vehicle_log', 'current_driver_id')) {
+            $rules['current_driver_id'] = 'nullable|integer|min:1';
+        }
 
         $payload = validator($payload, $rules)->validate();
 
@@ -230,6 +259,15 @@ class VehicleLogApiController extends Controller
         }
 
         $log = VehicleLog::create($payload);
+        $this->upsertSharedSession(
+            $payload['session_reference'] ?? null,
+            (int) $resolvedVehicleId,
+            $this->asInt($payload['responsible_driver_id'] ?? null) ?? $resolvedDriverId,
+            $this->asInt($payload['current_driver_id'] ?? null) ?? $resolvedDriverId,
+            $payload['fecha'] ?? null,
+            null,
+            (int) $log->id
+        );
 
         $manualDistanceKm = null;
         if (!is_null($kilometrajeSalida) && !is_null($kilometrajeLlegada)) {
@@ -293,7 +331,10 @@ class VehicleLogApiController extends Controller
 
         $sentAt = $this->parseTimelineDate($input['sent_at'] ?? $input['fecha'] ?? null) ?? now();
         $sessionId = (int) ($input['session_id'] ?? 0);
+        $sessionReference = $this->resolveSessionReference($input);
         $distanceKm = $this->asFloat($input['distance_km'] ?? $input['distancia'] ?? null);
+        $responsibleDriverId = $this->resolveResponsibleDriverId($input, $resolvedDriverId);
+        $currentDriverId = $this->resolveCurrentDriverId($input, $resolvedDriverId);
 
         $vehicle = Vehicle::query()->find($resolvedVehicleId);
         $kmStart = $this->asFloat(
@@ -340,11 +381,23 @@ class VehicleLogApiController extends Controller
                 'recorrido_inicio' => Str::limit((string) (($start['address'] ?? '') ?: ($start['label'] ?? 'Punto A')), 255, ''),
                 'recorrido_destino' => Str::limit((string) (($end['address'] ?? '') ?: ($end['label'] ?? 'Punto B')), 255, ''),
                 'abastecimiento_combustible' => false,
-                'ruta_json' => [
-                    array_merge($start, ['segment_signature' => $segmentSignature, 'session_id' => $sessionId, 'segment_index' => $idx]),
-                    array_merge($end, ['segment_signature' => $segmentSignature, 'session_id' => $sessionId, 'segment_index' => $idx + 1]),
-                ],
+                'ruta_json' => array_map(
+                    fn (array $point) => array_merge($point, [
+                        'segment_signature' => $segmentSignature,
+                        'session_id' => $sessionId,
+                    ]),
+                    $segment['route_points'] ?? $this->buildSegmentRoutePoints($start, $end)
+                ),
             ];
+            if (Schema::hasColumn('vehicle_log', 'session_reference')) {
+                $payload['session_reference'] = $sessionReference;
+            }
+            if (Schema::hasColumn('vehicle_log', 'responsible_driver_id')) {
+                $payload['responsible_driver_id'] = $responsibleDriverId;
+            }
+            if (Schema::hasColumn('vehicle_log', 'current_driver_id')) {
+                $payload['current_driver_id'] = $currentDriverId;
+            }
 
             if (Schema::hasColumn('vehicle_log', 'latitud_inicio')) {
                 $payload['latitud_inicio'] = $start['lat'];
@@ -364,6 +417,16 @@ class VehicleLogApiController extends Controller
             $cursorKm = $this->asFloat($log->kilometraje_llegada) ?? $cursorKm;
         }
 
+        $this->upsertSharedSession(
+            $sessionReference,
+            (int) $resolvedVehicleId,
+            $responsibleDriverId,
+            $currentDriverId,
+            $sentAt->toIso8601String(),
+            null,
+            !empty($created) ? (int) ($created[0]->id ?? 0) : null
+        );
+
         if ($vehicle && Schema::hasColumn('vehicles', 'kilometraje_actual')) {
             $arrival = $cursorKm;
             $current = $this->asFloat($vehicle->kilometraje_actual ?? null);
@@ -379,14 +442,237 @@ class VehicleLogApiController extends Controller
         return response()->json([
             'message' => 'Bitacoras punto a punto registradas.',
             'session_id' => $sessionId,
+            'session_reference' => $sessionReference,
             'created_count' => count($created),
             'vehicle_log_ids' => collect($created)->pluck('id')->values(),
         ], 201);
     }
 
+    public function storeStageEvent(Request $request)
+    {
+        $payload = $request->validate([
+            'vehicle_id' => 'required|integer|exists:vehicles,id',
+            'driver_id' => 'nullable|integer|min:1',
+            'responsible_driver_id' => 'nullable|integer|min:1',
+            'current_driver_id' => 'nullable|integer|min:1',
+            'vehicle_log_id' => 'nullable|integer|min:1',
+            'session_reference' => 'nullable|string|max:120',
+            'stage_name' => 'required|string|max:60',
+            'event_kind' => 'nullable|string|max:40',
+            'address' => 'nullable|string|max:255',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'event_at' => 'nullable|date',
+            'notes' => 'nullable|string',
+            'photo_base64' => 'required|string',
+            'payload_json' => 'nullable|array',
+        ]);
+
+        $actingDriverId = $this->resolveDriverId(
+            $request,
+            $payload['driver_id'] ?? null,
+            (int) $payload['vehicle_id']
+        );
+        $responsibleDriverId = $this->resolveResponsibleDriverId($payload, $actingDriverId);
+        $currentDriverId = $this->resolveCurrentDriverId($payload, $actingDriverId);
+        $sessionReference = $this->resolveSessionReference($payload);
+        $session = $this->upsertSharedSession(
+            $sessionReference,
+            (int) $payload['vehicle_id'],
+            $responsibleDriverId,
+            $currentDriverId,
+            $payload['event_at'] ?? now()->toIso8601String(),
+            null,
+            $this->asInt($payload['vehicle_log_id'] ?? null)
+        );
+
+        $photoPath = $this->storeBase64Image(
+            (string) $payload['photo_base64'],
+            'vehicle-log-stages'
+        );
+
+        $event = VehicleLogStageEvent::query()->create([
+            'vehicle_log_session_id' => $session?->id,
+            'vehicle_log_id' => $payload['vehicle_log_id'] ?? null,
+            'session_reference' => $sessionReference,
+            'vehicle_id' => (int) $payload['vehicle_id'],
+            'responsible_driver_id' => $responsibleDriverId,
+            'acting_driver_id' => $actingDriverId,
+            'stage_name' => mb_strtoupper((string) $payload['stage_name']),
+            'event_kind' => (string) ($payload['event_kind'] ?? 'stage'),
+            'address' => $payload['address'] ?? null,
+            'latitude' => $this->asFloat($payload['latitude'] ?? null),
+            'longitude' => $this->asFloat($payload['longitude'] ?? null),
+            'event_at' => $payload['event_at'] ?? now(),
+            'photo_path' => $photoPath,
+            'notes' => $payload['notes'] ?? null,
+            'payload_json' => $payload['payload_json'] ?? null,
+        ]);
+
+        if (mb_strtoupper((string) $payload['stage_name']) === 'FINALIZAR' && $session) {
+            $session->update([
+                'ended_at' => $payload['event_at'] ?? now(),
+                'status' => 'Finalizada',
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Evento de bitacora registrado.',
+            'event_id' => $event->id,
+            'session_reference' => $sessionReference,
+            'photo_url' => Storage::disk('public')->url($photoPath),
+        ], 201);
+    }
+
+    public function createReassignmentQr(Request $request)
+    {
+        $payload = $request->validate([
+            'vehicle_id' => 'required|integer|exists:vehicles,id',
+            'driver_id' => 'nullable|integer|min:1',
+            'responsible_driver_id' => 'nullable|integer|min:1',
+            'current_driver_id' => 'nullable|integer|min:1',
+            'session_reference' => 'required|string|max:120',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $actingDriverId = $this->resolveDriverId(
+            $request,
+            $payload['driver_id'] ?? null,
+            (int) $payload['vehicle_id']
+        );
+        $responsibleDriverId = $this->resolveResponsibleDriverId($payload, $actingDriverId);
+        $currentDriverId = $this->resolveCurrentDriverId($payload, $actingDriverId);
+        $sessionReference = (string) $payload['session_reference'];
+
+        $session = $this->upsertSharedSession(
+            $sessionReference,
+            (int) $payload['vehicle_id'],
+            $responsibleDriverId,
+            $currentDriverId,
+            now()->toIso8601String()
+        );
+
+        $qrPayload = [
+            'type' => 'vehicle_log_reassignment',
+            'session_reference' => $sessionReference,
+            'vehicle_id' => (int) $payload['vehicle_id'],
+            'responsible_driver_id' => $responsibleDriverId,
+            'current_driver_id' => $currentDriverId,
+            'handover_driver_id' => $actingDriverId,
+            'issued_at' => now()->toIso8601String(),
+            'expires_at' => now()->addMinutes(20)->toIso8601String(),
+        ];
+        $qrText = 'BOLIPOST-REASSIGN|' . base64_encode(json_encode($qrPayload, JSON_UNESCAPED_UNICODE));
+        $qrBase64 = \DNS2D::getBarcodePNG($qrText, 'QRCODE', 8, 8);
+
+        VehicleLogStageEvent::query()->create([
+            'vehicle_log_session_id' => $session?->id,
+            'session_reference' => $sessionReference,
+            'vehicle_id' => (int) $payload['vehicle_id'],
+            'responsible_driver_id' => $responsibleDriverId,
+            'acting_driver_id' => $actingDriverId,
+            'stage_name' => 'REASIGNAR',
+            'event_kind' => 'handover_requested',
+            'event_at' => now(),
+            'notes' => $payload['notes'] ?? null,
+            'payload_json' => $qrPayload,
+        ]);
+
+        return response()->json([
+            'message' => 'QR de reasignacion generado.',
+            'session_reference' => $sessionReference,
+            'qr_text' => $qrText,
+            'qr_image_base64' => $qrBase64,
+            'responsible_driver_id' => $responsibleDriverId,
+            'current_driver_id' => $currentDriverId,
+        ]);
+    }
+
+    public function acceptReassignment(Request $request)
+    {
+        $payload = $request->validate([
+            'qr_text' => 'required|string',
+            'driver_id' => 'nullable|integer|min:1',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $qrPayload = $this->decodeReassignmentPayload((string) $payload['qr_text']);
+        if (!$qrPayload) {
+            return response()->json([
+                'message' => 'El QR de reasignacion no es valido.',
+            ], 422);
+        }
+
+        $expiresAt = $this->parseTimelineDate($qrPayload['expires_at'] ?? null);
+        if ($expiresAt && $expiresAt->isPast()) {
+            return response()->json([
+                'message' => 'El QR de reasignacion ya expiro.',
+            ], 422);
+        }
+
+        $vehicleId = (int) ($qrPayload['vehicle_id'] ?? 0);
+        $newCurrentDriverId = $this->resolveDriverId(
+            $request,
+            $payload['driver_id'] ?? null,
+            $vehicleId
+        );
+        $responsibleDriverId = $this->asInt($qrPayload['responsible_driver_id'] ?? null);
+        $sessionReference = (string) ($qrPayload['session_reference'] ?? '');
+        $previousCurrentDriverId = $this->asInt($qrPayload['current_driver_id'] ?? null);
+
+        $session = $this->upsertSharedSession(
+            $sessionReference,
+            $vehicleId,
+            $responsibleDriverId,
+            $newCurrentDriverId,
+            $qrPayload['issued_at'] ?? now()->toIso8601String()
+        );
+
+        if ($session) {
+            $session->update([
+                'current_driver_id' => $newCurrentDriverId,
+                'last_reassigned_at' => now(),
+                'status' => 'Reasignada',
+            ]);
+        }
+
+        VehicleLogStageEvent::query()->create([
+            'vehicle_log_session_id' => $session?->id,
+            'session_reference' => $sessionReference,
+            'vehicle_id' => $vehicleId,
+            'responsible_driver_id' => $responsibleDriverId,
+            'acting_driver_id' => $newCurrentDriverId,
+            'stage_name' => 'REASIGNAR',
+            'event_kind' => 'handover_accepted',
+            'event_at' => now(),
+            'notes' => $payload['notes'] ?? null,
+            'payload_json' => [
+                'previous_current_driver_id' => $previousCurrentDriverId,
+                'new_current_driver_id' => $newCurrentDriverId,
+                'raw_qr' => $payload['qr_text'],
+            ],
+        ]);
+
+        VehicleLog::query()
+            ->where('session_reference', $sessionReference)
+            ->update([
+                'current_driver_id' => $newCurrentDriverId,
+                'responsible_driver_id' => $responsibleDriverId,
+            ]);
+
+        return response()->json([
+            'message' => 'Bitacora reasignada correctamente.',
+            'session_reference' => $sessionReference,
+            'vehicle_id' => $vehicleId,
+            'responsible_driver_id' => $responsibleDriverId,
+            'current_driver_id' => $newCurrentDriverId,
+            'previous_current_driver_id' => $previousCurrentDriverId,
+        ]);
+    }
+
     /**
      * @param array<int, array<string, mixed>> $segments
-     * @return array<int, array{start: array<string, mixed>, end: array<string, mixed>, distance_km: float|null}>
+     * @return array<int, array{start: array<string, mixed>, end: array<string, mixed>, route_points: array<int, array<string, mixed>>, distance_km: float|null}>
      */
     private function buildProvidedPointToPointSegments(array $segments, ?float $distanceKm): array
     {
@@ -406,10 +692,16 @@ class VehicleLogApiController extends Controller
                 (float) $end['lat'],
                 (float) $end['lng']
             );
+            $intermediatePoints = collect($segment['intermediate_points'] ?? [])
+                ->map(fn ($point) => $this->normalizePointToPointPoint($point))
+                ->filter()
+                ->values()
+                ->all();
             $rawLengths[] = $len;
             $normalized[] = [
                 'start' => $start,
                 'end' => $end,
+                'route_points' => $this->buildSegmentRoutePoints($start, $end, $intermediatePoints),
                 'distance_km' => null,
             ];
         }
@@ -432,6 +724,30 @@ class VehicleLogApiController extends Controller
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $start
+     * @param array<string, mixed> $end
+     * @param array<int, array<string, mixed>> $intermediatePoints
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildSegmentRoutePoints(array $start, array $end, array $intermediatePoints = []): array
+    {
+        $points = collect([$start])
+            ->merge($intermediatePoints)
+            ->push($end)
+            ->values();
+
+        return $points
+            ->map(fn ($point) => $this->normalizePointToPointPoint($point))
+            ->filter()
+            ->values()
+            ->map(function (array $point, int $index) {
+                $point['index'] = $index;
+                return $point;
+            })
+            ->all();
     }
 
     private function resolveDriverId(Request $request, mixed $candidateDriverId, int $vehicleId): ?int
@@ -641,6 +957,11 @@ class VehicleLogApiController extends Controller
             $normalized[] = [
                 'from' => $from,
                 'to' => $to,
+                'intermediate_points' => collect($segment['intermediate_points'] ?? [])
+                    ->map(fn ($point) => $this->normalizePointToPointPoint($point))
+                    ->filter()
+                    ->values()
+                    ->all(),
             ];
         }
 
@@ -715,6 +1036,122 @@ class VehicleLogApiController extends Controller
         }
 
         return null;
+    }
+
+    private function resolveSessionReference(array $input): string
+    {
+        $raw = trim((string) ($input['session_reference'] ?? $input['sessionRef'] ?? ''));
+        if ($raw !== '') {
+            return Str::limit($raw, 120, '');
+        }
+
+        return 'bitacora-' . now()->format('YmdHis') . '-' . Str::lower(Str::random(8));
+    }
+
+    private function resolveResponsibleDriverId(array $input, ?int $fallback): ?int
+    {
+        return $this->asInt(
+            $input['responsible_driver_id']
+                ?? $input['responsibleDriverId']
+                ?? $input['owner_driver_id']
+                ?? $fallback
+        );
+    }
+
+    private function resolveCurrentDriverId(array $input, ?int $fallback): ?int
+    {
+        return $this->asInt(
+            $input['current_driver_id']
+                ?? $input['currentDriverId']
+                ?? $input['acting_driver_id']
+                ?? $input['driver_id']
+                ?? $fallback
+        );
+    }
+
+    private function asInt(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $intValue = (int) $value;
+        return $intValue > 0 ? $intValue : null;
+    }
+
+    private function upsertSharedSession(
+        ?string $sessionReference,
+        int $vehicleId,
+        ?int $responsibleDriverId,
+        ?int $currentDriverId,
+        mixed $startedAt = null,
+        mixed $endedAt = null,
+        ?int $originVehicleLogId = null
+    ): ?VehicleLogSession {
+        if (!Schema::hasTable('vehicle_log_sessions') || !$sessionReference) {
+            return null;
+        }
+
+        $session = VehicleLogSession::query()->firstOrNew([
+            'session_reference' => $sessionReference,
+        ]);
+
+        if (!$session->exists) {
+            $session->started_at = $this->parseTimelineDate($startedAt ?? now()) ?? now();
+        }
+
+        $session->vehicle_id = $vehicleId > 0 ? $vehicleId : $session->vehicle_id;
+        $session->responsible_driver_id = $responsibleDriverId ?? $session->responsible_driver_id;
+        $session->current_driver_id = $currentDriverId ?? $session->current_driver_id;
+        $session->origin_vehicle_log_id = $originVehicleLogId ?: $session->origin_vehicle_log_id;
+        if ($endedAt) {
+            $session->ended_at = $this->parseTimelineDate($endedAt);
+            $session->status = 'Finalizada';
+        } else {
+            $session->status = $session->status ?: 'Activa';
+        }
+
+        $session->save();
+
+        return $session;
+    }
+
+    private function storeBase64Image(string $rawBase64, string $folder): string
+    {
+        $normalized = preg_replace('/^data:image\/[a-zA-Z0-9.+-]+;base64,/', '', trim($rawBase64)) ?? '';
+        $binary = base64_decode($normalized, true);
+        if ($binary === false) {
+            throw ValidationException::withMessages([
+                'photo_base64' => 'La imagen enviada no tiene un formato valido.',
+            ]);
+        }
+
+        $folder = trim($folder, '/');
+        $path = $folder . '/' . now()->format('Y/m') . '/' . Str::uuid() . '.jpg';
+        Storage::disk('public')->put($path, $binary);
+
+        return $path;
+    }
+
+    private function decodeReassignmentPayload(string $raw): ?array
+    {
+        $trimmed = trim($raw);
+        if (!str_starts_with($trimmed, 'BOLIPOST-REASSIGN|')) {
+            return null;
+        }
+
+        $encoded = substr($trimmed, strlen('BOLIPOST-REASSIGN|'));
+        if ($encoded === false || $encoded === '') {
+            return null;
+        }
+
+        $json = base64_decode($encoded, true);
+        if ($json === false) {
+            return null;
+        }
+
+        $decoded = json_decode($json, true);
+        return is_array($decoded) ? $decoded : null;
     }
 
     /**

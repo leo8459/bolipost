@@ -74,8 +74,17 @@
                             @error('fecha_inicio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">Fecha Fin</label>
-                            <input type="date" wire:model="fecha_fin" class="form-control">
+                            <label class="form-label fw-bold">
+                                Fecha Fin
+                                @if($tipo_asignacion === 'Temporal')
+                                    <span class="text-danger">*</span>
+                                @endif
+                            </label>
+                            <input type="date" wire:model="fecha_fin" class="form-control @error('fecha_fin') is-invalid @enderror">
+                            @error('fecha_fin') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            @if($tipo_asignacion === 'Temporal')
+                                <div class="form-text">Las asignaciones temporales deben indicar hasta cuando estaran vigentes.</div>
+                            @endif
                         </div>
                         <div class="col-12">
                             <div class="form-check">

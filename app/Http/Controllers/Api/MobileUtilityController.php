@@ -3,11 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cartero;
+use App\Models\Driver;
+use App\Models\Estado;
 use App\Models\FuelInvoice;
 use App\Models\ActivityLog;
+use App\Models\Vehicle;
+use App\Models\VehicleLogInvestigationTicket;
+use App\Models\VehicleLogSession;
+use App\Services\MaintenanceAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
@@ -19,6 +27,7 @@ class MobileUtilityController extends Controller
     private const HEARTBEAT_TTL_HOURS = 12;
     private const HEARTBEAT_DUPLICATE_WINDOW_SECONDS = 3;
     private const BITACORA_SESSION_TTL_HOURS = 24;
+    private const HEARTBEAT_SUSPEND_MINUTES = 5;
 
     public function locationHeartbeat(Request $request)
     {
@@ -104,7 +113,10 @@ class MobileUtilityController extends Controller
             'driver_id' => 'nullable|integer|min:0',
             'vehicle_id' => 'required|integer|exists:vehicles,id',
             'session_id' => 'nullable|integer|min:0',
+            'session_reference' => 'nullable|string|max:120',
             'event' => 'required|string|in:START,FINALIZE,POINT_TO_POINT,CARGA',
+            'responsible_driver_id' => 'nullable|integer|min:0',
+            'current_driver_id' => 'nullable|integer|min:0',
             'timeline' => 'nullable|array|max:500',
             'points' => 'nullable|array|max:500',
             'point_to_point_segments' => 'nullable|array|max:500',
@@ -122,6 +134,16 @@ class MobileUtilityController extends Controller
         }
 
         $event = strtoupper((string) $payload['event']);
+        if ($event === 'START') {
+            $vehicle = Vehicle::query()->find((int) $payload['vehicle_id']);
+            $blockReason = MaintenanceAlertService::resolveVehicleLogBlockReason($vehicle);
+            if ($blockReason !== null) {
+                return response()->json([
+                    'message' => $blockReason,
+                ], 422);
+            }
+        }
+
         $action = match ($event) {
             'START' => 'BITACORA_LOAD_START',
             'FINALIZE' => 'BITACORA_LOAD_FINALIZE',
@@ -159,6 +181,9 @@ class MobileUtilityController extends Controller
                 'driver_id' => (int) ($payload['driver_id'] ?? 0) ?: null,
                 'vehicle_id' => (int) $payload['vehicle_id'],
                 'session_id' => $sessionId ?: null,
+                'session_reference' => $payload['session_reference'] ?? null,
+                'responsible_driver_id' => (int) ($payload['responsible_driver_id'] ?? 0) ?: null,
+                'current_driver_id' => (int) ($payload['current_driver_id'] ?? 0) ?: null,
                 'sent_at' => (string) ($payload['sent_at'] ?? now()->toIso8601String()),
                 'timeline' => $timelineSanitized,
                 'point_to_point_segments' => $segments,
@@ -188,6 +213,9 @@ class MobileUtilityController extends Controller
                 'driver_id' => (int) ($payload['driver_id'] ?? 0) ?: null,
                 'vehicle_id' => (int) $payload['vehicle_id'],
                 'session_id' => $sessionId ?: null,
+                'session_reference' => $payload['session_reference'] ?? null,
+                'responsible_driver_id' => (int) ($payload['responsible_driver_id'] ?? 0) ?: null,
+                'current_driver_id' => (int) ($payload['current_driver_id'] ?? 0) ?: null,
                 'timeline' => $timelineForPointToPoint,
                 'point_to_point_segments' => $segmentsForPointToPoint,
                 'distance_km' => $distanceKm,
@@ -263,6 +291,9 @@ class MobileUtilityController extends Controller
                 'driver_id' => (int) ($payload['driver_id'] ?? 0) ?: null,
                 'vehicle_id' => (int) $payload['vehicle_id'],
                 'session_id' => $sessionId ?: null,
+                'session_reference' => $payload['session_reference'] ?? null,
+                'responsible_driver_id' => (int) ($payload['responsible_driver_id'] ?? 0) ?: null,
+                'current_driver_id' => (int) ($payload['current_driver_id'] ?? 0) ?: null,
                 'distance_km' => $distanceKm,
                 'timeline_count' => count($timelineSanitized),
                 'timeline' => $timelineSanitized,
@@ -571,6 +602,222 @@ class MobileUtilityController extends Controller
         return $status === 'EN_RUTA';
     }
 
+    private function resolveTrackedSession(?string $sessionReference, int $vehicleId, int $driverId): ?VehicleLogSession
+    {
+        $query = VehicleLogSession::query()
+            ->with(['vehicle:id,placa', 'responsibleDriver:id,nombre,user_id', 'currentDriver:id,nombre,user_id'])
+            ->whereNull('ended_at')
+            ->orderByDesc('id');
+
+        $sessionReference = trim((string) $sessionReference);
+        if ($sessionReference !== '') {
+            return $query->where('session_reference', $sessionReference)->first();
+        }
+
+        if ($vehicleId > 0) {
+            $session = (clone $query)->where('vehicle_id', $vehicleId)->first();
+            if ($session) {
+                return $session;
+            }
+        }
+
+        if ($driverId > 0) {
+            return $query
+                ->where(function ($q) use ($driverId) {
+                    $q->where('current_driver_id', $driverId)
+                        ->orWhere('responsible_driver_id', $driverId);
+                })
+                ->first();
+        }
+
+        return null;
+    }
+
+    private function evaluateSessionSuspension(VehicleLogSession $session, ?int $relatedUserId): array
+    {
+        $heartbeat = Cache::get("mobile:heartbeat:vehicle:{$session->vehicle_id}");
+        $receivedAt = is_array($heartbeat) ? $this->parseHeartbeatTime($heartbeat['received_at'] ?? null) : null;
+        $lastSeenAt = $receivedAt ?? $session->updated_at ?? $session->started_at;
+        $minutesWithoutHeartbeat = $lastSeenAt ? $lastSeenAt->diffInMinutes(now()) : null;
+        $isSuspended = $minutesWithoutHeartbeat !== null && $minutesWithoutHeartbeat >= self::HEARTBEAT_SUSPEND_MINUTES;
+
+        $ticket = null;
+        if ($isSuspended) {
+            if ($session->status !== 'En Suspenso') {
+                $session->update([
+                    'status' => 'En Suspenso',
+                    'meta_json' => array_merge((array) ($session->meta_json ?? []), [
+                        'heartbeat_missing_since' => optional($lastSeenAt)->toIso8601String(),
+                        'heartbeat_missing_minutes' => $minutesWithoutHeartbeat,
+                    ]),
+                ]);
+
+                VehicleLogStageEvent::query()->create([
+                    'vehicle_log_session_id' => $session->id,
+                    'session_reference' => $session->session_reference,
+                    'vehicle_id' => $session->vehicle_id,
+                    'responsible_driver_id' => $session->responsible_driver_id,
+                    'acting_driver_id' => $session->current_driver_id,
+                    'stage_name' => 'SUSPENSION',
+                    'event_kind' => 'forced_shutdown_detected',
+                    'event_at' => now(),
+                    'notes' => 'Bitacora marcada en suspenso por ausencia de heartbeat.',
+                    'payload_json' => [
+                        'minutes_without_heartbeat' => $minutesWithoutHeartbeat,
+                        'last_heartbeat_at' => optional($lastSeenAt)->toIso8601String(),
+                    ],
+                ]);
+            }
+
+            $ticket = $this->openInvestigationTicket($session, $relatedUserId, $minutesWithoutHeartbeat, $lastSeenAt);
+        }
+
+        return [
+            'id' => $session->id,
+            'session_reference' => $session->session_reference,
+            'status' => $isSuspended ? 'En Suspenso' : ((string) ($session->status ?: 'Activa')),
+            'vehicle_id' => (int) $session->vehicle_id,
+            'plate' => (string) ($session->vehicle?->placa ?? ''),
+            'responsible_driver_id' => $session->responsible_driver_id ? (int) $session->responsible_driver_id : null,
+            'current_driver_id' => $session->current_driver_id ? (int) $session->current_driver_id : null,
+            'last_heartbeat_at' => optional($lastSeenAt)->toIso8601String(),
+            'minutes_without_heartbeat' => $minutesWithoutHeartbeat,
+            'requires_forced_close' => $isSuspended,
+            'ticket' => $ticket ? [
+                'id' => (int) $ticket->id,
+                'ticket_code' => (string) $ticket->ticket_code,
+                'status' => (string) $ticket->status,
+                'message' => (string) ($ticket->message ?? ''),
+                'packages_total' => (int) ($ticket->packages_total ?? 0),
+                'packages_open' => (int) ($ticket->packages_open ?? 0),
+                'packages_delivered' => (int) ($ticket->packages_delivered ?? 0),
+            ] : null,
+        ];
+    }
+
+    private function openInvestigationTicket(
+        VehicleLogSession $session,
+        ?int $relatedUserId,
+        ?int $minutesWithoutHeartbeat,
+        ?\Illuminate\Support\Carbon $lastSeenAt
+    ): VehicleLogInvestigationTicket {
+        $existing = VehicleLogInvestigationTicket::query()
+            ->where('session_reference', $session->session_reference)
+            ->where('reason_type', 'CIERRE_FORZADO')
+            ->where('status', '!=', VehicleLogInvestigationTicket::STATUS_CLOSED)
+            ->latest('id')
+            ->first();
+
+        $packageStats = $this->resolvePackageStatsForSession($session);
+        $message = sprintf(
+            'Se detecto cierre forzado o abandono de bitacora. Ultimo heartbeat: %s. Tiempo sin latido: %s minuto(s). Revisar paquetes transportados y estado de entrega.',
+            optional($lastSeenAt)->format('d/m/Y H:i') ?: 'Sin dato',
+            $minutesWithoutHeartbeat ?? 0
+        );
+
+        if ($existing) {
+            $existing->update([
+                'message' => $message,
+                'packages_total' => $packageStats['total'],
+                'packages_open' => $packageStats['open'],
+                'packages_delivered' => $packageStats['delivered'],
+                'meta_json' => $packageStats['meta'],
+            ]);
+
+            return $existing->fresh();
+        }
+
+        $ticket = VehicleLogInvestigationTicket::query()->create([
+            'ticket_code' => 'BIT-' . now()->format('YmdHis') . '-' . str_pad((string) random_int(1, 999), 3, '0', STR_PAD_LEFT),
+            'session_reference' => (string) $session->session_reference,
+            'vehicle_id' => $session->vehicle_id,
+            'responsible_driver_id' => $session->responsible_driver_id,
+            'current_driver_id' => $session->current_driver_id,
+            'related_user_id' => $relatedUserId,
+            'reason_type' => 'CIERRE_FORZADO',
+            'status' => VehicleLogInvestigationTicket::STATUS_OPEN,
+            'message' => $message,
+            'packages_total' => $packageStats['total'],
+            'packages_open' => $packageStats['open'],
+            'packages_delivered' => $packageStats['delivered'],
+            'meta_json' => $packageStats['meta'],
+            'opened_at' => now(),
+        ]);
+
+        ActivityLog::create([
+            'user_id' => $relatedUserId,
+            'action' => 'BITACORA_INVESTIGATION_TICKET_OPENED',
+            'model' => 'vehicle_log_session',
+            'record_id' => $session->id,
+            'changes_json' => [
+                'ticket_code' => $ticket->ticket_code,
+                'session_reference' => $session->session_reference,
+                'vehicle_id' => $session->vehicle_id,
+                'packages_total' => $packageStats['total'],
+                'packages_open' => $packageStats['open'],
+                'packages_delivered' => $packageStats['delivered'],
+            ],
+        ]);
+
+        return $ticket;
+    }
+
+    private function resolvePackageStatsForSession(VehicleLogSession $session): array
+    {
+        $driverUserIds = Driver::query()
+            ->whereIn('id', array_values(array_filter([
+                (int) ($session->responsible_driver_id ?? 0),
+                (int) ($session->current_driver_id ?? 0),
+            ])))
+            ->pluck('user_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($driverUserIds)) {
+            return [
+                'total' => 0,
+                'open' => 0,
+                'delivered' => 0,
+                'meta' => [],
+            ];
+        }
+
+        $deliveredStateIds = Estado::query()
+            ->whereRaw('UPPER(nombre_estado) LIKE ?', ['%ENTREGADO%'])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $total = Cartero::query()
+            ->whereIn('id_user', $driverUserIds)
+            ->count();
+
+        $delivered = empty($deliveredStateIds)
+            ? 0
+            : Cartero::query()->whereIn('id_user', $driverUserIds)->whereIn('id_estados', $deliveredStateIds)->count();
+
+        return [
+            'total' => (int) $total,
+            'open' => max((int) $total - (int) $delivered, 0),
+            'delivered' => (int) $delivered,
+            'meta' => [
+                'driver_user_ids' => $driverUserIds,
+            ],
+        ];
+    }
+
+    private function parseHeartbeatTime(mixed $value): ?\Illuminate\Support\Carbon
+    {
+        try {
+            return filled($value) ? now()->parse((string) $value) : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     private function extractQrUrls(mixed $raw): array
     {
         if (is_string($raw)) {
@@ -850,6 +1097,40 @@ class MobileUtilityController extends Controller
             'label' => (string) ($source['label'] ?? ''),
             'address' => (string) ($source['address'] ?? ''),
         ];
+    }
+
+    public function sessionHealth(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'session_reference' => 'nullable|string|max:120',
+            'vehicle_id' => 'nullable|integer|min:1',
+        ]);
+
+        $authUser = $request->user();
+        $driver = $authUser?->resolvedDriver();
+        $session = $this->resolveTrackedSession(
+            $payload['session_reference'] ?? null,
+            (int) ($payload['vehicle_id'] ?? 0),
+            (int) ($driver?->id ?? 0)
+        );
+
+        if (!$session) {
+            return response()->json([
+                'ok' => true,
+                'has_issue' => false,
+                'session' => null,
+                'ticket' => null,
+            ]);
+        }
+
+        $suspension = $this->evaluateSessionSuspension($session, $authUser?->id);
+
+        return response()->json([
+            'ok' => true,
+            'has_issue' => $suspension['status'] === 'En Suspenso',
+            'session' => $suspension,
+            'ticket' => $suspension['ticket'] ?? null,
+        ]);
     }
 
     private function resolveFuelRouteContextFromTimeline(array $timeline): array

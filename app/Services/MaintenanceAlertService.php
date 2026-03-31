@@ -10,6 +10,59 @@ use Illuminate\Support\Facades\Schema;
 
 class MaintenanceAlertService
 {
+    public static function resolveVehicleLogBlockReason(?Vehicle $vehicle): ?string
+    {
+        if (!$vehicle) {
+            return 'No se pudo resolver el vehiculo para registrar la bitacora.';
+        }
+
+        if ($vehicle->isInMaintenance()) {
+            return sprintf(
+                'El vehiculo %s esta en mantenimiento y no puede generar ni continuar bitacoras.',
+                (string) ($vehicle->placa ?: 'sin placa')
+            );
+        }
+
+        if (!Schema::hasTable('maintenance_alerts')) {
+            return null;
+        }
+
+        $blockingAlert = MaintenanceAlert::query()
+            ->with('maintenanceType:id,nombre')
+            ->where('vehicle_id', (int) $vehicle->id)
+            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+            ->where(function ($query) {
+                $query->whereNull('postponed_until')
+                    ->orWhere('postponed_until', '<=', now());
+            })
+            ->where(function ($query) {
+                $query->where(function ($subQuery) {
+                    $subQuery->whereNotNull('faltante_km')
+                        ->where('faltante_km', '<=', 0);
+                })->orWhere(function ($subQuery) {
+                    $subQuery->whereNotNull('kilometraje_actual')
+                        ->whereNotNull('kilometraje_objetivo')
+                        ->whereColumn('kilometraje_actual', '>=', 'kilometraje_objetivo');
+                });
+            })
+            ->orderBy('kilometraje_objetivo')
+            ->orderBy('id')
+            ->first();
+
+        if (!$blockingAlert) {
+            return null;
+        }
+
+        $typeName = trim((string) ($blockingAlert->maintenanceType?->nombre ?? 'mantenimiento programado'));
+        $plate = trim((string) ($vehicle->placa ?: 'sin placa'));
+
+        return sprintf(
+            'El vehiculo %s tiene que ser llevado a mantenimiento (%s) y no puede generar ni continuar bitacoras.',
+            $plate,
+            $typeName
+        );
+    }
+
     public static function evaluateVehicleByKilometraje(int $vehicleId): void
     {
         if (!Schema::hasTable('maintenance_alerts') || !Schema::hasTable('maintenance_types')) {

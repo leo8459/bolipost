@@ -11,10 +11,12 @@ use App\Models\Workshop;
 use App\Models\WorkshopCatalog;
 use Illuminate\Support\Collection;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 class WorkshopManager extends Component
 {
+    use WithFileUploads;
     use WithPagination;
 
     public string $search = '';
@@ -34,12 +36,27 @@ class WorkshopManager extends Component
     public ?string $fecha_prometida_entrega = null;
     public ?string $fecha_listo = null;
     public ?string $fecha_salida = null;
-    public string $estado = Workshop::STATUS_DISPATCHED;
+    public string $estado = Workshop::STATUS_PENDING;
+    public string $workflow_kind = Workshop::FLOW_LIGHT;
+    public bool $approval_required = false;
+    public ?string $fixed_catalog_cost = null;
+    public ?string $labor_cost = null;
+    public ?string $additional_cost = null;
+    public string $rejection_reason = '';
+    public string $cancellation_reason = '';
     public string $pre_entrada_estado = '';
     public string $observaciones_tecnicas = '';
     public string $diagnostico = '';
     public string $observaciones = '';
     public array $partChanges = [];
+    public $reception_photo_file = null;
+    public $damage_photo_file = null;
+    public $invoice_file = null;
+    public $receipt_file = null;
+    public ?string $reception_photo_path = null;
+    public ?string $damage_photo_path = null;
+    public ?string $invoice_file_path = null;
+    public ?string $receipt_file_path = null;
     public string $catalog_name = '';
     public string $catalog_type = 'Interno';
 
@@ -74,9 +91,10 @@ class WorkshopManager extends Component
                 'maintenanceLog',
                 'maintenanceAlert.maintenanceType',
                 'workshopCatalog',
+                'reassignedFromWorkshopCatalog',
                 'partChanges',
             ])
-            ->orderByRaw("CASE WHEN estado IN ('" . Workshop::STATUS_DISPATCHED . "','" . Workshop::STATUS_DIAGNOSIS . "','" . Workshop::STATUS_REPAIR . "') THEN 0 ELSE 1 END")
+            ->orderByRaw("CASE WHEN estado IN ('" . implode("','", $this->openStatuses()) . "') THEN 0 ELSE 1 END")
             ->orderByDesc('fecha_ingreso')
             ->orderByDesc('id');
 
@@ -172,6 +190,13 @@ class WorkshopManager extends Component
         $this->nombre_taller = (string) ($catalog?->nombre ?? '');
     }
 
+    public function updatedWorkflowKind($value): void
+    {
+        if ($value === Workshop::FLOW_LIGHT) {
+            $this->approval_required = false;
+        }
+    }
+
     public function create(): void
     {
         $this->resetForm();
@@ -232,6 +257,13 @@ class WorkshopManager extends Component
 
     public function save(): void
     {
+        $this->validate([
+            'reception_photo_file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
+            'damage_photo_file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
+            'invoice_file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
+            'receipt_file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
+        ]);
+
         $validated = $this->validate([
             'vehicle_id' => 'required|integer|exists:vehicles,id',
             'driver_id' => 'nullable|integer|exists:drivers,id',
@@ -244,12 +276,24 @@ class WorkshopManager extends Component
             'fecha_listo' => 'nullable|date|after_or_equal:fecha_ingreso',
             'fecha_salida' => 'nullable|date|after_or_equal:fecha_ingreso',
             'estado' => 'required|string|in:' . implode(',', [
+                Workshop::STATUS_PENDING,
                 Workshop::STATUS_DISPATCHED,
                 Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_APPROVED,
                 Workshop::STATUS_REPAIR,
                 Workshop::STATUS_READY,
                 Workshop::STATUS_DELIVERED,
+                Workshop::STATUS_CLOSED,
+                Workshop::STATUS_REJECTED,
+                Workshop::STATUS_CANCELLED,
             ]),
+            'workflow_kind' => 'required|string|in:' . Workshop::FLOW_LIGHT . ',' . Workshop::FLOW_HEAVY,
+            'approval_required' => 'boolean',
+            'fixed_catalog_cost' => 'nullable|numeric|min:0',
+            'labor_cost' => 'nullable|numeric|min:0',
+            'additional_cost' => 'nullable|numeric|min:0',
+            'rejection_reason' => 'nullable|string',
+            'cancellation_reason' => 'nullable|string',
             'pre_entrada_estado' => 'required|string',
             'observaciones_tecnicas' => 'nullable|string',
             'diagnostico' => 'nullable|string',
@@ -263,6 +307,26 @@ class WorkshopManager extends Component
         $catalog = WorkshopCatalog::query()->findOrFail((int) $validated['workshop_catalog_id']);
         $vehicle = Vehicle::query()->findOrFail((int) $validated['vehicle_id']);
 
+        if (
+            $validated['workflow_kind'] === Workshop::FLOW_HEAVY &&
+            (bool) ($validated['approval_required'] ?? false) &&
+            $validated['estado'] === Workshop::STATUS_REPAIR &&
+            trim((string) ($validated['diagnostico'] ?? '')) === ''
+        ) {
+            $this->addError('diagnostico', 'Debe registrar el diagnostico antes de pasar un mantenimiento grave a reparacion.');
+            return;
+        }
+
+        if ($validated['estado'] === Workshop::STATUS_REJECTED && trim((string) ($validated['rejection_reason'] ?? '')) === '') {
+            $this->addError('rejection_reason', 'Debe indicar el motivo del rechazo.');
+            return;
+        }
+
+        if ($validated['estado'] === Workshop::STATUS_CANCELLED && trim((string) ($validated['cancellation_reason'] ?? '')) === '') {
+            $this->addError('cancellation_reason', 'Debe indicar el motivo de la cancelacion.');
+            return;
+        }
+
         $existingOpenWorkshop = Workshop::query()
             ->where('vehicle_id', (int) $vehicle->id)
             ->whereIn('estado', $this->openStatuses())
@@ -273,6 +337,24 @@ class WorkshopManager extends Component
             $this->addError('vehicle_id', 'Este vehiculo ya tiene una orden de taller abierta.');
             return;
         }
+
+        $existingWorkshop = $this->isEdit && $this->editingId
+            ? Workshop::query()->find($this->editingId)
+            : null;
+        $previousCatalogId = $existingWorkshop?->workshop_catalog_id ? (int) $existingWorkshop->workshop_catalog_id : null;
+
+        $fixedCatalogCost = $validated['fixed_catalog_cost'] !== null ? (float) $validated['fixed_catalog_cost'] : 0.0;
+        $laborCost = $validated['labor_cost'] !== null ? (float) $validated['labor_cost'] : 0.0;
+        $additionalCost = $validated['additional_cost'] !== null ? (float) $validated['additional_cost'] : 0.0;
+        $partsCost = collect($this->partChanges)->sum(function (array $row) {
+            return (float) (($row['costo'] ?? '') !== '' && ($row['costo'] ?? null) !== null ? $row['costo'] : 0);
+        });
+        $totalCost = round($fixedCatalogCost + $laborCost + $additionalCost + $partsCost, 2);
+
+        $receptionPhotoPath = $this->storeWorkshopFile($this->reception_photo_file, 'workshop/reception') ?? $this->reception_photo_path;
+        $damagePhotoPath = $this->storeWorkshopFile($this->damage_photo_file, 'workshop/damage') ?? $this->damage_photo_path;
+        $invoiceFilePath = $this->storeWorkshopFile($this->invoice_file, 'workshop/invoice') ?? $this->invoice_file_path;
+        $receiptFilePath = $this->storeWorkshopFile($this->receipt_file, 'workshop/receipt') ?? $this->receipt_file_path;
 
         $payload = [
             'vehicle_id' => (int) $validated['vehicle_id'],
@@ -287,6 +369,21 @@ class WorkshopManager extends Component
             'fecha_listo' => $validated['fecha_listo'] ?? null,
             'fecha_salida' => $validated['fecha_salida'] ?? null,
             'estado' => $validated['estado'],
+            'workflow_kind' => $validated['workflow_kind'],
+            'approval_required' => (bool) ($validated['approval_required'] ?? false),
+            'fixed_catalog_cost' => $validated['fixed_catalog_cost'] !== null ? $fixedCatalogCost : null,
+            'labor_cost' => $validated['labor_cost'] !== null ? $laborCost : null,
+            'additional_cost' => $validated['additional_cost'] !== null ? $additionalCost : null,
+            'total_cost' => $totalCost,
+            'reassigned_from_workshop_catalog_id' => $previousCatalogId && $previousCatalogId !== (int) $catalog->id
+                ? $previousCatalogId
+                : ($existingWorkshop?->reassigned_from_workshop_catalog_id),
+            'rejection_reason' => trim((string) ($validated['rejection_reason'] ?? '')),
+            'cancellation_reason' => trim((string) ($validated['cancellation_reason'] ?? '')),
+            'reception_photo_path' => $receptionPhotoPath,
+            'damage_photo_path' => $damagePhotoPath,
+            'invoice_file_path' => $invoiceFilePath,
+            'receipt_file_path' => $receiptFilePath,
             'pre_entrada_estado' => trim((string) $validated['pre_entrada_estado']),
             'observaciones_tecnicas' => trim((string) ($validated['observaciones_tecnicas'] ?? '')),
             'diagnostico' => trim((string) ($validated['diagnostico'] ?? '')),
@@ -348,10 +445,25 @@ class WorkshopManager extends Component
         $this->fecha_listo = optional($workshop->fecha_listo)->format('Y-m-d');
         $this->fecha_salida = optional($workshop->fecha_salida)->format('Y-m-d');
         $this->estado = (string) $workshop->estado;
+        $this->workflow_kind = (string) ($workshop->workflow_kind ?: Workshop::FLOW_LIGHT);
+        $this->approval_required = (bool) $workshop->approval_required;
+        $this->fixed_catalog_cost = $workshop->fixed_catalog_cost !== null ? (string) $workshop->fixed_catalog_cost : null;
+        $this->labor_cost = $workshop->labor_cost !== null ? (string) $workshop->labor_cost : null;
+        $this->additional_cost = $workshop->additional_cost !== null ? (string) $workshop->additional_cost : null;
+        $this->rejection_reason = (string) ($workshop->rejection_reason ?? '');
+        $this->cancellation_reason = (string) ($workshop->cancellation_reason ?? '');
         $this->pre_entrada_estado = (string) $workshop->pre_entrada_estado;
         $this->observaciones_tecnicas = (string) ($workshop->observaciones_tecnicas ?? '');
         $this->diagnostico = (string) ($workshop->diagnostico ?? '');
         $this->observaciones = (string) ($workshop->observaciones ?? '');
+        $this->reception_photo_file = null;
+        $this->damage_photo_file = null;
+        $this->invoice_file = null;
+        $this->receipt_file = null;
+        $this->reception_photo_path = (string) ($workshop->reception_photo_path ?? '') ?: null;
+        $this->damage_photo_path = (string) ($workshop->damage_photo_path ?? '') ?: null;
+        $this->invoice_file_path = (string) ($workshop->invoice_file_path ?? '') ?: null;
+        $this->receipt_file_path = (string) ($workshop->receipt_file_path ?? '') ?: null;
         $this->partChanges = $workshop->partChanges->map(fn ($row) => [
             'codigo_pieza_antigua' => (string) ($row->codigo_pieza_antigua ?? ''),
             'codigo_pieza_nueva' => (string) ($row->codigo_pieza_nueva ?? ''),
@@ -390,14 +502,31 @@ class WorkshopManager extends Component
             'fecha_listo',
             'fecha_salida',
             'estado',
+            'workflow_kind',
+            'approval_required',
+            'fixed_catalog_cost',
+            'labor_cost',
+            'additional_cost',
+            'rejection_reason',
+            'cancellation_reason',
             'pre_entrada_estado',
             'observaciones_tecnicas',
             'diagnostico',
             'observaciones',
+            'reception_photo_file',
+            'damage_photo_file',
+            'invoice_file',
+            'receipt_file',
+            'reception_photo_path',
+            'damage_photo_path',
+            'invoice_file_path',
+            'receipt_file_path',
             'isEdit',
             'editingId',
         ]);
         $this->estado = Workshop::STATUS_DISPATCHED;
+        $this->workflow_kind = Workshop::FLOW_LIGHT;
+        $this->approval_required = false;
         $this->showForm = false;
         $this->partChanges = [];
         $this->ensurePartRow();
@@ -443,9 +572,14 @@ class WorkshopManager extends Component
         $this->workshop_catalog_id = $defaultCatalog?->id ? (int) $defaultCatalog->id : null;
         $this->nombre_taller = (string) ($defaultCatalog?->nombre ?? '');
         $this->fecha_ingreso = now()->toDateString();
-        $this->estado = Workshop::STATUS_DISPATCHED;
+        $requestDiagnosis = request()->boolean('request_diagnosis');
+        $this->estado = $requestDiagnosis ? Workshop::STATUS_PENDING : Workshop::STATUS_DISPATCHED;
+        $this->workflow_kind = $requestDiagnosis ? Workshop::FLOW_HEAVY : Workshop::FLOW_LIGHT;
+        $this->approval_required = $requestDiagnosis;
         $typeName = (string) ($alert->maintenanceType?->nombre ?? $alert->tipo);
-        $this->pre_entrada_estado = "Ingreso desde alerta activa de mantenimiento {$typeName}.";
+        $this->pre_entrada_estado = $requestDiagnosis
+            ? "Ingreso para diagnostico desde alerta activa de mantenimiento {$typeName}."
+            : "Ingreso desde alerta activa de mantenimiento {$typeName}.";
         $this->observaciones = trim((string) $alert->mensaje);
     }
 
@@ -471,9 +605,12 @@ class WorkshopManager extends Component
     private function openStatuses(): array
     {
         return [
+            Workshop::STATUS_PENDING,
             Workshop::STATUS_DISPATCHED,
             Workshop::STATUS_DIAGNOSIS,
+            Workshop::STATUS_APPROVED,
             Workshop::STATUS_REPAIR,
+            Workshop::STATUS_READY,
         ];
     }
 
@@ -487,17 +624,50 @@ class WorkshopManager extends Component
     private function applyWorkshopStateEffects(Workshop $workshop): void
     {
         $updates = [];
+        $userId = auth()->id();
+
+        if (in_array($workshop->estado, [Workshop::STATUS_PENDING, Workshop::STATUS_DIAGNOSIS], true) && !$workshop->diagnosis_requested_at) {
+            $updates['diagnosis_requested_at'] = now();
+        }
+
+        if ($workshop->estado === Workshop::STATUS_DISPATCHED && !$workshop->dispatched_by_user_id) {
+            $updates['dispatched_by_user_id'] = $userId;
+        }
+
+        if ($workshop->estado === Workshop::STATUS_DIAGNOSIS && !$workshop->diagnosed_by_user_id) {
+            $updates['diagnosed_by_user_id'] = $userId;
+        }
+
+        if ($workshop->estado === Workshop::STATUS_APPROVED) {
+            if (!$workshop->approved_by_user_id) {
+                $updates['approved_by_user_id'] = $userId;
+            }
+            if (!$workshop->fecha_aprobacion) {
+                $updates['fecha_aprobacion'] = now();
+            }
+        }
+
         if ($workshop->estado === Workshop::STATUS_READY && !$workshop->fecha_listo) {
             $updates['fecha_listo'] = now()->toDateString();
         }
 
-        if ($workshop->estado === Workshop::STATUS_DELIVERED) {
+        if (in_array($workshop->estado, [Workshop::STATUS_DELIVERED, Workshop::STATUS_CLOSED], true)) {
             if (!$workshop->fecha_listo) {
                 $updates['fecha_listo'] = now()->toDateString();
             }
             if (!$workshop->fecha_salida) {
                 $updates['fecha_salida'] = now()->toDateString();
             }
+            if (!$workshop->closed_by_user_id) {
+                $updates['closed_by_user_id'] = $userId;
+            }
+            if (!$workshop->fecha_cierre) {
+                $updates['fecha_cierre'] = now();
+            }
+        }
+
+        if (in_array($workshop->estado, [Workshop::STATUS_REJECTED, Workshop::STATUS_CANCELLED], true) && !$workshop->fecha_cierre) {
+            $updates['fecha_cierre'] = now();
         }
 
         if ($updates !== []) {
@@ -511,7 +681,25 @@ class WorkshopManager extends Component
                     'status' => MaintenanceAlert::STATUS_RESOLVED,
                     'leida' => true,
                     'fecha_resolucion' => now(),
-                    'usuario_id' => auth()->id(),
+                    'usuario_id' => $userId,
+                ]);
+            } elseif (in_array($workshop->estado, [Workshop::STATUS_REJECTED, Workshop::STATUS_CANCELLED], true)) {
+                $reason = $workshop->estado === Workshop::STATUS_REJECTED
+                    ? trim((string) $workshop->rejection_reason)
+                    : trim((string) $workshop->cancellation_reason);
+
+                $workshop->maintenanceAlert->update([
+                    'status' => MaintenanceAlert::STATUS_ACTIVE,
+                    'leida' => false,
+                    'fecha_resolucion' => null,
+                    'usuario_id' => null,
+                    'mensaje' => trim(sprintf(
+                        '%s. %s en taller %s%s',
+                        $workshop->maintenanceAlert->mensaje,
+                        $workshop->estado,
+                        $workshop->workshopCatalog?->nombre ?? $workshop->nombre_taller,
+                        $reason !== '' ? ': ' . $reason . '. Reasignar a otro taller.' : '. Reasignar a otro taller.'
+                    )),
                 ]);
             } else {
                 $workshop->maintenanceAlert->update([
@@ -524,6 +712,14 @@ class WorkshopManager extends Component
             if ($workshop->isClosedState()) {
                 $workshop->maintenanceAppointment->update([
                     'estado' => MaintenanceAppointment::STATUS_COMPLETED,
+                ]);
+            } elseif ($workshop->estado === Workshop::STATUS_REJECTED) {
+                $workshop->maintenanceAppointment->update([
+                    'estado' => MaintenanceAppointment::STATUS_REJECTED,
+                ]);
+            } elseif ($workshop->estado === Workshop::STATUS_CANCELLED) {
+                $workshop->maintenanceAppointment->update([
+                    'estado' => MaintenanceAppointment::STATUS_CANCELLED,
                 ]);
             } elseif ($workshop->maintenanceAppointment->estado === MaintenanceAppointment::STATUS_PENDING) {
                 $workshop->maintenanceAppointment->update([
@@ -552,5 +748,14 @@ class WorkshopManager extends Component
                 ? Vehicle::OPERATIONAL_STATUS_IN_MAINTENANCE
                 : Vehicle::OPERATIONAL_STATUS_AVAILABLE,
         ]);
+    }
+
+    private function storeWorkshopFile($file, string $folder): ?string
+    {
+        if (!$file) {
+            return null;
+        }
+
+        return (string) $file->store($folder, 'public');
     }
 }

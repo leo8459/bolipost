@@ -47,13 +47,29 @@
             max-width: 900px;
         }
 
-        #bitacora-view-map {
-            height: 420px;
-            border-radius: 8px;
+        .fuel-file-viewer {
+            width: 100%;
+            min-height: 70vh;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            background: #fff;
         }
-
-        #bitacoraMapModal .modal-dialog {
-            max-width: 980px;
+        .fuel-file-image {
+            display: block;
+            max-width: 100%;
+            max-height: 70vh;
+            margin: 0 auto;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+            background: #fff;
+        }
+        .fuel-file-viewer-loading {
+            min-height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-weight: 600;
         }
 
         .fuel-form-map-card {
@@ -587,9 +603,9 @@
                                                                     <div class="small text-muted">Reconstruida con los datos extraidos del SIAT.</div>
                                                                 </div>
                                                                 @if($scannedInvoiceRolloDocumentUrl)
-                                                                <a href="{{ $scannedInvoiceRolloDocumentUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-dark">
+                                                                <button type="button" class="btn btn-sm btn-outline-dark fuel-view-file-btn" data-url="{{ $scannedInvoiceRolloDocumentUrl }}" data-kind="pdf" data-title="Factura tipo rollo">
                                                                     <i class="fas fa-receipt me-1"></i>Ver rollo PDF
-                                                                </a>
+                                                                </button>
                                                                 @endif
                                                             </div>
                                                             <div class="border rounded-3 p-3 bg-light" style="max-width: 320px; margin: 0 auto; font-size: 12px; line-height: 1.35;">
@@ -622,16 +638,16 @@
                                                     </a>
                                                     @endif
                                                     @if($scannedInvoiceDocumentUrl)
-                                                    <a href="{{ $scannedInvoiceDocumentUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary fuel-view-file-btn" data-url="{{ $scannedInvoiceDocumentUrl }}" data-kind="pdf" data-title="Factura guardada">
                                                         <i class="fas fa-file-pdf me-1"></i>Ver factura guardada
-                                                    </a>
+                                                    </button>
                                                     @else
                                                     <span class="small text-muted align-self-center">La factura PDF se mostrara aqui despues de guardar el registro.</span>
                                                     @endif
                                                     @if($scannedInvoiceRolloDocumentUrl)
-                                                    <a href="{{ $scannedInvoiceRolloDocumentUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-dark">
+                                                    <button type="button" class="btn btn-sm btn-outline-dark fuel-view-file-btn" data-url="{{ $scannedInvoiceRolloDocumentUrl }}" data-kind="pdf" data-title="Factura rollo">
                                                         <i class="fas fa-receipt me-1"></i>Ver factura rollo
-                                                    </a>
+                                                    </button>
                                                     @endif
                                                 </div>
                                                 @else
@@ -833,28 +849,30 @@
                                     <div class="small text-muted">Rendimiento: {{ $kmPorLitro !== null ? number_format($kmPorLitro, 3) . ' km/l' : '-' }}</div>
                                     @if(!empty($log->invoice?->siat_document_path))
                                         <div class="mt-2">
-                                            <a
-                                                href="{{ route('fuel-invoices.document', $log->invoice) }}"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                class="btn btn-sm btn-outline-secondary"
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-outline-secondary fuel-view-file-btn"
+                                                data-url="{{ route('fuel-invoices.document', $log->invoice) }}"
+                                                data-kind="pdf"
+                                                data-title="Factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
                                             >
                                                 <i class="fas fa-file-pdf me-1"></i>Ver factura
-                                            </a>
+                                            </button>
                                         </div>
                                     @endif
                                 </td>
                                 <td class="text-center">
                                     @if(!empty($log->invoice?->siat_document_path))
-                                    <a
-                                        href="{{ route('fuel-invoices.document', $log->invoice) }}"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="btn btn-sm btn-outline-danger"
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-danger fuel-view-file-btn"
                                         title="Ver factura PDF"
+                                        data-url="{{ route('fuel-invoices.document', $log->invoice) }}"
+                                        data-kind="pdf"
+                                        data-title="Factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
                                     >
                                         <i class="fas fa-file-pdf"></i>
-                                    </a>
+                                    </button>
                                     <a
                                         href="{{ route('fuel-invoices.document', ['fuelInvoice' => $log->invoice, 'download' => 1]) }}"
                                         class="btn btn-sm btn-outline-secondary"
@@ -864,15 +882,16 @@
                                     </a>
                                     @endif
                                     @if(!empty($log->invoice?->siat_rollo_document_path))
-                                    <a
-                                        href="{{ route('fuel-invoices.rollo', $log->invoice) }}"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="btn btn-sm btn-outline-secondary"
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-secondary fuel-view-file-btn"
                                         title="Ver factura rollo"
+                                        data-url="{{ route('fuel-invoices.rollo', $log->invoice) }}"
+                                        data-kind="pdf"
+                                        data-title="Factura rollo {{ optional($log->invoice)->numero_factura ?? '#' }}"
                                     >
                                         <i class="fas fa-receipt"></i>
-                                    </a>
+                                    </button>
                                     <a
                                         href="{{ route('fuel-invoices.rollo', ['fuelInvoice' => $log->invoice, 'download' => 1]) }}"
                                         class="btn btn-sm btn-outline-dark"
@@ -882,15 +901,16 @@
                                     </a>
                                     @endif
                                     @if(!empty($log->invoice?->invoice_photo_path))
-                                    <a
-                                        href="{{ route('fuel-invoices.photo', $log->invoice) }}"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="btn btn-sm btn-outline-primary"
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-primary fuel-view-file-btn"
                                         title="Ver foto de factura"
+                                        data-url="{{ route('fuel-invoices.photo', $log->invoice) }}"
+                                        data-kind="image"
+                                        data-title="Foto de factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
                                     >
                                         <i class="fas fa-eye"></i>
-                                    </a>
+                                    </button>
                                     @else
                                     <button
                                         type="button"
@@ -901,24 +921,13 @@
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     @endif
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-info bitacora-map-view-btn"
+                                    <a
+                                        href="{{ $log->vehicleLog ? route('vehicle-logs.map', $log->vehicleLog->id) : '#' }}"
+                                        class="btn btn-sm btn-outline-info{{ $log->vehicleLog ? '' : ' disabled' }}"
                                         title="{{ $log->vehicleLog ? 'Ver recorrido en mapa' : 'Sin bitacora vinculada' }}"
-                                        {{ $log->vehicleLog ? '' : 'disabled' }}
-                                        data-log-id="{{ $log->vehicleLog?->id ?? $log->id }}"
-                                        data-fecha="{{ optional($log->vehicleLog?->fecha ?? $log->invoice?->fecha_emision)->format('d/m/Y') }}"
-                                        data-placa="{{ $log->vehicle?->placa ?? '-' }}"
-                                        data-conductor="{{ $log->driver?->nombre ?? '-' }}"
-                                        data-recorrido-inicio="{{ $log->vehicleLog?->recorrido_inicio ?? '-' }}"
-                                        data-recorrido-destino="{{ $log->vehicleLog?->recorrido_destino ?? '-' }}"
-                                        data-lat-inicio="{{ $log->vehicleLog?->latitud_inicio }}"
-                                        data-lng-inicio="{{ $log->vehicleLog?->logitud_inicio }}"
-                                        data-lat-destino="{{ $log->vehicleLog?->latitud_destino }}"
-                                        data-lng-destino="{{ $log->vehicleLog?->logitud_destino }}"
-                                        data-route-points='@json($log->vehicleLog?->points_json ?? [])'>
+                                        {{ $log->vehicleLog ? '' : 'aria-disabled=true tabindex=-1' }}>
                                         <i class="fas fa-map-marked-alt"></i>
-                                    </button>
+                                    </a>
                                     @if(auth()->user()?->role !== 'conductor' && ($log->estado ?? '') !== 'Verificado')
                                     <button wire:click="markAsVerificado({{ $log->id }})" class="btn btn-sm btn-outline-success" title="Marcar como verificado">
                                         <i class="fas fa-check"></i>
@@ -945,27 +954,6 @@
         </div>
     </div>
     @endif
-
-    <div class="modal fade" id="bitacoraMapModal" wire:ignore.self tabindex="-1" aria-labelledby="bitacoraMapLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="bitacoraMapLabel">
-                        <i class="fas fa-map-marked-alt me-2"></i>Recorrido de bitacora
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="small text-muted mb-2" id="bitacora-map-summary">Sin datos</div>
-                    <div class="small text-muted mb-3" id="bitacora-map-detail">Sin detalles de recorrido.</div>
-                    <div id="bitacora-view-map" wire:ignore></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <div class="modal fade" id="locationPickerModal" wire:ignore.self tabindex="-1" aria-labelledby="locationPickerLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -1346,243 +1334,6 @@
             document.addEventListener('livewire:navigated', loadCameras);
             setTimeout(loadCameras, 300);
             startCameraRefreshLoop();
-        })();
-    </script>
-    <script>
-        (function() {
-            if (window.__fuelBitacoraMapViewerInitialized) return;
-            window.__fuelBitacoraMapViewerInitialized = true;
-
-            const modalEl = document.getElementById('bitacoraMapModal');
-            if (!modalEl || !window.L) return;
-            if (modalEl.parentElement !== document.body) {
-                document.body.appendChild(modalEl);
-            }
-
-            const summaryEl = document.getElementById('bitacora-map-summary');
-            const detailEl = document.getElementById('bitacora-map-detail');
-            const mapContainerId = 'bitacora-view-map';
-            let map = null;
-            let layers = [];
-            let pendingPayload = null;
-
-            function getBsModal(el) {
-                if (!el) return null;
-                if (window.bootstrap && window.bootstrap.Modal) {
-                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
-                        return window.bootstrap.Modal.getOrCreateInstance(el);
-                    }
-                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
-                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
-                    }
-                    return new window.bootstrap.Modal(el);
-                }
-                if (window.jQuery) {
-                    return {
-                        show: () => window.jQuery(el).modal('show'),
-                        hide: () => window.jQuery(el).modal('hide'),
-                    };
-                }
-                return null;
-            }
-
-            function toNumber(value) {
-                const n = Number(value);
-                return Number.isFinite(n) ? n : null;
-            }
-
-            function extractCoordinates(text) {
-                if (!text) return [null, null];
-                const m = String(text).match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
-                if (!m) return [null, null];
-                return [toNumber(m[1]), toNumber(m[2])];
-            }
-
-            function validLatLng(lat, lng) {
-                return lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
-            }
-
-            function parseRoutePoints(raw) {
-                if (!raw) return [];
-
-                try {
-                    const parsed = JSON.parse(raw);
-                    if (!Array.isArray(parsed)) return [];
-
-                    return parsed
-                        .map((point) => ({
-                            lat: toNumber(point?.lat ?? point?.latitude),
-                            lng: toNumber(point?.lng ?? point?.longitude),
-                            address: typeof point?.address === 'string' ? point.address : '',
-                            label: typeof point?.point_label === 'string' ?
-                                point.point_label :
-                                (typeof point?.label === 'string' ? point.label : ''),
-                            marked: Boolean(point?.is_marked ?? point?.marked ?? point?.isMarked),
-                        }))
-                        .filter((point) => validLatLng(point.lat, point.lng));
-                } catch (_) {
-                    return [];
-                }
-            }
-
-            function ensureMap() {
-                const container = document.getElementById(mapContainerId);
-                if (!container) return;
-
-                if (map) {
-                    const currentContainer = map.getContainer ? map.getContainer() : null;
-                    if (currentContainer === container && document.body.contains(container)) {
-                        return;
-                    }
-
-                    try {
-                        map.off();
-                        map.remove();
-                    } catch (_) {}
-                    map = null;
-                    layers = [];
-                }
-
-                map = L.map(container).setView([-16.5, -68.15], 12);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; OpenStreetMap contributors'
-                }).addTo(map);
-            }
-
-            function clearLayers() {
-                if (!map) return;
-                layers.forEach((layer) => map.removeLayer(layer));
-                layers = [];
-            }
-
-            function renderRoute(data) {
-                ensureMap();
-                clearLayers();
-
-                const fromText = data.recorridoInicio || '-';
-                const toText = data.recorridoDestino || '-';
-                if (summaryEl) {
-                    summaryEl.textContent = `Bitacora #${data.logId} | Fecha: ${data.fecha} | Vehiculo: ${data.placa} | Conductor: ${data.conductor}`;
-                }
-                if (detailEl) {
-                    detailEl.textContent = `Inicio: ${fromText} | Destino: ${toText}`;
-                }
-
-                let fromLat = toNumber(data.latInicio);
-                let fromLng = toNumber(data.lngInicio);
-                let toLat = toNumber(data.latDestino);
-                let toLng = toNumber(data.lngDestino);
-                const routePoints = parseRoutePoints(data.routePoints);
-
-                if (!validLatLng(fromLat, fromLng)) {
-                    const coords = extractCoordinates(fromText);
-                    fromLat = coords[0];
-                    fromLng = coords[1];
-                }
-                if (!validLatLng(toLat, toLng)) {
-                    const coords = extractCoordinates(toText);
-                    toLat = coords[0];
-                    toLng = coords[1];
-                }
-
-                const points = routePoints.map((point) => [point.lat, point.lng]);
-                if (!points.length) {
-                    if (validLatLng(fromLat, fromLng)) points.push([fromLat, fromLng]);
-                    if (validLatLng(toLat, toLng)) points.push([toLat, toLng]);
-                }
-
-                if (!points.length) {
-                    if (detailEl) {
-                        detailEl.textContent += ' | No hay coordenadas validas para mostrar en el mapa.';
-                    }
-                    map.setView([-16.5, -68.15], 11);
-                    return;
-                }
-
-                if (validLatLng(fromLat, fromLng)) {
-                    const start = L.marker([fromLat, fromLng]).addTo(map)
-                        .bindPopup(`<strong>Inicio</strong><br>${fromText}`);
-                    layers.push(start);
-                }
-
-                if (validLatLng(toLat, toLng)) {
-                    const end = L.marker([toLat, toLng]).addTo(map)
-                        .bindPopup(`<strong>Destino</strong><br>${toText}`);
-                    layers.push(end);
-                }
-
-                if (routePoints.length > 0) {
-                    routePoints.forEach((point, index) => {
-                        const isStart = validLatLng(fromLat, fromLng) && point.lat === fromLat && point.lng === fromLng;
-                        const isEnd = validLatLng(toLat, toLng) && point.lat === toLat && point.lng === toLng;
-                        if (isStart || isEnd) {
-                            return;
-                        }
-
-                        const popupText = point.address || point.label || `Punto ${index + 1}`;
-                        const marker = L.circleMarker([point.lat, point.lng], {
-                            radius: point.marked ? 7 : 5,
-                            color: point.marked ? '#9a3412' : '#2563eb',
-                            weight: 2,
-                            fillColor: point.marked ? '#facc15' : '#93c5fd',
-                            fillOpacity: 0.95,
-                        }).addTo(map).bindPopup(`<strong>${point.marked ? 'Punto marcado' : 'Punto de ruta'}</strong><br>${popupText}`);
-                        layers.push(marker);
-                    });
-                }
-
-                if (points.length >= 2) {
-                    const line = L.polyline(points, {
-                        color: '#00509d',
-                        weight: 4,
-                        opacity: 0.8,
-                    }).addTo(map);
-                    layers.push(line);
-                }
-
-                map.fitBounds(L.latLngBounds(points), {
-                    padding: [40, 40],
-                    maxZoom: 16
-                });
-            }
-
-            document.addEventListener('click', function(event) {
-                const btn = event.target.closest('.bitacora-map-view-btn');
-                if (!btn) return;
-
-                pendingPayload = {
-                    logId: btn.getAttribute('data-log-id') || '-',
-                    fecha: btn.getAttribute('data-fecha') || '-',
-                    placa: btn.getAttribute('data-placa') || '-',
-                    conductor: btn.getAttribute('data-conductor') || '-',
-                    recorridoInicio: btn.getAttribute('data-recorrido-inicio') || '-',
-                    recorridoDestino: btn.getAttribute('data-recorrido-destino') || '-',
-                    latInicio: btn.getAttribute('data-lat-inicio'),
-                    lngInicio: btn.getAttribute('data-lng-inicio'),
-                    latDestino: btn.getAttribute('data-lat-destino'),
-                    lngDestino: btn.getAttribute('data-lng-destino'),
-                    routePoints: btn.getAttribute('data-route-points') || '[]',
-                };
-
-                const modal = getBsModal(modalEl);
-                if (!modal) return;
-                modal.show();
-            });
-
-            modalEl.addEventListener('shown.bs.modal', function() {
-                if (!pendingPayload) return;
-                renderRoute(pendingPayload);
-                if (map) {
-                    map.invalidateSize();
-                    setTimeout(() => map.invalidateSize(), 120);
-                }
-            });
-
-            modalEl.addEventListener('hidden.bs.modal', function() {
-                clearLayers();
-                pendingPayload = null;
-            });
         })();
     </script>
     <script>
@@ -2292,6 +2043,128 @@
             });
         })();
     </script>
+    <script>
+        (function() {
+            if (window.__fuelFileViewerInit) return;
+            window.__fuelFileViewerInit = true;
+
+            function getModalInstance(el) {
+                if (!el) return null;
+
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                        return window.bootstrap.Modal.getOrCreateInstance(el);
+                    }
+                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                    }
+                    return new window.bootstrap.Modal(el);
+                }
+
+                if (window.jQuery) {
+                    return {
+                        show: () => window.jQuery(el).modal('show'),
+                        hide: () => window.jQuery(el).modal('hide'),
+                    };
+                }
+
+                return null;
+            }
+
+            function bootFuelFileViewer() {
+                const modalEl = document.getElementById('fuelFileViewerModal');
+                if (!modalEl || modalEl.dataset.viewerReady === '1') return;
+
+                modalEl.dataset.viewerReady = '1';
+
+                if (modalEl.parentElement !== document.body) {
+                    document.body.appendChild(modalEl);
+                }
+
+                const titleEl = document.getElementById('fuelFileViewerLabel');
+                const imageEl = document.getElementById('fuel-file-viewer-image');
+                const frameEl = document.getElementById('fuel-file-viewer-frame');
+                const emptyEl = document.getElementById('fuel-file-viewer-empty');
+                const loadingEl = document.getElementById('fuel-file-viewer-loading');
+
+                function resetViewer(showLoading = false) {
+                    imageEl?.classList.add('d-none');
+                    frameEl?.classList.add('d-none');
+                    emptyEl?.classList.add('d-none');
+                    loadingEl?.classList.toggle('d-none', !showLoading);
+                    imageEl?.removeAttribute('src');
+                    frameEl?.removeAttribute('src');
+                }
+
+                imageEl?.addEventListener('load', function() {
+                    loadingEl?.classList.add('d-none');
+                    emptyEl?.classList.add('d-none');
+                    imageEl.classList.remove('d-none');
+                });
+
+                imageEl?.addEventListener('error', function() {
+                    loadingEl?.classList.add('d-none');
+                    imageEl.classList.add('d-none');
+                    emptyEl?.classList.remove('d-none');
+                });
+
+                frameEl?.addEventListener('load', function() {
+                    loadingEl?.classList.add('d-none');
+                    emptyEl?.classList.add('d-none');
+                    frameEl.classList.remove('d-none');
+                });
+
+                frameEl?.addEventListener('error', function() {
+                    loadingEl?.classList.add('d-none');
+                    frameEl.classList.add('d-none');
+                    emptyEl?.classList.remove('d-none');
+                });
+
+                modalEl.addEventListener('hidden.bs.modal', function() {
+                    resetViewer(false);
+                });
+
+                document.addEventListener('click', function(event) {
+                    const btn = event.target.closest('.fuel-view-file-btn');
+                    if (!btn) return;
+
+                    const url = btn.getAttribute('data-url') || '';
+                    const kind = btn.getAttribute('data-kind') || 'image';
+                    const title = btn.getAttribute('data-title') || 'Archivo';
+
+                    if (titleEl) {
+                        titleEl.textContent = title;
+                    }
+
+                    resetViewer(Boolean(url));
+
+                    if (!url) {
+                        loadingEl?.classList.add('d-none');
+                        emptyEl?.classList.remove('d-none');
+                    } else if (kind === 'pdf') {
+                        if (frameEl) {
+                            frameEl.src = url;
+                        }
+                    } else if (imageEl) {
+                        imageEl.src = url;
+                    }
+
+                    const modal = getModalInstance(modalEl);
+                    if (modal) {
+                        modal.show();
+                    }
+                });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', bootFuelFileViewer, { once: true });
+            } else {
+                bootFuelFileViewer();
+            }
+
+            document.addEventListener('livewire:navigated', bootFuelFileViewer);
+        })();
+    </script>
     @if(auth()->user()?->role !== 'conductor')
     <div class="modal fade" id="fuelDocumentModal" tabindex="-1" aria-labelledby="fuelDocumentModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -2395,6 +2268,28 @@
                         data-excel-url="{{ route('fuel-logs.bitacora.excel') }}">
                         Generar
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="fuelFileViewerModal" tabindex="-1" aria-labelledby="fuelFileViewerLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fuelFileViewerLabel">Archivo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="fuel-file-viewer-loading" class="fuel-file-viewer-loading d-none">
+                        Cargando archivo...
+                    </div>
+                    <img id="fuel-file-viewer-image" class="fuel-file-image d-none" alt="Archivo">
+                    <iframe id="fuel-file-viewer-frame" class="fuel-file-viewer d-none" title="Archivo"></iframe>
+                    <div id="fuel-file-viewer-empty" class="text-muted text-center py-4">No se pudo cargar el archivo.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>
