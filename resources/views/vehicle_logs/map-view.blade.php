@@ -292,7 +292,10 @@
             L.polyline(routeCoords.map((point) => [point.lat, point.lng]), {
                 color: '#2563eb',
                 weight: 4,
-                opacity: 0.9
+                opacity: 0.9,
+                lineCap: 'round',
+                lineJoin: 'round',
+                smoothFactor: 1.4,
             }).addTo(layer);
         }
 

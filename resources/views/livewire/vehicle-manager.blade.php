@@ -191,8 +191,8 @@
                             @error('modelo') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label fw-bold">Tipo Combustible</label>
-                            <select wire:model="tipo_combustible" class="form-select @error('tipo_combustible') is-invalid @enderror">
+                            <label class="form-label fw-bold">Tipo Combustible *</label>
+                            <select wire:model="tipo_combustible" class="form-select @error('tipo_combustible') is-invalid @enderror" required>
                                 <option value="">Seleccionar tipo</option>
                                 @foreach($fuelTypes as $fuelType)
                                     <option value="{{ $fuelType }}">{{ ucfirst($fuelType) }}</option>
@@ -210,8 +210,8 @@
                             @error('maintenance_form_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">Color</label>
-                            <input type="text" wire:model="color" class="form-control @error('color') is-invalid @enderror">
+                            <label class="form-label fw-bold">Color *</label>
+                            <input type="text" wire:model="color" class="form-control @error('color') is-invalid @enderror" required>
                             @error('color') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
@@ -219,13 +219,15 @@
                             <input type="number" wire:model="anio" class="form-control">
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">Kilometraje Inicial</label>
-                            <input type="number" step="0.01" wire:model="kilometraje" class="form-control">
+                            <label class="form-label fw-bold">Kilometraje Inicial *</label>
+                            <input type="number" step="0.01" wire:model="kilometraje" class="form-control @error('kilometraje') is-invalid @enderror" required>
+                            @error('kilometraje') <div class="invalid-feedback">{{ $message }}</div> @enderror
                             <div class="form-text">Si ingresa danado, el sistema guardara 0 al crear el vehiculo.</div>
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">Capacidad Tanque</label>
-                            <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control">
+                            <label class="form-label fw-bold">Capacidad Tanque *</label>
+                            <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control @error('capacidad_tanque') is-invalid @enderror" required>
+                            @error('capacidad_tanque') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12">
                             <div class="form-check">

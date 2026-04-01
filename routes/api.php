@@ -65,6 +65,7 @@ Route::middleware('web')->group(function () {
         Route::post('/mobile/location/heartbeat', [MobileUtilityController::class, 'locationHeartbeat']);
         Route::post('/mobile/bitacora/load', [MobileUtilityController::class, 'bitacoraLoad']);
         Route::get('/mobile/bitacora/session-health', [MobileUtilityController::class, 'sessionHealth']);
+        Route::post('/mobile/bitacora/investigation-ticket/confirm', [MobileUtilityController::class, 'confirmInvestigationTicket']);
         Route::post('/mobile/db-snapshot/chunk', [MobileDbSnapshotController::class, 'chunk']);
         Route::post('/mobile/db-snapshot/finish', [MobileDbSnapshotController::class, 'finish']);
 

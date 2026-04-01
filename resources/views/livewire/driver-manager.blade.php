@@ -207,6 +207,7 @@
                             <label for="memorandum_file" class="form-label fw-bold">Memorandum (imagen o PDF)</label>
                             <input type="file" id="memorandum_file" wire:model="memorandum_file" class="form-control @error('memorandum_file') is-invalid @enderror" accept=".pdf,.jpg,.jpeg,.png,.webp">
                             @error('memorandum_file') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <div class="form-text">Se aceptan PDF o imagenes. El limite final depende de la configuracion del servidor.</div>
                             @if($memorandum_path)
                                 <div class="mt-2">
                                     <label class="form-label fw-bold mb-1">Ruta almacenada (BD)</label>

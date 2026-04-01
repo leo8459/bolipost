@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\MaintenanceAlert;
+use App\Models\MaintenanceLog;
+use App\Models\MaintenanceType;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\DriverIncentiveService;
+use App\Services\MaintenanceAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -153,11 +156,17 @@ class AuthTokenController extends Controller
             $vehicle = $activeAssignment?->vehicle ?? $driver->currentVehicle();
         }
 
+        if ($vehicle) {
+            MaintenanceAlertService::evaluateVehicleByKilometraje((int) $vehicle->id);
+            $vehicle->refresh();
+        }
+
         $vehicleLogs = collect();
         $vales = collect();
         $fuelInvoices = collect();
         $gasStations = collect();
         $maintenanceAlerts = collect();
+        $maintenancePlan = collect();
         $resolvedDriverId = $driver ? (int) $driver->id : null;
         $resolvedVehicleId = $vehicle ? (int) $vehicle->id : null;
         $incentive = $this->resolveDriverIncentivePayload($driver);
@@ -350,6 +359,10 @@ class AuthTokenController extends Controller
                     ];
                 })
                 ->values();
+
+            if ($vehicle) {
+                $maintenancePlan = $this->buildVehicleMaintenancePlan($vehicle);
+            }
         }
 
         $usersPayload = $user ? [[
@@ -437,8 +450,87 @@ class AuthTokenController extends Controller
             'gas_stations' => $gasStations->values()->all(),
             'vales' => $vales->values()->all(),
             'maintenance_alerts' => $maintenanceAlerts->values()->all(),
+            'maintenance_plan' => $maintenancePlan->values()->all(),
             'incentive' => $incentive,
         ];
+    }
+
+    private function buildVehicleMaintenancePlan(\App\Models\Vehicle $vehicle)
+    {
+        $types = MaintenanceType::query()
+            ->applicableToVehicle($vehicle)
+            ->orderBy('id')
+            ->get([
+                'id',
+                'nombre',
+                'es_preventivo',
+                'cada_km',
+                'intervalo_km',
+                'intervalo_km_init',
+                'intervalo_km_fh',
+                'km_alerta_previa',
+            ]);
+
+        if ($types->isEmpty()) {
+            return collect();
+        }
+
+        $latestLogsByType = MaintenanceLog::query()
+            ->where('vehicle_id', (int) $vehicle->id)
+            ->whereNotNull('maintenance_type_id')
+            ->orderByDesc('fecha')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('maintenance_type_id')
+            ->keyBy('maintenance_type_id');
+
+        $currentKm = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
+        $currentKm = $currentKm !== null ? (float) $currentKm : null;
+
+        return $types
+            ->map(function (MaintenanceType $type) use ($vehicle, $latestLogsByType, $currentKm) {
+                $intervalKm = $type->cada_km
+                    ?? $type->intervalo_km_init
+                    ?? $type->intervalo_km
+                    ?? $type->intervalo_km_fh;
+
+                if ($intervalKm === null || (float) $intervalKm <= 0) {
+                    return null;
+                }
+
+                /** @var MaintenanceLog|null $latestLog */
+                $latestLog = $latestLogsByType->get((int) $type->id);
+
+                $targetKm = null;
+                if ($latestLog?->proximo_kilometraje !== null) {
+                    $targetKm = (float) $latestLog->proximo_kilometraje;
+                } elseif ($latestLog?->kilometraje !== null) {
+                    $targetKm = (float) $latestLog->kilometraje + (float) $intervalKm;
+                } else {
+                    $targetKm = (float) $intervalKm;
+                }
+
+                $remainingKm = $currentKm !== null ? ($targetKm - $currentKm) : null;
+                $alertLeadKm = $type->km_alerta_previa !== null ? (int) $type->km_alerta_previa : 15;
+
+                return [
+                    'maintenance_type_id' => (int) $type->id,
+                    'maintenance_type_name' => (string) $type->nombre,
+                    'vehicle_id' => (int) $vehicle->id,
+                    'vehicle_plate' => (string) ($vehicle->placa ?? ''),
+                    'is_preventive' => (bool) ($type->es_preventivo ?? true),
+                    'current_km' => $currentKm,
+                    'target_km' => $targetKm,
+                    'remaining_km' => $remainingKm,
+                    'alert_lead_km' => $alertLeadKm,
+                    'interval_km' => (float) $intervalKm,
+                    'source' => $latestLog ? 'maintenance_log' : 'maintenance_type',
+                    'last_maintenance_log_id' => $latestLog?->id ? (int) $latestLog->id : null,
+                    'due_now' => $remainingKm !== null ? $remainingKm <= 0 : false,
+                ];
+            })
+            ->filter()
+            ->values();
     }
 
     private function resolveDriverIncentivePayload(?Driver $driver): array

@@ -23,9 +23,12 @@
         <div class="col-12 col-md-12">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body">
-                    <div class="text-muted small text-uppercase">Periodo</div>
+                    <div class="text-muted small text-uppercase">Periodo evaluado</div>
                     <div class="fw-bold">{{ $periodLabel }}</div>
-                    <div class="small text-muted">Mientras menos mantenimientos aprobados o realizados que descuenten tenga el conductor en el rango elegido, mas estrellas conserva.</div>
+                    <div class="small text-muted">
+                        Todos empiezan con {{ $maxStars }} estrellas.
+                        Solo bajan estrellas los mantenimientos aprobados o realizados que no sean preventivos.
+                    </div>
                 </div>
             </div>
         </div>
@@ -35,16 +38,18 @@
         <div class="col-12 col-md-6">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Conductores con incentivo completo</div>
+                    <div class="text-muted small">Conductores con puntaje completo</div>
                     <div class="fs-3 fw-bold text-success">{{ $perfectCount }}</div>
+                    <div class="small text-muted">Mantuvieron sus {{ $maxStars }} estrellas.</div>
                 </div>
             </div>
         </div>
         <div class="col-12 col-md-6">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Conductores con rebaja de estrellas</div>
+                    <div class="text-muted small">Conductores con descuento</div>
                     <div class="fs-3 fw-bold text-danger">{{ $discountedCount }}</div>
+                    <div class="small text-muted">Tuvieron al menos un mantenimiento que sí descuenta.</div>
                 </div>
             </div>
         </div>
@@ -57,32 +62,55 @@
                     <thead class="table-light">
                         <tr>
                             <th>Conductor</th>
-                            <th>Inicio</th>
-                            <th>Total solicitudes</th>
-                            <th>Eventos que descuentan</th>
-                            <th>Solicitudes no preventivas</th>
-                            <th>Solicitudes preventivas</th>
-                            <th>Estrellas finales</th>
+                            <th>Estrellas</th>
+                            <th>Resultado</th>
+                            <th>Resumen</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($reports as $report)
+                            @php
+                                $starsEnd = (int) $report->stars_end;
+                                $discounts = (int) $report->discountable_events;
+                                $preventives = (int) $report->preventive_requests;
+                                $statusLabel = $starsEnd === $maxStars
+                                    ? 'Excelente'
+                                    : ($starsEnd >= max($maxStars - 1, 1) ? 'Con observacion' : 'Bajo');
+                                $statusClass = $starsEnd === $maxStars
+                                    ? 'bg-success'
+                                    : ($starsEnd >= max($maxStars - 1, 1) ? 'bg-warning text-dark' : 'bg-danger');
+                            @endphp
                             <tr>
-                                <td>{{ $report->driver?->nombre ?? 'Sin conductor' }}</td>
-                                <td><span class="badge bg-secondary">{{ $report->stars_start }}</span></td>
-                                <td><span class="badge bg-dark">{{ $report->total_requests }}</span></td>
-                                <td><span class="badge bg-warning text-dark">{{ $report->discountable_events }}</span></td>
-                                <td><span class="badge bg-danger">{{ $report->non_preventive_requests }}</span></td>
-                                <td><span class="badge bg-info text-dark">{{ $report->preventive_requests }}</span></td>
                                 <td>
-                                    <span class="badge {{ $report->stars_end === $maxStars ? 'bg-success' : 'bg-warning text-dark' }}">
-                                        {{ $report->stars_end }} / {{ $maxStars }}
-                                    </span>
+                                    <div class="fw-bold">{{ $report->driver?->nombre ?? 'Sin conductor' }}</div>
+                                    <div class="small text-muted">
+                                        Inicio con {{ $report->stars_start }} estrella(s)
+                                    </div>
+                                </td>
+                                <td style="min-width: 170px;">
+                                    <div class="fw-bold fs-5 text-warning">
+                                        {{ str_repeat('★', $starsEnd) }}{{ str_repeat('☆', max($maxStars - $starsEnd, 0)) }}
+                                    </div>
+                                    <div class="small text-muted">{{ $starsEnd }} de {{ $maxStars }} estrellas</div>
+                                </td>
+                                <td>
+                                    <span class="badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                                </td>
+                                <td style="min-width: 280px;">
+                                    <div class="small">
+                                        <strong>{{ $discounts }}</strong> mantenimiento(s) le descontaron estrellas.
+                                    </div>
+                                    <div class="small text-muted">
+                                        Preventivos sin descuento: {{ $preventives }}.
+                                    </div>
+                                    <div class="small text-muted">
+                                        Total revisado en el periodo: {{ $report->total_requests }}.
+                                    </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">No hay conductores para este reporte.</td>
+                                <td colspan="4" class="text-center py-4 text-muted">No hay conductores para este reporte.</td>
                             </tr>
                         @endforelse
                     </tbody>

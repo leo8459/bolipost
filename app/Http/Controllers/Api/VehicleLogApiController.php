@@ -680,9 +680,15 @@ class VehicleLogApiController extends Controller
         $rawLengths = [];
 
         foreach ($segments as $segment) {
-            $start = $segment['from'] ?? null;
-            $end = $segment['to'] ?? null;
-            if (!is_array($start) || !is_array($end)) {
+            $startRaw = $segment['from'] ?? null;
+            $endRaw = $segment['to'] ?? null;
+            if (!is_array($startRaw) || !is_array($endRaw)) {
+                continue;
+            }
+
+            $start = $this->normalizePointToPointPoint($startRaw);
+            $end = $this->normalizePointToPointPoint($endRaw);
+            if (!$start || !$end) {
                 continue;
             }
 

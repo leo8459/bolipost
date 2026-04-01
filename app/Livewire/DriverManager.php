@@ -201,7 +201,9 @@ class DriverManager extends Component
             'email.regex' => 'El correo solo puede contener letras, numeros, punto, guion y guion bajo.',
         ]);
         $this->validate([
-            'memorandum_file' => 'nullable|file|max:5120|mimes:pdf,jpg,jpeg,png,webp',
+            'memorandum_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp',
+        ], [
+            'memorandum_file.mimes' => 'El memorandum debe ser un archivo PDF o una imagen valida.',
         ]);
 
         if ($this->licencia !== '' && $this->driverExistsByField('licencia', $this->licencia)) {
