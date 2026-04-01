@@ -152,10 +152,10 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchEmpresas">Buscar</button>
-                    @if (auth()->user()?->can('empresas.template-excel'))
+                    @if (auth()->user()?->can('empresas.template-excel') || auth()->user()?->can('feature.empresas.export'))
                     <a class="btn btn-outline-light2" href="{{ route('empresas.template-excel') }}">Plantilla Excel</a>
                     @endif
-                    @if (auth()->user()?->can('empresas.import-form'))
+                    @if (auth()->user()?->can('empresas.import-form') || auth()->user()?->can('feature.empresas.import'))
                     <a class="btn btn-outline-light2" href="{{ route('empresas.import-form') }}">Importar Excel</a>
                     @endif
                     @aclcan('create', $this)

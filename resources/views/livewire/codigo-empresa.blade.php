@@ -47,7 +47,9 @@
                 <div class="d-flex gap-2 align-items-center">
                     <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
                     <button class="btn btn-outline-light2" type="button" wire:click="searchCodigos">Buscar</button>
+                    @aclcan('create', $this)
                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    @endaclcan
                 </div>
             </div>
 
@@ -139,10 +141,12 @@
                         @endif
 
                         <div class="form-group col-md-2 d-flex align-items-end">
+                            @aclcan('manage', $this)
                             <button class="btn btn-azul w-100" type="button" wire:click="ejecutarOperacion"
                                 wire:loading.attr="disabled" wire:target="ejecutarOperacion">
                                 Ejecutar
                             </button>
+                            @endaclcan
                         </div>
                     </div>
                 </div>

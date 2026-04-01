@@ -299,7 +299,7 @@ class AclPermissionRegistry
         'eventos-despacho.index' => ['create', 'edit', 'delete'],
         'eventos-contrato.index' => ['create', 'edit', 'delete'],
         'eventos-tiktoker.index' => ['create', 'edit', 'delete'],
-        'paquetes-contrato.index' => ['edit', 'delete', 'print', 'report'],
+        'paquetes-contrato.index' => ['create', 'manage', 'edit', 'delete', 'print', 'report'],
         'paquetes-contrato.almacen' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.recoger-envios' => ['assign', 'print'],
         'paquetes-contrato.cartero' => ['print'],
@@ -308,9 +308,12 @@ class AclPermissionRegistry
         'paquetes-contrato.entregados' => ['print', 'export'],
         'paquetes-ems.index' => ['create', 'edit', 'delete', 'print', 'assign'],
         'paquetes-ems.create' => ['create'],
-        'paquetes-ems.almacen' => ['create', 'edit', 'print', 'restore', 'registercontract', 'weighcontract', 'sendventanilla', 'sendregional', 'reprintcn33'],
+        'paquetes-ems.almacen-admisiones' => [],
+        'paquetes-ems.solicitudes.index' => ['create', 'assign', 'print'],
+        'paquetes-ems.almacen' => ['create', 'edit', 'print', 'restore', 'registercontract', 'weighcontract', 'weightiktoker', 'sendventanilla', 'sendregional', 'reprintcn33'],
         'paquetes-ems.contrato-rapido.create' => ['create', 'save', 'delete'],
         'paquetes-ems.ventanilla' => ['deliver', 'edit', 'print'],
+        'paquetes-ems.devolucion' => ['deliver', 'print'],
         'paquetes-ems.recibir-regional' => ['assign', 'edit', 'print'],
         'paquetes-ems.en-transito' => ['edit', 'print'],
         'paquetes-ordinarios.index' => ['create', 'edit', 'delete', 'assign'],
@@ -322,6 +325,7 @@ class AclPermissionRegistry
         'paquetes-certificados.inventario' => ['edit', 'delete', 'assign', 'export'],
         'paquetes-certificados.rezago' => ['edit', 'delete', 'assign'],
         'paquetes-certificados.todos' => ['edit', 'delete'],
+        'empresas.index' => ['create', 'edit', 'delete', 'import', 'export'],
         'servicios.index' => ['create', 'edit', 'delete'],
         'sucursales.index' => ['create', 'edit', 'delete'],
         'sacas.index' => ['create', 'edit', 'delete', 'assign', 'confirm'],
@@ -395,6 +399,9 @@ class AclPermissionRegistry
             'opencontratopesomodal' => [['module' => 'paquetes-ems.almacen', 'action' => 'weighcontract']],
             'buscarcontratoparapeso' => [['module' => 'paquetes-ems.almacen', 'action' => 'weighcontract']],
             'guardarpesocontratoporcodigo' => [['module' => 'paquetes-ems.almacen', 'action' => 'weighcontract']],
+            'opentiktokerpesomodal' => [['module' => 'paquetes-ems.almacen', 'action' => 'weightiktoker']],
+            'buscarsolicitudtiktokerparapeso' => [['module' => 'paquetes-ems.almacen', 'action' => 'weightiktoker']],
+            'guardarpesosolicitudtiktoker' => [['module' => 'paquetes-ems.almacen', 'action' => 'weightiktoker']],
             'togglecn33reprint' => [['module' => 'paquetes-ems.almacen', 'action' => 'reprintcn33']],
             'reimprimircn33' => [['module' => 'paquetes-ems.almacen', 'action' => 'reprintcn33']],
             'mandarseleccionadosgeneradoshoy' => [['module' => 'paquetes-ems.index', 'action' => 'assign']],
@@ -405,6 +412,8 @@ class AclPermissionRegistry
             'mandarseleccionadosventanillaems' => [['module' => 'paquetes-ems.almacen', 'action' => 'sendventanilla']],
             'openentregaventanillamodal' => [['module' => 'paquetes-ems.ventanilla', 'action' => 'deliver']],
             'confirmarentregaventanilla' => [['module' => 'paquetes-ems.ventanilla', 'action' => 'deliver']],
+            'opendevolucionemsmodal' => [['module' => 'paquetes-ems.devolucion', 'action' => 'deliver']],
+            'confirmardevolucionems' => [['module' => 'paquetes-ems.devolucion', 'action' => 'deliver']],
             'openrecibirregionalmodal' => [['module' => 'paquetes-ems.recibir-regional', 'action' => 'assign']],
             'recibirseleccionadosregional' => [['module' => 'paquetes-ems.recibir-regional', 'action' => 'assign']],
             'devolveraadmisiones' => [['module' => 'paquetes-ems.almacen', 'action' => 'restore']],
@@ -469,6 +478,31 @@ class AclPermissionRegistry
             'feature.paquetes-ems.index.create',
             'feature.paquetes-ems.almacen.create',
         ],
+        'paquetes-ems.solicitudes.create' => [
+            'paquetes-ems.solicitudes.create',
+            'feature.paquetes-ems.solicitudes.index.create',
+        ],
+        'paquetes-ems.solicitudes.store' => [
+            'paquetes-ems.solicitudes.store',
+            'feature.paquetes-ems.solicitudes.index.create',
+        ],
+        'paquetes-ems.solicitudes.find' => [
+            'paquetes-ems.solicitudes.find',
+            'feature.paquetes-ems.solicitudes.index.create',
+        ],
+        'paquetes-ems.solicitudes.quote' => [
+            'paquetes-ems.solicitudes.quote',
+            'feature.paquetes-ems.solicitudes.index.create',
+        ],
+        'paquetes-ems.solicitudes.send-almacen' => [
+            'paquetes-ems.solicitudes.send-almacen',
+            'feature.paquetes-ems.solicitudes.index.assign',
+        ],
+        'paquetes-ems.solicitudes.ticket' => [
+            'paquetes-ems.solicitudes.ticket',
+            'feature.paquetes-ems.solicitudes.index.print',
+            'feature.paquetes-ems.solicitudes.index.create',
+        ],
         'sacas.index' => [
             'sacas.index',
             'feature.despachos.abiertos.opensacas',
@@ -478,6 +512,7 @@ class AclPermissionRegistry
             'feature.paquetes-ems.index.print',
             'feature.paquetes-ems.almacen.print',
             'feature.paquetes-ems.ventanilla.print',
+            'feature.paquetes-ems.devolucion.print',
             'feature.paquetes-ems.recibir-regional.print',
             'feature.paquetes-ems.en-transito.print',
             'feature.paquetes-ems.index.create',
@@ -488,7 +523,27 @@ class AclPermissionRegistry
             'feature.paquetes-ems.contrato-rapido.create.save',
             'feature.paquetes-ems.contrato-rapido.create.create',
         ],
-    ];
+        'paquetes-contrato.create' => [
+            'paquetes-contrato.create',
+            'feature.paquetes-contrato.index.create',
+        ],
+        'paquetes-contrato.create-con-tarifa' => [
+            'paquetes-contrato.create-con-tarifa',
+            'feature.paquetes-contrato.index.manage',
+        ],
+        'empresas.import-form' => [
+            'empresas.import-form',
+            'feature.empresas.import',
+        ],
+        'empresas.import' => [
+            'empresas.import',
+            'feature.empresas.import',
+        ],
+        'empresas.template-excel' => [
+            'empresas.template-excel',
+            'feature.empresas.export',
+        ],
+        ];
 
     /**
      * @var array<int, string>|null
@@ -1403,6 +1458,9 @@ class AclPermissionRegistry
             'feature.paquetes-ems.index.assign' => 'Boton: Generados hoy / Mandar seleccionados',
             'feature.paquetes-ems.index.delete' => 'Boton: Eliminar',
             'feature.paquetes-ems.index.print' => 'Boton: Reimprimir boleta',
+            'feature.paquetes-ems.solicitudes.index.create' => 'Boton: Nuevo',
+            'feature.paquetes-ems.solicitudes.index.assign' => 'Boton: Mandar a ALMACEN',
+            'feature.paquetes-ems.solicitudes.index.print' => 'Boton: Ticket',
             'feature.paquetes-ems.almacen.create' => 'Boton: Nuevo',
             'feature.paquetes-ems.almacen.edit' => 'Boton: Editar',
             'feature.paquetes-ems.almacen.assign' => 'Boton: Acciones generales de movimiento',
@@ -1410,6 +1468,7 @@ class AclPermissionRegistry
             'feature.paquetes-ems.almacen.restore' => 'Boton: Devolver a admisiones',
             'feature.paquetes-ems.almacen.registercontract' => 'Boton: Registrar contrato',
             'feature.paquetes-ems.almacen.weighcontract' => 'Boton: Anadir peso contrato',
+            'feature.paquetes-ems.almacen.weightiktoker' => 'Boton: Asignar peso a TIKTOKEROS',
             'feature.paquetes-ems.almacen.sendventanilla' => 'Boton: Enviar a ventanilla EMS',
             'feature.paquetes-ems.almacen.sendregional' => 'Boton: Manda a regional',
             'feature.paquetes-ems.almacen.reprintcn33' => 'Boton: Reimprimir CN-33',
@@ -1418,9 +1477,13 @@ class AclPermissionRegistry
             'feature.paquetes-ems.contrato-rapido.create.delete' => 'Boton: Quitar de prelista',
             'feature.paquetes-ems.ventanilla.deliver' => 'Boton: Entregar seleccionados',
             'feature.paquetes-ems.ventanilla.print' => 'Boton: Reimprimir boleta',
+            'feature.paquetes-ems.devolucion.deliver' => 'Boton: Devolver seleccionados',
+            'feature.paquetes-ems.devolucion.print' => 'Boton: Reimprimir boleta',
             'feature.paquetes-ems.recibir-regional.assign' => 'Boton: Recibir regional',
             'feature.paquetes-ems.recibir-regional.print' => 'Boton: Reimprimir boleta',
             'feature.paquetes-ems.en-transito.print' => 'Boton: Reimprimir boleta',
+            'feature.paquetes-contrato.index.create' => 'Boton: Crear sin tarifa',
+            'feature.paquetes-contrato.index.manage' => 'Boton: Crear con tarifa',
             'feature.paquetes-contrato.index.report' => 'Boton: Imprimir generados hoy',
             'feature.paquetes-contrato.index.print' => 'Boton: Reimprimir rotulo',
             'feature.paquetes-contrato.almacen.report' => 'Boton: Imprimir generados hoy',
@@ -1433,6 +1496,15 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.create-con-tarifa.create' => 'Boton: Guardar contrato con tarifa',
             'feature.paquetes-contrato.entregados.print' => 'Boton: Reimprimir rotulo',
             'feature.paquetes-contrato.entregados.export' => 'Boton: Descargar imagen',
+            'feature.empresas.create' => 'Boton: Nuevo',
+            'feature.empresas.edit' => 'Boton: Editar',
+            'feature.empresas.delete' => 'Boton: Eliminar',
+            'feature.empresas.import' => 'Boton: Importar Excel',
+            'feature.empresas.export' => 'Boton: Plantilla Excel',
+            'feature.codigo-empresa.create' => 'Boton: Nuevo',
+            'feature.codigo-empresa.edit' => 'Boton: Editar',
+            'feature.codigo-empresa.delete' => 'Boton: Eliminar',
+            'feature.codigo-empresa.manage' => 'Boton: Ejecutar',
             'feature.carteros.distribucion.assign' => 'Boton: Asignar',
             'feature.carteros.distribucion.selfassign' => 'Boton: Autoasignarme',
             'feature.carteros.cartero.guide' => 'Boton: Mandar provincia',
@@ -1553,8 +1625,11 @@ class AclPermissionRegistry
             $routePermission = collect($group['permissions'] ?? [])->firstWhere('name', $routeName);
         }
 
-        if (is_array($windowFeatureGroup)) {
-            $featurePermissions = collect($windowFeatureGroup['permissions'] ?? [])
+        $featurePermissions = collect(array_merge(
+            (array) ($group['permissions'] ?? []),
+            (array) ($windowFeatureGroup['permissions'] ?? [])
+        ))
+            ->unique(fn (array $permission): string => (string) ($permission['name'] ?? ''))
                 ->filter(function (array $permission) use ($routeName): bool {
                     if (($permission['type'] ?? null) !== 'feature') {
                         return false;
@@ -1567,7 +1642,8 @@ class AclPermissionRegistry
                 })
                 ->values()
                 ->all();
-        }
+
+        $moduleLabels = (array) config('acl.module_labels', []);
 
         return [
             'label' => $label !== '' ? $label : $routeName,
@@ -1577,7 +1653,7 @@ class AclPermissionRegistry
             'module_key' => $moduleKey,
             'module_label' => is_array($windowFeatureGroup)
                 ? ($windowFeatureGroup['module_label'] ?? self::humanize($routeName))
-                : (is_array($group) ? ($group['module_label'] ?? self::humanize($moduleKey)) : self::humanize($moduleKey)),
+                : ($moduleLabels[$routeName] ?? (is_array($group) ? ($group['module_label'] ?? self::humanize($moduleKey)) : self::humanize($moduleKey))),
             'actions' => $featurePermissions,
         ];
     }
@@ -1644,6 +1720,9 @@ class AclPermissionRegistry
             'feature.paquetes-ems.index.assign' => 'Controla Generados hoy y Mandar seleccionados dentro de la ventana Admisiones.',
             'feature.paquetes-ems.index.delete' => 'Controla el boton Eliminar dentro de la ventana Admisiones.',
             'feature.paquetes-ems.index.print' => 'Controla Reimprimir boleta dentro de la ventana Admisiones.',
+            'feature.paquetes-ems.solicitudes.index.create' => 'Controla el boton Nuevo dentro de la ventana Solicitudes EMS.',
+            'feature.paquetes-ems.solicitudes.index.assign' => 'Controla el boton Mandar a ALMACEN dentro de la ventana Solicitudes EMS.',
+            'feature.paquetes-ems.solicitudes.index.print' => 'Controla el boton Ticket dentro de la ventana Solicitudes EMS.',
             'feature.paquetes-ems.almacen.create' => 'Controla solo el boton Nuevo dentro de la ventana Almacen EMS.',
             'feature.paquetes-ems.almacen.edit' => 'Controla solo el boton Editar dentro de la ventana Almacen EMS.',
             'feature.paquetes-ems.almacen.assign' => 'Controla acciones generales de movimiento heredadas dentro de Almacen EMS.',
@@ -1651,6 +1730,7 @@ class AclPermissionRegistry
             'feature.paquetes-ems.almacen.restore' => 'Controla Devolver a admisiones dentro de la ventana Almacen EMS.',
             'feature.paquetes-ems.almacen.registercontract' => 'Controla el boton Registrar contrato dentro de la ventana Almacen EMS.',
             'feature.paquetes-ems.almacen.weighcontract' => 'Controla el boton Anadir peso contrato y su modal dentro de la ventana Almacen EMS.',
+            'feature.paquetes-ems.almacen.weightiktoker' => 'Controla el boton Asignar peso a TIKTOKEROS y su modal dentro de la ventana Almacen EMS.',
             'feature.paquetes-ems.almacen.sendventanilla' => 'Controla el boton Enviar a ventanilla EMS dentro de la ventana Almacen EMS.',
             'feature.paquetes-ems.almacen.sendregional' => 'Controla el boton Manda a regional y su modal dentro de la ventana Almacen EMS.',
             'feature.paquetes-ems.almacen.reprintcn33' => 'Controla el boton Reimprimir CN-33 dentro de la ventana Almacen EMS.',
@@ -1659,9 +1739,13 @@ class AclPermissionRegistry
             'feature.paquetes-ems.contrato-rapido.create.delete' => 'Controla Quitar dentro del submenu Registro rapido contrato.',
             'feature.paquetes-ems.ventanilla.deliver' => 'Controla Entregar seleccionados dentro de la ventana Ventanilla EMS.',
             'feature.paquetes-ems.ventanilla.print' => 'Controla Reimprimir boleta dentro de la ventana Ventanilla EMS.',
+            'feature.paquetes-ems.devolucion.deliver' => 'Controla Devolver seleccionados dentro de la ventana Devolver paquetes.',
+            'feature.paquetes-ems.devolucion.print' => 'Controla Reimprimir boleta dentro de la ventana Devolver paquetes.',
             'feature.paquetes-ems.recibir-regional.assign' => 'Controla Recibir dentro de la ventana Recibir regional.',
             'feature.paquetes-ems.recibir-regional.print' => 'Controla Reimprimir boleta dentro de la ventana Recibir regional.',
             'feature.paquetes-ems.en-transito.print' => 'Controla Reimprimir boleta dentro de la ventana En transito.',
+            'feature.paquetes-contrato.index.create' => 'Controla el boton Crear sin tarifa dentro de Gestion contratos.',
+            'feature.paquetes-contrato.index.manage' => 'Controla el boton Crear con tarifa dentro de Gestion contratos.',
             'feature.paquetes-contrato.index.report' => 'Controla el boton Imprimir generados hoy dentro de Gestion contratos.',
             'feature.paquetes-contrato.index.print' => 'Controla Reimprimir rotulo dentro de Gestion contratos.',
             'feature.paquetes-contrato.almacen.report' => 'Controla el boton Imprimir generados hoy dentro de Almacen contratos.',
@@ -1674,6 +1758,15 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.create-con-tarifa.create' => 'Controla el boton Guardar contrato con tarifa dentro de Crear con tarifa.',
             'feature.paquetes-contrato.entregados.print' => 'Controla Reimprimir rotulo dentro de Contratos entregados.',
             'feature.paquetes-contrato.entregados.export' => 'Controla Descargar imagen dentro de Contratos entregados.',
+            'feature.empresas.create' => 'Controla el boton Nuevo dentro de la ventana Empresas.',
+            'feature.empresas.edit' => 'Controla el boton Editar dentro de la ventana Empresas.',
+            'feature.empresas.delete' => 'Controla el boton Eliminar dentro de la ventana Empresas.',
+            'feature.empresas.import' => 'Controla el boton Importar Excel y la carga del archivo dentro de la ventana Empresas.',
+            'feature.empresas.export' => 'Controla el boton Plantilla Excel dentro de la ventana Empresas.',
+            'feature.codigo-empresa.create' => 'Controla el boton Nuevo dentro de la ventana Generar codigos.',
+            'feature.codigo-empresa.edit' => 'Controla el boton Editar dentro de la ventana Generar codigos.',
+            'feature.codigo-empresa.delete' => 'Controla el boton Eliminar dentro de la ventana Generar codigos.',
+            'feature.codigo-empresa.manage' => 'Controla el boton Ejecutar dentro de la ventana Generar codigos.',
             'feature.carteros.distribucion.assign' => 'Controla el boton Asignar en la ventana Distribucion.',
             'feature.carteros.distribucion.selfassign' => 'Controla la autoasignacion de paquetes al usuario actual en la ventana Distribucion.',
             'feature.carteros.cartero.guide' => 'Controla Mandar provincia y Guardar guia dentro de la ventana Cartero.',

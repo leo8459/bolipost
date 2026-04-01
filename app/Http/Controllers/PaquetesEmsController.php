@@ -105,9 +105,8 @@ class PaquetesEmsController extends Controller
     public function createSolicitud()
     {
         $this->authorizeAnyPermission(request(), [
-            'feature.paquetes-ems.index.create',
-            'feature.paquetes-ems.almacen.create',
-            'paquetes-ems.create',
+            'feature.paquetes-ems.solicitudes.index.create',
+            'paquetes-ems.solicitudes.create',
         ]);
 
         return view('paquetes_ems.solicitud-create', [
@@ -122,9 +121,7 @@ class PaquetesEmsController extends Controller
     public function indexSolicitudes(Request $request)
     {
         $this->authorizeAnyPermission($request, [
-            'feature.paquetes-ems.index.create',
-            'feature.paquetes-ems.almacen.create',
-            'paquetes-ems.create',
+            'paquetes-ems.solicitudes.index',
         ]);
 
         $estadoSolicitudId = (int) (Estado::query()
@@ -155,9 +152,8 @@ class PaquetesEmsController extends Controller
     public function sendSolicitudesToAlmacen(Request $request)
     {
         $this->authorizeAnyPermission($request, [
-            'feature.paquetes-ems.index.create',
-            'feature.paquetes-ems.almacen.create',
-            'paquetes-ems.create',
+            'feature.paquetes-ems.solicitudes.index.assign',
+            'paquetes-ems.solicitudes.send-almacen',
         ]);
 
         $data = $request->validate([
@@ -226,9 +222,8 @@ class PaquetesEmsController extends Controller
     public function findSolicitud(Request $request): JsonResponse
     {
         $this->authorizeAnyPermission($request, [
-            'feature.paquetes-ems.index.create',
-            'feature.paquetes-ems.almacen.create',
-            'paquetes-ems.create',
+            'feature.paquetes-ems.solicitudes.index.create',
+            'paquetes-ems.solicitudes.find',
         ]);
 
         $codigoSolicitud = strtoupper(trim((string) $request->query('codigo_solicitud')));
@@ -271,9 +266,8 @@ class PaquetesEmsController extends Controller
     public function quoteSolicitud(Request $request): JsonResponse
     {
         $this->authorizeAnyPermission($request, [
-            'feature.paquetes-ems.index.create',
-            'feature.paquetes-ems.almacen.create',
-            'paquetes-ems.create',
+            'feature.paquetes-ems.solicitudes.index.create',
+            'paquetes-ems.solicitudes.quote',
         ]);
 
         $request->validate([
@@ -308,9 +302,8 @@ class PaquetesEmsController extends Controller
     public function storeSolicitud(Request $request)
     {
         $this->authorizeAnyPermission($request, [
-            'feature.paquetes-ems.index.create',
-            'feature.paquetes-ems.almacen.create',
-            'paquetes-ems.create',
+            'feature.paquetes-ems.solicitudes.index.create',
+            'paquetes-ems.solicitudes.store',
         ]);
 
         $data = $request->validate([
@@ -423,9 +416,9 @@ class PaquetesEmsController extends Controller
     public function ticketSolicitud(Request $request, SolicitudCliente $solicitud)
     {
         $this->authorizeAnyPermission($request, [
-            'feature.paquetes-ems.index.create',
-            'feature.paquetes-ems.almacen.create',
-            'paquetes-ems.create',
+            'feature.paquetes-ems.solicitudes.index.print',
+            'feature.paquetes-ems.solicitudes.index.create',
+            'paquetes-ems.solicitudes.ticket',
         ]);
 
         $solicitud->loadMissing([

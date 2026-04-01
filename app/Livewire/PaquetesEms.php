@@ -73,12 +73,13 @@ class PaquetesEms extends Component
         'create_ems' => 'paquetes-ems.create',
         'almacen_ems' => 'paquetes-ems.almacen',
         'ventanilla_ems' => 'paquetes-ems.ventanilla',
-        'devolucion_ems' => 'paquetes-ems.ventanilla',
+        'devolucion_ems' => 'paquetes-ems.devolucion',
         'transito_ems' => 'paquetes-ems.recibir-regional',
         'en_transito_ems' => 'paquetes-ems.en-transito',
     ];
     private const ALMACEN_EMS_REGISTER_CONTRACT_PERMISSION = 'feature.paquetes-ems.almacen.registercontract';
     private const ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION = 'feature.paquetes-ems.almacen.weighcontract';
+    private const ALMACEN_EMS_WEIGH_TIKTOKER_PERMISSION = 'feature.paquetes-ems.almacen.weightiktoker';
     private const ALMACEN_EMS_SEND_VENTANILLA_PERMISSION = 'feature.paquetes-ems.almacen.sendventanilla';
     private const ALMACEN_EMS_SEND_REGIONAL_PERMISSION = 'feature.paquetes-ems.almacen.sendregional';
     private const ALMACEN_EMS_REPRINT_CN33_PERMISSION = 'feature.paquetes-ems.almacen.reprintcn33';
@@ -1087,7 +1088,7 @@ class PaquetesEms extends Component
 
     public function openTiktokerPesoModal()
     {
-        $this->authorizePermission(self::ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION);
+        $this->authorizePermission(self::ALMACEN_EMS_WEIGH_TIKTOKER_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -1108,7 +1109,7 @@ class PaquetesEms extends Component
 
     public function buscarSolicitudTiktokerParaPeso()
     {
-        $this->authorizePermission(self::ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION);
+        $this->authorizePermission(self::ALMACEN_EMS_WEIGH_TIKTOKER_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -1136,7 +1137,7 @@ class PaquetesEms extends Component
 
     public function guardarPesoSolicitudTiktoker()
     {
-        $this->authorizePermission(self::ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION);
+        $this->authorizePermission(self::ALMACEN_EMS_WEIGH_TIKTOKER_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
@@ -3322,6 +3323,7 @@ class PaquetesEms extends Component
                 'canEmsDeliver' => false,
                 'canEmsRegisterContract' => false,
                 'canEmsWeighContract' => false,
+                'canEmsWeighTiktoker' => false,
                 'canEmsSendVentanilla' => false,
                 'canEmsSendRegional' => false,
                 'canEmsReprintCn33' => false,
@@ -3354,6 +3356,7 @@ class PaquetesEms extends Component
             'canEmsDeliver' => $this->userCan($this->modeFeaturePermission('deliver')),
             'canEmsRegisterContract' => $this->userCan(self::ALMACEN_EMS_REGISTER_CONTRACT_PERMISSION),
             'canEmsWeighContract' => $this->userCan(self::ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION),
+            'canEmsWeighTiktoker' => $this->userCan(self::ALMACEN_EMS_WEIGH_TIKTOKER_PERMISSION),
             'canEmsSendVentanilla' => $this->userCan(self::ALMACEN_EMS_SEND_VENTANILLA_PERMISSION),
             'canEmsSendRegional' => $this->userCan(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION),
             'canEmsReprintCn33' => $this->userCan(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION),

@@ -373,8 +373,8 @@ class Recojo extends Component
         'canRecojoDelete' => $this->userCan($this->modeFeaturePermission('delete')),
         'canRecojoPrint' => $this->userCan($this->modeFeaturePermission('print')),
         'canRecojoReport' => $this->userCan($this->modeFeaturePermission('report')),
-        'canCreateContrato' => $this->userCanRoute('paquetes-contrato.create'),
-        'canCreateContratoTarifa' => $this->userCanRoute('paquetes-contrato.create-con-tarifa'),
+        'canCreateContrato' => $this->userCan($this->modeFeaturePermission('create')) || $this->userCanRoute('paquetes-contrato.create'),
+        'canCreateContratoTarifa' => $this->userCan($this->modeFeaturePermission('manage')) || $this->userCanRoute('paquetes-contrato.create-con-tarifa'),
     ]);
 }
 

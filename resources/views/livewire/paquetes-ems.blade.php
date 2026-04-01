@@ -436,6 +436,8 @@
                             <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
                                 Anadir peso contrato
                             </button>
+                            @endif
+                            @if ($canEmsWeighTiktoker)
                             <button class="btn btn-outline-light2" type="button" wire:click="openTiktokerPesoModal">
                                 Asignar peso a TIKTOKEROS
                             </button>
@@ -1718,7 +1720,7 @@
                                 wire:model.defer="tiktokerCodigoPeso"
                                 wire:keydown.enter.prevent="buscarSolicitudTiktokerParaPeso"
                             >
-                            @if ($canEmsWeighContract)
+                            @if ($canEmsWeighTiktoker)
                             <button type="button" class="btn btn-outline-azul" wire:click="buscarSolicitudTiktokerParaPeso">
                                 Detectar
                             </button>
@@ -1752,7 +1754,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    @if ($canEmsWeighContract)
+                    @if ($canEmsWeighTiktoker)
                     <button type="button" class="btn btn-primary" wire:click="guardarPesoSolicitudTiktoker">
                         Guardar peso
                     </button>
