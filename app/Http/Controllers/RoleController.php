@@ -20,8 +20,9 @@ class RoleController extends Controller
     public function create()
     {
         $role = new Role();
-        AclPermissionRegistry::syncPermissions();
-        $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix();
+        $guardName = $role->guard_name ?: 'web';
+        AclPermissionRegistry::syncPermissions($guardName);
+        $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix($guardName);
         $menuPermissionSummary = AclPermissionRegistry::menuPermissionSummary($permissionGroups);
         $selectedPermissions = [];
 
@@ -30,7 +31,7 @@ class RoleController extends Controller
 
     public function store(Request $request)
     {
-        AclPermissionRegistry::syncPermissions();
+        AclPermissionRegistry::syncPermissions('web');
 
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name',
@@ -59,9 +60,10 @@ class RoleController extends Controller
     public function edit($id)
     {
         $role = Role::findOrFail($id);
-        AclPermissionRegistry::syncPermissions();
+        $guardName = $role->guard_name ?: 'web';
+        AclPermissionRegistry::syncPermissions($guardName);
 
-        $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix();
+        $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix($guardName);
         $menuPermissionSummary = AclPermissionRegistry::menuPermissionSummary($permissionGroups);
         $selectedPermissions = $role->permissions()->pluck('name')->all();
 
@@ -70,7 +72,7 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role)
     {
-        AclPermissionRegistry::syncPermissions();
+        AclPermissionRegistry::syncPermissions($role->guard_name ?: 'web');
 
         $validated = $request->validate([
             'name' => [
@@ -95,7 +97,7 @@ class RoleController extends Controller
 
     public function duplicate(Role $role)
     {
-        AclPermissionRegistry::syncPermissions();
+        AclPermissionRegistry::syncPermissions($role->guard_name ?: 'web');
 
         $baseName = trim($role->name.' copia');
         $newName = $baseName;

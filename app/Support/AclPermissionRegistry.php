@@ -515,9 +515,9 @@ class AclPermissionRegistry
      *
      * @return array<int, string>
      */
-    public static function syncPermissions(): array
+    public static function syncPermissions(?string $guardName = null): array
     {
-        $guardName = (string) config('auth.defaults.guard', 'web');
+        $guardName = $guardName ?: (string) config('auth.defaults.guard', 'web');
         $permissionNames = self::allPermissionNames();
         $timestamp = now();
         $rows = collect($permissionNames)
@@ -730,11 +730,13 @@ class AclPermissionRegistry
      *
      * @return array<int, array<string, mixed>>
      */
-    public static function groupedPermissionsForMatrix(): array
+    public static function groupedPermissionsForMatrix(?string $guardName = null): array
     {
+        $guardName = $guardName ?: (string) config('auth.defaults.guard', 'web');
         $excludedPermissions = collect(config('acl.excluded_route_permissions', []));
 
         $permissionNames = Permission::query()
+            ->where('guard_name', $guardName)
             ->orderBy('name')
             ->pluck('name')
             ->reject(fn (string $permissionName): bool => $excludedPermissions->contains($permissionName))
@@ -742,7 +744,7 @@ class AclPermissionRegistry
             ->values();
 
         if ($permissionNames->isEmpty()) {
-            $permissionNames = collect(self::syncPermissions())
+            $permissionNames = collect(self::syncPermissions($guardName))
                 ->reject(fn (string $permissionName): bool => $excludedPermissions->contains($permissionName))
                 ->reject(fn (string $permissionName): bool => self::shouldHidePermissionFromMatrix($permissionName))
                 ->values();
