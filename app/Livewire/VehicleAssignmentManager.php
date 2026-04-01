@@ -8,6 +8,7 @@ use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -99,31 +100,26 @@ class VehicleAssignmentManager extends Component
             ->get();
 
         $assignmentDate = $this->resolveAssignmentDate();
-        $busyVehicleIds = VehicleAssignment::query()
-            ->where('activo', true)
-            ->whereNotNull('vehicle_id')
-            ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
-            ->where(function ($q) use ($assignmentDate) {
-                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
-            })
-            ->where(function ($q) use ($assignmentDate) {
-                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
-            })
-            ->pluck('vehicle_id')
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+        $editingId = $this->editingId;
 
         $vehicles = Vehicle::query()
             ->where('activo', true)
             ->operationallyAvailable()
-            ->when(!empty($busyVehicleIds), fn ($q) => $q->whereNotIn('id', $busyVehicleIds))
+            ->whereDoesntHave('assignments', function ($assignmentQuery) use ($assignmentDate, $editingId) {
+                $assignmentQuery
+                    ->where('activo', true)
+                    ->when($editingId, fn ($q) => $q->where('id', '!=', $editingId))
+                    ->where(function ($q) use ($assignmentDate) {
+                        $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
+                    })
+                    ->where(function ($q) use ($assignmentDate) {
+                        $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
+                    });
+            })
             ->orderBy('placa')
             ->get();
 
-        if ($this->vehicle_id > 0 && !$vehicles->contains('id', $this->vehicle_id)) {
+        if ($this->isEdit && $this->vehicle_id > 0 && !$vehicles->contains('id', $this->vehicle_id)) {
             $selectedVehicle = Vehicle::query()->find($this->vehicle_id);
             if ($selectedVehicle) {
                 $vehicles->push($selectedVehicle);
@@ -170,81 +166,88 @@ class VehicleAssignmentManager extends Component
 
     public function save(): void
     {
-        $this->validate([
-            'driver_id' => ['required', 'integer', 'min:1', 'exists:drivers,id'],
-            'vehicle_id' => ['required', 'integer', 'min:1', 'exists:vehicles,id'],
-            'tipo_asignacion' => ['nullable', 'string', 'max:100'],
-            'fecha_inicio' => ['required', 'date'],
-            'fecha_fin' => [
-                'nullable',
-                'date',
-                'after_or_equal:fecha_inicio',
-                'required_if:tipo_asignacion,Temporal',
+        $this->tipo_asignacion = in_array((string) $this->tipo_asignacion, ['Fijo', 'Temporal'], true)
+            ? (string) $this->tipo_asignacion
+            : 'Fijo';
+
+        if ($this->tipo_asignacion !== 'Temporal') {
+            $this->fecha_fin = null;
+            $this->resetValidation('fecha_fin');
+        }
+
+        $fechaInicioRules = ['required', 'date'];
+        if (!$this->isEdit) {
+            $fechaInicioRules[] = 'after_or_equal:today';
+        }
+
+        $this->validate(
+            [
+                'driver_id' => ['required', 'integer', 'min:1', 'exists:drivers,id'],
+                'vehicle_id' => ['required', 'integer', 'min:1', 'exists:vehicles,id'],
+                'tipo_asignacion' => ['required', 'string', Rule::in(['Fijo', 'Temporal'])],
+                'fecha_inicio' => $fechaInicioRules,
+                'fecha_fin' => [
+                    'nullable',
+                    'date',
+                    'after_or_equal:fecha_inicio',
+                    'required_if:tipo_asignacion,Temporal',
+                ],
+                'activo' => ['required', 'boolean'],
             ],
-            'activo' => ['boolean'],
-        ], [
-            'fecha_fin.required_if' => 'Debe indicar hasta cuando sera la asignacion temporal.',
-            'fecha_fin.after_or_equal' => 'La fecha fin no puede ser anterior a la fecha de inicio.',
-        ]);
+            [
+                'driver_id.required' => 'Debe seleccionar un conductor.',
+                'driver_id.integer' => 'El conductor seleccionado no es valido.',
+                'driver_id.min' => 'Debe seleccionar un conductor valido.',
+                'driver_id.exists' => 'El conductor seleccionado no existe.',
+                'vehicle_id.required' => 'Debe seleccionar un vehiculo.',
+                'vehicle_id.integer' => 'El vehiculo seleccionado no es valido.',
+                'vehicle_id.min' => 'Debe seleccionar un vehiculo valido.',
+                'vehicle_id.exists' => 'El vehiculo seleccionado no existe.',
+                'tipo_asignacion.required' => 'Debe seleccionar el tipo de asignacion.',
+                'tipo_asignacion.in' => 'El tipo de asignacion seleccionado no es valido.',
+                'fecha_inicio.required' => 'La fecha de inicio es obligatoria.',
+                'fecha_inicio.date' => 'La fecha de inicio no es valida.',
+                'fecha_inicio.after_or_equal' => 'La fecha de inicio no puede ser anterior a hoy.',
+                'fecha_fin.required_if' => 'Debe indicar hasta cuando sera la asignacion temporal.',
+                'fecha_fin.date' => 'La fecha fin no es valida.',
+                'fecha_fin.after_or_equal' => 'La fecha fin no puede ser anterior a la fecha de inicio.',
+                'activo.required' => 'Debe indicar si la asignacion estara activa.',
+                'activo.boolean' => 'El estado de la asignacion no es valido.',
+            ]
+        );
 
-        $vehicle = Vehicle::query()->find($this->vehicle_id);
-        if (!$vehicle || $vehicle->isInMaintenance()) {
-            $this->addError('vehicle_id', 'El vehiculo esta en mantenimiento y no puede asignarse en este momento.');
+        if (!$this->ensureValidAssignmentSelection()) {
             return;
         }
 
-        // Si ya confirmamos (skip es true), guardamos directo.
-        if ($this->skipNextReassignCheck) {
-            $this->skipNextReassignCheck = false; // Resetear para la próxima
-            $this->persistAssignment();
+        if ($this->tipo_asignacion === 'Temporal' && filled($this->fecha_fin)) {
+            try {
+                if (Carbon::parse((string) $this->fecha_fin)->lt(now()->startOfDay())) {
+                    $this->addError('fecha_fin', 'La fecha fin de una asignacion temporal no puede ser anterior a hoy.');
+                    return;
+                }
+            } catch (\Throwable) {
+                $this->addError('fecha_fin', 'La fecha fin no es valida.');
+                return;
+            }
+        }
+
+        if (!$this->ensureNoActiveAssignmentConflicts()) {
             return;
         }
 
-        // Si está activo, revisamos si hay conflictos
-        if ($this->activo && $this->prepareReassignConfirmation()) {
-            // Si hay conflicto, el método prepareReassignConfirmation ya disparó el modal
-            return;
-        }
-
-        // Si no hay conflictos, guardamos normal
         $this->persistAssignment();
     }
-
     public function confirmReassignment(): void
     {
-        $replacementEndDate = $this->resolveAssignmentDate();
-
-        // 1. Desactivamos los conflictos existentes
-        if ($this->conflictVehicleAssignmentId) {
-            $assignment = VehicleAssignment::find($this->conflictVehicleAssignmentId);
-            if ($assignment) {
-                $assignment->update([
-                    'activo' => false,
-                    'fecha_fin' => $replacementEndDate,
-                ]);
-            }
-        }
-
-        if ($this->conflictDriverAssignmentId && $this->conflictDriverAssignmentId !== $this->conflictVehicleAssignmentId) {
-            $assignment = VehicleAssignment::find($this->conflictDriverAssignmentId);
-            if ($assignment) {
-                $assignment->update([
-                    'activo' => false,
-                    'fecha_fin' => $replacementEndDate,
-                ]);
-            }
-        }
-
-        // 2. IMPORTANTE: En lugar de llamar a save(), llamamos directamente a persistAssignment()
-        // Así evitamos que pase por la validación de conflictos OTRA VEZ.
         $this->closeReassignConfirm();
-        $this->persistAssignment();
+        session()->flash('error', 'No se puede reasignar un vehiculo activo desde esta pantalla. Primero desasigne el registro actual.');
     }
-
     public function cancelReassignment(): void
     {
-        session()->flash('message', $this->buildReassignmentCancelledMessage());
+        $message = $this->buildReassignmentCancelledMessage();
         $this->closeReassignConfirm();
+        session()->flash('message', $message);
     }
 
     public function closeReassignConfirm(): void
@@ -340,6 +343,90 @@ class VehicleAssignmentManager extends Component
         }
 
         $this->resetForm();
+    }
+
+    private function ensureValidAssignmentSelection(): bool
+    {
+        $driverId = (int) ($this->driver_id ?? 0);
+        $vehicleId = (int) ($this->vehicle_id ?? 0);
+
+        $driver = $driverId > 0 ? Driver::query()->find($driverId) : null;
+        $vehicle = $vehicleId > 0 ? Vehicle::query()->find($vehicleId) : null;
+
+        if (!$driver) {
+            $this->addError('driver_id', 'Debe seleccionar un conductor valido.');
+        }
+
+        if (!$vehicle) {
+            $this->addError('vehicle_id', 'Debe seleccionar un vehiculo valido.');
+        }
+
+        if (!$driver || !$vehicle) {
+            return false;
+        }
+
+        if ($vehicle->isInMaintenance()) {
+            $this->addError('vehicle_id', 'El vehiculo esta en mantenimiento y no puede asignarse en este momento.');
+            return false;
+        }
+
+        return true;
+    }
+
+    private function ensureNoActiveAssignmentConflicts(): bool
+    {
+        if (!$this->activo) {
+            return true;
+        }
+
+        $assignmentDate = $this->resolveAssignmentDate();
+
+        $activeAssignments = VehicleAssignment::query()
+            ->with(['driver', 'vehicle'])
+            ->where('activo', true)
+            ->whereNotNull('vehicle_id')
+            ->whereNotNull('driver_id')
+            ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
+            })
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
+            });
+
+        $vehicleConflict = (clone $activeAssignments)
+            ->where('vehicle_id', $this->vehicle_id)
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($vehicleConflict) {
+            $plate = (string) ($vehicleConflict->vehicle?->placa ?? 'sin placa');
+            $driverName = (string) ($vehicleConflict->driver?->nombre ?? 'otro conductor');
+
+            $this->addError('vehicle_id', "El vehiculo {$plate} ya tiene una asignacion activa con {$driverName}.");
+            session()->flash('error', 'No se puede registrar: el vehiculo ya esta asignado de forma activa.');
+            $this->closeReassignConfirm();
+            return false;
+        }
+
+        $driverConflict = (clone $activeAssignments)
+            ->where('driver_id', $this->driver_id)
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($driverConflict) {
+            $driverName = (string) ($driverConflict->driver?->nombre ?? 'conductor');
+            $plate = (string) ($driverConflict->vehicle?->placa ?? 'sin placa');
+
+            $this->addError('driver_id', "El conductor {$driverName} ya tiene una asignacion activa con el vehiculo {$plate}.");
+            session()->flash('error', 'No se puede registrar: el conductor ya tiene un vehiculo activo asignado.');
+            $this->closeReassignConfirm();
+            return false;
+        }
+
+        return true;
     }
 
     private function prepareReassignConfirmation(): bool
