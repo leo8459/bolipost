@@ -101,6 +101,77 @@
 
         .table td{ vertical-align: middle; }
 
+        .contrato-preview-card{
+            border:1px solid #d7e3f4;
+            border-radius:16px;
+            background:linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+            box-shadow:0 10px 22px rgba(32,83,154,.08);
+            padding:18px;
+            margin-bottom:18px;
+        }
+        .contrato-preview-grid{
+            display:grid;
+            grid-template-columns: minmax(220px, 320px) 1fr;
+            gap:18px;
+            align-items:start;
+        }
+        .contrato-preview-image{
+            width:100%;
+            max-height:280px;
+            object-fit:cover;
+            border-radius:14px;
+            border:1px solid #dbe5f3;
+            background:#eef3fb;
+        }
+        .contrato-preview-empty{
+            min-height:220px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            border:1px dashed #bfd0ea;
+            border-radius:14px;
+            color:#6b7280;
+            background:#f8fbff;
+            text-align:center;
+            padding:18px;
+        }
+        .contrato-preview-meta{
+            display:grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap:12px;
+            margin-bottom:14px;
+        }
+        .contrato-preview-item{
+            background:#fff;
+            border:1px solid #e5edf8;
+            border-radius:12px;
+            padding:12px 14px;
+        }
+        .contrato-preview-label{
+            font-size:.78rem;
+            text-transform:uppercase;
+            letter-spacing:.04em;
+            color:#64748b;
+            margin-bottom:4px;
+            font-weight:800;
+        }
+        .contrato-preview-value{
+            color:#1f2937;
+            font-weight:700;
+            word-break:break-word;
+        }
+        .contrato-preview-actions{
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+        }
+
+        @media (max-width: 767.98px){
+            .contrato-preview-grid{
+                grid-template-columns: 1fr;
+            }
+        }
+
         .modal-content{
             border:0;
             border-radius:18px;
@@ -163,6 +234,88 @@
             @endif
 
             <div class="card-body">
+                @if ($config['table'] === 'eventos_contrato' && !empty($searchQuery))
+                    <div class="contrato-preview-card">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                            <div>
+                                <div class="muted small">Paquete contrato encontrado</div>
+                                <h5 class="mb-0" style="color:var(--azul); font-weight:900;">
+                                    {{ $contratoBuscado->codigo ?? $searchQuery }}
+                                </h5>
+                            </div>
+                        </div>
+
+                        @if ($contratoBuscado)
+                            @php
+                                $contratoImagenUrl = !empty($contratoBuscado->imagen) ? asset('storage/' . $contratoBuscado->imagen) : null;
+                            @endphp
+
+                            <div class="contrato-preview-grid">
+                                <div>
+                                    @if ($contratoImagenUrl)
+                                        <a href="{{ $contratoImagenUrl }}" target="_blank" rel="noopener">
+                                            <img src="{{ $contratoImagenUrl }}" alt="Imagen del paquete contrato" class="contrato-preview-image">
+                                        </a>
+                                    @else
+                                        <div class="contrato-preview-empty">
+                                            Este paquete contrato no tiene imagen subida.
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <div>
+                                    <div class="contrato-preview-meta">
+                                        <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Codigo</div>
+                                            <div class="contrato-preview-value">{{ $contratoBuscado->codigo }}</div>
+                                        </div>
+                                        <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Cod. especial</div>
+                                            <div class="contrato-preview-value">{{ $contratoBuscado->cod_especial ?: '-' }}</div>
+                                        </div>
+                                        <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Destinatario</div>
+                                            <div class="contrato-preview-value">{{ $contratoBuscado->nombre_d ?: '-' }}</div>
+                                        </div>
+                                        <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Telefono</div>
+                                            <div class="contrato-preview-value">{{ $contratoBuscado->telefono_d ?: '-' }}</div>
+                                        </div>
+                                        <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Destino</div>
+                                            <div class="contrato-preview-value">{{ $contratoBuscado->destino ?: '-' }}</div>
+                                        </div>
+                                        <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Empresa</div>
+                                            <div class="contrato-preview-value">
+                                                {{ $contratoBuscado->empresa_nombre ?: '-' }}
+                                                @if (!empty($contratoBuscado->empresa_sigla))
+                                                    ({{ $contratoBuscado->empresa_sigla }})
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    @if ($contratoImagenUrl)
+                                        <div class="contrato-preview-actions">
+                                            <a href="{{ $contratoImagenUrl }}" target="_blank" rel="noopener" class="btn btn-outline-azul">
+                                                Ver imagen
+                                            </a>
+                                            <a href="{{ $contratoImagenUrl }}" download class="btn btn-azul">
+                                                Descargar imagen
+                                            </a>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        @else
+                            <div class="alert alert-warning mb-0">
+                                No se encontro un paquete en <strong>paquetes_contrato</strong> para la busqueda actual.
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="muted">
                         @if(!empty($searchQuery))
