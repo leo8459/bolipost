@@ -209,7 +209,7 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="fecha_vencimiento_licencia" class="form-label fw-bold">Vencimiento Licencia <span class="text-danger">*</span></label>
-                            <input type="date" id="fecha_vencimiento_licencia" wire:model="fecha_vencimiento_licencia" class="form-control driver-form-field @error('fecha_vencimiento_licencia') is-invalid @enderror" required>
+                            <input type="date" id="fecha_vencimiento_licencia" wire:model="fecha_vencimiento_licencia" class="form-control driver-form-field @error('fecha_vencimiento_licencia') is-invalid @enderror" required min="{{ now()->toDateString() }}">
                             @error('fecha_vencimiento_licencia') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
