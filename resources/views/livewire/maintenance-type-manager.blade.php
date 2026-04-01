@@ -41,6 +41,12 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
+    @if (session()->has('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
 
     @if($showForm)
         <div class="bp-gestiones-form-overlay">
@@ -59,8 +65,8 @@
                             @error('nombre') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
-                            <label for="maintenance_form_type" class="form-label fw-bold">Tipo de Vehiculo</label>
-                            <select id="maintenance_form_type" wire:model.live="maintenance_form_type" class="form-select bp-select-like-vehicle @error('maintenance_form_type') is-invalid @enderror">
+                            <label for="maintenance_form_type" class="form-label fw-bold">Tipo de Vehiculo <span class="text-danger">*</span></label>
+                            <select id="maintenance_form_type" wire:model.live="maintenance_form_type" class="form-control bp-select-like-vehicle @error('maintenance_form_type') is-invalid @enderror" required>
                                 @foreach($maintenanceFormTypes as $formType)
                                     <option value="{{ $formType }}">{{ $formType === 'moto' ? 'Moto' : 'Vehiculo' }}</option>
                                 @endforeach
@@ -71,12 +77,15 @@
                             <label for="selected_vehicle_ids" class="form-label fw-bold">{{ $maintenance_form_type === 'moto' ? 'Motos especificas para este mantenimiento' : 'Vehiculos especificos para este mantenimiento' }}</label>
                             <div class="row g-2">
                                 <div class="col-12 col-md-6">
-                                    <select id="selected_vehicle_ids" wire:model="vehicle_to_add" class="form-select bp-select-like-vehicle @error('vehicle_to_add') is-invalid @enderror">
+                                    <select id="selected_vehicle_ids" wire:model="vehicle_to_add" class="form-control bp-select-like-vehicle @error('vehicle_to_add') is-invalid @enderror">
                                         <option value="">{{ $maintenance_form_type === 'moto' ? 'Seleccionar moto para agregar' : 'Seleccionar vehiculo para agregar' }}</option>
                                         @foreach($vehicles as $vehicle)
                                             <option value="{{ $vehicle->id }}">{{ $vehicle->placa }}</option>
                                         @endforeach
                                     </select>
+                                    @if($vehicles->isEmpty())
+                                        <div class="form-text text-warning">No hay {{ $maintenance_form_type === 'moto' ? 'motos' : 'vehiculos' }} activos disponibles para este tipo.</div>
+                                    @endif
                                 </div>
                                 <div class="col-12 col-md-6 d-flex gap-2">
                                     <button type="button" wire:click="addSelectedVehicle" class="btn btn-outline-primary flex-fill">
