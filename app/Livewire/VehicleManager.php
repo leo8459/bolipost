@@ -21,6 +21,8 @@ class VehicleManager extends Component
 {
     use WithPagination;
 
+    protected string $paginationTheme = 'bootstrap';
+
     public string $search = '';
 
     private const FUEL_TYPES = [
@@ -464,6 +466,14 @@ class VehicleManager extends Component
         }
 
         $vehicle->delete();
+
+        $visibleCount = Vehicle::query()->count();
+        $currentPage = $this->getPage();
+        $lastPage = max(1, (int) ceil($visibleCount / 10));
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage);
+        }
+
         session()->flash('message', 'Vehiculo eliminado correctamente.');
     }
 
