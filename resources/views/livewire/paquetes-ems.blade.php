@@ -417,12 +417,6 @@
                         <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
 
                         @if ($this->isAdmision)
-                            @if ($canEmsAlmacenAdmisiones)
-                                <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.almacen-admisiones', absolute: false) }}">
-                                    Almacen admisiones
-                                </a>
-                            @endif
-
                             @if ($canEmsAssign)
                             <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
                                 Generados hoy

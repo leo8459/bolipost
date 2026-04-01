@@ -384,6 +384,11 @@ return [
                     'icon' => 'fas fa-plus-circle',
                 ],
                 [
+                    'text' => 'Almacen admisiones',
+                    'url' => 'paquetes-ems/almacen-admisiones',
+                    'icon' => 'fas fa-warehouse',
+                ],
+                [
                     'text' => 'Nueva Solicitud',
                     'url' => 'paquetes-ems/solicitudes',
                     'icon' => 'fas fa-file-signature',
