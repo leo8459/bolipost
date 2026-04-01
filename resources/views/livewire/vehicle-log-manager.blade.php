@@ -325,11 +325,7 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-12 col-md-6">
                                         <label for="vehicles_id" class="form-label fw-bold">Vehiculo <span class="text-danger">*</span></label>
-<<<<<<< HEAD
-                                        <select id="vehicles_id" wire:model.live="vehicles_id" wire:change="onVehicleChanged($event.target.value)" class="form-select bp-select-like-vehicle @error('vehicles_id') is-invalid @enderror" required>
-=======
                                         <select id="vehicles_id" wire:model.live="vehicles_id" wire:change="onVehicleChanged($event.target.value)" class="form-control vehicle-log-select @error('vehicles_id') is-invalid @enderror" required>
->>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                             <option value="">Seleccionar vehiculo...</option>
                                             @foreach ($vehicles as $vehicle)
                                             <option value="{{ $vehicle->id }}" data-km-actual="{{ $vehicle->kilometraje_actual ?? '' }}">{{ $vehicle->placa }}</option>
@@ -571,11 +567,7 @@
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold mb-1">Vehiculo</label>
-<<<<<<< HEAD
-                    <select wire:model.live="vehicle_filter_id" class="form-select bp-select-like-vehicle">
-=======
                     <select wire:model.live="vehicle_filter_id" class="form-control vehicle-log-select">
->>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                         <option value="">Todos los vehiculos</option>
                         @foreach($vehicles as $vehicle)
                         <option value="{{ $vehicle->id }}">{{ $vehicle->placa }}</option>
@@ -584,11 +576,7 @@
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold mb-1">Conductor</label>
-<<<<<<< HEAD
-                    <select wire:model.live="driver_filter_id" class="form-select bp-select-like-vehicle">
-=======
                     <select wire:model.live="driver_filter_id" class="form-control vehicle-log-select">
->>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                         <option value="">Todos los conductores</option>
                         @foreach($drivers as $driver)
                         <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
@@ -1982,11 +1970,7 @@
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label fw-bold">Accion</label>
-<<<<<<< HEAD
-                            <select class="form-select bp-select-like-vehicle" id="vehicle-report-action">
-=======
                             <select class="form-control vehicle-log-select" id="vehicle-report-action">
->>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                 <option value="print_pdf">Imprimir PDF</option>
                                 <option value="download_pdf">Descargar PDF</option>
                                 <option value="download_excel">Descargar Excel</option>
@@ -2002,11 +1986,7 @@
                         </div>
                         <div class="col-12">
                             <label class="form-label fw-bold">Filtrar por</label>
-<<<<<<< HEAD
-                            <select class="form-select bp-select-like-vehicle" id="vehicle-report-scope">
-=======
                             <select class="form-control vehicle-log-select" id="vehicle-report-scope">
->>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                 <option value="all">Todos los registros</option>
                                 <option value="vehicle" {{ $vehicle_filter_id ? 'selected' : '' }}>Vehiculo especifico</option>
                                 <option value="driver" {{ !$vehicle_filter_id && $driver_filter_id ? 'selected' : '' }}>Conductor especifico</option>
@@ -2014,11 +1994,7 @@
                         </div>
                         <div class="col-12" id="vehicle-report-vehicle-wrap">
                             <label class="form-label fw-bold">Vehiculo</label>
-<<<<<<< HEAD
-                            <select class="form-select bp-select-like-vehicle" id="vehicle-report-vehicle-id">
-=======
                             <select class="form-control vehicle-log-select" id="vehicle-report-vehicle-id">
->>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                 <option value="">Todos los vehiculos</option>
                                 @foreach($vehicles as $vehicle)
                                 <option value="{{ $vehicle->id }}" {{ (int) $vehicle_filter_id === (int) $vehicle->id ? 'selected' : '' }}>{{ $vehicle->placa }}</option>
@@ -2027,11 +2003,7 @@
                         </div>
                         <div class="col-12" id="vehicle-report-driver-wrap">
                             <label class="form-label fw-bold">Conductor</label>
-<<<<<<< HEAD
-                            <select class="form-select bp-select-like-vehicle" id="vehicle-report-driver-id">
-=======
                             <select class="form-control vehicle-log-select" id="vehicle-report-driver-id">
->>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                 <option value="">Todos los conductores</option>
                                 @foreach($drivers as $driver)
                                 <option value="{{ $driver->id }}" {{ (int) $driver_filter_id === (int) $driver->id ? 'selected' : '' }}>{{ $driver->nombre }}</option>
