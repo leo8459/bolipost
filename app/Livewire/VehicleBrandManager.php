@@ -89,14 +89,26 @@ class VehicleBrandManager extends Component
         $this->nombre = $this->sanitizeText($this->nombre);
         $this->pais_origen = in_array($this->pais_origen, self::COUNTRY_OPTIONS, true) ? $this->pais_origen : '';
 
-        $this->validate([
-            'nombre' => ['required', 'string', 'max:255', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
-            'pais_origen' => ['nullable', 'string', 'max:255', 'in:' . implode(',', self::COUNTRY_OPTIONS)],
-        ]);
+        $this->validate(
+            [
+                'nombre' => ['required', 'string', 'max:255', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
+                'pais_origen' => ['required', 'string', 'max:255', 'in:' . implode(',', self::COUNTRY_OPTIONS)],
+            ],
+            [
+                'nombre.required' => 'El nombre es obligatorio.',
+                'nombre.string' => 'El nombre debe ser texto.',
+                'nombre.max' => 'El nombre no debe superar :max caracteres.',
+                'nombre.regex' => 'El nombre contiene caracteres no permitidos.',
+                'pais_origen.required' => 'El pais de origen es obligatorio.',
+                'pais_origen.string' => 'El pais de origen debe ser texto.',
+                'pais_origen.max' => 'El pais de origen no debe superar :max caracteres.',
+                'pais_origen.in' => 'Debe seleccionar un pais de origen valido.',
+            ]
+        );
 
         $payload = [
             'nombre' => $this->nombre,
-            'pais_origen' => $this->pais_origen !== '' ? $this->pais_origen : null,
+            'pais_origen' => $this->pais_origen,
         ];
 
         if ($this->isEdit && $this->editingBrandId) {
