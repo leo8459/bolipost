@@ -185,39 +185,85 @@ class DriverManager extends Component
         $this->telefono = $this->sanitizePhone($this->telefono);
         $this->email = $this->sanitizeEmailLocalPart($this->email);
 
-        $this->validate([
-            'nombre' => ['required', 'string', 'max:255', 'regex:/^[\pL\pN\s\.\,\-\/\(\)]+$/u'],
-            'licencia' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9\-\s\/]+$/'],
-            'tipo_licencia' => ['nullable', Rule::in(self::LICENSE_TYPES)],
-            'fecha_vencimiento_licencia' => ['nullable', 'date'],
-            'telefono' => ['nullable', 'string', 'max:20', 'regex:/^[0-9]+$/'],
-            'email' => ['nullable', 'string', 'max:100', 'regex:/^[A-Za-z0-9._-]+$/'],
-            'user_id' => ['nullable', 'integer', 'exists:users,id'],
-            'activo' => ['boolean'],
-        ], [
-            'nombre.regex' => 'El nombre contiene caracteres no permitidos.',
-            'licencia.regex' => 'La licencia solo puede contener letras, numeros, espacios, guiones y diagonales.',
-            'telefono.regex' => 'El telefono solo puede contener numeros.',
-            'email.regex' => 'El correo solo puede contener letras, numeros, punto, guion y guion bajo.',
-        ]);
-        $this->validate([
-            'memorandum_file' => 'nullable|file|max:5120|mimes:pdf,jpg,jpeg,png,webp',
-        ]);
+        $this->validate(
+            [
+                'nombre' => ['required', 'string', 'max:255', 'regex:/^[\pL\pN\s\.\,\-\/\(\)]+$/u'],
+                'user_id' => ['required', 'integer', 'exists:users,id'],
+                'licencia' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9\-\s\/]+$/'],
+                'tipo_licencia' => ['required', Rule::in(self::LICENSE_TYPES)],
+                'fecha_vencimiento_licencia' => ['required', 'date'],
+                'telefono' => ['required', 'string', 'max:20', 'regex:/^[0-9]+$/'],
+                'email' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9._-]+$/'],
+                'activo' => ['required', 'boolean'],
+            ],
+            [
+                'nombre.required' => 'El nombre es obligatorio.',
+                'nombre.string' => 'El nombre debe ser texto.',
+                'nombre.max' => 'El nombre no debe superar :max caracteres.',
+                'nombre.regex' => 'El nombre contiene caracteres no permitidos.',
+                'user_id.required' => 'Debe seleccionar un usuario.',
+                'user_id.integer' => 'El usuario seleccionado no es valido.',
+                'user_id.exists' => 'El usuario seleccionado no existe.',
+                'licencia.required' => 'La licencia es obligatoria.',
+                'licencia.string' => 'La licencia debe ser texto.',
+                'licencia.max' => 'La licencia no debe superar :max caracteres.',
+                'licencia.regex' => 'La licencia solo puede contener letras, numeros, espacios, guiones y diagonales.',
+                'tipo_licencia.required' => 'El tipo de licencia es obligatorio.',
+                'tipo_licencia.in' => 'El tipo de licencia seleccionado no es valido.',
+                'fecha_vencimiento_licencia.required' => 'La fecha de vencimiento es obligatoria.',
+                'fecha_vencimiento_licencia.date' => 'La fecha de vencimiento no es valida.',
+                'telefono.required' => 'El telefono es obligatorio.',
+                'telefono.string' => 'El telefono debe ser texto.',
+                'telefono.max' => 'El telefono no debe superar :max caracteres.',
+                'telefono.regex' => 'El telefono solo puede contener numeros.',
+                'email.required' => 'El email institucional es obligatorio.',
+                'email.string' => 'El email institucional debe ser texto.',
+                'email.max' => 'El email institucional no debe superar :max caracteres.',
+                'email.regex' => 'El correo solo puede contener letras, numeros, punto, guion y guion bajo.',
+                'activo.required' => 'Debe definir el estado activo/inactivo.',
+                'activo.boolean' => 'El estado activo no es valido.',
+            ]
+        );
 
-        if ($this->licencia !== '' && $this->driverExistsByField('licencia', $this->licencia)) {
+        if (trim($this->memorandum_path) === '' && !$this->memorandum_file) {
+            $this->addError('memorandum_file', 'El memorandum es obligatorio.');
+            session()->flash('error', 'No se pudo registrar: el memorandum es obligatorio.');
+            return;
+        }
+
+        if ($this->memorandum_file) {
+            $this->validate(
+                [
+                    'memorandum_file' => ['file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp'],
+                ],
+                [
+                    'memorandum_file.file' => 'El memorandum debe ser un archivo valido.',
+                    'memorandum_file.max' => 'El memorandum no debe superar 10 MB.',
+                    'memorandum_file.mimes' => 'El memorandum debe ser PDF o imagen (jpg, jpeg, png, webp).',
+                ]
+            );
+        }
+
+        if ($this->driverExistsByField('licencia', $this->licencia)) {
             $this->addError('licencia', 'Esta licencia ya esta registrada.');
             session()->flash('error', 'No se pudo registrar: la licencia ya esta registrada.');
             return;
         }
 
-        if ($this->telefono !== '' && $this->driverExistsByField('telefono', $this->telefono)) {
+        if ($this->driverExistsByField('telefono', $this->telefono)) {
             $this->addError('telefono', 'Este numero de telefono ya esta registrado.');
             session()->flash('error', 'No se pudo registrar: el numero de telefono ya esta registrado.');
             return;
         }
 
         $fullEmail = $this->composeEmail($this->email);
-        if ($fullEmail !== null && $this->driverExistsByField('email', $fullEmail)) {
+        if ($fullEmail === null) {
+            $this->addError('email', 'El email institucional es obligatorio.');
+            session()->flash('error', 'No se pudo registrar: el email institucional es obligatorio.');
+            return;
+        }
+
+        if ($this->driverExistsByField('email', $fullEmail)) {
             $this->addError('email', 'Este correo ya esta registrado.');
             session()->flash('error', 'No se pudo registrar: el correo ya esta registrado.');
             return;
@@ -233,9 +279,9 @@ class DriverManager extends Component
             'licencia' => $this->licencia,
             'tipo_licencia' => $this->tipo_licencia,
             'fecha_vencimiento_licencia' => $this->fecha_vencimiento_licencia,
-            'telefono' => $this->telefono !== '' ? $this->telefono : null,
+            'telefono' => $this->telefono,
             'email' => $fullEmail,
-            'memorandum_path' => $this->memorandum_path !== '' ? $this->memorandum_path : null,
+            'memorandum_path' => $this->memorandum_path,
             'activo' => $this->activo,
         ];
 
