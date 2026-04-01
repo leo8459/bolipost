@@ -234,6 +234,7 @@
                                 Subiendo archivo, espere un momento antes de guardar...
                             </div>
                             @error('memorandum_file') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <div class="form-text">Se aceptan PDF o imagenes. El limite final depende de la configuracion del servidor.</div>
                             @if($memorandum_path)
                                 <div class="mt-2">
                                     <label class="form-label fw-bold mb-1">Ruta almacenada (BD)</label>

@@ -26,6 +26,7 @@ class MobileUtilityController extends Controller
 {
     private const HEARTBEAT_TTL_HOURS = 12;
     private const HEARTBEAT_DUPLICATE_WINDOW_SECONDS = 3;
+    private const HEARTBEAT_ROUTE_HISTORY_LIMIT = 180;
     private const BITACORA_SESSION_TTL_HOURS = 24;
     private const HEARTBEAT_SUSPEND_MINUTES = 5;
 
@@ -44,6 +45,8 @@ class MobileUtilityController extends Controller
             'timestamp' => 'nullable',
             'waiting_stop' => 'nullable|boolean',
             'estado' => 'nullable|string|max:40',
+            'gps_enabled' => 'nullable|boolean',
+            'gps_mocked' => 'nullable|boolean',
             'sent_at' => 'nullable|date',
         ]);
 
@@ -90,11 +93,18 @@ class MobileUtilityController extends Controller
             'point_timestamp' => $incomingTs,
             'waiting_stop' => $status === 'ESPERA',
             'estado' => $status,
+            'gps_enabled' => array_key_exists('gps_enabled', $payload)
+                ? (bool) $payload['gps_enabled']
+                : true,
+            'gps_mocked' => array_key_exists('gps_mocked', $payload)
+                ? (bool) $payload['gps_mocked']
+                : false,
             'sent_at' => (string) ($payload['sent_at'] ?? $nowIso),
             'received_at' => $nowIso,
         ];
 
         Cache::put($cacheKey, $heartbeatEvent, now()->addHours(self::HEARTBEAT_TTL_HOURS));
+        $this->appendHeartbeatRoutePoint($vehicleId, $heartbeatEvent);
 
         $this->touchHeartbeatIndex($vehicleId);
         $this->publishHeartbeatEvent($heartbeatEvent);
@@ -192,11 +202,9 @@ class MobileUtilityController extends Controller
 
         $timelineCount = is_array($timeline) ? count($timeline) : 0;
         if (in_array($event, ['POINT_TO_POINT', 'CARGA', 'FINALIZE'], true) && ($timelineCount >= 2 || count($segments) >= 1)) {
-            // En cierre normal de bitacora (START -> FINALIZE) se espera un solo tramo:
-            // del primer punto al ultimo, sin desglosar en n sub-tramos.
-            $timelineForPointToPoint = $event === 'FINALIZE'
-                ? $this->collapseTimelineToFirstLast($timeline)
-                : $timeline;
+            // En cierre normal de bitacora (START -> FINALIZE) se mantiene un solo tramo,
+            // pero conservando todos los puntos intermedios para graficar la trayectoria real.
+            $timelineForPointToPoint = $timeline;
             $segmentsForPointToPoint = $segments;
             if ($event === 'FINALIZE' && is_array($timelineForPointToPoint) && count($timelineForPointToPoint) >= 2) {
                 $fromPoint = $timelineForPointToPoint[0];
@@ -204,7 +212,10 @@ class MobileUtilityController extends Controller
                 $segmentsForPointToPoint = [[
                     'from' => $fromPoint,
                     'to' => $toPoint,
-                    'intermediate_points' => [],
+                    'intermediate_points' => array_values(array_filter(
+                        array_slice($timelineForPointToPoint, 1, -1),
+                        fn ($point) => is_array($point)
+                    )),
                 ]];
             }
 
@@ -543,6 +554,45 @@ class MobileUtilityController extends Controller
         }
     }
 
+    private function appendHeartbeatRoutePoint(int $vehicleId, array $heartbeatEvent): void
+    {
+        $routeKey = "mobile:heartbeat:route:{$vehicleId}";
+        $history = Cache::get($routeKey, []);
+        if (!is_array($history)) {
+            $history = [];
+        }
+
+        $point = [
+            'lat' => $this->asFloat($heartbeatEvent['latitude'] ?? null),
+            'lng' => $this->asFloat($heartbeatEvent['longitude'] ?? null),
+            't' => (string) ($heartbeatEvent['point_timestamp'] ?? $heartbeatEvent['sent_at'] ?? $heartbeatEvent['received_at'] ?? now()->toIso8601String()),
+            'is_marked' => false,
+            'address' => '',
+            'point_label' => (string) ($heartbeatEvent['estado'] ?? 'EN_RUTA'),
+            'speed_kmh' => $this->asFloat($heartbeatEvent['speed_kmh'] ?? null),
+        ];
+
+        if (is_null($point['lat']) || is_null($point['lng'])) {
+            return;
+        }
+
+        $last = !empty($history) ? $history[array_key_last($history)] : null;
+        $sameAsLast = is_array($last)
+            && ((float) ($last['lat'] ?? 0) === (float) $point['lat'])
+            && ((float) ($last['lng'] ?? 0) === (float) $point['lng'])
+            && ((string) ($last['t'] ?? '') === (string) $point['t']);
+
+        if (!$sameAsLast) {
+            $history[] = $point;
+        }
+
+        if (count($history) > self::HEARTBEAT_ROUTE_HISTORY_LIMIT) {
+            $history = array_slice($history, -self::HEARTBEAT_ROUTE_HISTORY_LIMIT);
+        }
+
+        Cache::put($routeKey, array_values($history), now()->addHours(self::HEARTBEAT_TTL_HOURS));
+    }
+
     /**
      * Publica heartbeat en Redis para consumo en tiempo real sin escritura frecuente en DB.
      * Canales:
@@ -642,6 +692,7 @@ class MobileUtilityController extends Controller
         $isSuspended = $minutesWithoutHeartbeat !== null && $minutesWithoutHeartbeat >= self::HEARTBEAT_SUSPEND_MINUTES;
 
         $ticket = null;
+        $requiresForcedClose = $isSuspended;
         if ($isSuspended) {
             if ($session->status !== 'En Suspenso') {
                 $session->update([
@@ -670,6 +721,17 @@ class MobileUtilityController extends Controller
             }
 
             $ticket = $this->openInvestigationTicket($session, $relatedUserId, $minutesWithoutHeartbeat, $lastSeenAt);
+            if ($ticket && $relatedUserId) {
+                $acknowledgedBy = collect((array) (($ticket->meta_json ?? [])['mobile_acknowledged_by_users'] ?? []))
+                    ->map(fn ($id) => (int) $id)
+                    ->filter(fn ($id) => $id > 0)
+                    ->values()
+                    ->all();
+
+                if (in_array((int) $relatedUserId, $acknowledgedBy, true)) {
+                    $requiresForcedClose = false;
+                }
+            }
         }
 
         return [
@@ -682,7 +744,7 @@ class MobileUtilityController extends Controller
             'current_driver_id' => $session->current_driver_id ? (int) $session->current_driver_id : null,
             'last_heartbeat_at' => optional($lastSeenAt)->toIso8601String(),
             'minutes_without_heartbeat' => $minutesWithoutHeartbeat,
-            'requires_forced_close' => $isSuspended,
+            'requires_forced_close' => $requiresForcedClose,
             'ticket' => $ticket ? [
                 'id' => (int) $ticket->id,
                 'ticket_code' => (string) $ticket->ticket_code,
@@ -1130,6 +1192,50 @@ class MobileUtilityController extends Controller
             'has_issue' => $suspension['status'] === 'En Suspenso',
             'session' => $suspension,
             'ticket' => $suspension['ticket'] ?? null,
+        ]);
+    }
+
+    public function confirmInvestigationTicket(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'ticket_id' => 'required|integer|min:1',
+        ]);
+
+        $authUser = $request->user();
+        $ticket = VehicleLogInvestigationTicket::query()->findOrFail((int) $payload['ticket_id']);
+        $meta = (array) ($ticket->meta_json ?? []);
+        $acknowledgedBy = (array) ($meta['mobile_acknowledged_by_users'] ?? []);
+        $userId = (int) ($authUser?->id ?? 0);
+
+        if ($userId > 0 && !in_array($userId, $acknowledgedBy, true)) {
+            $acknowledgedBy[] = $userId;
+        }
+
+        $meta['mobile_acknowledged_by_users'] = array_values(array_unique(array_filter(array_map('intval', $acknowledgedBy))));
+        $meta['mobile_acknowledged_at'] = now()->toIso8601String();
+
+        $ticket->update([
+            'status' => VehicleLogInvestigationTicket::STATUS_REVIEWING,
+            'meta_json' => $meta,
+        ]);
+
+        ActivityLog::create([
+            'user_id' => $userId > 0 ? $userId : null,
+            'action' => 'BITACORA_INVESTIGATION_TICKET_CONFIRMED_MOBILE',
+            'model' => 'vehicle_log_investigation_ticket',
+            'record_id' => $ticket->id,
+            'changes_json' => [
+                'ticket_code' => $ticket->ticket_code,
+                'status' => $ticket->status,
+            ],
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Ticket confirmado correctamente.',
+            'ticket_id' => (int) $ticket->id,
+            'ticket_code' => (string) $ticket->ticket_code,
+            'status' => (string) $ticket->status,
         ]);
     }
 

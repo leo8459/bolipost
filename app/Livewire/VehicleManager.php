@@ -307,6 +307,37 @@ class VehicleManager extends Component
                 'capacidad_tanque' => 'required|numeric|min:3|max:150',
                 'kilometraje' => 'required|numeric|min:5',
             ],
+<<<<<<< HEAD
+            'marca_id' => 'required|integer|min:1|exists:vehicle_brands,id',
+            'modelo' => ['required', 'string', 'max:50', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
+            'tipo_combustible' => ['required', 'string', Rule::in(self::FUEL_TYPES)],
+            'maintenance_form_type' => ['required', 'string', Rule::in(self::MAINTENANCE_FORM_TYPES)],
+            'color' => ['required', 'string', 'max:50', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
+            'anio' => 'nullable|integer|min:1900|max:' . (date('Y') + 1),
+            'capacidad_tanque' => 'required|numeric|min:0',
+            'kilometraje' => 'required|numeric|min:0',
+        ], [
+            'placa.required' => 'La placa es obligatoria.',
+            'placa.unique' => 'La placa ya esta registrada.',
+            'placa.regex' => 'La placa contiene caracteres no permitidos.',
+            'marca_id.required' => 'La marca es obligatoria.',
+            'marca_id.exists' => 'La marca seleccionada no es valida.',
+            'modelo.required' => 'El modelo es obligatorio.',
+            'modelo.regex' => 'El modelo contiene caracteres no permitidos.',
+            'tipo_combustible.required' => 'El tipo de combustible es obligatorio.',
+            'tipo_combustible.in' => 'El tipo de combustible seleccionado no es valido.',
+            'maintenance_form_type.required' => 'El tipo de vehiculo es obligatorio.',
+            'maintenance_form_type.in' => 'El tipo de vehiculo seleccionado no es valido.',
+            'color.required' => 'El color es obligatorio.',
+            'color.regex' => 'El color contiene caracteres no permitidos.',
+            'capacidad_tanque.required' => 'La capacidad del tanque es obligatoria.',
+            'capacidad_tanque.numeric' => 'La capacidad del tanque debe ser numerica.',
+            'capacidad_tanque.min' => 'La capacidad del tanque no puede ser negativa.',
+            'kilometraje.required' => 'El kilometraje es obligatorio.',
+            'kilometraje.numeric' => 'El kilometraje debe ser numerico.',
+            'kilometraje.min' => 'El kilometraje no puede ser negativo.',
+        ]);
+=======
             [
                 'placa.required' => 'La placa es obligatoria.',
                 'placa.string' => 'La placa debe ser texto.',
@@ -344,6 +375,7 @@ class VehicleManager extends Component
                 'kilometraje.min' => 'El kilometraje no puede ser menor a :min.',
             ]
         );
+>>>>>>> 3709e5509fd3e61fa29bfd28ddcc74e4761897b0
 
         if (!$this->validateKilometrajeIntegrity()) {
             return;

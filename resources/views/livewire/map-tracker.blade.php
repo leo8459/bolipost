@@ -15,6 +15,10 @@
                 max-height: 68vh;
                 overflow-y: auto;
             }
+            .operation-alerts {
+                max-height: 24vh;
+                overflow-y: auto;
+            }
             .vehicle-item {
                 border: 1px solid #e7edf5;
                 border-radius: 8px;
@@ -72,6 +76,46 @@
                 border-color: #fef3c7;
                 color: #422006;
             }
+            .operation-alert-item {
+                border: 1px solid #e7edf5;
+                border-radius: 8px;
+                padding: 10px;
+                margin-bottom: 8px;
+            }
+            .operation-alert-item.danger {
+                background: #fef2f2;
+                border-color: #fecaca;
+            }
+            .operation-alert-item.warning {
+                background: #fffbeb;
+                border-color: #fde68a;
+            }
+            .operation-alert-item.info {
+                background: #eff6ff;
+                border-color: #bfdbfe;
+            }
+            .operation-alert-item.success {
+                background: #f0fdf4;
+                border-color: #bbf7d0;
+            }
+            .operation-alert-item.secondary {
+                background: #f8fafc;
+                border-color: #cbd5e1;
+            }
+            .map-panel-toggle {
+                border: 0;
+                background: transparent;
+                color: #0d3b77;
+                font-size: 0.95rem;
+                padding: 0.15rem 0.35rem;
+                line-height: 1;
+            }
+            .map-panel-toggle:hover {
+                color: #072a55;
+            }
+            .map-panel-collapsed {
+                display: none;
+            }
         </style>
     @endpush
 @endonce
@@ -112,9 +156,41 @@
             </div>
         </div>
         <div class="col-lg-3">
+            <div class="card map-panel shadow-sm mb-3">
+                <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+                    <span>Alertas operativas</span>
+                    <button
+                        type="button"
+                        class="map-panel-toggle"
+                        id="toggle-alerts-panel"
+                        data-target="operation-alerts-panel"
+                        aria-expanded="true"
+                        title="Contraer alertas operativas"
+                    >
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                </div>
+                <div id="operation-alerts-panel">
+                    <div class="card-body operation-alerts" id="operation-alerts"></div>
+                </div>
+            </div>
             <div class="card map-panel shadow-sm">
-                <div class="card-header fw-bold">Vehiculos en mapa</div>
-                <div class="card-body vehicle-list" id="vehicle-list"></div>
+                <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+                    <span>Vehiculos en mapa</span>
+                    <button
+                        type="button"
+                        class="map-panel-toggle"
+                        id="toggle-vehicles-panel"
+                        data-target="vehicle-list-panel"
+                        aria-expanded="true"
+                        title="Contraer vehiculos en mapa"
+                    >
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                </div>
+                <div id="vehicle-list-panel">
+                    <div class="card-body vehicle-list" id="vehicle-list"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -131,11 +207,15 @@
                 const map = L.map('vehicle-map').setView([-16.5, -68.15], 12);
                 const dataUrl = @json(route('map.data'));
                 const listEl = document.getElementById('vehicle-list');
+                const alertsEl = document.getElementById('operation-alerts');
+                const alertsPanelEl = document.getElementById('operation-alerts-panel');
+                const vehicleListPanelEl = document.getElementById('vehicle-list-panel');
                 const lastUpdateEl = document.getElementById('last-update');
                 const btnOnline = document.getElementById('mode-online');
                 const btnOffline = document.getElementById('mode-offline');
                 const offlineDateEl = document.getElementById('offline-date');
                 const vehicleFilterEl = document.getElementById('vehicle-filter');
+                const panelStoragePrefix = 'bolipost-map-panel-';
                 const overlays = new Map();
                 const queryParams = new URLSearchParams(window.location.search);
                 const initialMode = queryParams.get('mode') === 'offline' ? 'offline' : 'online';
@@ -147,10 +227,35 @@
                 let currentOfflineDate = queryParams.get('date') || @json(now()->toDateString());
                 const refreshIntervalMs = 3000;
 
+                function setPanelState(buttonEl, panelEl, collapsed) {
+                    if (!buttonEl || !panelEl) return;
+                    panelEl.classList.toggle('map-panel-collapsed', collapsed);
+                    buttonEl.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                    buttonEl.title = collapsed ? 'Desplegar panel' : 'Contraer panel';
+                    buttonEl.innerHTML = `<i class="fas fa-chevron-${collapsed ? 'down' : 'up'}"></i>`;
+                    const targetName = buttonEl.dataset.target || buttonEl.id || 'panel';
+                    window.localStorage.setItem(`${panelStoragePrefix}${targetName}`, collapsed ? 'collapsed' : 'expanded');
+                }
+
+                function initPanelToggle(buttonId, panelEl) {
+                    const buttonEl = document.getElementById(buttonId);
+                    if (!buttonEl || !panelEl) return;
+                    const targetName = buttonEl.dataset.target || buttonId;
+                    const savedState = window.localStorage.getItem(`${panelStoragePrefix}${targetName}`) === 'collapsed';
+                    setPanelState(buttonEl, panelEl, savedState);
+                    buttonEl.addEventListener('click', () => {
+                        const collapsed = buttonEl.getAttribute('aria-expanded') === 'true';
+                        setPanelState(buttonEl, panelEl, collapsed);
+                    });
+                }
+
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19,
                     attribution: '&copy; OpenStreetMap'
                 }).addTo(map);
+
+                initPanelToggle('toggle-alerts-panel', alertsPanelEl);
+                initPanelToggle('toggle-vehicles-panel', vehicleListPanelEl);
 
                 function normalizeVehicleStatus(rawStatus) {
                     const normalized = String(rawStatus || '').trim().toUpperCase();
@@ -265,6 +370,30 @@
                     });
                 }
 
+                function renderAlerts(alerts) {
+                    if (!alertsEl) return;
+                    alertsEl.innerHTML = '';
+                    if (!Array.isArray(alerts) || alerts.length === 0) {
+                        alertsEl.innerHTML = '<div class="text-muted">Sin alertas operativas activas.</div>';
+                        return;
+                    }
+
+                    alerts.forEach((item) => {
+                        const severity = String(item.severity || 'secondary').toLowerCase();
+                        const div = document.createElement('div');
+                        div.className = `operation-alert-item ${severity}`;
+                        const stage = item.current_stage ? `<div class="small fw-semibold">Estado: ${item.current_stage}</div>` : '';
+                        const heartbeat = item.last_heartbeat_at ? `<div class="small text-muted">Ultimo heartbeat: ${item.last_heartbeat_at}</div>` : '';
+                        div.innerHTML = `
+                            <div class="fw-bold">${item.title || 'Alerta operativa'}</div>
+                            <div class="small">${item.message || ''}</div>
+                            ${stage}
+                            ${heartbeat}
+                        `;
+                        alertsEl.appendChild(div);
+                    });
+                }
+
                 function renderMap(vehicles) {
                     clearOverlays();
                     const bounds = [];
@@ -304,9 +433,11 @@
                         const allPoints = [];
                         let lastKnown = null;
 
-                        if (effectiveMode === 'offline' && Array.isArray(item.points) && item.points.length > 1) {
+                        if (Array.isArray(item.points) && item.points.length > 1) {
                             const segmentPalette = ['#00509d', '#0f766e', '#9a3412', '#7c3aed', '#be123c'];
-                            const offlineSegments = Array.isArray(item.offline_segments) ? item.offline_segments : [];
+                            const offlineSegments = effectiveMode === 'offline' && Array.isArray(item.offline_segments)
+                                ? item.offline_segments
+                                : [];
 
                             if (offlineSegments.length > 0) {
                                 offlineSegments.forEach((segment, segmentIndex) => {
@@ -357,7 +488,11 @@
                                     .map((p) => [p.lat, p.lng]);
 
                                 if (route.length > 1) {
-                                    path = L.polyline(route, { color: '#00509d', weight: 4, opacity: 0.7 }).addTo(map);
+                                    path = L.polyline(route, {
+                                        color: effectiveMode === 'offline' ? '#00509d' : '#2563eb',
+                                        weight: effectiveMode === 'offline' ? 4 : 5,
+                                        opacity: effectiveMode === 'offline' ? 0.7 : 0.82
+                                    }).addTo(map);
                                     route.forEach((p) => bounds.push(p));
                                 } else {
                                     bounds.push([lat, lng]);
@@ -377,7 +512,7 @@
                             }).addTo(map);
                         }
 
-                        if (effectiveMode === 'offline' && Array.isArray(item.marked_points)) {
+                        if (Array.isArray(item.marked_points)) {
                             item.marked_points.forEach((p, idx) => {
                                 const mLat = Number(p.lat);
                                 const mLng = Number(p.lng);
@@ -450,12 +585,14 @@
 
                         const payload = await response.json();
                         const vehicles = Array.isArray(payload.vehicles) ? payload.vehicles : [];
+                        const alerts = Array.isArray(payload.alerts) ? payload.alerts : [];
                         if (effectiveMode === 'offline' && payload.selected_date && offlineDateEl) {
                             offlineDateEl.value = String(payload.selected_date);
                             currentOfflineDate = String(payload.selected_date);
                         }
                         syncVehicleFilterOptions(vehicles);
                         const filtered = applyVehicleFilter(vehicles);
+                        renderAlerts(alerts);
                         renderList(filtered);
                         renderMap(filtered);
 

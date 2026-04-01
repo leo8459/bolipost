@@ -98,9 +98,28 @@ class VehicleAssignmentManager extends Component
             ->orderBy('nombre')
             ->get();
 
+        $assignmentDate = $this->resolveAssignmentDate();
+        $busyVehicleIds = VehicleAssignment::query()
+            ->where('activo', true)
+            ->whereNotNull('vehicle_id')
+            ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
+            })
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
+            })
+            ->pluck('vehicle_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $vehicles = Vehicle::query()
             ->where('activo', true)
             ->operationallyAvailable()
+            ->when(!empty($busyVehicleIds), fn ($q) => $q->whereNotIn('id', $busyVehicleIds))
             ->orderBy('placa')
             ->get();
 
