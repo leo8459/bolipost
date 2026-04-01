@@ -252,6 +252,29 @@
             margin-top: 8px;
         }
 
+        .vehicle-log-select {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+
+        .vehicle-log-select:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+
+        select.vehicle-log-select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
+
         @media (max-width: 768px) {
             .bitacora-shell__toolbar {
                 width: 100%;
@@ -282,6 +305,12 @@
     </div>
     @endif
 
+    @if (session('error'))
+    <div class="alert alert-danger fade show" role="alert">
+        {{ session('error') }}
+    </div>
+    @endif
+
     @if ($showForm)
     <div class="bp-gestiones-form-overlay">
         <div class="bp-gestiones-form-stage">
@@ -296,29 +325,37 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-12 col-md-6">
                                         <label for="vehicles_id" class="form-label fw-bold">Vehiculo <span class="text-danger">*</span></label>
+<<<<<<< HEAD
                                         <select id="vehicles_id" wire:model.live="vehicles_id" wire:change="onVehicleChanged($event.target.value)" class="form-select bp-select-like-vehicle @error('vehicles_id') is-invalid @enderror" required>
+=======
+                                        <select id="vehicles_id" wire:model.live="vehicles_id" wire:change="onVehicleChanged($event.target.value)" class="form-control vehicle-log-select @error('vehicles_id') is-invalid @enderror" required>
+>>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                             <option value="">Seleccionar vehiculo...</option>
                                             @foreach ($vehicles as $vehicle)
                                             <option value="{{ $vehicle->id }}" data-km-actual="{{ $vehicle->kilometraje_actual ?? '' }}">{{ $vehicle->placa }}</option>
                                             @endforeach
                                         </select>
+                                        @if($vehicles->isEmpty())
+                                        <div class="form-text text-warning">No hay vehiculos con conductor asignado para la fecha seleccionada.</div>
+                                        @endif
                                         @error('vehicles_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
                                     </div>
                                     <div class="col-12 col-md-6">
-                                        <label for="drivers_id" class="form-label fw-bold">Conductor</label>
-                                        <select id="drivers_id" wire:model="drivers_id" class="form-select bp-select-like-vehicle">
-                                            <option value="">Sin conductor</option>
+                                        <label for="drivers_id" class="form-label fw-bold">Conductor <span class="text-danger">*</span></label>
+                                        <select id="drivers_id" wire:model="drivers_id" class="form-control vehicle-log-select @error('drivers_id') is-invalid @enderror" required>
+                                            <option value="">Seleccionar conductor...</option>
                                             @foreach ($drivers as $driver)
                                             <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
                                             @endforeach
                                         </select>
+                                        @error('drivers_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
                                     </div>
                                 </div>
 
                                 <div class="row g-3 mb-3">
                                     <div class="col-12 col-md-6">
                                         <label for="fecha" class="form-label fw-bold">Fecha <span class="text-danger">*</span></label>
-                                        <input type="date" id="fecha" wire:model="fecha" class="form-control @error('fecha') is-invalid @enderror" required>
+                                        <input type="date" id="fecha" wire:model="fecha" class="form-control @error('fecha') is-invalid @enderror" max="{{ now()->toDateString() }}" required>
                                         @error('fecha') <div class="invalid-feedback">{{ $message }}</div> @enderror
                                     </div>
                                     <div class="col-12 col-md-6">
@@ -366,9 +403,10 @@
                                         <input type="number" step="0.01" class="form-control bg-light" value="{{ $kilometraje_llegada ?? '' }}" readonly>
                                     </div>
                                     <div class="col-12 col-md-6">
-                                        <label for="odometro_photo" class="form-label fw-bold">Foto de odometro</label>
-                                        <input type="file" id="odometro_photo" wire:model="odometro_photo" class="form-control @error('odometro_photo') is-invalid @enderror" accept="image/*">
+                                        <label for="odometro_photo" class="form-label fw-bold">Foto de odometro <span class="text-danger">*</span></label>
+                                        <input type="file" id="odometro_photo" wire:model="odometro_photo" class="form-control @error('odometro_photo') is-invalid @enderror" accept="image/*" @if(!$isEdit || !$currentOdometroPhotoPath) required @endif>
                                         @error('odometro_photo') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                        <div class="form-text">Formatos de imagen permitidos. Tamano maximo: 5 MB.</div>
                                         <div class="d-flex align-items-center gap-2 mt-2">
                                             @if ($odometro_photo)
                                             <img src="{{ $odometro_photo->temporaryUrl() }}" alt="Vista previa odometro" class="odometro-thumb">
@@ -523,15 +561,21 @@
             <div class="row g-2 mb-3">
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold mb-1">Fecha desde</label>
-                    <input type="date" wire:model.live="fecha_desde" class="form-control">
+                    <input type="date" wire:model.live="fecha_desde" class="form-control @error('fecha_desde') is-invalid @enderror" max="{{ now()->toDateString() }}">
+                    @error('fecha_desde') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold mb-1">Fecha hasta</label>
-                    <input type="date" wire:model.live="fecha_hasta" class="form-control">
+                    <input type="date" wire:model.live="fecha_hasta" class="form-control @error('fecha_hasta') is-invalid @enderror" max="{{ now()->toDateString() }}">
+                    @error('fecha_hasta') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold mb-1">Vehiculo</label>
+<<<<<<< HEAD
                     <select wire:model.live="vehicle_filter_id" class="form-select bp-select-like-vehicle">
+=======
+                    <select wire:model.live="vehicle_filter_id" class="form-control vehicle-log-select">
+>>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                         <option value="">Todos los vehiculos</option>
                         @foreach($vehicles as $vehicle)
                         <option value="{{ $vehicle->id }}">{{ $vehicle->placa }}</option>
@@ -540,7 +584,11 @@
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold mb-1">Conductor</label>
+<<<<<<< HEAD
                     <select wire:model.live="driver_filter_id" class="form-select bp-select-like-vehicle">
+=======
+                    <select wire:model.live="driver_filter_id" class="form-control vehicle-log-select">
+>>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                         <option value="">Todos los conductores</option>
                         @foreach($drivers as $driver)
                         <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
@@ -1934,7 +1982,11 @@
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label fw-bold">Accion</label>
+<<<<<<< HEAD
                             <select class="form-select bp-select-like-vehicle" id="vehicle-report-action">
+=======
+                            <select class="form-control vehicle-log-select" id="vehicle-report-action">
+>>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                 <option value="print_pdf">Imprimir PDF</option>
                                 <option value="download_pdf">Descargar PDF</option>
                                 <option value="download_excel">Descargar Excel</option>
@@ -1950,7 +2002,11 @@
                         </div>
                         <div class="col-12">
                             <label class="form-label fw-bold">Filtrar por</label>
+<<<<<<< HEAD
                             <select class="form-select bp-select-like-vehicle" id="vehicle-report-scope">
+=======
+                            <select class="form-control vehicle-log-select" id="vehicle-report-scope">
+>>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                 <option value="all">Todos los registros</option>
                                 <option value="vehicle" {{ $vehicle_filter_id ? 'selected' : '' }}>Vehiculo especifico</option>
                                 <option value="driver" {{ !$vehicle_filter_id && $driver_filter_id ? 'selected' : '' }}>Conductor especifico</option>
@@ -1958,7 +2014,11 @@
                         </div>
                         <div class="col-12" id="vehicle-report-vehicle-wrap">
                             <label class="form-label fw-bold">Vehiculo</label>
+<<<<<<< HEAD
                             <select class="form-select bp-select-like-vehicle" id="vehicle-report-vehicle-id">
+=======
+                            <select class="form-control vehicle-log-select" id="vehicle-report-vehicle-id">
+>>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                 <option value="">Todos los vehiculos</option>
                                 @foreach($vehicles as $vehicle)
                                 <option value="{{ $vehicle->id }}" {{ (int) $vehicle_filter_id === (int) $vehicle->id ? 'selected' : '' }}>{{ $vehicle->placa }}</option>
@@ -1967,7 +2027,11 @@
                         </div>
                         <div class="col-12" id="vehicle-report-driver-wrap">
                             <label class="form-label fw-bold">Conductor</label>
+<<<<<<< HEAD
                             <select class="form-select bp-select-like-vehicle" id="vehicle-report-driver-id">
+=======
+                            <select class="form-control vehicle-log-select" id="vehicle-report-driver-id">
+>>>>>>> 67f776a39e9353cf44f87756a41c9f44de159b32
                                 <option value="">Todos los conductores</option>
                                 @foreach($drivers as $driver)
                                 <option value="{{ $driver->id }}" {{ (int) $driver_filter_id === (int) $driver->id ? 'selected' : '' }}>{{ $driver->nombre }}</option>

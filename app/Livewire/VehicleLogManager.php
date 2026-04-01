@@ -107,12 +107,14 @@ class VehicleLogManager extends Component
             }
         }
 
-        if ($this->fecha_desde) {
-            $query->whereDate('fecha', '>=', $this->fecha_desde);
+        [$fechaDesde, $fechaHasta] = $this->resolveOrderedFilterDateRange();
+
+        if ($fechaDesde) {
+            $query->whereDate('fecha', '>=', $fechaDesde);
         }
 
-        if ($this->fecha_hasta) {
-            $query->whereDate('fecha', '<=', $this->fecha_hasta);
+        if ($fechaHasta) {
+            $query->whereDate('fecha', '<=', $fechaHasta);
         }
 
         if ($this->vehicle_filter_id) {
@@ -196,14 +198,14 @@ class VehicleLogManager extends Component
                 ->get(['id', 'nombre']);
         }
 
-        if ($this->vehicles_id && !$vehicles->contains('id', $this->vehicles_id)) {
+        if ($this->isEdit && $this->vehicles_id && !$vehicles->contains('id', $this->vehicles_id)) {
             $selectedVehicle = Vehicle::withTrashed()->find($this->vehicles_id);
             if ($selectedVehicle) {
                 $vehicles->push($selectedVehicle);
             }
         }
 
-        if ($this->drivers_id && !$drivers->contains('id', $this->drivers_id)) {
+        if ($this->isEdit && $this->drivers_id && !$drivers->contains('id', $this->drivers_id)) {
             $selectedDriver = Driver::withTrashed()->find($this->drivers_id);
             if ($selectedDriver) {
                 $drivers->push($selectedDriver);
@@ -244,35 +246,58 @@ class VehicleLogManager extends Component
             }
 
             $this->drivers_id = $driverId;
-            $assignmentDate = $this->resolveAssignmentDate();
-
-            $isAssigned = VehicleAssignment::query()
-                ->where('driver_id', $driverId)
-                ->where('vehicle_id', $this->vehicles_id)
-                ->where('activo', true)
-                ->where(function ($q) use ($assignmentDate) {
-                    $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
-                })
-                ->where(function ($q) use ($assignmentDate) {
-                    $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
-                })
-                ->exists();
-
-            if (!$isAssigned) {
-                $this->addError('vehicles_id', 'Solo puede registrar bitacora para su vehiculo asignado.');
-                return;
-            }
         }
 
-        $this->validate([
-            'vehicles_id' => 'required|integer|exists:vehicles,id',
-            'fecha' => 'required|date',
-            'kilometraje_salida' => 'required|numeric|min:0',
-            'kilometraje_recorrido' => 'required|numeric|min:0',
-            'recorrido_inicio' => 'required|string|max:255',
-            'recorrido_destino' => 'required|string|max:255',
-            'odometro_photo' => 'nullable|image|max:5120',
-        ]);
+        $odometroPhotoRules = ['image', 'max:5120'];
+        if (!$this->isEdit || empty($this->currentOdometroPhotoPath)) {
+            array_unshift($odometroPhotoRules, 'required');
+        } else {
+            array_unshift($odometroPhotoRules, 'nullable');
+        }
+
+        $this->validate(
+            [
+                'vehicles_id' => ['required', 'integer', 'min:1', 'exists:vehicles,id'],
+                'drivers_id' => ['required', 'integer', 'min:1', 'exists:drivers,id'],
+                'fecha' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+                'kilometraje_salida' => ['required', 'numeric', 'min:0'],
+                'kilometraje_recorrido' => ['required', 'numeric', 'min:0'],
+                'recorrido_inicio' => ['required', 'string', 'max:255'],
+                'recorrido_destino' => ['required', 'string', 'max:255', 'different:recorrido_inicio'],
+                'odometro_photo' => $odometroPhotoRules,
+            ],
+            [
+                'vehicles_id.required' => 'Debe seleccionar un vehiculo.',
+                'vehicles_id.integer' => 'El vehiculo seleccionado no es valido.',
+                'vehicles_id.min' => 'Debe seleccionar un vehiculo valido.',
+                'vehicles_id.exists' => 'El vehiculo seleccionado no existe.',
+                'drivers_id.required' => 'Debe seleccionar un conductor.',
+                'drivers_id.integer' => 'El conductor seleccionado no es valido.',
+                'drivers_id.min' => 'Debe seleccionar un conductor valido.',
+                'drivers_id.exists' => 'El conductor seleccionado no existe.',
+                'fecha.required' => 'La fecha es obligatoria.',
+                'fecha.date_format' => 'La fecha debe tener el formato AAAA-MM-DD.',
+                'fecha.before_or_equal' => 'La fecha no puede ser mayor a hoy.',
+                'kilometraje_salida.required' => 'El kilometraje de salida es obligatorio.',
+                'kilometraje_salida.numeric' => 'El kilometraje de salida debe ser numerico.',
+                'kilometraje_salida.min' => 'El kilometraje de salida no puede ser negativo.',
+                'kilometraje_recorrido.required' => 'El kilometraje recorrido es obligatorio.',
+                'kilometraje_recorrido.numeric' => 'El kilometraje recorrido debe ser numerico.',
+                'kilometraje_recorrido.min' => 'El kilometraje recorrido no puede ser negativo.',
+                'recorrido_inicio.required' => 'El recorrido de inicio es obligatorio.',
+                'recorrido_inicio.max' => 'El recorrido de inicio no puede superar los 255 caracteres.',
+                'recorrido_destino.required' => 'El recorrido de destino es obligatorio.',
+                'recorrido_destino.max' => 'El recorrido de destino no puede superar los 255 caracteres.',
+                'recorrido_destino.different' => 'El destino debe ser diferente del inicio.',
+                'odometro_photo.required' => 'La foto de odometro es obligatoria.',
+                'odometro_photo.image' => 'La foto de odometro debe ser una imagen valida.',
+                'odometro_photo.max' => 'La foto de odometro no puede superar 5 MB.',
+            ]
+        );
+
+        if (!$this->ensureVehicleHasAssignedDriverForDate()) {
+            return;
+        }
 
         $vehicle = Vehicle::query()->find($this->vehicles_id);
         $blockReason = MaintenanceAlertService::resolveVehicleLogBlockReason($vehicle);
@@ -430,11 +455,13 @@ class VehicleLogManager extends Component
 
     public function updatedFechaDesde(): void
     {
+        $this->validateFilterDateRange();
         $this->resetPage();
     }
 
     public function updatedFechaHasta(): void
     {
+        $this->validateFilterDateRange();
         $this->resetPage();
     }
 
@@ -459,6 +486,7 @@ class VehicleLogManager extends Component
         $today = now()->toDateString();
         $this->fecha_desde = $today;
         $this->fecha_hasta = $today;
+        $this->resetValidation(['fecha_desde', 'fecha_hasta']);
         $this->vehicle_filter_id = null;
         $this->driver_filter_id = $this->currentUser()?->role === 'conductor'
             ? (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0) ?: null
@@ -611,6 +639,102 @@ class VehicleLogManager extends Component
             return Carbon::parse($this->fecha)->toDateString();
         } catch (\Throwable) {
             return now()->toDateString();
+        }
+    }
+
+    private function ensureVehicleHasAssignedDriverForDate(): bool
+    {
+        $vehicleId = (int) ($this->vehicles_id ?? 0);
+        $driverId = (int) ($this->drivers_id ?? 0);
+
+        if ($vehicleId <= 0 || $driverId <= 0) {
+            return true;
+        }
+
+        $assignmentDate = $this->resolveAssignmentDate();
+
+        $vehicleHasAssignedDriver = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->whereNotNull('driver_id')
+            ->where('activo', true)
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
+            })
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
+            })
+            ->exists();
+
+        if (!$vehicleHasAssignedDriver) {
+            $this->addError('vehicles_id', 'El vehiculo seleccionado no tiene un conductor asignado para la fecha indicada.');
+            return false;
+        }
+
+        $pairAssignmentExists = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where('driver_id', $driverId)
+            ->where('activo', true)
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
+            })
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
+            })
+            ->exists();
+
+        if (!$pairAssignmentExists) {
+            if ($this->currentUser()?->role === 'conductor') {
+                $this->addError('vehicles_id', 'Solo puede registrar bitacora para su vehiculo asignado.');
+                return false;
+            }
+
+            $this->addError('drivers_id', 'El conductor seleccionado no tiene asignado este vehiculo en la fecha indicada.');
+            return false;
+        }
+
+        return true;
+    }
+
+    private function validateFilterDateRange(): void
+    {
+        $desde = $this->toDateStringOrNull($this->fecha_desde);
+        $hasta = $this->toDateStringOrNull($this->fecha_hasta);
+
+        if (!$desde || !$hasta) {
+            $this->resetValidation('fecha_hasta');
+            return;
+        }
+
+        if ($desde > $hasta) {
+            $this->addError('fecha_hasta', 'La fecha hasta no puede ser menor que la fecha desde.');
+            return;
+        }
+
+        $this->resetValidation('fecha_hasta');
+    }
+
+    private function resolveOrderedFilterDateRange(): array
+    {
+        $desde = $this->toDateStringOrNull($this->fecha_desde);
+        $hasta = $this->toDateStringOrNull($this->fecha_hasta);
+
+        if ($desde && $hasta && $desde > $hasta) {
+            return [$hasta, $desde];
+        }
+
+        return [$desde, $hasta];
+    }
+
+    private function toDateStringOrNull(?string $value): ?string
+    {
+        if (!filled($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $value)->toDateString();
+        } catch (\Throwable) {
+            return null;
         }
     }
 
