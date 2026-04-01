@@ -120,46 +120,85 @@ class EventosTabla extends Component
     {
         $q = trim((string) $this->searchQuery);
         $table = $this->tableName();
+        $supportsClienteId = $this->supportsClienteId();
+        $contratoBuscado = null;
 
-        $registros = DB::table($table . ' as t')
+        $registrosQuery = DB::table($table . ' as t')
             ->leftJoin('eventos as e', 'e.id', '=', 't.evento_id')
             ->leftJoin('users as u', 'u.id', '=', 't.user_id')
-            ->leftJoin('clientes as c', 'c.id', '=', 't.cliente_id')
             ->select([
                 't.id',
                 't.codigo',
                 't.evento_id',
                 't.user_id',
-                't.cliente_id',
                 't.created_at',
                 'e.nombre_evento as evento_nombre',
                 'u.name as usuario_nombre',
-                DB::raw("COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(c.name), '')) as actor_nombre"),
-                'c.name as cliente_nombre',
             ])
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($sub) use ($q) {
+            ->when($q !== '', function ($query) use ($q, $supportsClienteId) {
+                $query->where(function ($sub) use ($q, $supportsClienteId) {
                     $sub->where('t.codigo', 'ILIKE', '%' . $q . '%')
                         ->orWhere('e.nombre_evento', 'ILIKE', '%' . $q . '%')
-                        ->orWhere('u.name', 'ILIKE', '%' . $q . '%')
-                        ->orWhere('c.name', 'ILIKE', '%' . $q . '%');
+                        ->orWhere('u.name', 'ILIKE', '%' . $q . '%');
+
+                    if ($supportsClienteId) {
+                        $sub->orWhere('c.name', 'ILIKE', '%' . $q . '%');
+                    }
                 });
-            })
+            });
+
+        if ($supportsClienteId) {
+            $registrosQuery
+                ->leftJoin('clientes as c', 'c.id', '=', 't.cliente_id')
+                ->addSelect([
+                    't.cliente_id',
+                    DB::raw("COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(c.name), '')) as actor_nombre"),
+                    'c.name as cliente_nombre',
+                ]);
+        }
+
+        $registros = $registrosQuery
             ->orderByDesc('t.id')
             ->paginate(100);
+
+        if ($this->tipo === 'contrato' && $q !== '') {
+            $contratoBuscado = DB::table('paquetes_contrato as p')
+                ->leftJoin('empresa as emp', 'emp.id', '=', 'p.empresa_id')
+                ->select([
+                    'p.id',
+                    'p.codigo',
+                    'p.cod_especial',
+                    'p.nombre_r',
+                    'p.nombre_d',
+                    'p.destino',
+                    'p.telefono_d',
+                    'p.imagen',
+                    'p.updated_at',
+                    'emp.nombre as empresa_nombre',
+                    'emp.sigla as empresa_sigla',
+                ])
+                ->where(function ($query) use ($q) {
+                    $query->where('p.codigo', 'ILIKE', '%' . $q . '%')
+                        ->orWhere('p.cod_especial', 'ILIKE', '%' . $q . '%');
+                })
+                ->orderByRaw('CASE WHEN upper(trim(p.codigo)) = upper(trim(?)) THEN 0 ELSE 1 END', [$q])
+                ->orderByDesc('p.updated_at')
+                ->first();
+        }
 
         return view('livewire.eventos-tabla', [
             'registros' => $registros,
             'eventos' => DB::table('eventos')->orderBy('nombre_evento')->get(['id', 'nombre_evento']),
             'users' => DB::table('users')->orderBy('name')->get(['id', 'name']),
-            'clientes' => $this->supportsClienteId()
+            'clientes' => $supportsClienteId
                 ? DB::table('clientes')->orderBy('name')->get(['id', 'name'])
                 : collect(),
             'config' => $this->pageConfig(),
             'canEventosCreate' => $this->userCan($this->featurePermission('create')),
             'canEventosEdit' => $this->userCan($this->featurePermission('edit')),
             'canEventosDelete' => $this->userCan($this->featurePermission('delete')),
-            'supportsClienteId' => $this->supportsClienteId(),
+            'supportsClienteId' => $supportsClienteId,
+            'contratoBuscado' => $contratoBuscado,
         ]);
     }
 

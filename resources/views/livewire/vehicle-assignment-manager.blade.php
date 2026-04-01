@@ -7,6 +7,26 @@
         .modal-backdrop.show.vehicle-reassign-backdrop {
             z-index: 1090;
         }
+        .assignment-form-select {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+        .assignment-form-select:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+        select.assignment-form-select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center gap-2">
@@ -26,6 +46,12 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
+    @if (session()->has('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
 
     @if($showForm)
         <div class="bp-gestiones-form-overlay">
@@ -41,7 +67,7 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Conductor <span class="text-danger">*</span></label>
-                            <select wire:model="driver_id" class="form-select @error('driver_id') is-invalid @enderror">
+                            <select wire:model="driver_id" class="form-control assignment-form-select @error('driver_id') is-invalid @enderror" required>
                                 <option value="0">Seleccionar conductor</option>
                                 @foreach ($drivers as $driver)
                                     <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
@@ -51,7 +77,7 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Vehiculo <span class="text-danger">*</span></label>
-                            <select wire:model="vehicle_id" class="form-select @error('vehicle_id') is-invalid @enderror">
+                            <select wire:model="vehicle_id" class="form-control assignment-form-select @error('vehicle_id') is-invalid @enderror" required>
                                 <option value="0">Seleccionar vehiculo</option>
                                 @foreach ($vehicles as $vehicle)
                                     <option value="{{ $vehicle->id }}">
@@ -59,6 +85,9 @@
                                     </option>
                                 @endforeach
                             </select>
+                            @if($vehicles->isEmpty())
+                                <div class="form-text text-warning">No hay vehiculos libres para asignar en la fecha seleccionada.</div>
+                            @endif
                             @error('vehicle_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
                             @if($isEdit)
                                 <div class="form-text">
@@ -67,15 +96,21 @@
                             @endif
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">Tipo de Asignacion</label>
-                            <select wire:model="tipo_asignacion" class="form-select">
+                            <label class="form-label fw-bold">Tipo de Asignacion <span class="text-danger">*</span></label>
+                            <select wire:model="tipo_asignacion" class="form-control assignment-form-select @error('tipo_asignacion') is-invalid @enderror" required>
                                 <option value="Fijo">Fijo</option>
                                 <option value="Temporal">Temporal/Prestamo</option>
                             </select>
+                            @error('tipo_asignacion') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Fecha Inicio <span class="text-danger">*</span></label>
-                            <input type="date" wire:model="fecha_inicio" class="form-control @error('fecha_inicio') is-invalid @enderror">
+                            <input
+                                type="date"
+                                wire:model="fecha_inicio"
+                                class="form-control @error('fecha_inicio') is-invalid @enderror"
+                                required
+                                @if(!$isEdit) min="{{ now()->toDateString() }}" @endif>
                             @error('fecha_inicio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
@@ -85,7 +120,12 @@
                                     <span class="text-danger">*</span>
                                 @endif
                             </label>
-                            <input type="date" wire:model="fecha_fin" class="form-control @error('fecha_fin') is-invalid @enderror">
+                            <input
+                                type="date"
+                                wire:model="fecha_fin"
+                                class="form-control @error('fecha_fin') is-invalid @enderror"
+                                min="{{ $fecha_inicio ?: now()->toDateString() }}"
+                                @if($tipo_asignacion === 'Temporal') required @endif>
                             @error('fecha_fin') <div class="invalid-feedback">{{ $message }}</div> @enderror
                             @if($tipo_asignacion === 'Temporal')
                                 <div class="form-text">Las asignaciones temporales deben indicar hasta cuando estaran vigentes.</div>
@@ -232,7 +272,14 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Confirmar cambio de asignacion</h5>
-                    <button type="button" wire:click="closeReassignConfirm" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button
+                        type="button"
+                        wire:click="closeReassignConfirm"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        data-dismiss="modal"
+                        onclick="window.__closeVehicleReassignModal?.()"
+                        aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <p class="mb-2">Este vehiculo ya tiene una asignacion activa. Quieres cambiar a la persona que lo tiene asignado?</p>
@@ -253,7 +300,13 @@
                     @endif
                 </div>
                 <div class="modal-footer">
-                    <button type="button" wire:click="cancelReassignment" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+                    <button
+                        type="button"
+                        wire:click="cancelReassignment"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal"
+                        data-dismiss="modal"
+                        onclick="window.__closeVehicleReassignModal?.()">No</button>
                     <button type="button" wire:click="confirmReassignment" class="btn btn-primary">
                         Si, cambiar asignacion
                     </button>
@@ -266,6 +319,9 @@
 @script
 <script>
     (function () {
+        if (window.__vehicleAssignmentModalHandlersInitialized) return;
+        window.__vehicleAssignmentModalHandlersInitialized = true;
+
         function getVehicleReassignModalElement() {
             return document.getElementById('vehicleReassignModal');
         }
@@ -316,6 +372,29 @@
             markLatestBackdrop();
         }
 
+        function closeVehicleReassignModal() {
+            const modal = getVehicleReassignModal();
+            if (modal) modal.hide();
+
+            const modalEl = getVehicleReassignModalElement();
+            if (modalEl) {
+                modalEl.classList.remove('show');
+                modalEl.style.display = 'none';
+                modalEl.setAttribute('aria-hidden', 'true');
+                modalEl.removeAttribute('aria-modal');
+            }
+
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
+
+            document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
+                backdrop.remove();
+            });
+        }
+
+        window.__closeVehicleReassignModal = closeVehicleReassignModal;
+
         $wire.on('openVehicleReassignModal', () => {
             const modal = getVehicleReassignModal();
             if (!modal) return;
@@ -326,12 +405,7 @@
         });
 
         $wire.on('closeVehicleReassignModal', () => {
-            const modal = getVehicleReassignModal();
-            if (modal) modal.hide();
-
-            document.querySelectorAll('.modal-backdrop.vehicle-reassign-backdrop').forEach((backdrop) => {
-                backdrop.classList.remove('vehicle-reassign-backdrop');
-            });
+            closeVehicleReassignModal();
         });
     })();
 </script>
