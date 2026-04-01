@@ -1,4 +1,27 @@
 <div>
+    <style>
+        .brand-form-field {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+        .brand-form-field:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+        select.brand-form-field {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
+    </style>
+
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
         <h1 class="h3 mb-0"><i class="fas fa-tags me-2 text-primary"></i>Marcas de Vehiculos</h1>
         @if(!$showForm)
@@ -24,17 +47,18 @@
                     <div class="row g-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Nombre *</label>
-                            <input type="text" wire:model="nombre" class="form-control @error('nombre') is-invalid @enderror" required>
+                            <input type="text" wire:model="nombre" class="form-control brand-form-field @error('nombre') is-invalid @enderror" required>
                             @error('nombre') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label fw-bold">Pais de Origen</label>
-                            <select wire:model="pais_origen" class="form-select">
+                            <label class="form-label fw-bold">Pais de Origen *</label>
+                            <select wire:model="pais_origen" class="form-control brand-form-field @error('pais_origen') is-invalid @enderror" required>
                                 <option value="">Seleccionar pais</option>
                                 @foreach($countryOptions as $country)
                                     <option value="{{ $country }}">{{ $country }}</option>
                                 @endforeach
                             </select>
+                            @error('pais_origen') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                     </div>
 
