@@ -473,6 +473,9 @@
                                         @if($workshop->maintenance_alert_id)
                                             <div class="small text-muted">Alerta #{{ $workshop->maintenance_alert_id }}</div>
                                         @endif
+                                        @if($workshop->maintenance_log_id)
+                                            <div class="small text-muted">Registro #{{ $workshop->maintenance_log_id }}</div>
+                                        @endif
                                     </td>
                                     <td>
                                         <div>{{ $workshop->vehicle?->display_name ?? 'N/A' }}</div>

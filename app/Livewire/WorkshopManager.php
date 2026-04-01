@@ -6,10 +6,13 @@ use App\Models\Driver;
 use App\Models\MaintenanceAlert;
 use App\Models\MaintenanceAppointment;
 use App\Models\MaintenanceLog;
+use App\Models\MaintenanceType;
 use App\Models\Vehicle;
 use App\Models\Workshop;
 use App\Models\WorkshopCatalog;
+use App\Services\MaintenanceAlertService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -729,6 +732,10 @@ class WorkshopManager extends Component
         }
 
         $this->syncVehicleOperationalStatus((int) $workshop->vehicle_id);
+
+        if ($workshop->isClosedState()) {
+            MaintenanceAlertService::evaluateVehicleByKilometraje((int) $workshop->vehicle_id);
+        }
     }
 
     private function syncVehicleOperationalStatus(int $vehicleId): void
@@ -758,4 +765,5 @@ class WorkshopManager extends Component
 
         return (string) $file->store($folder, 'public');
     }
+
 }

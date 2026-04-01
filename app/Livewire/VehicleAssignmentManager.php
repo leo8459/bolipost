@@ -119,7 +119,10 @@ class VehicleAssignmentManager extends Component
         $vehicles = Vehicle::query()
             ->where('activo', true)
             ->operationallyAvailable()
-            ->when(!empty($busyVehicleIds), fn ($q) => $q->whereNotIn('id', $busyVehicleIds))
+            ->when(
+                !$this->isEdit && !empty($busyVehicleIds),
+                fn ($q) => $q->whereNotIn('id', $busyVehicleIds)
+            )
             ->orderBy('placa')
             ->get();
 

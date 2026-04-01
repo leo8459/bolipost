@@ -903,6 +903,7 @@ class MapController extends Controller
             }
 
             $plate = trim((string) ($vehicle['placa'] ?? 'SIN PLACA'));
+            $driverName = trim((string) ($vehicle['driver_name'] ?? 'Sin conductor'));
             $currentStatus = strtoupper(trim((string) ($vehicle['current_status'] ?? $vehicle['last_point']['point_label'] ?? 'EN_RUTA')));
             $secondsSince = (int) ($vehicle['seconds_since_update'] ?? 0);
             $isStale = (bool) ($vehicle['is_stale'] ?? false);
@@ -979,13 +980,17 @@ class MapController extends Controller
                     'severity' => 'danger',
                     'status' => VehicleOperationAlert::STATUS_ACTIVE,
                     'title' => 'GPS apagado',
-                    'message' => sprintf('%s tiene el GPS apagado o los servicios de ubicacion deshabilitados.', $plate),
+                    'message' => sprintf(
+                        '%s con el vehiculo %s apago el GPS o deshabilito los servicios de ubicacion.',
+                        $driverName,
+                        $plate
+                    ),
                     'current_stage' => $currentStatus,
                     'last_heartbeat_at' => $heartbeatAt,
                     'detected_at' => now(),
                     'resolved_at' => null,
                     'meta_json' => [
-                        'driver_name' => $vehicle['driver_name'] ?? null,
+                        'driver_name' => $driverName,
                         'seconds_since_update' => $secondsSince,
                     ],
                 ];
@@ -999,13 +1004,17 @@ class MapController extends Controller
                     'severity' => 'danger',
                     'status' => VehicleOperationAlert::STATUS_ACTIVE,
                     'title' => 'GPS manipulado',
-                    'message' => sprintf('%s reporta ubicacion simulada o GPS manipulado.', $plate),
+                    'message' => sprintf(
+                        '%s con el vehiculo %s intento falsificar su ubicacion usando GPS manipulado o ubicacion simulada.',
+                        $driverName,
+                        $plate
+                    ),
                     'current_stage' => $currentStatus,
                     'last_heartbeat_at' => $heartbeatAt,
                     'detected_at' => now(),
                     'resolved_at' => null,
                     'meta_json' => [
-                        'driver_name' => $vehicle['driver_name'] ?? null,
+                        'driver_name' => $driverName,
                         'seconds_since_update' => $secondsSince,
                     ],
                 ];

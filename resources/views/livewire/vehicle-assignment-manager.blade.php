@@ -60,6 +60,11 @@
                                 @endforeach
                             </select>
                             @error('vehicle_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            @if($isEdit)
+                                <div class="form-text">
+                                    En edicion tambien puedes elegir un vehiculo ya asignado; al guardar se pedira confirmar el cambio de asignacion.
+                                </div>
+                            @endif
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Tipo de Asignacion</label>

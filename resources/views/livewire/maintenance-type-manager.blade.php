@@ -1,4 +1,29 @@
 <div>
+    <style>
+        .bp-select-like-vehicle {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+
+        .bp-select-like-vehicle:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+
+        select.bp-select-like-vehicle {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
+    </style>
+
     <div class="page-title mb-4 d-flex justify-content-between align-items-center gap-2">
         <h1 class="h3 mb-0">
             <i class="fas fa-wrench me-2 text-primary"></i>Gestion de Tipos de Mantenimiento
@@ -35,7 +60,7 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label for="maintenance_form_type" class="form-label fw-bold">Tipo de Vehiculo</label>
-                            <select id="maintenance_form_type" wire:model.live="maintenance_form_type" class="form-select @error('maintenance_form_type') is-invalid @enderror">
+                            <select id="maintenance_form_type" wire:model.live="maintenance_form_type" class="form-select bp-select-like-vehicle @error('maintenance_form_type') is-invalid @enderror">
                                 @foreach($maintenanceFormTypes as $formType)
                                     <option value="{{ $formType }}">{{ $formType === 'moto' ? 'Moto' : 'Vehiculo' }}</option>
                                 @endforeach
@@ -46,7 +71,7 @@
                             <label for="selected_vehicle_ids" class="form-label fw-bold">{{ $maintenance_form_type === 'moto' ? 'Motos especificas para este mantenimiento' : 'Vehiculos especificos para este mantenimiento' }}</label>
                             <div class="row g-2">
                                 <div class="col-12 col-md-6">
-                                    <select id="selected_vehicle_ids" wire:model="vehicle_to_add" class="form-select @error('vehicle_to_add') is-invalid @enderror">
+                                    <select id="selected_vehicle_ids" wire:model="vehicle_to_add" class="form-select bp-select-like-vehicle @error('vehicle_to_add') is-invalid @enderror">
                                         <option value="">{{ $maintenance_form_type === 'moto' ? 'Seleccionar moto para agregar' : 'Seleccionar vehiculo para agregar' }}</option>
                                         @foreach($vehicles as $vehicle)
                                             <option value="{{ $vehicle->id }}">{{ $vehicle->placa }}</option>

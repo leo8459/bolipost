@@ -211,13 +211,8 @@
                             @error('modelo') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
-<<<<<<< HEAD
-                            <label class="form-label fw-bold">Tipo Combustible *</label>
-                            <select wire:model="tipo_combustible" class="form-select @error('tipo_combustible') is-invalid @enderror" required>
-=======
                             <label class="form-label fw-bold">Tipo Combustible</label>
                             <select wire:model="tipo_combustible" class="form-control vehicle-form-field @error('tipo_combustible') is-invalid @enderror" required>
->>>>>>> 3709e5509fd3e61fa29bfd28ddcc74e4761897b0
                                 <option value="">Seleccionar tipo</option>
                                 @foreach($fuelTypes as $fuelType)
                                     <option value="{{ $fuelType }}">{{ ucfirst($fuelType) }}</option>
@@ -235,13 +230,8 @@
                             @error('maintenance_form_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
-<<<<<<< HEAD
-                            <label class="form-label fw-bold">Color *</label>
-                            <input type="text" wire:model="color" class="form-control @error('color') is-invalid @enderror" required>
-=======
                             <label class="form-label fw-bold">Color</label>
                             <input type="text" wire:model="color" class="form-control vehicle-form-field @error('color') is-invalid @enderror" required>
->>>>>>> 3709e5509fd3e61fa29bfd28ddcc74e4761897b0
                             @error('color') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
@@ -250,25 +240,14 @@
                             @error('anio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
-<<<<<<< HEAD
-                            <label class="form-label fw-bold">Kilometraje Inicial *</label>
-                            <input type="number" step="0.01" wire:model="kilometraje" class="form-control @error('kilometraje') is-invalid @enderror" required>
-                            @error('kilometraje') <div class="invalid-feedback">{{ $message }}</div> @enderror
-=======
                             <label class="form-label fw-bold">Kilometraje Inicial</label>
                             <input type="number" step="0.01" wire:model="kilometraje" class="form-control vehicle-form-field @error('kilometraje') is-invalid @enderror" required min="5">
->>>>>>> 3709e5509fd3e61fa29bfd28ddcc74e4761897b0
                             <div class="form-text">Si ingresa danado, el sistema guardara 0 al crear el vehiculo.</div>
                             @error('kilometraje') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
-<<<<<<< HEAD
-                            <label class="form-label fw-bold">Capacidad Tanque *</label>
-                            <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control @error('capacidad_tanque') is-invalid @enderror" required>
-=======
                             <label class="form-label fw-bold">Capacidad Tanque</label>
                             <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control vehicle-form-field @error('capacidad_tanque') is-invalid @enderror" required min="3" max="150">
->>>>>>> 3709e5509fd3e61fa29bfd28ddcc74e4761897b0
                             @error('capacidad_tanque') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12">

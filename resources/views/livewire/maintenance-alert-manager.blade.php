@@ -1,4 +1,29 @@
 <div>
+    <style>
+        .bp-select-like-vehicle {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+
+        .bp-select-like-vehicle:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+
+        select.bp-select-like-vehicle {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
+    </style>
+
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
         <h1 class="h3 mb-0">
             <i class="fas fa-bell me-2 text-danger"></i>Alertas de Mantenimiento
@@ -35,7 +60,7 @@
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold">Tipo</label>
-                    <select wire:model.live="filterTipo" class="form-select">
+                    <select wire:model.live="filterTipo" class="form-select bp-select-like-vehicle">
                         <option value="">Todos</option>
                         <option value="Preventivo">Preventivo</option>
                         <option value="Programado">Programado</option>
@@ -44,7 +69,7 @@
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold">Estado</label>
-                    <select wire:model.live="filterEstado" class="form-select">
+                    <select wire:model.live="filterEstado" class="form-select bp-select-like-vehicle">
                         <option value="todas">Todas</option>
                         <option value="activa">Activas</option>
                         <option value="resuelta">Resueltas</option>

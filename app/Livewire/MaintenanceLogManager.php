@@ -7,6 +7,7 @@ use App\Models\MaintenanceType;
 use App\Models\MaintenanceAlert;
 use App\Models\MaintenanceAppointment;
 use App\Models\Vehicle;
+use App\Models\Workshop;
 use App\Services\MaintenanceAlertService;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
@@ -53,7 +54,9 @@ class MaintenanceLogManager extends Component
     public ?int $editingMaintenanceId = null;
     public bool $showForm = false;
     public ?int $from_alert_id = null;
+    public ?int $from_workshop_id = null;
     public bool $manual_proximo_km = false;
+    public string $tableView = 'pending';
 
     public function mount(): void
     {
@@ -63,6 +66,12 @@ class MaintenanceLogManager extends Component
         if ($fromAlertId > 0) {
             $this->from_alert_id = $fromAlertId;
             $this->prefillFromAlert($fromAlertId);
+        }
+
+        $fromWorkshopId = request()->integer('from_workshop_id');
+        if ($fromWorkshopId > 0) {
+            $this->from_workshop_id = $fromWorkshopId;
+            $this->prefillFromWorkshop($fromWorkshopId);
         }
     }
 
@@ -90,16 +99,34 @@ class MaintenanceLogManager extends Component
         
         $vehicles = $this->loadAlertVehicles();
         $maintenanceTypes = $this->loadMaintenanceTypes();
+        $pendingWorkshopRecords = Workshop::query()
+            ->with(['vehicle.brand', 'workshopCatalog', 'maintenanceAlert.maintenanceType', 'maintenanceAppointment.tipoMantenimiento', 'maintenanceLog'])
+            ->where('estado', Workshop::STATUS_DELIVERED)
+            ->orderByDesc('fecha_salida')
+            ->orderByDesc('fecha_listo')
+            ->orderByDesc('id')
+            ->get();
 
         return view('livewire.maintenance-log-manager', [
             'maintenanceLogs' => $maintenanceLogs,
             'vehicles' => $vehicles,
             'maintenanceTypes' => $maintenanceTypes,
+            'pendingWorkshopRecords' => $pendingWorkshopRecords,
         ]);
     }
 
     public function updatedSearch(): void
     {
+        $this->resetPage();
+    }
+
+    public function setTableView(string $view): void
+    {
+        if (!in_array($view, ['pending', 'history'], true)) {
+            return;
+        }
+
+        $this->tableView = $view;
         $this->resetPage();
     }
 
@@ -157,7 +184,9 @@ class MaintenanceLogManager extends Component
             }
         }
 
-        if (!$this->hasAlertLinkedType()) {
+        $canUseExistingRecordFlow = $this->isEdit && (int) ($this->editingMaintenanceId ?? 0) > 0;
+
+        if (!$canUseExistingRecordFlow && !$this->hasAlertLinkedType() && !$this->hasWorkshopLinkedType()) {
             $this->addError('maintenance_type_id', 'El mantenimiento debe existir como alerta para el vehiculo seleccionado.');
             return;
         }
@@ -205,21 +234,30 @@ class MaintenanceLogManager extends Component
             $data['proximo_kilometraje'] = $targetKm;
         }
 
+        $savedMaintenance = null;
+
         if ($this->isEdit && $this->editingMaintenanceId) {
             $maintenance = MaintenanceLog::find($this->editingMaintenanceId);
             if ($maintenance) {
                 $maintenance->update($data);
+                $savedMaintenance = $maintenance->fresh();
                 $this->markResolvedAlertsAsRead();
                 $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
                 $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
                 session()->flash('message', 'Registro de mantenimiento actualizado correctamente.');
             }
         } else {
-            MaintenanceLog::create($data);
+            $savedMaintenance = MaintenanceLog::create($data);
             $this->markResolvedAlertsAsRead();
             $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
             $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
             session()->flash('message', 'Registro de mantenimiento creado correctamente.');
+        }
+
+        if ($savedMaintenance && (int) ($this->from_workshop_id ?? 0) > 0) {
+            Workshop::query()
+                ->whereKey((int) $this->from_workshop_id)
+                ->update(['maintenance_log_id' => (int) $savedMaintenance->id]);
         }
 
         $this->resetForm();
@@ -276,6 +314,7 @@ class MaintenanceLogManager extends Component
         $this->tipo = '';
         $this->maintenance_type_id = null;
         $this->from_alert_id = null;
+        $this->from_workshop_id = null;
         $this->manual_proximo_km = false;
         $this->cada_km = null;
         $this->intervalo_km_init = null;
@@ -433,7 +472,7 @@ class MaintenanceLogManager extends Component
             ->all();
         if (!empty($allowedTypeIds)) {
             $query->whereIn('id', $allowedTypeIds);
-        } elseif (($this->isEdit || $this->from_alert_id) && $this->maintenance_type_id) {
+        } elseif (($this->isEdit || $this->from_alert_id || $this->from_workshop_id) && $this->maintenance_type_id) {
             $query->whereKey((int) $this->maintenance_type_id);
         } else {
             return collect();
@@ -459,6 +498,21 @@ class MaintenanceLogManager extends Component
         if ($this->vehicle_id && !in_array((int) $this->vehicle_id, $vehicleIds, true)) {
             $vehicleIds[] = (int) $this->vehicle_id;
         }
+
+        $workshopVehicleIds = Workshop::query()
+            ->where('estado', Workshop::STATUS_DELIVERED)
+            ->whereNull('maintenance_log_id')
+            ->pluck('vehicle_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $vehicleIds = collect(array_merge($vehicleIds, $workshopVehicleIds))
+            ->unique()
+            ->values()
+            ->all();
 
         if (empty($vehicleIds)) {
             return collect();
@@ -486,6 +540,26 @@ class MaintenanceLogManager extends Component
                     ->orWhereHas('maintenanceAppointment', function ($qa) {
                         $qa->where('tipo_mantenimiento_id', (int) $this->maintenance_type_id);
                     });
+            })
+            ->exists();
+    }
+
+    private function hasWorkshopLinkedType(): bool
+    {
+        if (!(int) ($this->from_workshop_id ?? 0) || !$this->vehicle_id || !$this->maintenance_type_id) {
+            return false;
+        }
+
+        return Workshop::query()
+            ->whereKey((int) $this->from_workshop_id)
+            ->where('vehicle_id', (int) $this->vehicle_id)
+            ->where('estado', Workshop::STATUS_DELIVERED)
+            ->where(function ($q) {
+                $q->whereHas('maintenanceAlert', function ($qa) {
+                    $qa->where('maintenance_type_id', (int) $this->maintenance_type_id);
+                })->orWhereHas('maintenanceAppointment', function ($qa) {
+                    $qa->where('tipo_mantenimiento_id', (int) $this->maintenance_type_id);
+                });
             })
             ->exists();
     }
@@ -645,6 +719,88 @@ class MaintenanceLogManager extends Component
         $this->costo = 0;
         $this->descripcion = trim($this->descripcion) !== '' ? $this->descripcion : (string) ($alert->mensaje ?? '');
         $this->observaciones = 'Generado desde alerta #' . $alert->id . ' (' . optional($alert->created_at)->format('d/m/Y H:i') . ').';
+    }
+
+    public function registerFromWorkshop(int $workshopId): void
+    {
+        $workshop = Workshop::query()->find($workshopId);
+        if (!$workshop) {
+            return;
+        }
+
+        if ($workshop->maintenance_log_id) {
+            $maintenance = MaintenanceLog::query()->find((int) $workshop->maintenance_log_id);
+            if ($maintenance) {
+                $this->edit($maintenance);
+                return;
+            }
+        }
+
+        $this->prefillFromWorkshop($workshopId);
+    }
+
+    private function prefillFromWorkshop(int $workshopId): void
+    {
+        $workshop = Workshop::query()
+            ->with(['vehicle', 'maintenanceAlert.maintenanceType', 'maintenanceAppointment.tipoMantenimiento', 'workshopCatalog', 'partChanges'])
+            ->find($workshopId);
+
+        if (!$workshop || $workshop->estado !== Workshop::STATUS_DELIVERED) {
+            return;
+        }
+
+        $this->resetForm();
+        $this->showForm = true;
+        $this->from_workshop_id = (int) $workshop->id;
+        $this->vehicle_id = $workshop->vehicle_id ? (int) $workshop->vehicle_id : null;
+        $this->syncVehicleKilometrajeActual($this->vehicle_id);
+
+        $type = $workshop->maintenanceAlert?->maintenanceType ?? $workshop->maintenanceAppointment?->tipoMantenimiento;
+        if ($type) {
+            $this->maintenance_type_id = (int) $type->id;
+            $this->tipo = (string) $type->nombre;
+            $this->syncTypeIntervals($type);
+            $this->descripcion = (string) ($type->descripcion ?? '');
+        }
+
+        $this->fecha = optional($workshop->fecha_salida)->format('Y-m-d')
+            ?: optional($workshop->fecha_listo)->format('Y-m-d')
+            ?: now()->toDateString();
+        $this->costo = (float) ($workshop->total_cost ?? 0);
+        $this->kilometraje = $this->kilometraje_actual_vehiculo;
+        $this->taller = (string) ($workshop->workshopCatalog?->nombre ?? $workshop->nombre_taller ?? '');
+        $this->comprobante = (string) ($workshop->invoice_file_path ?? $workshop->receipt_file_path ?? '');
+
+        $partsText = $workshop->partChanges
+            ->map(function ($row) {
+                $descripcion = trim((string) ($row->descripcion ?? ''));
+                $nueva = trim((string) ($row->codigo_pieza_nueva ?? ''));
+                $antigua = trim((string) ($row->codigo_pieza_antigua ?? ''));
+
+                if ($descripcion !== '') {
+                    return $descripcion;
+                }
+
+                if ($nueva !== '' || $antigua !== '') {
+                    return trim(sprintf('Nueva: %s / Antigua: %s', $nueva !== '' ? $nueva : 'N/A', $antigua !== '' ? $antigua : 'N/A'));
+                }
+
+                return null;
+            })
+            ->filter()
+            ->implode(' | ');
+
+        $this->descripcion = collect([
+            trim((string) $this->descripcion),
+            trim((string) $workshop->diagnostico),
+            trim((string) $workshop->observaciones_tecnicas),
+            $partsText !== '' ? 'Repuestos: ' . $partsText : '',
+        ])->filter(fn ($value) => $value !== '')->implode(' || ');
+
+        $this->observaciones = collect([
+            'Generado desde orden de taller ' . ($workshop->order_number ?: ('#' . $workshop->id)) . '.',
+            trim((string) $workshop->observaciones),
+        ])->filter(fn ($value) => $value !== '')->implode(' ');
     }
 
     private function syncVehicleKilometrajeActual(?int $vehicleId): void

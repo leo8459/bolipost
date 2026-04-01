@@ -185,28 +185,6 @@ class DriverManager extends Component
         $this->telefono = $this->sanitizePhone($this->telefono);
         $this->email = $this->sanitizeEmailLocalPart($this->email);
 
-<<<<<<< HEAD
-        $this->validate([
-            'nombre' => ['required', 'string', 'max:255', 'regex:/^[\pL\pN\s\.\,\-\/\(\)]+$/u'],
-            'licencia' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9\-\s\/]+$/'],
-            'tipo_licencia' => ['nullable', Rule::in(self::LICENSE_TYPES)],
-            'fecha_vencimiento_licencia' => ['nullable', 'date'],
-            'telefono' => ['nullable', 'string', 'max:20', 'regex:/^[0-9]+$/'],
-            'email' => ['nullable', 'string', 'max:100', 'regex:/^[A-Za-z0-9._-]+$/'],
-            'user_id' => ['nullable', 'integer', 'exists:users,id'],
-            'activo' => ['boolean'],
-        ], [
-            'nombre.regex' => 'El nombre contiene caracteres no permitidos.',
-            'licencia.regex' => 'La licencia solo puede contener letras, numeros, espacios, guiones y diagonales.',
-            'telefono.regex' => 'El telefono solo puede contener numeros.',
-            'email.regex' => 'El correo solo puede contener letras, numeros, punto, guion y guion bajo.',
-        ]);
-        $this->validate([
-            'memorandum_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp',
-        ], [
-            'memorandum_file.mimes' => 'El memorandum debe ser un archivo PDF o una imagen valida.',
-        ]);
-=======
         $this->validate(
             [
                 'nombre' => ['required', 'string', 'max:255', 'regex:/^[\pL\pN\s\.\,\-\/\(\)]+$/u'],
@@ -247,7 +225,6 @@ class DriverManager extends Component
                 'activo.boolean' => 'El estado activo no es valido.',
             ]
         );
->>>>>>> 3709e5509fd3e61fa29bfd28ddcc74e4761897b0
 
         if (trim($this->memorandum_path) === '' && !$this->memorandum_file) {
             $this->addError('memorandum_file', 'El memorandum es obligatorio.');
