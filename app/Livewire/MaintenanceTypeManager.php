@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\MaintenanceType;
 use App\Models\Vehicle;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Validate;
@@ -102,6 +103,10 @@ class MaintenanceTypeManager extends Component
 
     public function updatedMaintenanceFormType(): void
     {
+        if (!in_array($this->maintenance_form_type, self::MAINTENANCE_FORM_TYPES, true)) {
+            $this->maintenance_form_type = 'vehiculo';
+        }
+
         $allowedVehicleIds = $this->filteredVehicles()
             ->pluck('id')
             ->map(fn ($id) => (string) $id)
@@ -117,14 +122,31 @@ class MaintenanceTypeManager extends Component
 
     public function addSelectedVehicle(): void
     {
+        $this->validate(
+            [
+                'vehicle_to_add' => ['required', 'integer', 'min:1', 'exists:vehicles,id'],
+            ],
+            [
+                'vehicle_to_add.required' => 'Debe seleccionar un vehiculo para agregar.',
+                'vehicle_to_add.integer' => 'El vehiculo seleccionado no es valido.',
+                'vehicle_to_add.min' => 'Debe seleccionar un vehiculo valido.',
+                'vehicle_to_add.exists' => 'El vehiculo seleccionado no existe.',
+            ]
+        );
+
         $vehicleId = (int) ($this->vehicle_to_add ?? 0);
-        if ($vehicleId <= 0) {
+        if ($vehicleId <= 0 || !in_array($this->maintenance_form_type, self::MAINTENANCE_FORM_TYPES, true)) {
             return;
         }
 
-        $exists = Vehicle::query()->whereKey($vehicleId)->exists();
-        if (!$exists) {
-            $this->addError('vehicle_to_add', 'El vehiculo seleccionado no existe.');
+        $allowedVehicleIds = $this->filteredVehicles()
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (!in_array($vehicleId, $allowedVehicleIds, true)) {
+            $entityLabel = $this->maintenance_form_type === 'moto' ? 'moto' : 'vehiculo';
+            $this->addError('vehicle_to_add', "El {$entityLabel} seleccionado no corresponde al tipo elegido o no esta activo.");
             return;
         }
 
@@ -146,11 +168,19 @@ class MaintenanceTypeManager extends Component
             ->map(fn ($id) => (string) $id)
             ->all();
 
+        if (empty($visibleVehicleIds)) {
+            $entityLabel = $this->maintenance_form_type === 'moto' ? 'motos' : 'vehiculos';
+            $this->addError('selected_vehicle_ids', "No hay {$entityLabel} disponibles para agregar en el tipo seleccionado.");
+            return;
+        }
+
         $this->selected_vehicle_ids = collect($this->selected_vehicle_ids)
             ->merge($visibleVehicleIds)
             ->unique()
             ->values()
             ->all();
+
+        $this->resetErrorBag('selected_vehicle_ids');
     }
 
     public function removeSelectedVehicle(int $vehicleId): void
@@ -169,17 +199,52 @@ class MaintenanceTypeManager extends Component
 
     public function save()
     {
-        $this->validate();
-        if (!in_array($this->maintenance_form_type, self::MAINTENANCE_FORM_TYPES, true)) {
-            $this->addError('maintenance_form_type', 'El tipo de vehiculo no es valido.');
-            return;
-        }
+        $this->nombre = trim((string) $this->nombre);
+        $this->descripcion = filled($this->descripcion) ? trim((string) $this->descripcion) : null;
+
+        $this->validate(
+            [
+                'nombre' => ['required', 'string', 'min:3', 'max:255'],
+                'maintenance_form_type' => ['required', 'string', Rule::in(self::MAINTENANCE_FORM_TYPES)],
+                'selected_vehicle_ids' => ['nullable', 'array'],
+                'selected_vehicle_ids.*' => ['integer', 'min:1', 'distinct', 'exists:vehicles,id'],
+                'es_preventivo' => ['required', 'boolean'],
+                'cada_km' => ['nullable', 'integer', 'min:1', 'max:1000000'],
+                'intervalo_km_init' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+                'intervalo_km_fh' => ['nullable', 'integer', 'min:0', 'max:1000000', 'gte:intervalo_km_init'],
+                'km_alerta_previa' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+                'descripcion' => ['nullable', 'string', 'max:500'],
+            ],
+            [
+                'nombre.required' => 'El nombre es obligatorio.',
+                'nombre.min' => 'El nombre debe tener al menos 3 caracteres.',
+                'nombre.max' => 'El nombre no puede superar los 255 caracteres.',
+                'maintenance_form_type.required' => 'Debe seleccionar el tipo de vehiculo.',
+                'maintenance_form_type.in' => 'El tipo de vehiculo seleccionado no es valido.',
+                'selected_vehicle_ids.array' => 'La lista de vehiculos seleccionados no es valida.',
+                'selected_vehicle_ids.*.integer' => 'Uno o mas vehiculos seleccionados no son validos.',
+                'selected_vehicle_ids.*.min' => 'Uno o mas vehiculos seleccionados no son validos.',
+                'selected_vehicle_ids.*.distinct' => 'Hay vehiculos duplicados en la lista seleccionada.',
+                'selected_vehicle_ids.*.exists' => 'Uno o mas vehiculos seleccionados no existen.',
+                'es_preventivo.required' => 'Debe indicar si el mantenimiento es preventivo.',
+                'es_preventivo.boolean' => 'El valor de mantenimiento preventivo no es valido.',
+                'cada_km.integer' => 'El campo Cada Cuantos KM debe ser un numero entero.',
+                'cada_km.min' => 'El campo Cada Cuantos KM debe ser mayor o igual a 1.',
+                'intervalo_km_init.integer' => 'El KM Inicio debe ser un numero entero.',
+                'intervalo_km_init.min' => 'El KM Inicio no puede ser negativo.',
+                'intervalo_km_fh.integer' => 'El KM Fin debe ser un numero entero.',
+                'intervalo_km_fh.min' => 'El KM Fin no puede ser negativo.',
+                'intervalo_km_fh.gte' => 'El KM Fin no puede ser menor al KM Inicio.',
+                'km_alerta_previa.integer' => 'La alerta previa debe ser un numero entero.',
+                'km_alerta_previa.min' => 'La alerta previa no puede ser negativa.',
+                'descripcion.max' => 'La descripcion no puede superar los 500 caracteres.',
+            ]
+        );
 
         $selectedVehicleIds = collect($this->selected_vehicle_ids)
             ->filter(fn ($id) => filled($id))
             ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
+            ->unique();
 
         if ($selectedVehicleIds->isNotEmpty()) {
             $validVehicleCount = Vehicle::query()->whereIn('id', $selectedVehicleIds->all())->count();
@@ -188,6 +253,41 @@ class MaintenanceTypeManager extends Component
                 return;
             }
         }
+
+        $allowedVehicleIds = $this->filteredVehicles()
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($selectedVehicleIds->isNotEmpty()) {
+            $invalidVehicleIds = $selectedVehicleIds
+                ->reject(fn ($id) => in_array((int) $id, $allowedVehicleIds, true))
+                ->values();
+
+            if ($invalidVehicleIds->isNotEmpty()) {
+                $entityLabel = $this->maintenance_form_type === 'moto' ? 'motos' : 'vehiculos';
+                $this->addError('selected_vehicle_ids', "Uno o mas {$entityLabel} no corresponden al tipo seleccionado o no estan activos.");
+                return;
+            }
+        }
+
+        if (
+            $this->cada_km === null &&
+            $this->intervalo_km_init === null &&
+            $this->intervalo_km_fh === null
+        ) {
+            $this->addError('cada_km', 'Debe registrar cada cuantos KM o definir un intervalo de KM.');
+            return;
+        }
+
+        $referenceKm = $this->cada_km ?? $this->intervalo_km_fh ?? $this->intervalo_km_init;
+        if ($referenceKm !== null && $this->km_alerta_previa !== null && $this->km_alerta_previa > $referenceKm) {
+            $this->addError('km_alerta_previa', 'La alerta previa no puede ser mayor al intervalo definido de KM.');
+            return;
+        }
+
+        $selectedVehicleIds = $selectedVehicleIds->values();
+        $this->selected_vehicle_ids = $selectedVehicleIds->map(fn ($id) => (string) $id)->all();
 
         if ($this->isEdit && $this->editingId) {
             $type = MaintenanceType::find($this->editingId);
