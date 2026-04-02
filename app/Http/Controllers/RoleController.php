@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Support\AclPermissionRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
@@ -12,6 +14,39 @@ class RoleController extends Controller
     public function index()
     {
         $roles = Role::withCount('permissions')->orderBy('name')->paginate(20);
+
+        $roleIds = $roles->getCollection()->pluck('id');
+
+        $assignedUsersByRole = DB::table(config('permission.table_names.model_has_roles'))
+            ->join('users', 'users.id', '=', 'model_has_roles.model_id')
+            ->whereIn('model_has_roles.role_id', $roleIds)
+            ->where('model_has_roles.model_type', User::class)
+            ->whereNull('users.deleted_at')
+            ->orderBy('users.name')
+            ->get([
+                'model_has_roles.role_id',
+                'users.id',
+                'users.name',
+                'users.email',
+            ])
+            ->groupBy('role_id');
+
+        $roles->setCollection(
+            $roles->getCollection()->map(function (Role $role) use ($assignedUsersByRole) {
+                $assignedUsers = collect($assignedUsersByRole->get($role->id, []))
+                    ->map(fn (object $user): array => [
+                        'id' => (int) $user->id,
+                        'name' => (string) $user->name,
+                        'email' => (string) $user->email,
+                    ])
+                    ->values();
+
+                $role->assigned_users = $assignedUsers;
+                $role->assigned_users_count = $assignedUsers->count();
+
+                return $role;
+            })
+        );
 
         return view('role.index', compact('roles'))
             ->with('i', (request()->input('page', 1) - 1) * $roles->perPage());

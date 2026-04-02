@@ -44,6 +44,7 @@
 
                                         <th>Rol</th>
                                         <th>Permisos</th>
+                                        <th>Usuarios</th>
 
                                         <th></th>
                                     </tr>
@@ -55,6 +56,16 @@
 
                                             <td>{{ $role->name }}</td>
                                             <td>{{ $role->permissions_count }}</td>
+                                            <td>
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-link btn-sm p-0"
+                                                    data-toggle="modal"
+                                                    data-target="#roleUsersModal{{ $role->id }}"
+                                                >
+                                                    {{ $role->assigned_users_count }}
+                                                </button>
+                                            </td>
 
                                             <td>
                                                 <div class="d-flex align-items-center" style="gap: .35rem;">
@@ -81,6 +92,56 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        @foreach ($roles as $role)
+                            <div class="modal fade" id="roleUsersModal{{ $role->id }}" tabindex="-1" role="dialog"
+                                aria-labelledby="roleUsersModalLabel{{ $role->id }}" aria-hidden="true">
+                                <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="roleUsersModalLabel{{ $role->id }}">
+                                                Usuarios asignados al rol: {{ $role->name }}
+                                            </h5>
+                                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                <span aria-hidden="true">&times;</span>
+                                            </button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p class="text-muted mb-3">
+                                                Total de usuarios asignados: {{ $role->assigned_users_count }}
+                                            </p>
+
+                                            @if ($role->assigned_users_count > 0)
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-striped mb-0">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>ID</th>
+                                                                <th>Nombre</th>
+                                                                <th>Email</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach ($role->assigned_users as $assignedUser)
+                                                                <tr>
+                                                                    <td>{{ $assignedUser['id'] }}</td>
+                                                                    <td>{{ $assignedUser['name'] }}</td>
+                                                                    <td>{{ $assignedUser['email'] }}</td>
+                                                                </tr>
+                                                            @endforeach
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            @else
+                                                <div class="alert alert-secondary mb-0">
+                                                    Este rol no tiene usuarios asignados.
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
                     </div>
                 </div>
                 {!! $roles->links() !!}
