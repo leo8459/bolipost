@@ -41,6 +41,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\AclController;
 use App\Http\Controllers\BitacoraController;
+use App\Http\Controllers\ClientRoleController;
+use App\Http\Controllers\ClientAccessController;
 use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\Web\FuelLogController;
 use App\Http\Controllers\Web\MaintenanceFileController;
@@ -84,39 +86,39 @@ Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
 Route::get('/hacer-envio-desde-casa', [PreregistroController::class, 'publicCreate'])->name('preregistros.public.create');
 Route::post('/hacer-envio-desde-casa', [PreregistroController::class, 'publicStore'])->name('preregistros.public.store');
 Route::get('/hacer-envio-desde-casa/{preregistro}/ticket', [PreregistroController::class, 'ticket'])->name('preregistros.public.ticket');
-Route::middleware(['auth'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
+Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'internal.only'])->group(function () {
     Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
     Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified', 'route.permission'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard');
 Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'])
-    ->middleware(['auth', 'verified', 'route.permission'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.export.excel');
 Route::get('/dashboard/export/pdf', [DashboardController::class, 'exportPdf'])
-    ->middleware(['auth', 'verified', 'route.permission'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.export.pdf');
 Route::get('/reportes', [ReportesController::class, 'index'])
-    ->middleware(['auth', 'verified', 'route.permission'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('reportes.index');
 Route::get('/reportes/{scope}', [ReportesController::class, 'show'])
-    ->middleware(['auth', 'verified', 'route.permission'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->where('scope', 'general|contrato|ems|certi|ordi')
     ->name('reportes.scope');
 Route::get('/reportes/{scope}/export/excel', [ReportesController::class, 'exportExcel'])
-    ->middleware(['auth', 'verified', 'route.permission'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->where('scope', 'general|contrato|ems|certi|ordi')
     ->name('reportes.export.excel');
 Route::get('/reportes/{scope}/export/pdf', [ReportesController::class, 'exportPdf'])
-    ->middleware(['auth', 'verified', 'route.permission'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->where('scope', 'general|contrato|ems|certi|ordi')
     ->name('reportes.export.pdf');
 
-Route::middleware(['auth', 'route.permission'])->group(function () {
+Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
@@ -140,6 +142,19 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/role/{role}/duplicate', [RoleController::class, 'duplicate'])->name('roles.duplicate');
     Route::put('/role/{role}', [RoleController::class, 'update'])->name('roles.update');
     Route::delete('/role/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
+
+    // Roles de clientes
+    Route::get('/cliente-roles', [ClientRoleController::class, 'index'])->name('client-roles.index');
+    Route::get('/cliente-roles/create', [ClientRoleController::class, 'create'])->name('client-roles.create');
+    Route::post('/cliente-roles', [ClientRoleController::class, 'store'])->name('client-roles.store');
+    Route::get('/cliente-roles/{clientRole}/edit', [ClientRoleController::class, 'edit'])->name('client-roles.edit');
+    Route::put('/cliente-roles/{clientRole}', [ClientRoleController::class, 'update'])->name('client-roles.update');
+    Route::delete('/cliente-roles/{clientRole}', [ClientRoleController::class, 'destroy'])->name('client-roles.destroy');
+
+    // Accesos de clientes
+    Route::get('/cliente-accesos', [ClientAccessController::class, 'index'])->name('client-access.index');
+    Route::get('/cliente-accesos/{cliente}/edit', [ClientAccessController::class, 'edit'])->name('client-access.edit');
+    Route::put('/cliente-accesos/{cliente}', [ClientAccessController::class, 'update'])->name('client-access.update');
 
     //Permisos
     Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');

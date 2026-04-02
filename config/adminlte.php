@@ -313,24 +313,28 @@ return [
         [
             'header' => 'CLIENTE',
             'can' => 'cliente-panel',
+            'context' => 'cliente',
         ],
         [
             'text' => 'Panel Cliente',
             'url' => 'clientes/dashboard',
             'icon' => 'fas fa-user-circle',
             'can' => 'cliente-panel',
+            'context' => 'cliente',
         ],
         [
             'text' => 'Nueva Solicitud',
             'url' => 'clientes/solicitudes/nueva',
             'icon' => 'fas fa-file-signature',
             'can' => 'cliente-panel',
+            'context' => 'cliente',
         ],
         [
             'text' => 'Mis Solicitudes',
             'url' => 'clientes/mis-solicitudes',
             'icon' => 'fas fa-folder-open',
             'can' => 'cliente-panel',
+            'context' => 'cliente',
         ],
         ['header' => 'SISTEMA DE INFORMACION'],
         [
@@ -935,6 +939,16 @@ return [
                             'icon' => 'fas fa-users-cog',
                         ],
                         [
+                            'text' => 'Roles Clientes',
+                            'url' => 'cliente-roles',
+                            'icon' => 'fas fa-user-shield',
+                        ],
+                        [
+                            'text' => 'Accesos Clientes',
+                            'url' => 'cliente-accesos',
+                            'icon' => 'fas fa-user-lock',
+                        ],
+                        [
                             'text' => 'Permisos',
                             'url' => 'permissions',
                             'icon' => 'fas fa-key',
@@ -996,6 +1010,7 @@ return [
     */
 
     'filters' => [
+        App\Menu\Filters\PanelContextFilter::class,
         App\Menu\Filters\RoutePermissionFilter::class,
         App\Menu\Filters\MaintenanceAlertBadgeFilter::class,
         JeroenNoten\LaravelAdminLte\Menu\Filters\GateFilter::class,

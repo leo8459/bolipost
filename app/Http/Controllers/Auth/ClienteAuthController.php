@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
+use App\Support\ClienteAclRoleManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Laravel\Socialite\Facades\Socialite;
+use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 
 class ClienteAuthController extends Controller
@@ -158,6 +160,15 @@ class ClienteAuthController extends Controller
 
         $cliente->forceFill($updates)->save();
 
+        ClienteAclRoleManager::sync();
+
+        if ($cliente->roles()->doesntExist()) {
+            $defaultRole = trim((string) ($cliente->rol ?: 'tiktokero'));
+            Role::findOrCreate($defaultRole, 'cliente');
+            $cliente->syncRoles([$defaultRole]);
+        }
+
+        Auth::guard('web')->logout();
         Auth::guard('cliente')->login($cliente, true);
         $request->session()->regenerate();
 

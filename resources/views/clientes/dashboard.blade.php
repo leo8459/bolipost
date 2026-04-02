@@ -6,7 +6,7 @@
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
         <div>
             <h1 class="m-0 text-dark">Panel de Cliente</h1>
-            <small class="text-muted">Acceso publico con rol {{ $cliente->rol }}</small>
+            <small class="text-muted">Acceso publico con rol {{ $cliente->getRoleNames()->implode(', ') ?: $cliente->rol }}</small>
         </div>
         <form method="POST" action="{{ route('clientes.logout') }}" class="mt-3 mt-md-0">
             @csrf
@@ -56,7 +56,7 @@
                         <div>
                             <h3 class="mb-1">{{ $cliente->name }}</h3>
                             <div class="text-muted">{{ $cliente->email }}</div>
-                            <span class="badge badge-primary mt-2">{{ strtoupper((string) $cliente->rol) }}</span>
+                            <span class="badge badge-primary mt-2">{{ strtoupper((string) ($cliente->getRoleNames()->implode(', ') ?: $cliente->rol)) }}</span>
                         </div>
                     </div>
 

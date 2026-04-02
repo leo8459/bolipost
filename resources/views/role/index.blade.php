@@ -43,6 +43,7 @@
                                         <th>No</th>
 
                                         <th>Rol</th>
+                                        <th>Guard</th>
                                         <th>Permisos</th>
                                         <th>Usuarios</th>
 
@@ -55,6 +56,11 @@
                                             <td>{{ ++$i }}</td>
 
                                             <td>{{ $role->name }}</td>
+                                            <td>
+                                                <span class="badge {{ $role->guard_name === 'web' ? 'badge-primary' : 'badge-secondary' }}">
+                                                    {{ $role->guard_name }}
+                                                </span>
+                                            </td>
                                             <td>{{ $role->permissions_count }}</td>
                                             <td>
                                                 <button
@@ -88,6 +94,7 @@
                                                             title="Eliminar"
                                                             data-role-name="{{ $role->name }}"
                                                             data-users-count="{{ $role->assigned_users_count }}"
+                                                            data-is-protected="{{ $role->name === config('acl.super_admin_role') ? '1' : '0' }}"
                                                         ><i
                                                                 class="fa fa-fw fa-trash"></i></button>
                                                     </form>
@@ -166,11 +173,39 @@
                                             Este rol tiene usuarios asignados y no puede eliminarse.
                                         </p>
                                         <p class="text-muted mb-0">
-                                            Primero debes quitar ese rol a los usuarios asignados y luego volver a intentarlo.
+                                            Revisa el motivo indicado y luego vuelve a intentarlo.
                                         </p>
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal fade" id="roleDeleteConfirmModal" tabindex="-1" role="dialog"
+                            aria-labelledby="roleDeleteConfirmModalLabel" aria-hidden="true">
+                            <div class="modal-dialog" role="document">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="roleDeleteConfirmModalLabel">
+                                            Confirmar eliminacion
+                                        </h5>
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p class="mb-2" id="roleDeleteConfirmMessage">
+                                            Estas seguro de que quieres eliminar este rol?
+                                        </p>
+                                        <p class="text-muted mb-0">
+                                            Esta accion eliminara el rol y sus permisos asociados.
+                                        </p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                                        <button type="button" class="btn btn-danger" id="confirmRoleDeleteBtn">Si, eliminar</button>
                                     </div>
                                 </div>
                             </div>
@@ -187,13 +222,37 @@
         document.addEventListener('DOMContentLoaded', function () {
             const deleteButtons = Array.from(document.querySelectorAll('.js-role-delete-btn'));
             const blockedMessage = document.getElementById('roleDeleteBlockedMessage');
+            const confirmMessage = document.getElementById('roleDeleteConfirmMessage');
+            const confirmDeleteButton = document.getElementById('confirmRoleDeleteBtn');
+            let pendingDeleteForm = null;
 
             deleteButtons.forEach((button) => {
                 button.addEventListener('click', function (event) {
                     const usersCount = Number(button.dataset.usersCount || 0);
                     const roleName = button.dataset.roleName || 'este rol';
+                    const isProtected = button.dataset.isProtected === '1';
+                    const deleteForm = button.closest('form');
+
+                    if (isProtected) {
+                        event.preventDefault();
+
+                        if (blockedMessage) {
+                            blockedMessage.textContent = 'El rol "' + roleName + '" es el super administrador y no puede eliminarse.';
+                        }
+
+                        $('#roleDeleteBlockedModal').modal('show');
+                        return;
+                    }
 
                     if (usersCount <= 0) {
+                        event.preventDefault();
+                        pendingDeleteForm = deleteForm;
+
+                        if (confirmMessage) {
+                            confirmMessage.textContent = 'Estas seguro de que quieres eliminar el rol "' + roleName + '"?';
+                        }
+
+                        $('#roleDeleteConfirmModal').modal('show');
                         return;
                     }
 
@@ -206,6 +265,17 @@
                     $('#roleDeleteBlockedModal').modal('show');
                 });
             });
+
+            if (confirmDeleteButton) {
+                confirmDeleteButton.addEventListener('click', function () {
+                    if (!pendingDeleteForm) {
+                        return;
+                    }
+
+                    $('#roleDeleteConfirmModal').modal('hide');
+                    pendingDeleteForm.submit();
+                });
+            }
         });
     </script>
 @endsection

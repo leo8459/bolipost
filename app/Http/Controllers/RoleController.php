@@ -13,7 +13,11 @@ class RoleController extends Controller
 {
     public function index()
     {
-        $roles = Role::withCount('permissions')->orderBy('name')->paginate(20);
+        $roles = Role::query()
+            ->where('guard_name', 'web')
+            ->withCount('permissions')
+            ->orderBy('name')
+            ->paginate(20);
 
         $roleIds = $roles->getCollection()->pluck('id');
 
@@ -69,7 +73,12 @@ class RoleController extends Controller
         AclPermissionRegistry::syncPermissions('web');
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:roles,name',
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('roles')->where(fn ($query) => $query->where('guard_name', 'web')),
+            ],
             'permissions' => 'nullable|array',
             'permissions.*' => 'string|exists:permissions,name',
         ]);
@@ -95,6 +104,12 @@ class RoleController extends Controller
     public function edit($id)
     {
         $role = Role::findOrFail($id);
+
+        if ($role->guard_name !== 'web') {
+            return redirect()->route('roles.index')
+                ->with('warning', 'Este modulo solo administra roles internos del guard web.');
+        }
+
         $guardName = $role->guard_name ?: 'web';
         AclPermissionRegistry::syncPermissions($guardName);
 
@@ -107,6 +122,11 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role)
     {
+        if ($role->guard_name !== 'web') {
+            return redirect()->route('roles.index')
+                ->with('warning', 'Este modulo solo administra roles internos del guard web.');
+        }
+
         AclPermissionRegistry::syncPermissions($role->guard_name ?: 'web');
 
         $validated = $request->validate([
@@ -114,7 +134,9 @@ class RoleController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('roles')->ignore($role->id),
+                Rule::unique('roles')
+                    ->where(fn ($query) => $query->where('guard_name', 'web'))
+                    ->ignore($role->id),
             ],
             'permissions' => 'nullable|array',
             'permissions.*' => 'string|exists:permissions,name',
@@ -132,13 +154,18 @@ class RoleController extends Controller
 
     public function duplicate(Role $role)
     {
+        if ($role->guard_name !== 'web') {
+            return redirect()->route('roles.index')
+                ->with('warning', 'Este modulo solo administra roles internos del guard web.');
+        }
+
         AclPermissionRegistry::syncPermissions($role->guard_name ?: 'web');
 
         $baseName = trim($role->name.' copia');
         $newName = $baseName;
         $suffix = 2;
 
-        while (Role::where('name', $newName)->exists()) {
+        while (Role::where('name', $newName)->where('guard_name', $role->guard_name ?: 'web')->exists()) {
             $newName = $baseName.' '.$suffix;
             $suffix++;
         }
@@ -157,6 +184,12 @@ class RoleController extends Controller
     public function destroy($id)
     {
         $role = Role::findOrFail($id);
+
+        if ($role->guard_name !== 'web') {
+            return redirect()->route('roles.index')
+                ->with('warning', 'Este modulo solo administra roles internos del guard web.');
+        }
+
         $assignedUsersCount = DB::table(config('permission.table_names.model_has_roles'))
             ->join('users', 'users.id', '=', 'model_has_roles.model_id')
             ->where('model_has_roles.role_id', $role->id)

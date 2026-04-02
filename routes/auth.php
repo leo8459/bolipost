@@ -21,17 +21,27 @@ Route::middleware('guest.cliente')->group(function () {
     Route::get('auth/google/callback', [ClienteAuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 });
 
-Route::middleware(['cliente.guard', 'auth:cliente'])->group(function () {
-    Route::get('clientes/dashboard', [ClienteAuthController::class, 'dashboard'])->name('clientes.dashboard');
+Route::middleware(['cliente.guard', 'auth:cliente', 'cliente.acl.sync'])->group(function () {
+    Route::get('clientes/dashboard', [ClienteAuthController::class, 'dashboard'])
+        ->middleware('route.permission.cliente')
+        ->name('clientes.dashboard');
     Route::post('clientes/logout', [ClienteAuthController::class, 'logout'])->name('clientes.logout');
     Route::get('clientes/completar-perfil', [ClienteAuthController::class, 'showCompleteProfile'])->name('clientes.profile.complete');
     Route::post('clientes/completar-perfil', [ClienteAuthController::class, 'completeProfile'])->name('clientes.profile.complete.store');
 
         Route::middleware('cliente.profile.complete')->group(function () {
-            Route::get('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])->name('clientes.solicitudes.index');
-            Route::get('clientes/solicitudes/nueva', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])->name('clientes.solicitudes.create');
-            Route::post('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'store'])->name('clientes.solicitudes.store');
-            Route::get('clientes/mis-solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'history'])->name('clientes.solicitudes.history');
+            Route::get('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])
+                ->middleware('route.permission.cliente')
+                ->name('clientes.solicitudes.index');
+            Route::get('clientes/solicitudes/nueva', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])
+                ->middleware('route.permission.cliente')
+                ->name('clientes.solicitudes.create');
+            Route::post('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'store'])
+                ->middleware('route.permission.cliente')
+                ->name('clientes.solicitudes.store');
+            Route::get('clientes/mis-solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'history'])
+                ->middleware('route.permission.cliente')
+                ->name('clientes.solicitudes.history');
         });
 });
 

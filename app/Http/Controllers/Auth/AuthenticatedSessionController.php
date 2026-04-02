@@ -28,6 +28,7 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        Auth::guard('cliente')->logout();
         $request->session()->regenerate();
 
         return redirect()->to($this->firstAuthorizedUrl($request->user()));

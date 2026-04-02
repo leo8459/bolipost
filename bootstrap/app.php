@@ -17,9 +17,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'route.permission' => \App\Http\Middleware\EnsureRoutePermission::class,
+            'route.permission.cliente' => \App\Http\Middleware\EnsureClienteRoutePermission::class,
             'guest.cliente' => \App\Http\Middleware\RedirectIfClienteAuthenticated::class,
             'cliente.guard' => \App\Http\Middleware\UseClienteGuard::class,
             'cliente.profile.complete' => \App\Http\Middleware\EnsureClienteProfileComplete::class,
+            'cliente.acl.sync' => \App\Http\Middleware\EnsureClienteAclPermissionsSynced::class,
+            'internal.only' => \App\Http\Middleware\EnsureInternalWebAccess::class,
         ]);
 
         $middleware->web(append: [

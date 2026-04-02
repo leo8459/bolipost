@@ -6,10 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Traits\HasRoles;
 
 class Cliente extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
+
+    protected string $guard_name = 'cliente';
 
     protected static function booted(): void
     {
@@ -27,7 +30,9 @@ class Cliente extends Authenticatable
 
     public function adminlte_desc(): string
     {
-        return (string) ($this->rol ?: 'tiktokero');
+        $roleNames = method_exists($this, 'getRoleNames') ? $this->getRoleNames()->implode(', ') : '';
+
+        return $roleNames !== '' ? $roleNames : (string) ($this->rol ?: 'tiktokero');
     }
 
     public function adminlte_profile_url(): string
@@ -110,5 +115,10 @@ class Cliente extends Authenticatable
     {
         return static::tiposDocumentoIdentidad()[(string) $this->tipodocumentoidentidad]
             ?? (string) $this->tipodocumentoidentidad;
+    }
+
+    protected function getDefaultGuardName(): string
+    {
+        return 'cliente';
     }
 }
