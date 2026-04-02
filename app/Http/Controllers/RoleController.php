@@ -159,8 +159,8 @@ class RoleController extends Controller
         $role = Role::findOrFail($id);
         $assignedUsersCount = DB::table(config('permission.table_names.model_has_roles'))
             ->join('users', 'users.id', '=', 'model_has_roles.model_id')
-            ->where('role_id', $role->id)
-            ->where('model_type', User::class)
+            ->where('model_has_roles.role_id', $role->id)
+            ->where('model_has_roles.model_type', User::class)
             ->whereNull('users.deleted_at')
             ->count();
 
