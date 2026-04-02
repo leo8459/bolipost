@@ -82,7 +82,13 @@
                                                     <form action="{{ route('roles.destroy', $role->id) }}" method="POST" class="m-0">
                                                         @csrf
                                                         @method('DELETE')
-                                                        <button type="submit" class="btn btn-danger btn-sm" title="Eliminar"><i
+                                                        <button
+                                                            type="submit"
+                                                            class="btn btn-danger btn-sm js-role-delete-btn"
+                                                            title="Eliminar"
+                                                            data-role-name="{{ $role->name }}"
+                                                            data-users-count="{{ $role->assigned_users_count }}"
+                                                        ><i
                                                                 class="fa fa-fw fa-trash"></i></button>
                                                     </form>
                                                 </div>
@@ -142,6 +148,33 @@
                                 </div>
                             </div>
                         @endforeach
+
+                        <div class="modal fade" id="roleDeleteBlockedModal" tabindex="-1" role="dialog"
+                            aria-labelledby="roleDeleteBlockedModalLabel" aria-hidden="true">
+                            <div class="modal-dialog" role="document">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="roleDeleteBlockedModalLabel">
+                                            No se puede eliminar el rol
+                                        </h5>
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p class="mb-2" id="roleDeleteBlockedMessage">
+                                            Este rol tiene usuarios asignados y no puede eliminarse.
+                                        </p>
+                                        <p class="text-muted mb-0">
+                                            Primero debes quitar ese rol a los usuarios asignados y luego volver a intentarlo.
+                                        </p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 {!! $roles->links() !!}
@@ -149,4 +182,30 @@
         </div>
     </div>
     @include('footer')
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const deleteButtons = Array.from(document.querySelectorAll('.js-role-delete-btn'));
+            const blockedMessage = document.getElementById('roleDeleteBlockedMessage');
+
+            deleteButtons.forEach((button) => {
+                button.addEventListener('click', function (event) {
+                    const usersCount = Number(button.dataset.usersCount || 0);
+                    const roleName = button.dataset.roleName || 'este rol';
+
+                    if (usersCount <= 0) {
+                        return;
+                    }
+
+                    event.preventDefault();
+
+                    if (blockedMessage) {
+                        blockedMessage.textContent = 'El rol "' + roleName + '" tiene ' + usersCount + ' usuario(s) asignado(s) y no puede eliminarse.';
+                    }
+
+                    $('#roleDeleteBlockedModal').modal('show');
+                });
+            });
+        });
+    </script>
 @endsection

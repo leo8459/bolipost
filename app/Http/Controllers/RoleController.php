@@ -157,10 +157,21 @@ class RoleController extends Controller
     public function destroy($id)
     {
         $role = Role::findOrFail($id);
+        $assignedUsersCount = DB::table(config('permission.table_names.model_has_roles'))
+            ->join('users', 'users.id', '=', 'model_has_roles.model_id')
+            ->where('role_id', $role->id)
+            ->where('model_type', User::class)
+            ->whereNull('users.deleted_at')
+            ->count();
 
         if ($role->name === config('acl.super_admin_role')) {
             return redirect()->route('roles.index')
                 ->with('warning', 'No se puede eliminar el rol super administrador.');
+        }
+
+        if ($assignedUsersCount > 0) {
+            return redirect()->route('roles.index')
+                ->with('warning', 'No se puede eliminar el rol porque tiene usuarios asignados.');
         }
 
         $role->delete();
