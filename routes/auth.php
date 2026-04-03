@@ -12,7 +12,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('guest.cliente')->group(function () {
+Route::middleware(['guest.cliente', 'throttle:10,1'])->group(function () {
     Route::get('clientes/login', [ClienteAuthController::class, 'showLogin'])->name('clientes.login');
     Route::post('clientes/login', [ClienteAuthController::class, 'login'])->name('clientes.login.store');
     Route::get('clientes/register', [ClienteAuthController::class, 'showRegister'])->name('clientes.register');
@@ -21,9 +21,8 @@ Route::middleware('guest.cliente')->group(function () {
     Route::get('auth/google/callback', [ClienteAuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 });
 
-Route::middleware(['cliente.guard', 'auth:cliente', 'cliente.acl.sync'])->group(function () {
+Route::middleware(['cliente.guard', 'auth:cliente', 'cliente.acl.sync', 'route.permission.cliente'])->group(function () {
     Route::get('clientes/dashboard', [ClienteAuthController::class, 'dashboard'])
-        ->middleware('route.permission.cliente')
         ->name('clientes.dashboard');
     Route::post('clientes/logout', [ClienteAuthController::class, 'logout'])->name('clientes.logout');
     Route::get('clientes/completar-perfil', [ClienteAuthController::class, 'showCompleteProfile'])->name('clientes.profile.complete');
@@ -31,16 +30,12 @@ Route::middleware(['cliente.guard', 'auth:cliente', 'cliente.acl.sync'])->group(
 
         Route::middleware('cliente.profile.complete')->group(function () {
             Route::get('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])
-                ->middleware('route.permission.cliente')
                 ->name('clientes.solicitudes.index');
             Route::get('clientes/solicitudes/nueva', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])
-                ->middleware('route.permission.cliente')
                 ->name('clientes.solicitudes.create');
             Route::post('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'store'])
-                ->middleware('route.permission.cliente')
                 ->name('clientes.solicitudes.store');
             Route::get('clientes/mis-solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'history'])
-                ->middleware('route.permission.cliente')
                 ->name('clientes.solicitudes.history');
         });
 });

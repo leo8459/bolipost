@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->web(append: [
+            \App\Http\Middleware\ApplySecurityHeaders::class,
             \App\Http\Middleware\EnsureAclPermissionsSynced::class,
             \App\Http\Middleware\RegistrarAuditoria::class,
         ]);

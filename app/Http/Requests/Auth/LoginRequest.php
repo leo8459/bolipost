@@ -4,6 +4,7 @@ namespace App\Http\Requests\Auth;
 
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -41,8 +42,20 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('alias', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+        $credentials = [
+            'alias' => Str::lower(trim((string) $this->input('alias'))),
+            'password' => (string) $this->input('password'),
+        ];
+
+        if (! Auth::attempt($credentials, $this->boolean('remember'))) {
+            RateLimiter::hit($this->throttleKey(), 900);
+            RateLimiter::hit($this->ipThrottleKey(), 900);
+
+            Log::warning('Fallo de autenticacion en panel interno.', [
+                'alias' => $credentials['alias'],
+                'ip' => $this->ip(),
+                'user_agent' => (string) $this->userAgent(),
+            ]);
 
             throw ValidationException::withMessages([
                 'alias' => trans('auth.failed'),
@@ -50,6 +63,7 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+        RateLimiter::clear($this->ipThrottleKey());
     }
 
     /**
@@ -59,13 +73,26 @@ class LoginRequest extends FormRequest
      */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        $tooManyAliasAttempts = RateLimiter::tooManyAttempts($this->throttleKey(), 5);
+        $tooManyIpAttempts = RateLimiter::tooManyAttempts($this->ipThrottleKey(), 25);
+
+        if (! $tooManyAliasAttempts && ! $tooManyIpAttempts) {
             return;
         }
 
         event(new Lockout($this));
 
-        $seconds = RateLimiter::availableIn($this->throttleKey());
+        $seconds = max(
+            RateLimiter::availableIn($this->throttleKey()),
+            RateLimiter::availableIn($this->ipThrottleKey())
+        );
+
+        Log::warning('Bloqueo temporal por demasiados intentos en panel interno.', [
+            'alias' => Str::lower(trim((string) $this->input('alias'))),
+            'ip' => $this->ip(),
+            'user_agent' => (string) $this->userAgent(),
+            'seconds_remaining' => $seconds,
+        ]);
 
         throw ValidationException::withMessages([
             'alias' => trans('auth.throttle', [
@@ -81,5 +108,10 @@ class LoginRequest extends FormRequest
     public function throttleKey(): string
     {
         return Str::transliterate(Str::lower($this->string('alias')).'|'.$this->ip());
+    }
+
+    public function ipThrottleKey(): string
+    {
+        return 'login-ip:'.Str::transliterate((string) $this->ip());
     }
 }

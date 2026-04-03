@@ -18,6 +18,11 @@
 @endsection
 
 @section('content')
+    @php
+        $canCreateSolicitud = auth('cliente')->user()?->can('feature.clientes.dashboard.create') ?? false;
+        $canHistorySolicitud = auth('cliente')->user()?->can('feature.clientes.dashboard.history') ?? false;
+    @endphp
+
     <div class="row">
         <div class="col-12">
             @if (session('success'))
@@ -33,12 +38,16 @@
                         <p class="text-muted mb-0">Registra nuevas solicitudes con los campos del preregistro y consulta tu historial por separado.</p>
                     </div>
                     <div class="d-flex flex-column flex-md-row mt-3 mt-md-0">
-                        <a href="{{ route('clientes.solicitudes.create') }}" class="btn btn-warning mr-md-2 mb-2 mb-md-0">
-                            <i class="fas fa-file-signature mr-1"></i> Nueva solicitud
-                        </a>
-                        <a href="{{ route('clientes.solicitudes.history') }}" class="btn btn-outline-warning">
-                            <i class="fas fa-folder-open mr-1"></i> Mis solicitudes
-                        </a>
+                        @if ($canCreateSolicitud)
+                            <a href="{{ route('clientes.solicitudes.create') }}" class="btn btn-warning mr-md-2 mb-2 mb-md-0">
+                                <i class="fas fa-file-signature mr-1"></i> Nueva solicitud
+                            </a>
+                        @endif
+                        @if ($canHistorySolicitud)
+                            <a href="{{ route('clientes.solicitudes.history') }}" class="btn btn-outline-warning">
+                                <i class="fas fa-folder-open mr-1"></i> Mis solicitudes
+                            </a>
+                        @endif
                     </div>
                 </div>
             </div>

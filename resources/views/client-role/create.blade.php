@@ -10,7 +10,7 @@
 
                 <div class="mb-3">
                     <h1 class="h3 mb-1">Crear rol de cliente</h1>
-                    <p class="text-muted mb-0">Gestiona permisos solo para el portal cliente.</p>
+                    <p class="text-muted mb-0">Primero creas el rol y aqui mismo defines las vistas y botones del portal cliente.</p>
                 </div>
 
                 <form method="POST" action="{{ route('client-roles.store') }}">

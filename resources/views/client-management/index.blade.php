@@ -1,6 +1,6 @@
 @extends('adminlte::page')
 
-@section('title', 'Accesos Clientes')
+@section('title', 'Clientes')
 
 @section('content')
     <div class="container-fluid">
@@ -8,18 +8,12 @@
             <div class="col-sm-12">
                 <div class="card">
                     <div class="card-header">
-                        <span>Clientes y roles del portal</span>
+                        <span>Clientes del portal</span>
                     </div>
-
-                    @if ($message = Session::get('success'))
-                        <div class="alert alert-success mb-0">
-                            <p class="mb-0">{{ $message }}</p>
-                        </div>
-                    @endif
 
                     <div class="card-body">
                         <div class="alert alert-info">
-                            Asigna uno o varios roles del guard <strong>cliente</strong> a cada cuenta del portal.
+                            Esta vista te permite revisar las cuentas del portal cliente sin mezclarlo con los usuarios internos.
                         </div>
 
                         <div class="table-responsive">
@@ -27,11 +21,12 @@
                                 <thead>
                                     <tr>
                                         <th>No</th>
-                                        <th>Cliente</th>
+                                        <th>Nombre</th>
                                         <th>Email</th>
                                         <th>Codigo</th>
+                                        <th>Rol Legacy</th>
                                         <th>Roles Cliente</th>
-                                        <th></th>
+                                        <th>Proveedor</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -41,23 +36,18 @@
                                             <td>{{ $cliente->name }}</td>
                                             <td>{{ $cliente->email }}</td>
                                             <td>{{ $cliente->codigo_cliente }}</td>
+                                            <td>{{ $cliente->rol ?: '-' }}</td>
                                             <td>
-                                                @php
-                                                    $roleNames = $cliente->getRoleNames();
-                                                @endphp
+                                                @php($roleNames = $cliente->getRoleNames())
                                                 @if ($roleNames->isNotEmpty())
                                                     @foreach ($roleNames as $roleName)
                                                         <span class="badge badge-warning">{{ $roleName }}</span>
                                                     @endforeach
                                                 @else
-                                                    <span class="text-muted">Sin roles asignados</span>
+                                                    <span class="text-muted">Sin roles</span>
                                                 @endif
                                             </td>
-                                            <td>
-                                                <a class="btn btn-sm btn-success" href="{{ route('client-access.edit', $cliente->id) }}">
-                                                    <i class="fa fa-fw fa-edit"></i>
-                                                </a>
-                                            </td>
+                                            <td>{{ strtoupper((string) $cliente->provider) }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>

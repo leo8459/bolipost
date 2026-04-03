@@ -17,6 +17,11 @@ use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse
 
 class ClienteAuthController extends Controller
 {
+    private function clientSecurityConfig(): array
+    {
+        return (array) config('acl_cliente.security', []);
+    }
+
     private function googleIsConfigured(): bool
     {
         return trim((string) config('services.google.client_id')) !== ''
@@ -131,6 +136,7 @@ class ClienteAuthController extends Controller
     {
         $googleUser = Socialite::driver('google')->user();
         $email = strtolower(trim((string) $googleUser->getEmail()));
+        $security = $this->clientSecurityConfig();
 
         if ($email === '') {
             return redirect()
@@ -138,16 +144,36 @@ class ClienteAuthController extends Controller
                 ->withErrors(['google' => 'Google no devolvio un correo valido.']);
         }
 
-        $cliente = Cliente::query()->firstOrCreate(
-            ['email' => $email],
-            [
+        if ($this->requiresVerifiedGoogleEmail($security) && ! $this->googleEmailIsVerified($googleUser)) {
+            return redirect()
+                ->route('clientes.login')
+                ->withErrors(['google' => 'Tu cuenta de Google debe tener un correo verificado para ingresar.']);
+        }
+
+        if (! $this->isAllowedGoogleDomain($email, $security)) {
+            return redirect()
+                ->route('clientes.login')
+                ->withErrors(['google' => 'El dominio de correo no esta autorizado para el portal cliente.']);
+        }
+
+        $cliente = Cliente::query()->where('email', $email)->first();
+
+        if ($this->requiresExistingClientAccount($security) && ! $cliente) {
+            return redirect()
+                ->route('clientes.login')
+                ->withErrors(['google' => 'Tu correo aun no esta habilitado en el portal cliente.']);
+        }
+
+        if (! $cliente) {
+            $cliente = Cliente::query()->create([
+                'email' => $email,
                 'name' => trim((string) $googleUser->getName()) ?: 'Cliente Google',
                 'provider' => 'google',
                 'rol' => 'tiktokero',
                 'email_verified_at' => now(),
                 'password' => Hash::make(Str::random(32)),
-            ]
-        );
+            ]);
+        }
 
         $updates = [
             'name' => trim((string) $googleUser->getName()) ?: $cliente->name,
@@ -175,5 +201,46 @@ class ClienteAuthController extends Controller
         return $cliente->perfilCompleto()
             ? redirect()->route('clientes.dashboard')
             : redirect()->route('clientes.profile.complete');
+    }
+
+    private function requiresVerifiedGoogleEmail(array $security): bool
+    {
+        return (bool) ($security['verified_google_email_required'] ?? true);
+    }
+
+    private function requiresExistingClientAccount(array $security): bool
+    {
+        return (bool) ($security['require_existing_account'] ?? false);
+    }
+
+    private function isAllowedGoogleDomain(string $email, array $security): bool
+    {
+        $allowedDomains = collect((array) ($security['allowed_google_domains'] ?? []))
+            ->filter(fn (mixed $domain): bool => is_string($domain) && trim($domain) !== '')
+            ->map(fn (string $domain): string => strtolower(trim($domain)))
+            ->values();
+
+        if ($allowedDomains->isEmpty()) {
+            return true;
+        }
+
+        $domain = strtolower((string) Str::after($email, '@'));
+
+        return $domain !== '' && $allowedDomains->contains($domain);
+    }
+
+    private function googleEmailIsVerified($googleUser): bool
+    {
+        $raw = [];
+
+        if (method_exists($googleUser, 'getRaw')) {
+            $raw = (array) $googleUser->getRaw();
+        } elseif (property_exists($googleUser, 'user')) {
+            $raw = (array) $googleUser->user;
+        }
+
+        $verified = $raw['email_verified'] ?? $raw['verified_email'] ?? null;
+
+        return filter_var($verified, FILTER_VALIDATE_BOOLEAN) === true;
     }
 }

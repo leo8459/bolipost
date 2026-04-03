@@ -939,19 +939,25 @@ return [
                             'icon' => 'fas fa-users-cog',
                         ],
                         [
-                            'text' => 'Roles Clientes',
-                            'url' => 'cliente-roles',
-                            'icon' => 'fas fa-user-shield',
-                        ],
-                        [
-                            'text' => 'Accesos Clientes',
-                            'url' => 'cliente-accesos',
-                            'icon' => 'fas fa-user-lock',
-                        ],
-                        [
                             'text' => 'Permisos',
                             'url' => 'permissions',
                             'icon' => 'fas fa-key',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Gestion Clientes',
+                    'icon' => 'fas fa-user-friends',
+                    'submenu' => [
+                        [
+                            'text' => 'Ver Clientes',
+                            'url' => 'clientes-admin',
+                            'icon' => 'fas fa-address-book',
+                        ],
+                        [
+                            'text' => 'Roles Clientes',
+                            'url' => 'cliente-roles',
+                            'icon' => 'fas fa-user-shield',
                         ],
                     ],
                 ],

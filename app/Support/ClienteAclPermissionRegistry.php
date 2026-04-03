@@ -2,8 +2,6 @@
 
 namespace App\Support;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -28,6 +26,11 @@ class ClienteAclPermissionRegistry
             Permission::query()->upsert($rows, ['name', 'guard_name'], ['updated_at']);
         }
 
+        Permission::query()
+            ->where('guard_name', $guardName)
+            ->whereNotIn('name', $permissionNames)
+            ->delete();
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return $permissionNames;
@@ -35,33 +38,31 @@ class ClienteAclPermissionRegistry
 
     public static function allPermissionNames(): array
     {
-        $excluded = collect((array) config('acl_cliente.excluded_route_permissions', []));
+        $routePermissions = array_keys((array) config('acl_cliente.route_permissions', []));
+        $featurePermissions = array_keys((array) config('acl_cliente.feature_permissions', []));
 
-        return collect(Route::getRoutes()->getRoutes())
-            ->map(fn ($route): ?string => $route->getName())
-            ->filter(fn (?string $name): bool => is_string($name) && str_starts_with($name, 'clientes.'))
-            ->reject(fn (string $name): bool => $excluded->contains($name))
-            ->unique()
-            ->values()
-            ->all();
+        return array_values(array_unique(array_merge($routePermissions, $featurePermissions)));
     }
 
     public static function groupedPermissionsForMatrix(?string $guardName = null): array
     {
         $guardName ??= 'cliente';
-        $permissionNames = Permission::query()
-            ->where('guard_name', $guardName)
-            ->orderBy('name')
-            ->pluck('name');
+        $configuredPermissions = self::configuredPermissionDefinitions();
 
-        if ($permissionNames->isEmpty()) {
-            $permissionNames = collect(self::syncPermissions($guardName));
+        $existing = Permission::query()
+            ->where('guard_name', $guardName)
+            ->whereIn('name', array_keys($configuredPermissions))
+            ->pluck('name')
+            ->flip();
+
+        if ($existing->isEmpty()) {
+            self::syncPermissions($guardName);
         }
 
         $groups = [];
 
-        foreach ($permissionNames as $permissionName) {
-            [$moduleKey, $actionKey] = self::splitPermissionName($permissionName);
+        foreach ($configuredPermissions as $permissionName => $definition) {
+            $moduleKey = (string) ($definition['module'] ?? self::moduleKeyFromPermission($permissionName));
 
             if (! isset($groups[$moduleKey])) {
                 $groups[$moduleKey] = [
@@ -73,9 +74,9 @@ class ClienteAclPermissionRegistry
 
             $groups[$moduleKey]['permissions'][] = [
                 'name' => $permissionName,
-                'action_label' => self::actionLabel($actionKey),
-                'hint' => 'Controla el acceso a la vista o accion de cliente.',
-                'type_label' => 'Ruta cliente',
+                'action_label' => (string) ($definition['label'] ?? self::humanize($permissionName)),
+                'hint' => $definition['hint'] ?? null,
+                'type_label' => str_starts_with($permissionName, 'feature.') ? 'Boton' : 'Vista',
             ];
         }
 
@@ -84,74 +85,47 @@ class ClienteAclPermissionRegistry
 
     public static function authorizationPermissionsForRouteAccess(string $routePermission): array
     {
-        return [$routePermission];
+        $aliases = (array) config('acl_cliente.route_permission_aliases', []);
+        $canonical = (string) ($aliases[$routePermission] ?? $routePermission);
+
+        return [$canonical];
     }
 
     public static function permissionExists(string $permissionName): bool
     {
-        return Permission::query()
-            ->where('guard_name', 'cliente')
-            ->where('name', $permissionName)
-            ->exists();
+        return in_array($permissionName, self::allPermissionNames(), true);
     }
 
-    public static function resolveRouteNameFromMenuUrl(string $url): ?string
+    private static function configuredPermissionDefinitions(): array
     {
-        if (
-            $url === ''
-            || str_starts_with($url, 'http://')
-            || str_starts_with($url, 'https://')
-            || str_starts_with($url, '#')
-        ) {
-            return null;
-        }
-
-        $path = trim(parse_url($url, PHP_URL_PATH) ?? '', '/');
-
-        if ($path === '') {
-            return null;
-        }
-
-        try {
-            $route = Route::getRoutes()->match(Request::create('/'.$path, 'GET'));
-        } catch (\Throwable) {
-            return null;
-        }
-
-        $name = $route->getName();
-
-        return is_string($name) && $name !== '' ? $name : null;
+        return array_merge(
+            (array) config('acl_cliente.route_permissions', []),
+            (array) config('acl_cliente.feature_permissions', [])
+        );
     }
 
-    private static function splitPermissionName(string $permissionName): array
+    private static function moduleKeyFromPermission(string $permissionName): string
     {
-        $segments = explode('.', $permissionName);
-        $first = $segments[0] ?? $permissionName;
-        $second = $segments[1] ?? 'general';
-        $action = $segments[2] ?? $second;
+        if (str_starts_with($permissionName, 'feature.')) {
+            $parts = explode('.', $permissionName);
 
-        $moduleKey = $first === 'clientes' && isset($segments[1])
-            ? $first.'.'.$segments[1]
-            : $permissionName;
+            return implode('.', array_slice($parts, 1, 2));
+        }
 
-        return [$moduleKey, $action];
+        $parts = explode('.', $permissionName);
+
+        return implode('.', array_slice($parts, 0, 2));
     }
 
     private static function moduleLabel(string $moduleKey): string
     {
-        return (string) ((array) config('acl_cliente.module_labels', []))[$moduleKey]
-            ?? Str::headline(str_replace(['.', '-', '_'], ' ', $moduleKey));
+        $labels = (array) config('acl_cliente.module_labels', []);
+
+        return (string) ($labels[$moduleKey] ?? self::humanize($moduleKey));
     }
 
-    private static function actionLabel(string $actionKey): string
+    private static function humanize(string $value): string
     {
-        return match ($actionKey) {
-            'dashboard' => 'Acceso al panel',
-            'index' => 'Ver listado',
-            'create' => 'Abrir formulario',
-            'store' => 'Guardar',
-            'history' => 'Ver historial',
-            default => Str::headline(str_replace(['-', '_'], ' ', $actionKey)),
-        };
+        return Str::headline(str_replace(['.', '-', '_'], ' ', $value));
     }
 }

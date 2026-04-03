@@ -10,7 +10,7 @@
 
                 <div class="mb-3">
                     <h1 class="h3 mb-1">Editar rol de cliente</h1>
-                    <p class="text-muted mb-0">Ajusta permisos del portal cliente sin tocar el panel interno.</p>
+                    <p class="text-muted mb-0">Aqui modificas el mismo rol y sus vistas/botones del portal cliente. No te esta mandando a permisos globales.</p>
                 </div>
 
                 <form method="POST" action="{{ route('client-roles.update', $role->id) }}">

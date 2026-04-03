@@ -23,7 +23,7 @@
         </div>
 
         <div class="alert alert-warning">
-            Este modulo controla solo vistas y acciones del portal cliente. No mezcla permisos del personal interno.
+            Este formulario controla solo el portal cliente. Veras pocas opciones: acceso a vistas reales del cliente y los botones principales del panel.
         </div>
 
         @foreach ($permissionGroups as $group)

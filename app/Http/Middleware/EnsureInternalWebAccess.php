@@ -11,10 +11,14 @@ class EnsureInternalWebAccess
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::guard('cliente')->check() && ! Auth::guard('web')->check()) {
-            return redirect()
-                ->route('clientes.dashboard')
-                ->with('warning', 'El panel interno es exclusivo para personal autorizado.');
+        if (Auth::guard('cliente')->check()) {
+            // Keep internal and client sessions isolated even if both cookies survive.
+            Auth::guard('cliente')->logout();
+            $request->session()->forget('url.intended');
+        }
+
+        if (! Auth::guard('web')->check()) {
+            return redirect()->route('login');
         }
 
         Auth::shouldUse('web');

@@ -41,8 +41,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\AclController;
 use App\Http\Controllers\BitacoraController;
+use App\Http\Controllers\ClientManagementController;
 use App\Http\Controllers\ClientRoleController;
-use App\Http\Controllers\ClientAccessController;
 use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\Web\FuelLogController;
 use App\Http\Controllers\Web\MaintenanceFileController;
@@ -144,17 +144,13 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::delete('/role/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
 
     // Roles de clientes
+    Route::get('/clientes-admin', [ClientManagementController::class, 'index'])->name('clientes-admin.index');
     Route::get('/cliente-roles', [ClientRoleController::class, 'index'])->name('client-roles.index');
     Route::get('/cliente-roles/create', [ClientRoleController::class, 'create'])->name('client-roles.create');
     Route::post('/cliente-roles', [ClientRoleController::class, 'store'])->name('client-roles.store');
     Route::get('/cliente-roles/{clientRole}/edit', [ClientRoleController::class, 'edit'])->name('client-roles.edit');
     Route::put('/cliente-roles/{clientRole}', [ClientRoleController::class, 'update'])->name('client-roles.update');
     Route::delete('/cliente-roles/{clientRole}', [ClientRoleController::class, 'destroy'])->name('client-roles.destroy');
-
-    // Accesos de clientes
-    Route::get('/cliente-accesos', [ClientAccessController::class, 'index'])->name('client-access.index');
-    Route::get('/cliente-accesos/{cliente}/edit', [ClientAccessController::class, 'edit'])->name('client-access.edit');
-    Route::put('/cliente-accesos/{cliente}', [ClientAccessController::class, 'update'])->name('client-access.update');
 
     //Permisos
     Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
