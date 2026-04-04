@@ -86,16 +86,18 @@ class ClientRoleController extends Controller
                 Rule::exists('permissions', 'name')->where(fn ($query) => $query->where('guard_name', 'cliente')),
             ],
         ]);
+        [$normalizedPermissions, $duplicatePermissionsRemoved] = $this->normalizeSubmittedPermissions($validated['permissions'] ?? []);
 
         $role = Role::create([
             'name' => $validated['name'],
             'guard_name' => 'cliente',
         ]);
 
-        $role->syncPermissions($validated['permissions'] ?? []);
+        $role->syncPermissions($normalizedPermissions);
 
         return redirect()->route('client-roles.index')
-            ->with('success', 'Rol de cliente creado correctamente.');
+            ->with('success', 'Rol de cliente creado correctamente.')
+            ->with('warning', $duplicatePermissionsRemoved ? 'Se detectaron permisos repetidos en el envio y se limpiaron automaticamente.' : null);
     }
 
     public function edit(Role $clientRole)
@@ -139,15 +141,17 @@ class ClientRoleController extends Controller
                 Rule::exists('permissions', 'name')->where(fn ($query) => $query->where('guard_name', 'cliente')),
             ],
         ]);
+        [$normalizedPermissions, $duplicatePermissionsRemoved] = $this->normalizeSubmittedPermissions($validated['permissions'] ?? []);
 
         $clientRole->update([
             'name' => $validated['name'],
         ]);
 
-        $clientRole->syncPermissions($validated['permissions'] ?? []);
+        $clientRole->syncPermissions($normalizedPermissions);
 
         return redirect()->route('client-roles.index')
-            ->with('success', 'Rol de cliente actualizado correctamente.');
+            ->with('success', 'Rol de cliente actualizado correctamente.')
+            ->with('warning', $duplicatePermissionsRemoved ? 'Se detectaron permisos repetidos en el envio y se limpiaron automaticamente.' : null);
     }
 
     public function destroy(Role $clientRole)
@@ -171,5 +175,23 @@ class ClientRoleController extends Controller
 
         return redirect()->route('client-roles.index')
             ->with('success', 'Rol de cliente eliminado correctamente.');
+    }
+
+    /**
+     * @param  array<int, mixed>  $permissions
+     * @return array{0: array<int, string>, 1: bool}
+     */
+    private function normalizeSubmittedPermissions(array $permissions): array
+    {
+        $submittedCount = count($permissions);
+
+        $normalizedPermissions = collect($permissions)
+            ->filter(fn (mixed $permission): bool => is_string($permission) && trim($permission) !== '')
+            ->map(fn (string $permission): string => trim($permission))
+            ->unique()
+            ->values()
+            ->all();
+
+        return [$normalizedPermissions, count($normalizedPermissions) !== $submittedCount];
     }
 }

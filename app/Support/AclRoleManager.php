@@ -166,6 +166,7 @@ class AclRoleManager
 
                 return false;
             })
+            ->unique()
             ->values()
             ->all();
     }

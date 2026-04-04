@@ -82,16 +82,18 @@ class RoleController extends Controller
             'permissions' => 'nullable|array',
             'permissions.*' => 'string|exists:permissions,name',
         ]);
+        [$normalizedPermissions, $duplicatePermissionsRemoved] = $this->normalizeSubmittedPermissions($validated['permissions'] ?? []);
 
         $role = Role::create([
             'name' => $validated['name'],
             'guard_name' => 'web',
         ]);
 
-        $role->syncPermissions($validated['permissions'] ?? []);
+        $role->syncPermissions($normalizedPermissions);
 
         return redirect()->route('roles.index')
-            ->with('success', 'Rol creado correctamente.');
+            ->with('success', 'Rol creado correctamente.')
+            ->with('warning', $duplicatePermissionsRemoved ? 'Se detectaron permisos repetidos en el envio y se limpiaron automaticamente.' : null);
     }
 
     public function show($id)
@@ -141,15 +143,17 @@ class RoleController extends Controller
             'permissions' => 'nullable|array',
             'permissions.*' => 'string|exists:permissions,name',
         ]);
+        [$normalizedPermissions, $duplicatePermissionsRemoved] = $this->normalizeSubmittedPermissions($validated['permissions'] ?? []);
 
         $role->update([
             'name' => $validated['name'],
         ]);
 
-        $role->syncPermissions($validated['permissions'] ?? []);
+        $role->syncPermissions($normalizedPermissions);
 
         return redirect()->route('roles.index')
-            ->with('success', 'Rol actualizado correctamente.');
+            ->with('success', 'Rol actualizado correctamente.')
+            ->with('warning', $duplicatePermissionsRemoved ? 'Se detectaron permisos repetidos en el envio y se limpiaron automaticamente.' : null);
     }
 
     public function duplicate(Role $role)
@@ -211,5 +215,23 @@ class RoleController extends Controller
 
         return redirect()->route('roles.index')
             ->with('success', 'Rol eliminado correctamente.');
+    }
+
+    /**
+     * @param  array<int, mixed>  $permissions
+     * @return array{0: array<int, string>, 1: bool}
+     */
+    private function normalizeSubmittedPermissions(array $permissions): array
+    {
+        $submittedCount = count($permissions);
+
+        $normalizedPermissions = collect($permissions)
+            ->filter(fn (mixed $permission): bool => is_string($permission) && trim($permission) !== '')
+            ->map(fn (string $permission): string => trim($permission))
+            ->unique()
+            ->values()
+            ->all();
+
+        return [$normalizedPermissions, count($normalizedPermissions) !== $submittedCount];
     }
 }
