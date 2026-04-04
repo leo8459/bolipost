@@ -12,6 +12,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\View\View;
@@ -109,7 +110,7 @@ class BusquedaController extends Controller
             'captcha_challenge' => ['required', 'string'],
         ]);
 
-        $codigo = trim((string) $validated['codigo']);
+        $codigo = $this->normalizeTrackingCode((string) $validated['codigo']);
 
         if (! $this->validarCaptchaPublico(
             (string) $validated['captcha_answer'],
@@ -197,7 +198,7 @@ class BusquedaController extends Controller
             'codigo' => ['required', 'string', 'max:50'],
         ]);
 
-        return trim((string) $validated['codigo']);
+        return $this->normalizeTrackingCode((string) $validated['codigo']);
     }
 
     private function validarCaptchaTracking(Request $request): ?string
@@ -367,12 +368,13 @@ class BusquedaController extends Controller
 
     private function consultarEventosDesdeApi(string $codigo): Collection
     {
+        $codigo = $this->normalizeTrackingCode($codigo);
         $baseUrl = $this->resolveTrackingApiUrl(
             trim((string) config('services.tracking_sqlserver.base_url', ''))
         );
         $token = trim((string) config('services.tracking_sqlserver.token', ''));
 
-        if ($baseUrl === '' || $token === '') {
+        if ($codigo === '' || $baseUrl === '' || $token === '') {
             return collect();
         }
 
@@ -380,6 +382,15 @@ class BusquedaController extends Controller
             ->acceptJson()
             ->withToken($token)
             ->get($baseUrl, ['codigo' => $codigo]);
+
+        if ($response->status() === 422) {
+            Log::notice('Tracking externo rechazo el codigo por validacion.', [
+                'codigo' => $codigo,
+                'base_url' => $baseUrl,
+            ]);
+
+            return collect();
+        }
 
         if (!$response->ok()) {
             throw new \RuntimeException('Error consultando API externa de tracking. HTTP ' . $response->status());
@@ -405,6 +416,14 @@ class BusquedaController extends Controller
                 return $evento;
             })
             ->values();
+    }
+
+    private function normalizeTrackingCode(string $codigo): string
+    {
+        $codigo = strtoupper(trim($codigo));
+        $codigo = preg_replace('/\s+/', '', $codigo) ?? $codigo;
+
+        return trim($codigo);
     }
 
     private function resolveTrackingApiUrl(string $configuredUrl): string
