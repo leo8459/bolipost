@@ -367,7 +367,9 @@ class BusquedaController extends Controller
 
     private function consultarEventosDesdeApi(string $codigo): Collection
     {
-        $baseUrl = trim((string) config('services.tracking_sqlserver.base_url', ''));
+        $baseUrl = $this->resolveTrackingApiUrl(
+            trim((string) config('services.tracking_sqlserver.base_url', ''))
+        );
         $token = trim((string) config('services.tracking_sqlserver.token', ''));
 
         if ($baseUrl === '' || $token === '') {
@@ -403,6 +405,26 @@ class BusquedaController extends Controller
                 return $evento;
             })
             ->values();
+    }
+
+    private function resolveTrackingApiUrl(string $configuredUrl): string
+    {
+        if ($configuredUrl === '') {
+            return '';
+        }
+
+        $parts = parse_url($configuredUrl);
+        $path = trim((string) ($parts['path'] ?? ''));
+
+        if ($path === '' || $path === '/') {
+            return rtrim($configuredUrl, '/') . '/api/tracking/eventos';
+        }
+
+        if ($path === '/api/sqlserver/busqueda') {
+            return preg_replace('#/api/sqlserver/busqueda$#', '/api/tracking/eventos', $configuredUrl) ?: $configuredUrl;
+        }
+
+        return $configuredUrl;
     }
 
     private function transformarEventoApi(mixed $item, int $index, string $codigo, array $payload): object
