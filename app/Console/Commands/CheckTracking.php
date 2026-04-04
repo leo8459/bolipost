@@ -14,9 +14,13 @@ class CheckTracking extends Command
 
     protected $description = 'Check tracking updates and send FCM';
 
+    private ?string $cachedFcmAccessToken = null;
+
+    private int $cachedFcmAccessTokenExpiresAt = 0;
+
     public function handle(): int
     {
-        $subs = TrackingSubscription::all();
+        $subs = TrackingSubscription::query()->get();
 
         if ($subs->isEmpty()) {
             Log::info('TRACKING_EMPTY');
@@ -24,131 +28,44 @@ class CheckTracking extends Command
             return self::SUCCESS;
         }
 
+        $groupedByCodigo = $subs->groupBy(function (TrackingSubscription $sub): string {
+            return trim((string) $sub->codigo);
+        });
+
         Log::info('TRACKING_START', [
             'count' => $subs->count(),
+            'codes' => $groupedByCodigo->count(),
             'at' => now()->toDateTimeString(),
         ]);
 
-        foreach ($subs as $sub) {
-            Log::info('TRACKING_SUB', [
-                'id' => $sub->id,
-                'codigo' => $sub->codigo,
-                'token_prefix' => $sub->fcm_token ? substr($sub->fcm_token, 0, 20) : null,
-                'last_sig' => $sub->last_sig,
-            ]);
+        foreach ($groupedByCodigo as $codigo => $subsByCode) {
+            if ($codigo === '') {
+                Log::warning('TRACKING_SKIP_EMPTY_CODE', [
+                    'subscriptions' => $subsByCode->count(),
+                ]);
+                continue;
+            }
 
-            try {
-                $request = Http::timeout(15)
-                    ->withoutVerifying()
-                    ->acceptJson();
+            $tracking = $this->resolveTrackingForCodigo($codigo, $subsByCode->count());
+            if ($tracking === null) {
+                continue;
+            }
 
-                $token = trim((string) env('TRACKING_API_TOKEN', ''));
-                if ($token !== '') {
-                    $request = $request->withToken($token);
+            foreach ($subsByCode as $sub) {
+                if ($this->verboseLoggingEnabled()) {
+                    Log::info('TRACKING_SUB', [
+                        'id' => $sub->id,
+                        'codigo' => $sub->codigo,
+                        'token_prefix' => $sub->fcm_token ? substr($sub->fcm_token, 0, 20) : null,
+                        'last_sig' => $sub->last_sig,
+                    ]);
                 }
 
-                $resp = $request->get(env('TRACKING_API_URL'), [
-                    'codigo' => $sub->codigo,
-                ]);
-            } catch (\Throwable $e) {
-                Log::error('TRACKING_API_EX', [
-                    'codigo' => $sub->codigo,
-                    'msg' => $e->getMessage(),
-                ]);
-                continue;
-            }
-
-            Log::info('TRACKING_API', [
-                'codigo' => $sub->codigo,
-                'status' => $resp->status(),
-                'ok' => $resp->ok(),
-                'content_type' => $resp->header('Content-Type'),
-                'body' => $resp->body(),
-            ]);
-
-            if (! $resp->ok()) {
-                continue;
-            }
-
-            $data = $resp->json();
-
-            if (! is_array($data)) {
-                Log::warning('TRACKING_JSON_INVALID', [
-                    'codigo' => $sub->codigo,
-                    'body' => $resp->body(),
-                ]);
-                continue;
-            }
-
-            $eventos = $this->extractEvents($data);
-
-            Log::info('TRACKING_COUNTS', [
-                'codigo' => $sub->codigo,
-                'eventos' => $eventos->count(),
-            ]);
-
-            $sig = $this->latestSignature($eventos);
-
-            Log::info('TRACKING_LATEST', [
-                'codigo' => $sub->codigo,
-                'computed_sig' => $sig,
-            ]);
-
-            if (! $sig) {
-                Log::warning('TRACKING_NO_SIG', ['codigo' => $sub->codigo]);
-                continue;
-            }
-
-            Log::info('TRACKING_SIG', [
-                'codigo' => $sub->codigo,
-                'prev' => $sub->last_sig,
-                'new' => $sig,
-            ]);
-
-            $latest = $this->latestEventData($eventos, $sig);
-
-            if ($sub->last_sig === null) {
-                $sub->last_sig = $sig;
-                $sub->save();
-
-                Log::info('TRACKING_INIT', [
-                    'codigo' => $sub->codigo,
-                    'saved' => $sig,
-                    'notified' => true,
-                ]);
-
-                $this->sendFcmSafe(
-                    $sub->fcm_token,
-                    $sub->codigo,
-                    $latest,
-                    $sub->package_name
+                $this->processSubscriptionUpdate(
+                    $sub,
+                    $tracking['sig'],
+                    $tracking['latest']
                 );
-
-                continue;
-            }
-
-            if ($sub->last_sig !== $sig) {
-                $old = $sub->last_sig;
-
-                $sub->last_sig = $sig;
-                $sub->save();
-
-                Log::info('TRACKING_CHANGED', [
-                    'codigo' => $sub->codigo,
-                    'from' => $old,
-                    'to' => $sig,
-                ]);
-
-                $this->sendFcmSafe(
-                    $sub->fcm_token,
-                    $sub->codigo,
-                    $latest,
-                    $sub->package_name
-                );
-            } else {
-                Log::info('TRACKING_NO_CHANGE', [
-                    'codigo' => $sub->codigo,
-                ]);
             }
         }
 
@@ -157,6 +74,148 @@ class CheckTracking extends Command
         ]);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @return array{sig:string,latest:array<string,mixed>}|null
+     */
+    private function resolveTrackingForCodigo(string $codigo, int $subscriptionsCount): ?array
+    {
+        try {
+            $request = Http::timeout(15)
+                ->withoutVerifying()
+                ->acceptJson();
+
+            $token = trim((string) env('TRACKING_API_TOKEN', ''));
+            if ($token !== '') {
+                $request = $request->withToken($token);
+            }
+
+            $resp = $request->get(env('TRACKING_API_URL'), [
+                'codigo' => $codigo,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('TRACKING_API_EX', [
+                'codigo' => $codigo,
+                'msg' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        $payload = [
+            'codigo' => $codigo,
+            'subscriptions' => $subscriptionsCount,
+            'status' => $resp->status(),
+            'ok' => $resp->ok(),
+            'content_type' => $resp->header('Content-Type'),
+        ];
+        if ($this->verboseLoggingEnabled()) {
+            $payload['body'] = $resp->body();
+        }
+        Log::info('TRACKING_API', $payload);
+
+        if (! $resp->ok()) {
+            return null;
+        }
+
+        $data = $resp->json();
+
+        if (! is_array($data)) {
+            $warning = ['codigo' => $codigo];
+            if ($this->verboseLoggingEnabled()) {
+                $warning['body'] = $resp->body();
+            }
+            Log::warning('TRACKING_JSON_INVALID', $warning);
+
+            return null;
+        }
+
+        $eventos = $this->extractEvents($data);
+
+        Log::info('TRACKING_COUNTS', [
+            'codigo' => $codigo,
+            'eventos' => $eventos->count(),
+            'subscriptions' => $subscriptionsCount,
+        ]);
+
+        $sig = $this->latestSignature($eventos);
+
+        Log::info('TRACKING_LATEST', [
+            'codigo' => $codigo,
+            'computed_sig' => $sig,
+        ]);
+
+        if (! $sig) {
+            Log::warning('TRACKING_NO_SIG', ['codigo' => $codigo]);
+
+            return null;
+        }
+
+        return [
+            'sig' => $sig,
+            'latest' => $this->latestEventData($eventos, $sig),
+        ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $latest
+     */
+    private function processSubscriptionUpdate(TrackingSubscription $sub, string $sig, array $latest): void
+    {
+        Log::info('TRACKING_SIG', [
+            'codigo' => $sub->codigo,
+            'prev' => $sub->last_sig,
+            'new' => $sig,
+        ]);
+
+        if ($sub->last_sig === null) {
+            $sub->last_sig = $sig;
+            $sub->save();
+
+            Log::info('TRACKING_INIT', [
+                'codigo' => $sub->codigo,
+                'saved' => $sig,
+                'notified' => true,
+            ]);
+
+            $this->sendFcmSafe(
+                $sub->fcm_token,
+                (string) $sub->codigo,
+                $latest,
+                $sub->package_name
+            );
+
+            return;
+        }
+
+        if ($sub->last_sig !== $sig) {
+            $old = $sub->last_sig;
+
+            $sub->last_sig = $sig;
+            $sub->save();
+
+            Log::info('TRACKING_CHANGED', [
+                'codigo' => $sub->codigo,
+                'from' => $old,
+                'to' => $sig,
+            ]);
+
+            $this->sendFcmSafe(
+                $sub->fcm_token,
+                (string) $sub->codigo,
+                $latest,
+                $sub->package_name
+            );
+
+            return;
+        }
+
+        if ($this->verboseLoggingEnabled()) {
+            Log::info('TRACKING_NO_CHANGE', [
+                'codigo' => $sub->codigo,
+            ]);
+        }
     }
 
     private function extractEvents(array $data): Collection
@@ -320,7 +379,7 @@ class CheckTracking extends Command
         Log::info('FCM_STATUS', [
             'codigo' => $codigo,
             'status' => $resp->status(),
-            'body' => $resp->body(),
+            'body' => $this->verboseLoggingEnabled() ? $resp->body() : null,
         ]);
 
         if (in_array($resp->status(), [404, 410], true)) {
@@ -342,6 +401,14 @@ class CheckTracking extends Command
 
     private function getAccessToken(): string
     {
+        if (
+            is_string($this->cachedFcmAccessToken)
+            && $this->cachedFcmAccessToken !== ''
+            && $this->cachedFcmAccessTokenExpiresAt > (time() + 60)
+        ) {
+            return $this->cachedFcmAccessToken;
+        }
+
         $client = new \Google_Client();
         $client->setAuthConfig(storage_path('app/firebase-service-account.json'));
         $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
@@ -356,6 +423,15 @@ class CheckTracking extends Command
             throw new \RuntimeException('No se pudo obtener access_token para FCM');
         }
 
-        return $token['access_token'];
+        $expiresIn = max(60, (int) ($token['expires_in'] ?? 3600));
+        $this->cachedFcmAccessToken = (string) $token['access_token'];
+        $this->cachedFcmAccessTokenExpiresAt = time() + $expiresIn;
+
+        return $this->cachedFcmAccessToken;
+    }
+
+    private function verboseLoggingEnabled(): bool
+    {
+        return filter_var(env('TRACKING_VERBOSE_LOG', false), FILTER_VALIDATE_BOOL);
     }
 }

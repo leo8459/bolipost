@@ -32,10 +32,14 @@ class BusquedaController extends Controller
 
     public function landing(Request $request): View
     {
-        $captcha = $this->obtenerOCrearCaptchaTracking($request);
+        // Siempre generar uno nuevo al entrar a la landing para evitar
+        // reutilizacion al volver con el boton "atras".
+        $captcha = $this->refrescarCaptchaTracking($request);
+        $captchaPublico = $this->formatearCaptchaPublico($captcha);
 
         return view('welcome', [
             'captchaPregunta' => $captcha['question'],
+            'captchaChallenge' => $captchaPublico['challenge'],
             'preregistroServicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
             'preregistroDestinos' => Destino::query()->orderBy('nombre_destino')->get(),
             'preregistroCiudades' => [
@@ -55,17 +59,22 @@ class BusquedaController extends Controller
     public function captchaTracking(Request $request): JsonResponse
     {
         $captcha = $this->refrescarCaptchaTracking($request);
+        $captchaPublico = $this->formatearCaptchaPublico($captcha);
 
         return response()->json([
             'pregunta' => $captcha['question'],
-        ]);
+            'challenge' => $captchaPublico['challenge'],
+            'expires_at' => $captchaPublico['expires_at'],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     public function captchaTrackingPublico(): JsonResponse
     {
         $captcha = $this->generarCaptchaTracking();
 
-        return response()->json($this->formatearCaptchaPublico($captcha));
+        return response()
+            ->json($this->formatearCaptchaPublico($captcha))
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     public function mostrarTracking(Request $request): View|RedirectResponse
@@ -105,7 +114,7 @@ class BusquedaController extends Controller
     public function autorizarTrackingPublico(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'codigo' => ['required', 'string', 'max:50'],
+            'codigo' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/'],
             'captcha_answer' => ['required', 'string', 'max:20'],
             'captcha_challenge' => ['required', 'string'],
         ]);
@@ -195,7 +204,7 @@ class BusquedaController extends Controller
     private function obtenerCodigoValidado(Request $request): string
     {
         $validated = $request->validate([
-            'codigo' => ['required', 'string', 'max:50'],
+            'codigo' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/'],
         ]);
 
         return $this->normalizeTrackingCode((string) $validated['codigo']);
@@ -203,32 +212,62 @@ class BusquedaController extends Controller
 
     private function validarCaptchaTracking(Request $request): ?string
     {
+        $respuesta = trim((string) $request->input('captcha_answer', ''));
+        $challenge = trim((string) $request->input('captcha_challenge', ''));
+
+        // Si llega captcha desde el formulario, SIEMPRE se valida aunque
+        // exista una verificacion previa en sesion.
+        if ($challenge !== '' || $respuesta !== '') {
+            if ($respuesta === '') {
+                return 'Completa la verificacion de seguridad.';
+            }
+
+            if ($challenge !== '') {
+                if (! $this->validarCaptchaPublico($respuesta, $challenge)) {
+                    $this->refrescarCaptchaTracking($request);
+
+                    return 'La verificacion de seguridad no es correcta.';
+                }
+            } else {
+                $captcha = $request->session()->get(self::TRACKING_CAPTCHA_SESSION_KEY);
+
+                if (!is_array($captcha) || !array_key_exists('answer', $captcha)) {
+                    $this->refrescarCaptchaTracking($request);
+
+                    return 'Completa la verificacion de seguridad.';
+                }
+
+                if (!hash_equals((string) $captcha['answer'], strtoupper($respuesta))) {
+                    $this->refrescarCaptchaTracking($request);
+
+                    return 'La verificacion de seguridad no es correcta.';
+                }
+            }
+
+            $request->session()->put(
+                self::TRACKING_CAPTCHA_VERIFIED_UNTIL_SESSION_KEY,
+                now()->addMinutes(self::TRACKING_CAPTCHA_VERIFIED_MINUTES)->timestamp
+            );
+            $request->session()->forget(self::TRACKING_CAPTCHA_SESSION_KEY);
+
+            return null;
+        }
+
+        // Sin captcha en el request (ej. redireccion al detalle), permite
+        // continuar solo si ya fue verificado recientemente.
         if ($this->captchaTrackingYaFueVerificado($request)) {
             return null;
         }
 
         $captcha = $request->session()->get(self::TRACKING_CAPTCHA_SESSION_KEY);
-        $respuesta = trim((string) $request->input('captcha_answer', ''));
 
-        if (!is_array($captcha) || !array_key_exists('answer', $captcha) || $respuesta === '') {
+        if (!is_array($captcha) || !array_key_exists('answer', $captcha)) {
             $this->refrescarCaptchaTracking($request);
 
             return 'Completa la verificacion de seguridad.';
         }
 
-        if (!hash_equals((string) $captcha['answer'], strtoupper($respuesta))) {
-            $this->refrescarCaptchaTracking($request);
-
-            return 'La verificacion de seguridad no es correcta.';
-        }
-
-        $request->session()->put(
-            self::TRACKING_CAPTCHA_VERIFIED_UNTIL_SESSION_KEY,
-            now()->addMinutes(self::TRACKING_CAPTCHA_VERIFIED_MINUTES)->timestamp
-        );
-        $request->session()->forget(self::TRACKING_CAPTCHA_SESSION_KEY);
-
-        return null;
+        return 'Completa la verificacion de seguridad.';
     }
 
     private function captchaTrackingYaFueVerificado(Request $request): bool
@@ -262,9 +301,12 @@ class BusquedaController extends Controller
     private function datosCaptchaTracking(Request $request): array
     {
         $captcha = $this->obtenerOCrearCaptchaTracking($request);
+        $captchaPublico = $this->formatearCaptchaPublico($captcha);
 
         return [
             'pregunta' => $captcha['question'],
+            'challenge' => $captchaPublico['challenge'],
+            'expires_at' => $captchaPublico['expires_at'],
         ];
     }
 

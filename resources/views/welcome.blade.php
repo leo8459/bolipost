@@ -37,9 +37,14 @@
                         <form class="hero-track-form" id="trackForm" action="{{ route('tracking.demo') }}"
                             method="GET">
                             <div class="hero-track-main">
-                                <input class="track-input" type="text" name="codigo"
+                                <input id="trackCodeInput" class="track-input" type="text" name="codigo"
                                     placeholder="INSERTE C&#xD3;DIGO"
                                     value="{{ old('codigo', session('tracking_codigo', '')) }}"
+                                    maxlength="50"
+                                    autocomplete="off"
+                                    autocapitalize="characters"
+                                    spellcheck="false"
+                                    pattern="[A-Za-z0-9]+"
                                     aria-label="C&#xF3;digo de rastreo" required>
                             </div>
                             <div class="hero-captcha-block">
@@ -784,9 +789,11 @@
         });
 
         const trackForm = document.getElementById('trackForm');
+        const trackCodeInput = document.getElementById('trackCodeInput');
         const trackFeedback = document.getElementById('trackFeedback');
         const captchaAnswer = document.getElementById('captchaAnswer');
         const captchaQuestion = document.getElementById('captchaQuestion');
+        let captchaChallenge = @json($captchaChallenge ?? '');
         const resultsTitle = document.getElementById('resultsTitle');
         const resultsTotal = document.getElementById('resultsTotal');
         const resultsEmpty = document.getElementById('resultsEmpty');
@@ -833,16 +840,39 @@
             showErrorModal(message);
         };
 
-        const updateCaptchaQuestion = (question) => {
+        const updateCaptchaQuestion = (question, challenge = null) => {
             if (!captchaQuestion || !question) return;
             captchaQuestion.textContent = question;
+            if (typeof challenge === 'string' && challenge.trim() !== '') {
+                captchaChallenge = challenge;
+            }
         };
 
         const clearTrackingForm = () => {
-            const input = trackForm?.querySelector('input[name="codigo"]');
-            if (input) input.value = '';
+            if (trackCodeInput) trackCodeInput.value = '';
             if (captchaAnswer) captchaAnswer.value = '';
         };
+
+        const normalizeTrackingCodeInput = (value) => {
+            return String(value || '')
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, '');
+        };
+
+        if (trackCodeInput) {
+            trackCodeInput.value = normalizeTrackingCodeInput(trackCodeInput.value);
+            trackCodeInput.addEventListener('input', () => {
+                const normalized = normalizeTrackingCodeInput(trackCodeInput.value);
+                if (trackCodeInput.value !== normalized) {
+                    trackCodeInput.value = normalized;
+                }
+            });
+            trackCodeInput.addEventListener('paste', (event) => {
+                event.preventDefault();
+                const pasted = event.clipboardData?.getData('text') || '';
+                trackCodeInput.value = normalizeTrackingCodeInput(pasted);
+            });
+        }
 
         const loadCaptcha = async () => {
             try {
@@ -852,9 +882,9 @@
                     },
                 });
                 const data = await response.json();
-                updateCaptchaQuestion(data?.pregunta || '{{ $captchaPregunta }}');
+                updateCaptchaQuestion(data?.pregunta || '{{ $captchaPregunta }}', data?.challenge || '');
             } catch (error) {
-                updateCaptchaQuestion('{{ $captchaPregunta }}');
+                updateCaptchaQuestion('{{ $captchaPregunta }}', @json($captchaChallenge ?? ''));
             } finally {
                 if (captchaAnswer) captchaAnswer.value = '';
             }
@@ -866,10 +896,12 @@
         window.addEventListener('pageshow', () => {
             hideLoadingModal();
             hideErrorModal();
+            loadCaptcha();
         });
         window.addEventListener('popstate', () => {
             hideLoadingModal();
             hideErrorModal();
+            loadCaptcha();
         });
         searchErrorClose?.addEventListener('click', hideErrorModal);
         searchErrorModal?.addEventListener('click', (e) => {
@@ -931,8 +963,7 @@
 
         trackForm?.addEventListener('submit', async (event) => {
             event.preventDefault();
-            const input = trackForm.querySelector('input[name="codigo"]');
-            const codigo = (input?.value || '').trim().toUpperCase();
+            const codigo = normalizeTrackingCodeInput(trackCodeInput?.value || '');
             const captchaValue = (captchaAnswer?.value || '').trim();
 
             if (!codigo) {
@@ -953,7 +984,7 @@
 
             try {
                 const response = await fetch(
-                    `/api/busqueda/ems-eventos?codigo=${encodeURIComponent(codigo)}&captcha_answer=${encodeURIComponent(captchaValue)}`, {
+                    `/api/busqueda/ems-eventos?codigo=${encodeURIComponent(codigo)}&captcha_answer=${encodeURIComponent(captchaValue)}&captcha_challenge=${encodeURIComponent(captchaChallenge || '')}`, {
                         headers: {
                             'Accept': 'application/json'
                         },
@@ -963,7 +994,7 @@
                 if (!response.ok) {
                     const message = data?.message || 'No se pudo realizar la búsqueda.';
                     if (data?.captcha?.pregunta) {
-                        updateCaptchaQuestion(data.captcha.pregunta);
+                        updateCaptchaQuestion(data.captcha.pregunta, data?.captcha?.challenge || '');
                     } else {
                         await loadCaptcha();
                     }
