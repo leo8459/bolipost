@@ -93,6 +93,7 @@ return [
     |
     */
     'custom_permissions' => [
+        'pulse',
         'feature.carteros.distribucion.assign',
         'feature.carteros.distribucion.selfassign',
         'feature.carteros.cartero.guide',
@@ -126,6 +127,7 @@ return [
         'feature.paquetes-ems.devolucion.deliver',
         'feature.paquetes-ems.devolucion.print',
         'feature.empresas.export',
+        'log-viewer.index',
         'feature.paquetes-ems.solicitudes.index.create',
         'feature.paquetes-ems.solicitudes.index.assign',
         'feature.paquetes-ems.solicitudes.index.print',

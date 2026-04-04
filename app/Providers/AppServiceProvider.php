@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
+use Opcodes\LogViewer\LogFile;
+use Opcodes\LogViewer\LogFolder;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -33,6 +35,13 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('cliente-panel', function (): bool {
             return auth('cliente')->check();
         });
+
+        Gate::define('viewPulse', fn ($user = null): bool => $this->userCanInternalWindow($user, 'pulse'));
+        Gate::define('viewLogViewer', fn ($user = null): bool => $this->userCanInternalWindow($user, 'log-viewer.index'));
+        Gate::define('downloadLogFile', fn ($user = null, ?LogFile $file = null): bool => $this->userCanInternalWindow($user, 'log-viewer.index'));
+        Gate::define('downloadLogFolder', fn ($user = null, ?LogFolder $folder = null): bool => $this->userCanInternalWindow($user, 'log-viewer.index'));
+        Gate::define('deleteLogFile', fn ($user = null, ?LogFile $file = null): bool => $this->userCanInternalWindow($user, 'log-viewer.index'));
+        Gate::define('deleteLogFolder', fn ($user = null, ?LogFolder $folder = null): bool => $this->userCanInternalWindow($user, 'log-viewer.index'));
 
         Blade::if('aclcan', function (string $action, mixed $component = null, ?string $moduleOverride = null): bool {
             $user = auth()->user();
@@ -89,5 +98,24 @@ class AppServiceProvider extends ServiceProvider
 
             return false;
         });
+    }
+
+    private function userCanInternalWindow(mixed $user, string $permission): bool
+    {
+        if (! $user || ! auth('web')->check()) {
+            return false;
+        }
+
+        if (auth('cliente')->check() && ! auth('web')->check()) {
+            return false;
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+            return true;
+        }
+
+        return method_exists($user, 'can') && $user->can($permission);
     }
 }
