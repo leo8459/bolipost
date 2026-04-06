@@ -1567,6 +1567,7 @@ class PaquetesEms extends Component
         $this->referencia = $formulario->referencia ?? $paquete->referencia ?? '';
         $this->ciudad = $formulario->ciudad ?? $paquete->ciudad;
         $this->tarifario_id = $formulario->tarifario_id ?? $paquete->tarifario_id;
+        $this->estado_id = $paquete->estado_id;
         $this->servicio_id = optional($paquete->tarifario)->servicio_id;
         $this->destino_id = optional($paquete->tarifario)->destino_id;
         $this->auto_codigo = false;
@@ -1652,6 +1653,8 @@ class PaquetesEms extends Component
 
         if ($this->editingId) {
             $paquete = PaqueteEms::findOrFail($this->editingId);
+            // En edicion, se mantiene el estado actual del paquete.
+            $this->estado_id = $paquete->estado_id;
             $paquete->update($this->payload());
             $this->syncFormularioData($paquete);
             $this->saveRemitenteData();
@@ -4321,8 +4324,14 @@ class PaquetesEms extends Component
             return [];
         }
 
+        $userCity = trim((string) optional(Auth::user())->ciudad);
+        if ($userCity === '') {
+            return [];
+        }
+
         return PaqueteEms::query()
             ->where('estado_id', $estadoAdmisionId)
+            ->whereRaw('trim(upper(origen)) = trim(upper(?))', [$userCity])
             ->whereDate('created_at', now()->toDateString())
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
