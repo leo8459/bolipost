@@ -1606,7 +1606,7 @@ class PaquetesEms extends Component
             }
         } else {
             $this->tarifario_id = null;
-            $this->precio = null;
+            $this->precio = $this->isOficialShipment() ? 0 : null;
         }
 
         $this->precio_confirm = $this->precio;
@@ -1645,7 +1645,7 @@ class PaquetesEms extends Component
             $this->applyTarifarioMatch();
         } else {
             $this->tarifario_id = null;
-            $this->precio = null;
+            $this->precio = $this->isOficialShipment() ? 0 : null;
         }
         if ($this->precio_confirm !== null) {
             $this->precio = $this->precio_confirm;
@@ -1684,6 +1684,7 @@ class PaquetesEms extends Component
                 $this->setOrigenFromUser();
                 $this->setUserOrigenId();
                 $this->auto_codigo = true;
+                $this->servicio_especial = 'IDA';
                 return redirect()
                     ->route('paquetes-ems.index')
                     ->with('download_boleta_url', route('paquetes-ems.boleta', $paquete->id, false));
@@ -4559,6 +4560,12 @@ class PaquetesEms extends Component
 
     protected function applyTarifarioMatch()
     {
+        if ($this->isOficialShipment()) {
+            $this->tarifario_id = null;
+            $this->precio = 0;
+            return;
+        }
+
         if ($this->isCertificadoShipment()) {
             $this->tarifario_id = null;
             $this->precio = null;
@@ -4605,6 +4612,12 @@ class PaquetesEms extends Component
         return $tipo !== '' && (str_contains($tipo, 'OFICIAL') || str_contains($tipo, 'CERTIFIC'));
     }
 
+    protected function isOficialShipment(): bool
+    {
+        $tipo = strtoupper(trim((string) $this->tipo_correspondencia));
+        return $tipo !== '' && str_contains($tipo, 'OFICIAL');
+    }
+
     protected function generateCodigo()
     {
         $prefix = $this->getCodigoPrefix();
@@ -4631,6 +4644,10 @@ class PaquetesEms extends Component
 
     protected function getCodigoPrefix()
     {
+        if ($this->isOficialShipment()) {
+            return 'OFICIAL';
+        }
+
         if ($this->isAlmacenEms) {
             return 'AG';
         }
