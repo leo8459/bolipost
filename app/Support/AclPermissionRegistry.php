@@ -523,6 +523,12 @@ class AclPermissionRegistry
             'feature.paquetes-ems.contrato-rapido.create.save',
             'feature.paquetes-ems.contrato-rapido.create.create',
         ],
+        'paquetes-ems.contrato-rapido.create' => [
+            'paquetes-ems.contrato-rapido.create',
+            'feature.paquetes-ems.almacen.registercontract',
+            'feature.paquetes-ems.contrato-rapido.create.create',
+            'feature.paquetes-ems.contrato-rapido.create.save',
+        ],
         'paquetes-contrato.create' => [
             'paquetes-contrato.create',
             'feature.paquetes-contrato.index.create',
