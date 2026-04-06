@@ -548,6 +548,7 @@
                                     <label>Servicio especial</label>
                                     <select wire:model.defer="servicio_especial" class="form-control">
                                         <option value="">Seleccione...</option>
+                                        <option value="IDA">IDA</option>
                                         <option value="POR COBRAR">POR COBRAR</option>
                                         <option value="IDA Y VUELTA">IDA Y VUELTA</option>
                                     </select>
@@ -1218,6 +1219,7 @@
                                         <label>Servicio especial</label>
                                         <select wire:model.defer="servicio_especial" class="form-control">
                                             <option value="">Seleccione...</option>
+                                            <option value="IDA">IDA</option>
                                             <option value="POR COBRAR">POR COBRAR</option>
                                             <option value="IDA Y VUELTA">IDA Y VUELTA</option>
                                         </select>

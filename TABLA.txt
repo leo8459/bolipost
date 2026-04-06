@@ -1,4 +1,4 @@
-    php artisan migrate --path=/database/migrations/2026_03_19_130000_add_contact_fields_to_clientes_table.php
+    php artisan migrate --path=/database/migrations/2026_04_05_200000_add_referencia_to_paquetes_ems_tables.php
 
 
 

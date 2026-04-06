@@ -195,6 +195,7 @@ class PaquetesEms extends Component
             $this->setOrigenFromUser();
             $this->setUserOrigenId();
             $this->auto_codigo = true;
+            $this->servicio_especial = 'IDA';
         }
     }
 
