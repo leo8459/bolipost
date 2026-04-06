@@ -520,6 +520,7 @@ class AclPermissionRegistry
         ],
         'paquetes-ems.contrato-rapido.store' => [
             'paquetes-ems.contrato-rapido.store',
+            'feature.paquetes-ems.almacen.registercontract',
             'feature.paquetes-ems.contrato-rapido.create.save',
             'feature.paquetes-ems.contrato-rapido.create.create',
         ],

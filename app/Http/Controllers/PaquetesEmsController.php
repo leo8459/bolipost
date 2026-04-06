@@ -953,6 +953,7 @@ class PaquetesEmsController extends Controller
     {
         $user = Auth::user();
         abort_if(!$user, 403, 'No autenticado.');
+        $canRegisterQuickContractFromAlmacen = $user->can('feature.paquetes-ems.almacen.registercontract');
 
         $origen = strtoupper(trim((string) optional($user)->ciudad));
         if ($origen === '') {
@@ -964,10 +965,13 @@ class PaquetesEmsController extends Controller
             'ciudades' => self::CIUDADES_BOLIVIA,
             'provinciasPorDestino' => $this->buildProvinciasPorDestino(),
             'listado' => [],
-            'canQuickContractCreate' => $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
-            'canQuickContractSave' => $user->can('feature.paquetes-ems.contrato-rapido.create.save')
+            'canQuickContractCreate' => $canRegisterQuickContractFromAlmacen
                 || $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
-            'canQuickContractDelete' => $user->can('feature.paquetes-ems.contrato-rapido.create.delete'),
+            'canQuickContractSave' => $canRegisterQuickContractFromAlmacen
+                || $user->can('feature.paquetes-ems.contrato-rapido.create.save')
+                || $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
+            'canQuickContractDelete' => $canRegisterQuickContractFromAlmacen
+                || $user->can('feature.paquetes-ems.contrato-rapido.create.delete'),
         ]);
     }
 
@@ -983,7 +987,8 @@ class PaquetesEmsController extends Controller
 
         abort_unless(
             $user->can('feature.paquetes-ems.contrato-rapido.create.save')
-                || $user->can('feature.paquetes-ems.contrato-rapido.create.create'),
+                || $user->can('feature.paquetes-ems.contrato-rapido.create.create')
+                || $user->can('feature.paquetes-ems.almacen.registercontract'),
             403,
             'No tienes permiso para guardar contratos rapidos.'
         );
