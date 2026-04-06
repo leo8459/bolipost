@@ -129,6 +129,8 @@ class PaquetesEms extends Component
     public $ciudades = [
         'LA PAZ',
         'SANTA CRUZ',
+        'BENI',
+        'PANDO',
         'COBIJA',
         'TRINIDAD',
         'TARIJA',
