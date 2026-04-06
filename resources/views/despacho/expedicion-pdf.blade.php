@@ -43,7 +43,7 @@
             </td>
             <td style="width: 40%;" class="text-center">
                 <h2 class="title-main">Hoja de Aviso</h2>
-                <h3 class="title-sub">AGENCIA BOLIVIANA DE CORREOS</h3>
+                <h3 class="title-sub">CORREOS DE BOLIVIA</h3>
             </td>
             <td style="width: 30%;" class="text-center">
                 <div class="cn-code-right">CN 31</div>
@@ -59,12 +59,12 @@
         <tr>
             <th style="width: 20%;">Operadores</th>
             <th style="width: 15%;">Origen</th>
-            <td colspan="5">{{ $ciudadOrigen }} - AGENCIA BOLIVIANA DE CORREOS</td>
+            <td colspan="5">{{ $ciudadOrigen }} - CORREOS DE BOLIVIA</td>
         </tr>
         <tr>
             <th></th>
             <th>Destino</th>
-            <td colspan="5">{{ $ciudadDestino }} - AGENCIA BOLIVIANA DE CORREOS</td>
+            <td colspan="5">{{ $ciudadDestino }} - CORREOS DE BOLIVIA</td>
         </tr>
         <tr>
             <th>Origen OE</th>
@@ -140,7 +140,7 @@
             </td>
             <td style="width: 40%;" class="text-center">
                 <h2 class="title-main-cn38">Factura de Entrega</h2>
-                <h3 class="title-sub-cn38">AGENCIA BOLIVIANA DE CORREOS</h3>
+                <h3 class="title-sub-cn38">CORREOS DE BOLIVIA</h3>
             </td>
             <td style="width: 30%;" class="text-center">
                 <div class="cn-code-right">CN 38</div>
@@ -242,7 +242,7 @@
             </tr>
             <tr>
                 <td colspan="2" class="text-center">{{ optional($despacho->created_at)->format('Y-m-d H:i:s') }}</td>
-                <td colspan="2" class="text-center" style="border-bottom-color: transparent;">AGENCIA BOLIVIANA DE CORREOS</td>
+                <td colspan="2" class="text-center" style="border-bottom-color: transparent;">CORREOS DE BOLIVIA</td>
             </tr>
             <tr>
                 <td>DespNo: {{ str_pad((string) $despacho->nro_despacho, 3, '0', STR_PAD_LEFT) }}</td>

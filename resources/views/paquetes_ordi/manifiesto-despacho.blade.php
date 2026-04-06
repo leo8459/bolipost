@@ -87,7 +87,7 @@
 
         <div class="title">
             <h2>Manifiesto Area Clasificacion</h2>
-            <h3>AGENCIA BOLIVIANA DE CORREOS</h3>
+            <h3>CORREOS DE BOLIVIA</h3>
         </div>
     </div>
 
@@ -96,11 +96,11 @@
             <tr>
                 <th rowspan="2">Operadores</th>
                 <th>Origen</th>
-                <td colspan="5">{{ $ciudadOrigen }} - AGENCIA BOLIVIANA DE CORREOS</td>
+                <td colspan="5">{{ $ciudadOrigen }} - CORREOS DE BOLIVIA</td>
             </tr>
             <tr>
                 <th>Destino</th>
-                <td colspan="5">{{ $ciudadDestino }} - AGENCIA BOLIVIANA DE CORREOS</td>
+                <td colspan="5">{{ $ciudadDestino }} - CORREOS DE BOLIVIA</td>
             </tr>
         </thead>
         <tbody>

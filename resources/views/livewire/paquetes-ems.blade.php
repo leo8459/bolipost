@@ -616,8 +616,8 @@
                                     @error('nombre_remitente') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-6">
-                                    <label>Telefono remitente</label>
-                                    <input type="text" wire:model.defer="telefono_remitente" class="form-control">
+                                    <label>Telefono remitente<span class="required-star">*</span></label>
+                                    <input type="text" wire:model.defer="telefono_remitente" class="form-control" required>
                                     @error('telefono_remitente') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -643,7 +643,7 @@
                                     @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-6">
-                                    <label>Nombre envia</label>
+                                    <label>Empresa</label>
                                     <input type="text" wire:model.defer="nombre_envia" class="form-control">
                                     @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
@@ -687,6 +687,14 @@
                                     <input type="text" wire:model.defer="direccion" class="form-control" required>
                                     @error('direccion') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
+                                <div class="form-group col-md-6">
+                                    <label>Referencia</label>
+                                    <input type="text" wire:model.defer="referencia" class="form-control">
+                                    @error('referencia') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
                                 <div class="form-group col-md-6">
                                     <label>Ciudad destinatario</label>
                                     <select wire:model.defer="ciudad" class="form-control" disabled>
@@ -811,7 +819,7 @@
                                     <th>Cantidad</th>
                                     <th>Peso</th>
                                     <th>Nombre remitente</th>
-                                    <th>Nombre envia</th>
+                                    <th>Empresa</th>
                                     <th>Carnet</th>
                                     <th>Telefono remitente</th>
                                     <th>Nombre destinatario</th>
@@ -1284,8 +1292,8 @@
                                 </div>
                                 @if (!$this->isAlmacenEms)
                                     <div class="form-group col-md-6">
-                                        <label>Telefono remitente</label>
-                                        <input type="text" wire:model.defer="telefono_remitente" class="form-control">
+                                        <label>Telefono remitente<span class="required-star">*</span></label>
+                                        <input type="text" wire:model.defer="telefono_remitente" class="form-control" required>
                                         @error('telefono_remitente') <small class="text-danger">{{ $message }}</small> @enderror
                                     </div>
                                 @endif
@@ -1312,7 +1320,7 @@
                                         @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
                                     </div>
                                     <div class="form-group col-md-6">
-                                        <label>Nombre envia</label>
+                                        <label>Empresa</label>
                                         <input type="text" wire:model.defer="nombre_envia" class="form-control">
                                         @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
                                     </div>
@@ -1360,6 +1368,14 @@
                                         <input type="text" wire:model.defer="direccion" class="form-control">
                                         @error('direccion') <small class="text-danger">{{ $message }}</small> @enderror
                                     </div>
+                                    <div class="form-group col-md-6">
+                                        <label>Referencia</label>
+                                        <input type="text" wire:model.defer="referencia" class="form-control">
+                                        @error('referencia') <small class="text-danger">{{ $message }}</small> @enderror
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
                                     <div class="form-group col-md-6">
                                         <label>Ciudad destinatario</label>
                                         <select wire:model.defer="ciudad" class="form-control" disabled>
@@ -1430,7 +1446,8 @@
                                 <div class="col-md-6 mb-2"><strong>Ciudad:</strong> {{ $ciudad }}</div>
                                 <div class="col-md-6 mb-2"><strong>Telefono remitente:</strong> {{ $telefono_remitente }}</div>
                                 <div class="col-md-6 mb-2"><strong>Telefono destinatario:</strong> {{ $telefono_destinatario }}</div>
-                                <div class="col-md-12 mb-2"><strong>Direccion destinatario:</strong> {{ $direccion }}</div>
+                                <div class="col-md-6 mb-2"><strong>Direccion destinatario:</strong> {{ $direccion }}</div>
+                                <div class="col-md-6 mb-2"><strong>Referencia:</strong> {{ $referencia }}</div>
                             @endif
                         </div>
                     </div>

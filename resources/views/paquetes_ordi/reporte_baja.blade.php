@@ -30,7 +30,7 @@
         <div class="modal-body">
             <div class="center-text">
                 <h2 class="normal-text" style="margin-top: 0;">FORMULARIO DE ENTREGA</h2>
-                <h3 class="normal-text">AGENCIA BOLIVIANA DE CORREOS</h3>
+                <h3 class="normal-text">CORREOS DE BOLIVIA</h3>
             </div>
             <table class="centro details-table">
                 <tr>
@@ -75,7 +75,7 @@
             <div class="modal-body">
                 <div class="center-text">
                     <h2 class="normal-text" style="margin-top: 0;">FORMULARIO DE ENTREGA</h2>
-                    <h3 class="normal-text">AGENCIA BOLIVIANA DE CORREOS</h3>
+                    <h3 class="normal-text">CORREOS DE BOLIVIA</h3>
                 </div>
                 <table class="centro details-table">
                     <tr>

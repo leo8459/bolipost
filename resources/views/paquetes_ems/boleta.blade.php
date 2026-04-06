@@ -166,6 +166,7 @@
     $fecha = $paquete->created_at ?? now();
     $destinoTarifa = (string) (optional(optional($paquete->tarifario)->destino)->nombre_destino ?? '');
     $direccion = (string) ($paquete->direccion ?? optional($paquete->formulario)->direccion ?? '');
+    $referencia = (string) ($paquete->referencia ?? optional($paquete->formulario)->referencia ?? '');
     $usuario = trim((string) (Auth::user()->name ?? ''));
 
     $marcaAgua = match ($destinoTarifa) {
@@ -183,13 +184,8 @@
         default => '',
     };
 
-    $logoPath = public_path('images/AGBClogo2.png');
-    $qrRastreoPath = public_path('images/qr_trackingbo_8100.png');
-    $qrWebPath = public_path('images/qr_correos_gob_bo.png');
-
+    $logoPath = public_path('images/AGBClogo1.png');
     $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
-    $qrRastreoPngB64 = file_exists($qrRastreoPath) ? base64_encode(file_get_contents($qrRastreoPath)) : null;
-    $qrWebPngB64 = file_exists($qrWebPath) ? base64_encode(file_get_contents($qrWebPath)) : null;
 @endphp
 <body>
 @for ($i = 0; $i < 2; $i++)
@@ -247,18 +243,20 @@
                 <div class="value">{{ $nombreDestinatario !== '' ? $nombreDestinatario : '-' }}</div>
             </div>
             <div class="section">
-                <span class="label">Direccion y telefono destinatario</span>
-                <div class="value value-sm">
-                    {{ $direccion !== '' ? $direccion : '-' }}<br>
-                    {{ $telefonoDestinatario !== '' ? $telefonoDestinatario : '-' }}
-                </div>
+                <span class="label">Direccion destinatario</span>
+                <div class="value value-sm">{{ $direccion !== '' ? $direccion : '-' }}</div>
+            </div>
+            <div class="section">
+                <span class="label">Referencia</span>
+                <div class="value value-sm">{{ $referencia !== '' ? $referencia : '-' }}</div>
+            </div>
+            <div class="section">
+                <span class="label">Telefono destinatario</span>
+                <div class="value">{{ $telefonoDestinatario !== '' ? $telefonoDestinatario : '-' }}</div>
             </div>
             <div class="section">
                 <span class="label">Descripcion</span>
-                <div class="value value-sm">
-                    {{ $contenido !== '' ? $contenido : '-' }}<br>
-                    DESTINO: {{ $destinoTarifa !== '' ? $destinoTarifa : '-' }}
-                </div>
+                <div class="value value-sm">{{ $contenido !== '' ? $contenido : '-' }}</div>
             </div>
         </div>
 
@@ -292,29 +290,6 @@
             <span class="signature-line"></span>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="qr-row">
-            <div class="qr-item">
-                <div class="qr-caption">Codigo de rastreo</div>
-                @if($qrRastreoPngB64)
-                    <img src="data:image/png;base64,{{ $qrRastreoPngB64 }}" alt="QR rastreo">
-                @endif
-            </div>
-            <div class="qr-item">
-                <div class="qr-caption">Sitio web</div>
-                @if($qrWebPngB64)
-                    <img src="data:image/png;base64,{{ $qrWebPngB64 }}" alt="QR web">
-                @endif
-            </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="footer-note">
-            Rastreo: tracking.correos.gob.bo<br>
-            Web: correos.gob.bo
-        </div>
     </div>
 @endfor
 </body>

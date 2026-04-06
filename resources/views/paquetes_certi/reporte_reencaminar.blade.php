@@ -29,7 +29,7 @@
             <td style="width: 40%;" class="text-center">
                 <h2 class="title-main">Reporte de Reencaminado</h2>
                 <h3 class="title-sub">Paquetes Certificados</h3>
-                <div><strong>AGENCIA BOLIVIANA DE CORREOS</strong></div>
+                <div><strong>CORREOS DE BOLIVIA</strong></div>
             </td>
             <td style="width: 30%;" class="text-center">
                 <div class="report-code">RPT</div>

@@ -206,10 +206,10 @@ class AreaContratosEntregadosResumenSheetExport implements FromArray, ShouldAuto
                 $sheet->mergeCells("G{$lineaRow}:I{$lineaRow}");
                 $sheet->setCellValue("B{$nombreRow}", $this->resolveLoggedUserName());
                 $sheet->setCellValue("G{$nombreRow}", 'Lucy Tinta Torrez');
-                $sheet->setCellValue("B{$cargoRow}", 'AGENCIA BOLIVIANA DE CORREOS');
+                $sheet->setCellValue("B{$cargoRow}", 'CORREOS DE BOLIVIA');
                 $sheet->setCellValue("G{$cargoRow}", 'ENCARGADO DE CONTRATOS');
-                $sheet->setCellValue("B{$institucionRow}", 'AGENCIA BOLIVIANA DE CORREOS');
-                $sheet->setCellValue("G{$institucionRow}", 'AGENCIA BOLIVIANA DE CORREOS');
+                $sheet->setCellValue("B{$institucionRow}", 'CORREOS DE BOLIVIA');
+                $sheet->setCellValue("G{$institucionRow}", 'CORREOS DE BOLIVIA');
 
                 $sheet->getStyle("B{$realizadoRow}:I{$institucionRow}")->applyFromArray([
                     'alignment' => [

@@ -64,7 +64,7 @@ return [
     */
 
     'logo' => '<b>Tracking</b>BO',
-    'logo_img' => 'images/AGBClogo2.png',
+    'logo_img' => 'images/AGBClogo1.png',
     'logo_img_class' => 'brand-image img-circle',
     'logo_img_xl' => null,
     'logo_img_xl_class' => 'brand-image-xs',
@@ -86,7 +86,7 @@ return [
     'auth_logo' => [
         'enabled' => true,
         'img' => [
-            'path' => 'images/AGBClogo2.png',
+            'path' => 'images/AGBClogo1.png',
             'alt' => 'TrackingBO',
             'class' => '',
             'width' => 50,
@@ -113,7 +113,7 @@ return [
         'enabled' => false,
         'mode' => 'fullscreen',
         'img' => [
-            'path' => 'images/AGBClogo2.png',
+            'path' => 'images/AGBClogo1.png',
             'alt' => 'TrackingBo',
             'effect' => 'animation__shake',
             'width' => 60,

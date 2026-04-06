@@ -156,6 +156,7 @@ class PaquetesEms extends Component
     public $nombre_destinatario = '';
     public $telefono_destinatario = '';
     public $direccion = '';
+    public $referencia = '';
     public $ciudad = '';
     public $servicio_id = '';
     public $tarifario_id = '';
@@ -1562,6 +1563,7 @@ class PaquetesEms extends Component
         $this->nombre_destinatario = $formulario->nombre_destinatario ?? $paquete->nombre_destinatario;
         $this->telefono_destinatario = $formulario->telefono_destinatario ?? $paquete->telefono_destinatario;
         $this->direccion = $formulario->direccion ?? $paquete->direccion;
+        $this->referencia = $formulario->referencia ?? $paquete->referencia ?? '';
         $this->ciudad = $formulario->ciudad ?? $paquete->ciudad;
         $this->tarifario_id = $formulario->tarifario_id ?? $paquete->tarifario_id;
         $this->servicio_id = optional($paquete->tarifario)->servicio_id;
@@ -3228,6 +3230,7 @@ class PaquetesEms extends Component
             'nombre_destinatario',
             'telefono_destinatario',
             'direccion',
+            'referencia',
             'ciudad',
             'servicio_id',
             'tarifario_id',
@@ -3266,6 +3269,7 @@ class PaquetesEms extends Component
             'nombre_destinatario' => 'required|string|max:255',
             'telefono_destinatario' => 'nullable|string|max:50',
             'direccion' => 'required|string|max:255',
+            'referencia' => 'nullable|string|max:255',
             'ciudad' => ['nullable', 'string', 'max:255'],
             'servicio_id' => ['required', 'integer', Rule::exists('servicio', 'id')],
             'destino_id' => ['required', 'integer', Rule::exists('destino', 'id')],
@@ -3290,6 +3294,7 @@ class PaquetesEms extends Component
             'nombre_destinatario' => $this->nombre_destinatario,
             'telefono_destinatario' => $this->telefono_destinatario,
             'direccion' => $this->direccion,
+            'referencia' => $this->referencia,
             'ciudad' => $this->ciudad,
             'tarifario_id' => $this->tarifario_id ?: null,
             'estado_id' => $this->estado_id ?? null,
@@ -4076,6 +4081,7 @@ class PaquetesEms extends Component
             'nombre_destinatario',
             'telefono_destinatario',
             'direccion',
+            'referencia',
             'ciudad',
             'cod_especial',
         ];
@@ -4887,6 +4893,7 @@ class PaquetesEms extends Component
                 'nombre_destinatario' => $this->nombre_destinatario,
                 'telefono_destinatario' => $this->telefono_destinatario,
                 'direccion' => $this->direccion,
+                'referencia' => $this->referencia,
                 'ciudad' => $this->ciudad,
                 'servicio_id' => $this->servicio_id ?: null,
                 'destino_id' => $this->destino_id ?: null,
@@ -5241,6 +5248,7 @@ class PaquetesEms extends Component
         $this->nombre_destinatario = (string) ($formulario->nombre_destinatario ?? $this->nombre_destinatario);
         $this->telefono_destinatario = (string) ($formulario->telefono_destinatario ?? $this->telefono_destinatario);
         $this->direccion = (string) ($formulario->direccion ?? $this->direccion);
+        $this->referencia = (string) ($formulario->referencia ?? $this->referencia);
         $this->ciudad = (string) ($formulario->ciudad ?? $this->ciudad);
 
         if (!empty($formulario->servicio_id)) {

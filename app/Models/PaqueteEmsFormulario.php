@@ -28,6 +28,7 @@ class PaqueteEmsFormulario extends Model
         'nombre_destinatario',
         'telefono_destinatario',
         'direccion',
+        'referencia',
         'ciudad',
         'servicio_id',
         'destino_id',

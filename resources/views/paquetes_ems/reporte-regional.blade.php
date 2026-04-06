@@ -97,7 +97,7 @@
 
         <table class="table-head">
             <tr>
-                <td colspan="4" class="title">AGENCIA BOLIVIANA DE CORREOS</td>
+                <td colspan="4" class="title">CORREOS DE BOLIVIA</td>
                 <td rowspan="3" style="text-align: center; vertical-align: middle; width: 25%;">
                     @php
                         $headerBarcodePng = null;

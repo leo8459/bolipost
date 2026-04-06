@@ -10,7 +10,7 @@
     <div class="container footer-grid">
         <div class="footer-col">
             <div class="footer-brand">
-                <img src="{{ asset('images/AGBClogo2.png') }}" alt="Correos de Bolivia">
+                <img src="{{ asset('images/AGBClogo1.png') }}" alt="Correos de Bolivia">
             </div>
         </div>
 

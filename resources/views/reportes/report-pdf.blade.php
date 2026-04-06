@@ -124,7 +124,7 @@
 </head>
 <body>
 @php
-    $logoPath = public_path('images/AGBClogo2.png');
+    $logoPath = public_path('images/AGBClogo1.png');
     $logoData = file_exists($logoPath)
         ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
         : null;
