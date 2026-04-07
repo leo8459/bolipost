@@ -129,12 +129,10 @@ class PaquetesEms extends Component
     public $ciudades = [
         'LA PAZ',
         'SANTA CRUZ',
-        'BENI',
-        'PANDO',
-        'COBIJA',
         'TRINIDAD',
+        'COBIJA',
         'TARIJA',
-        'CHUQUISACA',
+        'SUCRE',
         'ORURO',
         'COCHABAMBA',
         'POTOSI',
@@ -188,7 +186,7 @@ class PaquetesEms extends Component
         $this->setOrigenFromUser();
         if ($this->isAdmision || $this->isAlmacenEms || $this->isCreateEms) {
             $this->servicios = Servicio::orderBy('nombre_servicio')->get();
-            $this->destinos = Destino::orderBy('nombre_destino')->get();
+            $this->loadDestinos();
             $this->setUserOrigenId();
         }
 
@@ -1547,7 +1545,7 @@ class PaquetesEms extends Component
             $this->servicios = Servicio::orderBy('nombre_servicio')->get();
         }
         if (empty($this->destinos)) {
-            $this->destinos = Destino::orderBy('nombre_destino')->get();
+            $this->loadDestinos();
         }
 
         $this->editingId = $paquete->id;
@@ -1567,7 +1565,7 @@ class PaquetesEms extends Component
         $this->telefono_destinatario = $formulario->telefono_destinatario ?? $paquete->telefono_destinatario;
         $this->direccion = $formulario->direccion ?? $paquete->direccion;
         $this->referencia = $formulario->referencia ?? $paquete->referencia ?? '';
-        $this->ciudad = $formulario->ciudad ?? $paquete->ciudad;
+        $this->ciudad = $this->normalizeDestinoNombre((string) ($formulario->ciudad ?? $paquete->ciudad));
         $this->tarifario_id = $formulario->tarifario_id ?? $paquete->tarifario_id;
         $this->estado_id = $paquete->estado_id;
         $this->servicio_id = optional($paquete->tarifario)->servicio_id;
@@ -1617,6 +1615,7 @@ class PaquetesEms extends Component
             $this->codigo = $this->generateCodigo();
         }
 
+        $this->ciudad = $this->normalizeDestinoNombre((string) $this->ciudad);
         $this->validate($this->rules());
 
         $this->showPaqueteConfirmModal = true;
@@ -1649,6 +1648,7 @@ class PaquetesEms extends Component
             $this->tarifario_id = null;
             $this->precio = $this->isOficialShipment() ? 0 : null;
         }
+        $this->ciudad = $this->normalizeDestinoNombre((string) $this->ciudad);
         if ($this->precio_confirm !== null) {
             $this->precio = $this->precio_confirm;
         }
@@ -3417,6 +3417,36 @@ class PaquetesEms extends Component
         }
     }
 
+    protected function loadDestinos(): void
+    {
+        $this->destinos = Destino::orderBy('nombre_destino')
+            ->get()
+            ->map(function ($destino) {
+                $destino->nombre_destino = $this->normalizeDestinoNombre((string) $destino->nombre_destino);
+                return $destino;
+            });
+    }
+
+    protected function normalizeDestinoNombre(string $nombre): string
+    {
+        $nombreTrim = trim($nombre);
+        $nombreUpper = strtoupper($nombreTrim);
+
+        if ($nombreUpper === 'PANDO') {
+            return 'COBIJA';
+        }
+
+        if ($nombreUpper === 'BENI') {
+            return 'TRINIDAD';
+        }
+
+        if ($nombreUpper === 'CHUQUISACA') {
+            return 'SUCRE';
+        }
+
+        return $nombreTrim;
+    }
+
     protected function almacenUnificadoQuery()
     {
         $q = trim((string) $this->searchQuery);
@@ -4975,7 +5005,7 @@ class PaquetesEms extends Component
         $this->nombre_destinatario = (string) $preregistro->nombre_destinatario;
         $this->telefono_destinatario = (string) ($preregistro->telefono_destinatario ?? '');
         $this->direccion = (string) $preregistro->direccion;
-        $this->ciudad = (string) $preregistro->ciudad;
+        $this->ciudad = $this->normalizeDestinoNombre((string) $preregistro->ciudad);
         $this->servicio_id = (string) $preregistro->servicio_id;
         $this->destino_id = (string) $preregistro->destino_id;
         $this->auto_codigo = true;
@@ -5278,7 +5308,7 @@ class PaquetesEms extends Component
         $this->telefono_destinatario = (string) ($formulario->telefono_destinatario ?? $this->telefono_destinatario);
         $this->direccion = (string) ($formulario->direccion ?? $this->direccion);
         $this->referencia = (string) ($formulario->referencia ?? $this->referencia);
-        $this->ciudad = (string) ($formulario->ciudad ?? $this->ciudad);
+        $this->ciudad = $this->normalizeDestinoNombre((string) ($formulario->ciudad ?? $this->ciudad));
 
         if (!empty($formulario->servicio_id)) {
             $this->servicio_id = (string) $formulario->servicio_id;

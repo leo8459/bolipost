@@ -378,6 +378,9 @@
                                 </span>
                             @elseif ($this->isTransitoEms)
                                 <span class="header-chip">{{ $this->regionalEstadoLabel }}</span>
+                                @if (strtoupper(trim((string) $this->regionalEstadoLabel)) !== 'TRANSITO')
+                                    <span class="header-chip">TRANSITO</span>
+                                @endif
                             @else
                                 <span class="header-chip">ADMISIONES</span>
                             @endif
