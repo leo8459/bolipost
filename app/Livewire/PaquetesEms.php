@@ -2765,9 +2765,9 @@ class PaquetesEms extends Component
             return;
         }
 
-        $estadoRegionalRecepcionId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
-        if (!$estadoRegionalRecepcionId) {
-            session()->flash('error', 'No existe el estado ENVIADO en la tabla estados.');
+        $estadoRecibirRegionalIds = $this->resolveRecibirRegionalEstadoIds();
+        if (empty($estadoRecibirRegionalIds)) {
+            session()->flash('error', 'No existe el estado ENVIADO ni TRANSITO en la tabla estados.');
             return;
         }
 
@@ -2781,9 +2781,24 @@ class PaquetesEms extends Component
 
         $contratos = collect();
         if (!empty($idsContratos)) {
+            $userCity = trim((string) optional(Auth::user())->ciudad);
+            $estadoTransitoId = $this->findEstadoId('TRANSITO');
             $contratos = RecojoContrato::query()
                 ->whereIn('id', $idsContratos)
-                ->where('estados_id', (int) $estadoRegionalRecepcionId)
+                ->whereIn('estados_id', $estadoRecibirRegionalIds)
+                ->when($userCity !== '', function ($query) use ($userCity, $estadoTransitoId) {
+                    if (empty($estadoTransitoId)) {
+                        return;
+                    }
+
+                    $query->where(function ($sub) use ($estadoTransitoId, $userCity) {
+                        $sub->where('estados_id', '<>', (int) $estadoTransitoId)
+                            ->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                                $q2->where('estados_id', (int) $estadoTransitoId)
+                                    ->whereRaw('trim(upper(destino)) = trim(upper(?))', [$userCity]);
+                            });
+                    });
+                })
                 ->orderBy('id')
                 ->get([
                     'id',
@@ -2797,9 +2812,24 @@ class PaquetesEms extends Component
 
         $solicitudes = collect();
         if (!empty($idsSolicitudes)) {
+            $userCity = trim((string) optional(Auth::user())->ciudad);
+            $estadoTransitoId = $this->findEstadoId('TRANSITO');
             $solicitudes = SolicitudCliente::query()
                 ->whereIn('id', $idsSolicitudes)
-                ->where('estado_id', (int) $estadoRegionalRecepcionId)
+                ->whereIn('estado_id', $estadoRecibirRegionalIds)
+                ->when($userCity !== '', function ($query) use ($userCity, $estadoTransitoId) {
+                    if (empty($estadoTransitoId)) {
+                        return;
+                    }
+
+                    $query->where(function ($sub) use ($estadoTransitoId, $userCity) {
+                        $sub->where('estado_id', '<>', (int) $estadoTransitoId)
+                            ->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                                $q2->where('estado_id', (int) $estadoTransitoId)
+                                    ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
+                            });
+                    });
+                })
                 ->orderBy('id')
                 ->get([
                     'id',
@@ -2951,9 +2981,9 @@ class PaquetesEms extends Component
             return;
         }
 
-        $estadoRegionalRecepcionId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
-        if (!$estadoRegionalRecepcionId) {
-            session()->flash('error', 'No existe el estado ENVIADO en la tabla estados.');
+        $estadoRecibirRegionalIds = $this->resolveRecibirRegionalEstadoIds();
+        if (empty($estadoRecibirRegionalIds)) {
+            session()->flash('error', 'No existe el estado ENVIADO ni TRANSITO en la tabla estados.');
             return;
         }
 
@@ -2965,28 +2995,73 @@ class PaquetesEms extends Component
 
         $paquetesRecibir = collect();
         if (!empty($idsEms)) {
+            $userCity = trim((string) optional(Auth::user())->ciudad);
+            $estadoTransitoId = $this->findEstadoId('TRANSITO');
             $paquetesRecibir = PaqueteEms::query()
                 ->with('formulario:id,paquete_ems_id,peso')
                 ->whereIn('id', $idsEms)
-                ->where('estado_id', (int) $estadoRegionalRecepcionId)
+                ->whereIn('estado_id', $estadoRecibirRegionalIds)
+                ->when($userCity !== '', function ($query) use ($userCity, $estadoTransitoId) {
+                    if (empty($estadoTransitoId)) {
+                        return;
+                    }
+
+                    $query->where(function ($sub) use ($estadoTransitoId, $userCity) {
+                        $sub->where('estado_id', '<>', (int) $estadoTransitoId)
+                            ->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                                $q2->where('estado_id', (int) $estadoTransitoId)
+                                    ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
+                            });
+                    });
+                })
                 ->orderBy('id')
                 ->get(['id', 'codigo', 'peso', 'estado_id']);
         }
 
         $contratosRecibir = collect();
         if (!empty($idsContratos)) {
+            $userCity = trim((string) optional(Auth::user())->ciudad);
+            $estadoTransitoId = $this->findEstadoId('TRANSITO');
             $contratosRecibir = RecojoContrato::query()
                 ->whereIn('id', $idsContratos)
-                ->where('estados_id', (int) $estadoRegionalRecepcionId)
+                ->whereIn('estados_id', $estadoRecibirRegionalIds)
+                ->when($userCity !== '', function ($query) use ($userCity, $estadoTransitoId) {
+                    if (empty($estadoTransitoId)) {
+                        return;
+                    }
+
+                    $query->where(function ($sub) use ($estadoTransitoId, $userCity) {
+                        $sub->where('estados_id', '<>', (int) $estadoTransitoId)
+                            ->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                                $q2->where('estados_id', (int) $estadoTransitoId)
+                                    ->whereRaw('trim(upper(destino)) = trim(upper(?))', [$userCity]);
+                            });
+                    });
+                })
                 ->orderBy('id')
                 ->get(['id', 'codigo', 'peso', 'estados_id']);
         }
 
         $solicitudesRecibir = collect();
         if (!empty($idsSolicitudes)) {
+            $userCity = trim((string) optional(Auth::user())->ciudad);
+            $estadoTransitoId = $this->findEstadoId('TRANSITO');
             $solicitudesRecibir = SolicitudCliente::query()
                 ->whereIn('id', $idsSolicitudes)
-                ->where('estado_id', (int) $estadoRegionalRecepcionId)
+                ->whereIn('estado_id', $estadoRecibirRegionalIds)
+                ->when($userCity !== '', function ($query) use ($userCity, $estadoTransitoId) {
+                    if (empty($estadoTransitoId)) {
+                        return;
+                    }
+
+                    $query->where(function ($sub) use ($estadoTransitoId, $userCity) {
+                        $sub->where('estado_id', '<>', (int) $estadoTransitoId)
+                            ->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                                $q2->where('estado_id', (int) $estadoTransitoId)
+                                    ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
+                            });
+                    });
+                })
                 ->orderBy('id')
                 ->get(['id', 'codigo_solicitud', 'peso', 'estado_id']);
         }
@@ -3497,14 +3572,25 @@ class PaquetesEms extends Component
 
             $query->where('paquetes_ems.estado_id', (int) $estadoTransitoId)
                 ->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
-        }, function ($query) use ($isModoRecibirRegional, $isModoVentanilla, $isModoDevolucion, $estadoRecibirRegionalId, $estadoVentanillaId, $userCity, $estadoAlmacenId, $estadoRecibidoId) {
+        }, function ($query) use ($isModoRecibirRegional, $isModoVentanilla, $isModoDevolucion, $estadoRecibirRegionalId, $estadoTransitoId, $estadoVentanillaId, $userCity, $estadoAlmacenId, $estadoRecibidoId) {
             if ($isModoRecibirRegional) {
-                if (empty($estadoRecibirRegionalId)) {
+                if (empty($estadoRecibirRegionalId) && empty($estadoTransitoId)) {
                     $query->whereRaw('1 = 0');
                     return;
                 }
 
-                $query->where('paquetes_ems.estado_id', (int) $estadoRecibirRegionalId);
+                $query->where(function ($sub) use ($estadoRecibirRegionalId, $estadoTransitoId, $userCity) {
+                    if (!empty($estadoRecibirRegionalId)) {
+                        $sub->where('paquetes_ems.estado_id', (int) $estadoRecibirRegionalId);
+                    }
+
+                    if (!empty($estadoTransitoId) && $userCity !== '') {
+                        $sub->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                            $q2->where('paquetes_ems.estado_id', (int) $estadoTransitoId)
+                                ->whereRaw('trim(upper(coalesce(formulario.ciudad, paquetes_ems.ciudad))) = trim(upper(?))', [$userCity]);
+                        });
+                    }
+                });
                 return;
             }
 
@@ -3643,14 +3729,25 @@ class PaquetesEms extends Component
                 }
 
                 $query->whereRaw('1 = 0');
-            }, function ($query) use ($isModoRecibirRegional, $isModoVentanilla, $isModoDevolucion, $estadoRecibirRegionalId, $estadoAlmacenId, $estadoRecibidoId) {
+            }, function ($query) use ($isModoRecibirRegional, $isModoVentanilla, $isModoDevolucion, $estadoRecibirRegionalId, $estadoTransitoId, $estadoAlmacenId, $estadoRecibidoId, $userCity) {
                 if ($isModoRecibirRegional) {
-                    if (!empty($estadoRecibirRegionalId)) {
-                        $query->where('paquetes_contrato.estados_id', (int) $estadoRecibirRegionalId);
+                    if (empty($estadoRecibirRegionalId) && empty($estadoTransitoId)) {
+                        $query->whereRaw('1 = 0');
                         return;
                     }
 
-                    $query->whereRaw('1 = 0');
+                    $query->where(function ($sub) use ($estadoRecibirRegionalId, $estadoTransitoId, $userCity) {
+                        if (!empty($estadoRecibirRegionalId)) {
+                            $sub->where('paquetes_contrato.estados_id', (int) $estadoRecibirRegionalId);
+                        }
+
+                        if (!empty($estadoTransitoId) && $userCity !== '') {
+                            $sub->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                                $q2->where('paquetes_contrato.estados_id', (int) $estadoTransitoId)
+                                    ->whereRaw('trim(upper(paquetes_contrato.destino)) = trim(upper(?))', [$userCity]);
+                            });
+                        }
+                    });
                     return;
                 }
 
@@ -3800,14 +3897,25 @@ class PaquetesEms extends Component
 
                 $query->where('solicitud_clientes.estado_id', (int) $estadoTransitoId)
                     ->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
-            }, function ($query) use ($isModoRecibirRegional, $isModoVentanilla, $isModoDevolucion, $estadoRecibirRegionalId, $estadoVentanillaId, $estadoAlmacenId, $estadoRecibidoId, $userCity) {
+            }, function ($query) use ($isModoRecibirRegional, $isModoVentanilla, $isModoDevolucion, $estadoRecibirRegionalId, $estadoTransitoId, $estadoVentanillaId, $estadoAlmacenId, $estadoRecibidoId, $userCity) {
                 if ($isModoRecibirRegional) {
-                    if (empty($estadoRecibirRegionalId)) {
+                    if (empty($estadoRecibirRegionalId) && empty($estadoTransitoId)) {
                         $query->whereRaw('1 = 0');
                         return;
                     }
 
-                    $query->where('solicitud_clientes.estado_id', (int) $estadoRecibirRegionalId);
+                    $query->where(function ($sub) use ($estadoRecibirRegionalId, $estadoTransitoId, $userCity) {
+                        if (!empty($estadoRecibirRegionalId)) {
+                            $sub->where('solicitud_clientes.estado_id', (int) $estadoRecibirRegionalId);
+                        }
+
+                        if (!empty($estadoTransitoId) && $userCity !== '') {
+                            $sub->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                                $q2->where('solicitud_clientes.estado_id', (int) $estadoTransitoId)
+                                    ->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
+                            });
+                        }
+                    });
                     return;
                 }
 
@@ -4134,10 +4242,7 @@ class PaquetesEms extends Component
                 $estadoIds[] = $estadoRecibido;
             }
         } elseif ($this->isTransitoEms) {
-            $estadoRegionalId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
-            if ($estadoRegionalId) {
-                $estadoIds[] = $estadoRegionalId;
-            }
+            $estadoIds = $this->resolveRecibirRegionalEstadoIds();
         } elseif ($this->isVentanillaEms) {
             $estadoVentanillaId = $this->resolveVentanillaEstado()['id'] ?? null;
             if ($estadoVentanillaId) {
@@ -4253,6 +4358,28 @@ class PaquetesEms extends Component
             })
             ->when($userCity === '' && ($this->isAlmacenEms || $this->isDevolucionEms), function ($query) {
                 $query->whereRaw('1 = 0');
+            })
+            ->when($this->isTransitoEms, function ($query) use ($userCity) {
+                $estadoRegionalRecepcionId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
+                $estadoTransitoId = $this->findEstadoId('TRANSITO');
+
+                if (empty($estadoRegionalRecepcionId) && empty($estadoTransitoId)) {
+                    $query->whereRaw('1 = 0');
+                    return;
+                }
+
+                $query->where(function ($sub) use ($estadoRegionalRecepcionId, $estadoTransitoId, $userCity) {
+                    if (!empty($estadoRegionalRecepcionId)) {
+                        $sub->where('paquetes_ems.estado_id', (int) $estadoRegionalRecepcionId);
+                    }
+
+                    if (!empty($estadoTransitoId) && $userCity !== '') {
+                        $sub->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                            $q2->where('paquetes_ems.estado_id', (int) $estadoTransitoId)
+                                ->whereRaw('trim(upper(paquetes_ems.ciudad)) = trim(upper(?))', [$userCity]);
+                        });
+                    }
+                });
             })
             ->when($applyServicioFilter && $this->filtroServicioId !== '', function ($query) {
                 $query->where('tarifario.servicio_id', (int) $this->filtroServicioId);
@@ -4889,6 +5016,14 @@ class PaquetesEms extends Component
             'id' => null,
             'nombre' => null,
         ];
+    }
+
+    protected function resolveRecibirRegionalEstadoIds(): array
+    {
+        return collect([
+            $this->resolveRegionalRecepcionEstado()['id'] ?? null,
+            $this->findEstadoId('TRANSITO'),
+        ])->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
     }
 
     protected function resolveVentanillaEstado(): array
