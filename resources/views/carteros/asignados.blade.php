@@ -12,6 +12,17 @@
                     <h3 class="card-title mb-0">Paquetes en Estado CARTERO</h3>
                     <span class="carteros-chip">Asignados</span>
                 </div>
+                <div class="mt-3 d-flex gap-2 align-items-center flex-wrap">
+                    <input
+                        id="asignados-search"
+                        type="text"
+                        class="form-control"
+                        style="max-width: 380px;"
+                        placeholder="Buscar por codigo o cod_especial"
+                    >
+                    <button id="asignados-search-btn" type="button" class="btn btn-primary">Buscar</button>
+                    <button id="asignados-clear-btn" type="button" class="btn btn-outline-secondary">Limpiar</button>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -65,6 +76,7 @@
         (function() {
             let currentPage = 1;
             const perPage = 25;
+            let currentCodigo = '';
 
             const body = document.getElementById('tabla-asignados-body');
             const pageIndicator = document.getElementById('page-indicator');
@@ -72,6 +84,9 @@
             const nextItem = document.getElementById('next-page-item');
             const prevLink = document.getElementById('prev-page-link');
             const nextLink = document.getElementById('next-page-link');
+            const searchInput = document.getElementById('asignados-search');
+            const searchBtn = document.getElementById('asignados-search-btn');
+            const clearBtn = document.getElementById('asignados-clear-btn');
 
             function escapeHtml(value) {
                 if (value === null || value === undefined) return '';
@@ -125,7 +140,8 @@
             async function loadPage(page) {
                 setLoading();
                 try {
-                    const url = '{{ route('api.carteros.asignados') }}?page=' + page + '&per_page=' + perPage;
+                    const query = currentCodigo !== '' ? '&codigo=' + encodeURIComponent(currentCodigo) : '';
+                    const url = '{{ route('api.carteros.asignados') }}?page=' + page + '&per_page=' + perPage + query;
                     const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) throw new Error('Request failed');
                     const payload = await response.json();
@@ -146,6 +162,25 @@
             nextLink.addEventListener('click', function(e) {
                 e.preventDefault();
                 if (!nextItem.classList.contains('disabled')) loadPage(currentPage + 1);
+            });
+
+            searchBtn.addEventListener('click', function() {
+                currentCodigo = (searchInput.value || '').trim();
+                loadPage(1);
+            });
+
+            clearBtn.addEventListener('click', function() {
+                currentCodigo = '';
+                searchInput.value = '';
+                loadPage(1);
+            });
+
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    currentCodigo = (searchInput.value || '').trim();
+                    loadPage(1);
+                }
             });
 
             loadPage(1);
