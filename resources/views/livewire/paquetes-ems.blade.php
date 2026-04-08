@@ -879,7 +879,7 @@
                 @php
                     $seleccionadosTotalGlobal = (count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes));
                 @endphp
-                @if ($this->isAlmacenEms && $seleccionadosTotalGlobal > 0)
+                @if ($this->canUseSelectedPreview && $seleccionadosTotalGlobal > 0)
                     <div class="prelist-shell mb-3">
                         @php
                             $selectedPreviewBase = collect($selectedPreviewRows ?? collect());

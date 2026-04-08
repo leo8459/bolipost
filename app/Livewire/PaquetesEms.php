@@ -253,6 +253,11 @@ class PaquetesEms extends Component
         return $this->isAdmision || $this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms;
     }
 
+    public function getCanUseSelectedPreviewProperty(): bool
+    {
+        return $this->isAlmacenEms || $this->isTransitoEms;
+    }
+
     public function setAlmacenFiltro($filtro)
     {
         if (!in_array($filtro, ['TODOS', 'ALMACEN', 'RECIBIDO'], true)) {
@@ -3545,7 +3550,7 @@ class PaquetesEms extends Component
                 ->simplePaginate($this->normalizePerPage($this->perPagePaquetes));
             $paquetes = $almacenRows;
 
-            if ($this->isAlmacenEms) {
+            if ($this->canUseSelectedPreview) {
                 $selectedPreviewRows = $this->buildSelectedPreviewRows();
             }
         } else {
@@ -4933,7 +4938,7 @@ class PaquetesEms extends Component
 
     public function clearSelectedPreview(): void
     {
-        if (!$this->isAlmacenEms) {
+        if (!$this->canUseSelectedPreview) {
             return;
         }
 
@@ -4944,7 +4949,7 @@ class PaquetesEms extends Component
 
     public function removeSelectedPreviewItem(string $tipo, int $id): void
     {
-        if (!$this->isAlmacenEms || $id <= 0) {
+        if (!$this->canUseSelectedPreview || $id <= 0) {
             return;
         }
 
@@ -4968,7 +4973,7 @@ class PaquetesEms extends Component
 
     public function toggleSelectedPreview(): void
     {
-        if (!$this->isAlmacenEms) {
+        if (!$this->canUseSelectedPreview) {
             return;
         }
 

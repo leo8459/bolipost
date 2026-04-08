@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Services\AuditoriaService;
 use Closure;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -28,41 +29,59 @@ class RegistrarAuditoria
 
     private function registrar(Request $request, Response $response): void
     {
-        if ($response->getStatusCode() >= 400) {
+        if ($this->debeIgnorarse($request)) {
             return;
         }
 
-        $userId = (int) optional($request->user())->id;
+        $userId = $this->resolverUsuarioId($request);
         if ($userId <= 0) {
             return;
         }
 
-        if ($this->esEntradaPestana($request)) {
-            $nombre = $this->resolverNombrePestana($request);
-            $this->auditoriaService->registrar('ENTRO', 'Entro a pestana ' . $nombre, $userId);
-            return;
+        [$tipoEvento, $detalle] = $this->resolverAccion($request);
+        $status = $response->getStatusCode();
+        if ($status >= 400) {
+            $tipoEvento = 'FALLIDO';
+            $detalle = 'HTTP ' . $status . ' en ' . $this->resolverNombreOperacion($request, $detalle);
         }
 
-        $accion = $this->resolverAccion($request);
-        if (!$accion) {
-            return;
-        }
-
-        [$tipoEvento, $detalle] = $accion;
         $this->auditoriaService->registrar($tipoEvento, $detalle, $userId);
+    }
+
+    private function resolverUsuarioId(Request $request): int
+    {
+        $userId = (int) Auth::guard('web')->id();
+        if ($userId > 0) {
+            return $userId;
+        }
+
+        return (int) optional($request->user())->id;
+    }
+
+    private function debeIgnorarse(Request $request): bool
+    {
+        foreach ([
+            '_debugbar/*',
+            'telescope/*',
+            'horizon/*',
+            'pulse/*',
+            'up',
+            'sanctum/csrf-cookie',
+            'livewire/livewire.js',
+            'livewire/livewire.min.js',
+            'livewire/livewire.js.map',
+        ] as $pattern) {
+            if ($request->is($pattern)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function esEntradaPestana(Request $request): bool
     {
-        if (!$request->isMethod('GET')) {
-            return false;
-        }
-
-        if ($request->ajax() || $request->wantsJson()) {
-            return false;
-        }
-
-        if ($request->is('livewire/*') || $request->is('api/*')) {
+        if (!$request->isMethod('GET') || $request->ajax() || $request->wantsJson()) {
             return false;
         }
 
@@ -84,10 +103,19 @@ class RegistrarAuditoria
         return strtoupper(str_replace(['/', '-', '_'], ' ', $path));
     }
 
-    private function resolverAccion(Request $request): ?array
+    private function resolverAccion(Request $request): array
     {
         if ($request->is('livewire/update')) {
             return $this->resolverAccionLivewire($request);
+        }
+
+        if ($this->esEntradaPestana($request)) {
+            $nombre = $this->resolverNombrePestana($request);
+            return ['ENTRO', 'Entro a pestana ' . $nombre];
+        }
+
+        if ($request->isMethod('GET') || $request->isMethod('HEAD') || $request->isMethod('OPTIONS')) {
+            return ['CONSULTADO', $this->detalleEstandar('CONSULTA', $request)];
         }
 
         if ($request->isMethod('DELETE')) {
@@ -102,33 +130,22 @@ class RegistrarAuditoria
             return ['CREADO', $this->detalleEstandar('CREADO', $request)];
         }
 
-        return null;
+        return ['ACCION', $this->detalleEstandar('ACCION', $request)];
     }
 
-    private function resolverAccionLivewire(Request $request): ?array
+    private function resolverAccionLivewire(Request $request): array
     {
         $component = data_get($request->input('components', []), '0');
         if (!is_array($component)) {
-            return null;
+            return ['ACCION', 'Accion LIVEWIRE sin componente'];
         }
 
         $method = (string) data_get($component, 'calls.0.method', '');
         if ($method === '') {
-            return null;
+            return ['ACCION', 'Accion LIVEWIRE sin metodo'];
         }
 
         $metodoLower = strtolower($method);
-        if (
-            str_starts_with($metodoLower, 'open') ||
-            str_starts_with($metodoLower, 'close') ||
-            str_starts_with($metodoLower, 'toggle') ||
-            str_starts_with($metodoLower, 'search') ||
-            str_starts_with($metodoLower, 'updated') ||
-            str_starts_with($metodoLower, 'reset')
-        ) {
-            return null;
-        }
-
         $snapshot = (string) data_get($component, 'snapshot', '');
         $componentName = 'livewire';
         if ($snapshot !== '') {
@@ -139,15 +156,12 @@ class RegistrarAuditoria
         }
 
         $tipoEvento = $this->clasificarMetodo($metodoLower);
-        if ($tipoEvento === null) {
-            return null;
-        }
 
         $detalle = 'Accion ' . strtoupper($method) . ' en ' . strtoupper(str_replace(['-', '_'], ' ', $componentName));
         return [$tipoEvento, $detalle];
     }
 
-    private function clasificarMetodo(string $method): ?string
+    private function clasificarMetodo(string $method): string
     {
         foreach (['delete', 'destroy', 'eliminar', 'borrar'] as $token) {
             if (str_contains($method, $token)) {
@@ -157,6 +171,12 @@ class RegistrarAuditoria
 
         if (str_contains($method, 'save')) {
             return 'CREADO';
+        }
+
+        foreach (['search', 'buscar', 'filter', 'filtro'] as $token) {
+            if (str_contains($method, $token)) {
+                return 'CONSULTADO';
+            }
         }
 
         foreach (['create', 'store', 'nuevo', 'registrar'] as $token) {
@@ -185,7 +205,7 @@ class RegistrarAuditoria
             }
         }
 
-        return null;
+        return 'ACCION';
     }
 
     private function detalleEstandar(string $tipo, Request $request): string
@@ -196,5 +216,20 @@ class RegistrarAuditoria
         }
 
         return $tipo . ' en ' . strtoupper(str_replace(['.', '-', '_'], ' ', $routeName));
+    }
+
+    private function resolverNombreOperacion(Request $request, string $detalle): string
+    {
+        $routeName = (string) optional($request->route())->getName();
+        if ($routeName !== '') {
+            return strtoupper(str_replace(['.', '-', '_'], ' ', $routeName));
+        }
+
+        $path = trim((string) $request->path(), '/');
+        if ($path !== '') {
+            return strtoupper(str_replace(['/', '-', '_'], ' ', $path));
+        }
+
+        return strtoupper($detalle);
     }
 }
