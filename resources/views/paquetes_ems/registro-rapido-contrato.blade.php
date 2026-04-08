@@ -164,6 +164,7 @@
                     @php
                         $destinoPrefill = old('destino', '');
                         $provinciaPrefill = strtoupper(trim((string) old('provincia', '')));
+                        $empresaPrefill = (int) old('empresa_id', 0);
                     @endphp
                     <div class="row align-items-start quick-form-row">
                         <div class="col-lg-3 col-md-6">
@@ -190,7 +191,7 @@
                         </div>
                         <div class="col-lg-2 col-md-4">
                             <div class="form-group">
-                                <label>Cantidad</label>
+                                <label>Cantidad (opcional)</label>
                                 <input type="text" name="cantidad" id="registroRapidoCantidad" class="form-control" value="{{ old('cantidad') }}" placeholder="Opcional: cajas, sobres, 3 paquetes...">
                             </div>
                         </div>
@@ -202,7 +203,7 @@
                         </div>
                         <div class="col-lg-2 col-md-4">
                             <div class="form-group">
-                                <label>Destino</label>
+                                <label>Destino *</label>
                                 <select name="destino" id="registroRapidoDestino" class="form-control" required>
                                     <option value="">Seleccione...</option>
                                     @foreach ($ciudades as $ciudad)
@@ -217,6 +218,20 @@
                                 <select name="provincia" id="registroRapidoProvincia" class="form-control">
                                     <option value="">Seleccione...</option>
                                 </select>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <div class="form-group">
+                                <label>Empresa (opcional)</label>
+                                <select name="empresa_id" id="registroRapidoEmpresa" class="form-control">
+                                    <option value="">Sin empresa</option>
+                                    @foreach (($empresas ?? []) as $empresa)
+                                        <option value="{{ (int) $empresa->id }}" @selected($empresaPrefill === (int) $empresa->id)>
+                                            {{ strtoupper((string) $empresa->nombre) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <small class="text-muted d-block mt-1">Se usa solo si el codigo no detecta empresa automaticamente.</small>
                             </div>
                         </div>
                         <div class="col-md-2">
@@ -249,6 +264,7 @@
                                     <th>Origen</th>
                                     <th>Destino</th>
                                     <th>Provincia</th>
+                                    <th>Empresa</th>
                                     <th>Accion</th>
                                 </tr>
                             </thead>
@@ -262,6 +278,7 @@
                                         <td>{{ $item['origen'] ?? '-' }}</td>
                                         <td>{{ $item['destino'] ?? '-' }}</td>
                                         <td>{{ $item['provincia'] ?? '-' }}</td>
+                                        <td>{{ $item['empresa'] ?? '-' }}</td>
                                         <td>
                                             @if ($canQuickContractCreate ?? false)
                                                 <button type="button" class="btn btn-xs btn-outline-secondary" disabled>Duplicar</button>
@@ -273,7 +290,7 @@
                                     </tr>
                                 @empty
                                     <tr id="registroRapidoListadoEmpty">
-                                        <td colspan="8" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
+                                        <td colspan="9" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -295,8 +312,10 @@
         const origenInput = document.getElementById('registroRapidoOrigen');
         const destinoInput = document.getElementById('registroRapidoDestino');
         const provinciaInput = document.getElementById('registroRapidoProvincia');
+        const empresaInput = document.getElementById('registroRapidoEmpresa');
         const provinciasPorDestino = @json($provinciasPorDestino ?? []);
         const oldProvincia = @json($provinciaPrefill);
+        const oldEmpresaId = @json($empresaPrefill);
         const alertWrap = document.getElementById('registroRapidoAjaxAlert');
         const serverAlert = document.getElementById('registroRapidoServerAlert');
         const listBody = document.getElementById('registroRapidoListadoBody');
@@ -365,7 +384,7 @@
             listBody.innerHTML = '';
 
             if (!prelista.length) {
-                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="8" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
+                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="9" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
                 if (listCount) listCount.textContent = '0';
                 return;
             }
@@ -390,6 +409,7 @@
                     <td>${escapeHtml(item.origen)}</td>
                     <td>${escapeHtml(item.destino)}</td>
                     <td>${escapeHtml(item.provincia || '-')}</td>
+                    <td>${escapeHtml(item.empresa || '-')}</td>
                     <td>${actionButtons.join('')}</td>
                 `;
                 listBody.appendChild(row);
@@ -409,6 +429,11 @@
             const destino = String(destinoInput.value || '').trim().toUpperCase();
             const origen = String(origenInput.value || '').trim().toUpperCase();
             const provincia = String(provinciaInput?.value || '').trim().toUpperCase();
+            const empresaIdValue = String(empresaInput?.value || '').trim();
+            const empresaId = empresaIdValue !== '' ? Number(empresaIdValue) : null;
+            const empresaNombre = empresaInput && empresaInput.selectedIndex >= 0
+                ? String(empresaInput.options[empresaInput.selectedIndex].text || '').trim()
+                : '';
 
             if (!codigo) {
                 showAlert('danger', 'Ingresa un codigo valido.');
@@ -442,6 +467,8 @@
                 origen: origen,
                 destino: destino,
                 provincia: provincia,
+                empresa_id: Number.isFinite(empresaId) ? empresaId : null,
+                empresa: empresaIdValue !== '' ? empresaNombre : '',
             });
 
             renderPrelista();
@@ -468,6 +495,9 @@
 
             if (provinciaInput) {
                 provinciaInput.value = item.provincia || '';
+            }
+            if (empresaInput) {
+                empresaInput.value = item.empresa_id ? String(item.empresa_id) : '';
             }
 
             codigoInput.value = '';
@@ -529,6 +559,7 @@
                             peso: item.peso,
                             destino: item.destino,
                             provincia: item.provincia || null,
+                            empresa_id: item.empresa_id || null,
                         })),
                     }),
                     headers: {
@@ -570,6 +601,9 @@
                 if (provinciaInput) {
                     provinciaInput.value = '';
                 }
+                if (empresaInput) {
+                    empresaInput.value = '';
+                }
                 if (codigoInput) codigoInput.focus();
             } catch (e) {
                 showAlert('danger', 'Error de conexion al guardar la prelista.');
@@ -586,6 +620,9 @@
 
         renderPrelista();
         renderProvinciaOptions(destinoInput ? destinoInput.value : '', oldProvincia);
+        if (empresaInput && oldEmpresaId > 0) {
+            empresaInput.value = String(oldEmpresaId);
+        }
         setButtonsDisabled(false);
     })();
 </script>

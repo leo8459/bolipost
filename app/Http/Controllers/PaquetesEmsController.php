@@ -963,6 +963,9 @@ class PaquetesEmsController extends Controller
         return view('paquetes_ems.registro-rapido-contrato', [
             'origen' => $origen,
             'ciudades' => self::CIUDADES_BOLIVIA,
+            'empresas' => Empresa::query()
+                ->orderBy('nombre')
+                ->get(['id', 'nombre', 'sigla', 'codigo_cliente']),
             'provinciasPorDestino' => $this->buildProvinciasPorDestino(),
             'listado' => [],
             'canQuickContractCreate' => $canRegisterQuickContractFromAlmacen
@@ -1000,6 +1003,7 @@ class PaquetesEmsController extends Controller
             'items.*.provincia' => 'nullable|string|max:255',
             'items.*.cantidad' => 'nullable|string|max:255',
             'items.*.peso' => 'required|numeric|min:0.001',
+            'items.*.empresa_id' => 'nullable|integer|exists:empresa,id',
         ], [], [
             'items' => 'prelista',
             'items.*.codigo' => 'codigo',
@@ -1007,6 +1011,7 @@ class PaquetesEmsController extends Controller
             'items.*.provincia' => 'provincia',
             'items.*.cantidad' => 'cantidad',
             'items.*.peso' => 'peso',
+            'items.*.empresa_id' => 'empresa',
         ]);
 
         $estadoAlmacenId = (int) (Estado::query()
@@ -1047,6 +1052,7 @@ class PaquetesEmsController extends Controller
                     'provincia' => $provincia === '' ? null : $provincia,
                     'cantidad' => trim((string) ($item['cantidad'] ?? '')),
                     'peso' => (float) ($item['peso'] ?? 0),
+                    'empresa_id' => !empty($item['empresa_id']) ? (int) $item['empresa_id'] : null,
                 ];
             })
             ->values();
@@ -1092,11 +1098,26 @@ class PaquetesEmsController extends Controller
             ], 422);
         }
 
+        foreach ($items as $item) {
+            $empresaIdDetectada = $this->resolveEmpresaIdByCodigoContrato((string) $item['codigo']);
+            $empresaIdManual = !empty($item['empresa_id']) ? (int) $item['empresa_id'] : null;
+
+            if ($empresaIdDetectada && $empresaIdManual && $empresaIdDetectada !== $empresaIdManual) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El codigo ' . $item['codigo'] . ' ya esta asociado a otra empresa.',
+                ], 422);
+            }
+        }
+
         $creados = collect();
         $eventRows = [];
         DB::transaction(function () use ($items, $user, $estadoAlmacenId, $origen, &$creados, &$eventRows) {
             foreach ($items as $item) {
-                $empresaId = $this->resolveEmpresaIdByCodigoContrato($item['codigo']);
+                $empresaIdDetectada = $this->resolveEmpresaIdByCodigoContrato($item['codigo']);
+                $empresaIdManual = !empty($item['empresa_id']) ? (int) $item['empresa_id'] : null;
+
+                $empresaId = $empresaIdDetectada ?: $empresaIdManual;
                 $contrato = RecojoContrato::query()->create([
                     'user_id' => (int) $user->id,
                     'empresa_id' => $empresaId,
@@ -1122,6 +1143,21 @@ class PaquetesEmsController extends Controller
                     'imagen' => null,
                 ]);
 
+                if (!$empresaIdDetectada && !empty($empresaIdManual)) {
+                    $codigoNormalizado = strtoupper(trim((string) $item['codigo']));
+                    $registroCodigoEmpresa = CodigoEmpresa::query()
+                        ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+                        ->first();
+
+                    if (!$registroCodigoEmpresa) {
+                        CodigoEmpresa::query()->create([
+                            'codigo' => $codigoNormalizado,
+                            'barcode' => $codigoNormalizado,
+                            'empresa_id' => (int) $empresaIdManual,
+                        ]);
+                    }
+                }
+
                 $creados->push([
                     'id' => (int) $contrato->id,
                     'codigo' => (string) $contrato->codigo,
@@ -1129,6 +1165,7 @@ class PaquetesEmsController extends Controller
                     'peso' => (string) $contrato->peso,
                     'origen' => (string) $contrato->origen,
                     'destino' => (string) $contrato->destino,
+                    'empresa_id' => $empresaId ? (int) $empresaId : null,
                     'reporte_url' => route('paquetes-contrato.reporte', $contrato->id),
                 ]);
 
