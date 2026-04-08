@@ -314,6 +314,75 @@
         .autofill-panel-list li{
             margin-bottom: 2px;
         }
+        .prelist-shell{
+            border: 1px solid #dbe3f1;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 6px 18px rgba(32,83,154,.08);
+            padding: 12px;
+        }
+        .prelist-top{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:10px;
+            flex-wrap:wrap;
+            margin-bottom:8px;
+        }
+        .prelist-title{
+            font-size:13px;
+            font-weight:900;
+            letter-spacing:.04em;
+            text-transform:uppercase;
+            color:#1f3f78;
+        }
+        .prelist-kpis{
+            display:flex;
+            gap:8px;
+            flex-wrap:wrap;
+            margin-bottom:10px;
+        }
+        .prelist-kpi{
+            border:1px solid #dbe3f1;
+            background:#f7faff;
+            border-radius:999px;
+            padding:4px 10px;
+            font-size:12px;
+            color:#2d4b85;
+            font-weight:700;
+        }
+        .prelist-controls{
+            display:flex;
+            gap:8px;
+            align-items:center;
+            flex-wrap:wrap;
+            margin-bottom:10px;
+        }
+        .prelist-table-wrap{
+            max-height: 340px;
+            overflow:auto;
+            border:1px solid #e5e7eb;
+            border-radius:10px;
+        }
+        .prelist-table{
+            margin-bottom:0;
+            font-size: 12px;
+        }
+        .prelist-table thead th{
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background:#edf3ff;
+            color:#1f3f78;
+            font-weight:800;
+        }
+        .prelist-table tbody tr:nth-child(odd){
+            background:#fcfdff;
+        }
+        .prelist-table .pill-id{
+            font-size:11px;
+            padding:3px 8px;
+        }
     </style>
 
     <div class="plantilla-wrap">
@@ -772,6 +841,108 @@
                     @endif
                 </div>
 
+                @php
+                    $seleccionadosTotalGlobal = (count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes));
+                @endphp
+                @if ($this->isAlmacenEms && $seleccionadosTotalGlobal > 0)
+                    <div class="prelist-shell mb-3">
+                        @php
+                            $selectedPreviewBase = collect($selectedPreviewRows ?? collect());
+                            $selectedPreviewEms = $selectedPreviewBase->where('tipo', 'EMS')->count();
+                            $selectedPreviewContratos = $selectedPreviewBase->where('tipo', 'CONTRATO')->count();
+                            $selectedPreviewSolicitudes = $selectedPreviewBase->where('tipo', 'SOLICITUD')->count();
+                            $selectedPreviewFiltered = $selectedPreviewBase;
+                            if (($selectedPreviewType ?? 'TODOS') !== 'TODOS') {
+                                $selectedPreviewFiltered = $selectedPreviewFiltered->where('tipo', $selectedPreviewType);
+                            }
+                            if (!empty($selectedPreviewSearch ?? '')) {
+                                $needle = mb_strtolower(trim((string) $selectedPreviewSearch));
+                                $selectedPreviewFiltered = $selectedPreviewFiltered->filter(function ($row) use ($needle) {
+                                    $haystack = mb_strtolower(
+                                        trim((string) ($row->codigo ?? '')) . ' ' .
+                                        trim((string) ($row->destinatario ?? '')) . ' ' .
+                                        trim((string) ($row->destino ?? ''))
+                                    );
+                                    return str_contains($haystack, $needle);
+                                });
+                            }
+                        @endphp
+                        <div class="prelist-top">
+                            <div class="prelist-title">Prelista de seleccionados ({{ $seleccionadosTotalGlobal }})</div>
+                            <div class="d-flex gap-2 align-items-center flex-wrap">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" wire:click="toggleSelectedPreview">
+                                    {{ $showSelectedPreview ? 'Ocultar prelista' : 'Mostrar prelista' }}
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" type="button" wire:click="clearSelectedPreview"
+                                    onclick="return confirm('Deseas limpiar toda la seleccion?')">
+                                    Limpiar seleccion
+                                </button>
+                            </div>
+                        </div>
+                        <div class="prelist-kpis">
+                            <span class="prelist-kpi">EMS: <strong>{{ $selectedPreviewEms }}</strong></span>
+                            <span class="prelist-kpi">CONTRATO: <strong>{{ $selectedPreviewContratos }}</strong></span>
+                            <span class="prelist-kpi">SOLICITUD: <strong>{{ $selectedPreviewSolicitudes }}</strong></span>
+                        </div>
+                        @if ($showSelectedPreview)
+                            <div class="prelist-controls">
+                                <select wire:model.live="selectedPreviewType" class="form-control" style="max-width: 180px;">
+                                    <option value="TODOS">Todos</option>
+                                    <option value="EMS">EMS</option>
+                                    <option value="CONTRATO">Contrato</option>
+                                    <option value="SOLICITUD">Solicitud</option>
+                                </select>
+                                <input
+                                    type="text"
+                                    wire:model.live.debounce.300ms="selectedPreviewSearch"
+                                    class="form-control"
+                                    style="max-width: 320px;"
+                                    placeholder="Filtrar en prelista (codigo, destinatario, destino)"
+                                >
+                            </div>
+                            <div class="prelist-table-wrap">
+                                <table class="table table-sm table-hover align-middle prelist-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo</th>
+                                            <th>Codigo</th>
+                                            <th>Destinatario</th>
+                                            <th>Destino</th>
+                                            <th>Peso</th>
+                                            <th>Accion</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($selectedPreviewFiltered as $item)
+                                            <tr wire:key="prelista-item-{{ $item->tipo ?? 'X' }}-{{ $item->record_id ?? 0 }}">
+                                                <td>{{ $item->tipo ?? '-' }}</td>
+                                                <td><span class="pill-id">{{ $item->codigo ?? '-' }}</span></td>
+                                                <td>{{ $item->destinatario ?? '-' }}</td>
+                                                <td>{{ $item->destino ?? '-' }}</td>
+                                                <td>{{ $item->peso ?? '-' }}</td>
+                                                <td>
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        wire:click="removeSelectedPreviewItem('{{ $item->tipo ?? '' }}', {{ (int) ($item->record_id ?? 0) }})"
+                                                        title="Quitar de seleccion"
+                                                    >
+                                                        Quitar
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="6" class="text-center py-3 text-muted">No hay elementos para ese filtro.</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
                 <div class="table-scroll-wrap">
                     <div class="table-responsive">
                     @php
@@ -858,11 +1029,11 @@
                                         @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                             <td>
                                                 @if (($row->record_type ?? '') === 'EMS')
-                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes">
+                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes" wire:key="check-almacen-ems-{{ $row->record_id }}">
                                                 @elseif (($row->record_type ?? '') === 'CONTRATO')
-                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedContratos">
+                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedContratos" wire:key="check-almacen-contrato-{{ $row->record_id }}">
                                                 @else
-                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedSolicitudes">
+                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedSolicitudes" wire:key="check-almacen-solicitud-{{ $row->record_id }}">
                                                 @endif
                                             </td>
                                         @endif
@@ -945,7 +1116,7 @@
                                     <tr>
                                         @if ($this->canSelect)
                                             <td>
-                                                <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes">
+                                                <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes" wire:key="check-admision-ems-{{ $paquete->id }}">
                                             </td>
                                         @endif
                                         <td><span class="pill-id">{{ $paquete->codigo }}</span></td>

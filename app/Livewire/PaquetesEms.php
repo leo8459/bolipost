@@ -92,6 +92,9 @@ class PaquetesEms extends Component
     public $selectedPaquetes = [];
     public $selectedContratos = [];
     public $selectedSolicitudes = [];
+    public $selectedPreviewSearch = '';
+    public $selectedPreviewType = 'TODOS';
+    public $showSelectedPreview = true;
     public $perPagePaquetes = 25;
     public $perPageContratos = 25;
     public $filtroServicioId = '';
@@ -3393,6 +3396,7 @@ class PaquetesEms extends Component
     {
         $contratosAlmacen = null;
         $almacenRows = null;
+        $selectedPreviewRows = collect();
 
         if ($this->isCreateEms) {
             return view('livewire.paquetes-ems', [
@@ -3423,6 +3427,10 @@ class PaquetesEms extends Component
             $almacenRows = $this->almacenUnificadoQuery()
                 ->simplePaginate($this->normalizePerPage($this->perPagePaquetes));
             $paquetes = $almacenRows;
+
+            if ($this->isAlmacenEms) {
+                $selectedPreviewRows = $this->buildSelectedPreviewRows();
+            }
         } else {
             $paquetes = $this->basePaquetesQuery()
                 ->simplePaginate($this->normalizePerPage($this->perPagePaquetes));
@@ -3431,6 +3439,7 @@ class PaquetesEms extends Component
         return view('livewire.paquetes-ems', [
             'paquetes' => $paquetes,
             'almacenRows' => $almacenRows,
+            'selectedPreviewRows' => $selectedPreviewRows,
             'contratosAlmacen' => $contratosAlmacen,
             'canEmsAssign' => $this->userCan($this->modeFeaturePermission('assign')),
             'canEmsCreate' => $this->userCan($this->modeFeaturePermission('create')),
@@ -3450,6 +3459,79 @@ class PaquetesEms extends Component
             'canEmsAlmacenAdmisiones' => $this->userCan(self::ALMACEN_ADMISIONES_ROUTE_PERMISSION),
             'canContratoAlmacenPrint' => $this->userCan('feature.paquetes-contrato.almacen.print'),
         ]);
+    }
+
+    protected function buildSelectedPreviewRows(): Collection
+    {
+        $idsEms = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsContratos = collect($this->selectedContratos)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsSolicitudes = collect($this->selectedSolicitudes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $preview = collect();
+
+        if (!empty($idsEms)) {
+            $emsRows = DB::table('paquetes_ems as p')
+                ->leftJoin('paquetes_ems_formulario as f', 'f.paquete_ems_id', '=', 'p.id')
+                ->whereIn('p.id', $idsEms)
+                ->selectRaw("'EMS' as tipo")
+                ->selectRaw('p.id as record_id')
+                ->selectRaw("coalesce(nullif(trim(f.codigo), ''), p.codigo) as codigo")
+                ->selectRaw("coalesce(f.nombre_destinatario, p.nombre_destinatario, '-') as destinatario")
+                ->selectRaw("coalesce(f.ciudad, p.ciudad, '-') as destino")
+                ->selectRaw('coalesce(f.peso, p.peso, 0) as peso')
+                ->get();
+
+            $preview = $preview->concat($emsRows);
+        }
+
+        if (!empty($idsContratos)) {
+            $contratoRows = DB::table('paquetes_contrato')
+                ->whereIn('id', $idsContratos)
+                ->selectRaw("'CONTRATO' as tipo")
+                ->selectRaw('id as record_id')
+                ->selectRaw('codigo')
+                ->selectRaw("coalesce(nombre_d, '-') as destinatario")
+                ->selectRaw("coalesce(destino, '-') as destino")
+                ->selectRaw('coalesce(peso, 0) as peso')
+                ->get();
+
+            $preview = $preview->concat($contratoRows);
+        }
+
+        if (!empty($idsSolicitudes)) {
+            $solicitudRows = DB::table('solicitud_clientes')
+                ->whereIn('id', $idsSolicitudes)
+                ->selectRaw("'SOLICITUD' as tipo")
+                ->selectRaw('id as record_id')
+                ->selectRaw("coalesce(nullif(trim(codigo_solicitud), ''), nullif(trim(barcode), ''), 'SIN CODIGO') as codigo")
+                ->selectRaw("coalesce(nombre_destinatario, '-') as destinatario")
+                ->selectRaw("coalesce(ciudad, '-') as destino")
+                ->selectRaw('coalesce(peso, 0) as peso')
+                ->get();
+
+            $preview = $preview->concat($solicitudRows);
+        }
+
+        return $preview
+            ->sortBy(fn ($row) => sprintf('%s-%s', (string) ($row->tipo ?? ''), (string) ($row->codigo ?? '')))
+            ->values();
     }
 
     private function modeFeaturePermission(string $action, ?string $mode = null): string
@@ -4634,6 +4716,21 @@ class PaquetesEms extends Component
 
     public function updated($name, $value)
     {
+        if (str_starts_with($name, 'selectedPaquetes')) {
+            $this->normalizeSelectionProperty('selectedPaquetes');
+            return;
+        }
+
+        if (str_starts_with($name, 'selectedContratos')) {
+            $this->normalizeSelectionProperty('selectedContratos');
+            return;
+        }
+
+        if (str_starts_with($name, 'selectedSolicitudes')) {
+            $this->normalizeSelectionProperty('selectedSolicitudes');
+            return;
+        }
+
         if ($name === 'perPagePaquetes') {
             $this->perPagePaquetes = $this->normalizePerPage($value);
             $this->resetPage();
@@ -4702,6 +4799,63 @@ class PaquetesEms extends Component
             $this->refreshRemitenteSugerencias((string) $value);
             $this->applyRegisteredRemitenteByCarnet((string) $value);
         }
+    }
+
+    protected function normalizeSelectionProperty(string $property): void
+    {
+        $values = collect($this->{$property} ?? [])
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (string) ((int) $id))
+            ->filter(fn ($id) => $id !== '0')
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->{$property} = $values;
+    }
+
+    public function clearSelectedPreview(): void
+    {
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $this->selectedPaquetes = [];
+        $this->selectedContratos = [];
+        $this->selectedSolicitudes = [];
+    }
+
+    public function removeSelectedPreviewItem(string $tipo, int $id): void
+    {
+        if (!$this->isAlmacenEms || $id <= 0) {
+            return;
+        }
+
+        $tipoNormalizado = strtoupper(trim($tipo));
+        $target = match ($tipoNormalizado) {
+            'EMS' => 'selectedPaquetes',
+            'CONTRATO' => 'selectedContratos',
+            'SOLICITUD' => 'selectedSolicitudes',
+            default => null,
+        };
+
+        if ($target === null) {
+            return;
+        }
+
+        $this->{$target} = collect($this->{$target} ?? [])
+            ->reject(fn ($selectedId) => (int) $selectedId === (int) $id)
+            ->values()
+            ->all();
+    }
+
+    public function toggleSelectedPreview(): void
+    {
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $this->showSelectedPreview = !$this->showSelectedPreview;
     }
 
     protected function refreshEmsState()
