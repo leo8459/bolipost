@@ -22,10 +22,10 @@ class ClienteSolicitudController extends Controller
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
-        'PANDO',
-        'BENI',
+        'COBIJA',
+        'TRINIDAD',
         'TARIJA',
-        'CHUQUISACA',
+        'SUCRE',
         'ORURO',
         'COCHABAMBA',
         'POTOSI',
@@ -210,3 +210,4 @@ class ClienteSolicitudController extends Controller
         ]);
     }
 }
+

@@ -119,7 +119,9 @@ class PaquetesEms extends Component
     public $registroContratoDestino = '';
     public $registroContratoPeso = '';
     public $showCn33Reprint = false;
+    public $showCn33Assign = false;
     public $cn33Despacho = '';
+    public $cn33ManualCodigo = '';
     public $generadosHoyCount = 0;
     public $entregaRecibidoPor = '';
     public $entregaDescripcion = '';
@@ -1430,6 +1432,20 @@ class PaquetesEms extends Component
         }
     }
 
+    public function toggleCn33Assign()
+    {
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
+
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $this->showCn33Assign = !$this->showCn33Assign;
+        if (!$this->showCn33Assign) {
+            $this->cn33ManualCodigo = '';
+        }
+    }
+
     public function reimprimirCn33()
     {
         $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
@@ -1746,6 +1762,107 @@ class PaquetesEms extends Component
         $this->authorizePermission($this->modeFeaturePermission('assign', 'admision'));
 
         return $this->mandarSeleccionadosAlmacenEms(false);
+    }
+
+    public function anadirSeleccionadosCn33()
+    {
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
+
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $codEspecial = strtoupper(trim((string) $this->cn33ManualCodigo));
+        if ($codEspecial === '') {
+            session()->flash('error', 'Ingresa el cod_especial para asignarlo a los seleccionados.');
+            return;
+        }
+
+        $idsEms = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsContratos = collect($this->selectedContratos)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsSolicitudes = collect($this->selectedSolicitudes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+            return;
+        }
+
+        $estadoTransitoId = $this->findEstadoId('TRANSITO');
+        if (!$estadoTransitoId) {
+            session()->flash('error', 'No existe el estado TRANSITO en la tabla estados.');
+            return;
+        }
+
+        $eligibleEstadoIds = $this->regionalEligibleEstadoIds();
+        if (empty($eligibleEstadoIds)) {
+            session()->flash('error', 'No existen los estados ALMACEN/RECIBIDO/SOLICITUD en la tabla estados.');
+            return;
+        }
+
+        $updated = 0;
+
+        DB::transaction(function () use ($idsEms, $idsContratos, $idsSolicitudes, $eligibleEstadoIds, $estadoTransitoId, $codEspecial, &$updated) {
+            if (!empty($idsEms)) {
+                $updated += PaqueteEms::query()
+                    ->whereIn('id', $idsEms)
+                    ->whereIn('estado_id', $eligibleEstadoIds)
+                    ->update([
+                        'cod_especial' => $codEspecial,
+                        'estado_id' => (int) $estadoTransitoId,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            if (!empty($idsContratos)) {
+                $updated += RecojoContrato::query()
+                    ->whereIn('id', $idsContratos)
+                    ->whereIn('estados_id', $eligibleEstadoIds)
+                    ->update([
+                        'cod_especial' => $codEspecial,
+                        'estados_id' => (int) $estadoTransitoId,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            if (!empty($idsSolicitudes)) {
+                $updated += SolicitudCliente::query()
+                    ->whereIn('id', $idsSolicitudes)
+                    ->whereIn('estado_id', $eligibleEstadoIds)
+                    ->update([
+                        'cod_especial' => $codEspecial,
+                        'estado_id' => (int) $estadoTransitoId,
+                        'updated_at' => now(),
+                    ]);
+            }
+        });
+
+        if ($updated <= 0 || trim($codEspecial) === '') {
+            session()->flash('error', 'No se pudo asignar CN-33 a los seleccionados.');
+            return;
+        }
+
+        session()->flash('success', 'cod_especial ' . $codEspecial . ' asignado y enviado a TRANSITO: ' . $updated . ' registro(s).');
+        $this->cn33ManualCodigo = '';
+        $this->selectedPaquetes = [];
+        $this->selectedContratos = [];
+        $this->selectedSolicitudes = [];
     }
 
     public function mandarSeleccionadosRegional()

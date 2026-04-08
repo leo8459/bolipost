@@ -32,7 +32,7 @@ class PaquetesEmsController extends Controller
         'COBIJA',
         'TRINIDAD',
         'TARIJA',
-        'CHUQUISACA',
+        'SUCRE',
         'ORURO',
         'COCHABAMBA',
         'POTOSI',
@@ -73,7 +73,7 @@ class PaquetesEmsController extends Controller
             'CERCADO', 'ANICETO ARCE', 'BURDETT OCONNOR', 'GRAN CHACO',
             'JOSE MARIA AVILES', 'MENDEZ',
         ],
-        'CHUQUISACA' => [
+        'SUCRE' => [
             'OROPEZA', 'AZURDUY', 'ZUDANEZ', 'TOMINA', 'HERNANDO SILES',
             'YAMPARAEZ', 'NOR CINTI', 'SUD CINTI', 'BELISARIO BOETO', 'LUIS CALVO',
         ],
@@ -1331,3 +1331,4 @@ class PaquetesEmsController extends Controller
         return 'C'.$codigoCliente.'A'.str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT).'BO';
     }
 }
+

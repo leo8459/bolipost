@@ -45,10 +45,10 @@ class BusquedaController extends Controller
             'preregistroCiudades' => [
                 'LA PAZ',
                 'SANTA CRUZ',
-                'PANDO',
-                'BENI',
+                'COBIJA',
+                'TRINIDAD',
                 'TARIJA',
-                'CHUQUISACA',
+                'SUCRE',
                 'ORURO',
                 'COCHABAMBA',
                 'POTOSI',
@@ -190,10 +190,10 @@ class BusquedaController extends Controller
             'preregistroCiudades' => [
                 'LA PAZ',
                 'SANTA CRUZ',
-                'PANDO',
-                'BENI',
+                'COBIJA',
+                'TRINIDAD',
                 'TARIJA',
-                'CHUQUISACA',
+                'SUCRE',
                 'ORURO',
                 'COCHABAMBA',
                 'POTOSI',
@@ -711,3 +711,4 @@ public function unsubscribe(Request $request)
 }
 
 }
+

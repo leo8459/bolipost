@@ -40,10 +40,10 @@ class PreregistroController extends Controller
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
-        'PANDO',
-        'BENI',
+        'COBIJA',
+        'TRINIDAD',
         'TARIJA',
-        'CHUQUISACA',
+        'SUCRE',
         'ORURO',
         'COCHABAMBA',
         'POTOSI',
@@ -502,3 +502,4 @@ class PreregistroController extends Controller
         return $codigo;
     }
 }
+

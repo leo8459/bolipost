@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
@@ -171,7 +171,7 @@
                 return '';
             }
 
-            if (preg_match('/(?:pa[ií]s\s+origen|country\s*origin)\s*:\s*(.+)$/iu', $texto, $m) === 1) {
+            if (preg_match('/(?:pa[iÃƒÂ­]s\s+origen|country\s*origin)\s*:\s*(.+)$/iu', $texto, $m) === 1) {
                 return trim((string) $m[1]);
             }
 
@@ -236,11 +236,10 @@
                 'POTOSI' => 'Potosi',
                 'COCHABAMBA' => 'Cochabamba',
                 'SANTA CRUZ' => 'Santa Cruz',
-                'CHUQUISACA' => 'Chuquisaca',
-                'SUCRE' => 'Chuquisaca',
+                'SUCRE' => 'Sucre',
                 'TARIJA' => 'Tarija',
-                'TRINIDAD' => 'Beni',
-                'COBIJA' => 'Pando',
+                'TRINIDAD' => 'Trinidad',
+                'COBIJA' => 'Cobija',
             ];
 
             foreach ($mapa as $clave => $nombre) {
@@ -260,43 +259,43 @@
             ],
             'Cochabamba' => [
                 'regional' => 'Regional: Cochabamba',
-                'direccion' => 'Calle Ayacucho esquina Av. Heroinas N° 113',
-                'coords' => "17°23'34.1\"S 66°09'31.0\"W",
+                'direccion' => 'Calle Ayacucho esquina Av. Heroinas NÃ‚Â° 113',
+                'coords' => "17Ã‚Â°23'34.1\"S 66Ã‚Â°09'31.0\"W",
             ],
             'Santa Cruz' => [
                 'regional' => 'Regional: Santa Cruz',
-                'direccion' => 'Calle Cobija Entre Sucre y Ballivian N° 24',
-                'coords' => "17°47'00.6\"S 63°10'28.8\"W",
+                'direccion' => 'Calle Cobija Entre Sucre y Ballivian NÃ‚Â° 24',
+                'coords' => "17Ã‚Â°47'00.6\"S 63Ã‚Â°10'28.8\"W",
             ],
             'Oruro' => [
                 'regional' => 'Regional: Oruro',
-                'direccion' => 'Calle Presidente Montes Esquina Junin N° 1456',
-                'coords' => "17°58'07.3\"S 67°06'53.6\"W",
+                'direccion' => 'Calle Presidente Montes Esquina Junin NÃ‚Â° 1456',
+                'coords' => "17Ã‚Â°58'07.3\"S 67Ã‚Â°06'53.6\"W",
             ],
             'Potosi' => [
                 'regional' => 'Regional: Potosi',
                 'direccion' => 'Calle Hoyos Esquina Topater, Villa Imperial de Potosi',
-                'coords' => "19°35'19.3\"S 65°44'56.2\"W",
+                'coords' => "19Ã‚Â°35'19.3\"S 65Ã‚Â°44'56.2\"W",
             ],
             'Tarija' => [
                 'regional' => 'Regional: Tarija',
-                'direccion' => 'Calle Mariscal Sucre esquina Virginio Lema N° 397',
-                'coords' => "21°32'10.0\"S 64°44'04.5\"W",
+                'direccion' => 'Calle Mariscal Sucre esquina Virginio Lema NÃ‚Â° 397',
+                'coords' => "21Ã‚Â°32'10.0\"S 64Ã‚Â°44'04.5\"W",
             ],
-            'Chuquisaca' => [
+            'Sucre' => [
                 'regional' => 'Regional: Sucre',
-                'direccion' => 'Calle Junin Esquina Ayacucho N° 699',
-                'coords' => "19°02'49.8\"S 65°15'41.0\"W",
+                'direccion' => 'Calle Junin Esquina Ayacucho NÃ‚Â° 699',
+                'coords' => "19Ã‚Â°02'49.8\"S 65Ã‚Â°15'41.0\"W",
             ],
-            'Beni' => [
-                'regional' => 'Regional: Beni',
-                'direccion' => 'Calle Cipriano Barace N°10 Entre Manuel Limpias y Calle Sucre',
-                'coords' => "14°50'04.0\"S 64°54'11.8\"W",
+            'Trinidad' => [
+                'regional' => 'Regional: Trinidad',
+                'direccion' => 'Calle Cipriano Barace NÃ‚Â°10 Entre Manuel Limpias y Calle Sucre',
+                'coords' => "14Ã‚Â°50'04.0\"S 64Ã‚Â°54'11.8\"W",
             ],
-            'Pando' => [
-                'regional' => 'Regional: Pando',
+            'Cobija' => [
+                'regional' => 'Regional: Cobija',
                 'direccion' => 'Av. Bruno Recua N.- 59',
-                'coords' => "11°01'03.8\"S 68°45'15.9\"W",
+                'coords' => "11Ã‚Â°01'03.8\"S 68Ã‚Â°45'15.9\"W",
             ],
         ];
 
@@ -626,5 +625,7 @@
     </script>
 </body>
 </html>
+
+
 
 

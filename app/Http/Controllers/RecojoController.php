@@ -25,7 +25,7 @@ class RecojoController extends Controller
         'ORURO',
         'POTOSI',
         'TARIJA',
-        'CHUQUISACA',
+        'SUCRE',
         'TRINIDAD',
         'COBIJA',
     ];
@@ -66,7 +66,7 @@ class RecojoController extends Controller
         ]);
     }
 
-    // Buscar el ID del estado ENTREGADO (sin importar mayúsculas/espacios)
+    // Buscar el ID del estado ENTREGADO (sin importar mayÃºsculas/espacios)
     $estadoEntregadoId = (int) (Estado::query()
         ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
         ->value('id') ?? 0);
@@ -88,8 +88,8 @@ class RecojoController extends Controller
             'user:id,name,empresa_id',
             'estadoRegistro:id,nombre_estado',
         ])
-        ->where('empresa_id', $empresaId)                 // ✅ misma empresa
-        ->where('estados_id', $estadoEntregadoId)         // ✅ ENTREGADO
+        ->where('empresa_id', $empresaId)                 // âœ… misma empresa
+        ->where('estados_id', $estadoEntregadoId)         // âœ… ENTREGADO
         ->orderByDesc('id')
         ->paginate(15);
 
@@ -767,3 +767,4 @@ class RecojoController extends Controller
         abort(403, 'No tienes permiso para realizar esta accion.');
     }
 }
+

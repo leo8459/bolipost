@@ -29,7 +29,7 @@ class DashboardController extends Controller
         'ORURO',
         'POTOSI',
         'TARIJA',
-        'CHUQUISACA',
+        'SUCRE',
         'TRINIDAD',
         'COBIJA',
     ];
@@ -989,3 +989,4 @@ class DashboardController extends Controller
         ];
     }
 }
+

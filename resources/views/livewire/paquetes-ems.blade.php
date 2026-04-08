@@ -520,6 +520,11 @@
                             </button>
                             @endif
                             @if ($canEmsSendRegional)
+                            <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Assign">
+                                Anadir a CN-33
+                            </button>
+                            @endif
+                            @if ($canEmsSendRegional)
                             <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
                                 Manda a regional
                             </button>
@@ -811,6 +816,36 @@
                                     Cerrar
                                 </button>
                                 @endif
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @if ($this->isAlmacenEms && $showCn33Assign && $canEmsSendRegional)
+                    <div class="section-block mb-3">
+                        <div class="section-title">Anadir a CN-33</div>
+                        <div class="form-row align-items-end">
+                            <div class="form-group col-md-6 mb-2">
+                                <label>Cod. especial (CN-33)</label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    placeholder="Ingresa cod_especial (ej: SRZ00001)"
+                                    wire:model.defer="cn33ManualCodigo"
+                                >
+                            </div>
+                            <div class="form-group col-md-6 mb-2 d-flex gap-2">
+                                <button
+                                    class="btn btn-azul"
+                                    type="button"
+                                    wire:click="anadirSeleccionadosCn33"
+                                    onclick="return confirm('Asignar este cod_especial a los seleccionados y cambiarlos a TRANSITO?')"
+                                >
+                                    Confirmar
+                                </button>
+                                <button class="btn btn-outline-azul" type="button" wire:click="toggleCn33Assign">
+                                    Cerrar
+                                </button>
                             </div>
                         </div>
                     </div>

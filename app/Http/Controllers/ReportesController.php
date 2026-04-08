@@ -20,7 +20,7 @@ class ReportesController extends Controller
     private const CERTI_ORDI_GREEN_DAYS = 7;
     private const CERTI_ORDI_YELLOW_DAYS = 15;
     private const DESTINOS_LARGA_DISTANCIA = ['SANTA CRUZ', 'TRINIDAD', 'TARIJA'];
-    private const DESTINOS_BASE = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'CHUQUISACA', 'TRINIDAD', 'COBIJA'];
+    private const DESTINOS_BASE = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
     private const DESTINOS_CAPITALES = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
     private const SCOPES = ['general', 'contrato', 'ems', 'certi', 'ordi'];
 
@@ -749,3 +749,4 @@ class ReportesController extends Controller
         }
     }
 }
+

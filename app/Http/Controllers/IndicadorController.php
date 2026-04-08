@@ -30,7 +30,7 @@ class IndicadorController extends Controller
         'ORURO',
         'POTOSI',
         'TARIJA',
-        'CHUQUISACA',
+        'SUCRE',
         'TRINIDAD',
         'COBIJA',
     ];
@@ -694,3 +694,4 @@ class IndicadorController extends Controller
         }
     }
 }
+

@@ -42,7 +42,7 @@ class TarifaContratoController extends Controller
         'ORURO',
         'POTOSI',
         'TARIJA',
-        'CHUQUISACA',
+        'SUCRE',
         'TRINIDAD',
         'COBIJA',
     ];
@@ -82,7 +82,7 @@ class TarifaContratoController extends Controller
             'CERCADO', 'ANICETO ARCE', 'BURDETT OCONNOR', 'GRAN CHACO',
             'JOSE MARIA AVILES', 'MENDEZ',
         ],
-        'CHUQUISACA' => [
+        'SUCRE' => [
             'OROPEZA', 'AZURDUY', 'ZUDANEZ', 'TOMINA', 'HERNANDO SILES',
             'YAMPARAEZ', 'NOR CINTI', 'SUD CINTI', 'BELISARIO BOETO', 'LUIS CALVO',
         ],
@@ -822,3 +822,4 @@ class TarifaContratoController extends Controller
         return strtoupper($text);
     }
 }
+

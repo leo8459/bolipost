@@ -22,7 +22,7 @@ class Origen extends Component
         'COBIJA',
         'TRINIDAD',
         'TARIJA',
-        'CHUQUISACA',
+        'SUCRE',
         'ORURO',
         'COCHABAMBA',
         'POTOSI',
@@ -120,3 +120,4 @@ class Origen extends Component
         ]);
     }
 }
+
