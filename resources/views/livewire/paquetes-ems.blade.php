@@ -1212,9 +1212,11 @@
                     </div>
                 </div>
 
-                <div class="d-flex justify-content-end">
-                    {{ $paquetes->links() }}
-                </div>
+                @if (method_exists($paquetes, 'links'))
+                    <div class="d-flex justify-content-end">
+                        {{ $paquetes->links() }}
+                    </div>
+                @endif
 
                 @if (false && $this->isAlmacenEms)
                     <div class="section-block mt-4">
