@@ -29,6 +29,19 @@
             </div>
             <div id="guia-message" class="px-3 pt-3" style="display:none;"></div>
             <div class="card-body p-0">
+                <div class="px-3 pt-3 pb-2 border-bottom bg-white">
+                    <div class="d-flex flex-wrap align-items-center" style="gap:8px;">
+                        <input
+                            type="text"
+                            id="codigo-search-input"
+                            class="form-control"
+                            style="max-width: 380px;"
+                            placeholder="Pega el codigo y presiona Enter..."
+                        >
+                        <button type="button" id="btn-codigo-search" class="btn btn-sm btn-carteros-primary">Buscar</button>
+                        <button type="button" id="btn-codigo-clear" class="btn btn-sm btn-outline-secondary">Limpiar</button>
+                    </div>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-striped table-hover mb-0">
                         <thead>
@@ -152,9 +165,13 @@
             const btnShowProvincia = document.getElementById('btn-show-provincia');
             const btnShowCartero = document.getElementById('btn-show-cartero');
             const bandejaChip = document.getElementById('bandeja-chip');
+            const codigoSearchInput = document.getElementById('codigo-search-input');
+            const btnCodigoSearch = document.getElementById('btn-codigo-search');
+            const btnCodigoClear = document.getElementById('btn-codigo-clear');
             const canCarteroGuide = @json($canCarteroGuide);
             const canCarteroProvince = @json($canCarteroProvince);
             const canCarteroDeliver = @json($canCarteroDeliver);
+            let currentCodigoFilter = '';
 
             function showMessage(text, type) {
                 guiaMessage.style.display = 'block';
@@ -253,7 +270,15 @@
             async function loadPage(page) {
                 setLoading();
                 try {
-                    const url = currentEndpoint + '?page=' + page + '&per_page=' + perPage;
+                    const params = new URLSearchParams({
+                        page: String(page),
+                        per_page: String(perPage),
+                    });
+                    if (currentCodigoFilter !== '') {
+                        params.set('codigo', currentCodigoFilter);
+                    }
+
+                    const url = currentEndpoint + '?' + params.toString();
                     const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) throw new Error('Request failed');
                     const payload = await response.json();
@@ -412,6 +437,38 @@
                     if (btnOpenGuiaModal) {
                         btnOpenGuiaModal.disabled = false;
                     }
+                    resetSelection();
+                    loadPage(1);
+                });
+            }
+
+            function applyCodigoSearch() {
+                currentCodigoFilter = String(codigoSearchInput ? codigoSearchInput.value : '').trim();
+                resetSelection();
+                loadPage(1);
+            }
+
+            if (btnCodigoSearch) {
+                btnCodigoSearch.addEventListener('click', function() {
+                    applyCodigoSearch();
+                });
+            }
+
+            if (codigoSearchInput) {
+                codigoSearchInput.addEventListener('keydown', function(event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        applyCodigoSearch();
+                    }
+                });
+            }
+
+            if (btnCodigoClear) {
+                btnCodigoClear.addEventListener('click', function() {
+                    if (codigoSearchInput) {
+                        codigoSearchInput.value = '';
+                    }
+                    currentCodigoFilter = '';
                     resetSelection();
                     loadPage(1);
                 });

@@ -88,9 +88,9 @@
                                     <div class="form-group mb-3">
                                         <label for="foto_entrega">Foto (obligatoria)</label>
                                         <input type="file" name="foto" id="foto_entrega" class="form-control-file foto-input"
-                                            accept="image/*" capture="environment" data-preview-img="preview_entrega" required>
+                                            accept="image/*" data-preview-img="preview_entrega" required>
                                         <small class="text-muted d-block mt-1">
-                                            En celular se abre la camara. En PC se abre selector de archivos.
+                                            En celular puedes elegir camara o galeria/archivos. En PC se abre selector de archivos.
                                         </small>
                                         <small class="text-muted d-block mt-1 foto-upload-hint">
                                             Si la foto es muy pesada, se reduce automaticamente antes de enviar.
@@ -128,9 +128,9 @@
                                     <div class="form-group mb-3">
                                         <label for="foto_intento">Foto (obligatoria)</label>
                                         <input type="file" name="foto" id="foto_intento" class="form-control-file foto-input"
-                                            accept="image/*" capture="environment" data-preview-img="preview_intento" required>
+                                            accept="image/*" data-preview-img="preview_intento" required>
                                         <small class="text-muted d-block mt-1">
-                                            En celular se abre la camara. En PC se abre selector de archivos.
+                                            En celular puedes elegir camara o galeria/archivos. En PC se abre selector de archivos.
                                         </small>
                                         <small class="text-muted d-block mt-1 foto-upload-hint">
                                             Si la foto es muy pesada, se reduce automaticamente antes de enviar.
