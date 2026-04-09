@@ -130,6 +130,9 @@ class PaquetesEms extends Component
     public $devolucionImagen = null;
     public $recibirRegionalPreview = [];
     public $recibirRegionalPesos = [];
+    public $regionalMismatchItems = [];
+    public $regionalMismatchDestino = '';
+    public $regionalMismatchScope = 'general';
 
     public $ciudades = [
         'LA PAZ',
@@ -1876,7 +1879,7 @@ class PaquetesEms extends Component
         $this->selectedSolicitudes = [];
     }
 
-    public function mandarSeleccionadosRegional()
+    public function mandarSeleccionadosRegional(bool $confirmadoDestino = false)
     {
         $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
 
@@ -1929,6 +1932,22 @@ class PaquetesEms extends Component
         $eligibleEstadoIds = $this->regionalEligibleEstadoIds();
         if (empty($eligibleEstadoIds)) {
             session()->flash('error', 'No existen los estados ALMACEN/RECIBIDO en la tabla estados.');
+            return;
+        }
+
+        $mismatchItems = $this->regionalMismatchItemsForSelection(
+            $idsEms,
+            $idsContratos,
+            $idsSolicitudes,
+            (string) $this->regionalDestino,
+            $eligibleEstadoIds
+        );
+        if (!$confirmadoDestino && !empty($mismatchItems)) {
+            $this->regionalMismatchItems = $mismatchItems;
+            $this->regionalMismatchDestino = strtoupper(trim((string) $this->regionalDestino));
+            $this->regionalMismatchScope = 'general';
+            $this->dispatch('closeRegionalModal');
+            $this->dispatch('openRegionalMismatchModal');
             return;
         }
 
@@ -2148,7 +2167,7 @@ class PaquetesEms extends Component
         }, 'manifiesto-regional-' . $generatedAt->format('Ymd-His') . '.pdf');
     }
 
-    public function mandarSeleccionadosContratosRegional()
+    public function mandarSeleccionadosContratosRegional(bool $confirmadoDestino = false)
     {
         $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
 
@@ -2181,6 +2200,20 @@ class PaquetesEms extends Component
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
         if (!$estadoAlmacenId) {
             session()->flash('error', 'No existe el estado ALMACEN en la tabla estados.');
+            return;
+        }
+
+        $mismatchItems = $this->regionalMismatchItemsForContracts(
+            $ids,
+            (string) $this->regionalDestinoContrato,
+            (int) $estadoAlmacenId
+        );
+        if (!$confirmadoDestino && !empty($mismatchItems)) {
+            $this->regionalMismatchItems = $mismatchItems;
+            $this->regionalMismatchDestino = strtoupper(trim((string) $this->regionalDestinoContrato));
+            $this->regionalMismatchScope = 'contratos';
+            $this->dispatch('closeRegionalContratoModal');
+            $this->dispatch('openRegionalMismatchModal');
             return;
         }
 
@@ -2285,6 +2318,19 @@ class PaquetesEms extends Component
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'manifiesto-regional-contratos-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
+    public function confirmarEnvioRegionalConDestinoDiferente()
+    {
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
+
+        $this->dispatch('closeRegionalMismatchModal');
+
+        if ($this->regionalMismatchScope === 'contratos') {
+            return $this->mandarSeleccionadosContratosRegional(true);
+        }
+
+        return $this->mandarSeleccionadosRegional(true);
     }
 
     public function mandarSeleccionadosVentanillaEms()
@@ -5629,6 +5675,119 @@ class PaquetesEms extends Component
             ->filter(fn ($id) => !empty($id))
             ->map(fn ($id) => (int) $id)
             ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function regionalMismatchItemsForSelection(
+        array $idsEms,
+        array $idsContratos,
+        array $idsSolicitudes,
+        string $regionalDestino,
+        array $eligibleEstadoIds
+    ): array {
+        $targetDestino = strtoupper(trim($regionalDestino));
+        if ($targetDestino === '') {
+            return [];
+        }
+
+        $items = collect();
+
+        if (!empty($idsEms)) {
+            $emsItems = PaqueteEms::query()
+                ->whereIn('id', $idsEms)
+                ->whereIn('estado_id', $eligibleEstadoIds)
+                ->get(['codigo', 'ciudad'])
+                ->map(function ($row) use ($targetDestino) {
+                    $destino = strtoupper(trim((string) ($row->ciudad ?? '')));
+                    if ($destino === '' || $destino === $targetDestino) {
+                        return null;
+                    }
+
+                    return [
+                        'codigo' => (string) ($row->codigo ?: 'SIN CODIGO'),
+                        'destino' => $destino,
+                    ];
+                })
+                ->filter();
+
+            $items = $items->merge($emsItems);
+        }
+
+        if (!empty($idsContratos)) {
+            $contratoItems = RecojoContrato::query()
+                ->whereIn('id', $idsContratos)
+                ->whereIn('estados_id', $eligibleEstadoIds)
+                ->get(['codigo', 'destino'])
+                ->map(function ($row) use ($targetDestino) {
+                    $destino = strtoupper(trim((string) ($row->destino ?? '')));
+                    if ($destino === '' || $destino === $targetDestino) {
+                        return null;
+                    }
+
+                    return [
+                        'codigo' => (string) ($row->codigo ?: 'SIN CODIGO'),
+                        'destino' => $destino,
+                    ];
+                })
+                ->filter();
+
+            $items = $items->merge($contratoItems);
+        }
+
+        if (!empty($idsSolicitudes)) {
+            $solicitudItems = SolicitudCliente::query()
+                ->whereIn('id', $idsSolicitudes)
+                ->whereIn('estado_id', $eligibleEstadoIds)
+                ->get(['codigo_solicitud', 'barcode', 'ciudad'])
+                ->map(function ($row) use ($targetDestino) {
+                    $destino = strtoupper(trim((string) ($row->ciudad ?? '')));
+                    if ($destino === '' || $destino === $targetDestino) {
+                        return null;
+                    }
+
+                    $codigo = (string) ($row->codigo_solicitud ?: ($row->barcode ?: 'SIN CODIGO'));
+
+                    return [
+                        'codigo' => $codigo,
+                        'destino' => $destino,
+                    ];
+                })
+                ->filter();
+
+            $items = $items->merge($solicitudItems);
+        }
+
+        return $items
+            ->unique(fn ($item) => ($item['codigo'] ?? '') . '|' . ($item['destino'] ?? ''))
+            ->values()
+            ->all();
+    }
+
+    protected function regionalMismatchItemsForContracts(array $ids, string $regionalDestino, int $estadoAlmacenId): array
+    {
+        $targetDestino = strtoupper(trim($regionalDestino));
+        if ($targetDestino === '' || empty($ids)) {
+            return [];
+        }
+
+        return RecojoContrato::query()
+            ->whereIn('id', $ids)
+            ->where('estados_id', (int) $estadoAlmacenId)
+            ->get(['codigo', 'destino'])
+            ->map(function ($row) use ($targetDestino) {
+                $destino = strtoupper(trim((string) ($row->destino ?? '')));
+                if ($destino === '' || $destino === $targetDestino) {
+                    return null;
+                }
+
+                return [
+                    'codigo' => (string) ($row->codigo ?: 'SIN CODIGO'),
+                    'destino' => $destino,
+                ];
+            })
+            ->filter()
+            ->unique(fn ($item) => ($item['codigo'] ?? '') . '|' . ($item['destino'] ?? ''))
             ->values()
             ->all();
     }

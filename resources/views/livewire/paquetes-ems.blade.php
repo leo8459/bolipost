@@ -1755,6 +1755,49 @@
         </div>
     </div>
 
+    <div class="modal fade" id="regionalMismatchModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Advertencia de destino regional</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">
+                        Seguro que quieres mandar estos paquetes a <strong>{{ $regionalMismatchDestino ?: 'LA REGIONAL SELECCIONADA' }}</strong>.
+                    </p>
+                    <p class="mb-2">
+                        Su destino es:
+                    </p>
+
+                    <div class="border rounded p-2 mb-3" style="max-height: 280px; overflow-y: auto;">
+                        @forelse($regionalMismatchItems as $item)
+                            <div>
+                                <strong>{{ $item['codigo'] ?? 'SIN CODIGO' }}</strong> - {{ $item['destino'] ?? 'SIN DESTINO' }}
+                            </div>
+                        @empty
+                            <div class="text-muted">No hay diferencias de destino.</div>
+                        @endforelse
+                    </div>
+
+                    <div class="alert mb-0 text-white border-0" style="background:#c1121f; font-size:1.45rem; font-weight:800; line-height:1.6; padding:1.35rem 1.5rem;">
+                        ESTA REENCAMINANDO PAQUETES O USANDO CIUDAD INTERMEDIO SI NO ES ASI REVISALO POR FAVOR LOS PAQUETES QUE ESTAS MANDANDO A LA REGIONAL.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsSendRegional)
+                    <button type="button" class="btn btn-warning" wire:click="confirmarEnvioRegionalConDestinoDiferente">
+                        Si, mandar
+                    </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="contratoRegistrarModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
@@ -2115,6 +2158,8 @@
             closeRegionalModal: '#regionalModal',
             openRegionalContratoModal: '#regionalContratoModal',
             closeRegionalContratoModal: '#regionalContratoModal',
+            openRegionalMismatchModal: '#regionalMismatchModal',
+            closeRegionalMismatchModal: '#regionalMismatchModal',
             openContratoRegistrarModal: '#contratoRegistrarModal',
             closeContratoRegistrarModal: '#contratoRegistrarModal',
             openContratoPesoModal: '#contratoPesoModal',
