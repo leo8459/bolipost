@@ -130,6 +130,8 @@ class PaquetesEms extends Component
     public $devolucionImagen = null;
     public $recibirRegionalPreview = [];
     public $recibirRegionalPesos = [];
+    public $showRecibirRegionalCn33Input = false;
+    public $recibirRegionalCn33 = '';
     public $regionalMismatchItems = [];
     public $regionalMismatchDestino = '';
     public $regionalMismatchScope = 'general';
@@ -3087,6 +3089,93 @@ class PaquetesEms extends Component
             ->all();
 
         $this->dispatch('openRecibirRegionalModal');
+    }
+
+    public function toggleRecibirRegionalCn33Input()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'transito_ems'));
+
+        if (!$this->isTransitoEms) {
+            return;
+        }
+
+        $this->showRecibirRegionalCn33Input = !$this->showRecibirRegionalCn33Input;
+        if (!$this->showRecibirRegionalCn33Input) {
+            $this->recibirRegionalCn33 = '';
+        }
+    }
+
+    public function prepararRecibirRegionalPorCn33()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('assign', 'transito_ems'));
+
+        if (!$this->isTransitoEms) {
+            return;
+        }
+
+        $codigoCn33 = strtoupper(trim((string) $this->recibirRegionalCn33));
+        if ($codigoCn33 === '') {
+            session()->flash('error', 'Pega el codigo CN-33 para cargar sus registros.');
+            return;
+        }
+
+        $estadoRecibirRegionalIds = $this->resolveRecibirRegionalEstadoIds();
+        if (empty($estadoRecibirRegionalIds)) {
+            session()->flash('error', 'No existe el estado ENVIADO ni TRANSITO en la tabla estados.');
+            return;
+        }
+
+        $idsEms = $this->basePaquetesQuery()
+            ->whereRaw('trim(upper(COALESCE(paquetes_ems.cod_especial, \'\'))) = trim(upper(?))', [$codigoCn33])
+            ->pluck('paquetes_ems.id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsContratos = RecojoContrato::query()
+            ->whereIn('estados_id', $estadoRecibirRegionalIds)
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoCn33])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $userCity = trim((string) optional(Auth::user())->ciudad);
+        $estadoTransitoId = $this->findEstadoId('TRANSITO');
+        $idsSolicitudes = SolicitudCliente::query()
+            ->whereIn('estado_id', $estadoRecibirRegionalIds)
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoCn33])
+            ->when($userCity !== '', function ($query) use ($userCity, $estadoTransitoId) {
+                if (empty($estadoTransitoId)) {
+                    return;
+                }
+
+                $query->where(function ($sub) use ($estadoTransitoId, $userCity) {
+                    $sub->where('estado_id', '<>', (int) $estadoTransitoId)
+                        ->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                            $q2->where('estado_id', (int) $estadoTransitoId)
+                                ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
+                        });
+                });
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'No se encontraron registros en recibir regional para el CN-33 ' . $codigoCn33 . '.');
+            return;
+        }
+
+        $this->selectedPaquetes = $idsEms;
+        $this->selectedContratos = $idsContratos;
+        $this->selectedSolicitudes = $idsSolicitudes;
+
+        $this->openRecibirRegionalModal();
     }
 
     public function recibirSeleccionadosRegional()

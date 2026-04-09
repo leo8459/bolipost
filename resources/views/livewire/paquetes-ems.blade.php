@@ -548,6 +548,9 @@
                             @endif
                         @elseif ($this->isTransitoEms)
                             @if ($canEmsAssign)
+                            <button class="btn btn-outline-light2" type="button" wire:click="toggleRecibirRegionalCn33Input">
+                                Recibir todos del CN-33
+                            </button>
                             <button class="btn btn-outline-light2" type="button" wire:click="openRecibirRegionalModal">
                                 Recibir
                             </button>
@@ -570,6 +573,32 @@
             @if (session()->has('error'))
                 <div class="alert alert-danger m-3">
                     <p class="mb-0">{{ session('error') }}</p>
+                </div>
+            @endif
+
+            @if ($this->isTransitoEms && $showRecibirRegionalCn33Input)
+                <div class="m-3 mb-0 p-3 border rounded" style="background:#f8fbff; border-color:#d6e2ff !important;">
+                    <div class="form-row align-items-end">
+                        <div class="form-group col-md-7 mb-2 mb-md-0">
+                            <label class="mb-1 fw-bold">Pegar codigo CN-33</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                placeholder="Ej: TDD00003"
+                                wire:model.defer="recibirRegionalCn33"
+                                wire:keydown.enter.prevent="prepararRecibirRegionalPorCn33"
+                            >
+                            <small class="text-muted">Al confirmar, se cargan y seleccionan automaticamente todos los registros de ese CN-33.</small>
+                        </div>
+                        <div class="form-group col-md-5 mb-0 d-flex gap-2 justify-content-md-end">
+                            <button class="btn btn-outline-secondary" type="button" wire:click="toggleRecibirRegionalCn33Input">
+                                Cancelar
+                            </button>
+                            <button class="btn btn-primary" type="button" wire:click="prepararRecibirRegionalPorCn33">
+                                Cargar CN-33
+                            </button>
+                        </div>
+                    </div>
                 </div>
             @endif
 
