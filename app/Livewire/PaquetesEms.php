@@ -1237,6 +1237,7 @@ class PaquetesEms extends Component
 
     protected function findSolicitudTiktokerForPesoByCodigo(string $codigo): ?SolicitudCliente
     {
+        $estadoSolicitudId = $this->findEstadoId('SOLICITUD');
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
 
         if (!$estadoSolicitudId && !$estadoAlmacenId) {
@@ -3372,8 +3373,16 @@ class PaquetesEms extends Component
         $this->authorizePermission($this->modeFeaturePermission('delete', 'admision'));
 
         $paquete = PaqueteEms::findOrFail($id);
-        $paquete->delete();
-        session()->flash('success', 'Paquete eliminado correctamente.');
+        $estadoCanceladoId = $this->findEstadoId('CANCELADO');
+        if (!$estadoCanceladoId) {
+            session()->flash('error', 'No existe el estado CANCELADO en la tabla estados.');
+            return;
+        }
+
+        $paquete->estado_id = (int) $estadoCanceladoId;
+        $paquete->save();
+
+        session()->flash('success', 'Paquete cancelado correctamente.');
     }
 
     public function resetForm()
@@ -3462,7 +3471,7 @@ class PaquetesEms extends Component
             'telefono_destinatario' => $this->telefono_destinatario,
             'direccion' => $this->direccion,
             'referencia' => $this->referencia,
-            'ciudad' => $this->ciudad,
+            'ciudad' => $this->normalizeDestinoNombre((string) $this->ciudad),
             'tarifario_id' => $this->tarifario_id ?: null,
             'estado_id' => $this->estado_id ?? null,
         ];
@@ -3674,16 +3683,21 @@ class PaquetesEms extends Component
     {
         $nombreTrim = trim($nombre);
         $nombreUpper = strtoupper($nombreTrim);
+        $nombreComparable = str_replace(
+            ['Á', 'É', 'Í', 'Ó', 'Ú'],
+            ['A', 'E', 'I', 'O', 'U'],
+            $nombreUpper
+        );
 
-        if ($nombreUpper === 'PANDO') {
+        if ($nombreComparable === 'PANDO' || str_contains($nombreComparable, 'PANDO')) {
             return 'COBIJA';
         }
 
-        if ($nombreUpper === 'BENI') {
+        if ($nombreComparable === 'BENI' || str_contains($nombreComparable, 'BENI')) {
             return 'TRINIDAD';
         }
 
-        if ($nombreUpper === 'CHUQUISACA') {
+        if ($nombreComparable === 'CHUQUISACA' || str_contains($nombreComparable, 'CHUQUISACA')) {
             return 'SUCRE';
         }
 
@@ -3842,14 +3856,14 @@ class PaquetesEms extends Component
                     }
                 })->orWhere(function ($q2) use ($userCity, $estadoRecibidoId) {
                     if ($estadoRecibidoId) {
-                        $q2->where('paquetes_ems.estado_id', (int) $estadoRecibidoId)
-                            ->whereRaw(
-                                'trim(upper(coalesce(destino.nombre_destino, formulario.ciudad, paquetes_ems.ciudad))) = trim(upper(?))',
-                                [$userCity]
-                            );
-                    } else {
-                        $q2->whereRaw('1 = 0');
-                    }
+                            $q2->where('paquetes_ems.estado_id', (int) $estadoRecibidoId)
+                                ->whereRaw(
+                                    'trim(upper(coalesce(destino.nombre_destino, formulario.ciudad, paquetes_ems.ciudad))) = trim(upper(?))',
+                                    [$userCity]
+                                );
+                        } else {
+                            $q2->whereRaw('1 = 0');
+                        }
                 });
             });
         });
@@ -4249,6 +4263,7 @@ class PaquetesEms extends Component
     {
         $q = trim((string) $this->searchQuery);
         $userCity = trim((string) optional(Auth::user())->ciudad);
+        $estadoSolicitudId = $this->findEstadoId('SOLICITUD');
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
         $estadoRecibidoId = $this->findEstadoId('RECIBIDO');
         $estadoTransitoId = $this->findEstadoId('TRANSITO');
@@ -4319,7 +4334,7 @@ class PaquetesEms extends Component
                     });
                 });
             })
-            ->when($this->isAlmacenEms, function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId) {
+            ->when($this->isAlmacenEms, function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $estadoSolicitudId) {
                 if ($userCity === '') {
                     $query->whereRaw('1 = 0');
                     return;
@@ -4349,6 +4364,12 @@ class PaquetesEms extends Component
                         if ($estadoRecibidoId) {
                             $q2->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId)
                                 ->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
+                        } else {
+                            $q2->whereRaw('1 = 0');
+                        }
+                    })->orWhere(function ($q2) use ($estadoSolicitudId) {
+                        if ($estadoSolicitudId) {
+                            $q2->where('solicitud_clientes.estado_id', (int) $estadoSolicitudId);
                         } else {
                             $q2->whereRaw('1 = 0');
                         }
@@ -4858,7 +4879,7 @@ class PaquetesEms extends Component
             if ($this->destino_id) {
                 $destino = $this->destinos->firstWhere('id', (int) $this->destino_id);
                 if ($destino) {
-                    $this->ciudad = $destino->nombre_destino;
+                    $this->ciudad = $this->normalizeDestinoNombre((string) $destino->nombre_destino);
                 }
             }
             $this->applyTarifarioMatch();
@@ -4883,10 +4904,7 @@ class PaquetesEms extends Component
             }
         }
 
-        if ($name === 'carnet') {
-            $this->refreshRemitenteSugerencias((string) $value);
-            $this->applyRegisteredRemitenteByCarnet((string) $value);
-        }
+        // Autollenado por carnet deshabilitado temporalmente.
     }
 
     protected function normalizeSelectionProperty(string $property): void
@@ -5330,7 +5348,7 @@ class PaquetesEms extends Component
                 'telefono_destinatario' => $this->telefono_destinatario,
                 'direccion' => $this->direccion,
                 'referencia' => $this->referencia,
-                'ciudad' => $this->ciudad,
+                'ciudad' => $this->normalizeDestinoNombre((string) $this->ciudad),
                 'servicio_id' => $this->servicio_id ?: null,
                 'destino_id' => $this->destino_id ?: null,
                 'tarifario_id' => $this->tarifario_id ?: null,

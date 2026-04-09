@@ -102,7 +102,18 @@
                                         <div class="small text-info mt-2 d-none foto-upload-status"></div>
                                     </div>
 
-                                    <button type="submit" class="btn btn-success px-4">Confirmar entrega</button>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="submit" class="btn btn-success px-4">Confirmar entrega</button>
+                                        @if (in_array($tipo_paquete, ['CONTRATO', 'EMS', 'SOLICITUD'], true))
+                                            <button
+                                                type="submit"
+                                                formaction="{{ route('carteros.entrega.ida-vuelta') }}"
+                                                class="btn btn-primary px-4"
+                                            >
+                                                Entregar paquete ida y vuelta
+                                            </button>
+                                        @endif
+                                    </div>
                                 </form>
                             </div>
                         @endif

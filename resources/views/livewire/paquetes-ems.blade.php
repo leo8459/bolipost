@@ -705,19 +705,10 @@
                                     <label>Carnet remitente<span class="required-star">*</span></label>
                                     <input
                                         type="text"
-                                        wire:model.live.debounce.300ms="carnet"
-                                        class="form-control autofill-input"
-                                        list="remitentesCarnetListCreate"
-                                        autocomplete="off"
-                                        placeholder="Escribe el carnet para autollenar"
+                                        wire:model.defer="carnet"
+                                        class="form-control"
                                         required
                                     >
-                                    <datalist id="remitentesCarnetListCreate">
-                                        @foreach($remitenteSugerencias as $remitenteSugerido)
-                                            <option value="{{ $remitenteSugerido }}"></option>
-                                        @endforeach
-                                    </datalist>
-                                    <div class="autofill-helper">Ingresa el carnet del remitente. Si existe un registro previo, el sistema completara automaticamente los datos relacionados.</div>
                                     @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-6">
@@ -727,20 +718,6 @@
                                 </div>
                             </div>
 
-                            @if($autofillMessage)
-                                <div class="autofill-panel">
-                                    <div class="autofill-panel-head">
-                                        <div class="autofill-panel-title">Autollenado aplicado</div>
-                                        <div class="autofill-panel-badge">Busqueda por carnet</div>
-                                    </div>
-                                    <div class="autofill-panel-text">{{ $autofillMessage }}</div>
-                                    <ul class="autofill-panel-list">
-                                        <li>Se completaron datos previos del remitente.</li>
-                                        <li>Tambien se recupero el ultimo envio asociado a ese carnet.</li>
-                                        <li>Revisa el formulario y corrige solo si deseas cambiar algun dato.</li>
-                                    </ul>
-                                </div>
-                            @endif
                         </div>
 
                         <div class="section-block">
@@ -1190,8 +1167,8 @@
                                                 @if ($canEmsDelete)
                                                 <button wire:click="delete({{ $paquete->id }})"
                                                     class="btn btn-sm btn-outline-azul"
-                                                    title="Eliminar"
-                                                    onclick="return confirm('Seguro que deseas eliminar este paquete?')">
+                                                    title="Cancelar"
+                                                    onclick="return confirm('Seguro que deseas cancelar este paquete?')">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                                 @endif
@@ -1518,18 +1495,9 @@
                                         <label>Carnet remitente</label>
                                         <input
                                             type="text"
-                                            wire:model.live.debounce.300ms="carnet"
-                                            class="form-control autofill-input"
-                                            list="remitentesCarnetList"
-                                            autocomplete="off"
-                                            placeholder="Escribe el carnet para autollenar"
+                                            wire:model.defer="carnet"
+                                            class="form-control"
                                         >
-                                        <datalist id="remitentesCarnetList">
-                                            @foreach($remitenteSugerencias as $remitenteSugerido)
-                                                <option value="{{ $remitenteSugerido }}"></option>
-                                            @endforeach
-                                        </datalist>
-                                        <div class="autofill-helper">Usa el carnet para recuperar rapidamente el ultimo registro relacionado con ese remitente.</div>
                                         @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
                                     </div>
                                     <div class="form-group col-md-6">
@@ -1539,20 +1507,6 @@
                                     </div>
                                 </div>
 
-                                @if($autofillMessage)
-                                    <div class="autofill-panel">
-                                        <div class="autofill-panel-head">
-                                            <div class="autofill-panel-title">Autollenado aplicado</div>
-                                            <div class="autofill-panel-badge">Busqueda por carnet</div>
-                                        </div>
-                                        <div class="autofill-panel-text">{{ $autofillMessage }}</div>
-                                        <ul class="autofill-panel-list">
-                                            <li>Se reutilizaron datos guardados anteriormente.</li>
-                                            <li>El sistema trajo el ultimo formulario asociado a ese carnet.</li>
-                                            <li>Puedes editar cualquier campo antes de guardar los cambios.</li>
-                                        </ul>
-                                    </div>
-                                @endif
                             @endif
                         </div>
 

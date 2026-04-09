@@ -910,6 +910,73 @@ class CarterosController extends Controller
         return $redirect;
     }
 
+    public function deliverRoundTripPackage(Request $request)
+    {
+        $this->authorizeFeaturePermission('feature.carteros.entrega.deliver');
+
+        $validated = $request->validate([
+            'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
+            'id' => ['required', 'integer'],
+            'recibido_por' => ['required', 'string', 'max:255'],
+            'descripcion' => ['nullable', 'string'],
+            'foto' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
+        ]);
+
+        $tiposPermitidos = ['CONTRATO', 'EMS', 'SOLICITUD'];
+        if (!in_array((string) ($validated['tipo_paquete'] ?? ''), $tiposPermitidos, true)) {
+            throw ValidationException::withMessages([
+                'tipo_paquete' => 'Esta accion solo aplica a EMS, CONTRATO o SOLICITUD.',
+            ]);
+        }
+
+        $estadoCarteroId = $this->resolveEstadoCarteroId();
+        $estadoProvinciaId = $this->resolveEstadoProvinciaId();
+        $estadoRecibidoId = $this->resolveEstadoByName('RECIBIDO');
+        $userId = (int) $request->user()->id;
+        $eventoEntregaId = self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE;
+
+        $eventoExiste = DB::table('eventos')
+            ->where('id', $eventoEntregaId)
+            ->exists();
+
+        if (!$eventoExiste) {
+            throw ValidationException::withMessages([
+                'id' => "No existe el evento con ID {$eventoEntregaId} (Paquete entregado exitosamente.).",
+            ]);
+        }
+
+        $asignacion = $this->findAssignmentForUserByStates(
+            $validated['tipo_paquete'],
+            (int) $validated['id'],
+            $userId,
+            [$estadoCarteroId, $estadoProvinciaId]
+        );
+        $imagenPath = $this->storeDeliveryPhoto($request, $asignacion->imagen ?? $asignacion->foto);
+
+        DB::transaction(function () use ($validated, $asignacion, $estadoRecibidoId, $userId, $eventoEntregaId, $imagenPath) {
+            $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoRecibidoId);
+            $asignacion->id_estados = $estadoRecibidoId;
+            $asignacion->recibido_por = $validated['recibido_por'];
+            $asignacion->descripcion = $validated['descripcion'] ?? null;
+            $asignacion->imagen = $imagenPath;
+            $asignacion->save();
+            $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath);
+            if ($validated['tipo_paquete'] === 'SOLICITUD') {
+                $this->updateSolicitudDeliveryData(
+                    (int) $validated['id'],
+                    $validated['recibido_por'],
+                    $validated['descripcion'] ?? null,
+                    $imagenPath
+                );
+            }
+            $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoEntregaId, $userId);
+        });
+
+        return redirect()
+            ->route('carteros.cartero')
+            ->with('success', 'Paquete ida y vuelta enviado a ALMACEN con estado RECIBIDO.');
+    }
+
     public function addAttempt(Request $request)
     {
         $this->authorizeFeaturePermission('feature.carteros.entrega.attempt');
