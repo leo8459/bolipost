@@ -2057,9 +2057,19 @@ class PaquetesEms extends Component
                 $updated++;
             }
 
+            if ($paquetes->isNotEmpty()) {
+                DB::table('paquetes_ems_formulario')
+                    ->whereIn('paquete_ems_id', $paquetes->pluck('id')->all())
+                    ->update([
+                        'ciudad' => $this->regionalDestino,
+                        'updated_at' => now(),
+                    ]);
+            }
+
             foreach ($contratos as $contrato) {
                 $contrato->cod_especial = $manifiesto;
                 $contrato->estados_id = (int) $estadoRegionalId;
+                $contrato->destino = $this->regionalDestino;
                 $contrato->save();
                 $updated++;
             }
@@ -2258,6 +2268,7 @@ class PaquetesEms extends Component
             foreach ($contratos as $contrato) {
                 $contrato->cod_especial = $manifiesto;
                 $contrato->estados_id = (int) $estadoRegionalId;
+                $contrato->destino = $this->regionalDestinoContrato;
                 $contrato->save();
                 $updated++;
             }
