@@ -55,6 +55,7 @@ class PaquetesEmsController extends Controller
             'ANDRES IBANEZ', 'WARNES', 'VALLEGRANDE', 'ICHILO', 'CHIQUITOS',
             'SARA', 'CORDILLERA', 'FLORIDA', 'MANUEL MARIA CABALLERO',
             'GUARAYOS', 'NUFLO DE CHAVEZ', 'VELASCO', 'ANGEL SANDOVAL',
+            'MONTERO',
             'GERMAN BUSCH',
         ],
         'ORURO' => [

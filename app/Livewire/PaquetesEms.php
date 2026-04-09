@@ -4596,6 +4596,12 @@ class PaquetesEms extends Component
             ->when($userCity === '' && ($this->isAlmacenEms || $this->isDevolucionEms), function ($query) {
                 $query->whereRaw('1 = 0');
             })
+            ->when($this->isAdmision && $userCity !== '', function ($query) use ($userCity) {
+                $query->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
+            })
+            ->when($this->isAdmision && $userCity === '', function ($query) {
+                $query->whereRaw('1 = 0');
+            })
             ->when($this->isTransitoEms, function ($query) use ($userCity) {
                 $estadoRegionalRecepcionId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
                 $estadoTransitoId = $this->findEstadoId('TRANSITO');
