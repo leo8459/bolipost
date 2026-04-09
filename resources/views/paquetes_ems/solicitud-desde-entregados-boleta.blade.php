@@ -82,6 +82,16 @@
                         <td style="width: 30%;"><span class="label">FECHA:</span><br>{{ optional($generatedAt)->format('Y-m-d H:i:s') }}</td>
                     </tr>
                     <tr>
+                        <td colspan="2">
+                            <span class="label">ORIGEN DIRECCION:</span><br>
+                            {{ $contrato->direccion_r ?: 'SIN DIRECCION' }}
+                        </td>
+                        <td colspan="2">
+                            <span class="label">DESTINO DIRECCION:</span><br>
+                            {{ $contrato->direccion_d ?: 'SIN DIRECCION' }}
+                        </td>
+                    </tr>
+                    <tr>
                         <td colspan="4">
                             <span class="label">OBSERVACION:</span><br>
                             {{ $contrato->observacion ?: 'SIN OBSERVACION' }}

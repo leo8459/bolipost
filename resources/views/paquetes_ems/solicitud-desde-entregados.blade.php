@@ -57,6 +57,18 @@
                         @error('destino') <small class="text-danger">{{ $message }}</small> @enderror
                     </div>
 
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Origen direccion</label>
+                        <input type="text" name="direccion_r" class="form-control" value="{{ old('direccion_r') }}" required>
+                        @error('direccion_r') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Destino direccion</label>
+                        <input type="text" name="direccion_d" class="form-control" value="{{ old('direccion_d') }}" required>
+                        @error('direccion_d') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold">Peso</label>
                         <input type="number" step="0.001" min="0.001" name="peso" class="form-control" value="{{ old('peso') }}" required>
