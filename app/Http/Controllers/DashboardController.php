@@ -143,7 +143,16 @@ class DashboardController extends Controller
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
         $agrupacion = $this->resolveAgrupacion($request);
-        $userCity = strtoupper(trim((string) optional(Auth::user())->ciudad));
+        $authUser = Auth::user();
+        $userCity = strtoupper(trim((string) optional($authUser)->ciudad));
+        $allowedSoundRoles = ['encargado_ems', 'cartero_ems'];
+        $roleNames = ($authUser && method_exists($authUser, 'getRoleNames'))
+            ? $authUser->getRoleNames()->toArray()
+            : [];
+        $userRoles = collect($roleNames)
+            ->map(fn ($role) => mb_strtolower(trim((string) $role)))
+            ->all();
+        $canPlayPickupAlertSound = count(array_intersect($allowedSoundRoles, $userRoles)) > 0;
 
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoRezagoId = $this->resolveEstadoIdByName('REZAGO');
@@ -280,6 +289,7 @@ class DashboardController extends Controller
             'insightsEjecutivos' => $insightsEjecutivos,
             'userCity' => $userCity,
             'contratosPorRecoger' => $contratosPorRecoger,
+            'canPlayPickupAlertSound' => $canPlayPickupAlertSound,
         ];
     }
 

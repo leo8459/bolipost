@@ -9,7 +9,7 @@
 
             <x-auth-session-status class="mb-4 rounded-lg border border-[#FECC36]/40 bg-[#fff7dd] px-3 py-2" :status="session('status')" />
 
-            <form method="POST" action="{{ route('login') }}" class="space-y-4">
+            <form id="loginForm" method="POST" action="{{ route('login') }}" class="space-y-4">
                 @csrf
 
                 <div>
@@ -81,10 +81,18 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const loginForm = document.getElementById('loginForm');
             const passwordInput = document.getElementById('password');
             const toggleButton = document.getElementById('toggle-password');
             const eyeOpen = document.getElementById('eye-open');
             const eyeClosed = document.getElementById('eye-closed');
+
+            if (loginForm) {
+                loginForm.addEventListener('submit', function () {
+                    // Marca que el ingreso vino de una interaccion real del usuario.
+                    sessionStorage.setItem('dashboardSoundAfterLogin', '1');
+                });
+            }
 
             if (!passwordInput || !toggleButton || !eyeOpen || !eyeClosed) return;
 
