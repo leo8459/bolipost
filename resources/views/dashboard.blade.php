@@ -21,6 +21,19 @@
 
 @section('content')
     <div id="dashboardApp">
+    @if(($contratosPorRecoger ?? 0) > 0)
+    <div class="alert alert-danger d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
+        <div>
+            <strong>Tienes paquetes por recoger:</strong>
+            {{ number_format((int) $contratosPorRecoger) }}
+            en {{ $userCity !== '' ? $userCity : 'tu regional' }}.
+        </div>
+        <a href="{{ route('paquetes-contrato.recoger-envios', [], false) }}" class="btn btn-sm btn-outline-dark mt-2 mt-md-0">
+            Ir a recoger envios
+        </a>
+    </div>
+    @endif
+
     <div class="card card-filtro mb-3" data-focus-hide="true">
         <div class="card-header">
             <strong>Filtros y Vista</strong>
