@@ -386,19 +386,16 @@ class BusquedaController extends Controller
             report($e);
         }
 
-        if ($eventosApi->isNotEmpty()) {
-            return [
-                'eventos' => $eventosApi,
-                'fuente' => 'api',
-            ];
-        }
-
         $eventosLocales = $this->consultarEventosLocales($codigo);
 
-        if ($eventosLocales->isNotEmpty()) {
+        $eventos = $this->ordenarEventosTracking(
+            $eventosApi->merge($eventosLocales)->values()
+        );
+
+        if ($eventos->isNotEmpty()) {
             return [
-                'eventos' => $eventosLocales,
-                'fuente' => 'local',
+                'eventos' => $eventos,
+                'fuente' => $this->resolverFuenteTracking($eventosApi, $eventosLocales),
             ];
         }
 
@@ -443,21 +440,9 @@ class BusquedaController extends Controller
             ->merge(data_get($payload, 'eventos_externos', []))
             ->values();
 
-        return $eventosApi
-            ->map(fn ($item, $index) => $this->transformarEventoApi($item, $index, $codigo, $payload))
-            ->sort(function ($a, $b) {
-                $ts = ((int) ($b->_sort_ts ?? 0)) <=> ((int) ($a->_sort_ts ?? 0));
-                if ($ts !== 0) {
-                    return $ts;
-                }
-
-                return ((int) ($b->_sort_priority ?? 0)) <=> ((int) ($a->_sort_priority ?? 0));
-            })
-            ->map(function (object $evento) {
-                unset($evento->_sort_ts, $evento->_sort_priority);
-                return $evento;
-            })
-            ->values();
+        return $this->ordenarEventosTracking(
+            $eventosApi->map(fn ($item, $index) => $this->transformarEventoApi($item, $index, $codigo, $payload))
+        );
     }
 
     private function normalizeTrackingCode(string $codigo): string
@@ -565,6 +550,59 @@ class BusquedaController extends Controller
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->get();
+    }
+
+    private function ordenarEventosTracking(Collection $eventos): Collection
+    {
+        return $eventos
+            ->values()
+            ->map(function ($evento, int $index) {
+                $item = (object) $evento;
+                $createdAt = (string) ($item->created_at ?? '');
+                $timestamp = strtotime($createdAt);
+
+                $item->_sort_ts = $timestamp !== false ? $timestamp : (PHP_INT_MAX - $index);
+                $item->_sort_priority = $this->calcularPrioridadEvento((string) ($item->nombre_evento ?? ''));
+                $item->_sort_id = (int) ($item->id ?? 0);
+
+                return $item;
+            })
+            ->sort(function ($a, $b) {
+                $ts = ((int) ($b->_sort_ts ?? 0)) <=> ((int) ($a->_sort_ts ?? 0));
+                if ($ts !== 0) {
+                    return $ts;
+                }
+
+                $priority = ((int) ($b->_sort_priority ?? 0)) <=> ((int) ($a->_sort_priority ?? 0));
+                if ($priority !== 0) {
+                    return $priority;
+                }
+
+                return ((int) ($b->_sort_id ?? 0)) <=> ((int) ($a->_sort_id ?? 0));
+            })
+            ->map(function (object $evento) {
+                unset($evento->_sort_ts, $evento->_sort_priority, $evento->_sort_id);
+
+                return $evento;
+            })
+            ->values();
+    }
+
+    private function resolverFuenteTracking(Collection $eventosApi, Collection $eventosLocales): string
+    {
+        if ($eventosApi->isNotEmpty() && $eventosLocales->isNotEmpty()) {
+            return 'mixta';
+        }
+
+        if ($eventosApi->isNotEmpty()) {
+            return 'api';
+        }
+
+        if ($eventosLocales->isNotEmpty()) {
+            return 'local';
+        }
+
+        return 'ninguna';
     }
 
     private function construirConsultaEventosLocales(array $fuente, string $codigo)
