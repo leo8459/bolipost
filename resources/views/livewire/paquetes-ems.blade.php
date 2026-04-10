@@ -486,7 +486,7 @@
                             wire:model="search"
                             wire:keydown.enter.prevent="searchPaquetes(true)"
                         >
-                        <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
+                        <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes(true)">Buscar</button>
 
                         @if ($this->isAdmision)
                             @if ($canEmsAssign)

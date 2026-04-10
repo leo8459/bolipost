@@ -409,7 +409,7 @@ class PaquetesEms extends Component
                 return;
             }
 
-            session()->flash('error', 'No se encontro un paquete, contrato o solicitud con ese codigo.');
+            session()->flash('error', 'No se encontro paquete.');
             $this->search = '';
             $this->searchQuery = '';
             return;
@@ -506,7 +506,7 @@ class PaquetesEms extends Component
                 }
             }
 
-            session()->flash('error', 'No se encontro un paquete EMS o contrato con ese codigo.');
+            session()->flash('error', 'No se encontro paquete.');
             $this->search = '';
             $this->searchQuery = '';
             return;
@@ -610,7 +610,7 @@ class PaquetesEms extends Component
                 return;
             }
 
-            session()->flash('error', 'No se encontro un paquete, contrato o solicitud con ese codigo para devolucion.');
+            session()->flash('error', 'No se encontro paquete.');
             $this->search = '';
             $this->searchQuery = '';
             return;
@@ -647,7 +647,7 @@ class PaquetesEms extends Component
                 ->first(['id']);
 
             if (!$solicitud) {
-                session()->flash('error', 'No se encontro un paquete o solicitud con ese codigo.');
+                session()->flash('error', 'No se encontro paquete.');
                 $this->search = '';
                 $this->searchQuery = '';
                 return;
@@ -675,7 +675,7 @@ class PaquetesEms extends Component
             ->first(['id']);
 
         if (!$paquete) {
-            session()->flash('error', 'No se encontro un paquete con ese codigo.');
+            session()->flash('error', 'No se encontro paquete.');
             $this->search = '';
             $this->searchQuery = '';
             return;
@@ -4486,7 +4486,7 @@ class PaquetesEms extends Component
                     return;
                 }
 
-                $query->where(function ($sub) use ($estadoAlmacenId, $estadoRecibidoId, $userCity) {
+                $query->where(function ($sub) use ($estadoAlmacenId, $estadoRecibidoId, $estadoSolicitudId, $userCity) {
                     if ($this->almacenEstadoFiltro === 'ALMACEN' && $estadoAlmacenId) {
                         $sub->where('solicitud_clientes.estado_id', (int) $estadoAlmacenId)
                             ->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
