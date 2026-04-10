@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Exports\DashboardReportExport;
 use App\Models\Estado;
+use App\Models\Recojo;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -141,9 +143,11 @@ class DashboardController extends Controller
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
         $agrupacion = $this->resolveAgrupacion($request);
+        $userCity = strtoupper(trim((string) optional(Auth::user())->ciudad));
 
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoRezagoId = $this->resolveEstadoIdByName('REZAGO');
+        $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
 
         $resumenPorModulo = [];
 
@@ -231,6 +235,14 @@ class DashboardController extends Controller
             $rankingRegistradores
         );
 
+        $contratosPorRecoger = 0;
+        if ($estadoSolicitudId && $userCity !== '') {
+            $contratosPorRecoger = (int) Recojo::query()
+                ->where('estados_id', $estadoSolicitudId)
+                ->whereRaw('trim(upper(origen)) = ?', [$userCity])
+                ->count();
+        }
+
         return [
             'modulosDisponibles' => self::MODULOS,
             'modulosSeleccionados' => $modulosSeleccionados,
@@ -266,6 +278,8 @@ class DashboardController extends Controller
             'rankingEntregadores' => $rankingEntregadores,
             'rankingRegistradores' => $rankingRegistradores,
             'insightsEjecutivos' => $insightsEjecutivos,
+            'userCity' => $userCity,
+            'contratosPorRecoger' => $contratosPorRecoger,
         ];
     }
 
