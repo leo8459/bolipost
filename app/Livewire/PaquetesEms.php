@@ -385,11 +385,11 @@ class PaquetesEms extends Component
 
             $solicitud = $this->baseSolicitudesQuery()
                 ->where(function ($query) use ($codigo) {
-                    $query->whereRaw('trim(upper(codigo_solicitud)) = trim(upper(?))', [$codigo])
-                        ->orWhereRaw('trim(upper(COALESCE(barcode, \'\'))) = trim(upper(?))', [$codigo])
-                        ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigo]);
+                    $query->whereRaw('trim(upper(solicitud_clientes.codigo_solicitud)) = trim(upper(?))', [$codigo])
+                        ->orWhereRaw('trim(upper(COALESCE(solicitud_clientes.barcode, \'\'))) = trim(upper(?))', [$codigo])
+                        ->orWhereRaw('trim(upper(COALESCE(solicitud_clientes.cod_especial, \'\'))) = trim(upper(?))', [$codigo]);
                 })
-                ->first(['id', 'codigo_solicitud']);
+                ->first(['solicitud_clientes.id', 'solicitud_clientes.codigo_solicitud']);
 
             if ($solicitud) {
                 $actualesSolicitud = collect($this->selectedSolicitudes)
@@ -588,11 +588,11 @@ class PaquetesEms extends Component
 
             $solicitud = $this->baseSolicitudesQuery()
                 ->where(function ($query) use ($codigo) {
-                    $query->whereRaw('trim(upper(codigo_solicitud)) = trim(upper(?))', [$codigo])
-                        ->orWhereRaw('trim(upper(COALESCE(barcode, \'\'))) = trim(upper(?))', [$codigo])
-                        ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigo]);
+                    $query->whereRaw('trim(upper(solicitud_clientes.codigo_solicitud)) = trim(upper(?))', [$codigo])
+                        ->orWhereRaw('trim(upper(COALESCE(solicitud_clientes.barcode, \'\'))) = trim(upper(?))', [$codigo])
+                        ->orWhereRaw('trim(upper(COALESCE(solicitud_clientes.cod_especial, \'\'))) = trim(upper(?))', [$codigo]);
                 })
-                ->first(['id', 'codigo_solicitud']);
+                ->first(['solicitud_clientes.id', 'solicitud_clientes.codigo_solicitud']);
 
             if ($solicitud) {
                 $this->selectedSolicitudes = collect($this->selectedSolicitudes)
@@ -618,8 +618,8 @@ class PaquetesEms extends Component
 
         if ($this->isVentanillaEms) {
             $paquete = $this->basePaquetesQuery(false)
-                ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
-                ->first(['id']);
+                ->whereRaw('trim(upper(paquetes_ems.codigo)) = trim(upper(?))', [$codigo])
+                ->first(['paquetes_ems.id']);
 
             if ($paquete) {
                 $actuales = collect($this->selectedPaquetes)
@@ -641,10 +641,10 @@ class PaquetesEms extends Component
 
             $solicitud = $this->baseSolicitudesQuery()
                 ->where(function ($query) use ($codigo) {
-                    $query->whereRaw('trim(upper(codigo_solicitud)) = trim(upper(?))', [$codigo])
-                        ->orWhereRaw('trim(upper(COALESCE(barcode, \'\'))) = trim(upper(?))', [$codigo]);
+                    $query->whereRaw('trim(upper(solicitud_clientes.codigo_solicitud)) = trim(upper(?))', [$codigo])
+                        ->orWhereRaw('trim(upper(COALESCE(solicitud_clientes.barcode, \'\'))) = trim(upper(?))', [$codigo]);
                 })
-                ->first(['id']);
+                ->first(['solicitud_clientes.id']);
 
             if (!$solicitud) {
                 session()->flash('error', 'No se encontro paquete.');
@@ -671,8 +671,8 @@ class PaquetesEms extends Component
         }
 
         $paquete = $this->basePaquetesQuery(false)
-            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
-            ->first(['id']);
+            ->whereRaw('trim(upper(paquetes_ems.codigo)) = trim(upper(?))', [$codigo])
+            ->first(['paquetes_ems.id']);
 
         if (!$paquete) {
             session()->flash('error', 'No se encontro paquete.');
