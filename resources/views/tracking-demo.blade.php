@@ -428,6 +428,7 @@
                         <h2>Progreso del envio</h2>
                         <span>Paso actual: <strong>{{ $pasos[$pasoActual] }}</strong></span>
                     </div>
+                    <button class="progress-mobile-nav progress-mobile-nav-prev" id="progressPrev" type="button" aria-label="Ver pasos anteriores" hidden>&lsaquo;</button>
                     <ol class="progress-track" style="--steps-count: {{ count($pasos) }};">
                         @foreach ($pasos as $index => $paso)
                             @php
@@ -440,6 +441,7 @@
                             </li>
                         @endforeach
                     </ol>
+                    <button class="progress-mobile-nav progress-mobile-nav-next" id="progressNext" type="button" aria-label="Ver pasos siguientes" hidden>&rsaquo;</button>
                 </article>
 
                 @if ($mostrarAvisoRecojo)
@@ -641,6 +643,11 @@
         const revealBlocks = document.querySelectorAll('.reveal-block');
         const revealItems = document.querySelectorAll('.reveal-item');
         const progressItems = document.querySelectorAll('.progress-track li');
+        const progressCard = document.querySelector('.progress-card');
+        const progressTrack = document.querySelector('.progress-track');
+        const progressCurrent = progressTrack?.querySelector('li.is-current') ?? progressTrack?.querySelector('li:last-child');
+        const progressPrev = document.getElementById('progressPrev');
+        const progressNext = document.getElementById('progressNext');
 
         const io = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
@@ -659,6 +666,61 @@
             });
         };
         window.setTimeout(animateProgress, 220);
+
+        const syncProgressMobileState = () => {
+            if (!progressTrack) return;
+
+            const isMobile = window.matchMedia('(max-width: 720px)').matches;
+            const hasOverflow = progressTrack.scrollWidth - progressTrack.clientWidth > 10;
+            const maxScroll = Math.max(progressTrack.scrollWidth - progressTrack.clientWidth, 0);
+            const scrollLeft = progressTrack.scrollLeft;
+
+            progressTrack.classList.toggle('has-overflow', isMobile && hasOverflow);
+            progressCard?.classList.toggle('has-progress-overflow', isMobile && hasOverflow);
+            if (progressPrev) {
+                progressPrev.hidden = !(isMobile && hasOverflow);
+                progressPrev.disabled = scrollLeft <= 8;
+            }
+            if (progressNext) {
+                progressNext.hidden = !(isMobile && hasOverflow);
+                progressNext.disabled = scrollLeft >= (maxScroll - 8);
+            }
+        };
+
+        const centerCurrentProgressStep = () => {
+            if (!progressTrack || !progressCurrent) return;
+            if (!window.matchMedia('(max-width: 720px)').matches) return;
+
+            const targetLeft = progressCurrent.offsetLeft - ((progressTrack.clientWidth - progressCurrent.clientWidth) / 2);
+            const maxLeft = Math.max(progressTrack.scrollWidth - progressTrack.clientWidth, 0);
+            progressTrack.scrollLeft = Math.min(Math.max(targetLeft, 0), maxLeft);
+        };
+
+        window.setTimeout(() => {
+            centerCurrentProgressStep();
+            syncProgressMobileState();
+        }, 260);
+
+        window.addEventListener('resize', () => {
+            centerCurrentProgressStep();
+            syncProgressMobileState();
+        }, { passive: true });
+
+        progressTrack?.addEventListener('scroll', () => {
+            syncProgressMobileState();
+        }, { passive: true });
+
+        const scrollProgressByStep = (direction) => {
+            if (!progressTrack) return;
+            const stepWidth = progressTrack.querySelector('li')?.clientWidth ?? 96;
+            progressTrack.scrollBy({
+                left: direction * stepWidth * 1.35,
+                behavior: 'smooth',
+            });
+        };
+
+        progressPrev?.addEventListener('click', () => scrollProgressByStep(-1));
+        progressNext?.addEventListener('click', () => scrollProgressByStep(1));
 
         if (typeof Intl !== 'undefined' && typeof Intl.DisplayNames !== 'undefined') {
             const regionNames = new Intl.DisplayNames(['es', 'en'], { type: 'region' });

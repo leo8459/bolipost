@@ -315,6 +315,19 @@ body {
 
 .card-head span strong { color: var(--blue-1); }
 
+.progress-card {
+  overflow: hidden;
+}
+
+.progress-card::after {
+  content: "";
+  display: none;
+}
+
+.progress-mobile-nav {
+  display: none;
+}
+
 .progress-track {
   list-style: none;
   display: grid;
@@ -394,6 +407,10 @@ body {
 .progress-track li.is-current .step-dot {
   box-shadow: 0 0 0 8px rgba(62, 165, 47, 0.16);
   animation: currentPulse 1.5s ease-in-out infinite;
+}
+
+.progress-mobile-hint {
+  display: none;
 }
 
 .help-card {
@@ -650,8 +667,75 @@ body {
     flex-wrap: wrap;
   }
   .card-head { flex-direction: column; align-items: flex-start; }
-  .progress-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .progress-track li::after { display: none; }
+  .progress-track {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    padding: 0.18rem 1.05rem 1rem 0.9rem;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .progress-track::after {
+    content: "";
+    flex: 0 0 0.9rem;
+  }
+  .progress-track li {
+    flex: 0 0 96px;
+    scroll-snap-align: start;
+  }
+  .progress-track li::after {
+    display: block;
+    left: calc(50% + 18px);
+    width: calc(100% - 36px);
+  }
+  .progress-track li span {
+    font-size: 0.72rem;
+  }
+  .step-dot {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 0.38rem;
+    font-size: 0.76rem;
+  }
+  .progress-mobile-nav {
+    display: inline-flex;
+    position: absolute;
+    top: 5.15rem;
+    z-index: 3;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #cfe0f2;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.96);
+    color: #1a549a;
+    font-size: 1.15rem;
+    font-weight: 800;
+    box-shadow: 0 8px 18px rgba(18, 52, 93, 0.16);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .progress-mobile-nav-prev {
+    left: 0.45rem;
+  }
+  .progress-mobile-nav-next {
+    right: 0.45rem;
+  }
+  .progress-mobile-nav:disabled {
+    opacity: 0.4;
+  }
+  .progress-card.has-progress-overflow::after {
+    display: block;
+    position: absolute;
+    top: 4.8rem;
+    right: 0;
+    width: 34px;
+    height: 4.4rem;
+    pointer-events: none;
+    background: linear-gradient(270deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0));
+    z-index: 2;
+  }
   .help-card { flex-direction: column; align-items: flex-start; }
   .history-event {
     grid-template-columns: 1fr;
@@ -676,7 +760,36 @@ body {
     height: 36px;
     font-size: 1rem;
   }
-  .status-meta { grid-template-columns: 1fr; }
+  .status-meta {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+  .status-meta .meta-item {
+    min-width: 0;
+    padding: 0.42rem 0.42rem;
+  }
+  .status-meta .meta-item:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+  .status-meta .meta-item small {
+    font-size: 0.6rem;
+  }
+  .status-meta .meta-item strong {
+    display: flex;
+    align-items: center;
+    gap: 0.18rem;
+    font-size: 0.69rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .status-meta .meta-item strong .country-flag {
+    margin-left: 0;
+    width: 12px;
+    height: 9px;
+    flex: 0 0 auto;
+  }
   .history-event-head {
     flex-direction: column;
     align-items: flex-start;
@@ -688,6 +801,12 @@ body {
   .pickup-contact-row {
     grid-template-columns: 1fr;
     gap: 0.12rem;
+  }
+  .progress-track li {
+    flex-basis: 84px;
+  }
+  .progress-track li span {
+    font-size: 0.66rem;
   }
 }
 
