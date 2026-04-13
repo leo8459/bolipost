@@ -39,6 +39,7 @@ use App\Http\Controllers\RecojoController;
 use App\Http\Controllers\ZonaPaqueteController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportesController;
+use App\Http\Controllers\MisVentasController;
 use App\Http\Controllers\AclController;
 use App\Http\Controllers\BitacoraController;
 use App\Http\Controllers\FacturacionCartController;
@@ -123,6 +124,9 @@ Route::get('/reportes/{scope}/export/pdf', [ReportesController::class, 'exportPd
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->where('scope', 'general|contrato|ems|certi|ordi')
     ->name('reportes.export.pdf');
+Route::get('/mis-ventas', [MisVentasController::class, 'index'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('mis-ventas.index');
 
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

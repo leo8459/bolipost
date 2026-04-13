@@ -347,6 +347,12 @@ return [
             'icon' => 'fas fa-file-pdf',
             'submenu' => [
                 [
+                    'text' => 'Mis ventas',
+                    'url' => '/mis-ventas',
+                    'icon' => 'fas fa-cash-register',
+                    'can' => 'feature.dashboard.facturacion',
+                ],
+                [
                     'text' => 'Reporte General',
                     'url' => '/reportes/general',
                     'icon' => 'fas fa-layer-group',

@@ -404,9 +404,19 @@ class FacturacionCartService
 
         $payload = [
             'codigoOrden' => $codigoOrden,
+            'origenVenta' => [
+                'id' => (string) $cart->id,
+                'tipo' => 'facturacion_cart',
+            ],
             'origenUsuario' => [
+                'id' => (string) $user->id,
                 'nombre' => (string) $user->name,
                 'email' => $correo,
+            ],
+            'origenSucursal' => [
+                'id' => $sucursal->id !== null ? (string) $sucursal->id : null,
+                'codigo' => trim((string) ($sucursal->codigoSucursal ?? '')),
+                'nombre' => trim((string) ($sucursal->nombre ?? $sucursal->descripcion ?? $municipio)),
             ],
             'codigoSucursal' => $codigoSucursal,
             'puntoVenta' => $puntoVenta,

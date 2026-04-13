@@ -236,6 +236,7 @@ return [
         'role-has-permissions' => 'Accesos',
         'dashboard' => 'Dashboard',
         'reportes' => 'Reportes',
+        'mis-ventas' => 'Mis Ventas',
         'paquetes-ems' => 'Paquetes EMS',
         'paquetes-ems.almacen-admisiones' => 'Almacen admisiones',
         'paquetes-ems.solicitudes.index' => 'Solicitudes EMS',
