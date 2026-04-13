@@ -2,10 +2,96 @@
     $editOnlyPhoto = $editOnlyPhoto ?? false;
 @endphp
 
-<div class="box box-info padding-1">
-    <div class="box-body">
+<style>
+    .bitacora-form-shell {
+        padding: 20px;
+        background: #fff;
+    }
+
+    .bitacora-form-note {
+        background: linear-gradient(135deg, #1b8ea5 0%, #2aa4bb 100%);
+        color: #fff;
+        border: 0;
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 10px 24px rgba(30, 136, 168, 0.16);
+    }
+
+    .bitacora-form-note strong {
+        color: #fff;
+    }
+
+    .bitacora-form-shell label {
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 0.5rem;
+    }
+
+    .bitacora-form-shell .form-control,
+    .bitacora-form-shell .form-control-file {
+        min-height: 44px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        box-shadow: none;
+    }
+
+    .bitacora-form-shell .form-control:focus,
+    .bitacora-form-shell .form-control-file:focus {
+        border-color: #20539A;
+        box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
+    }
+
+    .bitacora-form-shell .form-control-file {
+        padding: 8px 10px;
+        background: #fff;
+    }
+
+    .btn-dorado {
+        background: #FECC36;
+        color: #fff;
+        font-weight: 800;
+        border: none;
+        border-radius: 12px;
+        padding: 10px 18px;
+    }
+
+    .btn-dorado:hover {
+        filter: brightness(.95);
+        color: #fff;
+    }
+
+    .btn-outline-azul {
+        border: 1px solid rgba(32, 83, 154, 0.25);
+        color: #20539A;
+        font-weight: 800;
+        border-radius: 12px;
+        padding: 10px 18px;
+        background: #fff;
+    }
+
+    .btn-outline-azul:hover {
+        background: rgba(32, 83, 154, 0.05);
+        color: #20539A;
+    }
+
+    .bitacora-form-footer {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e4e8f2;
+    }
+
+    .bitacora-form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+</style>
+
+<div class="bitacora-form-shell">
         @if (!$editOnlyPhoto)
-            <div class="alert alert-info">
+            <div class="bitacora-form-note">
                 Usuario logueado: <strong>{{ auth()->user()->name ?? 'Usuario del sistema' }}</strong>
                 <br>
                 Escribe el <strong>cod_especial</strong> y el sistema registrara automaticamente una bitacora por cada paquete EMS, contrato y ordinario relacionado.
@@ -166,12 +252,11 @@
                 </div>
             @endif
         </div>
-    </div>
 
-    <div class="box-footer mt20">
-        <div class="d-flex justify-content-between">
-            <a href="{{ route('bitacoras.index') }}" class="btn btn-secondary">Volver</a>
-            <button type="submit" class="btn btn-primary">Guardar</button>
+    <div class="bitacora-form-footer">
+        <div class="bitacora-form-actions">
+            <a href="{{ route('bitacoras.index') }}" class="btn btn-outline-azul">Volver</a>
+            <button type="submit" class="btn btn-dorado">Guardar</button>
         </div>
     </div>
 </div>
