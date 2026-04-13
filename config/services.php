@@ -50,4 +50,14 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    'facturacion_bridge' => [
+        'base_url' => env('FACTURACION_BRIDGE_BASE_URL'),
+        'token' => env('FACTURACION_BRIDGE_TOKEN'),
+        'fallback_email' => env('FACTURACION_BRIDGE_FALLBACK_EMAIL', 'sincorreo@agbc.bo'),
+        'metodo_pago' => env('FACTURACION_BRIDGE_METODO_PAGO', 1),
+        'formato_factura' => env('FACTURACION_BRIDGE_FORMATO_FACTURA', 'rollo'),
+        'documento_sector' => env('FACTURACION_BRIDGE_DOCUMENTO_SECTOR', 1),
+        'timeout' => env('FACTURACION_BRIDGE_TIMEOUT', 30),
+    ],
+
 ];

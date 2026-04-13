@@ -606,6 +606,23 @@
             border: 1px solid #f2c14e !important;
             background: linear-gradient(180deg, #fffdf7 0%, #ffffff 100%);
         }
+        .submit-loader-note{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            font-size:13px;
+            font-weight:700;
+            color:var(--azul);
+            background:rgba(32, 83, 154, .08);
+            border:1px solid rgba(32, 83, 154, .16);
+            border-radius:12px;
+            padding:10px 14px;
+        }
+        .submit-loader-note .spinner-border{
+            width:1rem;
+            height:1rem;
+            border-width:.16em;
+        }
         .autofill-input:focus{
             border-color: #d39c12 !important;
             box-shadow: 0 0 0 0.18rem rgba(242, 193, 78, .22) !important;
@@ -1158,11 +1175,36 @@
                             </div>
                         </div>
 
+<<<<<<< Updated upstream
                         <div class="form-footer-actions">
                             <a href="{{ route('paquetes-ems.index') }}" class="form-footer-cancel">Cancelar</a>
                             @if ($canEmsCreate)
                             <button type="button" wire:click="save" class="btn btn-dorado form-footer-submit">Crear y continuar</button>
+=======
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="submit-loader-note" wire:loading.flex wire:target="save, saveConfirmed">
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                <span>Guardando admision EMS, espera un momento...</span>
+                            </div>
+                            <div class="d-flex justify-content-end gap-2 ml-auto">
+                            <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-azul">Cancelar</a>
+                            @if ($canEmsCreate)
+                            <button
+                                type="button"
+                                wire:click="save"
+                                wire:loading.attr="disabled"
+                                wire:target="save, saveConfirmed"
+                                class="btn btn-dorado"
+                            >
+                                <span wire:loading.remove wire:target="save">Crear y continuar</span>
+                                <span wire:loading.inline-flex wire:target="save" class="align-items-center">
+                                    <span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
+                                    Guardando...
+                                </span>
+                            </button>
+>>>>>>> Stashed changes
                             @endif
+                            </div>
                         </div>
                     </form>
                 @else
@@ -2019,10 +2061,34 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" wire:click="closePaqueteConfirmModal">Cancelar</button>
+                    <div class="submit-loader-note mr-auto" wire:loading.flex wire:target="saveConfirmed">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span>Confirmando y guardando la admision...</span>
+                    </div>
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        wire:click="closePaqueteConfirmModal"
+                        wire:loading.attr="disabled"
+                        wire:target="saveConfirmed"
+                    >
+                        Cancelar
+                    </button>
                     @if ($editingId ? $canEmsEdit : $canEmsCreate)
-                    <button type="button" class="btn btn-primary" wire:click="saveConfirmed">
-                        {{ $this->isCreateEms ? 'Confirmar y volver' : 'Confirmar y guardar' }}
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        wire:click="saveConfirmed"
+                        wire:loading.attr="disabled"
+                        wire:target="saveConfirmed"
+                    >
+                        <span wire:loading.remove wire:target="saveConfirmed">
+                            {{ $this->isCreateEms ? 'Confirmar y volver' : 'Confirmar y guardar' }}
+                        </span>
+                        <span wire:loading.inline-flex wire:target="saveConfirmed" class="align-items-center">
+                            <span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
+                            Guardando...
+                        </span>
                     </button>
                     @endif
                 </div>

@@ -143,6 +143,7 @@ return [
         'feature.despachos.expedicion.edit',
         'feature.despachos.admitidos.assign',
         'feature.despachos.admitidos.confirm',
+        'feature.dashboard.facturacion',
         'feature.sacas.index.create',
         'feature.sacas.index.edit',
         'feature.sacas.index.delete',

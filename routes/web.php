@@ -41,6 +41,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\AclController;
 use App\Http\Controllers\BitacoraController;
+use App\Http\Controllers\FacturacionCartController;
 use App\Http\Controllers\ClientManagementController;
 use App\Http\Controllers\ClientRoleController;
 use App\Http\Controllers\PreregistroController;
@@ -88,10 +89,15 @@ Route::post('/hacer-envio-desde-casa', [PreregistroController::class, 'publicSto
 Route::get('/hacer-envio-desde-casa/{preregistro}/ticket', [PreregistroController::class, 'ticket'])->name('preregistros.public.ticket');
 Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
-Route::middleware(['auth', 'internal.only'])->group(function () {
-    Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
-    Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
-});
+  Route::middleware(['auth', 'internal.only'])->group(function () {
+      Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
+      Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
+    Route::put('/facturacion/cart/billing', [FacturacionCartController::class, 'updateBillingData'])->name('facturacion.cart.billing.update');
+    Route::post('/facturacion/cart/consultar', [FacturacionCartController::class, 'consultar'])->name('facturacion.cart.consultar');
+    Route::post('/facturacion/cart/emitir', [FacturacionCartController::class, 'emitir'])->name('facturacion.cart.emitir');
+    Route::post('/facturacion/cart/clear', [FacturacionCartController::class, 'clear'])->name('facturacion.cart.clear');
+    Route::delete('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'removeItem'])->name('facturacion.cart.items.destroy');
+  });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])

@@ -19,6 +19,7 @@ use App\Models\SolicitudCliente;
 use App\Models\TarifaContrato;
 use App\Models\Tarifario;
 use App\Models\TarifarioTiktoker;
+use App\Services\FacturacionCartService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -1710,6 +1711,10 @@ class PaquetesEms extends Component
                 $this->saveRemitenteData();
                 $this->linkPreregistroToPaquete($paquete, (int) $user->id);
                 $this->registerAdmisionEvento($paquete, (int) $user->id);
+
+                if ($this->isCreateEms) {
+                    app(FacturacionCartService::class)->addPaqueteEms($user, $paquete);
+                }
             });
 
             session()->flash('success', 'Paquete creado correctamente.');
