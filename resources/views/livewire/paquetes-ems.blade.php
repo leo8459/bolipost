@@ -1175,12 +1175,6 @@
                             </div>
                         </div>
 
-<<<<<<< Updated upstream
-                        <div class="form-footer-actions">
-                            <a href="{{ route('paquetes-ems.index') }}" class="form-footer-cancel">Cancelar</a>
-                            @if ($canEmsCreate)
-                            <button type="button" wire:click="save" class="btn btn-dorado form-footer-submit">Crear y continuar</button>
-=======
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <div class="submit-loader-note" wire:loading.flex wire:target="save, saveConfirmed">
                                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -1202,7 +1196,6 @@
                                     Guardando...
                                 </span>
                             </button>
->>>>>>> Stashed changes
                             @endif
                             </div>
                         </div>
