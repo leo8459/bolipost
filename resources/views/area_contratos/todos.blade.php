@@ -8,8 +8,10 @@
     <div class="area-contratos-wrap">
         <div class="card area-contratos-card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h3 class="card-title mb-2 mb-md-0">Todos los contratos</h3>
-                <span class="area-badge">Total: {{ $contratos->total() }}</span>
+                <div>
+                    <h3 class="card-title mb-1">Todos los contratos</h3>
+                    <div class="area-header-meta">Total en registros: <strong>{{ $contratos->total() }}</strong></div>
+                </div>
             </div>
             <div class="card-body">
                 <form method="GET" action="{{ route('area-contratos.todos') }}" class="row mb-3">
@@ -38,10 +40,10 @@
                         </select>
                     </div>
                     <div class="col-md-1">
-                        <button type="submit" class="btn btn-primary btn-block">Buscar</button>
+                        <button type="submit" class="btn area-btn-primary btn-block">Buscar</button>
                     </div>
                     <div class="col-md-1">
-                        <a href="{{ route('area-contratos.todos') }}" class="btn btn-outline-secondary btn-block">Limpiar</a>
+                        <a href="{{ route('area-contratos.todos') }}" class="btn area-btn-secondary btn-block">Limpiar</a>
                     </div>
                 </form>
 
@@ -61,7 +63,7 @@
                                 <th>Cantidad</th>
                                 <th>Imagen</th>
                                 <th>Fecha</th>
-                                <th>Acciones</th>
+                                <th class="text-center area-action-col">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -95,11 +97,12 @@
                                         @endif
                                     </td>
                                     <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') }}</td>
-                                    <td>
+                                    <td class="text-center area-action-col">
                                         <a href="{{ route('paquetes-contrato.reporte', $contrato->id) }}"
                                             target="_blank"
-                                            class="btn btn-sm btn-outline-primary">
-                                            Reporte
+                                            class="area-action-btn"
+                                            title="Ver reporte">
+                                            <i class="fas fa-print" aria-hidden="true"></i>
                                         </a>
                                     </td>
                                 </tr>
@@ -145,14 +148,37 @@
             padding: 0.95rem 1.1rem;
         }
 
-        .area-badge {
-            background: rgba(185, 156, 70, 0.2);
-            color: #3f3514;
-            border: 1px solid rgba(185, 156, 70, 0.35);
-            border-radius: 999px;
-            font-size: 0.76rem;
-            font-weight: 700;
-            padding: 0.28rem 0.6rem;
+        .area-header-meta {
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.88rem;
+        }
+
+        .area-btn-primary {
+            background: #FECC36;
+            color: #fff;
+            font-weight: 800;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 14px;
+        }
+
+        .area-btn-primary:hover {
+            filter: brightness(.96);
+            color: #fff;
+        }
+
+        .area-btn-secondary {
+            border: 1px solid rgba(32, 83, 154, .22);
+            background: #fff;
+            color: #20539A;
+            font-weight: 800;
+            border-radius: 12px;
+            padding: 10px 14px;
+        }
+
+        .area-btn-secondary:hover {
+            background: rgba(32, 83, 154, .05);
+            color: #20539A;
         }
 
         .area-contratos-card .table thead th {
@@ -164,6 +190,47 @@
             text-transform: uppercase;
             letter-spacing: 0.35px;
             white-space: nowrap;
+        }
+
+        .area-action-col {
+            width: 120px;
+            min-width: 120px;
+        }
+
+        .area-action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            padding: 0;
+            border-radius: 14px;
+            border: 1px solid rgba(32, 83, 154, .18);
+            background: #fff;
+            color: #20539A;
+            font-weight: 800;
+            line-height: 1;
+            text-decoration: none;
+            box-shadow: 0 8px 18px rgba(32, 83, 154, .10);
+            transition: background .18s ease, transform .18s ease, box-shadow .18s ease, color .18s ease;
+        }
+
+        .area-action-btn i {
+            font-size: 16px;
+        }
+
+        .area-action-btn:hover {
+            background: rgba(32, 83, 154, .06);
+            color: #1b4a8a;
+            text-decoration: none;
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px rgba(32, 83, 154, .16);
+        }
+
+        @media (max-width: 767.98px) {
+            .area-header-meta {
+                margin-bottom: .35rem;
+            }
         }
     </style>
 @endsection

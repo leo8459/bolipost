@@ -11,6 +11,13 @@
         .plantilla-wrap{ background: var(--bg); padding: 18px; border-radius: 16px; }
         .card-app{ border:0; border-radius:16px; box-shadow:0 12px 26px rgba(0,0,0,.08); overflow:hidden; }
         .header-app{ background: linear-gradient(90deg, var(--azul), #20539A); color:#fff; padding:18px 20px; }
+        .header-shell{ display:flex; align-items:flex-start; justify-content:space-between; gap:24px; }
+        .header-main{ flex:1 1 320px; min-width:260px; }
+        .header-tools{ flex:1 1 620px; min-width:320px; display:flex; flex-direction:column; gap:12px; align-items:stretch; }
+        .header-search-row{ display:flex; justify-content:flex-end; }
+        .header-search-form{ width:min(100%, 760px); display:flex; align-items:center; gap:10px; }
+        .header-search-form .search-input{ flex:1 1 auto; }
+        .header-action-row{ display:flex; justify-content:flex-end; gap:12px; flex-wrap:wrap; }
         .search-input{ border-radius:12px; border:1px solid rgba(255,255,255,.45); padding:10px 12px; background: rgba(255,255,255,.95); }
         .btn-dorado{ background: var(--dorado); color:#fff; font-weight:800; border:none; border-radius:12px; padding:10px 14px; }
         .btn-dorado:hover{ filter:brightness(.95); color:#fff; }
@@ -18,6 +25,19 @@
         .btn-outline-light2:hover{ background: rgba(255,255,255,.12); color:#fff; }
         .btn-azul{ background: var(--azul); color:#fff; font-weight:800; border:none; border-radius:12px; padding:10px 14px; }
         .btn-outline-azul{ border:1px solid rgba(52,68,124,.35); color: var(--azul); font-weight:800; border-radius:12px; padding:10px 14px; background:#fff; }
+        .action-col{ width: 92px; min-width: 92px; text-align:center; }
+        .action-stack{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+        .action-btn{
+            width:48px;
+            height:48px;
+            padding:0;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:14px;
+            box-shadow:0 8px 18px rgba(32, 83, 154, .10);
+        }
+        .action-btn i{ font-size:16px; }
         .table thead th{ background: rgba(52,68,124,.08); color: var(--azul); font-weight:900; border-bottom:2px solid rgba(52,68,124,.2); white-space: nowrap; }
         .pill-id{ background: rgba(52,68,124,.12); color: var(--azul); font-weight:900; padding:4px 10px; border-radius:999px; display:inline-block; }
         .muted{ color:var(--muted); }
@@ -37,12 +57,29 @@
             box-shadow:0 0 0 0.15rem rgba(52,68,124,.15);
         }
         .form-group label{ font-weight:700; color:#1f2937; }
+
+        @media (max-width: 991.98px){
+            .header-shell{ flex-direction:column; }
+            .header-tools{ width:100%; min-width:0; }
+            .header-search-row,
+            .header-action-row{ justify-content:flex-start; }
+            .header-search-form{ width:100%; }
+        }
+
+        @media (max-width: 575.98px){
+            .header-search-form,
+            .header-action-row{ flex-direction:column; }
+            .header-search-form > .btn,
+            .header-action-row > .btn,
+            .header-action-row > a{ width:100%; justify-content:center; }
+        }
     </style>
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <div>
+            <div class="header-app">
+                <div class="header-shell">
+                <div class="header-main">
                     <h4 class="fw-bold mb-0">
                         {{ $this->isAlmacenMode ? 'Almacen contratos' : 'Paquetes Contrato' }}
                     </h4>
@@ -54,26 +91,33 @@
                     @endif
                 </div>
 
-                <div class="d-flex gap-2 align-items-center">
-                    <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchRecojos">Buscar</button>
-                    @if ($canRecojoReport)
-                    <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.reporte-hoy', [], false) }}" target="_blank">
-                        Imprimir generados hoy
-                    </a>
-                    @endif
-                    @if (!$this->isAlmacenMode)
-                        @if ($canCreateContratoTarifa)
-                        <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.create-con-tarifa', [], false) }}">
-                            Crear con tarifa
+                <div class="header-tools">
+                    <div class="header-search-row">
+                        <div class="header-search-form">
+                            <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
+                            <button class="btn btn-outline-light2" type="button" wire:click="searchRecojos">Buscar</button>
+                        </div>
+                    </div>
+                    <div class="header-action-row">
+                        @if ($canRecojoReport)
+                        <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.reporte-hoy', [], false) }}" target="_blank">
+                            Imprimir generados hoy
                         </a>
                         @endif
-                        @if ($canCreateContrato)
-                        <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create', [], false) }}">
-                            Crear sin tarifa
-                        </a>
+                        @if (!$this->isAlmacenMode)
+                            @if ($canCreateContratoTarifa)
+                            <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.create-con-tarifa', [], false) }}">
+                                Crear con tarifa
+                            </a>
+                            @endif
+                            @if ($canCreateContrato)
+                            <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create', [], false) }}">
+                                Crear sin tarifa
+                            </a>
+                            @endif
                         @endif
-                    @endif
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -115,7 +159,7 @@
                                 <th>Peso</th>
                                 <th>Fecha recojo</th>
                                 <th>Usuario</th>
-                                <th>Acciones</th>
+                                <th class="action-col">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -139,26 +183,28 @@
                                     <td>{{ $recojo->peso }}</td>
                                     <td>{{ optional($recojo->fecha_recojo)->format('d/m/Y H:i:s') ?? '-' }}</td>
                                     <td>{{ optional($recojo->user)->name ?? '-' }}</td>
-                                    <td>
+                                    <td class="action-col">
+                                        <div class="action-stack">
                                         @if ($canRecojoPrint)
                                         <a href="{{ route('paquetes-contrato.reporte', $recojo->id, false) }}"
                                             target="_blank"
-                                            class="btn btn-sm btn-outline-azul"
+                                            class="btn btn-sm btn-outline-azul action-btn"
                                             title="Reimprimir rotulo">
                                             <i class="fas fa-print"></i>
                                         </a>
                                         @endif
                                         @if ($canRecojoEdit)
-                                        <button wire:click="openEditModal({{ $recojo->id }})" class="btn btn-sm btn-azul" title="Editar">
+                                        <button wire:click="openEditModal({{ $recojo->id }})" class="btn btn-sm btn-azul action-btn" title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
                                         @endif
                                         @if ($canRecojoDelete)
-                                        <button wire:click="delete({{ $recojo->id }})" class="btn btn-sm btn-outline-azul"
+                                        <button wire:click="delete({{ $recojo->id }})" class="btn btn-sm btn-outline-azul action-btn"
                                             title="Eliminar" onclick="return confirm('Seguro que deseas eliminar este contrato?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                         @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @empty

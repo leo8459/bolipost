@@ -9,12 +9,12 @@
         <div class="card card-app">
             <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
                 <div>
-                    <h4 class="fw-bold mb-0">Contratos Entregados</h4>
+                    <h4 class="fw-bold mb-1">Contratos Entregados</h4>
                     <small class="text-white-50">
                         Empresa aplicada: <strong>{{ optional(auth()->user()->empresa)->nombre ?? 'SIN EMPRESA' }}</strong>
                     </small>
+                    <div class="header-meta">Total en registros: <strong>{{ $contratos->total() }}</strong></div>
                 </div>
-                <span class="badge-total">Total: {{ $contratos->total() }}</span>
             </div>
 
             <div class="card-body">
@@ -29,7 +29,7 @@
                                 <th>Receptor</th>
                                 <th>Fecha registro</th>
                                 <th>Imagen</th>
-                                <th>Acciones</th>
+                                <th class="action-col">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -52,10 +52,10 @@
                                             <span class="muted">-</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td class="action-col">
                                         @if ($canContratoEntregadoPrint ?? false)
                                         <a href="{{ route('paquetes-contrato.reporte', $c->id, false) }}"
-                                           class="btn btn-sm btn-outline-azul"
+                                           class="btn btn-sm btn-outline-azul action-btn"
                                            target="_blank"
                                            title="Reimprimir rotulo">
                                             <i class="fas fa-print"></i>
@@ -110,15 +110,10 @@
             padding: 18px 20px;
         }
 
-        .badge-total {
-            background: rgba(255, 255, 255, .16);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, .4);
-            border-radius: 999px;
-            font-size: .8rem;
-            font-weight: 800;
-            padding: .3rem .7rem;
-            white-space: nowrap;
+        .header-meta {
+            margin-top: .35rem;
+            color: rgba(255, 255, 255, .82);
+            font-size: .88rem;
         }
 
         .table thead th {
@@ -154,6 +149,27 @@
         .btn-outline-azul:hover {
             background: rgba(52, 68, 124, .06);
             color: var(--azul);
+        }
+
+        .action-col {
+            width: 92px;
+            min-width: 92px;
+            text-align: center;
+        }
+
+        .action-btn {
+            width: 48px;
+            height: 48px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+            box-shadow: 0 8px 18px rgba(32, 83, 154, .10);
+        }
+
+        .action-btn i {
+            font-size: 16px;
         }
 
         .muted {

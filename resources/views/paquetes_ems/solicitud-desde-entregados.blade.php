@@ -7,9 +7,11 @@
 @section('content')
     <div class="ems-solicitud-wrap">
         <div class="card ems-solicitud-card">
-            <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h3 class="card-title mb-2 mb-md-0">Crear solicitud desde EMS entregados</h3>
-                <a href="{{ route('paquetes-ems.entregados', array_filter(['q' => $returnQuery])) }}" class="btn btn-sm btn-outline-light">
+            <div class="card-header ems-header-bar">
+                <div>
+                    <div class="ems-solicitud-title">Crear solicitud desde EMS entregados</div>
+                </div>
+                <a href="{{ route('paquetes-ems.entregados', array_filter(['q' => $returnQuery])) }}" class="ems-back-btn">
                     Volver
                 </a>
             </div>
@@ -18,7 +20,7 @@
                     <div class="alert alert-danger">{{ session('error') }}</div>
                 @endif
 
-                <form method="POST" action="{{ route('paquetes-ems.entregados.solicitud.store') }}" class="row g-3">
+                <form method="POST" action="{{ route('paquetes-ems.entregados.solicitud.store') }}" class="row g-3 ems-form-grid">
                     @csrf
                     <input type="hidden" name="return_query" value="{{ $returnQuery }}">
 
@@ -81,11 +83,11 @@
                         @error('observacion') <small class="text-danger">{{ $message }}</small> @enderror
                     </div>
 
-                    <div class="col-12 d-flex justify-content-end gap-2">
-                        <a href="{{ route('paquetes-ems.entregados', array_filter(['q' => $returnQuery])) }}" class="btn btn-outline-secondary">
+                    <div class="col-12 ems-form-actions">
+                        <a href="{{ route('paquetes-ems.entregados', array_filter(['q' => $returnQuery])) }}" class="ems-cancel-btn">
                             Cancelar
                         </a>
-                        <button type="submit" class="btn btn-success">
+                        <button type="submit" class="ems-submit-btn">
                             Crear solicitud
                         </button>
                     </div>
@@ -115,7 +117,111 @@
             background: linear-gradient(95deg, #20539A 0%, #43538f 100%);
             color: #fff;
             border-bottom: 0;
-            padding: 0.95rem 1.1rem;
+            padding: 1rem 1.2rem;
+        }
+
+        .ems-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            width: 100%;
+            flex-wrap: nowrap;
+        }
+
+        .ems-solicitud-title {
+            font-size: 1.05rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .ems-back-btn {
+            margin-left: auto;
+            align-self: flex-start;
+            border: 1px solid rgba(255, 255, 255, 0.65);
+            color: #fff;
+            background: transparent;
+            border-radius: 10px;
+            padding: 8px 16px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .ems-back-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+            text-decoration: none;
+        }
+
+        .ems-solicitud-card .card-body {
+            padding: 1.5rem;
+        }
+
+        .ems-solicitud-card .form-control,
+        .ems-solicitud-card select.form-control {
+            min-height: 44px;
+            border-radius: 10px;
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+
+        .ems-solicitud-card .form-control:focus,
+        .ems-solicitud-card select.form-control:focus {
+            border-color: #20539A;
+            box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
+        }
+
+        .ems-solicitud-card .form-label {
+            color: #0f172a;
+            font-weight: 800;
+            margin-bottom: 0.45rem;
+        }
+
+        .ems-form-grid {
+            align-items: flex-start;
+        }
+
+        .ems-form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .ems-cancel-btn,
+        .ems-submit-btn {
+            min-height: 44px;
+            border-radius: 12px;
+            padding: 10px 18px;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
+
+        .ems-cancel-btn {
+            background: #fff;
+            color: #20539A;
+            border: 1px solid rgba(32, 83, 154, 0.22);
+        }
+
+        .ems-cancel-btn:hover {
+            background: rgba(32, 83, 154, 0.05);
+            color: #20539A;
+            text-decoration: none;
+        }
+
+        .ems-submit-btn {
+            background: #FECC36;
+            color: #fff;
+            border: 0;
+        }
+
+        .ems-submit-btn:hover {
+            background: #f4c21d;
+            color: #fff;
         }
     </style>
 @endsection

@@ -11,7 +11,13 @@
         .plantilla-wrap{ background: var(--bg); padding: 18px; border-radius: 16px; }
         .card-app{ border:0; border-radius:16px; box-shadow:0 12px 26px rgba(0,0,0,.08); overflow:hidden; }
         .header-app{ background: linear-gradient(90deg, var(--azul), #20539A); color:#fff; padding:18px 20px; }
-        .search-input{ border-radius:12px; border:1px solid rgba(255,255,255,.45); padding:10px 12px; background: rgba(255,255,255,.95); }
+        .header-shell{ display:flex; justify-content:space-between; align-items:flex-start; gap:20px; }
+        .header-main{ flex:1 1 280px; min-width:220px; }
+        .header-tools{ flex:1 1 760px; min-width:320px; display:flex; flex-direction:column; align-items:stretch; gap:12px; }
+        .header-search-row{ display:flex; justify-content:flex-end; }
+        .header-search-cluster{ width:min(100%, 760px); display:flex; align-items:center; gap:10px; flex-wrap:nowrap; }
+        .header-action-row{ display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; }
+        .search-input{ border-radius:12px; border:1px solid rgba(255,255,255,.45); padding:10px 12px; background: rgba(255,255,255,.95); flex:1 1 auto; }
         .btn-dorado{ background: var(--dorado); color:#fff; font-weight: 800; border:none; border-radius: 12px; padding: 10px 14px; }
         .btn-dorado:hover{ filter:brightness(.95); color:#fff; }
         .btn-outline-light2{ border:1px solid rgba(255,255,255,.7); color:#fff; font-weight:800; border-radius: 12px; padding: 10px 14px; background: transparent; }
@@ -21,9 +27,20 @@
         .btn-outline-azul{ border:1px solid rgba(52,68,124,.35); color: var(--azul); font-weight: 800; border-radius: 12px; padding: 6px 12px; background:#fff; }
         .btn-outline-azul:hover{ background: rgba(52,68,124,.06); color: var(--azul); }
         .table thead th{ background: rgba(52,68,124,.08); color: var(--azul); font-weight: 900; border-bottom: 2px solid rgba(52,68,124,.2); white-space: nowrap; }
+        .table-scroll-wrap{ border:1px solid #dbe2f2; border-radius:16px; overflow:hidden; background:#fff; }
+        .table-responsive{ margin-bottom:0; }
+        .table{ margin-bottom:0; }
+        .table tbody td{ border-top:1px solid rgba(52,68,124,.10); }
         .pill-id{ background: rgba(52,68,124,.12); color: var(--azul); font-weight: 900; padding: 4px 10px; border-radius: 999px; display:inline-block; }
         .muted{ color:var(--muted); }
         .table td{ vertical-align: middle; }
+        .action-cell{ width:72px; min-width:72px; text-align:center; }
+        .action-stack{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+        .action-btn{ width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:11px; box-shadow:0 6px 16px rgba(32, 83, 154, .10); }
+        .action-btn i{ font-size:14px; }
+        .action-btn.btn-azul{ box-shadow:0 8px 18px rgba(32, 83, 154, .22); }
+        .action-btn.btn-outline-azul{ background:#fff; border-color:rgba(32, 83, 154, .22); }
+        .action-btn.btn-outline-azul:hover{ background:rgba(32, 83, 154, .06); }
         .modal-content{ border:0; border-radius:18px; box-shadow:0 20px 50px rgba(0,0,0,.2); }
         .modal-header{ background: linear-gradient(90deg, var(--azul), #20539A); color:#fff; border-bottom:0; padding:16px 20px; }
         .modal-title{ font-weight:800; }
@@ -33,12 +50,19 @@
         .uppercase-input{ text-transform: uppercase; }
         .form-control:focus, select.form-control:focus{ border-color: var(--azul); box-shadow:0 0 0 0.15rem rgba(52,68,124,.15); }
         .form-group label{ font-weight:700; color:#1f2937; }
+        @media (max-width: 991.98px){
+            .header-shell{ flex-direction:column; }
+            .header-tools{ min-width:0; width:100%; }
+            .header-search-cluster{ width:100%; }
+            .header-action-row{ justify-content:flex-start; }
+        }
     </style>
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <div>
+            <div class="header-app">
+                <div class="header-shell">
+                <div class="header-main">
                     <h4 class="fw-bold mb-0">
                         @if ($this->isDespacho)
                             Despacho - Paquetes Ordinarios
@@ -56,75 +80,82 @@
                     </h4>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center">
-                    <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model.live.debounce.300ms="search">
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
-                    @if ($this->isClasificacion)
-                        <select wire:model="selectedCiudadMarcado" class="form-control search-input" style="min-width: 180px;">
-                            <option value="">Marcar por ciudad</option>
-                            @foreach ($ciudadesDisponibles as $ciudadDisponible)
-                                <option value="{{ $ciudadDisponible }}">{{ $ciudadDisponible }}</option>
-                            @endforeach
-                        </select>
-                        @if ($canOrdiAssign)
-                        <button
-                            class="btn btn-outline-light2"
-                            type="button"
-                            wire:click="despacharSeleccionados"
-                            onclick="return confirm('Deseas despachar los paquetes seleccionados?')"
-                        >
-                            Despachar
-                        </button>
+                <div class="header-tools">
+                    <div class="header-search-row">
+                        <div class="header-search-cluster">
+                            <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model.live.debounce.300ms="search">
+                            <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
+                            @if (($this->isClasificacion || $this->isAlmacen) && $canOrdiCreate)
+                                <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="header-action-row">
+                        @if ($this->isClasificacion)
+                            <select wire:model="selectedCiudadMarcado" class="form-control search-input" style="min-width:180px; flex:0 0 190px;">
+                                <option value="">Marcar por ciudad</option>
+                                @foreach ($ciudadesDisponibles as $ciudadDisponible)
+                                    <option value="{{ $ciudadDisponible }}">{{ $ciudadDisponible }}</option>
+                                @endforeach
+                            </select>
+                            @if ($canOrdiAssign)
+                            <button
+                                class="btn btn-outline-light2"
+                                type="button"
+                                wire:click="despacharSeleccionados"
+                                onclick="return confirm('Deseas despachar los paquetes seleccionados?')"
+                            >
+                                Despachar
+                            </button>
+                            @endif
                         @endif
-                    @endif
-                    @if (($this->isClasificacion || $this->isAlmacen) && $canOrdiCreate)
-                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
-                    @endif
-                    @if ($this->isDespacho)
-                        @if ($canOrdiPrint)
-                        <button
-                            class="btn btn-outline-light2"
-                            type="button"
-                            wire:click="$set('reprintCodEspecial', '')"
-                            data-toggle="modal"
-                            data-target="#reimprimirManifiestoModal"
-                        >
-                            Reimprimir Manifiesto
-                        </button>
+                        @if ($this->isDespacho)
+                            @if ($canOrdiPrint)
+                            <button
+                                class="btn btn-outline-light2"
+                                type="button"
+                                wire:click="$set('reprintCodEspecial', '')"
+                                data-toggle="modal"
+                                data-target="#reimprimirManifiestoModal"
+                            >
+                                Reimprimir Manifiesto
+                            </button>
+                            @endif
                         @endif
-                    @endif
-                    @if ($this->isAlmacen)
-                        @if ($canOrdiReencaminar)
-                        <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
-                            Reencaminar
-                        </button>
+                        @if ($this->isAlmacen)
+                            @if ($canOrdiReencaminar)
+                            <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
+                                Reencaminar
+                            </button>
+                            @endif
+                            @if ($canOrdiAssign)
+                            <button class="btn btn-outline-light2" type="button" wire:click="openRecibirModal">
+                                Recibir paquetes
+                            </button>
+                            @endif
+                            @if ($canOrdiDropoff)
+                            <button
+                                class="btn btn-outline-light2"
+                                type="button"
+                                wire:click="bajaPaquetes"
+                                wire:confirm="Deseas enviar a ENTREGADO los paquetes seleccionados?"
+                            >
+                                Baja de paquetes
+                            </button>
+                            @endif
+                            @if ($canOrdiRezago)
+                            <button
+                                class="btn btn-outline-light2"
+                                type="button"
+                                wire:click="rezagoPaquetes"
+                                wire:confirm="Deseas enviar a REZAGO los paquetes seleccionados?"
+                            >
+                                Rezago
+                            </button>
+                            @endif
                         @endif
-                        @if ($canOrdiAssign)
-                        <button class="btn btn-outline-light2" type="button" wire:click="openRecibirModal">
-                            Recibir paquetes
-                        </button>
-                        @endif
-                        @if ($canOrdiDropoff)
-                        <button
-                            class="btn btn-outline-light2"
-                            type="button"
-                            wire:click="bajaPaquetes"
-                            wire:confirm="Deseas enviar a ENTREGADO los paquetes seleccionados?"
-                        >
-                            Baja de paquetes
-                        </button>
-                        @endif
-                        @if ($canOrdiRezago)
-                        <button
-                            class="btn btn-outline-light2"
-                            type="button"
-                            wire:click="rezagoPaquetes"
-                            wire:confirm="Deseas enviar a REZAGO los paquetes seleccionados?"
-                        >
-                            Rezago
-                        </button>
-                        @endif
-                    @endif
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -148,7 +179,8 @@
                     </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-scroll-wrap">
+                    <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
@@ -205,26 +237,34 @@
                                     @endif
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? '-' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
-                                    <td>
+                                    <td class="action-cell">
+                                        <div class="action-stack">
                                         @if ($canOrdiEdit)
-                                        <button wire:click="openEditModal({{ $paquete->id }})" class="btn btn-sm btn-azul">Editar</button>
+                                        <button wire:click="openEditModal({{ $paquete->id }})" class="btn btn-sm btn-azul action-btn" title="Editar">
+                                            <i class="fas fa-pen"></i>
+                                        </button>
                                         @if ($this->isAlmacen)
-                                        <button wire:click="openZonaModal({{ $paquete->id }})" class="btn btn-sm btn-outline-azul">Editar Zona</button>
+                                        <button wire:click="openZonaModal({{ $paquete->id }})" class="btn btn-sm btn-outline-azul action-btn" title="Editar zona">
+                                            <i class="fas fa-map-marker-alt"></i>
+                                        </button>
                                         @endif
                                         @endif
                                         @if ($this->isClasificacion)
                                             @if ($canOrdiDelete)
-                                            <button wire:click="delete({{ $paquete->id }})" class="btn btn-sm btn-outline-azul" onclick="return confirm('Seguro que deseas eliminar este paquete?')">Borrar</button>
+                                            <button wire:click="delete({{ $paquete->id }})" class="btn btn-sm btn-outline-azul action-btn" onclick="return confirm('Seguro que deseas eliminar este paquete?')" title="Borrar">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
                                             @endif
                                         @endif
                                         @if ($this->isDespacho)
                                             @if ($canOrdiRestore)
                                             <button
                                                 wire:click="devolverAClasificacion({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul"
+                                                class="btn btn-sm btn-outline-azul action-btn"
                                                 onclick="return confirm('Deseas devolver este paquete a CLASIFICACION?')"
+                                                title="Devolver"
                                             >
-                                                Devolver
+                                                <i class="fas fa-undo"></i>
                                             </button>
                                             @endif
                                         @endif
@@ -232,18 +272,20 @@
                                             @if ($canOrdiPrint)
                                             <button
                                                 wire:click="reimprimirFormularioEntrega({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul"
+                                                class="btn btn-sm btn-outline-azul action-btn"
+                                                title="Reimprimir"
                                             >
-                                                Reimprimir
+                                                <i class="fas fa-print"></i>
                                             </button>
                                             @endif
                                             @if ($canOrdiRestore)
                                             <button
                                                 wire:click="altaAAlmacen({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul"
+                                                class="btn btn-sm btn-outline-azul action-btn"
                                                 onclick="return confirm('Deseas dar de alta este paquete a ALMACEN?')"
+                                                title="Dar alta"
                                             >
-                                                Alta
+                                                <i class="fas fa-arrow-up"></i>
                                             </button>
                                             @endif
                                         @endif
@@ -251,13 +293,15 @@
                                             @if ($canOrdiRestore)
                                             <button
                                                 wire:click="devolverRezagoAAlmacen({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul"
+                                                class="btn btn-sm btn-outline-azul action-btn"
                                                 onclick="return confirm('Deseas devolver este paquete a ALMACEN?')"
+                                                title="Devolver"
                                             >
-                                                Devolver
+                                                <i class="fas fa-undo"></i>
                                             </button>
                                             @endif
                                         @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -270,6 +314,7 @@
                             @endforelse
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <div class="d-flex justify-content-end">

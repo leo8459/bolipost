@@ -26,12 +26,42 @@
             color:#fff;
             padding:18px 20px;
         }
+        .header-shell{
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-start;
+            gap:20px;
+        }
+        .header-main{
+            flex:1 1 280px;
+            min-width:220px;
+        }
+        .header-tools{
+            flex:1 1 760px;
+            min-width:320px;
+            display:flex;
+            flex-direction:column;
+            align-items:stretch;
+            gap:12px;
+        }
+        .header-search-row{
+            display:flex;
+            justify-content:flex-end;
+        }
+        .header-search-cluster{
+            width:min(100%, 860px);
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:nowrap;
+        }
 
         .search-input{
             border-radius:12px;
             border:1px solid rgba(255,255,255,.45);
             padding:10px 12px;
             background: rgba(255,255,255,.95);
+            flex:1 1 auto;
         }
 
         .btn-dorado{
@@ -64,30 +94,63 @@
             border-bottom: 2px solid rgba(52,68,124,.2);
             white-space: nowrap;
         }
+        .table-scroll-wrap{
+            border:1px solid #dbe2f2;
+            border-radius:16px;
+            overflow:hidden;
+            background:#fff;
+        }
+        .table-responsive{
+            margin-bottom:0;
+        }
+        .table{
+            margin-bottom:0;
+        }
+        .table tbody td{
+            border-top:1px solid rgba(52,68,124,.10);
+        }
 
         .muted{ color:var(--muted); }
 
         .table td{ vertical-align: middle; white-space: nowrap; }
+        @media (max-width: 991.98px){
+            .header-shell{
+                flex-direction:column;
+            }
+            .header-tools{
+                min-width:0;
+                width:100%;
+            }
+            .header-search-cluster{
+                width:100%;
+            }
+        }
     </style>
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <div>
+            <div class="header-app">
+                <div class="header-shell">
+                <div class="header-main">
                     <h4 class="fw-bold mb-0">Despachos admitidos</h4>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center">
-                    <input
-                        type="text"
-                        class="form-control search-input"
-                        placeholder="Buscar..."
-                        wire:model="search"
-                    >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
-                    @if ($canDespachoAdmitConfirm)
-                        <button class="btn btn-dorado" type="button" wire:click="openAdmitirModal">Admitir despachos</button>
-                    @endif
+                <div class="header-tools">
+                    <div class="header-search-row">
+                        <div class="header-search-cluster">
+                            <input
+                                type="text"
+                                class="form-control search-input"
+                                placeholder="Buscar..."
+                                wire:model="search"
+                            >
+                            <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
+                            @if ($canDespachoAdmitConfirm)
+                                <button class="btn btn-dorado" type="button" wire:click="openAdmitirModal">Admitir despachos</button>
+                            @endif
+                        </div>
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -99,7 +162,8 @@
             @endif
 
             <div class="card-body">
-                <div class="table-responsive">
+                <div class="table-scroll-wrap">
+                    <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
@@ -135,6 +199,7 @@
                             @endforelse
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <div class="d-flex justify-content-end">

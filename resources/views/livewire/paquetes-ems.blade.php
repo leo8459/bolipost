@@ -26,6 +26,167 @@
             color:#fff;
             padding:18px 20px;
         }
+        .header-app.is-almacen .header-app-tools{
+            gap:16px;
+            align-items:flex-end;
+        }
+        .header-app.is-create .header-app-main{
+            padding-top:4px;
+        }
+        .header-app.is-create .header-app-tools{
+            flex:0 0 430px;
+            min-width:430px;
+        }
+        .header-app-shell{
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:24px;
+        }
+        .header-app-main{
+            flex:1 1 320px;
+            min-width: 260px;
+        }
+        .header-app-tools{
+            flex:1 1 560px;
+            min-width: 320px;
+            display:flex;
+            flex-direction:column;
+            gap:12px;
+            align-items:stretch;
+        }
+        .header-tool-actions{
+            display:flex;
+            justify-content:flex-end;
+        }
+        .header-create-side{
+            display:flex;
+            flex-direction:column;
+            gap:14px;
+            padding:0;
+        }
+        .header-search-row{
+            display:flex;
+            justify-content:flex-end;
+        }
+        .header-search-box{
+            width:min(100%, 760px);
+        }
+        .header-search-form{
+            width:min(100%, 760px);
+            display:flex;
+            align-items:center;
+            gap:10px;
+        }
+        .header-search-form .search-input{
+            flex:1 1 auto;
+        }
+        .header-search-cluster{
+            display:flex;
+            justify-content:flex-end;
+            gap:12px;
+            width:100%;
+            align-items:flex-start;
+            flex-wrap:wrap;
+        }
+        .header-actions-row{
+            display:flex;
+            justify-content:flex-end;
+            gap:12px;
+            flex-wrap:wrap;
+            align-items:flex-start;
+        }
+        .header-app:not(.is-almacen):not(.is-create) .header-actions-row{
+            justify-content:flex-end;
+            width:100%;
+        }
+        .header-actions-group{
+            display:grid;
+            grid-template-columns:repeat(3, minmax(180px, 1fr));
+            gap:10px;
+            align-items:stretch;
+            width:min(100%, 760px);
+        }
+        .header-app:not(.is-almacen):not(.is-create) .header-actions-group{
+            display:flex;
+            flex-wrap:wrap;
+            gap:10px;
+            width:auto;
+            justify-content:flex-end;
+        }
+        .header-app:not(.is-almacen):not(.is-create) .header-primary-action{
+            flex:0 0 auto;
+        }
+        .header-app.is-almacen .header-actions-row{
+            justify-content:flex-end;
+            width:100%;
+        }
+        .header-app.is-almacen .header-actions-group{
+            display:flex;
+            flex-wrap:wrap;
+            gap:10px;
+            justify-content:flex-end;
+            width:min(100%, 860px);
+        }
+        .header-app.is-almacen .header-search-cluster{
+            justify-content:flex-end;
+            width:min(100%, 980px);
+        }
+        .header-app.is-almacen .header-search-form{
+            flex:1 1 auto;
+            width:auto;
+            min-width:420px;
+        }
+        .header-app.is-almacen .header-primary-action{
+            flex:0 0 auto;
+        }
+        .header-app.is-ventanilla .header-app-main{
+            flex:0 1 300px;
+            max-width:320px;
+            min-width:240px;
+        }
+        .header-app.is-ventanilla .header-app-tools{
+            flex:1 1 860px;
+            min-width:0;
+            gap:16px;
+            align-items:flex-end;
+        }
+        .header-app.is-ventanilla .header-search-row{
+            width:100%;
+        }
+        .header-app.is-ventanilla .header-search-cluster{
+            justify-content:flex-end;
+            width:100%;
+            flex-wrap:nowrap;
+        }
+        .header-app.is-ventanilla .header-search-form{
+            flex:1 1 auto;
+            width:auto;
+            max-width:none;
+            min-width:0;
+        }
+        .header-app.is-ventanilla .header-actions-row{
+            justify-content:flex-end;
+            width:100%;
+        }
+        .header-app.is-ventanilla .header-actions-group{
+            display:flex;
+            flex-wrap:wrap;
+            gap:10px;
+            justify-content:flex-end;
+            width:auto;
+            max-width:100%;
+        }
+        .header-app.is-ventanilla .header-actions-group > .btn,
+        .header-app.is-ventanilla .header-actions-group > a{
+            min-width:0;
+            padding:10px 16px;
+            flex:0 0 auto;
+        }
+        .header-primary-action{
+            display:flex;
+            align-items:center;
+        }
 
         .search-input{
             border-radius:12px;
@@ -34,8 +195,8 @@
             background: rgba(255,255,255,.95);
         }
         .header-preregistro{
-            min-width: 320px;
-            max-width: 420px;
+            width:100%;
+            max-width: 470px;
         }
         .header-preregistro .header-preregistro-label{
             display:block;
@@ -60,6 +221,9 @@
         .header-preregistro .header-preregistro-message.is-error{
             color:#fee2e2;
         }
+        .header-preregistro .search-input{
+            box-shadow: 0 10px 24px rgba(15, 40, 82, .14);
+        }
 
         .btn-dorado{
             background: var(--dorado);
@@ -83,6 +247,26 @@
             background: rgba(255,255,255,.12);
             color:#fff;
         }
+        .header-actions-group > .btn,
+        .header-actions-group > a{
+            min-height:52px;
+            justify-content:center;
+            text-align:center;
+            line-height:1.2;
+        }
+        .header-app:not(.is-almacen):not(.is-create) .header-actions-group > .btn,
+        .header-app:not(.is-almacen):not(.is-create) .header-actions-group > a{
+            min-width:0;
+            flex:0 0 auto;
+            padding:10px 16px;
+        }
+        .header-app.is-almacen .header-actions-group > .btn,
+        .header-app.is-almacen .header-actions-group > a{
+            min-height:46px;
+            min-width:0;
+            padding:10px 16px;
+            flex:0 0 auto;
+        }
 
         .btn-azul{
             background: var(--azul);
@@ -105,6 +289,34 @@
         .btn-outline-azul:hover{
             background: rgba(52,68,124,.06);
             color: var(--azul);
+        }
+        .form-footer-actions{
+            display:flex;
+            justify-content:flex-end;
+            gap:12px;
+            flex-wrap:wrap;
+        }
+        .form-footer-cancel{
+            min-width:160px;
+            border-radius:12px;
+            border:1px solid rgba(32, 83, 154, .22);
+            background:#fff;
+            color:var(--azul);
+            font-weight:800;
+            padding:10px 18px;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            text-decoration:none;
+        }
+        .form-footer-cancel:hover{
+            background:rgba(32, 83, 154, .05);
+            color:var(--azul);
+            text-decoration:none;
+        }
+        .form-footer-submit{
+            min-width:190px;
+            padding:10px 20px;
         }
 
         .table thead th{
@@ -236,6 +448,141 @@
             font-size: 12px;
             color: rgba(255,255,255,.85);
             margin-left: 4px;
+        }
+        .action-cell{
+            width: 78px;
+            min-width: 78px;
+            text-align: center;
+        }
+        .action-stack{
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap:10px;
+        }
+        .action-btn{
+            width:44px;
+            height:44px;
+            padding:0;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:12px;
+            box-shadow:0 6px 16px rgba(32, 83, 154, .10);
+        }
+        .action-btn i{
+            font-size:14px;
+        }
+        .action-btn.btn-azul{
+            box-shadow:0 8px 18px rgba(32, 83, 154, .22);
+        }
+        .action-btn.btn-outline-azul{
+            background:#fff;
+            border-color:rgba(32, 83, 154, .22);
+        }
+        .action-btn.btn-outline-azul:hover{
+            background:rgba(32, 83, 154, .06);
+        }
+        @media (max-width: 991.98px){
+            .header-app.is-create .header-app-tools{
+                flex:1 1 auto;
+                min-width:0;
+            }
+            .header-app-shell{
+                flex-direction:column;
+            }
+            .header-app-tools{
+                width:100%;
+                min-width:0;
+            }
+            .header-search-row,
+            .header-actions-row{
+                justify-content:flex-start;
+            }
+            .header-search-box{
+                width:100%;
+            }
+            .header-search-form{
+                width:100%;
+            }
+            .header-search-cluster{
+                justify-content:flex-start;
+            }
+            .header-actions-group{
+                grid-template-columns:repeat(2, minmax(180px, 1fr));
+                width:100%;
+            }
+            .header-app:not(.is-almacen):not(.is-create) .header-actions-group{
+                display:grid;
+                grid-template-columns:repeat(2, minmax(180px, 1fr));
+                width:100%;
+                justify-content:stretch;
+            }
+            .header-app.is-almacen .header-actions-group{
+                display:grid;
+                grid-template-columns:repeat(2, minmax(180px, 1fr));
+                width:100%;
+                max-width:none;
+                justify-content:stretch;
+            }
+            .header-app.is-almacen .header-search-cluster{ width:100%; }
+            .header-app.is-almacen .header-search-form{ min-width:0; width:100%; }
+            .header-app.is-ventanilla .header-search-cluster{ width:100%; }
+            .header-app.is-ventanilla .header-search-form{ min-width:0; width:100%; }
+            .header-app.is-ventanilla .header-actions-group{
+                display:grid;
+                grid-template-columns:repeat(2, minmax(180px, 1fr));
+                width:100%;
+                justify-content:stretch;
+            }
+        }
+        @media (max-width: 575.98px){
+            .header-tool-actions{
+                justify-content:stretch;
+            }
+            .header-tool-actions > .btn,
+            .header-search-cluster,
+            .header-search-form{
+                flex-direction:column;
+                align-items:stretch;
+            }
+            .header-search-cluster > .btn,
+            .header-search-cluster > a,
+            .header-search-form > .btn,
+            .header-actions-group,
+            .header-primary-action{
+                width:100%;
+            }
+            .header-actions-group{
+                grid-template-columns:1fr;
+            }
+            .header-app:not(.is-almacen):not(.is-create) .header-actions-group{
+                grid-template-columns:1fr;
+            }
+            .header-app.is-almacen .header-actions-group{
+                grid-template-columns:1fr;
+            }
+            .header-app.is-ventanilla .header-actions-group{
+                grid-template-columns:1fr;
+            }
+            .header-app.is-almacen .header-search-form{
+                min-width:0;
+                width:100%;
+            }
+            .header-actions-group > .btn,
+            .header-actions-group > a,
+            .header-primary-action > .btn,
+            .header-primary-action > a{
+                width:100%;
+                justify-content:center;
+            }
+            .form-footer-actions{
+                flex-direction:column;
+            }
+            .form-footer-cancel,
+            .form-footer-submit{
+                width:100%;
+            }
         }
         .table-scroll-wrap{
             max-height: 56vh;
@@ -387,8 +734,9 @@
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <div>
+            <div class="header-app {{ $this->isCreateEms ? 'is-create' : '' }} {{ $this->isAlmacenEms ? 'is-almacen' : '' }} {{ $this->isVentanillaEms ? 'is-ventanilla' : '' }}">
+                <div class="header-app-shell">
+                <div class="header-app-main">
                     <h4 class="fw-bold mb-0">
                         @if ($this->isCreateEms)
                             Nuevo paquete EMS
@@ -457,110 +805,128 @@
                     </div>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center flex-wrap">
+                <div class="header-app-tools">
                     @if ($this->isCreateEms)
-                        <div class="header-preregistro">
-                            <label class="header-preregistro-label" for="headerPreregistroCodigo">Codigo de preregistro</label>
-                            <input
-                                id="headerPreregistroCodigo"
-                                type="text"
-                                class="form-control search-input"
-                                placeholder="Pega PRE00000001 o 00000001"
-                                wire:model.live.debounce.400ms="preregistro_codigo"
-                            >
-                            <div class="header-preregistro-help">Pega aqui el codigo generado del preregistro y el formulario se autollenara.</div>
-                            @if($preregistroAutofillMessage)
-                                <div class="header-preregistro-message {{ str_contains(strtolower($preregistroAutofillMessage), 'no existe') || str_contains(strtolower($preregistroAutofillMessage), 'ya fue validado') ? 'is-error' : '' }}">
-                                    {{ $preregistroAutofillMessage }}
+                        <div class="header-create-side">
+                            <div class="header-tool-actions">
+                                <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.index') }}">
+                                    Volver a Paquetes EMS
+                                </a>
+                            </div>
+                            <div class="header-preregistro">
+                                <label class="header-preregistro-label" for="headerPreregistroCodigo">Codigo de preregistro</label>
+                                <input
+                                    id="headerPreregistroCodigo"
+                                    type="text"
+                                    class="form-control search-input"
+                                    placeholder="Pega PRE00000001 o 00000001"
+                                    wire:model.live.debounce.400ms="preregistro_codigo"
+                                >
+                                <div class="header-preregistro-help">Pega aqui el codigo generado del preregistro y el formulario se autollenara.</div>
+                                @if($preregistroAutofillMessage)
+                                    <div class="header-preregistro-message {{ str_contains(strtolower($preregistroAutofillMessage), 'no existe') || str_contains(strtolower($preregistroAutofillMessage), 'ya fue validado') ? 'is-error' : '' }}">
+                                        {{ $preregistroAutofillMessage }}
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @else
+                        <div class="header-search-row">
+                            <div class="header-search-cluster">
+                                <div class="header-search-form">
+                                    <input
+                                        type="text"
+                                        class="form-control search-input"
+                                        placeholder="Buscar en toda la tabla..."
+                                        wire:model="search"
+                                        wire:keydown.enter.prevent="searchPaquetes(true)"
+                                    >
+                                    <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes(true)">Buscar</button>
+                                </div>
+                                @if ($this->isAlmacenEms && $canEmsCreate && $canEmsCreateRoute)
+                                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="header-actions-row">
+                            @if (!$this->isAlmacenEms && ((($this->isAdmision && $canEmsAdmisionCreate) || ($this->isAlmacenEms && $canEmsCreate)) && $canEmsCreateRoute))
+                                <div class="header-primary-action">
+                                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                                 </div>
                             @endif
+                            <div class="header-actions-group">
+                                @if ($this->isAdmision)
+                                    @if ($canEmsAssign)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
+                                        Generados hoy
+                                    </button>
+
+                                    <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosSinFiltroFecha">
+                                        Mandar seleccionados
+                                    </button>
+                                    @endif
+                                @elseif ($this->isAlmacenEms)
+                                    @if ($canEmsRegisterContract)
+                                    <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
+                                        Registrar contrato
+                                    </a>
+                                    @endif
+                                    @if ($canEmsWeighContract)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
+                                        Anadir peso contrato
+                                    </button>
+                                    @endif
+                                    @if ($canEmsWeighTiktoker)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="openTiktokerPesoModal">
+                                        Asignar peso a TIKTOKEROS
+                                    </button>
+                                    @endif
+                                    @if ($canEmsSendVentanilla)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
+                                        Enviar a ventanilla EMS
+                                    </button>
+                                    @endif
+                                    @if ($canEmsSendRegional)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Assign">
+                                        Anadir a CN-33
+                                    </button>
+                                    @endif
+                                    @if ($canEmsSendRegional)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
+                                        Manda a regional
+                                    </button>
+                                    @endif
+                                    @if ($canEmsReprintCn33)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
+                                        Reimprimir CN-33
+                                    </button>
+                                    @endif
+                                @elseif ($this->isVentanillaEms)
+                                    @if ($canEmsDeliver)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
+                                        Entregar seleccionados
+                                    </button>
+                                    @endif
+                                @elseif ($this->isDevolucionEms)
+                                    @if ($canEmsDeliver)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="openDevolucionEmsModal">
+                                        Devolver seleccionados
+                                    </button>
+                                    @endif
+                                @elseif ($this->isTransitoEms)
+                                    @if ($canEmsAssign)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="toggleRecibirRegionalCn33Input">
+                                        Recibir todos del CN-33
+                                    </button>
+                                    <button class="btn btn-outline-light2" type="button" wire:click="openRecibirRegionalModal">
+                                        Recibir
+                                    </button>
+                                    @endif
+                                @endif
+                            </div>
                         </div>
-                        <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.index') }}">
-                            Volver a Paquetes EMS
-                        </a>
-                    @else
-                        <input
-                            type="text"
-                            class="form-control search-input"
-                            placeholder="Buscar en toda la tabla..."
-                            wire:model="search"
-                            wire:keydown.enter.prevent="searchPaquetes(true)"
-                        >
-                        <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes(true)">Buscar</button>
-
-                        @if ($this->isAdmision)
-                            @if ($canEmsAssign)
-                            <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
-                                Generados hoy
-                            </button>
-
-                            <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosSinFiltroFecha">
-                                Mandar seleccionados
-                            </button>
-                            @endif
-                        @elseif ($this->isAlmacenEms)
-                            @if ($canEmsRegisterContract)
-                            <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
-                                Registrar contrato
-                            </a>
-                            @endif
-                            @if ($canEmsWeighContract)
-                            <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
-                                Anadir peso contrato
-                            </button>
-                            @endif
-                            @if ($canEmsWeighTiktoker)
-                            <button class="btn btn-outline-light2" type="button" wire:click="openTiktokerPesoModal">
-                                Asignar peso a TIKTOKEROS
-                            </button>
-                            @endif
-                            @if ($canEmsSendVentanilla)
-                            <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
-                                Enviar a ventanilla EMS
-                            </button>
-                            @endif
-                            @if ($canEmsSendRegional)
-                            <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Assign">
-                                Anadir a CN-33
-                            </button>
-                            @endif
-                            @if ($canEmsSendRegional)
-                            <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
-                                Manda a regional
-                            </button>
-                            @endif
-                            @if ($canEmsReprintCn33)
-                            <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
-                                Reimprimir CN-33
-                            </button>
-                            @endif
-                        @elseif ($this->isVentanillaEms)
-                            @if ($canEmsDeliver)
-                            <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
-                                Entregar seleccionados
-                            </button>
-                            @endif
-                        @elseif ($this->isDevolucionEms)
-                            @if ($canEmsDeliver)
-                            <button class="btn btn-outline-light2" type="button" wire:click="openDevolucionEmsModal">
-                                Devolver seleccionados
-                            </button>
-                            @endif
-                        @elseif ($this->isTransitoEms)
-                            @if ($canEmsAssign)
-                            <button class="btn btn-outline-light2" type="button" wire:click="toggleRecibirRegionalCn33Input">
-                                Recibir todos del CN-33
-                            </button>
-                            <button class="btn btn-outline-light2" type="button" wire:click="openRecibirRegionalModal">
-                                Recibir
-                            </button>
-                            @endif
-                        @endif
-
-                        @if ((($this->isAdmision && $canEmsAdmisionCreate) || ($this->isAlmacenEms && $canEmsCreate)) && $canEmsCreateRoute)
-                            <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
-                        @endif
                     @endif
+                </div>
                 </div>
             </div>
 
@@ -792,10 +1158,10 @@
                             </div>
                         </div>
 
-                        <div class="d-flex justify-content-end gap-2">
-                            <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-azul">Cancelar</a>
+                        <div class="form-footer-actions">
+                            <a href="{{ route('paquetes-ems.index') }}" class="form-footer-cancel">Cancelar</a>
                             @if ($canEmsCreate)
-                            <button type="button" wire:click="save" class="btn btn-dorado">Crear y continuar</button>
+                            <button type="button" wire:click="save" class="btn btn-dorado form-footer-submit">Crear y continuar</button>
                             @endif
                         </div>
                     </form>
@@ -1019,7 +1385,7 @@
                                     <th>Telefono D</th>
                                     <th>Creado</th>
                                     <th>Traspaso</th>
-                                    <th>Acciones</th>
+                                    <th class="text-center action-cell">Acciones</th>
                                 </tr>
                             @else
                                 <tr>
@@ -1042,7 +1408,7 @@
                                     <th>Telefono destinatario</th>
                                     <th>Ciudad</th>
                                     <th>Traspaso</th>
-                                    <th>Acciones</th>
+                                    <th class="text-center action-cell">Acciones</th>
                                 </tr>
                             @endif
                         </thead>
@@ -1093,12 +1459,13 @@
                                         <td>{{ $row->telefono_d }}</td>
                                         <td>{{ \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') }}</td>
                                         <td>{{ $fechaGeneracionReporte }}</td>
-                                        <td>
+                                        <td class="action-cell">
+                                            <div class="action-stack">
                                             @if (($row->record_type ?? '') === 'EMS')
                                                 @if ($this->isAlmacenEms || $this->isTransitoEms)
                                                     @if ($canEmsEdit)
                                                     <button wire:click="openEditModal({{ $row->record_id }})"
-                                                        class="btn btn-sm btn-azul"
+                                                        class="btn btn-sm btn-azul action-btn"
                                                         title="Editar">
                                                         <i class="fas fa-pen"></i>
                                                     </button>
@@ -1106,7 +1473,7 @@
                                                 @endif
                                                 @if ($canEmsPrint)
                                                 <a href="{{ route('paquetes-ems.boleta', $row->record_id, false) }}"
-                                                   class="btn btn-sm btn-outline-azul"
+                                                   class="btn btn-sm btn-outline-azul action-btn"
                                                    target="_blank"
                                                    title="Reimprimir boleta">
                                                     <i class="fas fa-print"></i>
@@ -1115,7 +1482,7 @@
                                                 @if ($this->isAlmacenEms)
                                                     @if ($canEmsRestore)
                                                     <button wire:click="devolverAAdmisiones({{ $row->record_id }})"
-                                                        class="btn btn-sm btn-outline-azul"
+                                                        class="btn btn-sm btn-outline-azul action-btn"
                                                         title="Devolver a ADMISIONES"
                                                         onclick="return confirm('Seguro que deseas devolver este paquete a ADMISIONES?')">
                                                         <i class="fas fa-undo"></i>
@@ -1126,19 +1493,20 @@
                                                 @if (($row->record_type ?? '') === 'CONTRATO')
                                                     <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
                                                        target="_blank"
-                                                       class="btn btn-sm btn-outline-azul"
+                                                       class="btn btn-sm btn-outline-azul action-btn"
                                                        title="Reimprimir rotulo">
                                                         <i class="fas fa-print"></i>
                                                     </a>
                                                 @else
                                                     <a href="{{ route('paquetes-ems.solicitudes.ticket', $row->record_id) }}"
                                                        target="_blank"
-                                                       class="btn btn-sm btn-outline-azul"
+                                                       class="btn btn-sm btn-outline-azul action-btn"
                                                        title="Imprimir ticket de solicitud">
                                                         <i class="fas fa-print"></i>
                                                     </a>
                                                 @endif
                                             @endif
+                                            </div>
                                         </td>
                                     </tr>
                                 @empty
@@ -1176,17 +1544,18 @@
                                         <td>{{ $formulario->telefono_destinatario ?? $paquete->telefono_destinatario }}</td>
                                         <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
                                         <td>{{ $fechaGeneracionReporte }}</td>
-                                        <td>
+                                        <td class="action-cell">
+                                            <div class="action-stack">
                                             @if ($canEmsEdit)
                                             <button wire:click="openEditModal({{ $paquete->id }})"
-                                                class="btn btn-sm btn-azul"
+                                                class="btn btn-sm btn-azul action-btn"
                                                 title="Editar">
                                                 <i class="fas fa-pen"></i>
                                             </button>
                                             @endif
                                             @if ($canEmsPrint)
                                             <a href="{{ route('paquetes-ems.boleta', $paquete->id, false) }}"
-                                               class="btn btn-sm btn-outline-azul"
+                                               class="btn btn-sm btn-outline-azul action-btn"
                                                target="_blank"
                                                title="Reimprimir boleta">
                                                 <i class="fas fa-print"></i>
@@ -1195,13 +1564,14 @@
                                             @if ($this->isAdmision)
                                                 @if ($canEmsDelete)
                                                 <button wire:click="delete({{ $paquete->id }})"
-                                                    class="btn btn-sm btn-outline-azul"
+                                                    class="btn btn-sm btn-outline-azul action-btn"
                                                     title="Cancelar"
                                                     onclick="return confirm('Seguro que deseas cancelar este paquete?')">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                                 @endif
                                             @endif
+                                            </div>
                                         </td>
                                     </tr>
                                 @empty

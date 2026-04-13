@@ -9,9 +9,28 @@
         .plantilla-wrap{ background: var(--bg); padding: 18px; border-radius: 16px; }
         .card-app{ border:0; border-radius:16px; box-shadow:0 12px 26px rgba(0,0,0,.08); overflow:hidden; }
         .header-app{ background: linear-gradient(90deg, var(--azul), #20539A); color:#fff; padding:18px 20px; }
+        .header-shell{ display:flex; align-items:flex-start; justify-content:space-between; gap:24px; }
+        .header-main{ flex:1 1 320px; min-width:260px; }
+        .header-tools{ flex:1 1 620px; min-width:320px; display:flex; flex-direction:column; gap:12px; align-items:stretch; }
+        .header-search-row{ display:flex; justify-content:flex-end; }
+        .header-search-form{ width:min(100%, 760px); display:flex; align-items:center; gap:10px; }
+        .header-search-form .search-input{ flex:1 1 auto; }
         .search-input{ border-radius:12px; border:1px solid rgba(255,255,255,.45); padding:10px 12px; background: rgba(255,255,255,.95); }
         .btn-outline-light2{ border:1px solid rgba(255,255,255,.7); color:#fff; font-weight:800; border-radius:12px; padding:10px 14px; background:transparent; }
         .btn-outline-light2:hover{ background: rgba(255,255,255,.12); color:#fff; }
+        .action-col{ width: 92px; min-width: 92px; text-align:center; }
+        .action-stack{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+        .action-btn{
+            width:48px;
+            height:48px;
+            padding:0;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:14px;
+            box-shadow:0 8px 18px rgba(32, 83, 154, .10);
+        }
+        .action-btn i{ font-size:16px; }
         .table thead th{ background: rgba(52,68,124,.08); color: var(--azul); font-weight:900; border-bottom:2px solid rgba(52,68,124,.2); white-space: nowrap; }
         .pill-id{ background: rgba(52,68,124,.12); color: var(--azul); font-weight:900; padding:4px 10px; border-radius: 999px; display:inline-block; }
         .muted{ color:var(--muted); }
@@ -32,27 +51,45 @@
             border-radius: 10px;
             background:#fff;
         }
+
+        @media (max-width: 991.98px){
+            .header-shell{ flex-direction:column; }
+            .header-tools{ width:100%; min-width:0; }
+            .header-search-row{ justify-content:flex-start; }
+            .header-search-form{ width:100%; }
+        }
+
+        @media (max-width: 575.98px){
+            .header-search-form{ flex-direction:column; }
+            .header-search-form > .btn{ width:100%; justify-content:center; }
+        }
     </style>
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <div>
+            <div class="header-app">
+                <div class="header-shell">
+                <div class="header-main">
                     <h4 class="fw-bold mb-0">Contratos en CARTERO</h4>
                     <small class="text-white-50">
                         Empresa aplicada: <strong>{{ optional(auth()->user()->empresa)->nombre ?? 'SIN EMPRESA' }}</strong>
                     </small>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center">
-                    <input
-                        type="text"
-                        class="form-control search-input"
-                        placeholder="Buscar o pegar codigo..."
-                        wire:model="search"
-                        wire:keydown.enter.prevent="searchRecojos(true)"
-                    >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchRecojos(true)">Buscar</button>
+                <div class="header-tools">
+                    <div class="header-search-row">
+                        <div class="header-search-form">
+                            <input
+                                type="text"
+                                class="form-control search-input"
+                                placeholder="Buscar o pegar codigo..."
+                                wire:model="search"
+                                wire:keydown.enter.prevent="searchRecojos(true)"
+                            >
+                            <button class="btn btn-outline-light2" type="button" wire:click="searchRecojos(true)">Buscar</button>
+                        </div>
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -97,7 +134,7 @@
                                     <th>Telefono D</th>
                                     <th>Peso</th>
                                     <th>Creado</th>
-                                    <th>Acciones</th>
+                                    <th class="action-col">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -114,15 +151,17 @@
                                         <td>{{ $recojo->telefono_d ?: '-' }}</td>
                                         <td>{{ $recojo->peso }}</td>
                                         <td>{{ optional($recojo->created_at)->format('d/m/Y H:i') }}</td>
-                                        <td>
+                                        <td class="action-col">
+                                            <div class="action-stack">
                                             @if ($canContratoCarteroPrint)
                                             <a href="{{ route('paquetes-contrato.reporte', $recojo->id, false) }}"
                                                target="_blank"
-                                               class="btn btn-sm btn-outline-azul"
+                                               class="btn btn-sm btn-outline-azul action-btn"
                                                title="Reimprimir rotulo">
                                                 <i class="fas fa-print"></i>
                                             </a>
                                             @endif
+                                            </div>
                                         </td>
                                     </tr>
                                 @empty

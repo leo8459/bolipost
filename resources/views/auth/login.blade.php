@@ -65,13 +65,6 @@
                     {{ __('Ingresar al sistema') }}
                 </x-primary-button>
 
-                <a
-                    href="{{ route('clientes.login') }}"
-                    class="flex h-11 w-full items-center justify-center rounded-lg border border-[#20539A]/20 bg-white text-sm font-semibold text-[#20539A] transition hover:border-[#20539A] hover:bg-[#f7faff]"
-                >
-                    Ir al login publico de clientes
-                </a>
-
                 <p class="pt-1 text-[11px] text-center text-[#20539A]/65">
                     Uso exclusivo de personal autorizado.
                 </p>

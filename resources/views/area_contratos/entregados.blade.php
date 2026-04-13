@@ -8,8 +8,10 @@
     <div class="area-contratos-wrap">
         <div class="card area-contratos-card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h3 class="card-title mb-2 mb-md-0">Contratos entregados (todos)</h3>
-                <span class="area-badge">Total: {{ $contratos->total() }}</span>
+                <div>
+                    <h3 class="card-title mb-1">Contratos entregados (todos)</h3>
+                    <div class="area-header-meta">Total en registros: <strong>{{ $contratos->total() }}</strong></div>
+                </div>
             </div>
             <div class="card-body">
                 @if (!$estadoEntregadoDisponible)
@@ -24,7 +26,7 @@
                             placeholder="Buscar por codigo, remitente, origen, destino, direcciones o empresa...">
                     </div>
                     <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary btn-block">Buscar</button>
+                        <button type="submit" class="btn area-btn-primary btn-block">Buscar</button>
                     </div>
                 </form>
 
@@ -117,14 +119,23 @@
             padding: 0.95rem 1.1rem;
         }
 
-        .area-badge {
-            background: rgba(185, 156, 70, 0.2);
-            color: #3f3514;
-            border: 1px solid rgba(185, 156, 70, 0.35);
-            border-radius: 999px;
-            font-size: 0.76rem;
-            font-weight: 700;
-            padding: 0.28rem 0.6rem;
+        .area-header-meta {
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.88rem;
+        }
+
+        .area-btn-primary {
+            background: #FECC36;
+            color: #fff;
+            font-weight: 800;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 14px;
+        }
+
+        .area-btn-primary:hover {
+            filter: brightness(.96);
+            color: #fff;
         }
 
         .area-contratos-card .table thead th {
@@ -136,6 +147,12 @@
             text-transform: uppercase;
             letter-spacing: 0.35px;
             white-space: nowrap;
+        }
+
+        @media (max-width: 767.98px) {
+            .area-header-meta {
+                margin-bottom: .35rem;
+            }
         }
     </style>
 @endsection

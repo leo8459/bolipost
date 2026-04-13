@@ -26,12 +26,42 @@
             color:#fff;
             padding:18px 20px;
         }
+        .header-shell{
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-start;
+            gap:20px;
+        }
+        .header-main{
+            flex:1 1 280px;
+            min-width:220px;
+        }
+        .header-tools{
+            flex:1 1 760px;
+            min-width:320px;
+            display:flex;
+            flex-direction:column;
+            align-items:stretch;
+            gap:12px;
+        }
+        .header-search-row{
+            display:flex;
+            justify-content:flex-end;
+        }
+        .header-search-cluster{
+            width:min(100%, 760px);
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:nowrap;
+        }
 
         .search-input{
             border-radius:12px;
             border:1px solid rgba(255,255,255,.45);
             padding:10px 12px;
             background: rgba(255,255,255,.95);
+            flex:1 1 auto;
         }
 
         .btn-dorado{
@@ -87,10 +117,78 @@
             border-bottom: 2px solid rgba(52,68,124,.2);
             white-space: nowrap;
         }
+        .table-scroll-wrap{
+            border:1px solid #dbe2f2;
+            border-radius:16px;
+            overflow:hidden;
+            background:#fff;
+        }
+        .table-responsive{
+            margin-bottom:0;
+        }
+        .table{
+            margin-bottom:0;
+        }
+        .table tbody td{
+            border-top:1px solid rgba(52,68,124,.10);
+        }
 
         .muted{ color:var(--muted); }
 
         .table td{ vertical-align: middle; white-space: nowrap; }
+        .action-cell{
+            width:96px;
+            min-width:96px;
+            text-align:center;
+        }
+        .action-stack{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:8px;
+            flex-wrap:wrap;
+        }
+        .action-btn{
+            width:40px;
+            height:40px;
+            padding:0;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:11px;
+            box-shadow:0 6px 16px rgba(32, 83, 154, .10);
+        }
+        .action-btn i{
+            font-size:14px;
+        }
+        .action-btn.btn-azul{
+            box-shadow:0 8px 18px rgba(32, 83, 154, .22);
+        }
+        .action-btn.btn-outline-azul{
+            background:#fff;
+            border-color:rgba(32, 83, 154, .22);
+        }
+        .action-btn.btn-outline-azul:hover{
+            background:rgba(32, 83, 154, .06);
+        }
+        .action-btn.btn-success,
+        .action-btn.btn-info,
+        .action-btn.btn-warning{
+            border:none;
+            color:#fff;
+        }
+        @media (max-width: 991.98px){
+            .header-shell{
+                flex-direction:column;
+            }
+            .header-tools{
+                min-width:0;
+                width:100%;
+            }
+            .header-search-cluster{
+                width:100%;
+            }
+        }
 
         .modal-content{
             border:0;
@@ -127,22 +225,28 @@
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <div>
+            <div class="header-app">
+                <div class="header-shell">
+                <div class="header-main">
                     <h4 class="fw-bold mb-0">Despachos abiertos</h4>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center">
-                    <input
-                        type="text"
-                        class="form-control search-input"
-                        placeholder="Buscar por cualquier campo..."
-                        wire:model="search"
-                    >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
-                    @if ($canDespachoCreate)
-                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
-                    @endif
+                <div class="header-tools">
+                    <div class="header-search-row">
+                        <div class="header-search-cluster">
+                            <input
+                                type="text"
+                                class="form-control search-input"
+                                placeholder="Buscar por cualquier campo..."
+                                wire:model="search"
+                            >
+                            <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
+                            @if ($canDespachoCreate)
+                                <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                            @endif
+                        </div>
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -166,7 +270,8 @@
                     </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-scroll-wrap">
+                    <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
@@ -198,10 +303,11 @@
                                     <td>{{ $despacho->anio }}</td>
                                     <td>{{ $despacho->departamento }}</td>
                                     <td>{{ optional($despacho->estado)->nombre_estado }}</td>
-                                    <td>
+                                    <td class="action-cell">
+                                        <div class="action-stack">
                                         @if (optional($despacho->estado)->nombre_estado === 'CLAUSURA' && $canDespachoConfirm)
                                             <button wire:click="expedicion({{ $despacho->id }})"
-                                                class="btn btn-sm btn-info"
+                                                class="btn btn-sm btn-info action-btn"
                                                 title="Expedicion"
                                                 onclick="return confirm('Cambiar estado del despacho a expedicion?')">
                                                 <i class="fas fa-paper-plane"></i>
@@ -209,13 +315,13 @@
                                         @endif
                                         @if (optional($despacho->estado)->nombre_estado !== 'CLAUSURA' && $canDespachoOpenSacas)
                                             <a href="{{ route('sacas.index', ['despacho_id' => $despacho->id], false) }}"
-                                                class="btn btn-sm btn-success"
+                                                class="btn btn-sm btn-success action-btn"
                                                 title="Asignar sacas">
                                                 <i class="fas fa-suitcase"></i>
                                             </a>
                                         @elseif (optional($despacho->estado)->nombre_estado === 'CLAUSURA' && $canDespachoRestore)
                                             <button wire:click="reaperturaSaca({{ $despacho->id }})"
-                                                class="btn btn-sm btn-warning"
+                                                class="btn btn-sm btn-warning action-btn"
                                                 title="Reapertura de saca"
                                                 onclick="return confirm('Se reaperturara el despacho y sus sacas. Continuar?')">
                                                 <i class="fas fa-unlock"></i>
@@ -223,19 +329,20 @@
                                         @endif
                                         @if ($canDespachoEdit)
                                         <button wire:click="openEditModal({{ $despacho->id }})"
-                                            class="btn btn-sm btn-azul"
+                                            class="btn btn-sm btn-azul action-btn"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
                                         @endif
                                         @if ($canDespachoDelete)
                                         <button wire:click="delete({{ $despacho->id }})"
-                                            class="btn btn-sm btn-outline-azul"
+                                            class="btn btn-sm btn-outline-azul action-btn"
                                             title="Eliminar"
                                             onclick="return confirm('Seguro que deseas eliminar este despacho?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                         @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -248,6 +355,7 @@
                             @endforelse
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <div class="d-flex justify-content-end">

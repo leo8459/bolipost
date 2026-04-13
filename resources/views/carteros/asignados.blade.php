@@ -12,20 +12,21 @@
                     <h3 class="card-title mb-0">Paquetes en Estado CARTERO</h3>
                     <span class="carteros-chip">Asignados</span>
                 </div>
-                <div class="mt-3 d-flex gap-2 align-items-center flex-wrap">
-                    <input
-                        id="asignados-search"
-                        type="text"
-                        class="form-control"
-                        style="max-width: 380px;"
-                        placeholder="Buscar por codigo o cod_especial"
-                    >
-                    <button id="asignados-search-btn" type="button" class="btn btn-primary">Buscar</button>
-                    <button id="asignados-clear-btn" type="button" class="btn btn-outline-secondary">Limpiar</button>
+                <div class="asignados-toolbar">
+                    <div class="asignados-search-cluster">
+                        <input
+                            id="asignados-search"
+                            type="text"
+                            class="form-control"
+                            placeholder="Buscar por codigo o cod_especial"
+                        >
+                        <button id="asignados-search-btn" type="button" class="btn btn-carteros-secondary">Buscar</button>
+                        <button id="asignados-clear-btn" type="button" class="btn btn-carteros-clear">Limpiar</button>
+                    </div>
                 </div>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
+                <div class="table-responsive asignados-table-wrap">
                     <table class="table table-striped table-hover mb-0">
                         <thead>
                             <tr>
@@ -69,6 +70,66 @@
 
 @section('css')
     @include('carteros.partials.theme')
+    <style>
+        .asignados-toolbar {
+            margin-top: 14px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .asignados-search-cluster {
+            width: min(100%, 760px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+        }
+
+        .asignados-search-cluster .form-control {
+            min-height: 44px;
+            border-radius: 10px;
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+
+        .asignados-search-cluster .form-control:focus {
+            border-color: var(--carteros-primary);
+            box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
+        }
+
+        .btn-carteros-secondary {
+            background: var(--carteros-secondary);
+            border-color: var(--carteros-secondary);
+            color: #fff;
+            min-height: 44px;
+            border-radius: 12px;
+            font-weight: 800;
+        }
+
+        .btn-carteros-secondary:hover {
+            background: #f4c21d;
+            border-color: #f4c21d;
+            color: #fff;
+        }
+
+        .btn-carteros-clear {
+            background: #fff;
+            border: 1px solid rgba(32, 83, 154, 0.22);
+            color: var(--carteros-primary);
+            min-height: 44px;
+            border-radius: 12px;
+            font-weight: 800;
+        }
+
+        .btn-carteros-clear:hover {
+            background: rgba(32, 83, 154, 0.05);
+            color: var(--carteros-primary);
+        }
+
+        .asignados-table-wrap {
+            border-top: 1px solid #e4e8f2;
+        }
+    </style>
 @endsection
 
 @section('js')

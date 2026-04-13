@@ -13,6 +13,11 @@
             <li><a href="https://correos.gob.bo/about/" target="_blank" rel="noopener noreferrer">Qui&eacute;nes Somos</a></li>
             <li><a href="https://correos.gob.bo/services/" target="_blank" rel="noopener noreferrer">Nuestros Servicios</a></li>
             <li><a href="https://correos.gob.bo/contact-us/" target="_blank" rel="noopener noreferrer">Cont&aacute;ctanos</a></li>
+            <li>
+                <a href="{{ route('clientes.login') }}" class="menu-client-access">
+                    <span class="menu-client-access-label">Ingresar</span>
+                </a>
+            </li>
         </ul>
 
         <div class="nav-actions">

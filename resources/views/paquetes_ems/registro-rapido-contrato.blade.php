@@ -7,8 +7,15 @@
 @section('content')
 <section class="content container-fluid pt-3">
     <style>
+        :root{
+            --azul:#20539A;
+            --dorado:#FECC36;
+            --bg:#f5f7fb;
+            --line:#e5e7eb;
+            --muted:#64748b;
+        }
         .quick-wrap {
-            background: #f5f7fb;
+            background: var(--bg);
             border-radius: 16px;
             padding: 12px;
         }
@@ -19,14 +26,33 @@
             overflow: hidden;
         }
         .quick-header {
-            background: linear-gradient(90deg, #20539A, #20539A);
+            background: linear-gradient(90deg, var(--azul), #20539A);
             color: #fff;
-            padding: 16px 18px;
+            padding: 18px 20px;
+        }
+        .quick-header-title{
+            font-size: 20px;
+            font-weight: 800;
+            margin-bottom: 2px;
         }
         .quick-subtitle {
             color: #dbe2ff;
             margin-bottom: 0;
             font-size: 13px;
+        }
+        .quick-header-back{
+            border:1px solid rgba(255,255,255,.72);
+            background:#fff;
+            color:var(--azul);
+            border-radius:12px;
+            font-weight:800;
+            padding:8px 16px;
+            text-decoration:none;
+        }
+        .quick-header-back:hover{
+            color:var(--azul);
+            text-decoration:none;
+            background:rgba(255,255,255,.92);
         }
         .origin-input {
             background: #eef2ff;
@@ -34,19 +60,27 @@
             color: #1e3a8a;
             font-weight: 700;
         }
+        .quick-panel{
+            border:1px solid var(--line);
+            border-radius:14px;
+            padding:18px;
+            margin-bottom:18px;
+            background:#fff;
+        }
         .list-wrap {
             margin-top: 14px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--line);
             border-radius: 12px;
             overflow: hidden;
             background: #fff;
         }
         .list-head {
             background: #f8fafc;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 10px 12px;
-            font-weight: 700;
-            color: #334155;
+            border-bottom: 1px solid var(--line);
+            padding: 12px 14px;
+            font-weight: 800;
+            color: #1e3a8a;
+            font-size: 15px;
         }
         .list-table {
             max-height: 48vh;
@@ -95,14 +129,86 @@
         .quick-actions {
             margin-top: 4px;
             display: flex;
-            justify-content: flex-end;
+            justify-content: flex-start;
             gap: 10px;
             flex-wrap: wrap;
         }
-        .quick-actions .btn {
-            border-radius: 10px;
+        .quick-actions .btn,
+        .quick-action-primary,
+        .quick-action-secondary {
+            border-radius: 12px;
             font-weight: 800;
-            padding: 8px 14px;
+            min-height: 48px;
+            padding: 10px 18px;
+        }
+        .quick-action-primary{
+            background: var(--dorado);
+            border: none;
+            color: #fff;
+        }
+        .quick-action-primary:hover{
+            color:#fff;
+            filter:brightness(.96);
+        }
+        .quick-action-secondary{
+            background:#fff;
+            border:1px solid rgba(32, 83, 154, .22);
+            color:var(--azul);
+        }
+        .quick-action-secondary:hover{
+            background:rgba(32, 83, 154, .05);
+            color:var(--azul);
+        }
+        .quick-form-row .form-control,
+        .quick-form-row .custom-select,
+        .quick-form-row select.form-control{
+            border-radius:10px;
+            min-height:44px;
+            border-color:#cbd5e1;
+        }
+        .quick-form-row .form-control:focus,
+        .quick-form-row select.form-control:focus{
+            border-color:var(--azul);
+            box-shadow:0 0 0 .15rem rgba(32,83,154,.12);
+        }
+        .quick-list-action{
+            width:40px;
+            height:40px;
+            padding:0;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:12px;
+            font-weight:800;
+            margin:0 3px;
+            box-shadow:0 6px 16px rgba(32,83,154,.10);
+        }
+        .quick-list-action i{
+            font-size:14px;
+        }
+        .quick-list-action.duplicate{
+            background:#fff;
+            color:var(--azul);
+            border:1px solid rgba(32,83,154,.22);
+        }
+        .quick-list-action.duplicate:hover{
+            background:rgba(32,83,154,.05);
+            color:var(--azul);
+        }
+        .quick-list-action.remove{
+            background:#fff;
+            color:#20539A;
+            border:1px solid rgba(32,83,154,.22);
+        }
+        .quick-list-action.remove:hover{
+            background:rgba(32,83,154,.05);
+            color:#20539A;
+        }
+        .quick-table-action-cell{
+            width:98px;
+            min-width:98px;
+            text-align:center;
+            white-space:nowrap;
         }
         @media (max-width: 991.98px) {
             .quick-form-row .peso-cell .peso-cas-panel {
@@ -152,10 +258,10 @@
         <div class="card quick-card">
             <div class="quick-header d-flex justify-content-between align-items-center">
                 <div>
-                    <h5 class="mb-1">Registrar contrato rapido</h5>
+                    <div class="quick-header-title">Registrar contrato rapido</div>
                     <p class="quick-subtitle">Formulario horizontal para ALMACEN EMS</p>
                 </div>
-                <a href="{{ route('paquetes-ems.almacen') }}" class="btn btn-light btn-sm">Volver</a>
+                <a href="{{ route('paquetes-ems.almacen') }}" class="quick-header-back">Volver</a>
             </div>
 
             <div class="card-body">
@@ -166,6 +272,7 @@
                         $provinciaPrefill = strtoupper(trim((string) old('provincia', '')));
                         $empresaPrefill = (int) old('empresa_id', 0);
                     @endphp
+                    <div class="quick-panel">
                     <div class="row align-items-start quick-form-row">
                         <div class="col-lg-3 col-md-6">
                             <div class="form-group">
@@ -234,18 +341,19 @@
                                 <small class="text-muted d-block mt-1">Se usa solo si el codigo no detecta empresa automaticamente.</small>
                             </div>
                         </div>
-                        <div class="col-md-2">
-                            <div class="form-group mb-0 d-flex gap-2">
+                        <div class="col-lg-3 col-md-6">
+                            <div class="quick-actions">
                                 @if (($canQuickContractCreate ?? false) || ($canQuickContractSave ?? false))
                                     @if ($canQuickContractCreate ?? false)
-                                    <button type="button" class="btn btn-outline-primary" id="btnAgregarPrelista">Anadir a prelista</button>
+                                    <button type="button" class="btn quick-action-secondary" id="btnAgregarPrelista">Anadir a prelista</button>
                                     @endif
                                     @if ($canQuickContractSave ?? false)
-                                    <button type="button" class="btn btn-primary" id="btnGuardarTodos">Guardar todos</button>
+                                    <button type="button" class="btn quick-action-primary" id="btnGuardarTodos">Guardar todos</button>
                                     @endif
                                 @endif
                             </div>
                         </div>
+                    </div>
                     </div>
                 </form>
 
@@ -265,7 +373,7 @@
                                     <th>Destino</th>
                                     <th>Provincia</th>
                                     <th>Empresa</th>
-                                    <th>Accion</th>
+                                    <th class="text-center quick-table-action-cell">Accion</th>
                                 </tr>
                             </thead>
                             <tbody id="registroRapidoListadoBody">
@@ -279,12 +387,16 @@
                                         <td>{{ $item['destino'] ?? '-' }}</td>
                                         <td>{{ $item['provincia'] ?? '-' }}</td>
                                         <td>{{ $item['empresa'] ?? '-' }}</td>
-                                        <td>
+                                        <td class="quick-table-action-cell">
                                             @if ($canQuickContractCreate ?? false)
-                                                <button type="button" class="btn btn-xs btn-outline-secondary" disabled>Duplicar</button>
+                                                <button type="button" class="quick-list-action duplicate" disabled title="Duplicar">
+                                                    <i class="fas fa-clone"></i>
+                                                </button>
                                             @endif
                                             @if ($canQuickContractDelete ?? false)
-                                                <button type="button" class="btn btn-xs btn-outline-danger" disabled>Quitar</button>
+                                                <button type="button" class="quick-list-action remove" disabled title="Quitar">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
                                             @endif
                                         </td>
                                     </tr>
@@ -394,11 +506,11 @@
                 const actionButtons = [];
 
                 if (canQuickContractCreate) {
-                    actionButtons.push(`<button type="button" class="btn btn-xs btn-outline-secondary mr-1" data-duplicate-index="${index}">Duplicar</button>`);
+                    actionButtons.push(`<button type="button" class="quick-list-action duplicate" data-duplicate-index="${index}" title="Duplicar"><i class="fas fa-clone"></i></button>`);
                 }
 
                 if (canQuickContractDelete) {
-                    actionButtons.push(`<button type="button" class="btn btn-xs btn-outline-danger" data-remove-index="${index}">Quitar</button>`);
+                    actionButtons.push(`<button type="button" class="quick-list-action remove" data-remove-index="${index}" title="Quitar"><i class="fas fa-trash"></i></button>`);
                 }
 
                 row.innerHTML = `
@@ -410,7 +522,7 @@
                     <td>${escapeHtml(item.destino)}</td>
                     <td>${escapeHtml(item.provincia || '-')}</td>
                     <td>${escapeHtml(item.empresa || '-')}</td>
-                    <td>${actionButtons.join('')}</td>
+                    <td class="quick-table-action-cell">${actionButtons.join('')}</td>
                 `;
                 listBody.appendChild(row);
             });

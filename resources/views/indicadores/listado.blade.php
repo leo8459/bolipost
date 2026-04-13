@@ -7,22 +7,26 @@
 @section('content')
     <div class="area-contratos-wrap">
         <div class="card area-contratos-card">
-            <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h3 class="card-title mb-2 mb-md-0">{{ $modulo }} - {{ $filtro }}</h3>
-                @if (!empty($showSla))
-                    <div class="sla-summary-group mb-2 mb-md-0">
-                        <span class="sla-summary-pill sla-summary-green">
-                            En plazo: {{ number_format((int) ($slaResumen['correcto'] ?? 0)) }}
-                        </span>
-                        <span class="sla-summary-pill sla-summary-yellow">
-                            Retraso: {{ number_format((int) ($slaResumen['retraso'] ?? 0)) }}
-                        </span>
-                        <span class="sla-summary-pill sla-summary-red">
-                            Rezago: {{ number_format((int) ($slaResumen['rezago'] ?? 0)) }}
-                        </span>
-                    </div>
-                @endif
-                <span class="area-badge">Total: {{ $rows->total() }}</span>
+            <div class="card-header">
+                <div class="area-header-top">
+                    <h3 class="card-title mb-0">{{ $modulo }} - {{ $filtro }}</h3>
+                    @if (!empty($showSla))
+                        <div class="sla-summary-group">
+                            <span class="sla-summary-pill sla-summary-green">
+                                En plazo: {{ number_format((int) ($slaResumen['correcto'] ?? 0)) }}
+                            </span>
+                            <span class="sla-summary-pill sla-summary-yellow">
+                                Retraso: {{ number_format((int) ($slaResumen['retraso'] ?? 0)) }}
+                            </span>
+                            <span class="sla-summary-pill sla-summary-red">
+                                Rezago: {{ number_format((int) ($slaResumen['rezago'] ?? 0)) }}
+                            </span>
+                        </div>
+                    @endif
+                </div>
+                <div class="area-header-meta">
+                    <span>Total: <strong>{{ $rows->total() }}</strong></span>
+                </div>
             </div>
             <div class="card-body">
                 @if ($isEntregados && !$estadoEntregadoDisponible)
@@ -31,8 +35,8 @@
                     </div>
                 @endif
 
-                <form method="GET" action="{{ route($searchRouteName) }}" class="row mb-3">
-                    <div class="col-md-10 mb-2 mb-md-0">
+                <form method="GET" action="{{ route($searchRouteName) }}" class="row area-toolbar">
+                    <div class="col-lg-10 col-md-12 mb-2 mb-lg-0">
                         <input
                             type="text"
                             name="q"
@@ -41,8 +45,8 @@
                             placeholder="Buscar por codigo, estado, destino, destinatario, empresa o usuario..."
                         >
                     </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary btn-block">Buscar</button>
+                    <div class="col-lg-2 col-md-6">
+                        <button type="submit" class="btn area-btn-primary btn-block">Buscar</button>
                     </div>
                 </form>
 
@@ -142,17 +146,45 @@
             background: linear-gradient(95deg, #20539A 0%, #43538f 100%);
             color: #fff;
             border-bottom: 0;
-            padding: 0.95rem 1.1rem;
+            padding: 1rem 1.2rem;
         }
 
-        .area-badge {
-            background: rgba(185, 156, 70, 0.2);
-            color: #3f3514;
-            border: 1px solid rgba(185, 156, 70, 0.35);
-            border-radius: 999px;
-            font-size: 0.76rem;
-            font-weight: 700;
-            padding: 0.28rem 0.6rem;
+        .area-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .area-header-meta {
+            margin-top: 8px;
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+
+        .area-header-meta strong {
+            color: #fff;
+        }
+
+        .area-toolbar {
+            align-items: stretch;
+            margin-bottom: 1rem;
+        }
+
+        .area-btn-primary {
+            min-height: 44px;
+            border-radius: 12px;
+            font-weight: 800;
+            background: #FECC36;
+            border: 0;
+            color: #fff;
+        }
+
+        .area-btn-primary:hover {
+            background: #f4c21d;
+            color: #fff;
         }
         .sla-summary-group {
             display: flex;
@@ -164,9 +196,9 @@
             display: inline-flex;
             align-items: center;
             border-radius: 999px;
-            padding: 0.28rem 0.55rem;
-            font-size: 0.76rem;
-            font-weight: 700;
+            padding: 0.45rem 0.95rem;
+            font-size: 0.92rem;
+            font-weight: 800;
             border: 1px solid transparent;
         }
         .sla-summary-green {
@@ -239,6 +271,17 @@
 
         .sla-red-row td {
             background-color: #fef2f2;
+        }
+
+        .area-contratos-card .form-control {
+            min-height: 44px;
+            border-radius: 12px;
+            border-color: #d1d5db;
+        }
+
+        .area-contratos-card .form-control:focus {
+            border-color: #20539A;
+            box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
         }
     </style>
 @endsection

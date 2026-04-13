@@ -26,12 +26,42 @@
             color:#fff;
             padding:18px 20px;
         }
+        .header-shell{
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-start;
+            gap:20px;
+        }
+        .header-main{
+            flex:0 1 260px;
+            min-width:220px;
+        }
+        .header-tools{
+            flex:1 1 860px;
+            min-width:320px;
+            display:flex;
+            flex-direction:column;
+            align-items:stretch;
+            gap:12px;
+        }
+        .header-search-row{
+            display:flex;
+            justify-content:flex-end;
+        }
+        .header-search-cluster{
+            width:min(100%, 860px);
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:nowrap;
+        }
 
         .search-input{
             border-radius:12px;
             border:1px solid rgba(255,255,255,.45);
             padding:10px 12px;
             background: rgba(255,255,255,.95);
+            flex:1 1 auto;
         }
 
         .btn-outline-light2{
@@ -54,10 +84,69 @@
             border-bottom: 2px solid rgba(52,68,124,.2);
             white-space: nowrap;
         }
+        .table-scroll-wrap{
+            border:1px solid #dbe2f2;
+            border-radius:16px;
+            overflow:hidden;
+            background:#fff;
+        }
+        .table-responsive{
+            margin-bottom:0;
+        }
+        .table{
+            margin-bottom:0;
+        }
+        .table tbody td{
+            border-top:1px solid rgba(52,68,124,.10);
+        }
 
         .muted{ color:var(--muted); }
 
         .table td{ vertical-align: middle; white-space: nowrap; }
+        .action-cell{
+            width:96px;
+            min-width:96px;
+            text-align:center;
+        }
+        .action-stack{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:8px;
+            flex-wrap:wrap;
+        }
+        .action-btn{
+            width:40px;
+            height:40px;
+            padding:0;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:11px;
+            box-shadow:0 6px 16px rgba(32, 83, 154, .10);
+        }
+        .action-btn i{
+            font-size:14px;
+        }
+        .action-btn.btn-secondary,
+        .action-btn.btn-danger,
+        .action-btn.btn-warning,
+        .action-btn.btn-primary{
+            border:none;
+            color:#fff;
+        }
+        @media (max-width: 991.98px){
+            .header-shell{
+                flex-direction:column;
+            }
+            .header-tools{
+                min-width:0;
+                width:100%;
+            }
+            .header-search-cluster{
+                width:100%;
+            }
+        }
 
         .modal-content{
             border:0;
@@ -79,19 +168,25 @@
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <div>
+            <div class="header-app">
+                <div class="header-shell">
+                <div class="header-main">
                     <h4 class="fw-bold mb-0">Despachos expedicion</h4>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center">
-                    <input
-                        type="text"
-                        class="form-control search-input"
-                        placeholder="Buscar..."
-                        wire:model="search"
-                    >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
+                <div class="header-tools">
+                    <div class="header-search-row">
+                        <div class="header-search-cluster">
+                            <input
+                                type="text"
+                                class="form-control search-input"
+                                placeholder="Buscar..."
+                                wire:model="search"
+                            >
+                            <button class="btn btn-outline-light2" type="button" wire:click="searchDespachos">Buscar</button>
+                        </div>
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -120,7 +215,8 @@
                     </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-scroll-wrap">
+                    <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
@@ -152,12 +248,13 @@
                                     <td>{{ $despacho->anio }}</td>
                                     <td>{{ $despacho->departamento }}</td>
                                     <td>{{ optional($despacho->estado)->nombre_estado }}</td>
-                                    <td>
+                                    <td class="action-cell">
+                                        <div class="action-stack">
                                         @if ($canDespachoExpPrint)
                                         <a
                                             href="{{ route('despachos.expedicion.pdf', ['id' => $despacho->id], false) }}"
                                             target="_blank"
-                                            class="btn btn-sm btn-secondary"
+                                            class="btn btn-sm btn-secondary action-btn"
                                             title="Reimprimir CN">
                                             <i class="fas fa-print"></i>
                                         </a>
@@ -165,7 +262,7 @@
                                         @if (optional($despacho->estado)->nombre_estado === 'EXPEDICION' && $canDespachoExpConfirm)
                                             <button
                                                 type="button"
-                                                class="btn btn-sm btn-danger"
+                                                class="btn btn-sm btn-danger action-btn"
                                                 wire:click="intervenirDespacho({{ $despacho->id }})"
                                                 onclick="return confirm('Cambiar este despacho a intervencion (estado 20)?')"
                                                 title="Intervenir despacho">
@@ -174,7 +271,7 @@
                                             @if ($canDespachoExpRestore)
                                             <button
                                                 type="button"
-                                                class="btn btn-sm btn-warning"
+                                                class="btn btn-sm btn-warning action-btn"
                                                 wire:click="volverApertura({{ $despacho->id }})"
                                                 onclick="return confirm('Cambiar este despacho a apertura (estado 14)?')"
                                                 title="Volver a apertura">
@@ -184,12 +281,13 @@
                                         @elseif (optional($despacho->estado)->nombre_estado === 'INTERVENIR' && $canDespachoExpEdit)
                                             <button
                                                 type="button"
-                                                class="btn btn-sm btn-primary"
+                                                class="btn btn-sm btn-primary action-btn"
                                                 wire:click="openIntervencionModal({{ $despacho->id }})"
                                                 title="Registrar intervencion">
                                                 <i class="fas fa-clipboard-check"></i>
                                             </button>
                                         @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -202,6 +300,7 @@
                             @endforelse
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <div class="d-flex justify-content-end">

@@ -138,6 +138,47 @@
     <style>
         .distribution-pane, .selection-pane { border: 1px solid #e4e8f2; border-radius: 14px; background: #fff; overflow: hidden; }
         .distribution-toolbar, .selection-pane { padding: 14px; }
+        .distribution-toolbar {
+            border-bottom: 1px solid #e4e8f2;
+            background: #fbfcff;
+        }
+        .distribution-toolbar label {
+            color: #0f172a;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        .distribution-toolbar .form-control,
+        .selection-pane .form-control {
+            min-height: 44px;
+            border-radius: 10px;
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        .distribution-toolbar .form-control:focus,
+        .selection-pane .form-control:focus {
+            border-color: var(--carteros-primary);
+            box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
+        }
+        .distribution-pane .table-responsive {
+            margin-bottom: 0;
+        }
+        .distribution-pane .table {
+            margin-bottom: 0;
+        }
+        .distribution-pane .table thead th {
+            background: #edf1fb;
+            color: var(--carteros-primary);
+            border-bottom: 2px solid rgba(32, 83, 154, 0.14);
+            font-size: 0.82rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.35px;
+            white-space: nowrap;
+        }
+        .distribution-pane .table tbody td {
+            border-top: 1px solid rgba(32, 83, 154, 0.10);
+            vertical-align: middle;
+        }
         .distribution-footer { border-top: 1px solid #e4e8f2; padding: 12px 14px; background: #f8faff; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
         .selection-pane-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
         .selection-pane-title { color: var(--carteros-primary); font-size: 1.05rem; font-weight: 700; }
@@ -155,6 +196,16 @@
         .selection-item-meta { color: #5f6d87; font-size: 0.8rem; line-height: 1.35; }
         .selection-item-remove { border: 0; background: transparent; color: #b42318; font-size: 0.82rem; font-weight: 700; padding: 0; }
         .selection-empty { border: 1px dashed #d7dfef; border-radius: 12px; padding: 20px 14px; text-align: center; color: #6b7280; background: #f9fbff; }
+        .selection-actions .btn {
+            min-height: 38px;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+        .selection-pane .btn-carteros-primary {
+            min-height: 44px;
+            border-radius: 12px;
+            font-weight: 800;
+        }
     </style>
 @endsection
 

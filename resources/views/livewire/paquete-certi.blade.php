@@ -26,12 +26,47 @@
             color:#fff;
             padding:18px 20px;
         }
+        .header-shell{
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-start;
+            gap:20px;
+        }
+        .header-main{
+            flex:1 1 280px;
+            min-width:220px;
+        }
+        .header-tools{
+            flex:1 1 760px;
+            min-width:320px;
+            display:flex;
+            flex-direction:column;
+            align-items:stretch;
+            gap:12px;
+        }
+        .header-search-row{
+            display:flex;
+            justify-content:flex-end;
+        }
+        .header-search-cluster{
+            width:min(100%, 760px);
+            display:flex;
+            align-items:center;
+            gap:10px;
+        }
+        .header-action-row{
+            display:flex;
+            justify-content:flex-end;
+            gap:10px;
+            flex-wrap:wrap;
+        }
 
         .search-input{
             border-radius:12px;
             border:1px solid rgba(255,255,255,.45);
             padding:10px 12px;
             background: rgba(255,255,255,.95);
+            flex:1 1 auto;
         }
 
         .btn-dorado{
@@ -87,6 +122,21 @@
             border-bottom: 2px solid rgba(52,68,124,.2);
             white-space: nowrap;
         }
+        .table-scroll-wrap{
+            border:1px solid #dbe2f2;
+            border-radius:16px;
+            overflow:hidden;
+            background:#fff;
+        }
+        .table-responsive{
+            margin-bottom:0;
+        }
+        .table{
+            margin-bottom:0;
+        }
+        .table tbody td{
+            border-top:1px solid rgba(52,68,124,.10);
+        }
 
         .pill-id{
             background: rgba(52,68,124,.12);
@@ -100,6 +150,56 @@
         .muted{ color:var(--muted); }
 
         .table td{ vertical-align: middle; }
+        .action-cell{
+            width:72px;
+            min-width:72px;
+            text-align:center;
+        }
+        .action-stack{
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap:8px;
+        }
+        .action-btn{
+            width:40px;
+            height:40px;
+            padding:0;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:11px;
+            box-shadow:0 6px 16px rgba(32, 83, 154, .10);
+        }
+        .action-btn i{
+            font-size:14px;
+        }
+        .action-btn.btn-azul{
+            box-shadow:0 8px 18px rgba(32, 83, 154, .22);
+        }
+        .action-btn.btn-outline-azul{
+            background:#fff;
+            border-color:rgba(32, 83, 154, .22);
+        }
+        .action-btn.btn-outline-azul:hover{
+            background:rgba(32, 83, 154, .06);
+        }
+
+        @media (max-width: 991.98px){
+            .header-shell{
+                flex-direction:column;
+            }
+            .header-tools{
+                min-width:0;
+                width:100%;
+            }
+            .header-search-cluster{
+                width:100%;
+            }
+            .header-action-row{
+                justify-content:flex-start;
+            }
+        }
 
         .modal-content{
             border:0;
@@ -139,41 +239,47 @@
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <div>
-                    <h4 class="fw-bold mb-0">Paquetes Certificados</h4>
-                </div>
+            <div class="header-app">
+                <div class="header-shell">
+                    <div class="header-main">
+                        <h4 class="fw-bold mb-0">Paquetes Certificados</h4>
+                    </div>
 
-                <div class="d-flex gap-2 align-items-center">
-                    <input
-                        type="text"
-                        class="form-control search-input"
-                        placeholder="Buscar..."
-                        wire:model.live.debounce.300ms="search"
-                    >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
-                    @if ($this->isAlmacen)
-                        @if ($canCertiReencaminar)
-                        <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
-                            Reencaminar
-                        </button>
+                    <div class="header-tools">
+                        <div class="header-search-row">
+                            <div class="header-search-cluster">
+                                <input
+                                    type="text"
+                                    class="form-control search-input"
+                                    placeholder="Buscar..."
+                                    wire:model.live.debounce.300ms="search"
+                                >
+                                <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
+                                @if ($this->isAlmacen && $canCertiCreate)
+                                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                                @endif
+                            </div>
+                        </div>
+                        @if ($this->isAlmacen)
+                            <div class="header-action-row">
+                                @if ($canCertiReencaminar)
+                                <button class="btn btn-outline-light2" type="button" wire:click="openReencaminarModal">
+                                    Reencaminar
+                                </button>
+                                @endif
+                                @if ($canCertiDropoff)
+                                <button class="btn btn-outline-light2" type="button" wire:click.prevent="bajaMasiva">
+                                    Baja
+                                </button>
+                                @endif
+                                @if ($canCertiRezago)
+                                <button class="btn btn-outline-light2" type="button" wire:click.prevent="rezagoMasivo">
+                                    Rezago
+                                </button>
+                                @endif
+                            </div>
                         @endif
-                        @if ($canCertiDropoff)
-                        <button class="btn btn-outline-light2" type="button"
-                            wire:click.prevent="bajaMasiva">
-                            Baja
-                        </button>
-                        @endif
-                        @if ($canCertiRezago)
-                        <button class="btn btn-outline-light2" type="button"
-                            wire:click.prevent="rezagoMasivo">
-                            Rezago
-                        </button>
-                        @endif
-                    @endif
-                    @if ($this->isAlmacen && $canCertiCreate)
-                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
-                    @endif
+                    </div>
                 </div>
             </div>
 
@@ -197,7 +303,8 @@
                     </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-scroll-wrap">
+                    <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
@@ -239,39 +346,47 @@
                                     <td>{{ $paquete->aduana }}</td>
                                     <td>{{ optional($paquete->estado)->nombre_estado ?? 'Sin estado' }}</td>
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
-                                    <td>
+                                    <td class="action-cell">
+                                        <div class="action-stack">
                                         @if ($canCertiEdit)
                                         <button wire:click="openEditModal({{ $paquete->id }})"
-                                            class="btn btn-sm btn-azul">
-                                            Editar
+                                            class="btn btn-sm btn-azul action-btn"
+                                            title="Editar">
+                                            <i class="fas fa-pen"></i>
                                         </button>
                                         @if ($this->isAlmacen)
-                                        <button wire:click="openZonaModal({{ $paquete->id }})" class="btn btn-sm btn-outline-azul">Editar Zona</button>
+                                        <button wire:click="openZonaModal({{ $paquete->id }})" class="btn btn-sm btn-outline-azul action-btn" title="Editar zona">
+                                            <i class="fas fa-map-marker-alt"></i>
+                                        </button>
                                         @endif
                                         @endif
                                         @if ($this->isInventory && $canCertiExport)
                                             <button
                                                 wire:click="reimprimirPdf({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul"
+                                                class="btn btn-sm btn-outline-azul action-btn"
                                                 type="button"
+                                                title="Reimprimir"
                                             >
-                                                Reimprimir
+                                                <i class="fas fa-print"></i>
                                             </button>
                                         @endif
                                         @if (($this->isInventory || $this->isRezago) && $canCertiAssign)
                                             <button wire:click="marcarVentanilla({{ $paquete->id }})"
-                                                class="btn btn-sm btn-outline-azul"
-                                                onclick="return confirm('Enviar este paquete a ventanilla?')">
-                                                {{ $this->isRezago ? 'Devuelto' : 'Alta' }}
+                                                class="btn btn-sm btn-outline-azul action-btn"
+                                                onclick="return confirm('Enviar este paquete a ventanilla?')"
+                                                title="{{ $this->isRezago ? 'Marcar como devuelto' : 'Dar alta' }}">
+                                                <i class="fas {{ $this->isRezago ? 'fa-undo' : 'fa-arrow-up' }}"></i>
                                             </button>
                                         @endif
                                         @if ($canCertiDelete)
                                         <button wire:click="delete({{ $paquete->id }})"
-                                            class="btn btn-sm btn-outline-azul"
-                                            onclick="return confirm('Seguro que deseas eliminar este paquete?')">
-                                            Borrar
+                                            class="btn btn-sm btn-outline-azul action-btn"
+                                            onclick="return confirm('Seguro que deseas eliminar este paquete?')"
+                                            title="Borrar">
+                                            <i class="fas fa-trash"></i>
                                         </button>
                                         @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -284,6 +399,7 @@
                             @endforelse
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <div class="d-flex justify-content-end">

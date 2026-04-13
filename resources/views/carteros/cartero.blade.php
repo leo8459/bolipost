@@ -13,62 +13,71 @@
     <div class="carteros-wrap">
         <div class="card card-carteros">
             <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center flex-wrap">
-                    <h3 class="card-title mb-0">Paquetes en Estado CARTERO (Mis Paquetes)</h3>
-                    <div class="d-flex align-items-center" style="gap:10px;">
+                <div class="cartero-header-top">
+                    <div>
+                        <h3 class="card-title mb-1">Paquetes en Estado CARTERO</h3>
+                        <div class="carteros-meta text-white-50">Bandeja personal para gestionar entregas y envios a provincia.</div>
+                    </div>
+                    <div class="cartero-header-actions">
                         @if ($canCarteroGuide)
                             <button id="btn-open-guia-modal" class="btn btn-sm btn-carteros-primary">Mandar provincia</button>
                         @endif
                         @if ($canCarteroProvince)
-                            <button id="btn-show-provincia" class="btn btn-sm btn-outline-light">Mostrar provincias</button>
-                            <button id="btn-show-cartero" class="btn btn-sm btn-outline-light" style="display:none;">Mostrar cartero</button>
+                            <button id="btn-show-provincia" class="btn btn-sm btn-outline-light cartero-mode-btn">Mostrar provincias</button>
+                            <button id="btn-show-cartero" class="btn btn-sm btn-outline-light cartero-mode-btn" style="display:none;">Mostrar cartero</button>
                         @endif
                         <span id="bandeja-chip" class="carteros-chip">Mi bandeja CARTERO</span>
                     </div>
                 </div>
             </div>
             <div id="guia-message" class="px-3 pt-3" style="display:none;"></div>
-            <div class="card-body p-0">
-                <div class="px-3 pt-3 pb-2 border-bottom bg-white">
-                    <div class="d-flex flex-wrap align-items-center" style="gap:8px;">
-                        <input
-                            type="text"
-                            id="codigo-search-input"
-                            class="form-control"
-                            style="max-width: 380px;"
-                            placeholder="Pega el codigo y presiona Enter..."
-                        >
-                        <button type="button" id="btn-codigo-search" class="btn btn-sm btn-carteros-primary">Buscar</button>
-                        <button type="button" id="btn-codigo-clear" class="btn btn-sm btn-outline-secondary">Limpiar</button>
+            <div class="card-body">
+                <div class="cartero-shell">
+                    <div class="cartero-toolbar">
+                        <div class="cartero-toolbar-copy">
+                            <div class="cartero-toolbar-title">Busqueda rapida</div>
+                            <div class="cartero-toolbar-subtitle">Filtra por codigo y cambia de bandeja sin salir de la vista.</div>
+                        </div>
+                        <div class="cartero-search-cluster">
+                            <input
+                                type="text"
+                                id="codigo-search-input"
+                                class="form-control"
+                                placeholder="Pega el codigo y presiona Enter..."
+                            >
+                            <button type="button" id="btn-codigo-search" class="btn btn-carteros-secondary">Buscar</button>
+                            <button type="button" id="btn-codigo-clear" class="btn btn-carteros-clear">Limpiar</button>
+                        </div>
                     </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width:36px;">
-                                    <input type="checkbox" id="select-all-cartero">
-                                </th>
-                                <th>Tipo</th>
-                                <th>Codigo</th>
-                                <th>Destinatario</th>
-                                <th>Telefono</th>
-                                <th>Ciudad</th>
-                                <th>Zona</th>
-                                <th>Peso</th>
-                                <th>Estado</th>
-                                <th>Asignado a</th>
-                                <th>Intento</th>
-                                <th>Fecha</th>
-                                <th>Accion</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-cartero-body">
-                            <tr>
-                                <td colspan="13" class="text-center py-4">Cargando datos...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+
+                    <div class="table-responsive cartero-table-wrap">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:36px;">
+                                        <input type="checkbox" id="select-all-cartero">
+                                    </th>
+                                    <th>Tipo</th>
+                                    <th>Codigo</th>
+                                    <th>Destinatario</th>
+                                    <th>Telefono</th>
+                                    <th>Ciudad</th>
+                                    <th>Zona</th>
+                                    <th>Peso</th>
+                                    <th>Estado</th>
+                                    <th>Asignado a</th>
+                                    <th>Intento</th>
+                                    <th>Fecha</th>
+                                    <th>Accion</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-cartero-body">
+                                <tr>
+                                    <td colspan="13" class="text-center py-4">Cargando datos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             <div class="card-footer clearfix">
@@ -134,6 +143,175 @@
 
 @section('css')
     @include('carteros.partials.theme')
+    <style>
+        .cartero-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .cartero-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .cartero-shell {
+            border: 1px solid #e4e8f2;
+            border-radius: 14px;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .cartero-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 18px;
+            padding: 16px 18px;
+            border-bottom: 1px solid #e4e8f2;
+            background: linear-gradient(180deg, #fbfcff 0%, #f7faff 100%);
+            flex-wrap: wrap;
+        }
+
+        .cartero-toolbar-title {
+            color: var(--carteros-primary);
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .cartero-toolbar-subtitle {
+            color: #5e6b86;
+            font-size: 0.85rem;
+            margin-top: 2px;
+        }
+
+        .cartero-search-cluster {
+            width: min(100%, 760px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+        }
+
+        .cartero-search-cluster .form-control {
+            min-height: 44px;
+            border-radius: 10px;
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+
+        .cartero-search-cluster .form-control:focus {
+            border-color: var(--carteros-primary);
+            box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
+        }
+
+        .cartero-table-wrap {
+            margin-bottom: 0;
+        }
+
+        .cartero-table-wrap .table {
+            margin-bottom: 0;
+        }
+
+        .cartero-table-wrap .table tbody td {
+            border-top: 1px solid rgba(32, 83, 154, 0.08);
+            vertical-align: middle;
+        }
+
+        .cartero-mode-btn,
+        .btn-carteros-secondary,
+        .btn-carteros-clear {
+            min-height: 42px;
+            border-radius: 12px;
+            font-weight: 800;
+        }
+
+        .btn-carteros-secondary {
+            background: var(--carteros-secondary);
+            border-color: var(--carteros-secondary);
+            color: #fff;
+        }
+
+        .btn-carteros-secondary:hover {
+            background: #f4c21d;
+            border-color: #f4c21d;
+            color: #fff;
+        }
+
+        .btn-carteros-clear {
+            background: #fff;
+            border: 1px solid rgba(32, 83, 154, 0.22);
+            color: var(--carteros-primary);
+        }
+
+        .btn-carteros-clear:hover {
+            background: rgba(32, 83, 154, 0.05);
+            color: var(--carteros-primary);
+        }
+
+        #guiaModal .modal-content {
+            border: 0;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
+        }
+
+        #guiaModal .modal-header {
+            background: linear-gradient(95deg, var(--carteros-primary) 0%, #43538f 100%);
+            color: #fff;
+            border-bottom: 0;
+        }
+
+        #guiaModal .modal-header .close {
+            color: #fff;
+            opacity: 1;
+            text-shadow: none;
+        }
+
+        #guiaModal .modal-body {
+            padding: 1.2rem 1.25rem 1rem;
+        }
+
+        #guiaModal .modal-body label {
+            color: #334155;
+            font-weight: 700;
+            margin-bottom: 0.45rem;
+        }
+
+        #guiaModal .form-control {
+            min-height: 44px;
+            border-radius: 10px;
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+
+        #guiaModal .form-control:focus {
+            border-color: var(--carteros-primary);
+            box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
+        }
+
+        #guiaModal .modal-footer {
+            border-top: 1px solid #e4e8f2;
+            background: #f8faff;
+        }
+
+        @media (max-width: 991.98px) {
+            .cartero-search-cluster {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+
+            .cartero-search-cluster .form-control,
+            .cartero-search-cluster .btn {
+                width: 100%;
+            }
+        }
+    </style>
 @endsection
 
 @section('js')

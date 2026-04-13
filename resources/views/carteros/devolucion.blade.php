@@ -11,41 +11,51 @@
     <div class="carteros-wrap">
         <div class="card card-carteros">
             <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center flex-wrap">
-                    <h3 class="card-title mb-0">Paquetes en DEVOLUCION (Mis Paquetes)</h3>
+                <div class="cartero-header-top">
+                    <div>
+                        <h3 class="card-title mb-1">Paquetes en DEVOLUCION</h3>
+                        <div class="devolucion-header-subtitle">Bandeja de paquetes observados para recuperar y reenviar a almacen.</div>
+                    </div>
                     <span class="carteros-chip">Devolucion</span>
                 </div>
             </div>
-            <div class="card-body border-bottom">
-                <div id="devolucion-msg" class="small"></div>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Tipo</th>
-                                <th>Codigo</th>
-                                <th>Destinatario</th>
-                                <th>Telefono</th>
-                                <th>Ciudad</th>
-                                <th>Zona</th>
-                                <th>Peso</th>
-                                <th>Estado</th>
-                                <th>Asignado a</th>
-                                <th>Intento</th>
-                                <th>Descripcion</th>
-                                <th>Imagen</th>
-                                <th>Fecha</th>
-                                <th>Accion</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-devolucion-body">
-                            <tr>
-                                <td colspan="14" class="text-center py-4">Cargando datos...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="card-body">
+                <div class="devolucion-shell">
+                    <div class="devolucion-toolbar">
+                        <div>
+                            <div class="devolucion-toolbar-title">Seguimiento de incidencias</div>
+                            <div class="devolucion-toolbar-subtitle">Revisa observaciones, evidencia y recupera paquetes cuando corresponda.</div>
+                        </div>
+                        <div id="devolucion-msg" class="devolucion-status" aria-live="polite"></div>
+                    </div>
+
+                    <div class="table-responsive devolucion-table-wrap">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th>Codigo</th>
+                                    <th>Destinatario</th>
+                                    <th>Telefono</th>
+                                    <th>Ciudad</th>
+                                    <th>Zona</th>
+                                    <th>Peso</th>
+                                    <th>Estado</th>
+                                    <th>Asignado a</th>
+                                    <th>Intento</th>
+                                    <th>Descripcion</th>
+                                    <th>Imagen</th>
+                                    <th>Fecha</th>
+                                    <th>Accion</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-devolucion-body">
+                                <tr>
+                                    <td colspan="14" class="text-center py-4">Cargando datos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             <div class="card-footer clearfix">
@@ -67,6 +77,111 @@
 
 @section('css')
     @include('carteros.partials.theme')
+    <style>
+        .cartero-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .devolucion-shell {
+            border: 1px solid #e4e8f2;
+            border-radius: 14px;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .card-carteros .card-header .card-title {
+            float: none;
+            display: block;
+        }
+
+        .devolucion-header-subtitle {
+            display: block;
+            margin-top: 4px;
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 0.92rem;
+            line-height: 1.45;
+            max-width: 520px;
+        }
+
+        .devolucion-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 18px;
+            border-bottom: 1px solid #e4e8f2;
+            background: linear-gradient(180deg, #fbfcff 0%, #f7faff 100%);
+            flex-wrap: wrap;
+        }
+
+        .devolucion-toolbar-title {
+            color: var(--carteros-primary);
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .devolucion-toolbar-subtitle {
+            color: #5e6b86;
+            font-size: 0.85rem;
+            margin-top: 2px;
+        }
+
+        .devolucion-status {
+            min-height: 42px;
+            min-width: min(100%, 380px);
+            border: 1px dashed #cfd9ee;
+            border-radius: 12px;
+            background: #f8faff;
+            padding: 10px 12px;
+            color: #5e6b86;
+            font-size: 0.84rem;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        .devolucion-status.is-info {
+            color: #20539A;
+            border-color: rgba(32, 83, 154, 0.25);
+            background: rgba(32, 83, 154, 0.06);
+        }
+
+        .devolucion-status.is-success {
+            color: #166534;
+            border-color: rgba(22, 101, 52, 0.22);
+            background: rgba(22, 101, 52, 0.07);
+        }
+
+        .devolucion-status.is-danger {
+            color: #b42318;
+            border-color: rgba(180, 35, 24, 0.22);
+            background: rgba(180, 35, 24, 0.06);
+        }
+
+        .devolucion-table-wrap .table {
+            margin-bottom: 0;
+        }
+
+        .devolucion-table-wrap .table tbody td {
+            border-top: 1px solid rgba(32, 83, 154, 0.08);
+            vertical-align: middle;
+        }
+
+        .devolucion-table-wrap .btn {
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        @media (max-width: 991.98px) {
+            .devolucion-status {
+                min-width: 100%;
+            }
+        }
+    </style>
 @endsection
 
 @section('js')
@@ -137,7 +252,7 @@
             }
 
             function showMessage(text, type) {
-                msg.className = 'small text-' + type;
+                msg.className = 'devolucion-status is-' + type;
                 msg.textContent = text;
             }
 

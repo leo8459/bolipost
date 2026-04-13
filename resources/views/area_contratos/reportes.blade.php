@@ -8,8 +8,10 @@
     <div class="area-contratos-wrap">
         <div class="card area-contratos-card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h3 class="card-title mb-2 mb-md-0">Reportes de contratos entregados y devueltos</h3>
-                <span class="area-badge">Total filtrado: {{ $totalReportes }}</span>
+                <div>
+                    <h3 class="card-title mb-1">Reportes de contratos entregados y devueltos</h3>
+                    <div class="area-header-meta">Total filtrado: <strong>{{ $totalReportes }}</strong></div>
+                </div>
             </div>
             <div class="card-body">
                 @if (!$estadoReporteDisponible)
@@ -53,8 +55,10 @@
                     </div>
 
                     <div class="col-md-2 mb-2">
-                        <button type="submit" class="btn btn-primary btn-block mb-2">Filtrar</button>
-                        <a href="{{ route('area-contratos.reportes') }}" class="btn btn-outline-secondary btn-block">Limpiar</a>
+                        <div class="area-filter-actions">
+                            <button type="submit" class="btn area-btn-primary">Filtrar</button>
+                            <a href="{{ route('area-contratos.reportes') }}" class="btn area-btn-secondary">Limpiar</a>
+                        </div>
                     </div>
                 </form>
 
@@ -111,8 +115,10 @@
             <div class="col-lg-8 mb-3">
                 <div class="card area-contratos-card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                        <h3 class="card-title mb-2 mb-md-0">Vista previa de contratos entregados y devueltos</h3>
-                        <span class="area-badge">Mostrando: {{ $contratos->count() }}</span>
+                        <div>
+                            <h3 class="card-title mb-1">Vista previa de contratos entregados y devueltos</h3>
+                            <div class="area-header-meta">Mostrando: <strong>{{ $contratos->count() }}</strong></div>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -193,14 +199,46 @@
             padding: 0.95rem 1.1rem;
         }
 
-        .area-badge {
-            background: rgba(185, 156, 70, 0.2);
-            color: #3f3514;
-            border: 1px solid rgba(185, 156, 70, 0.35);
-            border-radius: 999px;
-            font-size: 0.76rem;
-            font-weight: 700;
-            padding: 0.28rem 0.6rem;
+        .area-header-meta {
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.88rem;
+        }
+
+        .area-btn-primary {
+            background: #FECC36;
+            color: #fff;
+            font-weight: 800;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 14px;
+        }
+
+        .area-btn-primary:hover {
+            filter: brightness(.96);
+            color: #fff;
+        }
+
+        .area-btn-secondary {
+            border: 1px solid rgba(32, 83, 154, .22);
+            background: #fff;
+            color: #20539A;
+            font-weight: 800;
+            border-radius: 12px;
+            padding: 10px 14px;
+        }
+
+        .area-btn-secondary:hover {
+            background: rgba(32, 83, 154, .05);
+            color: #20539A;
+        }
+
+        .area-filter-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .area-filter-actions .btn {
+            flex: 1 1 0;
         }
 
         .area-contratos-card .table thead th {
@@ -220,6 +258,16 @@
             border: 1px dashed #d8e0f2;
             border-radius: 12px;
             background: #f8fbff;
+        }
+
+        @media (max-width: 767.98px) {
+            .area-header-meta {
+                margin-bottom: .35rem;
+            }
+
+            .area-filter-actions {
+                flex-direction: column;
+            }
         }
     </style>
 @endsection

@@ -26,12 +26,42 @@
             color:#fff;
             padding:18px 20px;
         }
+        .header-shell{
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-start;
+            gap:20px;
+        }
+        .header-main{
+            flex:1 1 360px;
+            min-width:260px;
+        }
+        .header-tools{
+            flex:1 1 760px;
+            min-width:320px;
+            display:flex;
+            flex-direction:column;
+            align-items:stretch;
+            gap:12px;
+        }
+        .header-search-row{
+            display:flex;
+            justify-content:flex-end;
+        }
+        .header-search-cluster{
+            width:min(100%, 760px);
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:nowrap;
+        }
 
         .search-input{
             border-radius:12px;
             border:1px solid rgba(255,255,255,.45);
             padding:10px 12px;
             background: rgba(255,255,255,.95);
+            flex:1 1 auto;
         }
 
         .btn-dorado{
@@ -87,10 +117,77 @@
             border-bottom: 2px solid rgba(52,68,124,.2);
             white-space: nowrap;
         }
+        .table-scroll-wrap{
+            border:1px solid #dbe2f2;
+            border-radius:16px;
+            overflow:hidden;
+            background:#fff;
+        }
+        .table-responsive{
+            margin-bottom:0;
+        }
+        .table{
+            margin-bottom:0;
+        }
+        .table tbody td{
+            border-top:1px solid rgba(52,68,124,.10);
+        }
 
         .table td{ vertical-align: middle; white-space: nowrap; }
 
         .muted{ color:var(--muted); }
+        .action-cell{
+            width:72px;
+            min-width:72px;
+            text-align:center;
+        }
+        .action-stack{
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap:8px;
+        }
+        .action-btn{
+            width:40px;
+            height:40px;
+            padding:0;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:11px;
+            box-shadow:0 6px 16px rgba(32, 83, 154, .10);
+        }
+        .action-btn i{
+            font-size:14px;
+        }
+        .action-btn.btn-azul{
+            box-shadow:0 8px 18px rgba(32, 83, 154, .22);
+        }
+        .action-btn.btn-outline-azul{
+            background:#fff;
+            border-color:rgba(32, 83, 154, .22);
+        }
+        .action-btn.btn-outline-azul:hover{
+            background:rgba(32, 83, 154, .06);
+        }
+        .footer-danger-action{
+            min-height:44px;
+            border-radius:12px;
+            font-weight:800;
+            padding:10px 18px;
+        }
+        @media (max-width: 991.98px){
+            .header-shell{
+                flex-direction:column;
+            }
+            .header-tools{
+                min-width:0;
+                width:100%;
+            }
+            .header-search-cluster{
+                width:100%;
+            }
+        }
 
         .modal-content{
             border:0;
@@ -127,7 +224,7 @@
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
+            <div class="header-app">
                 @php
                     $despachoTitulo = $lockedDespachoLabel;
                     if (!$despachoTitulo && !empty($fk_despacho)) {
@@ -137,18 +234,24 @@
                         }
                     }
                 @endphp
-                <div>
-                    <h4 class="fw-bold mb-0">
-                        Sacas del despacho: {{ $despachoTitulo ?: 'Sin despacho asignado' }}
-                    </h4>
-                </div>
+                <div class="header-shell">
+                    <div class="header-main">
+                        <h4 class="fw-bold mb-0">
+                            Sacas del despacho: {{ $despachoTitulo ?: 'Sin despacho asignado' }}
+                        </h4>
+                    </div>
 
-                <div class="d-flex gap-2 align-items-center">
-                    <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchSacas">Buscar</button>
-                    @if ($canSacaCreate)
-                        <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
-                    @endif
+                    <div class="header-tools">
+                        <div class="header-search-row">
+                            <div class="header-search-cluster">
+                                <input type="text" class="form-control search-input" placeholder="Buscar..." wire:model="search">
+                                <button class="btn btn-outline-light2" type="button" wire:click="searchSacas">Buscar</button>
+                                @if ($canSacaCreate)
+                                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -162,7 +265,8 @@
             @endif
 
             <div class="card-body">
-                <div class="table-responsive">
+                <div class="table-scroll-wrap">
+                    <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
@@ -188,17 +292,19 @@
                                     <td>{{ $saca->busqueda }}</td>
                                     <td>{{ $saca->receptaculo }}</td>
                                     <td>{{ optional($saca->despacho)->identificador }}</td>
-                                    <td>
+                                    <td class="action-cell">
+                                        <div class="action-stack">
                                         @if ($canSacaEdit)
-                                        <button wire:click="openEditModal({{ $saca->id }})" class="btn btn-sm btn-azul" title="Editar">
+                                        <button wire:click="openEditModal({{ $saca->id }})" class="btn btn-sm btn-azul action-btn" title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
                                         @endif
                                         @if ($canSacaDelete)
-                                        <button wire:click="delete({{ $saca->id }})" class="btn btn-sm btn-outline-azul" title="Eliminar" onclick="return confirm('Seguro que deseas eliminar esta saca?')">
+                                        <button wire:click="delete({{ $saca->id }})" class="btn btn-sm btn-outline-azul action-btn" title="Eliminar" onclick="return confirm('Seguro que deseas eliminar esta saca?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                         @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -210,6 +316,7 @@
                             @endforelse
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <div class="d-flex justify-content-end">
@@ -219,13 +326,13 @@
                 <div class="d-flex justify-content-end mt-3">
                     @if ($canSacaConfirm && $canCerrarDespacho)
                         <button type="button"
-                            class="btn btn-danger"
+                            class="btn btn-danger footer-danger-action"
                             wire:click="cerrarDespacho"
                             onclick="return confirm('Se cerrara el despacho y cambiara estados de sacas y despacho. Continuar?')">
                             Cerrar despacho
                         </button>
                     @elseif ($canSacaConfirm)
-                        <button type="button" class="btn btn-danger" disabled title="{{ $cerrarDespachoError }}">
+                        <button type="button" class="btn btn-danger footer-danger-action" disabled title="{{ $cerrarDespachoError }}">
                             Cerrar despacho
                         </button>
                     @endif

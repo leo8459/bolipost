@@ -7,9 +7,13 @@
 @section('content')
     <div class="ems-entregados-wrap">
         <div class="card ems-entregados-card">
-            <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h3 class="card-title mb-2 mb-md-0">Devueltos</h3>
-                <span class="ems-badge">Total: {{ $paquetes->total() }}</span>
+            <div class="card-header">
+                <div class="ems-header-top">
+                    <h3 class="card-title mb-0">Devueltos</h3>
+                </div>
+                <div class="ems-header-meta">
+                    <span>Total: <strong>{{ $paquetes->total() }}</strong></span>
+                </div>
             </div>
             <div class="card-body">
                 @if (session('success'))
@@ -30,8 +34,8 @@
                     </div>
                 @endif
 
-                <form method="GET" action="{{ route('paquetes-ems.devueltos') }}" class="row mb-3">
-                    <div class="col-md-10 mb-2 mb-md-0">
+                <form method="GET" action="{{ route('paquetes-ems.devueltos') }}" class="row ems-toolbar">
+                    <div class="col-lg-10 col-md-12 mb-2 mb-lg-0">
                         <input
                             type="text"
                             name="q"
@@ -40,8 +44,8 @@
                             placeholder="Buscar por codigo, destinatario, telefono, ciudad, recibido por o descripcion..."
                         >
                     </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary btn-block">Buscar</button>
+                    <div class="col-lg-2 col-md-6">
+                        <button type="submit" class="btn ems-btn-primary btn-block">Buscar</button>
                     </div>
                 </form>
 
@@ -130,17 +134,44 @@
             background: linear-gradient(95deg, #20539A 0%, #43538f 100%);
             color: #fff;
             border-bottom: 0;
-            padding: 0.95rem 1.1rem;
+            padding: 1rem 1.2rem;
         }
 
-        .ems-badge {
-            background: rgba(185, 156, 70, 0.2);
-            color: #3f3514;
-            border: 1px solid rgba(185, 156, 70, 0.35);
-            border-radius: 999px;
-            font-size: 0.76rem;
-            font-weight: 700;
-            padding: 0.28rem 0.6rem;
+        .ems-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ems-header-meta {
+            margin-top: 8px;
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+
+        .ems-header-meta strong {
+            color: #fff;
+        }
+
+        .ems-toolbar {
+            align-items: stretch;
+            margin-bottom: 1rem;
+        }
+
+        .ems-btn-primary {
+            min-height: 44px;
+            border-radius: 12px;
+            font-weight: 800;
+            background: #FECC36;
+            border: 0;
+            color: #fff;
+        }
+
+        .ems-btn-primary:hover {
+            background: #f4c21d;
+            color: #fff;
         }
 
         .ems-entregados-card .table thead th {
@@ -156,6 +187,17 @@
 
         .btn-block {
             min-height: 38px;
+        }
+
+        .ems-entregados-card .form-control {
+            min-height: 44px;
+            border-radius: 12px;
+            border-color: #d1d5db;
+        }
+
+        .ems-entregados-card .form-control:focus {
+            border-color: #20539A;
+            box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
         }
     </style>
 @endsection

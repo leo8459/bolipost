@@ -2,45 +2,259 @@
 
 @section('title', 'Nueva solicitud EMS')
 
-@section('content_header')
-    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
-        <div>
-            <h1 class="m-0 text-dark">Nueva solicitud</h1>
-            <small class="text-muted">Registra una solicitud desde Admisiones con peso incluido.</small>
-        </div>
-        <div class="d-flex flex-column flex-md-row">
-            <a href="{{ route('paquetes-ems.solicitudes.index') }}" class="btn btn-warning mt-3 mt-md-0 mr-md-2">
-                Ver solicitudes
-            </a>
-            <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-primary mt-3 mt-md-0">
-                Volver a admisiones
-            </a>
-        </div>
-    </div>
-@endsection
-
 @section('content')
+    <style>
+        :root{
+            --azul:#20539A;
+            --dorado:#FECC36;
+            --bg:#f5f7fb;
+            --line:#e5e7eb;
+            --muted:#6b7280;
+        }
+
+        .solicitud-shell{
+            background: var(--bg);
+            padding: 18px;
+            border-radius: 16px;
+        }
+
+        .solicitud-card{
+            border:0;
+            border-radius:16px;
+            box-shadow:0 12px 26px rgba(0,0,0,.08);
+            overflow:hidden;
+            background:#fff;
+        }
+
+        .solicitud-hero{
+            background: linear-gradient(90deg, var(--azul), #20539A);
+            color:#fff;
+            padding:18px 20px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:18px;
+            flex-wrap:wrap;
+        }
+
+        .solicitud-hero h1{
+            margin:0;
+            font-size:2rem;
+            font-weight:800;
+        }
+
+        .solicitud-hero p{
+            margin:6px 0 0;
+            color:rgba(255,255,255,.82);
+        }
+
+        .solicitud-actions{
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+            align-items:center;
+        }
+
+        .btn-dorado{
+            background: var(--dorado);
+            color:#fff;
+            font-weight:800;
+            border:none;
+            border-radius:12px;
+            padding:10px 14px;
+        }
+
+        .btn-dorado:hover{
+            filter:brightness(.95);
+            color:#fff;
+        }
+
+        .btn-outline-light2{
+            border:1px solid rgba(255,255,255,.7);
+            color:#fff;
+            font-weight:800;
+            border-radius:12px;
+            padding:10px 14px;
+            background:transparent;
+        }
+
+        .btn-outline-light2:hover{
+            background: rgba(255,255,255,.12);
+            color:#fff;
+        }
+
+        .solicitud-body{
+            padding:16px 20px 20px;
+        }
+
+        .solicitud-panel{
+            border:1px solid var(--line);
+            border-radius:14px;
+            overflow:hidden;
+            background:#fff;
+        }
+
+        .solicitud-panel-head{
+            padding:16px 18px;
+            border-bottom:1px solid var(--line);
+        }
+
+        .solicitud-panel-head h3{
+            margin:0;
+            font-size:1.05rem;
+            font-weight:800;
+            color:#163b6c;
+        }
+
+        .solicitud-panel-body{
+            padding:20px;
+        }
+
+        .solicitud-section{
+            border:1px solid var(--line);
+            border-radius:14px;
+            padding:18px;
+            margin-bottom:18px;
+            background:#fbfcff;
+        }
+
+        .solicitud-section:last-child{
+            margin-bottom:0;
+        }
+
+        .solicitud-section h5{
+            margin-bottom:16px;
+            font-size:1rem;
+            font-weight:800;
+            color:#163b6c;
+        }
+
+        .solicitud-panel-body label{
+            font-weight:800;
+            color:#1f2937;
+        }
+
+        .solicitud-panel-body .form-control{
+            border-radius:10px;
+            border:1px solid #d1d5db;
+            box-shadow:none;
+        }
+
+        .solicitud-panel-body .form-control:focus{
+            border-color: var(--azul);
+            box-shadow:0 0 0 0.15rem rgba(52,68,124,.15);
+        }
+
+        .solicitud-panel-body .form-text{
+            color:var(--muted);
+        }
+
+        .solicitud-footer{
+            padding:0 20px 20px;
+            display:flex;
+            justify-content:flex-end;
+            gap:12px;
+        }
+
+        .solicitud-submit{
+            min-width:190px;
+        }
+
+        .solicitud-cancel{
+            min-width:160px;
+            border-radius:12px;
+            border:1px solid rgba(32, 83, 154, .22);
+            background:#fff;
+            color:var(--azul);
+            font-weight:800;
+            padding:10px 18px;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            text-decoration:none;
+        }
+
+        .solicitud-cancel:hover{
+            background:rgba(32, 83, 154, .05);
+            color:var(--azul);
+            text-decoration:none;
+        }
+
+        .solicitud-submit.btn-dorado{
+            min-width:190px;
+            padding:10px 20px;
+        }
+
+        @media (max-width: 767.98px){
+            .solicitud-shell{
+                padding:12px;
+            }
+
+            .solicitud-hero{
+                flex-direction:column;
+                align-items:flex-start;
+            }
+
+            .solicitud-actions{
+                width:100%;
+            }
+
+            .solicitud-actions > .btn{
+                width:100%;
+                justify-content:center;
+            }
+
+            .solicitud-footer{
+                justify-content:stretch;
+                flex-direction:column;
+            }
+
+            .solicitud-submit,
+            .solicitud-cancel{
+                width:100%;
+            }
+        }
+    </style>
+
+    <div class="solicitud-shell">
+        <div class="solicitud-card">
+            <div class="solicitud-hero">
+                <div>
+                    <h1>Nueva solicitud</h1>
+                    <p>Registra una solicitud desde Admisiones con peso incluido.</p>
+                </div>
+                <div class="solicitud-actions">
+                    <a href="{{ route('paquetes-ems.solicitudes.index') }}" class="btn btn-dorado">
+                        Ver solicitudes
+                    </a>
+                    <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-light2">
+                        Volver a admisiones
+                    </a>
+                </div>
+            </div>
+
     @if (session('success'))
-        <div class="alert alert-success">
-            {{ session('success') }}
-        </div>
+            <div class="alert alert-success mx-3 mt-3 mb-0">
+                {{ session('success') }}
+            </div>
     @endif
 
     @if ($errors->any())
-        <div class="alert alert-danger">
-            Revisa los campos del formulario y vuelve a intentar.
-        </div>
+            <div class="alert alert-danger mx-3 mt-3 mb-0">
+                Revisa los campos del formulario y vuelve a intentar.
+            </div>
     @endif
 
-    <div class="card card-outline card-primary">
-        <div class="card-header">
-            <h3 class="card-title">Formulario de solicitud</h3>
-        </div>
+            <div class="solicitud-body">
+                <div class="solicitud-panel">
+                    <div class="solicitud-panel-head">
+                        <h3>Formulario de solicitud</h3>
+                    </div>
         <form method="POST" action="{{ route('paquetes-ems.solicitudes.store') }}">
             @csrf
             <input type="hidden" name="solicitud_id" id="solicitud_id" value="{{ old('solicitud_id') }}">
-            <div class="card-body">
-                <div class="border rounded p-3 mb-4 bg-light">
+                    <div class="solicitud-panel-body">
+                        <div class="solicitud-section">
                     <h5 class="mb-3">Cargar desde codigo de solicitud</h5>
                     <div class="row align-items-end">
                         <div class="col-md-6 form-group mb-md-0">
@@ -64,7 +278,7 @@
                     </div>
                 </div>
 
-                <div class="border rounded p-3 mb-4">
+                        <div class="solicitud-section">
                     <h5 class="mb-3">Datos del servicio</h5>
                     <div class="row">
                         <div class="col-md-6 form-group">
@@ -127,7 +341,7 @@
                     </div>
                 </div>
 
-                <div class="border rounded p-3 mb-4">
+                        <div class="solicitud-section">
                     <h5 class="mb-3">Datos del remitente</h5>
                     <div class="row">
                         <div class="col-md-6 form-group">
@@ -149,7 +363,7 @@
                     </div>
                 </div>
 
-                <div class="border rounded p-3">
+                        <div class="solicitud-section">
                     <h5 class="mb-3">Datos del destinatario</h5>
                     <div class="row">
                         <div class="col-md-6 form-group">
@@ -188,13 +402,19 @@
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="card-footer text-right">
-                <button type="submit" class="btn btn-primary">
+                    </div>
+                    <div class="solicitud-footer">
+                        <a href="{{ route('paquetes-ems.solicitudes.index') }}" class="solicitud-cancel">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-dorado solicitud-submit">
                     Guardar solicitud
                 </button>
-            </div>
+                    </div>
         </form>
+                </div>
+            </div>
+        </div>
     </div>
 @endsection
 

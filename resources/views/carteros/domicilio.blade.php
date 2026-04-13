@@ -8,38 +8,48 @@
     <div class="carteros-wrap">
         <div class="card card-carteros">
             <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center flex-wrap">
-                    <h3 class="card-title mb-0">Paquetes en Estado ENTREGADO</h3>
+                <div class="domicilio-header-top">
+                    <div>
+                        <h3 class="card-title mb-1">Paquetes en Estado ENTREGADO</h3>
+                        <div class="domicilio-header-subtitle">Consulta la bandeja final de entregas realizadas con evidencia y datos de recepcion.</div>
+                    </div>
                     <span class="carteros-chip">Entregados</span>
                 </div>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Tipo</th>
-                                <th>Codigo</th>
-                                <th>Destinatario</th>
-                                <th>Telefono</th>
-                                <th>Ciudad</th>
-                                <th>Zona</th>
-                                <th>Peso</th>
-                                <th>Estado</th>
-                                <th>Asignado a</th>
-                                <th>Intento</th>
-                                <th>Recibido por</th>
-                                <th>Descripcion</th>
-                                <th>Imagen</th>
-                                <th>Fecha</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-domicilio-body">
-                            <tr>
-                                <td colspan="14" class="text-center py-4">Cargando datos...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="card-body">
+                <div class="domicilio-shell">
+                    <div class="domicilio-toolbar">
+                        <div class="domicilio-toolbar-title">Registro de entregas</div>
+                        <div class="domicilio-toolbar-subtitle">Historial consolidado de paquetes entregados por carteros.</div>
+                    </div>
+
+                    <div class="table-responsive domicilio-table-wrap">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th>Codigo</th>
+                                    <th>Destinatario</th>
+                                    <th>Telefono</th>
+                                    <th>Ciudad</th>
+                                    <th>Zona</th>
+                                    <th>Peso</th>
+                                    <th>Estado</th>
+                                    <th>Asignado a</th>
+                                    <th>Intento</th>
+                                    <th>Recibido por</th>
+                                    <th>Descripcion</th>
+                                    <th>Imagen</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-domicilio-body">
+                                <tr>
+                                    <td colspan="14" class="text-center py-4">Cargando datos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             <div class="card-footer clearfix">
@@ -61,6 +71,68 @@
 
 @section('css')
     @include('carteros.partials.theme')
+    <style>
+        .card-carteros .card-header .card-title {
+            float: none;
+            display: block;
+        }
+
+        .domicilio-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .domicilio-header-subtitle {
+            display: block;
+            margin-top: 4px;
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 0.92rem;
+            line-height: 1.45;
+            max-width: 560px;
+        }
+
+        .domicilio-shell {
+            border: 1px solid #e4e8f2;
+            border-radius: 14px;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .domicilio-toolbar {
+            padding: 16px 18px;
+            border-bottom: 1px solid #e4e8f2;
+            background: linear-gradient(180deg, #fbfcff 0%, #f7faff 100%);
+        }
+
+        .domicilio-toolbar-title {
+            color: var(--carteros-primary);
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .domicilio-toolbar-subtitle {
+            color: #5e6b86;
+            font-size: 0.85rem;
+            margin-top: 2px;
+        }
+
+        .domicilio-table-wrap .table {
+            margin-bottom: 0;
+        }
+
+        .domicilio-table-wrap .table tbody td {
+            border-top: 1px solid rgba(32, 83, 154, 0.08);
+            vertical-align: middle;
+        }
+
+        .domicilio-table-wrap .btn {
+            border-radius: 10px;
+            font-weight: 700;
+        }
+    </style>
 @endsection
 
 @section('js')

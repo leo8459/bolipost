@@ -70,13 +70,13 @@
     }
 
     .carteros-chip {
-        background: rgba(185, 156, 70, 0.2);
-        color: #3f3514;
-        border: 1px solid rgba(185, 156, 70, 0.35);
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.24);
         border-radius: 999px;
         font-size: 0.75rem;
         font-weight: 700;
-        padding: 0.25rem 0.55rem;
+        padding: 0.3rem 0.7rem;
     }
 
     .carteros-meta {
