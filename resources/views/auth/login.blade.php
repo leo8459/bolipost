@@ -72,6 +72,42 @@
         </section>
     </div>
 
+    <div
+        id="loginLoaderOverlay"
+        class="fixed inset-0 z-[9999] hidden items-center justify-center bg-[rgba(255,255,255,0.68)] backdrop-blur-[2px]"
+        aria-hidden="true"
+    >
+        <div class="flex flex-col items-center">
+            <span class="loader"></span>
+            <p class="mt-4 text-sm font-medium tracking-[0.18em] text-[#20539A]/85 uppercase">
+                Ingresando
+            </p>
+        </div>
+    </div>
+
+    <style>
+        .loader {
+            width: 82px;
+            height: 82px;
+            border-radius: 50%;
+            display: inline-block;
+            border-top: 5px solid #20539A;
+            border-right: 5px solid transparent;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const loginForm = document.getElementById('loginForm');
@@ -79,11 +115,27 @@
             const toggleButton = document.getElementById('toggle-password');
             const eyeOpen = document.getElementById('eye-open');
             const eyeClosed = document.getElementById('eye-closed');
+            const loaderOverlay = document.getElementById('loginLoaderOverlay');
+            const submitButton = loginForm ? loginForm.querySelector('button[type="submit"]') : null;
+
+            if (loaderOverlay && loaderOverlay.parentElement !== document.body) {
+                document.body.appendChild(loaderOverlay);
+            }
 
             if (loginForm) {
                 loginForm.addEventListener('submit', function () {
                     // Marca que el ingreso vino de una interaccion real del usuario.
                     sessionStorage.setItem('dashboardSoundAfterLogin', '1');
+
+                    if (loaderOverlay) {
+                        loaderOverlay.classList.remove('hidden');
+                        loaderOverlay.classList.add('flex');
+                        loaderOverlay.setAttribute('aria-hidden', 'false');
+                    }
+
+                    if (submitButton) {
+                        submitButton.setAttribute('disabled', 'disabled');
+                    }
                 });
             }
 

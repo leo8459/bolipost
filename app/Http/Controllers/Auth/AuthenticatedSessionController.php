@@ -48,6 +48,18 @@ class AuthenticatedSessionController extends Controller
         return redirect()->route('login');
     }
 
+    public function destroyViaGet(Request $request): RedirectResponse
+    {
+        if (Auth::guard('web')->check()) {
+            Auth::guard('web')->logout();
+        }
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login');
+    }
+
     private function firstAuthorizedUrl(?Authenticatable $user): string
     {
         if (! $user) {
