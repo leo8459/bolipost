@@ -11,7 +11,7 @@
         <form method="POST" action="{{ route('clientes.logout') }}" class="mt-3 mt-md-0">
             @csrf
             <button type="submit" class="btn btn-outline-primary">
-                Cerrar sesion
+                Cerrar sesión
             </button>
         </form>
     </div>
@@ -131,7 +131,7 @@
                     </div>
 
                     <div class="alert alert-success mb-0">
-                        Iniciaste sesion correctamente en AdminLTE usando la tabla <strong>clientes</strong>.
+                        Iniciaste sesión correctamente en AdminLTE usando la tabla <strong>clientes</strong>.
                     </div>
                 </div>
             </div>

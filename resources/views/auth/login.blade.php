@@ -3,7 +3,7 @@
         <section class="px-6 py-7 sm:px-8 sm:py-8">
             <div class="rounded-xl border border-[#e8edf7] bg-[#f9fbff] p-4 mb-5">
           
-                <h2 class="mt-2 text-2xl font-bold text-[#20539A]">Iniciar sesion</h2>
+                <h2 class="mt-2 text-2xl font-bold text-[#20539A]">Iniciar sesión</h2>
                 <p class="mt-1 text-sm text-[#20539A]/75">Ingresa con tu cuenta.</p>
             </div>
 

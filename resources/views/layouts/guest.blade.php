@@ -1,6 +1,7 @@
 @props([
     'cardMaxWidth' => '460px',
     'cardClasses' => '',
+    'showLogo' => true,
 ])
 
 <!DOCTYPE html>
@@ -21,17 +22,21 @@
     </head>
     <body class="font-sans antialiased text-[#041e42] bg-[radial-gradient(circle_at_top,rgba(254,203,52,0.30),transparent_48%),linear-gradient(180deg,#f8fbff_0%,#eef3fb_100%)]">
         <div class="min-h-screen flex flex-col justify-center items-center px-4 py-8">
-            <div class="mb-5">
-                <a href="/">
-                    <img src="{{ asset('images/AGBClogo1.png') }}" alt="Correos de Bolivia" class="w-48 h-auto object-contain drop-shadow-sm">
-                </a>
-            </div>
+            @if ($showLogo)
+                <div class="mb-5">
+                    <a href="/">
+                        <img src="{{ asset('images/AGBClogo1.png') }}" alt="Correos de Bolivia" class="w-48 h-auto object-contain drop-shadow-sm">
+                    </a>
+                </div>
+            @endif
 
             <div
                 class="relative w-full px-6 py-5 bg-white/95 border border-[#20539A]/20 shadow-[0_18px_40px_rgba(15,39,74,0.18)] overflow-hidden rounded-2xl backdrop-blur {{ $cardClasses }}"
                 style="max-width: {{ $cardMaxWidth }};"
             >
-                <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#FECC36_0%,#FECC36_50%,#FECC36_100%)]"></div>
+                @if ($showLogo)
+                    <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#FECC36_0%,#FECC36_50%,#FECC36_100%)]"></div>
+                @endif
                 {{ $slot }}
             </div>
            
