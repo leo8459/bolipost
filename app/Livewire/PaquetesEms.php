@@ -416,7 +416,7 @@ class PaquetesEms extends Component
             return;
         }
 
-        // En RECIBIR REGIONAL, permitir autoseleccion por codigo en EMS y CONTRATOS.
+        // En RECIBIR REGIONAL, permitir autoseleccion por codigo en EMS, CONTRATOS y SOLICITUDES.
         if ($this->isTransitoEms) {
             $paqueteEms = $this->basePaquetesQuery(false)
                 ->whereRaw('trim(upper(paquetes_ems.codigo)) = trim(upper(?))', [$codigo])
@@ -471,6 +471,32 @@ class PaquetesEms extends Component
                 return;
             }
 
+            $solicitud = $this->baseSolicitudesQuery()
+                ->where(function ($query) use ($codigo) {
+                    $query->whereRaw('trim(upper(solicitud_clientes.codigo_solicitud)) = trim(upper(?))', [$codigo])
+                        ->orWhereRaw('trim(upper(COALESCE(solicitud_clientes.barcode, \'\'))) = trim(upper(?))', [$codigo])
+                        ->orWhereRaw('trim(upper(COALESCE(solicitud_clientes.cod_especial, \'\'))) = trim(upper(?))', [$codigo]);
+                })
+                ->first(['solicitud_clientes.id', 'solicitud_clientes.codigo_solicitud']);
+
+            if ($solicitud) {
+                $actualesSolicitud = collect($this->selectedSolicitudes)
+                    ->map(fn ($id) => (string) $id)
+                    ->all();
+
+                $this->selectedSolicitudes = collect($actualesSolicitud)
+                    ->push((string) $solicitud->id)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                session()->flash('success', 'Solicitud seleccionada automaticamente por codigo.');
+                $this->search = '';
+                $this->searchQuery = '';
+                $this->resetPage();
+                return;
+            }
+
             $primerResultado = $this->almacenUnificadoQuery()->first();
             if ($primerResultado) {
                 $recordType = strtoupper(trim((string) ($primerResultado->record_type ?? '')));
@@ -500,6 +526,21 @@ class PaquetesEms extends Component
                         ->all();
 
                     session()->flash('success', 'Primer resultado CONTRATO seleccionado automaticamente.');
+                    $this->search = '';
+                    $this->searchQuery = '';
+                    $this->resetPage();
+                    return;
+                }
+
+                if ($recordType === 'SOLICITUD' && $recordId !== '0') {
+                    $this->selectedSolicitudes = collect($this->selectedSolicitudes)
+                        ->map(fn ($id) => (string) $id)
+                        ->push($recordId)
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                    session()->flash('success', 'Primer resultado SOLICITUD seleccionado automaticamente.');
                     $this->search = '';
                     $this->searchQuery = '';
                     $this->resetPage();
@@ -4333,9 +4374,9 @@ class PaquetesEms extends Component
                 $query->whereRaw('1 = 0');
             });
 
-        $union = $this->isTransitoEms
-            ? $emsQuery->unionAll($contratosQuery)
-            : $emsQuery->unionAll($contratosQuery)->unionAll($solicitudesQuery);
+        $union = $emsQuery
+            ->unionAll($contratosQuery)
+            ->unionAll($solicitudesQuery);
 
         return DB::query()
             ->fromSub($union, 'almacen_mix')
