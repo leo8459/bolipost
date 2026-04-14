@@ -94,6 +94,7 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
       Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
       Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
     Route::put('/facturacion/cart/billing', [FacturacionCartController::class, 'updateBillingData'])->name('facturacion.cart.billing.update');
+    Route::put('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'updateItem'])->name('facturacion.cart.items.update');
     Route::post('/facturacion/cart/consultar', [FacturacionCartController::class, 'consultar'])->name('facturacion.cart.consultar');
     Route::post('/facturacion/cart/emitir', [FacturacionCartController::class, 'emitir'])->name('facturacion.cart.emitir');
     Route::post('/facturacion/cart/clear', [FacturacionCartController::class, 'clear'])->name('facturacion.cart.clear');
@@ -127,6 +128,12 @@ Route::get('/reportes/{scope}/export/pdf', [ReportesController::class, 'exportPd
 Route::get('/mis-ventas', [MisVentasController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.index');
+Route::get('/mis-ventas/export/pdf', [MisVentasController::class, 'exportPdf'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('mis-ventas.export.pdf');
+Route::get('/mis-ventas/{cart}/ticket', [MisVentasController::class, 'ticket'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('mis-ventas.ticket');
 
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

@@ -22,6 +22,42 @@
     $activeInvoiceChannel = (string) ($activeFacturacionCart?->canal_emision ?? 'qr');
     $activeDocumentType = (string) ($activeFacturacionCart?->tipo_documento ?? '');
     $resultadoEmision = (array) ($ultimaFacturacionEmitida?->respuesta_emision ?? []);
+    $draftEmissionResponse = (array) ($activeFacturacionCart?->respuesta_emision ?? []);
+    $draftEmissionErrors = (array) data_get($draftEmissionResponse, 'errors', []);
+    $facturacionItemsForValidation = $facturacionItems->values();
+    $validationFieldLabels = [
+        'actividadEconomica' => 'Actividad economica',
+        'codigoSin' => 'Codigo SIN',
+        'codigo' => 'Codigo de producto',
+        'descripcion' => 'Descripcion del servicio',
+        'unidadMedida' => 'Unidad de medida',
+    ];
+    $draftEmissionIssues = collect(\Illuminate\Support\Arr::dot($draftEmissionErrors))
+        ->map(function ($messages, $path) use ($facturacionItemsForValidation, $validationFieldLabels) {
+            if (!preg_match('/^detalle\.(\d+)\.([A-Za-z0-9_]+)$/', (string) $path, $matches)) {
+                return null;
+            }
+
+            $itemIndex = (int) $matches[1];
+            $field = (string) $matches[2];
+            $item = $facturacionItemsForValidation->get($itemIndex);
+
+            if (!$item) {
+                return null;
+            }
+
+            $message = is_array($messages) ? (string) ($messages[0] ?? '') : (string) $messages;
+
+            return [
+                'item' => $item,
+                'item_index' => $itemIndex,
+                'field' => $field,
+                'field_label' => $validationFieldLabels[$field] ?? $field,
+                'message' => $message !== '' ? $message : 'El valor enviado no fue aceptado por facturacion.',
+            ];
+        })
+        ->filter()
+        ->values();
     $facturaEmitida = (array) ($resultadoEmision['factura'] ?? []);
     $facturacionFeedback = session('facturacion_feedback');
     $facturacionDownloadPdf = session('facturacion_download_pdf');
@@ -32,10 +68,10 @@
     $emitActionLabel = $isRejectedDraft ? 'Reintentar emision' : 'Emitir factura';
     $emitConfirmTitle = $isRejectedDraft ? 'Reintentar emision' : 'Emitir factura';
     $emitConfirmMessage = $isRejectedDraft
-        ? 'Se reenviara el mismo borrador rechazado a la API externa de facturacion.'
+        ? 'Se reenviara el borrador rechazado con los datos actualizados a la API externa de facturacion.'
         : 'Se enviara el borrador actual a la API externa de facturacion para su emision.';
     $emitConfirmNote = $isRejectedDraft
-        ? 'Antes de reenviar, verifica y corrige los datos observados. No se creara una venta nueva; se reintentara el mismo borrador.'
+        ? 'Antes de reenviar, corrige cliente, emision o items del borrador. No se creara una venta nueva; se reintentara el mismo borrador con tus cambios.'
         : 'Si la API acepta la venta, este borrador quedara cerrado y marcado como emitido.';
     $emitConfirmCta = $isRejectedDraft ? 'Si, reenviar' : 'Si, emitir';
 @endphp
@@ -90,6 +126,57 @@
                         @if (!empty($facturacionFeedback['detail']))
                             <span>{{ $facturacionFeedback['detail'] }}</span>
                         @endif
+                    </div>
+                </div>
+            @endif
+
+            @if ($isRejectedDraft)
+                <div class="global-shortcut-edit-hint">
+                    <strong>Corrige antes de reenviar</strong>
+                    <p>Puedes editar cliente, emision y los items del borrador antes de volver a intentar.</p>
+                    <span>Cuando aparezca el mensaje de cambios guardados, ya puedes usar <b>Reintentar emision</b>.</span>
+                </div>
+            @endif
+
+            @if ($draftEmissionIssues->isNotEmpty())
+                <div class="global-shortcut-issue-box">
+                    <strong>Campos observados por facturacion</strong>
+                    <p>Corrige solo los datos marcados abajo. Cada boton abre el item exacto y enfoca el campo rechazado.</p>
+                    <div class="global-shortcut-issue-list">
+                        @foreach ($draftEmissionIssues as $issue)
+                            @php
+                                $issueItem = $issue['item'];
+                            @endphp
+                            <div class="global-shortcut-issue-card">
+                                <div class="global-shortcut-issue-card__body">
+                                    <span class="global-shortcut-issue-card__label">Item {{ $issue['item_index'] + 1 }} | {{ $issue['field_label'] }}</span>
+                                    <strong>{{ $issueItem->codigo ?: ($issueItem->titulo ?: 'Item sin codigo') }}</strong>
+                                    <p>{{ $issue['message'] }}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="global-shortcut-secondary-btn global-shortcut-secondary-btn--link"
+                                    data-edit-facturacion-item="true"
+                                    data-focus-field="{{ $issue['field'] }}"
+                                    data-item-id="{{ $issueItem->id }}"
+                                    data-item-codigo="{{ $issueItem->codigo }}"
+                                    data-item-titulo="{{ $issueItem->titulo }}"
+                                    data-item-servicio="{{ $issueItem->nombre_servicio }}"
+                                    data-item-destinatario="{{ $issueItem->nombre_destinatario }}"
+                                    data-item-contenido="{{ (string) data_get($issueItem->resumen_origen, 'contenido', '') }}"
+                                    data-item-direccion="{{ (string) data_get($issueItem->resumen_origen, 'direccion', '') }}"
+                                    data-item-ciudad="{{ (string) data_get($issueItem->resumen_origen, 'ciudad', '') }}"
+                                    data-item-peso="{{ (string) data_get($issueItem->resumen_origen, 'peso', '') }}"
+                                    data-item-actividad-economica="{{ (string) data_get($issueItem->resumen_origen, 'actividad_economica', '') }}"
+                                    data-item-codigo-sin="{{ (string) data_get($issueItem->resumen_origen, 'codigo_sin', '') }}"
+                                    data-item-codigo-producto="{{ (string) data_get($issueItem->resumen_origen, 'codigo_producto', '') }}"
+                                    data-item-descripcion-servicio="{{ (string) data_get($issueItem->resumen_origen, 'descripcion_servicio', '') }}"
+                                    data-item-unidad-medida="{{ (string) data_get($issueItem->resumen_origen, 'unidad_medida', '') }}"
+                                >
+                                    Corregir {{ $issue['field_label'] }}
+                                </button>
+                            </div>
+                        @endforeach
                     </div>
                 </div>
             @endif
@@ -180,6 +267,10 @@
                     </div>
                 </div>
             </form>
+
+            <div class="global-shortcut-autosave-state" id="facturacionAutosaveState" aria-live="polite">
+                Los cambios se guardan automaticamente.
+            </div>
 
             @if ($ultimaFacturacionEmitida)
                 <details class="global-shortcut-emision-card @if(!$hasActiveFacturacionItems) is-compact @endif">
@@ -313,6 +404,27 @@
                                     </div>
                                 @endif
                                 <div class="global-shortcut-cart-item__actions">
+                                    <button
+                                        type="button"
+                                        class="global-shortcut-link-btn"
+                                        data-edit-facturacion-item="true"
+                                        data-item-id="{{ $item->id }}"
+                                        data-item-codigo="{{ $item->codigo }}"
+                                        data-item-titulo="{{ $item->titulo }}"
+                                        data-item-servicio="{{ $item->nombre_servicio }}"
+                                        data-item-destinatario="{{ $item->nombre_destinatario }}"
+                                        data-item-contenido="{{ (string) data_get($item->resumen_origen, 'contenido', '') }}"
+                                        data-item-direccion="{{ (string) data_get($item->resumen_origen, 'direccion', '') }}"
+                                        data-item-ciudad="{{ (string) data_get($item->resumen_origen, 'ciudad', '') }}"
+                                        data-item-peso="{{ (string) data_get($item->resumen_origen, 'peso', '') }}"
+                                        data-item-actividad-economica="{{ (string) data_get($item->resumen_origen, 'actividad_economica', '') }}"
+                                        data-item-codigo-sin="{{ (string) data_get($item->resumen_origen, 'codigo_sin', '') }}"
+                                        data-item-codigo-producto="{{ (string) data_get($item->resumen_origen, 'codigo_producto', '') }}"
+                                        data-item-descripcion-servicio="{{ (string) data_get($item->resumen_origen, 'descripcion_servicio', '') }}"
+                                        data-item-unidad-medida="{{ (string) data_get($item->resumen_origen, 'unidad_medida', '') }}"
+                                    >
+                                        Editar
+                                    </button>
                                     <form
                                         method="POST"
                                         action="{{ route('facturacion.cart.items.destroy', $item->id) }}"
@@ -396,6 +508,96 @@
                 @endif
             </div>
 
+        </div>
+    </div>
+
+    <div
+        class="global-shortcut-confirm"
+        id="facturacionItemEditModal"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="facturacionItemEditTitle"
+    >
+        <div class="global-shortcut-confirm__backdrop" data-close-facturacion-item-edit="true"></div>
+        <div class="global-shortcut-confirm__panel global-shortcut-confirm__panel--wide" role="document">
+            <div class="global-shortcut-confirm__header">
+                <div class="global-shortcut-confirm__icon">
+                    <i class="fas fa-pen"></i>
+                </div>
+                <div class="global-shortcut-confirm__eyebrow">Correccion de item</div>
+            </div>
+            <h4 id="facturacionItemEditTitle" class="global-shortcut-confirm__title">Corregir item antes de reenviar</h4>
+            <p class="global-shortcut-confirm__message">
+                Ajusta los datos observados y guarda el item para volver a intentar la emision.
+            </p>
+            <form method="POST" action="" id="facturacionItemEditForm" class="global-shortcut-item-edit-form">
+                @csrf
+                @method('PUT')
+                <div class="global-shortcut-item-edit-alert is-hidden" id="facturacionItemEditAlert" aria-live="polite"></div>
+                <div class="global-shortcut-item-edit-grid">
+                    <div class="global-shortcut-field" data-edit-field-key="codigo_item">
+                        <label for="facturacionEditItemCodigo">Codigo de item</label>
+                        <input type="text" id="facturacionEditItemCodigo" name="codigo" required>
+                    </div>
+                    <div class="global-shortcut-field" data-edit-field-key="peso">
+                        <label for="facturacionEditItemPeso">Peso</label>
+                        <input type="number" id="facturacionEditItemPeso" name="peso" min="0" step="0.001" placeholder="Ej. 0.100">
+                    </div>
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="titulo">
+                        <label for="facturacionEditItemTitulo">Titulo</label>
+                        <input type="text" id="facturacionEditItemTitulo" name="titulo" required>
+                    </div>
+                    <div class="global-shortcut-field" data-edit-field-key="nombre_servicio">
+                        <label for="facturacionEditItemServicio">Servicio</label>
+                        <input type="text" id="facturacionEditItemServicio" name="nombre_servicio">
+                    </div>
+                    <div class="global-shortcut-field" data-edit-field-key="nombre_destinatario">
+                        <label for="facturacionEditItemDestinatario">Destinatario</label>
+                        <input type="text" id="facturacionEditItemDestinatario" name="nombre_destinatario">
+                    </div>
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="contenido">
+                        <label for="facturacionEditItemContenido">Contenido</label>
+                        <input type="text" id="facturacionEditItemContenido" name="contenido">
+                    </div>
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="direccion">
+                        <label for="facturacionEditItemDireccion">Direccion</label>
+                        <input type="text" id="facturacionEditItemDireccion" name="direccion">
+                    </div>
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="ciudad">
+                        <label for="facturacionEditItemCiudad">Ciudad</label>
+                        <input type="text" id="facturacionEditItemCiudad" name="ciudad">
+                    </div>
+                    <div class="global-shortcut-field" data-edit-field-key="actividadEconomica">
+                        <label for="facturacionEditItemActividadEconomica">Actividad economica</label>
+                        <input type="text" id="facturacionEditItemActividadEconomica" name="actividad_economica" maxlength="6" placeholder="6 caracteres">
+                    </div>
+                    <div class="global-shortcut-field" data-edit-field-key="codigoSin">
+                        <label for="facturacionEditItemCodigoSin">Codigo SIN</label>
+                        <input type="text" id="facturacionEditItemCodigoSin" name="codigo_sin">
+                    </div>
+                    <div class="global-shortcut-field" data-edit-field-key="codigo">
+                        <label for="facturacionEditItemCodigoProducto">Codigo de producto</label>
+                        <input type="text" id="facturacionEditItemCodigoProducto" name="codigo_producto">
+                    </div>
+                    <div class="global-shortcut-field" data-edit-field-key="unidadMedida">
+                        <label for="facturacionEditItemUnidadMedida">Unidad de medida</label>
+                        <input type="number" id="facturacionEditItemUnidadMedida" name="unidad_medida" min="1" step="1">
+                    </div>
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="descripcion">
+                        <label for="facturacionEditItemDescripcionServicio">Descripcion del servicio</label>
+                        <input type="text" id="facturacionEditItemDescripcionServicio" name="descripcion_servicio">
+                    </div>
+                </div>
+                <div class="global-shortcut-confirm__actions">
+                    <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--ghost" id="facturacionItemEditCancel">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--primary" id="facturacionItemEditSubmit">
+                        Guardar item
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -616,6 +818,101 @@
             font-size: .82rem;
             line-height: 1.45;
             opacity: .92;
+        }
+        .global-shortcut-edit-hint {
+            margin-bottom: 12px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: #fff8e8;
+            border: 1px solid #f4dfb3;
+            color: #8a5300;
+        }
+        .global-shortcut-edit-hint strong {
+            display: block;
+            font-size: .92rem;
+            font-weight: 800;
+        }
+        .global-shortcut-edit-hint p {
+            margin: 4px 0 0;
+            font-size: .87rem;
+            line-height: 1.45;
+        }
+        .global-shortcut-edit-hint span {
+            display: block;
+            margin-top: 6px;
+            font-size: .81rem;
+            line-height: 1.4;
+        }
+        .global-shortcut-autosave-state {
+            min-height: 20px;
+            margin: 8px 2px 12px;
+            font-size: .79rem;
+            color: #5f7290;
+        }
+        .global-shortcut-autosave-state.is-saving {
+            color: #9a5a00;
+        }
+        .global-shortcut-autosave-state.is-saved {
+            color: #1f6a3e;
+        }
+        .global-shortcut-autosave-state.is-error {
+            color: #a33e34;
+        }
+        .global-shortcut-issue-box {
+            margin-bottom: 14px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: #fff8ef;
+            border: 1px solid #ffd8a8;
+        }
+        .global-shortcut-issue-box strong {
+            display: block;
+            color: #9a5a00;
+            font-size: .94rem;
+            font-weight: 800;
+        }
+        .global-shortcut-issue-box p {
+            margin: 6px 0 0;
+            color: #856338;
+            font-size: .85rem;
+            line-height: 1.45;
+        }
+        .global-shortcut-issue-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .global-shortcut-issue-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, .92);
+            border: 1px solid #ffe3bd;
+        }
+        .global-shortcut-issue-card__body {
+            min-width: 0;
+        }
+        .global-shortcut-issue-card__label {
+            display: inline-flex;
+            margin-bottom: 4px;
+            color: #b16a0a;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .global-shortcut-issue-card__body strong {
+            color: #173962;
+            font-size: .9rem;
+        }
+        .global-shortcut-issue-card__body p {
+            margin: 4px 0 0;
+            color: #6e5b3b;
+            font-size: .82rem;
+            line-height: 1.4;
         }
         .global-shortcut-modal__subtitle {
             margin: 6px 0 0;
@@ -981,6 +1278,8 @@
         .global-shortcut-cart-item__actions {
             margin-top: 12px;
             display: flex;
+            align-items: center;
+            gap: 14px;
             justify-content: flex-end;
         }
         .global-shortcut-footer-action {
@@ -1144,6 +1443,9 @@
             transform: translateY(10px) scale(.97);
             transition: transform .2s ease;
         }
+        .global-shortcut-confirm__panel--wide {
+            width: min(620px, calc(100vw - 26px));
+        }
         .global-shortcut-confirm.is-open .global-shortcut-confirm__panel {
             transform: translateY(0) scale(1);
         }
@@ -1254,6 +1556,40 @@
         .global-shortcut-confirm__btn--danger:focus {
             box-shadow: 0 18px 32px rgba(186, 52, 39, .3);
         }
+        .global-shortcut-confirm__btn--primary {
+            background: linear-gradient(135deg, #20539a 0%, #173d73 100%);
+            color: #fff;
+            box-shadow: 0 14px 28px rgba(23, 61, 115, .24);
+        }
+        .global-shortcut-confirm__btn--primary:hover,
+        .global-shortcut-confirm__btn--primary:focus {
+            box-shadow: 0 18px 32px rgba(23, 61, 115, .3);
+        }
+        .global-shortcut-item-edit-form {
+            padding: 0 22px 22px;
+        }
+        .global-shortcut-item-edit-alert {
+            margin-top: 18px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid #ffd8a8;
+            background: #fff8ef;
+            color: #9a5a00;
+            font-size: .88rem;
+            line-height: 1.45;
+        }
+        .global-shortcut-item-edit-alert.is-hidden {
+            display: none;
+        }
+        .global-shortcut-item-edit-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 18px;
+        }
+        .global-shortcut-item-edit-grid .global-shortcut-field.is-hidden {
+            display: none;
+        }
         body.global-shortcut-open {
             overflow: hidden;
         }
@@ -1290,6 +1626,10 @@
             .global-shortcut-selector-block {
                 grid-template-columns: 1fr;
             }
+            .global-shortcut-issue-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
             .global-shortcut-billing-inline__grid {
                 grid-template-columns: 1fr;
             }
@@ -1299,6 +1639,9 @@
             .global-shortcut-confirm__panel {
                 width: calc(100vw - 18px);
                 border-radius: 20px;
+            }
+            .global-shortcut-confirm__panel--wide {
+                width: calc(100vw - 18px);
             }
             .global-shortcut-confirm__header {
                 padding: 18px 16px 12px;
@@ -1318,6 +1661,13 @@
             .global-shortcut-confirm__actions {
                 grid-template-columns: 1fr;
                 padding: 0 16px 16px;
+            }
+            .global-shortcut-item-edit-form {
+                padding: 0 16px 16px;
+            }
+            .global-shortcut-item-edit-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
             }
             .global-shortcut-footer-action {
                 padding: 10px 16px 16px;
@@ -1367,17 +1717,40 @@
             const facturacionActionConfirmNote = document.getElementById('facturacionActionConfirmNote');
             const facturacionActionConfirmAccept = document.getElementById('facturacionActionConfirmAccept');
             const facturacionActionConfirmCancel = document.getElementById('facturacionActionConfirmCancel');
+            const facturacionItemEditModal = document.getElementById('facturacionItemEditModal');
+            const facturacionItemEditForm = document.getElementById('facturacionItemEditForm');
+            const facturacionItemEditCancel = document.getElementById('facturacionItemEditCancel');
+            const facturacionItemEditButtons = document.querySelectorAll('[data-edit-facturacion-item="true"]');
+            const facturacionItemEditSubmit = document.getElementById('facturacionItemEditSubmit');
+            const facturacionItemEditAlert = document.getElementById('facturacionItemEditAlert');
+            const facturacionItemEditFields = document.querySelectorAll('[data-edit-field-key]');
             const facturacionBillingInlineForm = document.getElementById('facturacionBillingInlineForm');
             const facturacionBillingModeInput = document.getElementById('facturacionBillingModeInput');
             const facturacionInvoiceChannelInput = document.getElementById('facturacionInvoiceChannelInput');
             const facturacionBillingFields = document.getElementById('facturacionBillingFields');
             const facturacionAnonymousNote = document.getElementById('facturacionAnonymousNote');
+            const facturacionAutosaveState = document.getElementById('facturacionAutosaveState');
             const facturacionProcessingState = document.getElementById('facturacionProcessingState');
             const facturacionProcessingText = document.getElementById('facturacionProcessingText');
             const facturacionFeedbackAlert = document.getElementById('facturacionFeedbackAlert');
             const confirmForms = document.querySelectorAll('.global-shortcut-confirm-form');
             const facturacionFlashFeedback = @json($facturacionFeedback);
             const facturacionDownloadPdf = @json($facturacionDownloadPdf);
+            const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
+            const facturacionFieldNames = {
+                actividadEconomica: 'Actividad economica',
+                codigoSin: 'Codigo SIN',
+                codigo: 'Codigo de producto',
+                descripcion: 'Descripcion del servicio',
+                unidadMedida: 'Unidad de medida',
+            };
+            const facturacionFieldFocusMap = {
+                actividadEconomica: 'facturacionEditItemActividadEconomica',
+                codigoSin: 'facturacionEditItemCodigoSin',
+                codigo: 'facturacionEditItemCodigoProducto',
+                descripcion: 'facturacionEditItemDescripcionServicio',
+                unidadMedida: 'facturacionEditItemUnidadMedida',
+            };
 
             if (!facturacionShortcutModal || !openFacturacionShortcutBtn || !closeFacturacionShortcutBtn) {
                 return;
@@ -1450,6 +1823,99 @@
                 }
             };
 
+            const openFacturacionItemEditModal = (trigger) => {
+                if (!facturacionItemEditModal || !facturacionItemEditForm || !(trigger instanceof HTMLElement)) {
+                    return;
+                }
+
+                const itemId = trigger.dataset.itemId || '';
+                if (!itemId) {
+                    return;
+                }
+
+                facturacionItemEditForm.action = facturacionItemUpdateRouteTemplate.replace('__ITEM__', itemId);
+
+                const fieldMap = {
+                    facturacionEditItemCodigo: trigger.dataset.itemCodigo || '',
+                    facturacionEditItemTitulo: trigger.dataset.itemTitulo || '',
+                    facturacionEditItemServicio: trigger.dataset.itemServicio || '',
+                    facturacionEditItemDestinatario: trigger.dataset.itemDestinatario || '',
+                    facturacionEditItemContenido: trigger.dataset.itemContenido || '',
+                    facturacionEditItemDireccion: trigger.dataset.itemDireccion || '',
+                    facturacionEditItemCiudad: trigger.dataset.itemCiudad || '',
+                    facturacionEditItemPeso: trigger.dataset.itemPeso || '',
+                    facturacionEditItemActividadEconomica: trigger.dataset.itemActividadEconomica || '',
+                    facturacionEditItemCodigoSin: trigger.dataset.itemCodigoSin || '',
+                    facturacionEditItemCodigoProducto: trigger.dataset.itemCodigoProducto || '',
+                    facturacionEditItemDescripcionServicio: trigger.dataset.itemDescripcionServicio || '',
+                    facturacionEditItemUnidadMedida: trigger.dataset.itemUnidadMedida || '',
+                };
+
+                const focusField = trigger.dataset.focusField || '';
+                const focusFieldId = facturacionFieldFocusMap[focusField] || 'facturacionEditItemCodigo';
+                const focusFieldName = facturacionFieldNames[focusField] || '';
+
+                if (facturacionItemEditAlert instanceof HTMLElement) {
+                    if (focusFieldName !== '') {
+                        facturacionItemEditAlert.textContent = 'Campo observado: ' + focusFieldName + '. Corrigelo y guarda el item antes de reenviar.';
+                        facturacionItemEditAlert.classList.remove('is-hidden');
+                    } else {
+                        facturacionItemEditAlert.textContent = '';
+                        facturacionItemEditAlert.classList.add('is-hidden');
+                    }
+                }
+
+                Object.entries(fieldMap).forEach(([fieldId, value]) => {
+                    const input = document.getElementById(fieldId);
+                    if (input instanceof HTMLInputElement) {
+                        input.value = value;
+                    }
+                });
+
+                facturacionItemEditFields.forEach((field) => {
+                    if (!(field instanceof HTMLElement)) {
+                        return;
+                    }
+
+                    if (focusField !== '') {
+                        field.classList.toggle('is-hidden', field.dataset.editFieldKey !== focusField);
+                    } else {
+                        field.classList.remove('is-hidden');
+                    }
+                });
+
+                facturacionItemEditModal.classList.add('is-open');
+                facturacionItemEditModal.setAttribute('aria-hidden', 'false');
+
+                window.setTimeout(() => {
+                    const firstField = document.getElementById(focusFieldId);
+                    if (firstField instanceof HTMLInputElement) {
+                        firstField.focus();
+                        firstField.select();
+                    }
+                }, 30);
+            };
+
+            const closeFacturacionItemEditModal = () => {
+                if (!facturacionItemEditModal) {
+                    return;
+                }
+
+                facturacionItemEditModal.classList.remove('is-open');
+                facturacionItemEditModal.setAttribute('aria-hidden', 'true');
+
+                if (facturacionItemEditAlert instanceof HTMLElement) {
+                    facturacionItemEditAlert.textContent = '';
+                    facturacionItemEditAlert.classList.add('is-hidden');
+                }
+
+                facturacionItemEditFields.forEach((field) => {
+                    if (field instanceof HTMLElement) {
+                        field.classList.remove('is-hidden');
+                    }
+                });
+            };
+
             const openFacturacionActionConfirm = (form) => {
                 if (!facturacionActionConfirmModal || !facturacionActionConfirmTitle || !facturacionActionConfirmMessage || !facturacionActionConfirmAccept) {
                     form.submit();
@@ -1504,6 +1970,34 @@
                 });
             });
 
+            facturacionItemEditButtons.forEach((button) => {
+                button.addEventListener('click', function () {
+                    openFacturacionItemEditModal(button);
+                });
+            });
+
+            if (facturacionItemEditCancel) {
+                facturacionItemEditCancel.addEventListener('click', closeFacturacionItemEditModal);
+            }
+
+            if (facturacionItemEditForm) {
+                facturacionItemEditForm.addEventListener('submit', function () {
+                    if (facturacionItemEditSubmit instanceof HTMLButtonElement) {
+                        facturacionItemEditSubmit.disabled = true;
+                        facturacionItemEditSubmit.textContent = 'Guardando...';
+                    }
+                });
+            }
+
+            if (facturacionItemEditModal) {
+                facturacionItemEditModal.addEventListener('click', function (event) {
+                    const target = event.target;
+                    if (target instanceof HTMLElement && target.dataset.closeFacturacionItemEdit === 'true') {
+                        closeFacturacionItemEditModal();
+                    }
+                });
+            }
+
             if (facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object') {
                 openFacturacionShortcutModal();
 
@@ -1545,8 +2039,21 @@
                 const billingDocumentComplementField = document.getElementById('facturacionBillingDocumentComplement');
                 const billingNameField = document.getElementById('facturacionBillingName');
 
+                const setAutosaveState = (state, message) => {
+                    if (!facturacionAutosaveState) {
+                        return;
+                    }
+
+                    facturacionAutosaveState.classList.remove('is-saving', 'is-saved', 'is-error');
+                    if (state) {
+                        facturacionAutosaveState.classList.add(state);
+                    }
+                    facturacionAutosaveState.textContent = message;
+                };
+
                 const submitBillingInlineForm = () => {
                     const formData = new FormData(facturacionBillingInlineForm);
+                    setAutosaveState('is-saving', 'Guardando cambios...');
 
                     fetch(facturacionBillingInlineForm.action, {
                         method: 'POST',
@@ -1555,7 +2062,17 @@
                             'Accept': 'application/json',
                         },
                         body: formData,
-                    }).catch(() => {});
+                    })
+                        .then((response) => {
+                            if (!response.ok) {
+                                throw new Error('No se pudo guardar');
+                            }
+
+                            setAutosaveState('is-saved', 'Cambios guardados. Ya puedes reenviar.');
+                        })
+                        .catch(() => {
+                            setAutosaveState('is-error', 'No se pudieron guardar los cambios. Revisa los datos e intenta otra vez.');
+                        });
                 };
 
                 const syncBillingModeUi = (mode) => {
@@ -1692,6 +2209,11 @@
                         return;
                     }
                     closeFacturacionActionConfirm();
+                    return;
+                }
+
+                if (event.key === 'Escape' && facturacionItemEditModal && facturacionItemEditModal.classList.contains('is-open')) {
+                    closeFacturacionItemEditModal();
                     return;
                 }
 

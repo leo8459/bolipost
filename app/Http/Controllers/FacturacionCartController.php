@@ -49,6 +49,46 @@ class FacturacionCartController extends Controller
         }
     }
 
+    public function updateItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
+
+        $validated = $request->validate([
+            'codigo' => ['required', 'string', 'max:120'],
+            'titulo' => ['required', 'string', 'max:255'],
+            'nombre_servicio' => ['nullable', 'string', 'max:255'],
+            'nombre_destinatario' => ['nullable', 'string', 'max:255'],
+            'contenido' => ['nullable', 'string', 'max:255'],
+            'direccion' => ['nullable', 'string', 'max:255'],
+            'ciudad' => ['nullable', 'string', 'max:255'],
+            'peso' => ['nullable', 'numeric', 'min:0'],
+            'actividad_economica' => ['nullable', 'string', 'max:6'],
+            'codigo_sin' => ['nullable', 'string', 'max:50'],
+            'codigo_producto' => ['nullable', 'string', 'max:50'],
+            'descripcion_servicio' => ['nullable', 'string', 'max:255'],
+            'unidad_medida' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->updateDraftItem($user, $itemId, $validated);
+
+            return back()->with('facturacion_feedback', [
+                'type' => 'success',
+                'title' => 'Item actualizado',
+                'message' => 'El item del borrador fue corregido.',
+                'detail' => 'Ya puedes revisar los cambios y reintentar la emision.',
+            ]);
+        } catch (ModelNotFoundException) {
+            return back()->with('facturacion_feedback', [
+                'type' => 'error',
+                'title' => 'No se pudo actualizar el item',
+                'message' => 'No se encontro el item que querias corregir.',
+                'detail' => 'Vuelve a abrir el acceso rapido y revisa el borrador.',
+            ]);
+        }
+    }
+
     public function clear(Request $request, FacturacionCartService $service): RedirectResponse
     {
         $user = $request->user();

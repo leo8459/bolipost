@@ -119,6 +119,49 @@ class FacturacionCartService
         });
     }
 
+    public function updateDraftItem(User $user, int $itemId, array $payload): FacturacionCart
+    {
+        return DB::transaction(function () use ($user, $itemId, $payload) {
+            $item = FacturacionCartItem::query()
+                ->whereKey($itemId)
+                ->whereHas('cart', function ($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                        ->where('estado', 'borrador');
+                })
+                ->first();
+
+            if (! $item) {
+                throw new ModelNotFoundException('Item de facturacion no encontrado.');
+            }
+
+            $resumen = (array) ($item->resumen_origen ?? []);
+
+            $item->forceFill([
+                'codigo' => trim((string) ($payload['codigo'] ?? $item->codigo)),
+                'titulo' => trim((string) ($payload['titulo'] ?? $item->titulo)),
+                'nombre_servicio' => trim((string) ($payload['nombre_servicio'] ?? $item->nombre_servicio)),
+                'nombre_destinatario' => trim((string) ($payload['nombre_destinatario'] ?? $item->nombre_destinatario)),
+                'resumen_origen' => array_merge($resumen, [
+                    'codigo' => trim((string) ($payload['codigo'] ?? ($resumen['codigo'] ?? $item->codigo))),
+                    'contenido' => trim((string) ($payload['contenido'] ?? ($resumen['contenido'] ?? ''))),
+                    'peso' => isset($payload['peso']) ? round((float) $payload['peso'], 3) : (float) ($resumen['peso'] ?? 0),
+                    'destinatario' => trim((string) ($payload['nombre_destinatario'] ?? ($resumen['destinatario'] ?? $item->nombre_destinatario))),
+                    'direccion' => trim((string) ($payload['direccion'] ?? ($resumen['direccion'] ?? ''))),
+                    'ciudad' => trim((string) ($payload['ciudad'] ?? ($resumen['ciudad'] ?? ''))),
+                    'actividad_economica' => trim((string) ($payload['actividad_economica'] ?? ($resumen['actividad_economica'] ?? ''))),
+                    'codigo_sin' => trim((string) ($payload['codigo_sin'] ?? ($resumen['codigo_sin'] ?? ''))),
+                    'codigo_producto' => trim((string) ($payload['codigo_producto'] ?? ($resumen['codigo_producto'] ?? ''))),
+                    'descripcion_servicio' => trim((string) ($payload['descripcion_servicio'] ?? ($resumen['descripcion_servicio'] ?? ''))),
+                    'unidad_medida' => isset($payload['unidad_medida']) && $payload['unidad_medida'] !== null && $payload['unidad_medida'] !== ''
+                        ? (int) $payload['unidad_medida']
+                        : ($resumen['unidad_medida'] ?? null),
+                ]),
+            ])->save();
+
+            return $this->refreshCartTotals($item->cart);
+        });
+    }
+
     public function clearDraftCart(User $user): ?FacturacionCart
     {
         return DB::transaction(function () use ($user) {
@@ -221,7 +264,7 @@ class FacturacionCartService
             $cart = DB::transaction(function () use ($cart, $payload, $body) {
                 $cart->forceFill([
                     'estado' => 'emitido',
-                    'codigo_orden' => (string) ($body['codigoOrden'] ?? $payload['codigoOrden']),
+                    'codigo_orden' => $this->generateCodigoOrden($cart),
                     'codigo_seguimiento' => (string) ($body['codigoSeguimiento'] ?? data_get($body, 'sefe.datos.codigoSeguimiento', '')),
                     'estado_emision' => (string) ($body['estado'] ?? 'PENDIENTE'),
                     'mensaje_emision' => (string) ($body['mensaje'] ?? 'Factura emitida correctamente.'),
@@ -478,13 +521,13 @@ class FacturacionCartService
 
     private function generateCodigoOrden(FacturacionCart $cart): string
     {
-        return 'BOLI-' . now()->format('YmdHis') . '-' . str_pad((string) $cart->id, 6, '0', STR_PAD_LEFT);
+        return 'VENT-' . str_pad((string) $cart->id, 8, '0', STR_PAD_LEFT);
     }
 
     private function registrarResultadoEmision(FacturacionCart $cart, array $payload, array $body, bool $exitoso): void
     {
         $cart->forceFill([
-            'codigo_orden' => (string) ($body['codigoOrden'] ?? $payload['codigoOrden'] ?? ''),
+            'codigo_orden' => $this->generateCodigoOrden($cart),
             'codigo_seguimiento' => (string) ($body['codigoSeguimiento'] ?? data_get($body, 'sefe.datos.codigoSeguimiento', '')),
             'estado_emision' => (string) ($body['estado'] ?? ($exitoso ? 'PENDIENTE' : 'RECHAZADA')),
             'mensaje_emision' => (string) ($body['mensaje'] ?? $body['message'] ?? ''),
