@@ -381,19 +381,13 @@ return [
         ],
         [
             'text' => 'BITACORAS',
+            'url' => '/bitacoras',
             'icon' => 'fas fa-book',
-            'submenu' => [
-                [
-                    'text' => 'Bitacoras',
-                    'url' => '/bitacoras',
-                    'icon' => 'fas fa-book',
-                ],
-                [
-                    'text' => 'Malencaminados',
-                    'url' => 'malencaminados',
-                    'icon' => 'fas fa-random',
-                ],
-            ],
+        ],
+        [
+            'text' => 'Malencaminados',
+            'url' => 'malencaminados',
+            'icon' => 'fas fa-random',
         ],
         [
             'text' => 'Admisiones',
