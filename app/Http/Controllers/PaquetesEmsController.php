@@ -1084,6 +1084,25 @@ class PaquetesEmsController extends Controller
         }
 
         $codigos = $items->pluck('codigo')->all();
+        $existentesEms = PaqueteEms::query()
+            ->where(function ($query) use ($codigos) {
+                foreach ($codigos as $codigo) {
+                    $query->orWhereRaw('trim(upper(codigo)) = ?', [$codigo]);
+                }
+            })
+            ->pluck('codigo')
+            ->map(fn ($codigo) => strtoupper(trim((string) $codigo)))
+            ->unique()
+            ->values()
+            ->all();
+
+        if (!empty($existentesEms)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No puedes registrar codigos que ya existen en paquetes EMS: ' . implode(', ', $existentesEms),
+            ], 422);
+        }
+
         $existentes = RecojoContrato::query()
             ->where(function ($query) use ($codigos) {
                 foreach ($codigos as $codigo) {

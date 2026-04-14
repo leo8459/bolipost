@@ -36,4 +36,9 @@ class PaqueteOrdi extends Model
     {
         return $this->belongsTo(Ventanilla::class, 'fk_ventanilla');
     }
+
+    public function malencaminados()
+    {
+        return $this->hasMany(Malencaminado::class, 'paquetes_ordi_id');
+    }
 }

@@ -13,6 +13,7 @@ use App\Http\Controllers\ServicioController;
 use App\Http\Controllers\DestinoController;
 use App\Http\Controllers\PesoController;
 use App\Http\Controllers\OrigenController;
+use App\Http\Controllers\MalencaminadoController;
 use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\TarifarioController;
 use App\Http\Controllers\TarifaContratoController;
@@ -240,6 +241,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/destinos', [DestinoController::class, 'index'])->name('destinos.index');
     Route::get('/pesos', [PesoController::class, 'index'])->name('pesos.index');
     Route::get('/origenes', [OrigenController::class, 'index'])->name('origenes.index');
+    Route::get('/malencaminados', [MalencaminadoController::class, 'index'])->name('malencaminados.index');
+    Route::get('/malencaminados/reporte', [MalencaminadoController::class, 'reporte'])->name('malencaminados.reporte');
+    Route::get('/malencaminados/reporte/pdf', [MalencaminadoController::class, 'reportePdf'])->name('malencaminados.reporte.pdf');
     Route::get('/tarifario', [TarifarioController::class, 'index'])->name('tarifario.index');
     Route::get('/tarifario/pdf', [TarifarioController::class, 'exportPdf'])->name('tarifario.pdf');
     Route::get('/tarifario/reporte-global-excel', [TarifarioController::class, 'downloadGlobalReportExcel'])->name('tarifario.global-excel');

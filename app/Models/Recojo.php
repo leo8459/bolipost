@@ -68,4 +68,9 @@ class Recojo extends Model
     {
         return $this->hasMany(Bitacora::class, 'paquetes_contrato_id');
     }
+
+    public function malencaminados()
+    {
+        return $this->hasMany(Malencaminado::class, 'paquetes_contrato_id');
+    }
 }

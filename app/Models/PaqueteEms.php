@@ -60,4 +60,9 @@ class PaqueteEms extends Model
     {
         return $this->hasMany(Bitacora::class, 'paquetes_ems_id');
     }
+
+    public function malencaminados()
+    {
+        return $this->hasMany(Malencaminado::class, 'paquetes_ems_id');
+    }
 }
