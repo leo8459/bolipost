@@ -39,16 +39,20 @@
                     </select>
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">Generar reporte</button>
+                    @aclcan('report', null, 'malencaminados')
+                        <button type="submit" class="btn btn-primary w-100">Generar reporte</button>
+                    @endaclcan
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
-                    <a
-                        href="{{ route('malencaminados.reporte.pdf', ['fecha_inicio' => $fechaInicio, 'fecha_fin' => $fechaFin, 'departamento' => $departamento]) }}"
-                        class="btn btn-danger w-100"
-                        target="_blank"
-                    >
-                        Exportar PDF
-                    </a>
+                    @aclcan('export', null, 'malencaminados')
+                        <a
+                            href="{{ route('malencaminados.reporte.pdf', ['fecha_inicio' => $fechaInicio, 'fecha_fin' => $fechaFin, 'departamento' => $departamento]) }}"
+                            class="btn btn-danger w-100"
+                            target="_blank"
+                        >
+                            Exportar PDF
+                        </a>
+                    @endaclcan
                 </div>
             </form>
         </div>

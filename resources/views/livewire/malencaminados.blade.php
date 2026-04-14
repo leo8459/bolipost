@@ -76,9 +76,11 @@
                         <h4 class="fw-bold mb-1">Malencaminados</h4>
                         <div class="small">Busca por codigo, presiona Enter, selecciona el paquete y cambia destino.</div>
                     </div>
-                    <a href="{{ route('malencaminados.reporte') }}" class="btn btn-light btn-sm font-weight-bold">
-                        Ver reporte
-                    </a>
+                    @aclcan('report', null, 'malencaminados')
+                        <a href="{{ route('malencaminados.reporte') }}" class="btn btn-light btn-sm font-weight-bold">
+                            Ver reporte
+                        </a>
+                    @endaclcan
                 </div>
             </div>
 
@@ -124,9 +126,11 @@
                         @error('observacion') <small class="text-danger">{{ $message }}</small> @enderror
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
-                        <button class="btn btn-dorado w-100" wire:click="guardarMalencaminado">
-                            Guardar Malencaminado
-                        </button>
+                        @aclcan('create', $this)
+                            <button class="btn btn-dorado w-100" wire:click="guardarMalencaminado">
+                                Guardar Malencaminado
+                            </button>
+                        @endaclcan
                     </div>
                 </div>
 
@@ -220,16 +224,20 @@
                                     <td>{{ $row->destino_nuevo ?: '-' }}</td>
                                     <td class="muted small">{{ optional($row->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-azul" wire:click="openEditModal({{ (int) $row->id }})">
-                                            <i class="fas fa-pen"></i>
-                                        </button>
-                                        <button
-                                            class="btn btn-sm btn-outline-azul"
-                                            wire:click="delete({{ (int) $row->id }})"
-                                            onclick="return confirm('Seguro que deseas eliminar este registro?')"
-                                        >
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        @aclcan('edit', $this)
+                                            <button class="btn btn-sm btn-azul" wire:click="openEditModal({{ (int) $row->id }})">
+                                                <i class="fas fa-pen"></i>
+                                            </button>
+                                        @endaclcan
+                                        @aclcan('delete', $this)
+                                            <button
+                                                class="btn btn-sm btn-outline-azul"
+                                                wire:click="delete({{ (int) $row->id }})"
+                                                onclick="return confirm('Seguro que deseas eliminar este registro?')"
+                                            >
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        @endaclcan
                                     </td>
                                 </tr>
                             @empty
@@ -267,7 +275,9 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        @aclcan('edit', $this)
+                            <button type="submit" class="btn btn-primary">Guardar</button>
+                        @endaclcan
                     </div>
                 </form>
             </div>
