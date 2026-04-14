@@ -113,6 +113,7 @@ class RecojoController extends Controller
         if ($origen === '') {
             $origen = strtoupper(trim((string) ($user->name ?? '')));
         }
+        $origen = $this->normalizeApiOrigen($origen);
 
         return view('paquetes_contrato.create', [
             'origen' => $origen,
@@ -135,6 +136,7 @@ class RecojoController extends Controller
         if ($origen === '') {
             $origen = strtoupper(trim((string) ($user->name ?? '')));
         }
+        $origen = $this->normalizeApiOrigen($origen);
 
         $empresaId = (int) ($user->empresa_id ?? 0);
         $serviciosTarifa = collect();
@@ -639,6 +641,7 @@ class RecojoController extends Controller
         if ($origen === '') {
             $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
         }
+        $origen = $this->normalizeApiOrigen($origen);
 
         $estadoSolicitudId = (int) (Estado::query()
             ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
@@ -704,6 +707,17 @@ class RecojoController extends Controller
         });
 
         return $contrato;
+    }
+
+    protected function normalizeApiOrigen(string $origen): string
+    {
+        $normalized = strtoupper(trim($origen));
+
+        if ($normalized === 'BENI' || str_contains($normalized, 'BENI')) {
+            return 'TRINIDAD';
+        }
+
+        return $normalized;
     }
 
     protected function resolveApiUser(array $data): ?User
