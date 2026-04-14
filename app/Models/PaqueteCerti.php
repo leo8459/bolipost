@@ -20,6 +20,7 @@ class PaqueteCerti extends Model
         'zona',
         'ventanilla',
         'peso',
+        'precio',
         'tipo',
         'aduana',
         'fk_estado',

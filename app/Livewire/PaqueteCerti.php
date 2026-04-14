@@ -590,11 +590,20 @@ class PaqueteCerti extends Component
             'zona' => $this->upper($this->zona),
             'ventanilla' => $this->upper($ventanillaNombre),
             'peso' => $this->peso,
+            'precio' => $this->calcularPrecio($this->peso),
             'tipo' => $this->upper($this->tipo),
             'aduana' => $this->upper($this->aduana),
             'fk_estado' => $this->fk_estado,
             'fk_ventanilla' => $this->fk_ventanilla,
         ];
+    }
+
+    protected function calcularPrecio($pesoGramos): ?float
+    {
+        $kg = (float) $pesoGramos / 1000;
+        if ($kg >= 0.001 && $kg <= 0.500) return 5.00;
+        if ($kg > 0.500 && $kg <= 2.000) return 10.00;
+        return null;
     }
 
     protected function upper($value)

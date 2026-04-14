@@ -47,6 +47,7 @@
                         <p class="small-text"><strong>Usuario:</strong> {{ optional(auth()->user())->name }}</p>
                         <p class="small-text"><strong>Tipo:</strong> -</p>
                         <p class="small-text"><strong>Peso:</strong> {{ $package->peso }} gr.</p>
+                        <p class="small-text"><strong>Precio:</strong> {{ $package->precio ? $package->precio . ' Bs' : '-' }}</p>
                         <p class="small-text"><strong>Entrega:</strong> {{ optional($package->estado)->nombre_estado }}</p>
                         <p class="small-text"><strong>Fecha Entrega:</strong> {{ now()->format('Y-m-d H:i') }}</p>
                     </td>
@@ -92,6 +93,7 @@
                             <p class="small-text"><strong>Usuario:</strong> {{ optional(auth()->user())->name }}</p>
                             <p class="small-text"><strong>Tipo:</strong> -</p>
                             <p class="small-text"><strong>Peso:</strong> {{ $package->peso }} gr.</p>
+                            <p class="small-text"><strong>Precio:</strong> {{ $package->precio ? $package->precio . ' Bs' : '-' }}</p>
                             <p class="small-text"><strong>Entrega:</strong> {{ optional($package->estado)->nombre_estado }}</p>
                             <p class="small-text"><strong>Fecha Entrega:</strong> {{ now()->format('Y-m-d H:i') }}</p>
                         </td>

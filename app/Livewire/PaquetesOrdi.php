@@ -423,13 +423,15 @@ class PaquetesOrdi extends Component
                 return null;
             }
 
+            $pesoApi = $data['PESO'] ?? 0;
             $paquete = PaqueteOrdi::create([
                 'codigo'        => strtoupper(trim($data['CODIGO'])),
                 'destinatario'  => $data['DESTINATARIO'] ?? '',
                 'telefono'      => $data['TELEFONO'] ?? '',
                 'ciudad'        => strtoupper(trim($data['CUIDAD'] ?? '')),
                 'zona'          => $data['ZONA'] ?? '',
-                'peso'          => $data['PESO'] ?? 0,
+                'peso'          => $pesoApi,
+                'precio'        => $this->calcularPrecio($pesoApi),
                 'aduana'        => $data['ADUANA'] ?? 'NO',
                 'observaciones' => $data['OBSERVACIONES'] ?? null,
                 'cod_especial'  => $data['PAIS'] ?? null,
@@ -1080,6 +1082,14 @@ class PaquetesOrdi extends Component
         $this->zona = $this->upper($registro->zona ?: $this->zona);
     }
 
+    protected function calcularPrecio($pesoGramos): ?float
+    {
+        $kg = (float) $pesoGramos / 1000;
+        if ($kg >= 0.001 && $kg <= 0.500) return 5.00;
+        if ($kg > 0.500 && $kg <= 2.000) return 10.00;
+        return null;
+    }
+
     protected function payload()
     {
         return [
@@ -1089,6 +1099,7 @@ class PaquetesOrdi extends Component
             'ciudad' => $this->upper($this->ciudad),
             'zona' => $this->upper($this->zona),
             'peso' => $this->peso,
+            'precio' => $this->calcularPrecio($this->peso),
             'aduana' => $this->upper($this->aduana),
             'observaciones' => $this->emptyToNull($this->observaciones),
             'cod_especial' => $this->emptyToNull($this->cod_especial),

@@ -18,6 +18,7 @@ class PaqueteOrdi extends Model
         'ciudad',
         'zona',
         'peso',
+        'precio',
         'aduana',
         'observaciones',
         'cod_especial',
