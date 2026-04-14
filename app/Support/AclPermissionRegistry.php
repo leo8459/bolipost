@@ -550,6 +550,18 @@ class AclPermissionRegistry
             'empresas.template-excel',
             'feature.empresas.export',
         ],
+        'carteros.entrega.store' => [
+            'carteros.entrega.store',
+            'feature.carteros.entrega.deliver',
+        ],
+        'carteros.entrega.ida-vuelta' => [
+            'carteros.entrega.ida-vuelta',
+            'feature.carteros.entrega.deliver',
+        ],
+        'carteros.entrega.intento' => [
+            'carteros.entrega.intento',
+            'feature.carteros.entrega.attempt',
+        ],
         ];
 
     /**
