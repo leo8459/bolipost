@@ -70,6 +70,54 @@
             background-position: right .75rem center;
             background-size: 14px;
         }
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            border-color: #9ec5fe;
+            box-shadow: 0 0 0 .18rem rgba(13, 110, 253, .18);
+            outline: none;
+        }
+        .bp-switch .form-check-label {
+            margin-bottom: 0;
+        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
@@ -263,7 +311,7 @@
                             @endif
                         </div>
                         <div class="col-12 col-md-4 d-flex align-items-center">
-                            <div class="form-check mt-md-4">
+                            <div class="form-check bp-switch mt-md-4">
                                 <input class="form-check-input" type="checkbox" id="activo" wire:model="activo">
                                 <label class="form-check-label" for="activo">Activo</label>
                             </div>

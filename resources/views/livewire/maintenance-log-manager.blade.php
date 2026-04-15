@@ -22,6 +22,55 @@
             background-position: right .75rem center;
             background-size: 14px;
         }
+
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
+            outline: 0;
+        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
@@ -65,9 +114,17 @@
                                 </div>
                             </div>
                         @endif
+                        @if($selectedVehicle)
+                            <div class="col-12">
+                                <div class="alert alert-light border py-2 mb-0">
+                                    <strong>Vehiculo del mantenimiento:</strong>
+                                    {{ $selectedVehicle->display_name ?? $selectedVehicle->placa ?? 'N/A' }}
+                                </div>
+                            </div>
+                        @endif
                         <div class="col-12 col-md-4">
                             <label for="vehicle_id" class="form-label fw-bold">Vehiculo <span class="text-danger">*</span></label>
-                            <select id="vehicle_id" wire:model="vehicle_id" class="form-select bp-select-like-vehicle @error('vehicle_id') is-invalid @enderror" required>
+                            <select id="vehicle_id" wire:model="vehicle_id" class="form-select bp-select-like-vehicle @error('vehicle_id') is-invalid @enderror" @disabled((int) ($from_workshop_id ?? 0) > 0) required>
                                 <option value="">Seleccionar vehiculo</option>
                                 @foreach ($vehicles as $vehicle)
                                     <option value="{{ $vehicle->id }}">{{ $vehicle->placa }}</option>
@@ -127,7 +184,7 @@
                             @error('kilometraje') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12">
-                            <div class="form-check">
+                            <div class="form-check bp-switch">
                                 <input type="checkbox" id="tacometro_danado_vehiculo" wire:model="tacometro_danado_vehiculo" class="form-check-input">
                                 <label class="form-check-label fw-bold" for="tacometro_danado_vehiculo">
                                     Marcar vehiculo con tacometro danado
@@ -186,7 +243,7 @@
                         type="button"
                         wire:click="setTableView('pending')"
                         class="btn {{ $tableView === 'pending' ? 'btn-primary' : 'btn-outline-primary' }}">
-                        <i class="fas fa-truck-ramp-box me-2"></i>Pendientes desde taller
+                        <i class="fas fa-truck-ramp-box me-2"></i>Entregados de taller
                         <span class="badge {{ $tableView === 'pending' ? 'bg-light text-dark' : 'bg-primary ms-1' }}">{{ $pendingWorkshopRecords->count() }}</span>
                     </button>
                     <button
@@ -203,7 +260,7 @@
         @if($tableView === 'pending')
             <div class="card shadow-sm mb-4">
                 <div class="card-header">
-                    Vehiculos entregados desde taller pendientes de registro
+                    Vehiculos entregados por taller
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -216,7 +273,6 @@
                                     <th>Mantenimiento</th>
                                     <th>Fecha entrega</th>
                                     <th class="text-end">Costo</th>
-                                    <th>Registro</th>
                                     <th class="text-center">Accion</th>
                                 </tr>
                             </thead>
@@ -229,17 +285,13 @@
                                         <td>{{ $workshop->maintenanceAlert?->maintenanceType?->nombre ?? $workshop->maintenanceAppointment?->tipoMantenimiento?->nombre ?? 'Mantenimiento realizado' }}</td>
                                         <td>{{ optional($workshop->fecha_salida)->format('d/m/Y') ?: optional($workshop->fecha_listo)->format('d/m/Y') ?: 'Pendiente' }}</td>
                                         <td class="text-end">BOB{{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</td>
-                                        <td>
-                                            @if($workshop->maintenanceLog)
-                                                <span class="badge bg-success">Registro #{{ $workshop->maintenanceLog->id }}</span>
-                                            @else
-                                                <span class="badge bg-warning text-dark">Pendiente</span>
-                                            @endif
-                                        </td>
                                         <td class="text-center">
-                                            <button type="button" wire:click="registerFromWorkshop({{ $workshop->id }})" class="btn btn-sm btn-outline-primary">
-                                                <i class="fas fa-file-medical me-1"></i>{{ $workshop->maintenanceLog ? 'Abrir registro' : 'Registrar mantenimiento' }}
+                                            <button type="button" wire:click="registerFromWorkshop({{ $workshop->id }})" class="btn btn-sm btn-outline-primary" title="{{ $workshop->maintenance_log_id ? 'Editar' : 'Registrar' }} mantenimiento de {{ $workshop->vehicle?->display_name ?? ($workshop->vehicle?->placa ?? 'N/A') }}">
+                                                <i class="fas fa-file-medical me-1"></i>{{ $workshop->maintenance_log_id ? 'Editar mantenimiento' : 'Registrar mantenimiento' }}
                                             </button>
+                                            <div class="small text-muted mt-1">
+                                                {{ $workshop->vehicle?->placa ?? 'Sin placa' }}
+                                            </div>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -249,7 +301,7 @@
                     @if(!$pendingWorkshopRecords->count())
                         <div class="p-5 text-center text-muted">
                             <i class="fas fa-clipboard-check fa-3x mb-3 opacity-25"></i>
-                            <h5>Sin vehiculos pendientes desde taller</h5>
+                            <h5>Sin vehiculos entregados por taller</h5>
                         </div>
                     @endif
                 </div>

@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class MaintenanceAlert extends Model
 {
     public const STATUS_ACTIVE = 'Activa';
+    public const STATUS_REQUESTED = 'Solicitada';
+    public const STATUS_IN_WORKSHOP = 'En taller';
     public const STATUS_RESOLVED = 'Resuelta';
     public const STATUS_OMITTED = 'Omitida';
 
@@ -66,5 +68,34 @@ class MaintenanceAlert extends Model
     public function workshops(): HasMany
     {
         return $this->hasMany(Workshop::class, 'maintenance_alert_id');
+    }
+
+    public function userReads(): HasMany
+    {
+        return $this->hasMany(MaintenanceAlertUserRead::class, 'maintenance_alert_id');
+    }
+
+    public function isReadByUser(?int $userId): bool
+    {
+        if (($userId ?? 0) <= 0) {
+            return (bool) $this->leida;
+        }
+
+        if ($this->relationLoaded('userReads')) {
+            return $this->userReads->contains(fn (MaintenanceAlertUserRead $read) => (int) $read->user_id === (int) $userId);
+        }
+
+        return $this->userReads()
+            ->where('user_id', (int) $userId)
+            ->exists();
+    }
+
+    public static function openStatuses(): array
+    {
+        return [
+            self::STATUS_ACTIVE,
+            self::STATUS_REQUESTED,
+            self::STATUS_IN_WORKSHOP,
+        ];
     }
 }

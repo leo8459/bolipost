@@ -25,6 +25,7 @@ class MaintenanceType extends Model
         'intervalo_km_fh',
         'km_alerta_previa',
         'descripcion',
+        'activo',
     ];
 
     protected $casts = [
@@ -35,7 +36,17 @@ class MaintenanceType extends Model
         'intervalo_km_init' => 'integer',
         'intervalo_km_fh' => 'integer',
         'km_alerta_previa' => 'integer',
+        'activo' => 'boolean',
     ];
+
+    public function scopeActive(Builder $query): Builder
+    {
+        if (Schema::hasColumn($this->getTable(), 'activo')) {
+            $query->where($this->qualifyColumn('activo'), true);
+        }
+
+        return $query;
+    }
 
     public function getMaintenanceFormTypeLabelAttribute(): string
     {
@@ -89,9 +100,18 @@ class MaintenanceType extends Model
             }
         }
 
-        return $query->where(function ($typeQuery) use ($vehicle) {
+        $vehicleScopedMatches = (clone $query)->where(function ($typeQuery) use ($vehicle) {
             $typeQuery->whereDoesntHave('vehicles')
                 ->orWhereHas('vehicles', fn ($vehicleQuery) => $vehicleQuery->where('vehicles.id', (int) $vehicle->id));
-        });
+        })->exists();
+
+        if ($vehicleScopedMatches) {
+            $query->where(function ($typeQuery) use ($vehicle) {
+                $typeQuery->whereDoesntHave('vehicles')
+                    ->orWhereHas('vehicles', fn ($vehicleQuery) => $vehicleQuery->where('vehicles.id', (int) $vehicle->id));
+            });
+        }
+
+        return $query;
     }
 }

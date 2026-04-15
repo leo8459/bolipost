@@ -23,6 +23,55 @@
             background-size: 14px;
         }
 
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
+            outline: 0;
+        }
+
         [x-cloak] {
             display: none !important;
         }
@@ -847,8 +896,15 @@
                                 <td>{{ optional($log->driver)->nombre ?? '-' }}</td>
                                 <td>{{ optional($log->invoice?->fecha_emision)->format('d/m/Y H:i') }}</td>
                                 <td>
+                                    @php
+                                        $rowHasInvoicePhoto = !empty($log->invoice?->invoice_photo_path);
+                                        $rowStatus = (string) ($log->estado ?? '');
+                                        $showDeniedStatus = $rowHasInvoicePhoto && $rowStatus !== 'Verificado';
+                                    @endphp
                                     @if(($log->estado ?? null) === 'Verificado')
                                     <span class="badge bg-success">Verificado</span>
+                                    @elseif($showDeniedStatus)
+                                    <span class="badge bg-danger">Denegado</span>
                                     @else
                                     <span class="badge bg-warning text-dark">Falta verificar</span>
                                     @endif
@@ -865,31 +921,46 @@
                                         $kmPorLitro = ($kmSalida !== null && $kmLlegada !== null && $litros > 0 && $kmLlegada >= $kmSalida)
                                             ? round(((float) $kmLlegada - (float) $kmSalida) / $litros, 3)
                                             : null;
+                                        $hasSiatPdf = !empty($log->invoice?->siat_document_path);
+                                        $hasRolloPdf = !empty($log->invoice?->siat_rollo_document_path);
+                                        $hasSiatSource = !empty($log->invoice?->siat_source_url) || !empty($log->invoice?->siat_snapshot_json);
+                                        $canViewSiatPdf = $hasSiatPdf || $hasSiatSource;
+                                        $canBuildRolloPdf = $hasRolloPdf
+                                            || $hasSiatPdf
+                                            || !empty($log->invoice?->siat_source_url)
+                                            || !empty($log->invoice?->siat_snapshot_json);
+                                        $hasInvoicePhoto = !empty($log->invoice?->invoice_photo_path);
+                                        $showSiatActions = !$hasInvoicePhoto && ($canViewSiatPdf || $canBuildRolloPdf);
+                                        $fuelMeterPhotoPath = data_get($log->invoice?->antifraud_payload_json, 'evidence.fuel_meter_photo_path');
+                                        $hasFuelMeterPhoto = !empty($fuelMeterPhotoPath);
                                     @endphp
                                     <div>{{ number_format((float) ($log->galones ?? 0), 2) }} L</div>
                                     <div class="small text-muted">Factura: {{ optional($log->invoice)->numero_factura ?? '-' }}</div>
                                     <div class="small text-muted">Total: BOB{{ number_format((float) $log->total_calculado, 2) }}</div>
                                     <div class="small text-muted">Rendimiento: {{ $kmPorLitro !== null ? number_format($kmPorLitro, 3) . ' km/l' : '-' }}</div>
-                                    @if(!empty($log->invoice?->siat_document_path))
-                                        <div class="mt-2">
-                                            <button
-                                                type="button"
-                                                class="btn btn-sm btn-outline-secondary fuel-view-file-btn"
-                                                data-url="{{ route('fuel-invoices.document', $log->invoice) }}"
-                                                data-kind="pdf"
-                                                data-title="Factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
-                                            >
-                                                <i class="fas fa-file-pdf me-1"></i>Ver factura
-                                            </button>
-                                        </div>
+                                    <div class="small text-muted">Foto factura: {{ $hasInvoicePhoto ? 'registrada' : 'no registrada' }}</div>
+                                    <div class="small text-muted">Foto medidor: {{ $hasFuelMeterPhoto ? 'registrada' : 'no registrada' }}</div>
+                                    @if(!$hasInvoicePhoto && $canViewSiatPdf)
+                                    <div class="mt-2">
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-secondary fuel-view-file-btn"
+                                            data-url="{{ route('fuel-invoices.document', $log->invoice) }}"
+                                            data-kind="pdf"
+                                            data-title="Factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
+                                            title="Ver factura PDF SIAT"
+                                        >
+                                            <i class="fas fa-file-pdf me-1"></i>Ver factura
+                                        </button>
+                                    </div>
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    @if(!empty($log->invoice?->siat_document_path))
+                                    @if(!$hasInvoicePhoto && $canViewSiatPdf)
                                     <button
                                         type="button"
                                         class="btn btn-sm btn-outline-danger fuel-view-file-btn"
-                                        title="Ver factura PDF"
+                                        title="Ver factura PDF SIAT"
                                         data-url="{{ route('fuel-invoices.document', $log->invoice) }}"
                                         data-kind="pdf"
                                         data-title="Factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
@@ -899,12 +970,12 @@
                                     <a
                                         href="{{ route('fuel-invoices.document', ['fuelInvoice' => $log->invoice, 'download' => 1]) }}"
                                         class="btn btn-sm btn-outline-secondary"
-                                        title="Descargar factura PDF"
+                                        title="Descargar factura PDF SIAT"
                                     >
                                         <i class="fas fa-download"></i>
                                     </a>
                                     @endif
-                                    @if(!empty($log->invoice?->siat_rollo_document_path))
+                                    @if(!$hasInvoicePhoto && $canBuildRolloPdf)
                                     <button
                                         type="button"
                                         class="btn btn-sm btn-outline-secondary fuel-view-file-btn"
@@ -923,7 +994,7 @@
                                         <i class="fas fa-file-download"></i>
                                     </a>
                                     @endif
-                                    @if(!empty($log->invoice?->invoice_photo_path))
+                                    @if($hasInvoicePhoto)
                                     <button
                                         type="button"
                                         class="btn btn-sm btn-outline-primary fuel-view-file-btn"
@@ -932,18 +1003,20 @@
                                         data-kind="image"
                                         data-title="Foto de factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
                                     >
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    @else
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-secondary"
-                                        title="Sin foto de factura"
-                                        disabled
-                                    >
-                                        <i class="fas fa-eye"></i>
+                                        <i class="fas fa-image"></i>
                                     </button>
                                     @endif
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-dark{{ $hasFuelMeterPhoto ? ' fuel-view-file-btn' : ' disabled' }}"
+                                        title="{{ $hasFuelMeterPhoto ? 'Ver foto del medidor' : 'Sin foto del medidor' }}"
+                                        data-url="{{ $hasFuelMeterPhoto ? route('fuel-invoices.meter-photo', $log->invoice) : '' }}"
+                                        data-kind="image"
+                                        data-title="Foto del medidor {{ optional($log->invoice)->numero_factura ?? '#' }}"
+                                        {{ $hasFuelMeterPhoto ? '' : 'disabled aria-disabled=true' }}
+                                    >
+                                        <i class="fas fa-tachometer-alt"></i>
+                                    </button>
                                     <a
                                         href="{{ $log->vehicleLog ? route('vehicle-logs.map', $log->vehicleLog->id) : '#' }}"
                                         class="btn btn-sm btn-outline-info{{ $log->vehicleLog ? '' : ' disabled' }}"

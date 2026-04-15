@@ -3,6 +3,7 @@
 use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\Api\AuthTokenController;
+use App\Http\Controllers\Api\AlertReadApiController;
 use App\Http\Controllers\Api\FuelLogApiController;
 use App\Http\Controllers\Api\FuelScrapeApiController;
 use App\Http\Controllers\Api\MaintenanceRequestApiController;
@@ -42,11 +43,12 @@ Route::middleware('web')->group(function () {
     Route::post('/qr/decode-from-image', [QrDecoderApiController::class, 'decodeFromImage']);
     Route::put('/siat/consulta-factura', [MobileUtilityController::class, 'siatConsultaFactura']);
 
-    Route::middleware('auth:web')->group(function () {
+    Route::middleware(['auth:web', 'single.mobile.session'])->group(function () {
         Route::get('/mobile/me', [AuthTokenController::class, 'me']);
         Route::get('/mobile/bootstrap', [AuthTokenController::class, 'bootstrap']);
         Route::post('/mobile/logout', [AuthTokenController::class, 'logout']);
         Route::post('/mobile/snapshot', [MobileSnapshotController::class, 'store']);
+        Route::patch('/alerts/{alert}/read', [AlertReadApiController::class, 'markRead']);
 
         Route::get('/fuel-logs', [FuelLogApiController::class, 'index']);
         Route::get('/fuel-logs/{fuelLog}', [FuelLogApiController::class, 'show']);
@@ -63,6 +65,7 @@ Route::middleware('web')->group(function () {
         Route::get('/activity-logs', [MobileUtilityController::class, 'activityIndex']);
         Route::post('/activity-logs', [MobileUtilityController::class, 'activityStore']);
         Route::post('/mobile/location/heartbeat', [MobileUtilityController::class, 'locationHeartbeat']);
+        Route::post('/mobile/operational-incident', [MobileUtilityController::class, 'reportOperationalIncident']);
         Route::post('/mobile/bitacora/load', [MobileUtilityController::class, 'bitacoraLoad']);
         Route::get('/mobile/bitacora/session-health', [MobileUtilityController::class, 'sessionHealth']);
         Route::post('/mobile/bitacora/investigation-ticket/confirm', [MobileUtilityController::class, 'confirmInvestigationTicket']);

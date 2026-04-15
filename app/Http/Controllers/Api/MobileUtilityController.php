@@ -11,6 +11,7 @@ use App\Models\ActivityLog;
 use App\Models\Vehicle;
 use App\Models\VehicleLogInvestigationTicket;
 use App\Models\VehicleLogSession;
+use App\Models\VehicleOperationAlert;
 use App\Services\MaintenanceAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -298,6 +299,7 @@ class MobileUtilityController extends Controller
             'action' => $action,
             'model' => 'vehicle_log',
             'record_id' => (int) (($payload['session_id'] ?? 0) ?: $payload['vehicle_id']),
+            'vehicle_log_id' => (int) ($createdIds[0] ?? 0) ?: null,
             'changes_json' => [
                 'driver_id' => (int) ($payload['driver_id'] ?? 0) ?: null,
                 'vehicle_id' => (int) $payload['vehicle_id'],
@@ -355,6 +357,72 @@ class MobileUtilityController extends Controller
         return response()->json([
             'message' => 'Alerta de emergencia registrada.',
             'activity_log_id' => $log->id,
+        ], 201);
+    }
+
+    public function reportOperationalIncident(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'vehicle_id' => 'required|integer|exists:vehicles,id',
+            'driver_id' => 'nullable|integer|min:1',
+            'session_reference' => 'nullable|string|max:120',
+            'incident_type' => 'required|string|in:' . implode(',', VehicleOperationAlert::mobileIncidentTypes()),
+            'severity' => 'nullable|string|in:info,warning,danger,secondary,success',
+            'message' => 'nullable|string|max:1000',
+            'current_stage' => 'nullable|string|max:40',
+            'meta_json' => 'nullable|array',
+        ]);
+
+        $vehicleId = (int) $payload['vehicle_id'];
+        $session = $this->resolveOperationalIncidentSession(
+            $payload['session_reference'] ?? null,
+            $vehicleId,
+        );
+
+        $driverId = (int) ($payload['driver_id'] ?? 0);
+        if ($driverId <= 0) {
+            $driverId = (int) ($session?->current_driver_id ?? $session?->responsible_driver_id ?? 0);
+        }
+
+        $vehicle = Vehicle::query()->find($vehicleId);
+        $driver = $driverId > 0 ? Driver::query()->find($driverId) : null;
+        $alertPayload = $this->buildOperationalIncidentAlertPayload(
+            $payload,
+            $vehicle,
+            $driver,
+            $session,
+        );
+
+        $existing = VehicleOperationAlert::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where('alert_type', (string) $payload['incident_type'])
+            ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+            ->first();
+
+        if ($existing) {
+            $existing->update($alertPayload);
+            $alert = $existing->refresh();
+        } else {
+            $alert = VehicleOperationAlert::query()->create($alertPayload);
+        }
+
+        ActivityLog::create([
+            'user_id' => (int) ($request->user()?->id ?? 0) ?: null,
+            'action' => 'MOBILE_OPERATIONAL_INCIDENT_REPORTED',
+            'model' => 'vehicle_operation_alert',
+            'record_id' => (int) $alert->id,
+            'changes_json' => [
+                'vehicle_id' => $vehicleId,
+                'driver_id' => $driverId > 0 ? $driverId : null,
+                'incident_type' => (string) $payload['incident_type'],
+                'session_reference' => $payload['session_reference'] ?? null,
+            ],
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Incidente operativo registrado.',
+            'alert_id' => (int) $alert->id,
         ], 201);
     }
 
@@ -497,6 +565,9 @@ class MobileUtilityController extends Controller
         }
         if ($this->activityLogsHasColumn('record_id')) {
             $payload['record_id'] = $recordId;
+        }
+        if ($this->activityLogsHasColumn('vehicle_log_id') && array_key_exists('vehicle_log_id', $input)) {
+            $payload['vehicle_log_id'] = $input['vehicle_log_id'] ? (int) $input['vehicle_log_id'] : null;
         }
         if ($this->activityLogsHasColumn('changes_json')) {
             $payload['changes_json'] = $changes;
@@ -1270,6 +1341,117 @@ class MobileUtilityController extends Controller
             'latitude' => $endLat,
             'longitude' => $endLng,
         ], fn ($value) => !is_null($value) && $value !== '');
+    }
+
+    private function resolveOperationalIncidentSession(?string $sessionReference, int $vehicleId): ?VehicleLogSession
+    {
+        $query = VehicleLogSession::query()->orderByDesc('started_at')->orderByDesc('id');
+
+        if (is_string($sessionReference) && trim($sessionReference) !== '') {
+            $session = (clone $query)
+                ->where('session_reference', trim($sessionReference))
+                ->first();
+            if ($session) {
+                return $session;
+            }
+        }
+
+        return $query
+            ->where('vehicle_id', $vehicleId)
+            ->whereNull('ended_at')
+            ->first();
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function buildOperationalIncidentAlertPayload(
+        array $payload,
+        ?Vehicle $vehicle,
+        ?Driver $driver,
+        ?VehicleLogSession $session
+    ): array {
+        $incidentType = (string) $payload['incident_type'];
+        $plate = trim((string) ($vehicle?->placa ?? 'SIN PLACA'));
+        $driverName = trim((string) ($driver?->nombre ?? 'Sin conductor'));
+        $currentStage = trim((string) ($payload['current_stage'] ?? ($session?->status ?? 'INICIO')));
+        $severity = (string) ($payload['severity'] ?? 'danger');
+        $customMessage = trim((string) ($payload['message'] ?? ''));
+        $title = 'Incidente operativo movil';
+        $defaultMessage = sprintf('%s con el vehiculo %s reporto un incidente operativo en el movil.', $driverName, $plate);
+
+        switch ($incidentType) {
+            case VehicleOperationAlert::TYPE_MOBILE_LOCATION_PERMISSION:
+                $title = 'Permiso de ubicacion denegado';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s denego el permiso de ubicacion en primer plano.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_BACKGROUND_PERMISSION:
+                $title = 'Permiso de ubicacion en segundo plano denegado';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s denego el permiso de ubicacion en segundo plano.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_LIVE_TRACKING_FAILED:
+                $title = 'Fallo de ubicacion en vivo';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s no pudo activar la ubicacion en vivo del movil.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_BACKGROUND_TRACKING_FAILED:
+                $title = 'Fallo de rastreo en segundo plano';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s no pudo iniciar el rastreo en segundo plano del movil.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_GPS_DISABLED_ATTEMPT:
+                $title = 'Intento de ruta sin GPS';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s intento operar con el GPS apagado o sin servicios de ubicacion.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_GPS_MOCKED_ATTEMPT:
+                $title = 'Intento de ubicacion falsificada';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s intento falsificar su ubicacion antes de operar.',
+                    $driverName,
+                    $plate
+                );
+                break;
+        }
+
+        $meta = is_array($payload['meta_json'] ?? null) ? $payload['meta_json'] : [];
+        $meta['driver_name'] = $driverName;
+        $meta['plate'] = $plate;
+        $meta['reported_from'] = 'mobile';
+        $meta['session_reference'] = $payload['session_reference'] ?? ($session?->session_reference);
+
+        return [
+            'vehicle_id' => (int) ($vehicle?->id ?? $payload['vehicle_id']),
+            'vehicle_log_session_id' => $session?->id,
+            'alert_type' => $incidentType,
+            'severity' => $severity,
+            'status' => VehicleOperationAlert::STATUS_ACTIVE,
+            'title' => $title,
+            'message' => $customMessage !== '' ? $customMessage : $defaultMessage,
+            'current_stage' => $currentStage !== '' ? $currentStage : 'INICIO',
+            'last_heartbeat_at' => now(),
+            'detected_at' => now(),
+            'resolved_at' => null,
+            'meta_json' => $meta,
+        ];
     }
 
     private function resolveTimelinePointLabel(?array $point, string $fallback): string

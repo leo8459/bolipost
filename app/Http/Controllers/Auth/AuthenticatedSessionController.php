@@ -53,6 +53,11 @@ class AuthenticatedSessionController extends Controller
             return route('login', absolute: false);
         }
 
+        $role = mb_strtolower(trim((string) ($user->role ?? '')));
+        if ($role === 'taller') {
+            return route('livewire.workshops', absolute: false);
+        }
+
         foreach ($this->authorizedMenuUrls($user) as $url) {
             return $url;
         }

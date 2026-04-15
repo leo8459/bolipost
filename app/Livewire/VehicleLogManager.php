@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
 use App\Models\VehicleLog;
+use App\Models\VehicleOperationAlert;
 use App\Services\MaintenanceAlertService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -63,6 +64,7 @@ class VehicleLogManager extends Component
     public ?int $editingLogId = null;
     public bool $showForm = false;
     public string $search = '';
+    public string $table_view = 'logs';
     public ?string $fecha_desde = null;
     public ?string $fecha_hasta = null;
     public ?int $vehicle_filter_id = null;
@@ -78,8 +80,15 @@ class VehicleLogManager extends Component
 
     public function render()
     {
-        $query = VehicleLog::with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'fuelLog'])
+        $query = VehicleLog::query()
+            ->active()
+            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'fuelLog'])
             ->orderByDesc('fecha')
+            ->orderByDesc('id');
+        $operationAlertsQuery = VehicleOperationAlert::query()
+            ->with(['vehicle', 'session.driver'])
+            ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+            ->orderByDesc('detected_at')
             ->orderByDesc('id');
 
         $search = trim($this->search);
@@ -95,14 +104,26 @@ class VehicleLogManager extends Component
                     ->orWhereHas('vehicle', fn ($vehicleQuery) => $vehicleQuery->where('placa', 'like', "%{$search}%"))
                     ->orWhereHas('driver', fn ($driverQuery) => $driverQuery->where('nombre', 'like', "%{$search}%"));
             });
+
+            $operationAlertsQuery->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('message', 'like', "%{$search}%")
+                    ->orWhere('current_stage', 'like', "%{$search}%")
+                    ->orWhereHas('vehicle', fn ($vehicleQuery) => $vehicleQuery->where('placa', 'like', "%{$search}%"))
+                    ->orWhereHas('session.driver', fn ($driverQuery) => $driverQuery->where('nombre', 'like', "%{$search}%"));
+            });
         }
 
         if ($this->currentUser()?->role === 'conductor') {
             $driverId = (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0);
             if ($driverId <= 0) {
                 $query->whereRaw('1=0');
+                $operationAlertsQuery->whereRaw('1=0');
             } else {
                 $query->where('drivers_id', $driverId);
+                $operationAlertsQuery->whereHas('session', fn ($sessionQuery) => $sessionQuery
+                    ->where('current_driver_id', $driverId)
+                    ->orWhere('responsible_driver_id', $driverId));
                 $this->driver_filter_id = $driverId;
             }
         }
@@ -111,21 +132,28 @@ class VehicleLogManager extends Component
 
         if ($fechaDesde) {
             $query->whereDate('fecha', '>=', $fechaDesde);
+            $operationAlertsQuery->whereDate('detected_at', '>=', $fechaDesde);
         }
 
         if ($fechaHasta) {
             $query->whereDate('fecha', '<=', $fechaHasta);
+            $operationAlertsQuery->whereDate('detected_at', '<=', $fechaHasta);
         }
 
         if ($this->vehicle_filter_id) {
             $query->where('vehicles_id', (int) $this->vehicle_filter_id);
+            $operationAlertsQuery->where('vehicle_id', (int) $this->vehicle_filter_id);
         }
 
         if ($this->driver_filter_id) {
             $query->where('drivers_id', (int) $this->driver_filter_id);
+            $operationAlertsQuery->whereHas('session', fn ($sessionQuery) => $sessionQuery
+                ->where('current_driver_id', (int) $this->driver_filter_id)
+                ->orWhere('responsible_driver_id', (int) $this->driver_filter_id));
         }
 
         $logs = $query->paginate(10);
+        $operationAlerts = $operationAlertsQuery->paginate(10, ['*'], 'alertsPage');
         $crossSummary = $this->buildOperationalSummary($logs);
 
         if ($this->currentUser()?->role === 'conductor') {
@@ -213,6 +241,7 @@ class VehicleLogManager extends Component
         }
 
         $fuelLogs = FuelLog::query()
+            ->active()
             ->leftJoin('fuel_invoices as fi', 'fuel_invoice_details.fuel_invoice_id', '=', 'fi.id')
             ->select([
                 'fuel_invoice_details.id',
@@ -224,11 +253,38 @@ class VehicleLogManager extends Component
 
         return view('livewire.vehicle-log-manager', [
             'logs' => $logs,
+            'operationAlerts' => $operationAlerts,
             'vehicles' => $vehicles,
             'drivers' => $drivers,
             'fuelLogs' => $fuelLogs,
             'crossSummary' => $crossSummary,
         ]);
+    }
+
+    public function showLogsTable(): void
+    {
+        $this->table_view = 'logs';
+    }
+
+    public function showOperationalAlertsTable(): void
+    {
+        $this->table_view = 'alerts';
+    }
+
+    public function markOperationalAlertReviewed(int $alertId): void
+    {
+        $alert = VehicleOperationAlert::query()->find($alertId);
+        if (!$alert) {
+            session()->flash('error', 'La alerta operativa ya no existe.');
+            return;
+        }
+
+        $alert->update([
+            'status' => VehicleOperationAlert::STATUS_RESOLVED,
+            'resolved_at' => now(),
+        ]);
+
+        session()->flash('message', 'Alerta operativa marcada como revisada.');
     }
 
     public function save(): void
@@ -402,13 +458,8 @@ class VehicleLogManager extends Component
             return;
         }
 
-        $photoPath = trim((string) ($log->odometro_photo_path ?? ''));
-        if ($photoPath !== '' && Storage::disk('public')->exists($photoPath)) {
-            Storage::disk('public')->delete($photoPath);
-        }
-
-        $log->delete();
-        session()->flash('message', 'Registro de bitacora eliminado correctamente.');
+        $log->update(['activo' => false]);
+        session()->flash('message', 'Registro de bitacora inactivado correctamente.');
     }
 
     public function resetForm(): void

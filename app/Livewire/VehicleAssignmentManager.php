@@ -102,10 +102,12 @@ class VehicleAssignmentManager extends Component
         $assignmentDate = $this->resolveAssignmentDate();
         $editingId = $this->editingId;
 
-        $vehicles = Vehicle::query()
+        $vehiclesQuery = Vehicle::query()
             ->where('activo', true)
-            ->operationallyAvailable()
-            ->whereDoesntHave('assignments', function ($assignmentQuery) use ($assignmentDate, $editingId) {
+            ->operationallyAvailable();
+
+        if (!$this->isEdit) {
+            $vehiclesQuery->whereDoesntHave('assignments', function ($assignmentQuery) use ($assignmentDate, $editingId) {
                 $assignmentQuery
                     ->where('activo', true)
                     ->when($editingId, fn ($q) => $q->where('id', '!=', $editingId))
@@ -115,7 +117,10 @@ class VehicleAssignmentManager extends Component
                     ->where(function ($q) use ($assignmentDate) {
                         $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
                     });
-            })
+            });
+        }
+
+        $vehicles = $vehiclesQuery
             ->orderBy('placa')
             ->get();
 
@@ -127,6 +132,7 @@ class VehicleAssignmentManager extends Component
         }
 
         $unassignedDrivers = Driver::query()
+            ->where('activo', true)
             ->when(
                 !empty($assignedDriverIds),
                 fn($driverQuery) => $driverQuery->whereNotIn('id', $assignedDriverIds)
@@ -232,6 +238,10 @@ class VehicleAssignmentManager extends Component
             }
         }
 
+        if (!$this->skipNextReassignCheck && $this->prepareReassignConfirmation()) {
+            return;
+        }
+
         if (!$this->ensureNoActiveAssignmentConflicts()) {
             return;
         }
@@ -240,8 +250,16 @@ class VehicleAssignmentManager extends Component
     }
     public function confirmReassignment(): void
     {
+        $this->skipNextReassignCheck = true;
+        $this->resolveConflictingAssignments();
         $this->closeReassignConfirm();
-        session()->flash('error', 'No se puede reasignar un vehiculo activo desde esta pantalla. Primero desasigne el registro actual.');
+
+        if (!$this->ensureNoActiveAssignmentConflicts()) {
+            $this->skipNextReassignCheck = false;
+            return;
+        }
+
+        $this->persistAssignment();
     }
     public function cancelReassignment(): void
     {
@@ -283,17 +301,12 @@ class VehicleAssignmentManager extends Component
 
     public function unassign(VehicleAssignment $assignment): void
     {
-        if (!$assignment->activo) {
-            session()->flash('message', 'La asignacion ya estaba inactiva.');
-            return;
-        }
+        $driverName = (string) ($assignment->driver?->nombre ?? 'El conductor');
+        $vehiclePlate = (string) ($assignment->vehicle?->placa ?? 'el vehiculo');
 
-        $assignment->update([
-            'activo' => false,
-            'fecha_fin' => now()->toDateString(),
-        ]);
+        $assignment->delete();
 
-        session()->flash('message', 'Vehiculo desasignado del conductor correctamente.');
+        session()->flash('message', "{$driverName} quedo sin vehiculo asignado. Se elimino la asignacion de {$vehiclePlate}.");
     }
 
     public function resetForm(): void
@@ -343,6 +356,35 @@ class VehicleAssignmentManager extends Component
         }
 
         $this->resetForm();
+    }
+
+    private function resolveConflictingAssignments(): void
+    {
+        $assignmentIds = collect([
+            $this->conflictVehicleAssignmentId,
+            $this->conflictDriverAssignmentId,
+        ])
+            ->filter(fn ($id) => filled($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($assignmentIds->isEmpty()) {
+            return;
+        }
+
+        $effectiveEndDate = $this->resolveAssignmentDate();
+
+        VehicleAssignment::query()
+            ->whereIn('id', $assignmentIds->all())
+            ->get()
+            ->each(function (VehicleAssignment $assignment) use ($effectiveEndDate) {
+                $assignment->update([
+                    'vehicle_id' => null,
+                    'activo' => false,
+                    'fecha_fin' => $effectiveEndDate,
+                ]);
+            });
     }
 
     private function ensureValidAssignmentSelection(): bool

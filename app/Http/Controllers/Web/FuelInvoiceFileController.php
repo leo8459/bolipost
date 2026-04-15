@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\FuelInvoice;
+use App\Services\FuelInvoiceDocumentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -24,6 +25,8 @@ class FuelInvoiceFileController extends Controller
     {
         abort_unless(in_array($request->user()?->role, ['admin', 'recepcion', 'conductor'], true), 403);
 
+        $fuelInvoice = $this->ensureSiatArtifacts($fuelInvoice);
+
         return $this->serveFromPublicDisk(
             (string) ($fuelInvoice->siat_rollo_document_path ?? ''),
             'Documento rollo no encontrado.',
@@ -38,6 +41,16 @@ class FuelInvoiceFileController extends Controller
         return $this->serveFromPublicDisk(
             (string) ($fuelInvoice->invoice_photo_path ?? ''),
             'Foto de factura no encontrada.'
+        );
+    }
+
+    public function meterPhoto(Request $request, FuelInvoice $fuelInvoice)
+    {
+        abort_unless(in_array($request->user()?->role, ['admin', 'recepcion', 'conductor'], true), 403);
+
+        return $this->serveFromPublicDisk(
+            (string) data_get($fuelInvoice->antifraud_payload_json, 'evidence.fuel_meter_photo_path', ''),
+            'Foto del medidor no encontrada.'
         );
     }
 
@@ -69,6 +82,22 @@ class FuelInvoiceFileController extends Controller
         }
 
         abort(404, $notFoundMessage);
+    }
+
+    private function ensureSiatArtifacts(FuelInvoice $fuelInvoice): FuelInvoice
+    {
+        if (!empty($fuelInvoice->siat_rollo_document_path)) {
+            return $fuelInvoice;
+        }
+
+        $snapshot = is_array($fuelInvoice->siat_snapshot_json) ? $fuelInvoice->siat_snapshot_json : [];
+        $sourceUrl = trim((string) ($fuelInvoice->siat_source_url ?? ''));
+        if ($snapshot === [] && $sourceUrl === '') {
+            return $fuelInvoice;
+        }
+
+        return app(FuelInvoiceDocumentService::class)
+            ->persistFromSnapshot($fuelInvoice, $snapshot, $sourceUrl !== '' ? $sourceUrl : null);
     }
 
     private function candidatePaths(string $stored): array

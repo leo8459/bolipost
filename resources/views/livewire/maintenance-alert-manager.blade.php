@@ -70,8 +70,8 @@
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold">Estado</label>
                     <select wire:model.live="filterEstado" class="form-select bp-select-like-vehicle">
+                        <option value="abiertas">Abiertas</option>
                         <option value="todas">Todas</option>
-                        <option value="activa">Activas</option>
                         <option value="resuelta">Resueltas</option>
                     </select>
                 </div>
@@ -129,16 +129,24 @@
                                     </td>
                                     <td>
                                         @php
-                                            $isOverdue = $alert->status === 'Activa' && $alert->faltante_km !== null && (float) $alert->faltante_km < 0;
-                                            $isPostponed = $alert->status === 'Activa' && $alert->postponed_until && $alert->postponed_until->isFuture();
+                                            $isOpen = in_array($alert->status, \App\Models\MaintenanceAlert::openStatuses(), true);
+                                            $isOverdue = $alert->status === \App\Models\MaintenanceAlert::STATUS_ACTIVE && $alert->faltante_km !== null && (float) $alert->faltante_km < 0;
+                                            $isPostponed = in_array($alert->status, [\App\Models\MaintenanceAlert::STATUS_ACTIVE, \App\Models\MaintenanceAlert::STATUS_REQUESTED], true) && $alert->postponed_until && $alert->postponed_until->isFuture();
+                                            $badgeClass = match ($alert->status) {
+                                                \App\Models\MaintenanceAlert::STATUS_IN_WORKSHOP => 'bg-info text-dark',
+                                                \App\Models\MaintenanceAlert::STATUS_REQUESTED => 'bg-warning text-dark',
+                                                \App\Models\MaintenanceAlert::STATUS_RESOLVED => 'bg-success',
+                                                \App\Models\MaintenanceAlert::STATUS_OMITTED => 'bg-secondary',
+                                                default => ($isPostponed ? 'bg-warning text-dark' : 'bg-danger'),
+                                            };
                                         @endphp
-                                        <span class="badge {{ $alert->status === 'Activa' ? ($isPostponed ? 'bg-warning text-dark' : 'bg-danger') : ($alert->status === 'Resuelta' ? 'bg-success' : 'bg-secondary') }}">
+                                        <span class="badge {{ $badgeClass }}">
                                             {{ $isPostponed ? ('Pospuesta hasta ' . $alert->postponed_until->format('d/m/Y')) : ($isOverdue ? 'Vencida' : ($alert->status ?? 'Activa')) }}
                                         </span>
                                     </td>
                                     <td>{{ optional($alert->created_at)->format('d/m/Y H:i') }}</td>
                                     <td class="text-center">
-                                        @if(auth()->user()?->role !== 'conductor' && $alert->status === 'Activa')
+                                        @if(auth()->user()?->role !== 'conductor' && in_array($alert->status, [\App\Models\MaintenanceAlert::STATUS_ACTIVE, \App\Models\MaintenanceAlert::STATUS_REQUESTED], true))
                                             @if(!$alert->leida)
                                                 <button type="button" wire:click="markAsRead({{ $alert->id }})" class="btn btn-sm btn-outline-success">
                                                     <i class="fas fa-check me-1"></i>Leida
@@ -156,11 +164,11 @@
                                                     <i class="fas fa-clock me-1"></i>Posponer 3 dias
                                                 </button>
                                             @endif
-                                        @elseif($alert->status === 'Activa' && $alert->leida)
+                                        @elseif($isOpen && $alert->leida && $alert->status !== \App\Models\MaintenanceAlert::STATUS_IN_WORKSHOP)
                                             <button type="button" wire:click="markAsUnread({{ $alert->id }})" class="btn btn-sm btn-outline-warning">
                                                 <i class="fas fa-undo me-1"></i>Pendiente
                                             </button>
-                                        @elseif($alert->status === 'Activa')
+                                        @elseif($isOpen && $alert->status !== \App\Models\MaintenanceAlert::STATUS_IN_WORKSHOP)
                                             <button type="button" wire:click="markAsRead({{ $alert->id }})" class="btn btn-sm btn-outline-success">
                                                 <i class="fas fa-check me-1"></i>Leida
                                             </button>

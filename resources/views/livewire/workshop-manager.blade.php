@@ -1,9 +1,62 @@
 <div>
+    <style>
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            border-color: #9ec5fe;
+            box-shadow: 0 0 0 .18rem rgba(13, 110, 253, .18);
+            outline: none;
+        }
+        .bp-switch .form-check-label {
+            margin-bottom: 0;
+        }
+    </style>
     <div class="page-title mb-4 d-flex justify-content-between align-items-center gap-2">
         <h1 class="h3 mb-0">
-            <i class="fas fa-warehouse me-2 text-primary"></i>Gestion de Talleres
+            <i class="fas fa-warehouse me-2 text-primary"></i>{{ $isWorkshopUser ? 'Panel de Taller' : 'Gestion de Talleres' }}
+            @if($isWorkshopUser && $currentWorkshopCatalog)
+                <span class="text-muted h6 ms-2 mb-0">| {{ $currentWorkshopCatalog->nombre }}</span>
+            @endif
         </h1>
-        @if(!$showForm)
+        @if(!$showForm && !$isWorkshopUser)
             <button type="button" wire:click="create" class="btn btn-primary">
                 <i class="fas fa-plus me-2"></i>Nueva orden de taller
             </button>
@@ -24,6 +77,127 @@
         </div>
     @endif
 
+    @if($isWorkshopUser)
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-4">
+                        <div class="border rounded-3 p-3 h-100 bg-light">
+                            <div class="text-muted small">Solicitudes por aprobar</div>
+                            <div class="fs-4 fw-bold text-warning">{{ $incomingReviewQueue->count() }}</div>
+                            <div class="small text-muted">Vehiculos que llegaran para revision.</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="border rounded-3 p-3 h-100 bg-light">
+                            <div class="text-muted small">En taller</div>
+                            <div class="fs-4 fw-bold text-primary">{{ $workQueue->count() }}</div>
+                            <div class="small text-muted">Ordenes activas actualmente.</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="border rounded-3 p-3 h-100 bg-light">
+                            <div class="text-muted small">Vehiculos devueltos</div>
+                            <div class="fs-4 fw-bold text-success">{{ $deliveredCount }}</div>
+                            <div class="small text-muted">Listos para cerrar el ciclo.</div>
+                        </div>
+                    </div>
+                </div>
+
+                @if($incomingReviewQueue->count() > 0)
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h5 class="mb-1">Solicitudes en revision</h5>
+                                <div class="text-muted small">Apruebe aqui las revisiones que el taller ya recibio o acepto programar.</div>
+                            </div>
+                            <span class="badge bg-warning text-dark">{{ $incomingReviewQueue->count() }} pendiente(s)</span>
+                        </div>
+                        <div class="row g-3">
+                            @foreach($incomingReviewQueue as $incomingWorkshop)
+                                <div class="col-12 col-lg-6">
+                                    <div class="border rounded-3 p-3 h-100 bg-white">
+                                        <div class="d-flex justify-content-between align-items-start gap-2">
+                                            <div>
+                                                <div class="fw-bold">{{ $incomingWorkshop->vehicle?->placa ?? 'Sin placa' }}</div>
+                                                <div class="small text-muted">{{ $incomingWorkshop->vehicle?->bitacora_display_name ?? 'Vehiculo no disponible' }}</div>
+                                            </div>
+                                            <span class="badge bg-warning text-dark">Solicitud</span>
+                                        </div>
+                                        <div class="small mt-3">
+                                            <div><strong>Mantenimiento:</strong> {{ $incomingWorkshop->maintenanceAlert?->maintenanceType?->nombre ?? $incomingWorkshop->maintenanceAppointment?->tipoMantenimiento?->nombre ?? 'Revision general' }}</div>
+                                            <div><strong>Conductor:</strong> {{ $incomingWorkshop->driver?->nombre ?? 'Sin conductor asignado' }}</div>
+                                            <div><strong>Ingreso previsto:</strong> {{ optional($incomingWorkshop->fecha_ingreso)->format('d/m/Y') ?: 'Pendiente' }}</div>
+                                        </div>
+                                        <div class="mt-3">
+                                            <button type="button" wire:click="approveIncomingReview({{ $incomingWorkshop->id }})" class="btn btn-sm btn-success">
+                                                <i class="fas fa-check me-1"></i>Aprobar revision
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="mb-1">Vehiculos recibidos en taller</h5>
+                        <div class="text-muted small">
+                            @if($currentWorkshopCatalog)
+                                Aqui puede ver que vehiculos le dejaron en <strong>{{ $currentWorkshopCatalog->nombre }}</strong> y que mantenimiento debe realizar a cada uno.
+                            @else
+                                Este usuario no tiene un taller vinculado todavia.
+                            @endif
+                        </div>
+                    </div>
+                    <span class="badge bg-primary">{{ $workQueue->count() }} orden(es) activas</span>
+                </div>
+
+                <div class="row g-3">
+                    @forelse($workQueue as $queueItem)
+                        <div class="col-12 col-lg-6">
+                            <div class="border rounded-3 p-3 h-100 bg-light">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div>
+                                        <div class="small text-muted">{{ $queueItem->order_number ?: 'Orden pendiente' }}</div>
+                                        <div class="fw-bold">{{ $queueItem->vehicle?->placa ?? 'Sin placa' }}</div>
+                                        <div class="small text-muted">
+                                            {{ $queueItem->vehicle?->bitacora_display_name ?? 'Vehiculo no disponible' }}
+                                        </div>
+                                    </div>
+                                    <span class="badge bg-warning text-dark">{{ $queueItem->estado }}</span>
+                                </div>
+
+                                <div class="mt-3 small">
+                                    <div><strong>Mantenimiento a realizar:</strong> {{ $queueItem->maintenanceAlert?->maintenanceType?->nombre ?? $queueItem->maintenanceAppointment?->tipoMantenimiento?->nombre ?? $queueItem->maintenanceLog?->tipo ?? 'Orden general' }}</div>
+                                    <div><strong>Conductor:</strong> {{ $queueItem->driver?->nombre ?? 'Sin conductor asignado' }}</div>
+                                    <div><strong>Taller:</strong> {{ $queueItem->workshopCatalog?->nombre ?? $queueItem->nombre_taller }}</div>
+                                    <div><strong>Ingreso:</strong> {{ optional($queueItem->fecha_ingreso)->format('d/m/Y') ?: 'Pendiente' }}</div>
+                                    <div><strong>Entrega estimada:</strong> {{ optional($queueItem->fecha_prometida_entrega)->format('d/m/Y') ?: 'Pendiente' }}</div>
+                                </div>
+
+                                @if(trim((string) $queueItem->observaciones_tecnicas) !== '' || trim((string) $queueItem->diagnostico) !== '')
+                                    <div class="mt-3 small text-muted">
+                                        {{ trim((string) ($queueItem->observaciones_tecnicas ?: $queueItem->diagnostico)) }}
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <div class="col-12">
+                            <div class="alert alert-light border mb-0">
+                                No hay vehiculos pendientes de trabajo en este momento.
+                            </div>
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @unless($isWorkshopUser)
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <div class="row g-3">
@@ -85,6 +259,16 @@
                                 @error('catalog_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
                             </div>
                             <div class="col-12 col-md-3">
+                                <label class="form-label fw-bold">Usuario taller</label>
+                                <select wire:model="catalog_user_id" class="form-select @error('catalog_user_id') is-invalid @enderror">
+                                    <option value="">Seleccionar usuario</option>
+                                    @foreach($workshopUsers as $workshopUser)
+                                        <option value="{{ $workshopUser->id }}">{{ $workshopUser->name }}{{ $workshopUser->email ? ' | '.$workshopUser->email : '' }}</option>
+                                    @endforeach
+                                </select>
+                                @error('catalog_user_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            </div>
+                            <div class="col-12 col-md-12">
                                 <button type="button" wire:click="createCatalog" class="btn btn-outline-primary w-100">
                                     <i class="fas fa-plus me-1"></i>Crear
                                 </button>
@@ -96,10 +280,29 @@
                                     <div>
                                         <div class="fw-semibold">{{ $catalog->nombre }}</div>
                                         <div class="small text-muted">{{ $catalog->tipo }} | {{ $catalog->activo ? 'Activo' : 'Inactivo' }}</div>
+                                        <div class="small text-muted">Usuario: {{ $catalog->user?->name ?? 'Sin usuario vinculado' }}</div>
                                     </div>
-                                    <button type="button" wire:click="toggleCatalog({{ $catalog->id }})" class="btn btn-sm btn-outline-secondary">
-                                        {{ $catalog->activo ? 'Desactivar' : 'Activar' }}
-                                    </button>
+                                    <div class="d-flex flex-column gap-2" style="min-width: 230px;">
+                                        <select
+                                            class="form-select form-select-sm"
+                                            wire:change="assignCatalogUser({{ $catalog->id }}, $event.target.value)">
+                                            <option value="">Seleccionar usuario</option>
+                                            @if($catalog->user)
+                                                <option value="{{ $catalog->user->id }}" selected>{{ $catalog->user->name }}{{ $catalog->user->email ? ' | '.$catalog->user->email : '' }}</option>
+                                            @endif
+                                            @foreach($workshopUsers as $workshopUser)
+                                                <option value="{{ $workshopUser->id }}">{{ $workshopUser->name }}{{ $workshopUser->email ? ' | '.$workshopUser->email : '' }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" wire:click="toggleCatalog({{ $catalog->id }})" class="btn btn-sm btn-outline-secondary">
+                                            {{ $catalog->activo ? 'Desactivar' : 'Activar' }}
+                                        </button>
+                                        <button type="button" wire:click="deleteCatalog({{ $catalog->id }})" onclick="return confirm('Confirmar eliminacion del taller?')" class="btn btn-sm btn-outline-danger">
+                                            Eliminar
+                                        </button>
+                                    </div>
                                 </div>
                             @endforeach
                         </div>
@@ -108,6 +311,7 @@
             </div>
         </div>
     </div>
+    @endunless
 
     @if($showForm)
         <div class="bp-gestiones-form-overlay">
@@ -184,7 +388,7 @@
                             </div>
 
                             <div class="col-12 col-md-4 d-flex align-items-end">
-                                <div class="form-check">
+                                <div class="form-check bp-switch">
                                     <input type="checkbox" id="approval_required" wire:model="approval_required" class="form-check-input">
                                     <label for="approval_required" class="form-check-label fw-bold">Requiere aprobacion</label>
                                 </div>
@@ -194,7 +398,7 @@
                                 <label class="form-label fw-bold">Taller <span class="text-danger">*</span></label>
                                 <select wire:model.live="workshop_catalog_id" class="form-select @error('workshop_catalog_id') is-invalid @enderror">
                                     <option value="">Seleccionar taller</option>
-                                    @foreach($workshopCatalogs->where('activo', true) as $catalog)
+                                    @foreach($workshopCatalogs->where('activo', true)->whereNotNull('user_id') as $catalog)
                                         <option value="{{ $catalog->id }}">{{ $catalog->nombre }} | {{ $catalog->tipo }}</option>
                                     @endforeach
                                 </select>
@@ -424,14 +628,47 @@
             </div>
         </div>
     @else
-        <div class="card shadow-sm">
-            <div class="card-body p-0">
-                <div class="p-3 border-bottom">
-                    <div class="row g-2">
-                        <div class="col-12 col-md-8">
-                            <input type="text" class="form-control" wire:model.live.debounce.350ms="search" placeholder="Buscar por OT, vehiculo, taller, conductor o pieza">
+        @if($isWorkshopUser)
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="border rounded-3 p-3 bg-white shadow-sm h-100">
+                        <div class="small text-muted text-uppercase">Recibidos</div>
+                        <div class="display-6 fw-bold text-primary">{{ $workQueue->count() }}</div>
+                        <div class="small text-muted">Ordenes activas en su taller</div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="border rounded-3 p-3 bg-white shadow-sm h-100">
+                        <div class="small text-muted text-uppercase">Pendientes</div>
+                        <div class="display-6 fw-bold text-warning">{{ $workQueue->where('estado', \App\Models\Workshop::STATUS_PENDING)->count() }}</div>
+                        <div class="small text-muted">Aun sin trabajo iniciado</div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="border rounded-3 p-3 bg-white shadow-sm h-100">
+                        <div class="small text-muted text-uppercase">En proceso</div>
+                        <div class="display-6 fw-bold text-info">
+                            {{ $workQueue->whereIn('estado', [\App\Models\Workshop::STATUS_DIAGNOSIS, \App\Models\Workshop::STATUS_APPROVED, \App\Models\Workshop::STATUS_REPAIR])->count() }}
                         </div>
-                        <div class="col-12 col-md-4">
+                        <div class="small text-muted">Diagnostico o reparacion</div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="border rounded-3 p-3 bg-white shadow-sm h-100">
+                        <div class="small text-muted text-uppercase">Listos</div>
+                        <div class="display-6 fw-bold text-success">{{ $workQueue->where('estado', \App\Models\Workshop::STATUS_READY)->count() }}</div>
+                        <div class="small text-muted">Listos para recoger</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="row g-2 align-items-center mb-3">
+                        <div class="col-12 col-lg-8">
+                            <input type="text" class="form-control" wire:model.live.debounce.350ms="search" placeholder="Buscar por OT, vehiculo o mantenimiento">
+                        </div>
+                        <div class="col-12 col-lg-4">
                             <select wire:model.live="statusFilter" class="form-select">
                                 <option value="">Todos los estados</option>
                                 <option value="{{ \App\Models\Workshop::STATUS_PENDING }}">Pendiente</option>
@@ -447,91 +684,168 @@
                             </select>
                         </div>
                     </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0 align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>OT</th>
-                                <th>Vehiculo</th>
-                                <th>Taller</th>
-                                <th>Ingreso</th>
-                                <th>Entrega estimada</th>
-                                <th>Estado</th>
-                                <th>Flujo</th>
-                                <th>Costo</th>
-                                <th>Observaciones tecnicas</th>
-                                <th>Repuestos</th>
-                                <th class="text-end">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($workshops as $workshop)
-                                <tr>
-                                    <td>
-                                        <div class="fw-semibold">{{ $workshop->order_number ?: 'Pendiente' }}</div>
-                                        @if($workshop->maintenance_alert_id)
-                                            <div class="small text-muted">Alerta #{{ $workshop->maintenance_alert_id }}</div>
-                                        @endif
-                                        @if($workshop->maintenance_log_id)
-                                            <div class="small text-muted">Registro #{{ $workshop->maintenance_log_id }}</div>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <div>{{ $workshop->vehicle?->display_name ?? 'N/A' }}</div>
-                                        <div class="small text-muted">{{ $workshop->driver?->nombre ?? 'Sin conductor' }}</div>
-                                    </td>
-                                    <td>
-                                        <div>{{ $workshop->workshopCatalog?->nombre ?? $workshop->nombre_taller }}</div>
-                                        <div class="small text-muted">{{ $workshop->workshopCatalog?->tipo ?? 'Sin tipo' }}</div>
-                                    </td>
-                                    <td>{{ optional($workshop->fecha_ingreso)->format('d/m/Y') }}</td>
-                                    <td>{{ optional($workshop->fecha_prometida_entrega)->format('d/m/Y') ?: 'Pendiente' }}</td>
-                                    <td>
+                    <div class="row g-3">
+                        @forelse($workshops as $workshop)
+                            <div class="col-12 col-xl-6">
+                                <div class="border rounded-3 p-3 h-100 bg-light">
+                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                        <div>
+                                            <div class="small text-muted">{{ $workshop->order_number ?: 'Orden pendiente' }}</div>
+                                            <div class="fw-bold">{{ $workshop->vehicle?->placa ?? 'Sin placa' }}</div>
+                                            <div class="small text-muted">{{ $workshop->vehicle?->display_name ?? 'Vehiculo no disponible' }}</div>
+                                        </div>
                                         <span class="badge {{ in_array($workshop->estado, [\App\Models\Workshop::STATUS_READY, \App\Models\Workshop::STATUS_DELIVERED, \App\Models\Workshop::STATUS_CLOSED]) ? 'bg-success' : (in_array($workshop->estado, [\App\Models\Workshop::STATUS_REJECTED, \App\Models\Workshop::STATUS_CANCELLED]) ? 'bg-danger' : 'bg-warning text-dark') }}">
                                             {{ $workshop->estado }}
                                         </span>
-                                    </td>
-                                    <td>
-                                        <div>{{ $workshop->workflow_kind }}</div>
-                                        @if($workshop->approval_required)
-                                            <div class="small text-muted">Con aprobacion</div>
-                                        @endif
-                                    </td>
-                                    <td>Bs {{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</td>
-                                    <td><small class="text-muted">{{ \Illuminate\Support\Str::limit($workshop->observaciones_tecnicas ?: $workshop->diagnostico, 90) }}</small></td>
-                                    <td>
-                                        @if($workshop->partChanges->count() > 0)
-                                            <div class="small">{{ $workshop->partChanges->count() }} item(s)</div>
-                                            <div class="small text-muted">Bs {{ number_format((float) $workshop->partChanges->sum('costo'), 2) }}</div>
-                                        @else
-                                            <span class="text-muted">Sin repuestos</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-end">
+                                    </div>
+
+                                    <div class="mt-3 small">
+                                        <div><strong>Mantenimiento:</strong> {{ $workshop->maintenanceAlert?->maintenanceType?->nombre ?? $workshop->maintenanceAppointment?->tipoMantenimiento?->nombre ?? $workshop->maintenanceLog?->tipo ?? 'Orden general' }}</div>
+                                        <div><strong>Conductor:</strong> {{ $workshop->driver?->nombre ?? 'Sin conductor' }}</div>
+                                        <div><strong>Ingreso:</strong> {{ optional($workshop->fecha_ingreso)->format('d/m/Y') ?: 'Pendiente' }}</div>
+                                        <div><strong>Entrega estimada:</strong> {{ optional($workshop->fecha_prometida_entrega)->format('d/m/Y') ?: 'Pendiente' }}</div>
+                                        <div><strong>Flujo:</strong> {{ $workshop->workflow_kind }}</div>
+                                        <div><strong>Costo actual:</strong> Bs {{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</div>
+                                    </div>
+
+                                    @if(trim((string) ($workshop->observaciones_tecnicas ?: $workshop->diagnostico)) !== '')
+                                        <div class="mt-3 p-2 rounded-3 bg-white small text-muted">
+                                            {{ \Illuminate\Support\Str::limit($workshop->observaciones_tecnicas ?: $workshop->diagnostico, 180) }}
+                                        </div>
+                                    @endif
+
+                                    <div class="d-flex flex-wrap gap-2 mt-3">
                                         @if($workshop->reception_photo_path)
                                             <a href="{{ route('workshops.reception', $workshop) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                                <i class="fas fa-camera"></i>
+                                                <i class="fas fa-camera me-1"></i>Ingreso
                                             </a>
                                         @endif
                                         <button wire:click="edit({{ $workshop->id }})" class="btn btn-sm btn-outline-warning">
-                                            <i class="fas fa-edit"></i>
+                                            <i class="fas fa-edit me-1"></i>Actualizar
                                         </button>
-                                        <button wire:click="delete({{ $workshop->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="11" class="text-center py-4 text-muted">No hay ordenes de taller registradas.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                                    </div>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="col-12">
+                                <div class="alert alert-light border mb-0 text-center">
+                                    No hay ordenes de taller registradas.
+                                </div>
+                            </div>
+                        @endforelse
+                    </div>
                 </div>
             </div>
-        </div>
+        @else
+            <div class="card shadow-sm">
+                <div class="card-body p-0">
+                    <div class="p-3 border-bottom">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-8">
+                                <input type="text" class="form-control" wire:model.live.debounce.350ms="search" placeholder="Buscar por OT, vehiculo, taller, conductor o pieza">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <select wire:model.live="statusFilter" class="form-select">
+                                    <option value="">Todos los estados</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_PENDING }}">Pendiente</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_DISPATCHED }}">Despachado a taller</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_DIAGNOSIS }}">Diagnosticado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_APPROVED }}">Aprobado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_REPAIR }}">En reparacion</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_READY }}">Listo para recoger</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_DELIVERED }}">Entregado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_CLOSED }}">Cerrado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_REJECTED }}">Rechazado</option>
+                                    <option value="{{ \App\Models\Workshop::STATUS_CANCELLED }}">Cancelado</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>OT</th>
+                                    <th>Vehiculo</th>
+                                    <th>Taller</th>
+                                    <th>Ingreso</th>
+                                    <th>Entrega estimada</th>
+                                    <th>Estado</th>
+                                    <th>Flujo</th>
+                                    <th>Costo</th>
+                                    <th>Observaciones tecnicas</th>
+                                    <th>Repuestos</th>
+                                    <th class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($workshops as $workshop)
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold">{{ $workshop->order_number ?: 'Pendiente' }}</div>
+                                            @if($workshop->maintenance_alert_id)
+                                                <div class="small text-muted">Alerta #{{ $workshop->maintenance_alert_id }}</div>
+                                            @endif
+                                            @if($workshop->maintenance_log_id)
+                                                <div class="small text-muted">Registro #{{ $workshop->maintenance_log_id }}</div>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <div>{{ $workshop->vehicle?->display_name ?? 'N/A' }}</div>
+                                            <div class="small text-muted">{{ $workshop->driver?->nombre ?? 'Sin conductor' }}</div>
+                                        </td>
+                                        <td>
+                                            <div>{{ $workshop->workshopCatalog?->nombre ?? $workshop->nombre_taller }}</div>
+                                            <div class="small text-muted">{{ $workshop->workshopCatalog?->tipo ?? 'Sin tipo' }}</div>
+                                        </td>
+                                        <td>{{ optional($workshop->fecha_ingreso)->format('d/m/Y') }}</td>
+                                        <td>{{ optional($workshop->fecha_prometida_entrega)->format('d/m/Y') ?: 'Pendiente' }}</td>
+                                        <td>
+                                            <span class="badge {{ in_array($workshop->estado, [\App\Models\Workshop::STATUS_READY, \App\Models\Workshop::STATUS_DELIVERED, \App\Models\Workshop::STATUS_CLOSED]) ? 'bg-success' : (in_array($workshop->estado, [\App\Models\Workshop::STATUS_REJECTED, \App\Models\Workshop::STATUS_CANCELLED]) ? 'bg-danger' : 'bg-warning text-dark') }}">
+                                                {{ $workshop->estado }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div>{{ $workshop->workflow_kind }}</div>
+                                            @if($workshop->approval_required)
+                                                <div class="small text-muted">Con aprobacion</div>
+                                            @endif
+                                        </td>
+                                        <td>Bs {{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</td>
+                                        <td><small class="text-muted">{{ \Illuminate\Support\Str::limit($workshop->observaciones_tecnicas ?: $workshop->diagnostico, 90) }}</small></td>
+                                        <td>
+                                            @if($workshop->partChanges->count() > 0)
+                                                <div class="small">{{ $workshop->partChanges->count() }} item(s)</div>
+                                                <div class="small text-muted">Bs {{ number_format((float) $workshop->partChanges->sum('costo'), 2) }}</div>
+                                            @else
+                                                <span class="text-muted">Sin repuestos</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-end">
+                                            @if($workshop->reception_photo_path)
+                                                <a href="{{ route('workshops.reception', $workshop) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                    <i class="fas fa-camera"></i>
+                                                </a>
+                                            @endif
+                                            <button wire:click="edit({{ $workshop->id }})" class="btn btn-sm btn-outline-warning">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button wire:click="delete({{ $workshop->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="11" class="text-center py-4 text-muted">No hay ordenes de taller registradas.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         <div class="mt-3">
             {{ $workshops->links() }}

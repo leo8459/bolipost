@@ -82,6 +82,9 @@ class MobileSyncProcessor
                 'abastecimiento_combustible' => false,
                 'ruta_json' => [],
             ];
+            if (Schema::hasColumn('vehicle_log', 'activo')) {
+                $defaults['activo'] = true;
+            }
 
             if (Schema::hasColumn('vehicle_log', 'firma_digital')) {
                 $defaults['firma_digital'] = null;
@@ -498,6 +501,7 @@ class MobileSyncProcessor
         }
 
         $query = VehicleLog::query()
+            ->active()
             ->where('drivers_id', $driverId)
             ->whereDate('fecha', $date)
             ->orderByDesc('id')

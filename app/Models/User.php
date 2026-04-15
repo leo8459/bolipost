@@ -22,6 +22,9 @@ class User extends Authenticatable
         'admin' => 'admin',
         'recepcion' => 'recepcion',
         'recepcionista' => 'recepcion',
+        'taller' => 'taller',
+        'tallerista' => 'taller',
+        'workshop' => 'taller',
         'conductor' => 'conductor',
     ];
 

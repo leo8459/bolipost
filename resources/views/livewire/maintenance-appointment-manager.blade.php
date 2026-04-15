@@ -22,6 +22,55 @@
             background-position: right .75rem center;
             background-size: 14px;
         }
+
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
+            outline: 0;
+        }
     </style>
 
     <style>
@@ -104,9 +153,17 @@
                             </div>
                         @endif
                         <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Tipo de formulario <span class="text-danger">*</span></label>
+                            <select wire:model.live="maintenance_form_type" class="form-select bp-select-like-vehicle">
+                                <option value="vehiculo">Vehiculo</option>
+                                <option value="moto">Moto</option>
+                            </select>
+                            <div class="form-text">Este filtro limita los vehiculos y tipos de mantenimiento segun corresponda.</div>
+                        </div>
+                        <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Vehiculo <span class="text-danger">*</span></label>
                             <select wire:model="vehicle_id" class="form-select bp-select-like-vehicle @error('vehicle_id') is-invalid @enderror">
-                                <option value="0">Seleccionar vehiculo</option>
+                                <option value="0">Seleccionar {{ $maintenance_form_type === 'moto' ? 'moto' : 'vehiculo' }}</option>
                                 @foreach ($vehicles as $vehicle)
                                     <option value="{{ $vehicle->id }}">{{ $vehicle->display_name }}</option>
                                 @endforeach
@@ -121,6 +178,7 @@
                                     <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
                                 @endforeach
                             </select>
+                            <div class="form-text">Si el vehiculo tiene una asignacion activa, el conductor se completa automaticamente.</div>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Tipo de Mantenimiento</label>
@@ -133,22 +191,28 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Fecha Programada <span class="text-danger">*</span></label>
-                            <input type="datetime-local" wire:model="fecha_programada" class="form-control @error('fecha_programada') is-invalid @enderror">
+                            <input type="datetime-local" wire:model="fecha_programada" min="{{ now()->format('Y-m-d\TH:i') }}" class="form-control @error('fecha_programada') is-invalid @enderror">
                             @error('fecha_programada') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <div class="form-text">La cita solo puede programarse hacia adelante.</div>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Estado de solicitud <span class="text-danger">*</span></label>
-                            <select wire:model="estado" class="form-select bp-select-like-vehicle @error('estado') is-invalid @enderror">
-                                <option value="Pendiente">Pendiente</option>
-                                <option value="Aprobado">Aprobado</option>
-                                <option value="Rechazado">Rechazado</option>
-                                <option value="Realizado">Realizado</option>
-                                <option value="Cancelado">Cancelado</option>
-                            </select>
-                            @error('estado') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            @if($isEdit)
+                                <select wire:model="estado" class="form-select bp-select-like-vehicle @error('estado') is-invalid @enderror">
+                                    <option value="Pendiente">Pendiente</option>
+                                    <option value="Aprobado">Aprobado</option>
+                                    <option value="Rechazado">Rechazado</option>
+                                    <option value="Realizado">Realizado</option>
+                                    <option value="Cancelado">Cancelado</option>
+                                </select>
+                                @error('estado') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            @else
+                                <input type="text" class="form-control" value="Pendiente" readonly>
+                                <div class="form-text">Toda cita nueva se registra inicialmente en estado Pendiente.</div>
+                            @endif
                         </div>
                         <div class="col-12 col-md-6 d-flex align-items-center">
-                            <div class="form-check mt-md-4">
+                            <div class="form-check bp-switch mt-md-4">
                                 <input type="checkbox" id="es_accidente" wire:model.live="es_accidente" class="form-check-input">
                                 <label class="form-check-label fw-bold" for="es_accidente">
                                     <i class="fas fa-exclamation-triangle text-danger me-1"></i>Es reporte de accidente
@@ -401,7 +465,7 @@
             </div>
         </div>
         <div class="mt-3">
-            {{ $appointments->links() }}
+            {{ $appointments->links('pagination::bootstrap-4') }}
         </div>
     @endif
 

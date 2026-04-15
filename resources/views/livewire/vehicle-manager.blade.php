@@ -51,6 +51,12 @@
             border-radius: 14px;
             box-shadow: 0 22px 50px rgba(15, 23, 42, 0.28);
             overflow: hidden;
+            max-height: min(88vh, 760px);
+            display: flex;
+            flex-direction: column;
+        }
+        .vehicle-confirm-card .card-body {
+            overflow-y: auto;
         }
         .vehicle-form-field {
             border-radius: 10px;
@@ -71,6 +77,73 @@
             background-repeat: no-repeat;
             background-position: right .75rem center;
             background-size: 14px;
+        }
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
+            outline: 0;
+        }
+        @media (max-width: 767.98px) {
+            .vehicle-confirm-overlay {
+                padding: 12px;
+                align-items: flex-end;
+            }
+            .vehicle-confirm-card {
+                width: 100%;
+                max-height: 92vh;
+                border-radius: 16px 16px 12px 12px;
+            }
+            .vehicle-confirm-card .card-header,
+            .vehicle-confirm-card .card-body,
+            .vehicle-confirm-card .card-footer {
+                padding-left: 14px;
+                padding-right: 14px;
+            }
+            .vehicle-confirm-card .card-footer {
+                flex-direction: column-reverse;
+            }
+            .vehicle-confirm-card .card-footer .btn {
+                width: 100%;
+            }
         }
     </style>
 
@@ -231,7 +304,12 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Color</label>
-                            <input type="text" wire:model="color" class="form-control vehicle-form-field @error('color') is-invalid @enderror" required>
+                            <select wire:model="color" class="form-control vehicle-form-field @error('color') is-invalid @enderror" required>
+                                <option value="">Seleccionar color</option>
+                                @foreach($vehicleColors as $vehicleColor)
+                                    <option value="{{ $vehicleColor }}">{{ $vehicleColor }}</option>
+                                @endforeach
+                            </select>
                             @error('color') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
@@ -241,8 +319,19 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Kilometraje Inicial</label>
-                            <input type="number" step="0.01" wire:model="kilometraje" class="form-control vehicle-form-field @error('kilometraje') is-invalid @enderror" required min="5">
-                            <div class="form-text">Si ingresa danado, el sistema guardara 0 al crear el vehiculo.</div>
+                            <input
+                                type="number"
+                                step="0.01"
+                                wire:model="kilometraje"
+                                class="form-control vehicle-form-field @error('kilometraje') is-invalid @enderror"
+                                required
+                                min="5"
+                                @disabled($kilometrajeLocked)
+                            >
+                            <div class="form-text">Si el tacometro esta dañado, se conservara este ultimo kilometraje como referencia del vehiculo.</div>
+                            @if($kilometrajeLocked)
+                                <div class="form-text text-warning fw-semibold">No se puede editar el kilometraje desde esta pantalla.</div>
+                            @endif
                             @error('kilometraje') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
@@ -250,18 +339,19 @@
                             <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control vehicle-form-field @error('capacidad_tanque') is-invalid @enderror" required min="3" max="150">
                             @error('capacidad_tanque') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
-                        <div class="col-12">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="vehiculo_tacometro_danado" wire:model="tacometro_danado">
-                                <label class="form-check-label" for="vehiculo_tacometro_danado">Tacometro danado</label>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="form-check">
+                        <div class="col-12 col-md-4">
+                            <div class="form-check bp-switch mt-3 mt-md-4 pt-md-2">
                                 <input class="form-check-input" type="checkbox" id="vehiculo_activo" wire:model="activo">
                                 <label class="form-check-label" for="vehiculo_activo">Activo</label>
                             </div>
                         </div>
+                        <div class="col-12 col-md-4">
+                            <div class="form-check bp-switch mt-3 mt-md-4 pt-md-2">
+                                <input class="form-check-input" type="checkbox" id="vehiculo_tacometro_danado" wire:model="tacometro_danado">
+                                <label class="form-check-label" for="vehiculo_tacometro_danado">Tacometro danado</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4"></div>
                     </div>
 
                     <div class="d-flex gap-2 mt-4">
@@ -385,6 +475,9 @@
                                         @if(auth()->user()?->role !== 'conductor')
                                             <td class="text-center">
                                                 <div class="btn-group">
+                                                    <a href="{{ route('vehicles.maintenance-report', $vehicle) }}" class="btn btn-sm btn-outline-primary" title="Descargar PDF de mantenimientos">
+                                                        <i class="fas fa-file-pdf"></i>
+                                                    </a>
                                                     <button wire:click="edit({{ $vehicle->id }})" class="btn btn-sm btn-outline-warning"><i class="fas fa-edit"></i></button>
                                                     <button wire:click="delete({{ $vehicle->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
                                                 </div>

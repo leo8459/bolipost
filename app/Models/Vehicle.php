@@ -158,11 +158,9 @@ class Vehicle extends Model
     public function currentAssignment()
     {
         return $this->assignments()
-            ->where('activo', true)
-            ->where(function ($q) {
-                $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', now());
-            })
             ->latest('fecha_inicio')
+            ->latest('updated_at')
+            ->latest('id')
             ->first();
     }
 
@@ -171,7 +169,7 @@ class Vehicle extends Model
      */
     public function vehicleLogs(): HasMany
     {
-        return $this->hasMany(VehicleLog::class, 'vehicles_id');
+        return $this->hasMany(VehicleLog::class, 'vehicles_id')->active();
     }
 
     /**
@@ -187,7 +185,7 @@ class Vehicle extends Model
      */
     public function maintenanceLogs(): HasMany
     {
-        return $this->hasMany(MaintenanceLog::class, 'vehicle_id');
+        return $this->hasMany(MaintenanceLog::class, 'vehicle_id')->active();
     }
 
     public function workshops(): HasMany

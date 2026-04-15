@@ -3,8 +3,10 @@
 namespace App\Livewire;
 
 use App\Models\MaintenanceAlert;
+use App\Models\MaintenanceAlertUserRead;
 use App\Models\VehicleAssignment;
 use App\Models\Workshop;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -12,9 +14,11 @@ class MaintenanceAlertManager extends Component
 {
     use WithPagination;
 
+    protected string $paginationTheme = 'bootstrap';
+
     public string $search = '';
     public string $filterTipo = '';
-    public string $filterEstado = 'todas';
+    public string $filterEstado = 'abiertas';
 
     public function mount(): void
     {
@@ -49,18 +53,26 @@ class MaintenanceAlertManager extends Component
             $query->where('tipo', $this->filterTipo);
         }
 
-        if ($this->filterEstado === 'activa') {
-            $query->where('status', MaintenanceAlert::STATUS_ACTIVE);
+        if ($this->filterEstado === 'abiertas') {
+            $query->whereIn('status', MaintenanceAlert::openStatuses());
         } elseif ($this->filterEstado === 'resuelta') {
             $query->where('status', MaintenanceAlert::STATUS_RESOLVED);
         }
 
         $pendingCountQuery = MaintenanceAlert::query();
         $pendingCountQuery = $this->applyVisibilityScope($pendingCountQuery);
-        $pendingCount = $pendingCountQuery->where('status', MaintenanceAlert::STATUS_ACTIVE)->count();
+        $pendingCountQuery->whereIn('status', MaintenanceAlert::openStatuses());
+        if ($this->usesPerUserReadState()) {
+            $pendingCountQuery->whereDoesntHave('userReads', function ($query) {
+                $query->where('user_id', (int) auth()->id());
+            });
+        }
+        $alerts = $query->paginate(12);
+        $this->applyReadStateToPaginator($alerts);
+        $pendingCount = $pendingCountQuery->count();
 
         return view('livewire.maintenance-alert-manager', [
-            'alerts' => $query->paginate(12),
+            'alerts' => $alerts,
             'pendingCount' => $pendingCount,
         ]);
     }
@@ -91,12 +103,12 @@ class MaintenanceAlertManager extends Component
             return;
         }
 
-        if ($alert->status !== MaintenanceAlert::STATUS_ACTIVE) {
-            session()->flash('error', 'Solo puede marcar como leida una alerta activa.');
+        if (!in_array($alert->status, MaintenanceAlert::openStatuses(), true)) {
+            session()->flash('error', 'Solo puede marcar como leida una alerta abierta.');
             return;
         }
 
-        $alert->update(['leida' => true]);
+        $this->setAlertReadState($alert, true);
         session()->flash('message', 'Alerta marcada como leida.');
     }
 
@@ -111,19 +123,19 @@ class MaintenanceAlertManager extends Component
             return;
         }
 
-        if ($alert->status !== MaintenanceAlert::STATUS_ACTIVE) {
-            session()->flash('error', 'Solo puede marcar como pendiente una alerta activa.');
+        if (!in_array($alert->status, MaintenanceAlert::openStatuses(), true)) {
+            session()->flash('error', 'Solo puede marcar como pendiente una alerta abierta.');
             return;
         }
 
-        $alert->update(['leida' => false]);
+        $this->setAlertReadState($alert, false);
         session()->flash('message', 'Alerta marcada como pendiente.');
     }
 
     public function markAllAsRead(): void
     {
         $query = MaintenanceAlert::query()
-            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+            ->whereIn('status', MaintenanceAlert::openStatuses())
             ->where('leida', false);
 
         if (auth()->user()?->role === 'conductor') {
@@ -143,7 +155,25 @@ class MaintenanceAlertManager extends Component
             $query->whereIn('vehicle_id', $vehicleIds);
         }
 
-        $query->update(['leida' => true]);
+        if ($this->usesPerUserReadState()) {
+            $alertIds = $query->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            foreach ($alertIds as $alertId) {
+                MaintenanceAlertUserRead::query()->updateOrCreate(
+                    [
+                        'maintenance_alert_id' => $alertId,
+                        'user_id' => (int) auth()->id(),
+                    ],
+                    [
+                        'read_at' => now(),
+                    ]
+                );
+            }
+        } else {
+            $query->update(['leida' => true]);
+        }
         session()->flash('message', 'Alertas pendientes marcadas como leidas.');
     }
 
@@ -163,8 +193,8 @@ class MaintenanceAlertManager extends Component
             return;
         }
 
-        if ($alert->status !== MaintenanceAlert::STATUS_ACTIVE) {
-            session()->flash('error', 'Solo se puede despachar a taller desde alertas activas.');
+        if (!in_array($alert->status, [MaintenanceAlert::STATUS_ACTIVE, MaintenanceAlert::STATUS_REQUESTED], true)) {
+            session()->flash('error', 'Solo se puede despachar a taller desde alertas abiertas.');
             return;
         }
 
@@ -181,6 +211,7 @@ class MaintenanceAlertManager extends Component
             ->first();
 
         $alert->update([
+            'status' => MaintenanceAlert::STATUS_IN_WORKSHOP,
             'leida' => true,
         ]);
 
@@ -211,8 +242,8 @@ class MaintenanceAlertManager extends Component
             return;
         }
 
-        if ($alert->status !== MaintenanceAlert::STATUS_ACTIVE) {
-            session()->flash('error', 'Solo se puede solicitar diagnostico desde alertas activas.');
+        if (!in_array($alert->status, [MaintenanceAlert::STATUS_ACTIVE, MaintenanceAlert::STATUS_REQUESTED], true)) {
+            session()->flash('error', 'Solo se puede solicitar diagnostico desde alertas abiertas.');
             return;
         }
 
@@ -229,6 +260,7 @@ class MaintenanceAlertManager extends Component
             ->first();
 
         $alert->update([
+            'status' => MaintenanceAlert::STATUS_IN_WORKSHOP,
             'leida' => true,
         ]);
 
@@ -278,8 +310,8 @@ class MaintenanceAlertManager extends Component
             return;
         }
 
-        if ($alert->status !== MaintenanceAlert::STATUS_ACTIVE) {
-            session()->flash('error', 'Solo se pueden posponer alertas activas.');
+        if (!in_array($alert->status, [MaintenanceAlert::STATUS_ACTIVE, MaintenanceAlert::STATUS_REQUESTED], true)) {
+            session()->flash('error', 'Solo se pueden posponer alertas preventivas o solicitadas.');
             return;
         }
 
@@ -359,6 +391,69 @@ class MaintenanceAlertManager extends Component
         }
 
         return $query->whereIn('vehicle_id', $vehicleIds);
+    }
+
+    private function usesPerUserReadState(): bool
+    {
+        return auth()->user()?->role === 'conductor';
+    }
+
+    private function setAlertReadState(MaintenanceAlert $alert, bool $read): void
+    {
+        if (!$this->usesPerUserReadState()) {
+            $alert->update(['leida' => $read]);
+            return;
+        }
+
+        $userId = (int) auth()->id();
+        if ($read) {
+            MaintenanceAlertUserRead::query()->updateOrCreate(
+                [
+                    'maintenance_alert_id' => (int) $alert->id,
+                    'user_id' => $userId,
+                ],
+                [
+                    'read_at' => now(),
+                ]
+            );
+
+            return;
+        }
+
+        MaintenanceAlertUserRead::query()
+            ->where('maintenance_alert_id', (int) $alert->id)
+            ->where('user_id', $userId)
+            ->delete();
+    }
+
+    private function applyReadStateToPaginator(LengthAwarePaginator $alerts): void
+    {
+        if (!$this->usesPerUserReadState()) {
+            return;
+        }
+
+        $alertIds = $alerts->getCollection()
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (empty($alertIds)) {
+            return;
+        }
+
+        $readIds = MaintenanceAlertUserRead::query()
+            ->where('user_id', (int) auth()->id())
+            ->whereIn('maintenance_alert_id', $alertIds)
+            ->pluck('maintenance_alert_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $alerts->setCollection(
+            $alerts->getCollection()->map(function (MaintenanceAlert $alert) use ($readIds) {
+                $alert->leida = in_array((int) $alert->id, $readIds, true);
+                return $alert;
+            })
+        );
     }
 
 }

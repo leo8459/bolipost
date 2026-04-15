@@ -9,6 +9,7 @@ use App\Models\ActivityLog;
 use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
 use App\Models\VehicleLog;
+use App\Models\VehicleLogStageEvent;
 use App\Services\FuelInvoiceDocumentService;
 use App\Services\MaintenanceAlertService;
 use Carbon\Carbon;
@@ -188,7 +189,8 @@ class FuelLogManager extends Component
         $this->ensureDriverInOptions($this->driver_id);
 
         $query = FuelLog::query()
-            ->with(['invoice', 'vehicle.brand', 'vehicle.vehicleClass', 'driver', 'vehicleLog'])
+            ->active()
+            ->with(['invoice', 'vehicle.brand', 'vehicle.vehicleClass', 'driver', 'vehicleLog.stageEvents'])
             ->orderByDesc('created_at')
             ->orderByDesc('id');
 
@@ -273,7 +275,8 @@ class FuelLogManager extends Component
         $fuelLogs = $query->paginate(6, ['*'], 'fuelPage');
 
         $vehicleLogQuery = VehicleLog::query()
-            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'fuelLog'])
+            ->active()
+            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'fuelLog', 'stageEvents'])
             ->orderByDesc('fecha')
             ->orderByDesc('id');
 
@@ -331,6 +334,10 @@ class FuelLogManager extends Component
             $date = $log->invoice?->fecha_emision ?? $log->created_at;
             $recorridoInicio = trim((string) ($log->vehicleLog?->recorrido_inicio ?? ''));
             $recorridoDestino = trim((string) ($log->vehicleLog?->recorrido_destino ?? ''));
+            $pauseSummary = $this->buildPauseSummaryForVehicleLog($log->vehicleLog);
+            $meterStatus = !empty(data_get($log->invoice?->antifraud_payload_json, 'evidence.fuel_meter_photo_path'))
+                ? 'Foto del medidor: registrada'
+                : 'Foto del medidor: no registrada';
 
             return [
                 'tipo' => 'vale',
@@ -342,6 +349,7 @@ class FuelLogManager extends Component
                 'detalle_principal' => (string) ($log->invoice?->numero_factura ?? '-'),
                 'detalle_secundario' => 'Punto de salida: ' . ($recorridoInicio !== '' ? $recorridoInicio : '-'),
                 'detalle_terciario' => 'Punto de llegada: ' . ($recorridoDestino !== '' ? $recorridoDestino : '-'),
+                'detalle_cuaternario' => collect([$pauseSummary, $meterStatus])->filter()->implode(' | '),
                 'total' => $log->total_calculado,
                 'tiene_combustible' => true,
             ];
@@ -349,6 +357,7 @@ class FuelLogManager extends Component
 
         $combinedBitacoraRows = $vehicleLogCombinedQuery->get()->map(function (VehicleLog $log) {
             $date = $log->fecha ?? $log->created_at;
+            $pauseSummary = $this->buildPauseSummaryForVehicleLog($log);
             return [
                 'tipo' => 'bitacora',
                 'fecha' => optional($date)->format('d/m/Y H:i') ?? '-',
@@ -358,7 +367,8 @@ class FuelLogManager extends Component
                 'detalle_titulo' => 'Recorrido',
                 'detalle_principal' => (string) ($log->recorrido_inicio ?? '-'),
                 'detalle_secundario' => 'Punto de llegada: ' . (string) ($log->recorrido_destino ?? '-'),
-                'detalle_terciario' => null,
+                'detalle_terciario' => $pauseSummary,
+                'detalle_cuaternario' => $log->fuel_log_id ? 'Combustible vinculado: si' : null,
                 'total' => null,
                 'tiene_combustible' => (bool) $log->fuel_log_id,
             ];
@@ -710,8 +720,8 @@ class FuelLogManager extends Component
             return;
         }
 
-        $log->delete();
-        session()->flash('message', 'Registro de combustible eliminado correctamente.');
+        $log->update(['activo' => false]);
+        session()->flash('message', 'Registro de combustible inactivado correctamente.');
     }
 
     public function markAsVerificado(int $logId): void
@@ -1019,8 +1029,8 @@ class FuelLogManager extends Component
             return;
         }
 
-        $log->delete();
-        session()->flash('message', 'Registro de bitacora eliminado correctamente.');
+        $log->update(['activo' => false]);
+        session()->flash('message', 'Registro de bitacora inactivado correctamente.');
     }
 
     public function procesarQR(string $url): array
@@ -1951,5 +1961,73 @@ class FuelLogManager extends Component
                 'pageName' => $pageName,
             ]
         );
+    }
+
+    private function buildPauseSummaryForVehicleLog(?VehicleLog $log): ?string
+    {
+        if (!$log) {
+            return null;
+        }
+
+        $totals = [
+            'CARGA' => 0,
+            'ESPERA' => 0,
+        ];
+
+        /** @var VehicleLogStageEvent $event */
+        foreach ($log->stageEvents ?? [] as $event) {
+            if (mb_strtoupper((string) $event->stage_name) !== 'CONTINUAR') {
+                continue;
+            }
+
+            $payload = is_array($event->payload_json) ? $event->payload_json : [];
+            $pausedStage = mb_strtoupper(trim((string) data_get($payload, 'paused_stage', '')));
+            if (!array_key_exists($pausedStage, $totals)) {
+                continue;
+            }
+
+            $seconds = (int) round((float) data_get($payload, 'paused_duration_seconds', 0));
+            if ($seconds <= 0) {
+                $startedAt = data_get($payload, 'paused_started_at');
+                $resumedAt = data_get($payload, 'resumed_at');
+                if ($startedAt && $resumedAt) {
+                    $seconds = max(0, Carbon::parse((string) $resumedAt)->diffInSeconds(Carbon::parse((string) $startedAt)));
+                }
+            }
+
+            if ($seconds > 0) {
+                $totals[$pausedStage] += $seconds;
+            }
+        }
+
+        $parts = [];
+        if ($totals['CARGA'] > 0) {
+            $parts[] = 'Carga detenida: ' . $this->formatDurationHours($totals['CARGA']);
+        }
+        if ($totals['ESPERA'] > 0) {
+            $parts[] = 'Espera detenida: ' . $this->formatDurationHours($totals['ESPERA']);
+        }
+
+        return empty($parts) ? null : implode(' | ', $parts);
+    }
+
+    private function formatDurationHours(int $seconds): string
+    {
+        if ($seconds <= 0) {
+            return '0 min';
+        }
+
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+
+        if ($hours > 0 && $minutes > 0) {
+            return sprintf('%dh %02dmin', $hours, $minutes);
+        }
+
+        if ($hours > 0) {
+            return sprintf('%dh', $hours);
+        }
+
+        return sprintf('%dmin', max(1, $minutes));
     }
 }

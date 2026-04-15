@@ -22,6 +22,55 @@
             background-position: right .75rem center;
             background-size: 14px;
         }
+
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
+            outline: 0;
+        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center gap-2">
@@ -101,14 +150,11 @@
                             </div>
                             @error('vehicle_to_add') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
                             @error('selected_vehicle_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
-                            <div class="form-text">El combo se filtra por tipo. Si eliges Moto, veras solo motos; si eliges Vehiculo, veras solo vehiculos.</div>
-                            <div class="form-text">Puedes anadir uno por uno o usar Anadir todo para cargar todos los visibles del tipo seleccionado.</div>
                         </div>
                         <div class="col-12 col-lg-4 d-flex align-items-end">
-                            <div class="form-check mb-2">
+                            <div class="form-check bp-switch mb-2">
                                 <input type="checkbox" id="es_preventivo" wire:model="es_preventivo" class="form-check-input">
                                 <label class="form-check-label fw-bold" for="es_preventivo">Es mantenimiento preventivo</label>
-                                <div class="form-text">Si esta marcado, las solicitudes de este tipo no rebajan estrellas del incentivo.</div>
                             </div>
                         </div>
                         <div class="col-12">

@@ -45,6 +45,12 @@ class VehicleLogSession extends Model
         return $this->belongsTo(Driver::class, 'current_driver_id');
     }
 
+    public function driver(): BelongsTo
+    {
+        // Alias legacy para compatibilidad con consultas/vistas que usan session.driver.
+        return $this->belongsTo(Driver::class, 'current_driver_id')->withTrashed();
+    }
+
     public function stageEvents(): HasMany
     {
         return $this->hasMany(VehicleLogStageEvent::class, 'vehicle_log_session_id');

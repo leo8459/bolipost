@@ -23,6 +23,55 @@
             background-size: 14px;
         }
 
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
+            outline: 0;
+        }
+
         #vehicle-location-map {
             height: 360px;
             border-radius: 8px;
@@ -441,7 +490,7 @@
                                         @error('recorrido_destino') <div class="invalid-feedback">{{ $message }}</div> @enderror
                                     </div>
                                     <div class="col-12 col-md-6 d-flex align-items-center">
-                                        <div class="form-check">
+                                        <div class="form-check bp-switch">
                                             <input class="form-check-input" type="checkbox" id="abastecimiento" wire:model="abastecimiento_combustible">
                                             <label class="form-check-label" for="abastecimiento">
                                                 Abastecimiento combustible?
@@ -555,6 +604,22 @@
             </div>
 
             <div class="row g-2 mb-3">
+                <div class="col-12 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                    <div class="btn-group" role="group" aria-label="Cambiar tabla">
+                        <button
+                            type="button"
+                            wire:click="showLogsTable"
+                            class="btn {{ $table_view === 'logs' ? 'btn-primary' : 'btn-outline-primary' }}">
+                            Bitacoras
+                        </button>
+                        <button
+                            type="button"
+                            wire:click="showOperationalAlertsTable"
+                            class="btn {{ $table_view === 'alerts' ? 'btn-primary' : 'btn-outline-primary' }}">
+                            Alertas operativas
+                        </button>
+                    </div>
+                </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold mb-1">Fecha desde</label>
                     <input type="date" wire:model.live="fecha_desde" class="form-control @error('fecha_desde') is-invalid @enderror" max="{{ now()->toDateString() }}">
@@ -594,6 +659,49 @@
                 <div class="col-12">
                     <div class="bitacora-shell__table-wrap">
                         <div class="table-responsive">
+                            @if($table_view === 'alerts')
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Vehiculo</th>
+                                        <th>Conductor</th>
+                                        <th>Alerta</th>
+                                        <th>Estado en ruta</th>
+                                        <th>Detectada</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($operationAlerts as $alert)
+                                    <tr>
+                                        <td>{{ $alert->vehicle?->placa ?? 'N/A' }}</td>
+                                        <td>{{ $alert->session?->driver?->nombre ?? 'N/A' }}</td>
+                                        <td>
+                                            <div class="fw-semibold">{{ $alert->title ?: 'Alerta operativa' }}</div>
+                                            <div class="text-muted small">{{ $alert->message ?: '-' }}</div>
+                                        </td>
+                                        <td>{{ $alert->current_stage ?: '-' }}</td>
+                                        <td>{{ optional($alert->detected_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                        <td class="text-center">
+                                            <button
+                                                type="button"
+                                                wire:click="markOperationalAlertReviewed({{ $alert->id }})"
+                                                class="btn btn-sm btn-outline-success"
+                                                title="Marcar como revisado">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    @empty
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-5 bitacora-shell__empty">
+                                            No hay alertas operativas activas.
+                                        </td>
+                                    </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                            @else
                             <table class="table table-hover align-middle mb-0">
                                 <thead>
                                     <tr>
@@ -660,7 +768,17 @@
                                     @endforelse
                                 </tbody>
                             </table>
+                            @endif
                         </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="mt-3">
+                        @if($table_view === 'alerts')
+                        {{ $operationAlerts->links('pagination::bootstrap-4') }}
+                        @else
+                        {{ $logs->links('pagination::bootstrap-4') }}
+                        @endif
                     </div>
                 </div>
 

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 class VehicleLog extends Model
 {
@@ -31,6 +32,7 @@ class VehicleLog extends Model
         'session_reference',
         'responsible_driver_id',
         'current_driver_id',
+        'activo',
         'ruta_json', // <--- Agregamos esto
         'points_json',
     ];
@@ -47,6 +49,7 @@ class VehicleLog extends Model
         'abastecimiento_combustible' => 'boolean',
         'responsible_driver_id' => 'integer',
         'current_driver_id' => 'integer',
+        'activo' => 'boolean',
         'ruta_json' => 'array', // <--- Importante: esto lo convierte en array de PHP
         'points_json' => 'array',
         'created_at' => 'datetime',
@@ -192,7 +195,7 @@ class VehicleLog extends Model
         }
 
         if ($lat !== null && $lng !== null) {
-            return 'Ubicacion marcada';
+            return $this->formatCoordinateLabel($lat, $lng);
         }
 
         return $fallback;
@@ -327,5 +330,14 @@ class VehicleLog extends Model
         }
 
         return $this->limitRouteLabel($candidate);
+    }
+
+    public function scopeActive($query)
+    {
+        if (Schema::hasColumn($this->getTable(), 'activo')) {
+            $query->where($this->qualifyColumn('activo'), true);
+        }
+
+        return $query;
     }
 }

@@ -7,6 +7,8 @@ use App\Models\MaintenanceAlert;
 use App\Models\Vehicle;
 use App\Models\Driver;
 use App\Models\MaintenanceType;
+use App\Models\VehicleAssignment;
+use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -19,9 +21,13 @@ class MaintenanceAppointmentManager extends Component
 {
     use WithPagination;
     use WithFileUploads;
+
+    protected string $paginationTheme = 'bootstrap';
+
     public bool $showForm = false; // Control de vista
     public string $search = '';
     public string $statusFilter = '';
+    public string $maintenance_form_type = 'vehiculo';
 
     
 
@@ -66,7 +72,9 @@ class MaintenanceAppointmentManager extends Component
 
     public function render()
     {
-        $query = MaintenanceAppointment::with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'tipoMantenimiento', 'requestedBy'])
+        $query = MaintenanceAppointment::query()
+            ->active()
+            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'tipoMantenimiento', 'requestedBy'])
             ->orderBy('fecha_programada', 'desc');
 
         if ($this->statusFilter !== '') {
@@ -88,6 +96,7 @@ class MaintenanceAppointmentManager extends Component
 
         $appointments = $query->paginate(10);
         $approvedAppointments = MaintenanceAppointment::query()
+            ->active()
             ->with(['vehicle.brand', 'driver', 'tipoMantenimiento'])
             ->where('estado', MaintenanceAppointment::STATUS_APPROVED)
             ->orderBy('fecha_programada')
@@ -97,6 +106,12 @@ class MaintenanceAppointmentManager extends Component
         $vehicles = Vehicle::with(['brand', 'vehicleClass'])
             ->where('activo', true)
             ->operationallyAvailable()
+            ->where(function ($query) {
+                $query->where('maintenance_form_type', $this->maintenance_form_type)
+                    ->orWhereHas('vehicleClass', function ($vehicleClassQuery) {
+                        $vehicleClassQuery->where('maintenance_form_type', $this->maintenance_form_type);
+                    });
+            })
             ->orderBy('placa')
             ->get();
 
@@ -110,10 +125,18 @@ class MaintenanceAppointmentManager extends Component
         $selectedVehicle = $this->vehicle_id > 0
             ? Vehicle::with('vehicleClass')->find($this->vehicle_id)
             : null;
-        $types = MaintenanceType::query()
-            ->applicableToVehicle($selectedVehicle)
-            ->orderBy('nombre')
-            ->get();
+        $typesQuery = MaintenanceType::query()->active()->orderBy('nombre');
+
+        if ($selectedVehicle) {
+            $typesQuery->applicableToVehicle($selectedVehicle);
+        } else {
+            $typesQuery->where(function ($query) {
+                $query->whereNull('maintenance_form_type')
+                    ->orWhere('maintenance_form_type', $this->maintenance_form_type);
+            });
+        }
+
+        $types = $typesQuery->get();
         
         return view('livewire.maintenance-appointment-manager', [
             'appointments' => $appointments,
@@ -121,8 +144,8 @@ class MaintenanceAppointmentManager extends Component
             'drivers' => $drivers,
             'types' => $types,
             'approvedAppointments' => $approvedAppointments,
-            'approvedCount' => MaintenanceAppointment::query()->where('estado', MaintenanceAppointment::STATUS_APPROVED)->count(),
-            'pendingCount' => MaintenanceAppointment::query()->where('estado', MaintenanceAppointment::STATUS_PENDING)->count(),
+            'approvedCount' => MaintenanceAppointment::query()->active()->where('estado', MaintenanceAppointment::STATUS_APPROVED)->count(),
+            'pendingCount' => MaintenanceAppointment::query()->active()->where('estado', MaintenanceAppointment::STATUS_PENDING)->count(),
         ]);
     }
 
@@ -142,6 +165,18 @@ class MaintenanceAppointmentManager extends Component
         $this->validate([
             'formulario_documento_file' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,webp',
         ]);
+
+        if (!$this->isEdit) {
+            $scheduledAt = Carbon::createFromFormat('Y-m-d\TH:i', $this->fecha_programada, config('app.timezone'));
+            if ($scheduledAt->lte(now())) {
+                $this->addError('fecha_programada', 'La cita de mantenimiento solo puede programarse hacia adelante.');
+                return;
+            }
+        }
+
+        if (!$this->isEdit) {
+            $this->estado = MaintenanceAppointment::STATUS_PENDING;
+        }
 
         $vehicle = Vehicle::with('vehicleClass')->find($this->vehicle_id);
         if (!$vehicle) {
@@ -198,7 +233,8 @@ class MaintenanceAppointmentManager extends Component
                 'origen_solicitud' => 'web_agencia',
                 'es_accidente' => $this->es_accidente,
                 'formulario_documento_path' => $storedFormPath,
-                'estado' => $this->estado,
+                'estado' => MaintenanceAppointment::STATUS_PENDING,
+                'activo' => true,
             ]);
             $this->syncRequestAlert($appointment);
             $this->syncProgrammedAlert($appointment);
@@ -215,6 +251,9 @@ class MaintenanceAppointmentManager extends Component
         $this->vehicle_id = $appointment->vehicle_id ?? 0;
         $this->driver_id = $appointment->driver_id;
         $this->tipo_mantenimiento_id = $appointment->tipo_mantenimiento_id;
+        $this->maintenance_form_type = (string) ($appointment->vehicle?->maintenance_form_type
+            ?: $appointment->vehicle?->vehicleClass?->maintenance_form_type
+            ?: 'vehiculo');
         $this->fecha_programada = $appointment->fecha_programada->format('Y-m-d\TH:i');
         $this->es_accidente = $appointment->es_accidente;
         $this->estado = $appointment->estado;
@@ -257,8 +296,8 @@ class MaintenanceAppointmentManager extends Component
                 ]);
         }
 
-        $appointment->delete();
-        session()->flash('message', 'Cita de mantenimiento eliminada correctamente.');
+        $appointment->update(['activo' => false]);
+        session()->flash('message', 'Cita de mantenimiento inactivada correctamente.');
     }
 
     public function resetForm()
@@ -267,23 +306,70 @@ class MaintenanceAppointmentManager extends Component
             'vehicle_id', 'driver_id', 'tipo_mantenimiento_id', 
             'fecha_programada', 'es_accidente',
             'estado', 'isEdit', 'editingId', 'editingEvidenceUrl', 'editingFormUrl', 'editingOriginLabel',
-            'editingRequiresAgencyForm', 'formulario_documento_file', 'formulario_documento_path'
+            'editingRequiresAgencyForm', 'formulario_documento_file', 'formulario_documento_path',
+            'maintenance_form_type'
         ]);
         $this->vehicle_id = 0;
+        $this->maintenance_form_type = 'vehiculo';
         $this->estado = MaintenanceAppointment::STATUS_PENDING;
         $this->showForm = false; // Volver a la tabla
         $this->resetPage();
     }
 
+    public function updatedMaintenanceFormType(): void
+    {
+        $this->vehicle_id = 0;
+        $this->driver_id = null;
+        $this->tipo_mantenimiento_id = null;
+    }
+
     public function updatedVehicleId(): void
     {
-        if (!$this->vehicle_id || !$this->tipo_mantenimiento_id) {
+        if (!$this->vehicle_id) {
+            if (!$this->driver_id) {
+                $this->driver_id = null;
+            }
+            $this->tipo_mantenimiento_id = null;
             return;
         }
 
-        $vehicle = Vehicle::with('vehicleClass')->find($this->vehicle_id);
+        $vehicle = Vehicle::with(['vehicleClass', 'assignments.driver'])->find($this->vehicle_id);
         if (!$vehicle) {
+            $this->driver_id = null;
             $this->tipo_mantenimiento_id = null;
+            return;
+        }
+
+        $this->maintenance_form_type = (string) ($vehicle->maintenance_form_type
+            ?: $vehicle->vehicleClass?->maintenance_form_type
+            ?: $this->maintenance_form_type
+            ?: 'vehiculo');
+
+        $currentAssignment = $vehicle->assignments
+            ->filter(function ($assignment) {
+                if (!(bool) ($assignment->activo ?? true)) {
+                    return false;
+                }
+
+                $starts = $assignment->fecha_inicio;
+                $ends = $assignment->fecha_fin;
+
+                if ($starts && now()->lt($starts)) {
+                    return false;
+                }
+
+                if ($ends && now()->gt($ends)) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->sortByDesc('fecha_inicio')
+            ->first();
+
+        $this->driver_id = $currentAssignment?->driver_id ? (int) $currentAssignment->driver_id : null;
+
+        if (!$this->vehicle_id || !$this->tipo_mantenimiento_id) {
             return;
         }
 
@@ -294,6 +380,63 @@ class MaintenanceAppointmentManager extends Component
 
         if (!$allowed) {
             $this->tipo_mantenimiento_id = null;
+        }
+    }
+
+    public function updatedDriverId(): void
+    {
+        if (!$this->driver_id) {
+            return;
+        }
+
+        $assignment = VehicleAssignment::query()
+            ->with(['vehicle.vehicleClass'])
+            ->where('driver_id', (int) $this->driver_id)
+            ->where(function ($query) {
+                $query->where('activo', true)->orWhereNull('activo');
+            })
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->get()
+            ->first(function (VehicleAssignment $assignment) {
+                $starts = $assignment->fecha_inicio;
+                $ends = $assignment->fecha_fin;
+
+                if ($starts && now()->lt($starts)) {
+                    return false;
+                }
+
+                if ($ends && now()->gt($ends)) {
+                    return false;
+                }
+
+                return true;
+            });
+
+        if (!$assignment?->vehicle_id) {
+            return;
+        }
+
+        $vehicle = $assignment->vehicle;
+        if (!$vehicle) {
+            return;
+        }
+
+        $this->vehicle_id = (int) $assignment->vehicle_id;
+        $this->maintenance_form_type = (string) ($vehicle->maintenance_form_type
+            ?: $vehicle->vehicleClass?->maintenance_form_type
+            ?: $this->maintenance_form_type
+            ?: 'vehiculo');
+
+        if ($this->tipo_mantenimiento_id) {
+            $allowed = MaintenanceType::query()
+                ->applicableToVehicle($vehicle)
+                ->whereKey((int) $this->tipo_mantenimiento_id)
+                ->exists();
+
+            if (!$allowed) {
+                $this->tipo_mantenimiento_id = null;
+            }
         }
     }
 
@@ -416,7 +559,7 @@ class MaintenanceAppointmentManager extends Component
                     'maintenance_type_id' => $appointment->tipo_mantenimiento_id,
                     'mensaje' => $message,
                     'leida' => false,
-                    'status' => MaintenanceAlert::STATUS_ACTIVE,
+                    'status' => MaintenanceAlert::STATUS_REQUESTED,
                     'fecha_resolucion' => null,
                     'usuario_id' => null,
                 ]
@@ -434,7 +577,7 @@ class MaintenanceAppointmentManager extends Component
         MaintenanceAlert::query()
             ->where('maintenance_appointment_id', $appointment->id)
             ->where('tipo', 'Solicitud')
-            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+            ->whereIn('status', MaintenanceAlert::openStatuses())
             ->update([
                 'status' => $resolutionStatus,
                 'leida' => true,

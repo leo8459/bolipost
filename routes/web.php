@@ -51,6 +51,7 @@ use App\Http\Controllers\Web\MapController;
 use App\Http\Controllers\Web\QrDecoderController;
 use App\Http\Controllers\Web\VehicleLogMapController;
 use App\Http\Controllers\Web\VehicleLogMapPageController;
+use App\Http\Controllers\Web\VehicleMaintenanceReportController;
 use App\Http\Controllers\Web\VehicleLogOdometerController;
 use App\Http\Controllers\Web\VehicleLogStagePhotoController;
 use App\Livewire\FuelLogManager;
@@ -373,12 +374,16 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
         ->name('fuel-invoices.rollo');
     Route::get('/fuel-invoices/{fuelInvoice}/photo', [FuelInvoiceFileController::class, 'photo'])
         ->name('fuel-invoices.photo');
+    Route::get('/fuel-invoices/{fuelInvoice}/meter-photo', [FuelInvoiceFileController::class, 'meterPhoto'])
+        ->name('fuel-invoices.meter-photo');
     Route::get('/drivers/{driver}/memorandum', [DriverMemorandumController::class, 'show'])
         ->name('drivers.memorandum.download');
     Route::get('/vehicle-logs/{vehicleLog}/map', [VehicleLogMapPageController::class, 'show'])
         ->name('vehicle-logs.map');
     Route::get('/vehicle-logs/{vehicleLog}/map-data', [VehicleLogMapController::class, 'show'])
         ->name('vehicle-logs.map-data');
+    Route::get('/vehicles/{vehicle}/maintenance-report', [VehicleMaintenanceReportController::class, 'show'])
+        ->name('vehicles.maintenance-report');
     Route::get('/vehicle-logs/{vehicleLog}/odometro-photo', [VehicleLogOdometerController::class, 'show'])
         ->name('vehicle-logs.odometro.photo');
     Route::get('/vehicle-log-stage-events/{stageEvent}/photo', [VehicleLogStagePhotoController::class, 'show'])

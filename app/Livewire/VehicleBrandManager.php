@@ -11,6 +11,8 @@ class VehicleBrandManager extends Component
 {
     use WithPagination;
 
+    protected string $paginationTheme = 'bootstrap';
+
     private const COUNTRY_OPTIONS = [
         'Japon',
         'Corea del Sur',
@@ -49,7 +51,7 @@ class VehicleBrandManager extends Component
 
     public function render()
     {
-        $query = VehicleBrand::query()->orderBy('nombre');
+        $query = VehicleBrand::query()->active()->orderBy('nombre');
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -118,7 +120,7 @@ class VehicleBrandManager extends Component
                 session()->flash('message', 'Marca actualizada correctamente.');
             }
         } else {
-            VehicleBrand::create($payload);
+            VehicleBrand::create($payload + ['activo' => true]);
             session()->flash('message', 'Marca creada correctamente.');
         }
 
@@ -136,8 +138,8 @@ class VehicleBrandManager extends Component
 
     public function delete(VehicleBrand $brand)
     {
-        $brand->delete();
-        session()->flash('message', 'Marca eliminada correctamente.');
+        $brand->update(['activo' => false]);
+        session()->flash('message', 'Marca inactivada correctamente.');
     }
 
     public function resetForm()

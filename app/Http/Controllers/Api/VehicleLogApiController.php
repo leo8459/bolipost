@@ -23,6 +23,7 @@ class VehicleLogApiController extends Controller
     public function index(Request $request)
     {
         $query = VehicleLog::query()
+            ->active()
             ->with(['vehicle', 'driver', 'fuelLog'])
             ->orderByDesc('fecha')
             ->orderByDesc('id');
@@ -48,6 +49,10 @@ class VehicleLogApiController extends Controller
 
     public function show(VehicleLog $vehicleLog)
     {
+        if (isset($vehicleLog->activo) && !$vehicleLog->activo) {
+            abort(404);
+        }
+
         $vehicleLog->load(['vehicle', 'driver', 'fuelLog']);
 
         return response()->json($vehicleLog);
@@ -106,6 +111,9 @@ class VehicleLogApiController extends Controller
             'recorrido_destino' => (string) ($input['recorrido_destino'] ?? $input['destino'] ?? $input['destination'] ?? ''),
             'abastecimiento_combustible' => (bool) ($input['abastecimiento_combustible'] ?? $input['has_fuel_load'] ?? false),
         ];
+        if (Schema::hasColumn('vehicle_log', 'activo')) {
+            $payload['activo'] = true;
+        }
         if (Schema::hasColumn('vehicle_log', 'firma_digital')) {
             $payload['firma_digital'] = $input['firma_digital'] ?? $input['signature'] ?? null;
         }
@@ -389,6 +397,9 @@ class VehicleLogApiController extends Controller
                     $segment['route_points'] ?? $this->buildSegmentRoutePoints($start, $end)
                 ),
             ];
+            if (Schema::hasColumn('vehicle_log', 'activo')) {
+                $payload['activo'] = true;
+            }
             if (Schema::hasColumn('vehicle_log', 'session_reference')) {
                 $payload['session_reference'] = $sessionReference;
             }
@@ -532,6 +543,8 @@ class VehicleLogApiController extends Controller
             'responsible_driver_id' => 'nullable|integer|min:1',
             'current_driver_id' => 'nullable|integer|min:1',
             'session_reference' => 'required|string|max:120',
+            'vehicle_snapshot' => 'nullable|array',
+            'session_snapshot' => 'nullable|array',
             'notes' => 'nullable|string|max:1000',
         ]);
 
@@ -559,6 +572,8 @@ class VehicleLogApiController extends Controller
             'responsible_driver_id' => $responsibleDriverId,
             'current_driver_id' => $currentDriverId,
             'handover_driver_id' => $actingDriverId,
+            'vehicle_snapshot' => $payload['vehicle_snapshot'] ?? null,
+            'session_snapshot' => $payload['session_snapshot'] ?? null,
             'issued_at' => now()->toIso8601String(),
             'expires_at' => now()->addMinutes(20)->toIso8601String(),
         ];
@@ -585,6 +600,8 @@ class VehicleLogApiController extends Controller
             'qr_image_base64' => $qrBase64,
             'responsible_driver_id' => $responsibleDriverId,
             'current_driver_id' => $currentDriverId,
+            'vehicle_snapshot' => $payload['vehicle_snapshot'] ?? null,
+            'session_snapshot' => $payload['session_snapshot'] ?? null,
         ]);
     }
 
@@ -611,14 +628,25 @@ class VehicleLogApiController extends Controller
         }
 
         $vehicleId = (int) ($qrPayload['vehicle_id'] ?? 0);
-        $newCurrentDriverId = $this->resolveDriverId(
+        $newCurrentDriverId = $this->resolveAuthenticatedDriverIdForReassignment(
             $request,
-            $payload['driver_id'] ?? null,
-            $vehicleId
+            $payload['driver_id'] ?? null
         );
         $responsibleDriverId = $this->asInt($qrPayload['responsible_driver_id'] ?? null);
         $sessionReference = (string) ($qrPayload['session_reference'] ?? '');
         $previousCurrentDriverId = $this->asInt($qrPayload['current_driver_id'] ?? null);
+
+        if (($newCurrentDriverId ?? 0) <= 0) {
+            return response()->json([
+                'message' => 'No se pudo identificar al conductor autenticado que recibe el vehiculo. Vuelve a iniciar sesion en el segundo movil e intenta nuevamente.',
+            ], 422);
+        }
+
+        if (($previousCurrentDriverId ?? 0) > 0 && $previousCurrentDriverId === $newCurrentDriverId) {
+            return response()->json([
+                'message' => 'La reasignacion debe ser aceptada por un conductor diferente al actual.',
+            ], 422);
+        }
 
         $session = $this->upsertSharedSession(
             $sessionReference,
@@ -660,6 +688,12 @@ class VehicleLogApiController extends Controller
                 'responsible_driver_id' => $responsibleDriverId,
             ]);
 
+        $this->syncVehicleAssignmentAfterReassignment(
+            $vehicleId,
+            $newCurrentDriverId,
+            $previousCurrentDriverId
+        );
+
         return response()->json([
             'message' => 'Bitacora reasignada correctamente.',
             'session_reference' => $sessionReference,
@@ -667,6 +701,95 @@ class VehicleLogApiController extends Controller
             'responsible_driver_id' => $responsibleDriverId,
             'current_driver_id' => $newCurrentDriverId,
             'previous_current_driver_id' => $previousCurrentDriverId,
+            'vehicle_snapshot' => $qrPayload['vehicle_snapshot'] ?? null,
+            'session_snapshot' => $qrPayload['session_snapshot'] ?? null,
+        ]);
+    }
+
+    private function syncVehicleAssignmentAfterReassignment(
+        int $vehicleId,
+        ?int $newCurrentDriverId,
+        ?int $previousCurrentDriverId
+    ): void {
+        if ($vehicleId <= 0 || ($newCurrentDriverId ?? 0) <= 0) {
+            return;
+        }
+
+        $today = now()->toDateString();
+        $now = now();
+
+        VehicleAssignment::query()
+            ->where('activo', true)
+            ->where('driver_id', $newCurrentDriverId)
+            ->where('vehicle_id', '!=', $vehicleId)
+            ->get()
+            ->each(function (VehicleAssignment $assignment) use ($today, $now): void {
+                $assignment->update([
+                    'fecha_fin' => $assignment->fecha_fin ?? $today,
+                    'activo' => false,
+                    'updated_at' => $now,
+                ]);
+            });
+
+        $activeAssignmentForVehicle = VehicleAssignment::query()
+            ->where('activo', true)
+            ->where('vehicle_id', $vehicleId)
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($activeAssignmentForVehicle) {
+            $activeAssignmentForVehicle->update([
+                'driver_id' => $newCurrentDriverId,
+                'fecha_inicio' => $today,
+                'fecha_fin' => null,
+                'tipo_asignacion' => $activeAssignmentForVehicle->tipo_asignacion ?: 'Fijo',
+                'activo' => true,
+                'updated_at' => $now,
+            ]);
+
+            VehicleAssignment::query()
+                ->where('activo', true)
+                ->where('vehicle_id', $vehicleId)
+                ->where('id', '!=', $activeAssignmentForVehicle->id)
+                ->get()
+                ->each(function (VehicleAssignment $assignment) use ($today, $now): void {
+                    $assignment->update([
+                        'fecha_fin' => $assignment->fecha_fin ?? $today,
+                        'activo' => false,
+                        'updated_at' => $now,
+                    ]);
+                });
+
+            $this->createVehicleUnassignmentMarker($previousCurrentDriverId, $today);
+            return;
+        }
+
+        VehicleAssignment::query()->create([
+            'driver_id' => $newCurrentDriverId,
+            'vehicle_id' => $vehicleId,
+            'tipo_asignacion' => 'Fijo',
+            'fecha_inicio' => $today,
+            'fecha_fin' => null,
+            'activo' => true,
+        ]);
+
+        $this->createVehicleUnassignmentMarker($previousCurrentDriverId, $today);
+    }
+
+    private function createVehicleUnassignmentMarker(?int $driverId, string $effectiveDate): void
+    {
+        if (($driverId ?? 0) <= 0) {
+            return;
+        }
+
+        VehicleAssignment::query()->create([
+            'driver_id' => $driverId,
+            'vehicle_id' => null,
+            'tipo_asignacion' => 'Desasignado',
+            'fecha_inicio' => $effectiveDate,
+            'fecha_fin' => $effectiveDate,
+            'activo' => false,
         ]);
     }
 
@@ -812,6 +935,30 @@ class VehicleLogApiController extends Controller
             if ($assignment && (int) $assignment->vehicle_id > 0) {
                 return (int) $assignment->vehicle_id;
             }
+        }
+
+        return null;
+    }
+
+    private function resolveAuthenticatedDriverIdForReassignment(Request $request, mixed $candidateDriverId): ?int
+    {
+        $candidate = (int) ($candidateDriverId ?? 0);
+
+        if ($candidate > 0) {
+            $driverById = Driver::query()->find($candidate);
+            if ($driverById) {
+                return (int) $driverById->id;
+            }
+
+            $driverByUser = Driver::query()->where('user_id', $candidate)->first();
+            if ($driverByUser) {
+                return (int) $driverByUser->id;
+            }
+        }
+
+        $authDriver = $request->user()?->resolvedDriver();
+        if ($authDriver) {
+            return (int) $authDriver->id;
         }
 
         return null;
@@ -1142,6 +1289,28 @@ class VehicleLogApiController extends Controller
     private function decodeReassignmentPayload(string $raw): ?array
     {
         $trimmed = trim($raw);
+        if (str_starts_with($trimmed, 'PACKGO-REASSIGN:')) {
+            $encoded = substr($trimmed, strlen('PACKGO-REASSIGN:'));
+            $decoded = json_decode(urldecode($encoded), true);
+            if (!is_array($decoded)) {
+                return null;
+            }
+
+            return [
+                'type' => $decoded['type'] ?? 'vehicle_log_reassignment',
+                'issued_at' => $decoded['issued_at'] ?? $decoded['issuedAt'] ?? null,
+                'expires_at' => $decoded['expires_at'] ?? $decoded['expiresAt'] ?? null,
+                'vehicle_id' => $decoded['vehicle_id'] ?? $decoded['vehicleId'] ?? null,
+                'session_reference' => $decoded['session_reference'] ?? $decoded['sessionReference'] ?? null,
+                'responsible_driver_id' => $decoded['responsible_driver_id'] ?? $decoded['responsibleDriverId'] ?? null,
+                'current_driver_id' => $decoded['current_driver_id'] ?? $decoded['currentDriverId'] ?? null,
+                'handover_driver_id' => $decoded['handover_driver_id'] ?? $decoded['handoverDriverId'] ?? $decoded['driver_id'] ?? $decoded['driverId'] ?? null,
+                'vehicle_snapshot' => $decoded['vehicle_snapshot'] ?? $decoded['vehicleSnapshot'] ?? null,
+                'vehicle_label' => $decoded['vehicle_label'] ?? $decoded['vehicleLabel'] ?? null,
+                'notes' => $decoded['notes'] ?? null,
+            ];
+        }
+
         if (!str_starts_with($trimmed, 'BOLIPOST-REASSIGN|')) {
             return null;
         }
@@ -1190,6 +1359,7 @@ class VehicleLogApiController extends Controller
     {
         // 1) Dedupe duro por coordenadas/fecha/vehiculo/conductor.
         $byCoords = VehicleLog::query()
+            ->active()
             ->where('drivers_id', $driverId)
             ->where('vehicles_id', $vehicleId)
             ->whereDate('fecha', $date)
@@ -1205,6 +1375,7 @@ class VehicleLogApiController extends Controller
 
         // 2) Fallback por firma en JSON (cuando el motor DB soporte consultas JSON).
         return VehicleLog::query()
+            ->active()
             ->where('drivers_id', $driverId)
             ->where('vehicles_id', $vehicleId)
             ->whereDate('fecha', $date)

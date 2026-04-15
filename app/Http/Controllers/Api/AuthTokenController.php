@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\MaintenanceAlert;
+use App\Models\MaintenanceAlertUserRead;
 use App\Models\MaintenanceLog;
 use App\Models\MaintenanceType;
 use App\Models\Role;
@@ -13,6 +14,7 @@ use App\Services\DriverIncentiveService;
 use App\Services\MaintenanceAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -33,6 +35,7 @@ class AuthTokenController extends Controller
             'username' => 'nullable|string|max:255',
             'password' => 'required|string',
             'device_name' => 'nullable|string|max:120',
+            'device_id' => 'nullable|string|max:190',
         ]);
 
         $identifier = $this->resolveLoginIdentifier($credentials);
@@ -49,8 +52,23 @@ class AuthTokenController extends Controller
             ], 422);
         }
 
+        $currentDeviceId = $this->resolveMobileDeviceId($request, $credentials);
+        $previousMobileSession = $this->getActiveMobileSession($user->id);
+        if ($this->hasAnotherActiveMobileSession($request, $previousMobileSession, $currentDeviceId)) {
+            return response()->json([
+                'message' => 'Esta cuenta ya tiene una sesion activa en otro dispositivo movil.',
+                'session_conflict' => true,
+            ], 409);
+        }
+
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
+        $this->rememberActiveMobileSession(
+            $user->id,
+            $request->session()->getId(),
+            $currentDeviceId,
+            is_array($previousMobileSession) ? ($previousMobileSession['session_id'] ?? null) : null
+        );
 
         $driver = $user->resolvedDriver();
         $roleId = $this->resolveRoleId($user);
@@ -118,9 +136,13 @@ class AuthTokenController extends Controller
 
     public function logout(Request $request)
     {
+        $userId = (int) ($request->user()?->id ?? 0);
+        $currentSessionId = $request->session()->getId();
+
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        $this->forgetActiveMobileSession($userId, $currentSessionId);
 
         return response()->json([
             'message' => 'Sesion cerrada correctamente.',
@@ -133,27 +155,27 @@ class AuthTokenController extends Controller
         $roleId = $this->resolveRoleId($user);
 
         $activeAssignment = null;
+        $latestAssignment = null;
         $vehicle = null;
 
         if ($driver) {
-            $driver->loadMissing(['assignments.vehicle']);
+            $latestAssignment = \App\Models\VehicleAssignment::query()
+                ->with(['vehicle.brand', 'vehicle.vehicleClass'])
+                ->where('driver_id', (int) $driver->id)
+                ->orderByDesc('fecha_inicio')
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id')
+                ->first();
 
-            $activeAssignment = $driver->assignments
-                ->first(function ($assignment) {
-                    $isActive = (bool) ($assignment->activo ?? false);
-                    if (!$isActive) {
-                        return false;
-                    }
+            $today = now()->startOfDay();
+            $latestIsCurrent = $latestAssignment
+                && (bool) ($latestAssignment->activo ?? false)
+                && (!$latestAssignment->fecha_inicio || $latestAssignment->fecha_inicio->copy()->startOfDay()->lte($today))
+                && (!$latestAssignment->fecha_fin || $latestAssignment->fecha_fin->copy()->startOfDay()->gte($today))
+                && (int) ($latestAssignment->vehicle_id ?? 0) > 0;
 
-                    $endDate = $assignment->fecha_fin;
-                    if (!$endDate) {
-                        return true;
-                    }
-
-                    return $endDate >= now()->startOfDay();
-                });
-
-            $vehicle = $activeAssignment?->vehicle ?? $driver->currentVehicle();
+            $activeAssignment = $latestIsCurrent ? $latestAssignment : null;
+            $vehicle = $activeAssignment?->vehicle;
         }
 
         if ($vehicle) {
@@ -173,6 +195,7 @@ class AuthTokenController extends Controller
 
         if ($driver) {
             $vehicleLogsQuery = \App\Models\VehicleLog::query()
+                ->active()
                 ->where('drivers_id', (int) $driver->id)
                 ->orderByDesc('fecha')
                 ->orderByDesc('id')
@@ -189,6 +212,9 @@ class AuthTokenController extends Controller
             $stationHasRazonSocial = Schema::hasColumn('gas_stations', 'razon_social');
             $stationHasNombre = Schema::hasColumn('gas_stations', 'nombre');
             $stationHasDireccion = Schema::hasColumn('gas_stations', 'direccion');
+            $vehicleLogHasActivo = Schema::hasColumn('vehicle_log', 'activo');
+            $detailHasActivo = Schema::hasColumn('fuel_invoice_details', 'activo');
+            $invoiceHasActivo = Schema::hasColumn('fuel_invoices', 'activo');
 
             $valesQuery = DB::table('vehicle_log as vl')
                 ->leftJoin('fuel_invoice_details as fid', 'fid.id', '=', 'vl.fuel_log_id')
@@ -201,6 +227,22 @@ class AuthTokenController extends Controller
                 ->orderByDesc('vl.fecha')
                 ->orderByDesc('vl.id')
                 ->limit(250);
+
+            if ($vehicleLogHasActivo) {
+                $valesQuery->where('vl.activo', true);
+            }
+
+            if ($detailHasActivo) {
+                $valesQuery->where(function ($q) {
+                    $q->whereNull('fid.activo')->orWhere('fid.activo', true);
+                });
+            }
+
+            if ($invoiceHasActivo) {
+                $valesQuery->where(function ($q) {
+                    $q->whereNull('fi.activo')->orWhere('fi.activo', true);
+                });
+            }
 
             if ($resolvedVehicleId) {
                 $valesQuery->where('vl.vehicles_id', $resolvedVehicleId);
@@ -328,14 +370,24 @@ class AuthTokenController extends Controller
                 })
                 ->values();
 
-            $maintenanceAlerts = MaintenanceAlert::query()
+            $maintenanceAlertsCollection = MaintenanceAlert::query()
                 ->with(['maintenanceType:id,nombre', 'vehicle:id,placa'])
                 ->where('status', MaintenanceAlert::STATUS_ACTIVE)
                 ->when($resolvedVehicleId, fn ($query) => $query->where('vehicle_id', $resolvedVehicleId))
                 ->orderByDesc('created_at')
                 ->limit(50)
-                ->get()
-                ->map(function (MaintenanceAlert $alert) {
+                ->get();
+
+            $alertReadIds = MaintenanceAlertUserRead::query()
+                ->where('user_id', (int) ($user?->id ?? 0))
+                ->whereIn('maintenance_alert_id', $maintenanceAlertsCollection->pluck('id')->all())
+                ->pluck('maintenance_alert_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $maintenanceAlerts = $maintenanceAlertsCollection
+                ->map(function (MaintenanceAlert $alert) use ($alertReadIds) {
+                    $read = in_array((int) $alert->id, $alertReadIds, true);
                     return [
                         'id' => (int) $alert->id,
                         'tipo' => (string) $alert->tipo,
@@ -352,8 +404,8 @@ class AuthTokenController extends Controller
                         'kilometraje_actual' => $alert->kilometraje_actual !== null ? (float) $alert->kilometraje_actual : null,
                         'kilometraje_objetivo' => $alert->kilometraje_objetivo !== null ? (float) $alert->kilometraje_objetivo : null,
                         'faltante_km' => $alert->faltante_km !== null ? (float) $alert->faltante_km : null,
-                        'leida' => (bool) $alert->leida,
-                        'read' => (bool) $alert->leida,
+                        'leida' => $read,
+                        'read' => $read,
                         'due_date' => optional($alert->created_at)->toDateString(),
                         'created_at' => optional($alert->created_at)?->toIso8601String(),
                     ];
@@ -398,14 +450,14 @@ class AuthTokenController extends Controller
             'fecha_vencimiento_licencia' => optional($driver->fecha_vencimiento_licencia)->toDateString(),
         ]] : [];
 
-        $assignmentsPayload = $activeAssignment ? [[
-            'id' => (int) $activeAssignment->id,
-            'driver_id' => (int) ($activeAssignment->driver_id ?? 0),
-            'vehicle_id' => (int) ($activeAssignment->vehicle_id ?? 0),
-            'tipo_asignacion' => $activeAssignment->tipo_asignacion,
-            'fecha_inicio' => optional($activeAssignment->fecha_inicio)->toDateString(),
-            'fecha_fin' => optional($activeAssignment->fecha_fin)->toDateString(),
-            'activo' => (bool) $activeAssignment->activo,
+        $assignmentsPayload = $latestAssignment ? [[
+            'id' => (int) $latestAssignment->id,
+            'driver_id' => (int) ($latestAssignment->driver_id ?? 0),
+            'vehicle_id' => (int) ($latestAssignment->vehicle_id ?? 0),
+            'tipo_asignacion' => $latestAssignment->tipo_asignacion,
+            'fecha_inicio' => optional($latestAssignment->fecha_inicio)->toDateString(),
+            'fecha_fin' => optional($latestAssignment->fecha_fin)->toDateString(),
+            'activo' => (bool) $latestAssignment->activo,
         ]] : [];
 
         $vehiclesPayload = $vehicle ? [[
@@ -476,6 +528,7 @@ class AuthTokenController extends Controller
         }
 
         $latestLogsByType = MaintenanceLog::query()
+            ->active()
             ->where('vehicle_id', (int) $vehicle->id)
             ->whereNotNull('maintenance_type_id')
             ->orderByDesc('fecha')
@@ -612,6 +665,193 @@ class AuthTokenController extends Controller
 
         if ($driver?->user_id) {
             return User::query()->find((int) $driver->user_id);
+        }
+
+        return null;
+    }
+
+    private function getActiveMobileSession(int $userId): ?array
+    {
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $cacheKey = $this->mobileSessionCacheKey($userId);
+        $cached = Cache::get($cacheKey);
+
+        if (is_array($cached)) {
+            $sessionId = trim((string) ($cached['session_id'] ?? ''));
+            $deviceId = trim((string) ($cached['device_id'] ?? ''));
+
+            if ($sessionId !== '' && !$this->sessionRecordExists($sessionId)) {
+                Cache::forget($cacheKey);
+                return null;
+            }
+
+            return $sessionId !== ''
+                ? [
+                    'session_id' => $sessionId,
+                    'device_id' => $deviceId !== '' ? $deviceId : null,
+                ]
+                : null;
+        }
+
+        $sessionId = is_string($cached) ? trim($cached) : '';
+        if ($sessionId !== '' && !$this->sessionRecordExists($sessionId)) {
+            Cache::forget($cacheKey);
+            return null;
+        }
+
+        return $sessionId !== ''
+            ? [
+                'session_id' => $sessionId,
+                'device_id' => null,
+            ]
+            : null;
+    }
+
+    private function hasAnotherActiveMobileSession(Request $request, ?array $activeSession, ?string $currentDeviceId): bool
+    {
+        $resolvedActiveSessionId = trim((string) ($activeSession['session_id'] ?? ''));
+        if ($resolvedActiveSessionId === '') {
+            return false;
+        }
+
+        $resolvedActiveDeviceId = trim((string) ($activeSession['device_id'] ?? ''));
+        $resolvedCurrentDeviceId = trim((string) ($currentDeviceId ?? ''));
+        if (
+            $resolvedCurrentDeviceId !== ''
+            && $resolvedActiveDeviceId !== ''
+            && hash_equals($resolvedActiveDeviceId, $resolvedCurrentDeviceId)
+        ) {
+            return false;
+        }
+
+        if ($resolvedCurrentDeviceId !== '' && $resolvedActiveDeviceId === '') {
+            return false;
+        }
+
+        $currentSessionId = trim((string) $request->session()->getId());
+        if ($currentSessionId !== '' && hash_equals($resolvedActiveSessionId, $currentSessionId)) {
+            return false;
+        }
+
+        if (!$this->sessionRecordExists($resolvedActiveSessionId)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function rememberActiveMobileSession(int $userId, ?string $sessionId, ?string $deviceId = null, ?string $previousSessionId = null): void
+    {
+        $resolvedSessionId = is_string($sessionId) ? trim($sessionId) : '';
+        if ($userId <= 0 || $resolvedSessionId === '') {
+            return;
+        }
+
+        $expiresAt = now()->addMinutes($this->mobileSessionWindowMinutes());
+        Cache::put($this->mobileSessionCacheKey($userId), [
+            'session_id' => $resolvedSessionId,
+            'device_id' => $deviceId ? trim($deviceId) : null,
+        ], $expiresAt);
+
+        if ($previousSessionId && $previousSessionId !== $resolvedSessionId) {
+            $this->deleteSessionRecord($previousSessionId);
+        }
+    }
+
+    private function forgetActiveMobileSession(int $userId, ?string $sessionId = null): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+
+        $cacheKey = $this->mobileSessionCacheKey($userId);
+        $activeSession = $this->getActiveMobileSession($userId);
+        $resolvedCurrentSessionId = is_string($sessionId) ? trim($sessionId) : '';
+
+        $resolvedActiveSessionId = trim((string) ($activeSession['session_id'] ?? ''));
+        if (
+            $resolvedCurrentSessionId !== ''
+            && $resolvedActiveSessionId !== ''
+            && !hash_equals($resolvedActiveSessionId, $resolvedCurrentSessionId)
+        ) {
+            return;
+        }
+
+        Cache::forget($cacheKey);
+    }
+
+    private function deleteSessionRecord(?string $sessionId): void
+    {
+        $resolvedSessionId = is_string($sessionId) ? trim($sessionId) : '';
+        if ($resolvedSessionId === '' || config('session.driver') !== 'database') {
+            return;
+        }
+
+        DB::table(config('session.table', 'sessions'))
+            ->where('id', $resolvedSessionId)
+            ->delete();
+    }
+
+    private function sessionRecordExists(string $sessionId): bool
+    {
+        $resolvedSessionId = trim($sessionId);
+        if ($resolvedSessionId === '') {
+            return false;
+        }
+
+        if (config('session.driver') === 'file') {
+            $path = storage_path('framework/sessions/' . $resolvedSessionId);
+            if (!is_file($path)) {
+                return false;
+            }
+
+            $lifetimeSeconds = max(60, ((int) config('session.lifetime', 120)) * 60);
+            $lastTouchedAt = @filemtime($path);
+            if (!is_int($lastTouchedAt) || $lastTouchedAt <= 0) {
+                return true;
+            }
+
+            return ($lastTouchedAt + $lifetimeSeconds) >= time();
+        }
+
+        if (config('session.driver') !== 'database') {
+            return false;
+        }
+
+        return DB::table(config('session.table', 'sessions'))
+            ->where('id', $resolvedSessionId)
+            ->exists();
+    }
+
+    private function mobileSessionCacheKey(int $userId): string
+    {
+        return "mobile_auth:active_session:user:{$userId}";
+    }
+
+    private function mobileSessionWindowMinutes(): int
+    {
+        return 5;
+    }
+
+    /**
+     * @param array<string, mixed> $credentials
+     */
+    private function resolveMobileDeviceId(Request $request, array $credentials): ?string
+    {
+        $candidates = [
+            $credentials['device_id'] ?? null,
+            $request->header('X-Mobile-Device-Id'),
+            $request->header('X-Device-Id'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $value = trim((string) $candidate);
+            if ($value !== '') {
+                return $value;
+            }
         }
 
         return null;

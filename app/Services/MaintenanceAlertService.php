@@ -94,6 +94,7 @@ class MaintenanceAlertService
         }
 
         $latestByType = MaintenanceLog::query()
+            ->active()
             ->where('vehicle_id', (int) $vehicle->id)
             ->whereNotNull('maintenance_type_id')
             ->whereNotNull('proximo_kilometraje')
@@ -197,6 +198,7 @@ class MaintenanceAlertService
                 Schema::hasTable('maintenance_logs') &&
                 Schema::hasColumn('maintenance_logs', 'maintenance_type_id') &&
                 MaintenanceLog::query()
+                    ->active()
                     ->where('vehicle_id', (int) $vehicle->id)
                     ->where('maintenance_type_id', (int) $type->id)
                     ->exists()

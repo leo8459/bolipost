@@ -176,6 +176,7 @@ return [
     */
     'default_roles' => [
         'administrador',
+        'taller',
         'gestor',
         'gestor_tarifario_contratos',
         'encargado',
@@ -199,6 +200,9 @@ return [
     */
     'legacy_role_aliases' => [
         'ADMINISTRADOR' => 'administrador',
+        'TALLER' => 'taller',
+        'TALLERISTA' => 'taller',
+        'WORKSHOP' => 'taller',
         'ENCARGADO EMS' => 'encargado',
         'ENCARGADO URBANO' => 'encargado',
         'ENCARGADO TRATAMIENTO' => 'encargado',
@@ -218,6 +222,10 @@ return [
     */
     'role_templates' => [
         'administrador' => ['*'],
+        'taller' => [
+            'livewire.workshops',
+            'workshops.*',
+        ],
         'gestor' => [
             'dashboard*',
             'reportes.*',

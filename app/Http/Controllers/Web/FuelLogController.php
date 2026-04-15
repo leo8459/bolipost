@@ -58,6 +58,7 @@ class FuelLogController extends Controller
         $this->authorize('viewAny', FuelInvoice::class);
 
         $fuelLogs = FuelInvoice::with(['gasStation', 'details'])
+            ->active()
             ->latest('fecha_emision')
             ->paginate(15);
 
@@ -111,6 +112,7 @@ class FuelLogController extends Controller
                     'fecha_emision' => \Carbon\Carbon::parse($validated['fecha_emision'])->format('Y-m-d H:i'),
                     'nombre_cliente' => $validated['nombre_cliente'],
                     'monto_total' => 0,
+                    'activo' => true,
                 ]);
 
                 $total = 0;
@@ -124,6 +126,7 @@ class FuelLogController extends Controller
                         'cantidad' => $row['cantidad'],
                         'precio_unitario' => $row['precio_unitario'],
                         'subtotal' => $subtotal,
+                        'activo' => true,
                         'estado' => 'Falta verificar',
                     ]);
 
@@ -137,6 +140,7 @@ class FuelLogController extends Controller
                         'recorrido_inicio' => $validated['recorrido_inicio'],
                         'recorrido_destino' => $validated['recorrido_destino'],
                         'abastecimiento_combustible' => true,
+                        'activo' => true,
                     ]);
                 }
 
@@ -220,11 +224,13 @@ class FuelLogController extends Controller
                     'nombre_cliente' => $validated['nombre_cliente'],
                 ]);
 
-                $oldDetailIds = $fuelInvoice->details()->pluck('id')->all();
+                $oldDetailIds = $fuelInvoice->allDetails()->pluck('id')->all();
                 if (!empty($oldDetailIds)) {
-                    VehicleLog::query()->whereIn('fuel_log_id', $oldDetailIds)->delete();
+                    VehicleLog::query()
+                        ->whereIn('fuel_log_id', $oldDetailIds)
+                        ->update(['activo' => false]);
                 }
-                $fuelInvoice->details()->delete();
+                $fuelInvoice->allDetails()->update(['activo' => false]);
 
                 $total = 0;
                 foreach ($validated['details'] as $row) {
@@ -237,6 +243,7 @@ class FuelLogController extends Controller
                         'cantidad' => $row['cantidad'],
                         'precio_unitario' => $row['precio_unitario'],
                         'subtotal' => $subtotal,
+                        'activo' => true,
                         'estado' => 'Falta verificar',
                     ]);
 
@@ -250,6 +257,7 @@ class FuelLogController extends Controller
                         'recorrido_inicio' => $validated['recorrido_inicio'],
                         'recorrido_destino' => $validated['recorrido_destino'],
                         'abastecimiento_combustible' => true,
+                        'activo' => true,
                     ]);
                 }
 
@@ -275,12 +283,23 @@ class FuelLogController extends Controller
         $this->authorize('delete', $fuelInvoice);
 
         try {
-            $fuelInvoice->delete();
+            DB::transaction(function () use ($fuelInvoice) {
+                $detailIds = $fuelInvoice->allDetails()->pluck('id')->all();
+
+                if (!empty($detailIds)) {
+                    VehicleLog::query()
+                        ->whereIn('fuel_log_id', $detailIds)
+                        ->update(['activo' => false]);
+                }
+
+                $fuelInvoice->allDetails()->update(['activo' => false]);
+                $fuelInvoice->update(['activo' => false]);
+            });
 
             return redirect()->route('fuel-logs.index')
-                ->with('success', 'Factura eliminada exitosamente.');
+                ->with('success', 'Factura inactivada exitosamente.');
         } catch (Exception $e) {
-            return back()->with('error', 'Error al eliminar la factura: ' . $e->getMessage());
+            return back()->with('error', 'Error al inactivar la factura: ' . $e->getMessage());
         }
     }
 
@@ -429,6 +448,7 @@ class FuelLogController extends Controller
         );
 
         $query = VehicleLog::query()
+            ->active()
             ->with(['vehicle.brand', 'driver', 'fuelLog.invoice', 'fuelLog.gasStation'])
             ->where('abastecimiento_combustible', true)
             ->whereNotNull('fuel_log_id')
@@ -518,6 +538,7 @@ class FuelLogController extends Controller
         );
 
         $query = VehicleLog::query()
+            ->active()
             ->with(['vehicle.brand', 'driver', 'fuelLog'])
             ->orderBy('fecha')
             ->orderBy('id');

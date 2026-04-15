@@ -15,6 +15,8 @@ class DriverManager extends Component
     use WithPagination;
     use WithFileUploads;
 
+    protected string $paginationTheme = 'bootstrap';
+
     private const LICENSE_TYPES = [
         'M',
         'P',
@@ -76,7 +78,7 @@ class DriverManager extends Component
 
     public function render()
     {
-        $query = Driver::with('user')->orderBy('nombre');
+        $query = Driver::query()->where('activo', true)->with('user')->orderBy('nombre');
         $driverProfile = null;
 
         $search = trim($this->search);
@@ -329,8 +331,8 @@ class DriverManager extends Component
             return;
         }
 
-        $driver->delete();
-        session()->flash('message', 'Conductor eliminado correctamente.');
+        $driver->update(['activo' => false]);
+        session()->flash('message', 'Conductor inactivado correctamente.');
     }
 
     public function resetForm()

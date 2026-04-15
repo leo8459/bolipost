@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 class Workshop extends Model
 {
@@ -63,6 +64,7 @@ class Workshop extends Model
         'observaciones_tecnicas',
         'diagnostico',
         'observaciones',
+        'activo',
     ];
 
     protected $casts = [
@@ -78,7 +80,17 @@ class Workshop extends Model
         'labor_cost' => 'decimal:2',
         'additional_cost' => 'decimal:2',
         'total_cost' => 'decimal:2',
+        'activo' => 'boolean',
     ];
+
+    public function scopeActive($query)
+    {
+        if (Schema::hasColumn($this->getTable(), 'activo')) {
+            $query->where($this->qualifyColumn('activo'), true);
+        }
+
+        return $query;
+    }
 
     public function vehicle(): BelongsTo
     {

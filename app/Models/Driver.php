@@ -61,14 +61,33 @@ class Driver extends Model
     public function currentVehicle()
     {
         $assignment = $this->assignments()
-            ->where('activo', true)
-            ->where(function ($q) {
-                $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', now());
-            })
             ->latest('fecha_inicio')
+            ->latest('updated_at')
+            ->latest('id')
             ->first();
-        
-        return $assignment ? $assignment->vehicle : null;
+
+        if (!$assignment) {
+            return null;
+        }
+
+        $isActive = (bool) ($assignment->activo ?? false);
+        $endDate = $assignment->fecha_fin;
+        $startsAt = $assignment->fecha_inicio;
+        $today = now()->startOfDay();
+
+        if (!$isActive) {
+            return null;
+        }
+
+        if ($startsAt && $startsAt->copy()->startOfDay()->gt($today)) {
+            return null;
+        }
+
+        if ($endDate && $endDate->copy()->startOfDay()->lt($today)) {
+            return null;
+        }
+
+        return $assignment->vehicle;
     }
 
     /**
@@ -94,7 +113,7 @@ class Driver extends Model
      */
     public function vehicleLogs(): HasMany
     {
-        return $this->hasMany(VehicleLog::class, 'drivers_id');
+        return $this->hasMany(VehicleLog::class, 'drivers_id')->active();
     }
 
     /**

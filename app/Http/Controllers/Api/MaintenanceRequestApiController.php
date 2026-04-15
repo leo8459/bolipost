@@ -176,7 +176,7 @@ class MaintenanceRequestApiController extends Controller
                     'tipo' => 'Solicitud',
                     'mensaje' => $message,
                     'leida' => false,
-                    'status' => MaintenanceAlert::STATUS_ACTIVE,
+                    'status' => MaintenanceAlert::STATUS_REQUESTED,
                     'fecha_resolucion' => null,
                     'usuario_id' => null,
                     'kilometraje_actual' => $currentKm,
@@ -227,17 +227,13 @@ class MaintenanceRequestApiController extends Controller
     private function resolveVehicle(?int $authUserId, mixed $vehicleId): ?Vehicle
     {
         $candidateId = (int) ($vehicleId ?? 0);
-        if ($candidateId > 0) {
-            return Vehicle::query()->find($candidateId);
-        }
-
         if (($authUserId ?? 0) <= 0) {
-            return null;
+            return $candidateId > 0 ? Vehicle::query()->find($candidateId) : null;
         }
 
         $driver = Driver::query()->where('user_id', $authUserId)->first();
         if (!$driver) {
-            return null;
+            return $candidateId > 0 ? Vehicle::query()->find($candidateId) : null;
         }
 
         $assignment = VehicleAssignment::query()
@@ -249,7 +245,12 @@ class MaintenanceRequestApiController extends Controller
             ->orderByDesc('id')
             ->first();
 
-        return $assignment ? Vehicle::query()->find((int) $assignment->vehicle_id) : null;
+        $assignedVehicle = $assignment ? Vehicle::query()->find((int) $assignment->vehicle_id) : null;
+        if ($assignedVehicle) {
+            return $assignedVehicle;
+        }
+
+        return $candidateId > 0 ? Vehicle::query()->find($candidateId) : null;
     }
 
     private function resolveDriver(?int $authUserId, int $vehicleId): ?Driver

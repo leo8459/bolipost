@@ -27,6 +27,7 @@ class FuelLogApiController extends Controller
     public function index(Request $request)
     {
         $query = FuelLog::query()
+            ->active()
             ->with(['vehicleLog.vehicle', 'vehicleLog.driver', 'gasStation', 'invoice']);
 
         if ($request->filled('vehicle_id')) {
@@ -56,6 +57,10 @@ class FuelLogApiController extends Controller
 
     public function show(Request $request, FuelLog $fuelLog)
     {
+        if (isset($fuelLog->activo) && !$fuelLog->activo) {
+            abort(404);
+        }
+
         if (!$this->canViewFuelLog($fuelLog, $request)) {
             abort(403);
         }
@@ -70,11 +75,13 @@ class FuelLogApiController extends Controller
         $payload = $request->validate([
             'station' => 'nullable|string|max:255',
             'liters' => 'nullable|numeric',
+            'unit_price' => 'nullable|numeric',
             'total_amount' => 'nullable|numeric',
             'date_time' => 'nullable',
             'invoice_number' => 'nullable|string|max:80',
             'customer_name' => 'nullable|string|max:255',
             'invoice_photo_base64' => 'nullable|string',
+            'fuel_meter_photo_base64' => 'nullable|string',
             'qr_payload' => 'nullable|string|max:5000',
             'station_nit' => 'nullable|string|max:50',
             'station_razon_social' => 'nullable|string|max:255',
@@ -102,17 +109,26 @@ class FuelLogApiController extends Controller
         $payload = $this->enrichPayloadFromQr($payload);
         $payload['station'] = (string) ($payload['station'] ?? $payload['station_razon_social'] ?? 'ESTACION NO IDENTIFICADA');
         $payload['date_time'] = (string) ($payload['date_time'] ?? now()->format('Y-m-d H:i:s'));
+        $payload['unit_price'] = is_numeric($payload['unit_price'] ?? null) ? (float) $payload['unit_price'] : null;
         $payload['total_amount'] = is_numeric($payload['total_amount'] ?? null) ? (float) $payload['total_amount'] : 0.0;
         $payload['liters'] = is_numeric($payload['liters'] ?? null) ? (float) $payload['liters'] : 0.0;
+        if (($payload['total_amount'] ?? 0) <= 0 && ($payload['liters'] ?? 0) > 0 && ($payload['unit_price'] ?? 0) > 0) {
+            $payload['total_amount'] = round(((float) $payload['liters']) * ((float) $payload['unit_price']), 2);
+        }
+        if (($payload['liters'] ?? 0) <= 0 && ($payload['total_amount'] ?? 0) > 0 && ($payload['unit_price'] ?? 0) > 0) {
+            $payload['liters'] = round(((float) $payload['total_amount']) / ((float) $payload['unit_price']), 5);
+        }
 
         $payload = validator($payload, [
             'station' => 'required|string|max:255',
             'liters' => 'required|numeric|min:0',
+            'unit_price' => 'nullable|numeric|min:0',
             'total_amount' => 'required|numeric|min:0',
             'date_time' => 'required|date',
             'invoice_number' => 'nullable|string|max:80',
             'customer_name' => 'nullable|string|max:255',
             'invoice_photo_base64' => 'nullable|string',
+            'fuel_meter_photo_base64' => 'nullable|string',
             'qr_payload' => 'nullable|string|max:5000',
             'station_nit' => 'nullable|string|max:50',
             'station_razon_social' => 'nullable|string|max:255',
@@ -231,7 +247,9 @@ class FuelLogApiController extends Controller
             $dateTime = \Carbon\Carbon::parse((string) $payload['date_time']);
             $liters = (float) $payload['liters'];
             $total = (float) $payload['total_amount'];
-            $unitPrice = $liters > 0 ? round($total / $liters, 2) : $total;
+            $unitPrice = is_numeric($payload['unit_price'] ?? null)
+                ? (float) $payload['unit_price']
+                : ($liters > 0 ? round($total / $liters, 2) : $total);
             $invoiceNumber = (string) ($payload['invoice_number'] ?? ('MOBILE-' . now()->format('Ymd-His')));
             $customerName = (string) ($payload['customer_name'] ?? 'CONSUMO MOVIL');
             $verificationStatus = $this->resolveFuelVerificationStatus(
@@ -262,8 +280,9 @@ class FuelLogApiController extends Controller
                 $dateTime
             );
             $invoice = $this->persistInvoiceSourceDocument($invoice, $payload, $liters, $unitPrice, $total);
+            $fuelMeterPhotoPath = $this->persistFuelMeterPhoto($payload);
             $invoice = $this->persistInvoicePhoto($invoice, $payload);
-            $invoice = $this->persistAntifraudEvidence($invoice, $payload, $location);
+            $invoice = $this->persistAntifraudEvidence($invoice, $payload, $location, $fuelMeterPhotoPath);
 
             $detail = FuelLog::query()
                 ->where('fuel_invoice_id', $invoice->id)
@@ -290,6 +309,9 @@ class FuelLogApiController extends Controller
             }
             if (Schema::hasColumn('fuel_invoice_details', 'estado')) {
                 $detailPayload['estado'] = $verificationStatus;
+            }
+            if (Schema::hasColumn('fuel_invoice_details', 'activo')) {
+                $detailPayload['activo'] = true;
             }
             if (Schema::hasColumn('fuel_invoice_details', 'vehicle_id') && !empty($payload['vehicle_id'])) {
                 $detailPayload['vehicle_id'] = (int) $payload['vehicle_id'];
@@ -366,6 +388,9 @@ class FuelLogApiController extends Controller
                 ];
                 if (Schema::hasColumn('vehicle_log', 'firma_digital')) {
                     $vehicleLogPayload['firma_digital'] = null;
+                }
+                if (Schema::hasColumn('vehicle_log', 'activo')) {
+                    $vehicleLogPayload['activo'] = true;
                 }
                 if (Schema::hasColumn('vehicle_log', 'latitud_inicio') && !is_null($routeStartLat)) {
                     $vehicleLogPayload['latitud_inicio'] = $routeStartLat;
@@ -504,7 +529,7 @@ class FuelLogApiController extends Controller
         $stationId = $station?->id;
 
         if (Schema::hasColumn('fuel_invoices', 'numero') && $invoiceNumber !== '') {
-            $query = FuelInvoice::query()->where('numero', $invoiceNumber);
+            $query = FuelInvoice::query()->active()->where('numero', $invoiceNumber);
             if (Schema::hasColumn('fuel_invoices', 'gas_station_id') && $stationId) {
                 $query->where('gas_station_id', $stationId);
             }
@@ -513,6 +538,7 @@ class FuelLogApiController extends Controller
 
         if (!$invoice && !empty($invoicePayload['numero_factura'])) {
             $query = FuelInvoice::query()
+                ->active()
                 ->where('numero_factura', (string) $invoicePayload['numero_factura']);
             if (Schema::hasColumn('fuel_invoices', 'gas_station_id') && $stationId) {
                 $query->where('gas_station_id', $stationId);
@@ -567,6 +593,7 @@ class FuelLogApiController extends Controller
     private function findDuplicateInvoiceLog(string $invoiceNumber, string $stationNit = '', string $stationName = ''): ?FuelLog
     {
         $query = FuelLog::query()
+            ->active()
             ->with(['invoice', 'vehicleLog.vehicle', 'vehicleLog.driver', 'gasStation'])
             ->whereHas('invoice', fn ($q) => $q->where('numero_factura', $invoiceNumber));
 
@@ -701,7 +728,7 @@ class FuelLogApiController extends Controller
 
     public function byVehicle(Vehicle $vehicle)
     {
-        $query = FuelLog::query();
+        $query = FuelLog::query()->active();
         if (Schema::hasColumn('fuel_invoice_details', 'vehicle_id')) {
             $query->where('vehicle_id', (int) $vehicle->id);
         } else {
@@ -759,6 +786,7 @@ class FuelLogApiController extends Controller
             'vehicle_id' => $vehicleId ? (int) $vehicleId : null,
             'liters' => (float) ($log->cantidad ?? 0),
             'precio_unitario' => (float) ($log->precio_unitario ?? 0),
+            'unit_price' => (float) ($log->precio_unitario ?? 0),
             'estado' => (string) ($log->estado ?? 'Falta verificar'),
             'created_at' => optional($log->created_at)->toIso8601String(),
             'siat_document_url' => !empty($log->invoice?->siat_document_path)
@@ -766,6 +794,9 @@ class FuelLogApiController extends Controller
                 : null,
             'invoice_photo_url' => !empty($log->invoice?->invoice_photo_path)
                 ? route('fuel-invoices.photo', ['fuelInvoice' => $log->fuel_invoice_id])
+                : null,
+            'fuel_meter_photo_url' => !empty(data_get($log->invoice?->antifraud_payload_json, 'evidence.fuel_meter_photo_path'))
+                ? Storage::disk('public')->url((string) data_get($log->invoice?->antifraud_payload_json, 'evidence.fuel_meter_photo_path'))
                 : null,
             'siat_source_url' => (string) ($log->invoice?->siat_source_url ?? ''),
             'siat_rollo_document_url' => !empty($log->invoice?->siat_rollo_document_path)
@@ -787,11 +818,14 @@ class FuelLogApiController extends Controller
                 'fuel_latitude' => $log->invoice?->fuel_latitude !== null ? (float) $log->invoice->fuel_latitude : null,
                 'fuel_longitude' => $log->invoice?->fuel_longitude !== null ? (float) $log->invoice->fuel_longitude : null,
                 'fuel_location_label' => (string) ($log->invoice?->fuel_location_label ?? ''),
+                'fuel_meter_photo_url' => !empty(data_get($log->invoice?->antifraud_payload_json, 'evidence.fuel_meter_photo_path'))
+                    ? Storage::disk('public')->url((string) data_get($log->invoice?->antifraud_payload_json, 'evidence.fuel_meter_photo_path'))
+                    : null,
             ],
         ];
     }
 
-    private function persistAntifraudEvidence(FuelInvoice $invoice, array $payload, array $location): FuelInvoice
+    private function persistAntifraudEvidence(FuelInvoice $invoice, array $payload, array $location, ?string $fuelMeterPhotoPath = null): FuelInvoice
     {
         if (!Schema::hasTable('fuel_invoices')) {
             return $invoice;
@@ -840,11 +874,17 @@ class FuelLogApiController extends Controller
                     'invoice_number' => $payload['invoice_number'] ?? null,
                     'customer_name' => $payload['customer_name'] ?? null,
                     'liters' => $payload['liters'] ?? null,
+                    'unit_price' => $payload['unit_price'] ?? null,
                     'total_amount' => $payload['total_amount'] ?? null,
                     'date_time' => $payload['date_time'] ?? null,
                     'vehicle_id' => $payload['vehicle_id'] ?? null,
                     'driver_id' => $payload['driver_id'] ?? $payload['drivers_id'] ?? null,
                     'uploaded_at' => now()->toIso8601String(),
+                ],
+                'evidence' => [
+                    'invoice_photo_uploaded' => !empty($payload['invoice_photo_base64']),
+                    'fuel_meter_photo_uploaded' => !empty($payload['fuel_meter_photo_base64']),
+                    'fuel_meter_photo_path' => $fuelMeterPhotoPath,
                 ],
                 'client_context' => is_array($payload['antifraud_context'] ?? null) ? $payload['antifraud_context'] : null,
             ];
@@ -855,6 +895,34 @@ class FuelLogApiController extends Controller
         }
 
         return $invoice->fresh() ?? $invoice;
+    }
+
+    private function persistFuelMeterPhoto(array $payload): ?string
+    {
+        $encoded = trim((string) ($payload['fuel_meter_photo_base64'] ?? ''));
+        if ($encoded === '') {
+            return null;
+        }
+
+        if (Str::startsWith($encoded, 'data:')) {
+            $encoded = explode(',', $encoded, 2)[1] ?? '';
+        }
+
+        $binary = base64_decode($encoded, true);
+        if ($binary === false) {
+            throw ValidationException::withMessages([
+                'fuel_meter_photo_base64' => 'La foto del medidor no tiene un formato base64 valido.',
+            ]);
+        }
+
+        $path = sprintf(
+            'fuel-invoices/photos/medidor-%s.jpg',
+            now()->format('YmdHis') . '-' . Str::lower(Str::random(8))
+        );
+
+        Storage::disk('public')->put($path, $binary);
+
+        return $path;
     }
 
     private function calculateKmPerLiter(FuelLog $log): ?float
@@ -1146,18 +1214,55 @@ class FuelLogApiController extends Controller
             return $payload;
         }
 
-        $details = $rawData['details'] ?? null;
+        $objectData = is_array($rawData['objeto'] ?? null) ? $rawData['objeto'] : [];
+        $header = is_array($rawData['cabecera'] ?? null)
+            ? $rawData['cabecera']
+            : (is_array($objectData['cabecera'] ?? null) ? $objectData['cabecera'] : []);
+
+        $details = $rawData['details']
+            ?? $rawData['detalles']
+            ?? $rawData['listaDetalle']
+            ?? $objectData['details']
+            ?? $objectData['listaDetalle']
+            ?? null;
         $firstDetail = is_array($details) && isset($details[0]) && is_array($details[0])
             ? $details[0]
             : [];
 
-        $station = trim((string) ($rawData['gas_station']['razon_social'] ?? ''));
-        $stationNit = trim((string) ($rawData['gas_station']['nit_emisor'] ?? ''));
-        $stationAddress = trim((string) ($rawData['gas_station']['direccion'] ?? ''));
+        $gasStation = is_array($rawData['gas_station'] ?? null)
+            ? $rawData['gas_station']
+            : (is_array($rawData['gasStation'] ?? null) ? $rawData['gasStation'] : []);
+
+        $station = trim((string) (
+            $gasStation['razon_social']
+            ?? $rawData['razon_social_emisor']
+            ?? $rawData['razonSocialEmisor']
+            ?? $objectData['razonSocialEmisor']
+            ?? $header['razonSocialEmisor']
+            ?? ''
+        ));
+        $stationNit = trim((string) (
+            $gasStation['nit_emisor']
+            ?? $rawData['nit_emisor']
+            ?? $rawData['nitEmisor']
+            ?? $objectData['nitEmisor']
+            ?? $header['nitEmisor']
+            ?? ''
+        ));
+        $stationAddress = trim((string) (
+            $gasStation['direccion']
+            ?? $rawData['direccion_emisor']
+            ?? $rawData['direccion']
+            ?? $objectData['direccion']
+            ?? $header['direccion']
+            ?? ''
+        ));
         $liters = $rawData['cantidad']
             ?? $rawData['cantidad_combustible']
             ?? $rawData['galones']
             ?? $rawData['litros']
+            ?? $objectData['cantidad']
+            ?? $objectData['litros']
             ?? ($firstDetail['cantidad'] ?? null)
             ?? ($firstDetail['cantidadProducto'] ?? null)
             ?? ($firstDetail['litros'] ?? null)
@@ -1167,19 +1272,22 @@ class FuelLogApiController extends Controller
             ?? $rawData['total_calculado']
             ?? $rawData['total']
             ?? $rawData['subtotal']
+            ?? $objectData['montoTotal']
+            ?? $header['montoTotal']
             ?? ($firstDetail['subtotal'] ?? null)
             ?? ($firstDetail['subTotal'] ?? null)
             ?? null;
         $unitPrice = $rawData['precio_unitario']
             ?? $rawData['precio_galon']
             ?? $rawData['precio']
+            ?? $objectData['precio_unitario']
             ?? ($firstDetail['precio_unitario'] ?? null)
             ?? ($firstDetail['precioUnitario'] ?? null)
             ?? ($firstDetail['precio'] ?? null)
             ?? null;
-        $dateTime = (string) ($rawData['fecha_emision'] ?? '');
-        $invoiceNumber = (string) ($rawData['numero_factura'] ?? '');
-        $customerName = (string) ($rawData['nombre_cliente'] ?? '');
+        $dateTime = (string) ($rawData['fecha_emision'] ?? $rawData['fechaEmision'] ?? $objectData['fechaEmision'] ?? $header['fechaEmision'] ?? '');
+        $invoiceNumber = (string) ($rawData['numero_factura'] ?? $rawData['numeroFactura'] ?? $objectData['numeroFactura'] ?? $header['numeroFactura'] ?? '');
+        $customerName = (string) ($rawData['nombre_cliente'] ?? $rawData['nombreCliente'] ?? $rawData['nombreRazonSocialReceptor'] ?? $objectData['nombreRazonSocial'] ?? $objectData['nombreCliente'] ?? $header['nombreRazonSocial'] ?? '');
 
         if ($station !== '') {
             $payload['station'] = $station;

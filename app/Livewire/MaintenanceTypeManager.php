@@ -13,6 +13,9 @@ use Livewire\Attributes\Validate;
 class MaintenanceTypeManager extends Component
 {
     use WithPagination;
+
+    protected string $paginationTheme = 'bootstrap';
+
     public string $search = '';
 
     private const MAINTENANCE_FORM_TYPES = [
@@ -53,7 +56,7 @@ class MaintenanceTypeManager extends Component
 
     public function render()
     {
-        $query = MaintenanceType::with(['vehicles:id,placa'])->orderBy('nombre');
+        $query = MaintenanceType::query()->active()->with(['vehicles:id,placa'])->orderBy('nombre');
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -313,6 +316,7 @@ class MaintenanceTypeManager extends Component
                 ...$this->resolveIntervalPayload(),
                 ...$this->resolveAlertPayload(),
                 'descripcion' => $this->descripcion,
+                'activo' => true,
             ]);
             $type->vehicles()->sync($selectedVehicleIds->all());
             session()->flash('message', 'Tipo de mantenimiento creado correctamente.');
@@ -365,8 +369,8 @@ class MaintenanceTypeManager extends Component
 
     public function delete(MaintenanceType $type)
     {
-        $type->delete();
-        session()->flash('message', 'Tipo de mantenimiento eliminado correctamente.');
+        $type->update(['activo' => false]);
+        session()->flash('message', 'Tipo de mantenimiento inactivado correctamente.');
     }
 
     private function resolveIntervalPayload(): array

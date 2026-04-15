@@ -52,13 +52,49 @@ class DriverIncentiveService
             ->get()
             ->map(function (Driver $driver) use ($periodStart, $periodEnd) {
                 $appointments = MaintenanceAppointment::query()
-                    ->with('tipoMantenimiento:id,es_preventivo')
+                    ->with([
+                        'tipoMantenimiento:id,nombre,es_preventivo',
+                        'vehicle:id,placa,modelo,marca_id,vehicle_class_id,anio',
+                        'vehicle.brand:id,nombre',
+                    ])
                     ->where('driver_id', $driver->id)
                     ->whereBetween('solicitud_fecha', [$periodStart, $periodEnd])
                     ->get();
 
                 $appointmentsAffectingStars = $appointments
                     ->filter(fn (MaintenanceAppointment $appointment) => in_array((string) $appointment->estado, self::DISCOUNTABLE_STATUSES, true))
+                    ->values();
+
+                $discountedAppointments = $appointmentsAffectingStars
+                    ->filter(fn (MaintenanceAppointment $appointment) => !(bool) ($appointment->tipoMantenimiento?->es_preventivo ?? false))
+                    ->map(function (MaintenanceAppointment $appointment) {
+                        return (object) [
+                            'id' => (int) $appointment->id,
+                            'vehicle_label' => (string) ($appointment->vehicle?->display_name ?? $appointment->vehicle?->placa ?? 'Vehiculo no identificado'),
+                            'vehicle_plate' => (string) ($appointment->vehicle?->placa ?? 'N/A'),
+                            'maintenance_type' => (string) ($appointment->tipoMantenimiento?->nombre ?? 'Mantenimiento'),
+                            'request_date' => optional($appointment->solicitud_fecha ?? $appointment->created_at)?->format('d/m/Y H:i') ?? '-',
+                            'scheduled_date' => optional($appointment->fecha_programada)?->format('d/m/Y H:i') ?? '-',
+                            'status' => (string) $appointment->estado,
+                            'reason' => 'Descuenta estrellas por no ser preventivo y estar aprobado/realizado.',
+                        ];
+                    })
+                    ->values();
+
+                $nonDiscountedAppointments = $appointmentsAffectingStars
+                    ->filter(fn (MaintenanceAppointment $appointment) => (bool) ($appointment->tipoMantenimiento?->es_preventivo ?? false))
+                    ->map(function (MaintenanceAppointment $appointment) {
+                        return (object) [
+                            'id' => (int) $appointment->id,
+                            'vehicle_label' => (string) ($appointment->vehicle?->display_name ?? $appointment->vehicle?->placa ?? 'Vehiculo no identificado'),
+                            'vehicle_plate' => (string) ($appointment->vehicle?->placa ?? 'N/A'),
+                            'maintenance_type' => (string) ($appointment->tipoMantenimiento?->nombre ?? 'Mantenimiento'),
+                            'request_date' => optional($appointment->solicitud_fecha ?? $appointment->created_at)?->format('d/m/Y H:i') ?? '-',
+                            'scheduled_date' => optional($appointment->fecha_programada)?->format('d/m/Y H:i') ?? '-',
+                            'status' => (string) $appointment->estado,
+                            'reason' => 'No descuenta estrellas porque corresponde a mantenimiento preventivo.',
+                        ];
+                    })
                     ->values();
 
                 $preventiveRequests = $appointmentsAffectingStars
@@ -78,6 +114,8 @@ class DriverIncentiveService
                     'preventive_requests' => $preventiveRequests,
                     'discountable_events' => $nonPreventiveRequests,
                     'total_requests' => $appointmentsAffectingStars->count(),
+                    'discounted_appointments' => $discountedAppointments,
+                    'non_discounted_appointments' => $nonDiscountedAppointments,
                     'period_start' => $periodStart->copy(),
                     'period_end' => $periodEnd->copy(),
                 ];

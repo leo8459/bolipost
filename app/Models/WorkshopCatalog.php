@@ -4,7 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 class WorkshopCatalog extends Model
 {
@@ -13,6 +15,7 @@ class WorkshopCatalog extends Model
     protected $fillable = [
         'nombre',
         'tipo',
+        'user_id',
         'activo',
     ];
 
@@ -20,8 +23,22 @@ class WorkshopCatalog extends Model
         'activo' => 'boolean',
     ];
 
+    public function scopeActive($query)
+    {
+        if (Schema::hasColumn($this->getTable(), 'activo')) {
+            $query->where($this->qualifyColumn('activo'), true);
+        }
+
+        return $query;
+    }
+
     public function workshops(): HasMany
     {
         return $this->hasMany(Workshop::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

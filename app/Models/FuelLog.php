@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class FuelLog extends Model
 {
@@ -20,6 +21,7 @@ class FuelLog extends Model
         'precio_galon',    // Alias para compatibilidad
         'subtotal',        // Nombre real en BD
         'total_calculado', // Alias para compatibilidad
+        'activo',
         'estado',
         'kilometraje',
         'recibo',
@@ -31,6 +33,7 @@ class FuelLog extends Model
         'cantidad' => 'decimal:2',
         'precio_unitario' => 'decimal:2',
         'subtotal' => 'decimal:2',
+        'activo' => 'boolean',
         'estado' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -154,6 +157,15 @@ class FuelLog extends Model
     public function invoice()
     {
         return $this->belongsTo(FuelInvoice::class, 'fuel_invoice_id');
+    }
+
+    public function scopeActive($query)
+    {
+        if (Schema::hasColumn($this->getTable(), 'activo')) {
+            $query->where($this->qualifyColumn('activo'), true);
+        }
+
+        return $query;
     }
 }
 

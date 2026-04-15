@@ -27,6 +27,54 @@
             background-position: right .75rem center;
             background-size: 14px;
         }
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            border-color: #9ec5fe;
+            box-shadow: 0 0 0 .18rem rgba(13, 110, 253, .18);
+            outline: none;
+        }
+        .bp-switch .form-check-label {
+            margin-bottom: 0;
+        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center gap-2">
@@ -68,11 +116,14 @@
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Conductor <span class="text-danger">*</span></label>
                             <select wire:model="driver_id" class="form-control assignment-form-select @error('driver_id') is-invalid @enderror" required>
-                                <option value="0">Seleccionar conductor</option>
-                                @foreach ($drivers as $driver)
+                                <option value="0">{{ $isEdit ? 'Seleccionar conductor' : 'Seleccionar conductor sin vehiculo' }}</option>
+                                @foreach (($isEdit ? $drivers : $unassignedDrivers) as $driver)
                                     <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
                                 @endforeach
                             </select>
+                            @if(!$isEdit && $unassignedDrivers->isEmpty())
+                                <div class="form-text text-warning">No hay conductores libres para asignar en este momento.</div>
+                            @endif
                             @error('driver_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
@@ -132,7 +183,7 @@
                             @endif
                         </div>
                         <div class="col-12">
-                            <div class="form-check">
+                            <div class="form-check bp-switch">
                                 <input type="checkbox" id="activo" wire:model="activo" class="form-check-input">
                                 <label class="form-check-label" for="activo">Asignacion activa</label>
                             </div>
@@ -165,7 +216,7 @@
                         style="max-width: 220px;"
                         wire:model.live.debounce.350ms="plateFilter"
                         placeholder="Filtrar por placa">
-                    <div class="form-check mb-0">
+                    <div class="form-check bp-switch mb-0">
                         <input
                             type="checkbox"
                             id="showUnassignedDrivers"

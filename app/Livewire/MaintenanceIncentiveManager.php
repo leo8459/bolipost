@@ -11,6 +11,8 @@ class MaintenanceIncentiveManager extends Component
     public string $date_from = '';
     public string $date_to = '';
     public bool $onlyPerfect = false;
+    public ?int $detailDriverId = null;
+    public bool $detailModalVisible = false;
 
     public function mount(DriverIncentiveService $service): void
     {
@@ -42,10 +44,25 @@ class MaintenanceIncentiveManager extends Component
 
         return view('livewire.maintenance-incentive-manager', [
             'reports' => $reports,
+            'selectedReport' => $this->detailDriverId
+                ? $reports->firstWhere('driver_id', $this->detailDriverId)
+                : null,
             'periodLabel' => $from->translatedFormat('d/m/Y') . ' al ' . $to->translatedFormat('d/m/Y'),
             'perfectCount' => $reports->where('stars_end', DriverIncentiveService::MAX_STARS)->count(),
             'discountedCount' => $reports->where('stars_end', '<', DriverIncentiveService::MAX_STARS)->count(),
             'maxStars' => DriverIncentiveService::MAX_STARS,
         ]);
+    }
+
+    public function showDetail(int $driverId): void
+    {
+        $this->detailDriverId = $driverId;
+        $this->detailModalVisible = true;
+    }
+
+    public function closeDetail(): void
+    {
+        $this->detailModalVisible = false;
+        $this->detailDriverId = null;
     }
 }

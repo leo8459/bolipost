@@ -20,6 +20,8 @@ class MaintenanceLogManager extends Component
     use WithPagination;
     use WithFileUploads;
 
+    protected string $paginationTheme = 'bootstrap';
+
     public string $search = '';
 
     #[Validate('required|integer|exists:vehicles,id')]
@@ -77,7 +79,10 @@ class MaintenanceLogManager extends Component
 
     public function render()
     {
-        $query = MaintenanceLog::with(['vehicle.brand', 'vehicle.vehicleClass', 'maintenanceType'])->orderBy('fecha', 'desc');
+        $query = MaintenanceLog::query()
+            ->active()
+            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'maintenanceType'])
+            ->orderBy('fecha', 'desc');
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -111,6 +116,9 @@ class MaintenanceLogManager extends Component
             'maintenanceLogs' => $maintenanceLogs,
             'vehicles' => $vehicles,
             'maintenanceTypes' => $maintenanceTypes,
+            'selectedVehicle' => $this->vehicle_id
+                ? Vehicle::query()->with(['brand', 'vehicleClass'])->find((int) $this->vehicle_id)
+                : null,
             'pendingWorkshopRecords' => $pendingWorkshopRecords,
         ]);
     }
@@ -255,9 +263,7 @@ class MaintenanceLogManager extends Component
         }
 
         if ($savedMaintenance && (int) ($this->from_workshop_id ?? 0) > 0) {
-            Workshop::query()
-                ->whereKey((int) $this->from_workshop_id)
-                ->update(['maintenance_log_id' => (int) $savedMaintenance->id]);
+            $this->closeWorkshopAfterMaintenanceRegistration((int) $this->from_workshop_id, (int) $savedMaintenance->id);
         }
 
         $this->resetForm();
@@ -301,11 +307,11 @@ class MaintenanceLogManager extends Component
     public function delete(MaintenanceLog $maintenance)
     {
         $vehicleId = $maintenance->vehicle_id ? (int) $maintenance->vehicle_id : null;
-        $maintenance->delete();
+        $maintenance->update(['activo' => false]);
         if ($vehicleId) {
             MaintenanceAlertService::evaluateVehicleByKilometraje($vehicleId);
         }
-        session()->flash('message', 'Registro de mantenimiento eliminado correctamente.');
+        session()->flash('message', 'Registro de mantenimiento inactivado correctamente.');
     }
 
     public function resetForm()
@@ -501,7 +507,6 @@ class MaintenanceLogManager extends Component
 
         $workshopVehicleIds = Workshop::query()
             ->where('estado', Workshop::STATUS_DELIVERED)
-            ->whereNull('maintenance_log_id')
             ->pluck('vehicle_id')
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -566,7 +571,7 @@ class MaintenanceLogManager extends Component
 
     private function markResolvedAlertsAsRead(): void
     {
-        if (!$this->vehicle_id || !$this->maintenance_type_id) {
+        if (!$this->vehicle_id) {
             return;
         }
 
@@ -577,16 +582,46 @@ class MaintenanceLogManager extends Component
             'usuario_id' => auth()->id(),
         ];
 
-        MaintenanceAlert::query()
-            ->where('vehicle_id', (int) $this->vehicle_id)
-            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
-            ->where(function ($q) {
-                $q->where('maintenance_type_id', (int) $this->maintenance_type_id)
-                    ->orWhereHas('maintenanceAppointment', function ($qa) {
-                        $qa->where('tipo_mantenimiento_id', (int) $this->maintenance_type_id);
-                    });
-            })
-            ->update($resolutionPayload);
+        $resolvedAlertIds = collect();
+
+        if ((int) ($this->from_workshop_id ?? 0) > 0) {
+            $workshop = Workshop::query()
+                ->with(['maintenanceAlert', 'maintenanceAppointment'])
+                ->find((int) $this->from_workshop_id);
+
+            if ($workshop?->maintenance_alert_id) {
+                MaintenanceAlert::query()
+                    ->whereKey((int) $workshop->maintenance_alert_id)
+                    ->where('vehicle_id', (int) $this->vehicle_id)
+                    ->update($resolutionPayload);
+
+                $resolvedAlertIds->push((int) $workshop->maintenance_alert_id);
+            }
+
+            if ($workshop?->maintenance_appointment_id) {
+                MaintenanceAppointment::query()
+                    ->whereKey((int) $workshop->maintenance_appointment_id)
+                    ->update(['estado' => 'Realizado']);
+            }
+        }
+
+        if ($this->maintenance_type_id) {
+            $query = MaintenanceAlert::query()
+                ->where('vehicle_id', (int) $this->vehicle_id)
+                ->whereIn('status', MaintenanceAlert::openStatuses())
+                ->where(function ($q) {
+                    $q->where('maintenance_type_id', (int) $this->maintenance_type_id)
+                        ->orWhereHas('maintenanceAppointment', function ($qa) {
+                            $qa->where('tipo_mantenimiento_id', (int) $this->maintenance_type_id);
+                        });
+                });
+
+            if ($resolvedAlertIds->isNotEmpty()) {
+                $query->whereNotIn('id', $resolvedAlertIds->all());
+            }
+
+            $query->update($resolutionPayload);
+        }
 
         if ((int) ($this->from_alert_id ?? 0) > 0) {
             $appointmentId = MaintenanceAlert::query()
@@ -801,6 +836,46 @@ class MaintenanceLogManager extends Component
             'Generado desde orden de taller ' . ($workshop->order_number ?: ('#' . $workshop->id)) . '.',
             trim((string) $workshop->observaciones),
         ])->filter(fn ($value) => $value !== '')->implode(' ');
+    }
+
+    private function closeWorkshopAfterMaintenanceRegistration(int $workshopId, int $maintenanceLogId): void
+    {
+        $workshop = Workshop::query()
+            ->with(['maintenanceAlert', 'maintenanceAppointment'])
+            ->find($workshopId);
+
+        if (!$workshop) {
+            return;
+        }
+
+        $updates = [
+            'maintenance_log_id' => $maintenanceLogId,
+            'estado' => Workshop::STATUS_CLOSED,
+        ];
+
+        if (!$workshop->fecha_listo) {
+            $updates['fecha_listo'] = now()->toDateString();
+        }
+
+        if (!$workshop->fecha_salida) {
+            $updates['fecha_salida'] = now()->toDateString();
+        }
+
+        if (!$workshop->fecha_cierre) {
+            $updates['fecha_cierre'] = now();
+        }
+
+        if (!$workshop->closed_by_user_id) {
+            $updates['closed_by_user_id'] = auth()->id();
+        }
+
+        $workshop->update($updates);
+
+        if ($workshop->maintenanceAppointment) {
+            $workshop->maintenanceAppointment->update([
+                'estado' => MaintenanceAppointment::STATUS_COMPLETED,
+            ]);
+        }
     }
 
     private function syncVehicleKilometrajeActual(?int $vehicleId): void

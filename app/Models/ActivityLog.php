@@ -19,6 +19,7 @@ class ActivityLog extends Model
         'model',
         'module',
         'record_id',
+        'vehicle_log_id',
         'changes_json',
         'details',
         'ip_address',
@@ -43,6 +44,11 @@ class ActivityLog extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function vehicleLog(): BelongsTo
+    {
+        return $this->belongsTo(VehicleLog::class, 'vehicle_log_id');
+    }
+
     /**
      * Obtener el modelo relacionado
      */
@@ -64,7 +70,7 @@ class ActivityLog extends Model
 
     public static function prepareAttributes(array $attributes): array
     {
-        foreach (['model', 'record_id', 'changes_json', 'module', 'details', 'ip_address', 'user_agent', 'fecha'] as $column) {
+        foreach (['model', 'record_id', 'vehicle_log_id', 'changes_json', 'module', 'details', 'ip_address', 'user_agent', 'fecha'] as $column) {
             if (array_key_exists($column, $attributes) && !self::hasColumn($column)) {
                 unset($attributes[$column]);
             }

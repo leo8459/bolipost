@@ -874,6 +874,7 @@ class MapController extends Controller
         if (empty($vehicleIds)) {
             if (Schema::hasTable('vehicle_operation_alerts')) {
                 VehicleOperationAlert::query()
+                    ->whereIn('alert_type', VehicleOperationAlert::mapManagedTypes())
                     ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
                     ->update([
                         'status' => VehicleOperationAlert::STATUS_RESOLVED,
@@ -881,7 +882,7 @@ class MapController extends Controller
                     ]);
             }
 
-            return [];
+            return $this->loadManualOperationalAlerts();
         }
 
         $openSessions = Schema::hasTable('vehicle_log_sessions')
@@ -1044,6 +1045,7 @@ class MapController extends Controller
         if (Schema::hasTable('vehicle_operation_alerts')) {
             $existingAlerts = VehicleOperationAlert::query()
                 ->whereIn('vehicle_id', $vehicleIds)
+                ->whereIn('alert_type', VehicleOperationAlert::mapManagedTypes())
                 ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
                 ->get()
                 ->keyBy(fn (VehicleOperationAlert $alert) => $alert->vehicle_id . ':' . $alert->alert_type);
@@ -1083,7 +1085,9 @@ class MapController extends Controller
                 });
         }
 
-        usort($desiredAlerts, function (array $a, array $b) {
+        $allAlerts = array_merge($desiredAlerts, $this->loadManualOperationalAlerts());
+
+        usort($allAlerts, function (array $a, array $b) {
             $priority = ['danger' => 0, 'warning' => 1, 'info' => 2, 'success' => 3, 'secondary' => 4];
             $aScore = $priority[$a['severity'] ?? 'secondary'] ?? 99;
             $bScore = $priority[$b['severity'] ?? 'secondary'] ?? 99;
@@ -1093,7 +1097,48 @@ class MapController extends Controller
             return $aScore <=> $bScore;
         });
 
-        return $desiredAlerts;
+        return $allAlerts;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function loadManualOperationalAlerts(): array
+    {
+        if (!Schema::hasTable('vehicle_operation_alerts')) {
+            return [];
+        }
+
+        return VehicleOperationAlert::query()
+            ->with(['vehicle', 'session.driver'])
+            ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+            ->whereNotIn('alert_type', VehicleOperationAlert::mapManagedTypes())
+            ->orderByDesc('detected_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (VehicleOperationAlert $alert) {
+                $plate = trim((string) ($alert->vehicle?->placa ?? 'SIN PLACA'));
+                $driverName = trim((string) ($alert->session?->driver?->nombre ?? ($alert->meta_json['driver_name'] ?? 'Sin conductor')));
+
+                return [
+                    'vehicle_id' => (int) ($alert->vehicle_id ?? 0),
+                    'vehicle_log_session_id' => $alert->vehicle_log_session_id,
+                    'alert_type' => (string) $alert->alert_type,
+                    'severity' => (string) ($alert->severity ?? 'danger'),
+                    'status' => (string) ($alert->status ?? VehicleOperationAlert::STATUS_ACTIVE),
+                    'title' => (string) ($alert->title ?? 'Alerta operativa'),
+                    'message' => (string) ($alert->message ?? ''),
+                    'current_stage' => (string) ($alert->current_stage ?? ''),
+                    'last_heartbeat_at' => optional($alert->last_heartbeat_at)?->toIso8601String(),
+                    'detected_at' => optional($alert->detected_at)?->toIso8601String(),
+                    'resolved_at' => optional($alert->resolved_at)?->toIso8601String(),
+                    'meta_json' => is_array($alert->meta_json) ? $alert->meta_json : [],
+                    'placa' => $plate,
+                    'driver_name' => $driverName,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function formatSecondsAsHuman(int $seconds): string

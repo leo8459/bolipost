@@ -113,6 +113,39 @@
             padding-inline: 18px;
             font-weight: 600;
         }
+        .vehicle-log-pin-icon {
+            width: 26px;
+            height: 26px;
+            position: relative;
+            transform: rotate(-45deg);
+            background: #d9c453;
+            border: 2px solid #c3ad33;
+            border-radius: 50% 50% 50% 0;
+            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.22);
+        }
+        .vehicle-log-pin-icon::before {
+            content: "";
+            position: absolute;
+            width: 9px;
+            height: 9px;
+            background: #a78f23;
+            border-radius: 50%;
+            top: 6px;
+            left: 6px;
+        }
+        .vehicle-log-pin-icon::after {
+            content: "";
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #3b82f6;
+            border: 2px solid #ffffff;
+            transform: rotate(45deg);
+            left: 17px;
+            top: 17px;
+            box-shadow: 0 1px 4px rgba(37, 99, 235, 0.35);
+        }
         @media (min-width: 1400px) {
             .vehicle-log-page {
                 padding-right: 6px;
@@ -257,6 +290,13 @@
         }).addTo(map);
 
         const layer = L.layerGroup().addTo(map);
+        const pinIcon = L.divIcon({
+            className: 'vehicle-log-pin-icon-wrapper',
+            html: '<div class="vehicle-log-pin-icon"></div>',
+            iconSize: [30, 30],
+            iconAnchor: [12, 26],
+            popupAnchor: [2, -24],
+        });
         const route = Array.isArray(payload.route) ? payload.route : [];
         const bounds = [];
         let fittedBounds = null;
@@ -272,6 +312,7 @@
                     lat,
                     lng,
                     label: point.address || point.label || point.point_label || '',
+                    isMarked: Boolean(point.is_marked ?? point.isMarked ?? point.marked ?? false),
                 };
             })
             .filter(Boolean);
@@ -291,46 +332,42 @@
         if (routeCoords.length > 1) {
             L.polyline(routeCoords.map((point) => [point.lat, point.lng]), {
                 color: '#2563eb',
-                weight: 4,
-                opacity: 0.9,
+                weight: 6,
+                opacity: 0.95,
                 lineCap: 'round',
                 lineJoin: 'round',
-                smoothFactor: 1.4,
+                smoothFactor: 1.8,
             }).addTo(layer);
         }
 
-        routeCoords.forEach((point, index) => {
-            L.circleMarker([point.lat, point.lng], {
-                radius: 5,
-                color: '#1d4ed8',
-                weight: 2,
-                fillColor: '#93c5fd',
-                fillOpacity: 0.95,
-            }).addTo(layer).bindPopup(point.label || `Punto ${index + 1}`);
-        });
+        routeCoords
+            .filter((point) => point.isMarked)
+            .forEach((point, index) => {
+                L.circleMarker([point.lat, point.lng], {
+                    radius: 6,
+                    color: '#1d4ed8',
+                    weight: 2,
+                    fillColor: '#bfdbfe',
+                    fillOpacity: 0.95,
+                }).addTo(layer).bindPopup(point.label || `Punto ${index + 1}`);
+            });
 
         if (Number.isFinite(startLat) && Number.isFinite(startLng)) {
             const start = [startLat, startLng];
             bounds.push(start);
-            L.circleMarker(start, {
-                radius: 11,
-                color: '#14532d',
-                weight: 4,
-                fillColor: '#22c55e',
-                fillOpacity: 1,
-            }).addTo(layer).bindPopup(`<strong>Inicio</strong><br>${payload.startName || '-'}`).bringToFront();
+            L.marker(start, {
+                icon: pinIcon,
+                zIndexOffset: 1000,
+            }).addTo(layer).bindPopup(`<strong>Inicio</strong><br>${payload.startName || '-'}`);
         }
 
         if (Number.isFinite(endLat) && Number.isFinite(endLng)) {
             const end = [endLat, endLng];
             bounds.push(end);
-            L.circleMarker(end, {
-                radius: 11,
-                color: '#7f1d1d',
-                weight: 4,
-                fillColor: '#ef4444',
-                fillOpacity: 1,
-            }).addTo(layer).bindPopup(`<strong>Destino</strong><br>${payload.endName || '-'}`).bringToFront();
+            L.marker(end, {
+                icon: pinIcon,
+                zIndexOffset: 1000,
+            }).addTo(layer).bindPopup(`<strong>Destino</strong><br>${payload.endName || '-'}`);
         }
 
         if (bounds.length > 1) {
