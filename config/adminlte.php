@@ -386,8 +386,9 @@ return [
         ],
         [
             'text' => 'Malencaminados',
-            'url' => 'malencaminados',
+            'url' => '/malencaminados',
             'icon' => 'fas fa-random',
+            'can' => 'malencaminados.index',
         ],
         [
             'text' => 'Admisiones',

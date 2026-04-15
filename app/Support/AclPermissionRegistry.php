@@ -222,7 +222,6 @@ class AclPermissionRegistry
         'removescanned' => 'assign',
         'rezagomasivo' => 'rezago',
         'rezagopaquetes' => 'rezago',
-        'saveconfirmed' => 'confirm',
         'savereencaminar' => 'reencaminar',
         'scanandsearch' => 'assign',
         'togglecn33reprint' => 'print',
@@ -1278,6 +1277,18 @@ class AclPermissionRegistry
                 'restore' => ['restore'],
                 default => ['manage'],
             };
+        }
+
+        if ($normalized === 'saveconfirmed') {
+            if ($includeAmbiguous) {
+                return ['create', 'edit'];
+            }
+
+            if ($component && property_exists($component, 'editingId') && ! empty($component->editingId)) {
+                return ['edit'];
+            }
+
+            return ['create'];
         }
 
         if (isset(self::LIVEWIRE_METHOD_ACTION_OVERRIDES[$normalized])) {
