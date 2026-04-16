@@ -1753,7 +1753,7 @@ class PaquetesEms extends Component
                 $this->linkPreregistroToPaquete($paquete, (int) $user->id);
                 $this->registerAdmisionEvento($paquete, (int) $user->id);
 
-                if ($this->isCreateEms) {
+                if ($this->isCreateEms && $this->canUseFacturacionShortcut($user)) {
                     app(FacturacionCartService::class)->addPaqueteEms($user, $paquete);
                 }
             });
@@ -3852,6 +3852,13 @@ class PaquetesEms extends Component
         return $this->userCan('feature.paquetes-ems.index.create')
             || $this->userCan('feature.paquetes-ems.almacen.create')
             || $this->userCan('paquetes-ems.create');
+    }
+
+    private function canUseFacturacionShortcut(?object $user = null): bool
+    {
+        $user ??= auth()->user();
+
+        return (bool) ($user && method_exists($user, 'can') && $user->can('feature.dashboard.facturacion'));
     }
 
     private function authorizeCreateRouteAccess(): void

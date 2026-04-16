@@ -12,7 +12,7 @@ class FacturacionCartController extends Controller
     public function updateBillingData(Request $request, FacturacionCartService $service)
     {
         $user = $request->user();
-        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
+        $this->authorizeFacturacionAccess($user);
 
         $validated = $request->validate([
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
@@ -38,7 +38,7 @@ class FacturacionCartController extends Controller
     public function removeItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
+        $this->authorizeFacturacionAccess($user);
 
         try {
             $service->removeItem($user, $itemId);
@@ -52,7 +52,7 @@ class FacturacionCartController extends Controller
     public function updateItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
+        $this->authorizeFacturacionAccess($user);
 
         $validated = $request->validate([
             'codigo' => ['required', 'string', 'max:120'],
@@ -92,7 +92,7 @@ class FacturacionCartController extends Controller
     public function clear(Request $request, FacturacionCartService $service): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
+        $this->authorizeFacturacionAccess($user);
 
         $cart = $service->clearDraftCart($user);
 
@@ -105,7 +105,7 @@ class FacturacionCartController extends Controller
     public function emitir(Request $request, FacturacionCartService $service): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
+        $this->authorizeFacturacionAccess($user);
 
         try {
             $resultado = $service->emitirBorrador($user);
@@ -129,7 +129,7 @@ class FacturacionCartController extends Controller
     public function consultar(Request $request, FacturacionCartService $service): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
+        $this->authorizeFacturacionAccess($user);
 
         try {
             $resultado = $service->consultarEstadoEmision($user, $request->integer('cart_id') ?: null);
@@ -204,5 +204,10 @@ class FacturacionCartController extends Controller
             'detail' => trim($message),
             'action' => $action,
         ];
+    }
+
+    private function authorizeFacturacionAccess($user): void
+    {
+        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
     }
 }
