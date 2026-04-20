@@ -66,6 +66,41 @@
         .table td{ vertical-align: middle; }
         .selectable-row{ cursor:pointer; }
         .selectable-row:hover{ background: rgba(32,83,154,.06); }
+        .step-title{
+            font-size: .85rem;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-weight: 800;
+            margin-bottom: .35rem;
+        }
+        .soft-box{
+            border:1px solid var(--line);
+            border-radius: 12px;
+            background:#fff;
+            padding:12px;
+        }
+        .badge-tipo{
+            font-weight: 800;
+            border-radius: 999px;
+            padding: .35rem .6rem;
+            font-size: .72rem;
+        }
+        .badge-ems{ background:#dbeafe; color:#1e40af; }
+        .badge-contrato{ background:#dcfce7; color:#166534; }
+        .badge-certi{ background:#fef3c7; color:#92400e; }
+        .badge-ordi{ background:#fce7f3; color:#9d174d; }
+        .resumen-label{
+            color:var(--muted);
+            font-size:.78rem;
+            font-weight:700;
+            text-transform: uppercase;
+            letter-spacing:.02em;
+        }
+        .resumen-value{
+            font-weight:800;
+            color:#111827;
+        }
     </style>
 
     <div class="page-wrap">
@@ -93,21 +128,24 @@
 
                 <div class="row">
                     <div class="col-md-5">
-                        <label class="font-weight-bold">Buscar codigo</label>
+                        <div class="step-title">Paso 1. Buscar paquete</div>
+                        <label class="font-weight-bold">Codigo</label>
                         <input
                             type="text"
                             class="form-control"
-                            placeholder="Ej: EA123456789BO"
+                            placeholder="Ej: EA123456789BO / CT260..."
                             wire:model.defer="codigoBuscado"
                             wire:keydown.enter="buscarCodigo"
                         >
-                        <small class="text-muted">Presiona Enter para buscar y seleccionar.</small>
+                        <small class="text-muted">Presiona Enter para traer coincidencias y seleccionar.</small>
                     </div>
                     <div class="col-md-3">
+                        <div class="step-title">Paso 2. Revisar</div>
                         <label class="font-weight-bold">Destino actual</label>
                         <input type="text" class="form-control" value="{{ $destinoActual }}" readonly>
                     </div>
                     <div class="col-md-4">
+                        <div class="step-title">Paso 3. Corregir</div>
                         <label class="font-weight-bold">Nuevo destino</label>
                         <select class="form-control" wire:model.defer="destinoNuevo">
                             <option value="">Seleccione...</option>
@@ -119,8 +157,58 @@
                     </div>
                 </div>
 
+                @if(!empty($candidatos))
+                    <div class="soft-box mt-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="font-weight-bold">Resultados de busqueda</div>
+                            <small class="text-muted">{{ count($candidatos) }} coincidencia(s)</small>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th>Codigo</th>
+                                        <th>Destino</th>
+                                        <th>Estado</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($candidatos as $item)
+                                        <tr>
+                                            <td>
+                                                @php($tipoItem = strtoupper((string)($item['tipo'] ?? '')))
+                                                <span class="badge-tipo
+                                                    @if($tipoItem === 'EMS') badge-ems
+                                                    @elseif($tipoItem === 'CONTRATO') badge-contrato
+                                                    @elseif($tipoItem === 'CERTI') badge-certi
+                                                    @else badge-ordi
+                                                    @endif
+                                                ">
+                                                    {{ $tipoItem }}
+                                                </span>
+                                            </td>
+                                            <td class="font-weight-bold">{{ $item['codigo'] ?? '-' }}</td>
+                                            <td>{{ $item['destino'] ?: '-' }}</td>
+                                            <td>{{ (int) ($item['estado'] ?? 0) }}</td>
+                                            <td class="text-right">
+                                                <button type="button" class="btn btn-sm btn-outline-azul"
+                                                    wire:click="seleccionarCandidato('{{ $item['tipo'] }}', {{ (int) $item['id'] }})">
+                                                    Seleccionar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
+
                 <div class="row mt-3">
                     <div class="col-md-8">
+                        <div class="step-title">Paso 4. Registrar</div>
                         <label class="font-weight-bold">Observacion</label>
                         <textarea class="form-control" rows="2" wire:model.defer="observacion" placeholder="Detalle del malencaminamiento..."></textarea>
                         @error('observacion') <small class="text-danger">{{ $message }}</small> @enderror
@@ -134,21 +222,21 @@
                     </div>
                 </div>
 
-                <div class="row mt-3">
+                <div class="row mt-3 soft-box mx-0">
                     <div class="col-md-4">
-                        <label class="font-weight-bold">Tipo seleccionado</label>
-                        <input type="text" class="form-control" value="{{ $selectedTipo ?: '-' }}" readonly>
+                        <div class="resumen-label">Tipo seleccionado</div>
+                        <div class="resumen-value mt-1">{{ $selectedTipo ?: '-' }}</div>
                     </div>
                     <div class="col-md-8">
-                        <label class="font-weight-bold">Codigo seleccionado</label>
-                        <input type="text" class="form-control" value="{{ $selectedCodigo ?: '-' }}" readonly>
+                        <div class="resumen-label">Codigo seleccionado</div>
+                        <div class="resumen-value mt-1">{{ $selectedCodigo ?: '-' }}</div>
                         @error('selectedTipo') <small class="text-danger">{{ $message }}</small> @enderror
                         @error('selectedCodigo') <small class="text-danger">{{ $message }}</small> @enderror
                     </div>
                 </div>
 
                 <div class="mt-4 d-none">
-                    <div class="font-weight-bold mb-2">Todos los paquetes (EMS + Contrato)</div>
+                    <div class="font-weight-bold mb-2">Todos los paquetes (EMS + CONTRATO + CERTI + ORDI)</div>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover">
                             <thead>
@@ -206,7 +294,7 @@
                                 <th>Codigo</th>
                                 <th>Obs.</th>
                                 <th>Nro malenc.</th>
-                                <th>Origen tipo</th>
+                                <th>Tipo</th>
                                 <th>Destino anterior</th>
                                 <th>Destino nuevo</th>
                                 <th>Fecha</th>
@@ -219,7 +307,19 @@
                                     <td>{{ $row->codigo }}</td>
                                     <td>{{ $row->observacion }}</td>
                                     <td>{{ (int) $row->malencaminamiento }}</td>
-                                    <td>{{ $row->paquetes_ems_id ? 'EMS' : 'CONTRATO' }}</td>
+                                    <td>
+                                        @if($row->paquetes_ems_id)
+                                            EMS
+                                        @elseif($row->paquetes_contrato_id)
+                                            CONTRATO
+                                        @elseif($row->paquetes_certi_id)
+                                            CERTI
+                                        @elseif($row->paquetes_ordi_id)
+                                            ORDI
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                     <td>{{ $row->destino_anterior ?: '-' }}</td>
                                     <td>{{ $row->destino_nuevo ?: '-' }}</td>
                                     <td class="muted small">{{ optional($row->created_at)->format('d/m/Y H:i') }}</td>

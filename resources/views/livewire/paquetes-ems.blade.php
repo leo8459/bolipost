@@ -875,7 +875,7 @@
                                 @if ($this->isAdmision)
                                     @if ($canEmsAssign)
                                     <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
-                                        Generados hoy
+                                        GENERADOS EL DIA DE HOY
                                     </button>
 
                                     <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosSinFiltroFecha">
