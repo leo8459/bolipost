@@ -18,7 +18,7 @@
                             id="asignados-search"
                             type="text"
                             class="form-control"
-                            placeholder="Buscar por codigo o cod_especial"
+                            placeholder="Buscar por codigo, cod_especial o nombre del cartero"
                         >
                         <button id="asignados-search-btn" type="button" class="btn btn-carteros-secondary">Buscar</button>
                         <button id="asignados-clear-btn" type="button" class="btn btn-carteros-clear">Limpiar</button>
@@ -137,7 +137,7 @@
         (function() {
             let currentPage = 1;
             const perPage = 25;
-            let currentCodigo = '';
+            let currentSearch = '';
 
             const body = document.getElementById('tabla-asignados-body');
             const pageIndicator = document.getElementById('page-indicator');
@@ -201,7 +201,7 @@
             async function loadPage(page) {
                 setLoading();
                 try {
-                    const query = currentCodigo !== '' ? '&codigo=' + encodeURIComponent(currentCodigo) : '';
+                    const query = currentSearch !== '' ? '&search=' + encodeURIComponent(currentSearch) : '';
                     const url = '{{ route('api.carteros.asignados') }}?page=' + page + '&per_page=' + perPage + query;
                     const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) throw new Error('Request failed');
@@ -226,12 +226,12 @@
             });
 
             searchBtn.addEventListener('click', function() {
-                currentCodigo = (searchInput.value || '').trim();
+                currentSearch = (searchInput.value || '').trim();
                 loadPage(1);
             });
 
             clearBtn.addEventListener('click', function() {
-                currentCodigo = '';
+                currentSearch = '';
                 searchInput.value = '';
                 loadPage(1);
             });
@@ -239,7 +239,7 @@
             searchInput.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    currentCodigo = (searchInput.value || '').trim();
+                    currentSearch = (searchInput.value || '').trim();
                     loadPage(1);
                 }
             });

@@ -1214,7 +1214,13 @@ class CarterosController extends Controller
     {
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
+        $search = trim((string) $request->query('search', ''));
         $codigo = trim((string) $request->query('codigo', ''));
+        $cartero = trim((string) $request->query('cartero', ''));
+        if ($search !== '') {
+            $codigo = '';
+            $cartero = '';
+        }
 
         $emsFilterIds = null;
         $certiFilterIds = null;
@@ -1359,6 +1365,7 @@ class CarterosController extends Controller
             ->select([
                 'id',
                 'codigo',
+                'cod_especial',
                 'destinatario',
                 'telefono',
                 'ciudad',
@@ -1382,6 +1389,7 @@ class CarterosController extends Controller
                     'id' => $item->id,
                     'tipo_paquete' => 'ORDI',
                     'codigo' => $item->codigo,
+                    'codigo_aux' => (string) ($item->cod_especial ?? ''),
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
                     'ciudad' => $item->ciudad,
@@ -1402,6 +1410,7 @@ class CarterosController extends Controller
             ->select([
                 'id',
                 'codigo',
+                'cod_especial',
                 'nombre_d as destinatario',
                 'telefono_d as telefono',
                 'destino as ciudad',
@@ -1425,6 +1434,7 @@ class CarterosController extends Controller
                     'id' => $item->id,
                     'tipo_paquete' => 'CONTRATO',
                     'codigo' => $item->codigo,
+                    'codigo_aux' => (string) ($item->cod_especial ?? ''),
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
                     'ciudad' => $item->ciudad,
@@ -1445,6 +1455,7 @@ class CarterosController extends Controller
             ->select([
                 'id',
                 DB::raw("COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO') as codigo"),
+                'cod_especial',
                 'nombre_destinatario as destinatario',
                 'telefono_destinatario as telefono',
                 'ciudad',
@@ -1470,6 +1481,7 @@ class CarterosController extends Controller
                     'id' => $item->id,
                     'tipo_paquete' => 'SOLICITUD',
                     'codigo' => $item->codigo,
+                    'codigo_aux' => (string) ($item->cod_especial ?? ''),
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
                     'ciudad' => $item->ciudad,
@@ -1495,6 +1507,33 @@ class CarterosController extends Controller
             ->concat($solicitudes)
             ->sortByDesc('created_at')
             ->values();
+
+        if ($search !== '') {
+            $needle = mb_strtolower($search);
+            $all = $this->attachCarteroData($all)
+                ->filter(function ($row) use ($needle) {
+                    $codigoValue = mb_strtolower((string) ($row['codigo'] ?? ''));
+                    $codigoAuxValue = mb_strtolower((string) ($row['codigo_aux'] ?? ''));
+                    $asignadoValue = mb_strtolower((string) ($row['asignado_a'] ?? ''));
+
+                    return str_contains($codigoValue, $needle)
+                        || str_contains($codigoAuxValue, $needle)
+                        || str_contains($asignadoValue, $needle);
+                })
+                ->values();
+        }
+
+        if ($cartero !== '') {
+            $needle = mb_strtolower($cartero);
+            $all = $this->attachCarteroData($all)
+                ->filter(function ($row) use ($needle) {
+                    return str_contains(
+                        mb_strtolower((string) ($row['asignado_a'] ?? '')),
+                        $needle
+                    );
+                })
+                ->values();
+        }
 
         $total = $all->count();
         $lastPage = max(1, (int) ceil($total / $perPage));
