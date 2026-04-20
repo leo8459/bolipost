@@ -24,6 +24,7 @@ class VehicleManager extends Component
     protected string $paginationTheme = 'bootstrap';
 
     public string $search = '';
+    public string $statusFilter = 'activos';
 
     private const FUEL_TYPES = [
         'gasolina',
@@ -73,24 +74,38 @@ class VehicleManager extends Component
     public ?int $editingVehicleId = null;
     public bool $showForm = false;
     public bool $showMaintenanceBackfillConfirm = false;
+    public bool $showInitialKilometrajeConfirm = false;
     public array $maintenanceBackfillPreview = [];
     public array $maintenanceBackfillSelections = [];
     public array $pendingVehiclePayload = [];
 
     public function mount(): void
     {
-        abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        abort_unless($this->canAccessVehicleModule(), 403);
     }
 
     public function render()
     {
         $query = Vehicle::query()
-            ->where('activo', true)
             ->with(['brand', 'vehicleClass'])
             ->withCount([
                 'maintenanceAlerts as pending_maintenance_alerts_count' => fn ($q) => $q->where('status', MaintenanceAlert::STATUS_ACTIVE),
             ])
             ->orderBy('placa');
+
+        if ($this->currentUser()?->role !== 'conductor') {
+            if ($this->statusFilter === 'activos') {
+                $query->where('activo', true)
+                    ->whereDoesntHave('maintenanceAlerts', fn ($q) => $q->where('status', MaintenanceAlert::STATUS_ACTIVE));
+            } elseif ($this->statusFilter === 'inactivos') {
+                $query->where('activo', false);
+            } elseif ($this->statusFilter === 'mantenimiento') {
+                $query->where('activo', true)
+                    ->whereHas('maintenanceAlerts', fn ($q) => $q->where('status', MaintenanceAlert::STATUS_ACTIVE));
+            }
+        } else {
+            $query->where('activo', true);
+        }
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -165,6 +180,15 @@ class VehicleManager extends Component
     public function updatedSearch(): void
     {
         $this->search = $this->sanitizeText($this->search, true);
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(string $value): void
+    {
+        if (!in_array($value, ['activos', 'inactivos', 'mantenimiento', 'todos'], true)) {
+            $this->statusFilter = 'activos';
+        }
+
         $this->resetPage();
     }
 
@@ -374,11 +398,40 @@ class VehicleManager extends Component
             'tacometro_danado' => $this->tacometro_danado,
         ];
 
+        if (!$this->isEdit && $this->shouldPromptInitialKilometrajeConfirm($payload)) {
+            return;
+        }
+
         if (!$this->isEdit && $this->shouldPromptMaintenanceBackfill($payload)) {
             return;
         }
 
         $this->persistVehicle($payload, false);
+    }
+
+    public function confirmInitialKilometraje(): void
+    {
+        if (empty($this->pendingVehiclePayload)) {
+            $this->showInitialKilometrajeConfirm = false;
+            return;
+        }
+
+        $payload = $this->pendingVehiclePayload;
+        $this->showInitialKilometrajeConfirm = false;
+        $this->pendingVehiclePayload = [];
+
+        if ($this->shouldPromptMaintenanceBackfill($payload)) {
+            return;
+        }
+
+        $this->persistVehicle($payload, false);
+    }
+
+    public function cancelInitialKilometrajeConfirm(): void
+    {
+        $this->showInitialKilometrajeConfirm = false;
+        $this->pendingVehiclePayload = [];
+        session()->flash('message', 'Puedes seguir editando el kilometraje antes de guardar el vehiculo.');
     }
 
     public function confirmMaintenanceBackfill(): void
@@ -396,18 +449,11 @@ class VehicleManager extends Component
 
     public function cancelMaintenanceBackfill(): void
     {
-        if (!empty($this->pendingVehiclePayload)) {
-            $payload = $this->pendingVehiclePayload;
-            $this->showMaintenanceBackfillConfirm = false;
-            $this->pendingVehiclePayload = [];
-            $this->persistVehicle($payload, false);
-            return;
-        }
-
         $this->showMaintenanceBackfillConfirm = false;
         $this->pendingVehiclePayload = [];
         $this->maintenanceBackfillPreview = [];
         $this->maintenanceBackfillSelections = [];
+        session()->flash('message', 'Se cancelo la asignacion automatica de mantenimientos. No se guardaron cambios.');
     }
 
     private function persistVehicle(array $payload, bool $withMaintenanceBackfill): void
@@ -466,6 +512,7 @@ class VehicleManager extends Component
             : ($vehicle->kilometraje_inicial !== null ? (float) $vehicle->kilometraje_inicial : ($vehicle->kilometraje !== null ? (float) $vehicle->kilometraje : null));
         $this->activo = (bool) $vehicle->activo;
         $this->tacometro_danado = (bool) ($vehicle->tacometro_danado ?? false);
+        $this->showInitialKilometrajeConfirm = false;
         $this->showMaintenanceBackfillConfirm = false;
         $this->maintenanceBackfillPreview = [];
         $this->maintenanceBackfillSelections = [];
@@ -488,7 +535,18 @@ class VehicleManager extends Component
             $this->setPage($lastPage);
         }
 
-        session()->flash('message', 'Vehiculo inactivado correctamente.');
+        session()->flash('message', 'Vehiculo inhabilitado correctamente.');
+    }
+
+    public function reactivate(Vehicle $vehicle): void
+    {
+        if ($this->currentUser()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para reactivar vehiculos.');
+            return;
+        }
+
+        $vehicle->update(['activo' => true]);
+        session()->flash('message', 'Vehiculo habilitado nuevamente correctamente.');
     }
 
     public function resetForm()
@@ -507,6 +565,7 @@ class VehicleManager extends Component
         $this->isEdit = false;
         $this->editingVehicleId = null;
         $this->showForm = false;
+        $this->showInitialKilometrajeConfirm = false;
         $this->showMaintenanceBackfillConfirm = false;
         $this->maintenanceBackfillPreview = [];
         $this->maintenanceBackfillSelections = [];
@@ -693,21 +752,19 @@ class VehicleManager extends Component
 
     private function validateKilometrajeIntegrity(): bool
     {
-        if ($this->kilometraje === null || !$this->isEdit || !$this->editingVehicleId) {
-            return true;
+        return true;
+    }
+
+    private function shouldPromptInitialKilometrajeConfirm(array $payload): bool
+    {
+        if ($this->isEdit || $this->kilometraje === null || empty($payload)) {
+            return false;
         }
 
-        $vehicle = Vehicle::query()->find($this->editingVehicleId);
-        if (!$vehicle) {
-            return true;
-        }
+        $this->pendingVehiclePayload = $payload;
+        $this->showInitialKilometrajeConfirm = true;
 
-        $this->addError(
-            'kilometraje',
-            'El kilometraje no se puede editar desde esta pantalla.'
-        );
-
-        return false;
+        return true;
     }
 
     private function shouldPromptMaintenanceBackfill(array $payload): bool
@@ -936,5 +993,41 @@ class VehicleManager extends Component
         $user = Auth::user();
 
         return $user instanceof User ? $user : null;
+    }
+
+    private function canAccessVehicleModule(): bool
+    {
+        $user = $this->currentUser();
+        if (!$user) {
+            return false;
+        }
+
+        if (method_exists($user, 'hasRole') && ($user->hasRole('administrador') || $user->hasRole('admin'))) {
+            return true;
+        }
+
+        if (method_exists($user, 'can') && $user->can('livewire.vehicles')) {
+            return true;
+        }
+
+        $primaryRole = mb_strtolower(trim((string) ($user->role ?? '')));
+        if ($primaryRole !== '' && (in_array($primaryRole, ['admin', 'recepcion', 'conductor'], true) || str_contains($primaryRole, 'admin'))) {
+            return true;
+        }
+
+        if (method_exists($user, 'getRoleNames')) {
+            foreach ((array) $user->getRoleNames()->toArray() as $roleName) {
+                $normalizedRole = mb_strtolower(trim((string) $roleName));
+                if ($normalizedRole === '') {
+                    continue;
+                }
+
+                if (in_array($normalizedRole, ['administrador', 'admin', 'recepcion', 'conductor'], true) || str_contains($normalizedRole, 'admin')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

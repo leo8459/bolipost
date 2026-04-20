@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         .profile-card {
             border: 0;
@@ -189,7 +190,7 @@
                         <div class="profile-field"><span class="profile-label">Formulario</span><span class="profile-value">{{ $assignedVehicle->maintenance_form_type_label ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Combustible</span><span class="profile-value">{{ $assignedVehicle->tipo_combustible ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Color</span><span class="profile-value">{{ $assignedVehicle->color ?? '-' }}</span></div>
-                        <div class="profile-field"><span class="profile-label">Año</span><span class="profile-value">{{ $assignedVehicle->anio ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">A�o</span><span class="profile-value">{{ $assignedVehicle->anio ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Tacometro</span><span class="profile-value">{{ ($assignedVehicle->tacometro_danado ?? false) ? 'Danado' : 'Operativo' }}</span></div>
                         <div class="profile-field"><span class="profile-label">KM Actual</span><span class="profile-value">{{ $assignedVehicle->kilometraje_actual ?? $assignedVehicle->kilometraje_inicial ?? $assignedVehicle->kilometraje ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Capacidad tanque</span><span class="profile-value">{{ $assignedVehicle->capacidad_tanque ?? '-' }}</span></div>
@@ -313,7 +314,7 @@
                             @error('color') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">Año</label>
+                            <label class="form-label fw-bold">A�o</label>
                             <input type="number" wire:model="anio" class="form-control vehicle-form-field @error('anio') is-invalid @enderror" required max="{{ date('Y') }}">
                             @error('anio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
@@ -328,7 +329,7 @@
                                 min="5"
                                 @disabled($kilometrajeLocked)
                             >
-                            <div class="form-text">Si el tacometro esta dañado, se conservara este ultimo kilometraje como referencia del vehiculo.</div>
+                            <div class="form-text">Si el tacometro esta da�ado, se conservara este ultimo kilometraje como referencia del vehiculo.</div>
                             @if($kilometrajeLocked)
                                 <div class="form-text text-warning fw-semibold">No se puede editar el kilometraje desde esta pantalla.</div>
                             @endif
@@ -423,11 +424,23 @@
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="p-3 border-bottom">
-                    <input
-                        type="text"
-                        class="form-control"
-                        wire:model.live.debounce.350ms="search"
-                        placeholder="Buscar por cualquier campo">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-8">
+                            <input
+                                type="text"
+                                class="form-control"
+                                wire:model.live.debounce.350ms="search"
+                                placeholder="Buscar por cualquier campo">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <select class="form-control vehicle-form-field" wire:model.live="statusFilter">
+                                <option value="todos">Todos</option>
+                                <option value="activos">Activos</option>
+                                <option value="mantenimiento">En mantenimiento</option>
+                                <option value="inactivos">Inactivos</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 @if($vehicles->count())
                     <div class="table-responsive">
@@ -464,22 +477,50 @@
                                         <td>{{ number_format((float) ($vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje ?? 0), 2) }}</td>
                                         <td>{{ $vehicle->tipo_combustible }}</td>
                                         <td>
-                                            @if((int) ($vehicle->pending_maintenance_alerts_count ?? 0) > 0)
+                                            @if(!$vehicle->activo)
+                                                <span class="badge bg-secondary">Inhabilitado</span>
+                                            @elseif((int) ($vehicle->pending_maintenance_alerts_count ?? 0) > 0)
                                                 <span class="badge bg-warning text-dark">En mantenimiento</span>
                                             @else
-                                                <span class="badge {{ $vehicle->activo ? 'bg-success' : 'bg-danger' }}">
-                                                    {{ $vehicle->activo ? 'Activo' : 'Inactivo' }}
-                                                </span>
+                                                <span class="badge bg-success">Activo</span>
                                             @endif
                                         </td>
                                         @if(auth()->user()?->role !== 'conductor')
                                             <td class="text-center">
-                                                <div class="btn-group">
-                                                    <a href="{{ route('vehicles.maintenance-report', $vehicle) }}" class="btn btn-sm btn-outline-primary" title="Descargar PDF de mantenimientos">
+                                                <div class="bp-action-row">
+                                                    <a
+                                                        href="{{ route('vehicles.maintenance-report', $vehicle) }}"
+                                                        class="btn btn-sm btn-outline-primary bp-icon-btn"
+                                                        title="Descargar PDF de mantenimientos"
+                                                    >
                                                         <i class="fas fa-file-pdf"></i>
                                                     </a>
-                                                    <button wire:click="edit({{ $vehicle->id }})" class="btn btn-sm btn-outline-warning"><i class="fas fa-edit"></i></button>
-                                                    <button wire:click="delete({{ $vehicle->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                                    <button
+                                                        wire:click="edit({{ $vehicle->id }})"
+                                                        class="btn btn-sm btn-outline-warning bp-icon-btn"
+                                                        title="Editar vehiculo"
+                                                    >
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    @if($vehicle->activo)
+                                                        <button
+                                                            wire:click="delete({{ $vehicle->id }})"
+                                                            onclick="if (!confirm('Confirmar eliminacion logica del vehiculo?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
+                                                            class="btn btn-sm btn-outline-danger bp-icon-btn"
+                                                            title="Inhabilitar vehiculo"
+                                                        >
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    @else
+                                                        <button
+                                                            wire:click="reactivate({{ $vehicle->id }})"
+                                                            onclick="if (!confirm('Confirmar reactivacion logica del vehiculo?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
+                                                            class="btn btn-sm btn-outline-success bp-icon-btn bp-reactivate-btn"
+                                                            title="Habilitar vehiculo"
+                                                        >
+                                                            <i class="fas fa-power-off"></i>
+                                                        </button>
+                                                    @endif
                                                 </div>
                                             </td>
                                         @endif

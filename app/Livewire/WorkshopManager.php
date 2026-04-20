@@ -17,11 +17,13 @@ use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 
 class WorkshopManager extends Component
 {
     use WithFileUploads;
     use WithPagination;
+    use WithoutUrlPagination;
 
     protected string $paginationTheme = 'bootstrap';
 
@@ -65,7 +67,15 @@ class WorkshopManager extends Component
     public ?string $receipt_file_path = null;
     public string $catalog_name = '';
     public string $catalog_type = 'Interno';
+    public string $catalog_attention_hours = '';
+    public string $catalog_location_label = '';
+    public string $catalog_attention_days = 'Lun-Vie';
+    public string $catalog_attention_from = '08:30';
+    public string $catalog_attention_to = '18:00';
     public ?int $catalog_user_id = null;
+    public bool $showCatalogQuickCreate = false;
+    public ?string $attention_started_at = null;
+    public string $service_location = '';
 
     public function mount(): void
     {
@@ -190,6 +200,16 @@ class WorkshopManager extends Component
             ->limit(12)
             ->get();
 
+        $vehiclesByWorkshopLocation = Workshop::query()
+            ->active()
+            ->with(['vehicle:id,placa,marca,modelo', 'driver:id,nombre', 'workshopCatalog:id,nombre,tipo,attention_hours,location_label'])
+            ->whereIn('estado', $this->openStatuses())
+            ->when($isWorkshopUser, fn ($locationQuery) => $locationQuery->whereHas('workshopCatalog', fn ($catalogQuery) => $catalogQuery->where('user_id', auth()->id())))
+            ->orderBy('workshop_catalog_id')
+            ->orderBy('fecha_ingreso')
+            ->get()
+            ->groupBy(fn (Workshop $workshop) => (string) ($workshop->workshopCatalog?->nombre ?? $workshop->nombre_taller ?? 'Sin taller'));
+
         $incomingReviewQueue = Workshop::query()
             ->active()
             ->with([
@@ -212,7 +232,7 @@ class WorkshopManager extends Component
             ->count();
 
         return view('livewire.workshop-manager', [
-            'workshops' => $query->paginate(10),
+            'workshops' => $this->paginateWithinBounds($query, 10),
             'vehicles' => $vehicles,
             'drivers' => $drivers,
             'appointments' => $appointments,
@@ -223,10 +243,11 @@ class WorkshopManager extends Component
             'isWorkshopUser' => $isWorkshopUser,
             'workQueue' => $workQueue,
             'incomingReviewQueue' => $incomingReviewQueue,
+            'vehiclesByWorkshopLocation' => $vehiclesByWorkshopLocation,
             'deliveredCount' => $deliveredCount,
             'activeWorkshops' => Workshop::query()
                 ->active()
-                ->with(['vehicle:id,placa', 'workshopCatalog:id,nombre,user_id', 'maintenanceAlert.maintenanceType:id,nombre'])
+                ->with(['vehicle:id,placa,marca,modelo', 'driver:id,nombre', 'workshopCatalog:id,nombre,user_id,attention_hours,location_label', 'maintenanceAlert.maintenanceType:id,nombre'])
                 ->whereIn('estado', $this->openStatuses())
                 ->when($isWorkshopUser, fn ($activeQuery) => $activeQuery->whereHas('workshopCatalog', fn ($catalogQuery) => $catalogQuery->where('user_id', auth()->id())))
                 ->orderBy('fecha_prometida_entrega')
@@ -247,6 +268,19 @@ class WorkshopManager extends Component
     public function updatedStatusFilter(): void
     {
         $this->resetPage();
+    }
+
+    private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')
+    {
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = max(1, (int) $this->getPage($pageName));
+
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage, $pageName);
+        }
+
+        return $query->paginate($perPage, ['*'], $pageName);
     }
 
     public function updatedMaintenanceAppointmentId($value): void
@@ -273,6 +307,44 @@ class WorkshopManager extends Component
     {
         $catalog = $value ? WorkshopCatalog::query()->find((int) $value) : null;
         $this->nombre_taller = (string) ($catalog?->nombre ?? '');
+        if ($catalog && trim($this->service_location) === '') {
+            $this->service_location = (string) ($catalog->location_label ?? '');
+        }
+    }
+
+    public function updatedCatalogAttentionDays(): void
+    {
+        $this->syncCatalogAttentionHours();
+    }
+
+    public function updatedCatalogAttentionFrom(): void
+    {
+        $this->syncCatalogAttentionHours();
+    }
+
+    public function updatedCatalogAttentionTo(): void
+    {
+        $this->syncCatalogAttentionHours();
+    }
+
+    public function syncCatalogAttentionHours(): void
+    {
+        $days = trim($this->catalog_attention_days);
+        $from = trim($this->catalog_attention_from);
+        $to = trim($this->catalog_attention_to);
+
+        $this->catalog_attention_hours = trim(sprintf(
+            '%s %s%s%s',
+            $days !== '' ? $days : 'Lun-Vie',
+            $from !== '' ? $from : '08:30',
+            $to !== '' ? ' a ' : '',
+            $to
+        ));
+    }
+
+    public function toggleCatalogQuickCreate(): void
+    {
+        $this->showCatalogQuickCreate = !$this->showCatalogQuickCreate;
     }
 
     public function updatedWorkflowKind($value): void
@@ -293,6 +365,11 @@ class WorkshopManager extends Component
         $validated = $this->validate([
             'catalog_name' => 'required|string|max:150',
             'catalog_type' => 'required|string|in:Interno,Externo',
+            'catalog_attention_days' => 'nullable|string|max:30',
+            'catalog_attention_from' => 'nullable|string|max:10',
+            'catalog_attention_to' => 'nullable|string|max:10',
+            'catalog_attention_hours' => 'nullable|string|max:120',
+            'catalog_location_label' => 'nullable|string|max:255',
             'catalog_user_id' => 'required|integer|exists:users,id',
         ]);
 
@@ -308,15 +385,24 @@ class WorkshopManager extends Component
         $catalog = WorkshopCatalog::query()->create([
             'nombre' => trim((string) $validated['catalog_name']),
             'tipo' => $validated['catalog_type'],
+            'attention_hours' => trim((string) ($validated['catalog_attention_hours'] ?? '')) ?: null,
+            'location_label' => trim((string) ($validated['catalog_location_label'] ?? '')) ?: null,
             'user_id' => (int) $validated['catalog_user_id'],
             'activo' => true,
         ]);
 
         $this->catalog_name = '';
         $this->catalog_type = 'Interno';
+        $this->catalog_attention_days = 'Lun-Vie';
+        $this->catalog_attention_from = '08:30';
+        $this->catalog_attention_to = '18:00';
+        $this->catalog_attention_hours = '';
+        $this->catalog_location_label = '';
         $this->catalog_user_id = null;
         $this->workshop_catalog_id = (int) $catalog->id;
         $this->nombre_taller = (string) $catalog->nombre;
+        $this->service_location = (string) ($catalog->location_label ?? '');
+        $this->showCatalogQuickCreate = false;
 
         session()->flash('message', 'Taller del catalogo creado correctamente.');
     }
@@ -454,6 +540,8 @@ class WorkshopManager extends Component
             'maintenance_alert_id' => 'nullable|integer|exists:maintenance_alerts,id',
             'workshop_catalog_id' => 'required|integer|exists:workshop_catalogs,id',
             'fecha_ingreso' => 'required|date',
+            'attention_started_at' => 'nullable|date',
+            'service_location' => 'nullable|string|max:255',
             'fecha_prometida_entrega' => 'nullable|date|after_or_equal:fecha_ingreso',
             'fecha_listo' => 'nullable|date|after_or_equal:fecha_ingreso',
             'fecha_salida' => 'nullable|date|after_or_equal:fecha_ingreso',
@@ -533,6 +621,11 @@ class WorkshopManager extends Component
         });
         $totalCost = round($fixedCatalogCost + $laborCost + $additionalCost + $partsCost, 2);
 
+        if (in_array($validated['estado'], [Workshop::STATUS_DELIVERED, Workshop::STATUS_CLOSED], true) && $totalCost <= 0) {
+            $this->addError('labor_cost', 'No se puede cerrar o entregar un mantenimiento sin registrar costo.');
+            return;
+        }
+
         $receptionPhotoPath = $this->storeWorkshopFile($this->reception_photo_file, 'workshop/reception') ?? $this->reception_photo_path;
         $damagePhotoPath = $this->storeWorkshopFile($this->damage_photo_file, 'workshop/damage') ?? $this->damage_photo_path;
         $invoiceFilePath = $this->storeWorkshopFile($this->invoice_file, 'workshop/invoice') ?? $this->invoice_file_path;
@@ -547,6 +640,8 @@ class WorkshopManager extends Component
             'workshop_catalog_id' => (int) $catalog->id,
             'nombre_taller' => (string) $catalog->nombre,
             'fecha_ingreso' => $validated['fecha_ingreso'],
+            'attention_started_at' => $validated['attention_started_at'] ?? null,
+            'service_location' => trim((string) ($validated['service_location'] ?? '')) ?: (string) ($catalog->location_label ?? ''),
             'fecha_prometida_entrega' => $validated['fecha_prometida_entrega'] ?? null,
             'fecha_listo' => $validated['fecha_listo'] ?? null,
             'fecha_salida' => $validated['fecha_salida'] ?? null,
@@ -624,6 +719,8 @@ class WorkshopManager extends Component
         $this->order_number = (string) ($workshop->order_number ?? '');
         $this->nombre_taller = (string) $workshop->nombre_taller;
         $this->fecha_ingreso = optional($workshop->fecha_ingreso)->format('Y-m-d');
+        $this->attention_started_at = optional($workshop->attention_started_at)->format('Y-m-d\TH:i');
+        $this->service_location = (string) ($workshop->service_location ?? '');
         $this->fecha_prometida_entrega = optional($workshop->fecha_prometida_entrega)->format('Y-m-d');
         $this->fecha_listo = optional($workshop->fecha_listo)->format('Y-m-d');
         $this->fecha_salida = optional($workshop->fecha_salida)->format('Y-m-d');
@@ -681,6 +778,8 @@ class WorkshopManager extends Component
             'order_number',
             'nombre_taller',
             'fecha_ingreso',
+            'attention_started_at',
+            'service_location',
             'fecha_prometida_entrega',
             'fecha_listo',
             'fecha_salida',
@@ -705,6 +804,12 @@ class WorkshopManager extends Component
             'invoice_file_path',
             'receipt_file_path',
             'catalog_user_id',
+            'catalog_attention_hours',
+            'catalog_location_label',
+            'catalog_attention_days',
+            'catalog_attention_from',
+            'catalog_attention_to',
+            'showCatalogQuickCreate',
             'isEdit',
             'editingId',
         ]);

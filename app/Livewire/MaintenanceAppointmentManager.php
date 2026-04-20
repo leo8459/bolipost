@@ -15,12 +15,14 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 use Livewire\Attributes\Validate;
 
 class MaintenanceAppointmentManager extends Component
 {
     use WithPagination;
     use WithFileUploads;
+    use WithoutUrlPagination;
 
     protected string $paginationTheme = 'bootstrap';
 
@@ -28,6 +30,8 @@ class MaintenanceAppointmentManager extends Component
     public string $search = '';
     public string $statusFilter = '';
     public string $maintenance_form_type = 'vehiculo';
+    public ?string $fecha_desde = null;
+    public ?string $fecha_hasta = null;
 
     
 
@@ -62,6 +66,8 @@ class MaintenanceAppointmentManager extends Component
     public function mount(): void
     {
         abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion']), 403);
+        $this->fecha_desde = now()->startOfMonth()->toDateString();
+        $this->fecha_hasta = now()->toDateString();
     }
 
     public function openForm()
@@ -74,11 +80,21 @@ class MaintenanceAppointmentManager extends Component
     {
         $query = MaintenanceAppointment::query()
             ->active()
-            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'tipoMantenimiento', 'requestedBy'])
+            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'tipoMantenimiento', 'requestedBy', 'approvedBy'])
+            ->orderByRaw("CASE estado WHEN 'Pendiente' THEN 1 WHEN 'Aprobado' THEN 2 WHEN 'Realizado' THEN 3 WHEN 'Rechazado' THEN 4 WHEN 'Cancelado' THEN 5 ELSE 9 END")
             ->orderBy('fecha_programada', 'desc');
 
         if ($this->statusFilter !== '') {
             $query->where('estado', $this->statusFilter);
+        }
+
+        [$fechaDesde, $fechaHasta] = $this->resolveOrderedFilterDateRange();
+        if ($fechaDesde) {
+            $query->whereDate('fecha_programada', '>=', $fechaDesde);
+        }
+
+        if ($fechaHasta) {
+            $query->whereDate('fecha_programada', '<=', $fechaHasta);
         }
 
         $search = trim($this->search);
@@ -94,15 +110,34 @@ class MaintenanceAppointmentManager extends Component
             });
         }
 
-        $appointments = $query->paginate(10);
-        $approvedAppointments = MaintenanceAppointment::query()
+        $approvedAppointmentsQuery = MaintenanceAppointment::query()
             ->active()
             ->with(['vehicle.brand', 'driver', 'tipoMantenimiento'])
             ->where('estado', MaintenanceAppointment::STATUS_APPROVED)
-            ->orderBy('fecha_programada')
-            ->limit(5)
+            ->orderBy('fecha_programada', 'desc');
+
+        if ($fechaDesde) {
+            $approvedAppointmentsQuery->whereDate('fecha_programada', '>=', $fechaDesde);
+        }
+
+        if ($fechaHasta) {
+            $approvedAppointmentsQuery->whereDate('fecha_programada', '<=', $fechaHasta);
+        }
+
+        if ($search !== '') {
+            $approvedAppointmentsQuery->where(function ($q) use ($search) {
+                $q->whereRaw('CAST(fecha_programada AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereHas('vehicle', fn ($vehicleQuery) => $vehicleQuery->where('placa', 'like', "%{$search}%"))
+                    ->orWhereHas('driver', fn ($driverQuery) => $driverQuery->where('nombre', 'like', "%{$search}%"))
+                    ->orWhereHas('tipoMantenimiento', fn ($typeQuery) => $typeQuery->where('nombre', 'like', "%{$search}%"));
+            });
+        }
+
+        $approvedAppointments = $approvedAppointmentsQuery
+            ->limit(12)
             ->get();
-        
+
+        $appointments = $this->paginateWithinBounds($query, 10);
         $vehicles = Vehicle::with(['brand', 'vehicleClass'])
             ->where('activo', true)
             ->operationallyAvailable()
@@ -140,10 +175,12 @@ class MaintenanceAppointmentManager extends Component
         
         return view('livewire.maintenance-appointment-manager', [
             'appointments' => $appointments,
+            'approvedAppointments' => $approvedAppointments,
             'vehicles' => $vehicles,
             'drivers' => $drivers,
             'types' => $types,
-            'approvedAppointments' => $approvedAppointments,
+            'reportVehicles' => Vehicle::with('brand')->orderBy('placa')->get(),
+            'reportDrivers' => Driver::orderBy('nombre')->get(),
             'approvedCount' => MaintenanceAppointment::query()->active()->where('estado', MaintenanceAppointment::STATUS_APPROVED)->count(),
             'pendingCount' => MaintenanceAppointment::query()->active()->where('estado', MaintenanceAppointment::STATUS_PENDING)->count(),
         ]);
@@ -151,12 +188,22 @@ class MaintenanceAppointmentManager extends Component
 
     public function updatedSearch(): void
     {
-        $this->resetPage();
+        $this->resetAppointmentsPage();
     }
 
     public function updatedStatusFilter(): void
     {
-        $this->resetPage();
+        $this->resetAppointmentsPage();
+    }
+
+    public function updatedFechaDesde(): void
+    {
+        $this->resetAppointmentsPage();
+    }
+
+    public function updatedFechaHasta(): void
+    {
+        $this->resetAppointmentsPage();
     }
 
     public function save()
@@ -209,6 +256,7 @@ class MaintenanceAppointmentManager extends Component
         if ($this->isEdit && $this->editingId) {
             $appointment = MaintenanceAppointment::find($this->editingId);
             if ($appointment) {
+                $approvalFields = $this->resolveApprovalFieldsForSave($appointment, $this->estado);
                 $appointment->update([
                     'vehicle_id' => $this->vehicle_id,
                     'driver_id' => $this->driver_id,
@@ -217,7 +265,7 @@ class MaintenanceAppointmentManager extends Component
                     'es_accidente' => $this->es_accidente,
                     'formulario_documento_path' => $storedFormPath,
                     'estado' => $this->estado,
-                ]);
+                ] + $approvalFields);
                 $this->syncRequestAlert($appointment);
                 $this->syncProgrammedAlert($appointment);
                 session()->flash('message', 'Cita de mantenimiento actualizada correctamente.');
@@ -313,7 +361,7 @@ class MaintenanceAppointmentManager extends Component
         $this->maintenance_form_type = 'vehiculo';
         $this->estado = MaintenanceAppointment::STATUS_PENDING;
         $this->showForm = false; // Volver a la tabla
-        $this->resetPage();
+        $this->resetAppointmentsPage();
     }
 
     public function updatedMaintenanceFormType(): void
@@ -514,6 +562,8 @@ class MaintenanceAppointmentManager extends Component
 
         $appointment->update([
             'estado' => MaintenanceAppointment::STATUS_APPROVED,
+            'approved_at' => $appointment->approved_at ?? now(),
+            'approved_by_user_id' => $appointment->approved_by_user_id ?? auth()->id(),
         ]);
 
         $this->syncRequestAlert($appointment);
@@ -624,5 +674,71 @@ class MaintenanceAppointmentManager extends Component
                 'usuario_id' => null,
             ]
         );
+    }
+
+    private function resolveOrderedFilterDateRange(): array
+    {
+        $desde = $this->normalizeDate($this->fecha_desde);
+        $hasta = $this->normalizeDate($this->fecha_hasta);
+
+        if ($desde && $hasta && $desde > $hasta) {
+            return [$hasta, $desde];
+        }
+
+        return [$desde, $hasta];
+    }
+
+    private function resolveApprovalFieldsForSave(MaintenanceAppointment $appointment, string $nextStatus): array
+    {
+        $wasApproved = (string) $appointment->estado === MaintenanceAppointment::STATUS_APPROVED;
+        $willBeApproved = $nextStatus === MaintenanceAppointment::STATUS_APPROVED;
+
+        if (!$willBeApproved) {
+            return [
+                'approved_at' => null,
+                'approved_by_user_id' => null,
+            ];
+        }
+
+        if ($wasApproved && $appointment->approved_at) {
+            return [];
+        }
+
+        return [
+            'approved_at' => now(),
+            'approved_by_user_id' => auth()->id(),
+        ];
+    }
+
+    private function normalizeDate(?string $value): ?string
+    {
+        if (!filled($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $value)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function resetAppointmentsPage(): void
+    {
+        $this->resetPage();
+        $this->resetPage('appointmentsPage');
+    }
+
+    private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')
+    {
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = max(1, (int) $this->getPage($pageName));
+
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage, $pageName);
+        }
+
+        return $query->paginate($perPage, ['*'], $pageName);
     }
 }

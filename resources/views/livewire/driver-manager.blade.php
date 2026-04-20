@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         .profile-card {
             border: 0;
@@ -151,9 +152,17 @@
                 <div class="card profile-card shadow-sm h-100">
                     <div class="card-header fw-bold d-flex justify-content-between align-items-center">
                         <span><i class="fas fa-id-card me-2"></i>Mi Perfil de Conductor</span>
-                        <span class="badge bg-light text-primary px-3 py-2">
-                            {{ ($driverProfile?->activo ?? false) ? 'Activo' : 'Inactivo' }}
-                        </span>
+                        @php
+                            $licenseExpiredProfile = $driverProfile?->fecha_vencimiento_licencia
+                                && $driverProfile->fecha_vencimiento_licencia->toDateString() <= now()->toDateString();
+                        @endphp
+                        @if($licenseExpiredProfile)
+                            <span class="badge bg-warning text-dark px-3 py-2">Licencia vencida</span>
+                        @else
+                            <span class="badge bg-light text-primary px-3 py-2">
+                                {{ ($driverProfile?->activo ?? false) ? 'Activo' : 'Inactivo' }}
+                            </span>
+                        @endif
                     </div>
                     <div class="card-body">
                         <div class="profile-grid">
@@ -332,11 +341,23 @@
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="p-3 border-bottom">
-                    <input
-                        type="text"
-                        class="form-control"
-                        wire:model.live.debounce.350ms="search"
-                        placeholder="Buscar por cualquier campo">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-8">
+                            <input
+                                type="text"
+                                class="form-control"
+                                wire:model.live.debounce.350ms="search"
+                                placeholder="Buscar por cualquier campo">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <select class="form-control driver-form-field" wire:model.live="statusFilter">
+                                <option value="todos">Todos</option>
+                                <option value="activos">Activos</option>
+                                <option value="inactivos">Inactivos</option>
+                                <option value="licencia_vencida">Licencia vencida</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 @if($drivers->count())
                     <div class="table-responsive">
@@ -379,9 +400,17 @@
                                         </td>
                                         <td>{{ $driver->telefono }}</td>
                                         <td>
-                                            <span class="badge {{ $driver->activo ? 'bg-success' : 'bg-danger' }}">
-                                                {{ $driver->activo ? 'Activo' : 'Inactivo' }}
-                                            </span>
+                                            @php
+                                                $licenseExpired = $driver->fecha_vencimiento_licencia
+                                                    && $driver->fecha_vencimiento_licencia->toDateString() <= now()->toDateString();
+                                            @endphp
+                                            @if($licenseExpired)
+                                                <span class="badge bg-warning text-dark">Licencia vencida</span>
+                                            @else
+                                                <span class="badge {{ $driver->activo ? 'bg-success' : 'bg-danger' }}">
+                                                    {{ $driver->activo ? 'Activo' : 'Inactivo' }}
+                                                </span>
+                                            @endif
                                         </td>
                                         @if(auth()->user()?->role !== 'conductor')
                                             <td class="text-center">
@@ -389,9 +418,15 @@
                                                     <button wire:click="edit({{ $driver->id }})" class="btn btn-sm btn-outline-warning">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <button wire:click="delete({{ $driver->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
+                                                    @if($driver->activo)
+                                                        <button wire:click="delete({{ $driver->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    @else
+                                                        <button wire:click="reactivate({{ $driver->id }})" onclick="return confirm('Confirmar reactivacion?')" class="btn btn-sm btn-outline-success">
+                                                            <i class="fas fa-power-off"></i>
+                                                        </button>
+                                                    @endif
                                                 </div>
                                             </td>
                                         @endif

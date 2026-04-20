@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         #vehicleReassignModal {
             z-index: 1095;
@@ -74,6 +75,30 @@
         }
         .bp-switch .form-check-label {
             margin-bottom: 0;
+        }
+        .assignment-filters {
+            row-gap: .9rem;
+            column-gap: 1rem;
+        }
+        .assignment-filters .filter-search {
+            max-width: 360px;
+        }
+        .assignment-filters .filter-plate {
+            max-width: 220px;
+        }
+        .assignment-filters .bp-switch {
+            margin-left: .5rem;
+            padding-left: .25rem;
+        }
+        @media (max-width: 768px) {
+            .assignment-filters .filter-search,
+            .assignment-filters .filter-plate {
+                max-width: 100%;
+            }
+            .assignment-filters .bp-switch {
+                margin-left: 0;
+                padding-left: 0;
+            }
         }
     </style>
 
@@ -203,17 +228,15 @@
     @else
         <div class="card shadow-sm">
             <div class="card-body p-0">
-                <div class="p-3 border-bottom d-flex flex-wrap align-items-center gap-3">
+                <div class="p-3 border-bottom d-flex flex-wrap align-items-center assignment-filters">
                     <input
                         type="text"
-                        class="form-control"
-                        style="max-width: 360px;"
+                        class="form-control filter-search"
                         wire:model.live.debounce.350ms="search"
                         placeholder="Buscar por cualquier campo">
                     <input
                         type="text"
-                        class="form-control"
-                        style="max-width: 220px;"
+                        class="form-control filter-plate"
                         wire:model.live.debounce.350ms="plateFilter"
                         placeholder="Filtrar por placa">
                     <div class="form-check bp-switch mb-0">

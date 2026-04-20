@@ -11,3 +11,11 @@ Artisan::command('inspire', function () {
 Schedule::command('bitacora:reconcile-activity-logs')
     ->everyFifteenMinutes()
     ->withoutOverlapping();
+
+Schedule::command('drivers:sync-expired')
+    ->dailyAt('00:05')
+    ->withoutOverlapping();
+
+Schedule::command('vehicle-assignments:sync-expired')
+    ->dailyAt('00:10')
+    ->withoutOverlapping();

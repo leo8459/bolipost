@@ -8,6 +8,7 @@ use App\Models\MaintenanceAlertUserRead;
 use App\Models\VehicleAssignment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class AlertReadApiController extends Controller
 {
@@ -24,6 +25,16 @@ class AlertReadApiController extends Controller
             return response()->json([
                 'message' => 'No tiene permiso para acceder a esta alerta.',
             ], 403);
+        }
+
+        if (!Schema::hasTable('maintenance_alert_user_reads')) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'La sincronizacion de lectura de alertas aun no esta migrada en el servidor.',
+                'alert_id' => (int) $alert->id,
+                'read' => false,
+                'read_at' => null,
+            ], 503);
         }
 
         if ((bool) $payload['read']) {

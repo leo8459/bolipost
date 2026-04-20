@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
+use App\Models\FuelAntifraudCase;
 use App\Models\FuelInvoice;
 use App\Models\FuelInvoiceDetail;
 use App\Models\FuelLog;
@@ -1515,6 +1516,8 @@ class FuelLogApiController extends Controller
         ?int $incomingDriverId
     ): void {
         try {
+            $this->registerDuplicateInvoiceCase($request, $invoiceNumber, $duplicateLog, $incomingVehicleId, $incomingDriverId);
+
             ActivityLog::create(ActivityLog::prepareAttributes([
                 'user_id' => (int) ($request->user()?->id ?? 0) ?: null,
                 'action' => 'FUEL_INVOICE_DUPLICATE_ALERT',
@@ -1540,6 +1543,54 @@ class FuelLogApiController extends Controller
         } catch (\Throwable) {
             // No bloquear el flujo por error de auditoria.
         }
+    }
+
+    private function registerDuplicateInvoiceCase(
+        Request $request,
+        string $invoiceNumber,
+        FuelLog $duplicateLog,
+        ?int $incomingVehicleId,
+        ?int $incomingDriverId
+    ): void {
+        if (!Schema::hasTable('fuel_antifraud_cases')) {
+            return;
+        }
+
+        $invoiceNumber = trim($invoiceNumber);
+        if ($invoiceNumber === '') {
+            return;
+        }
+
+        $duplicateLog->loadMissing(['vehicleLog.vehicle', 'vehicleLog.driver']);
+        $invoiceId = (int) ($duplicateLog->fuel_invoice_id ?? 0) ?: null;
+        $vehicleLog = $duplicateLog->vehicleLog;
+        $caseKey = FuelAntifraudCase::buildDuplicateKey($invoiceNumber, $invoiceId, null, 'mobile_api');
+
+        FuelAntifraudCase::query()->updateOrCreate(
+            ['case_key' => $caseKey],
+            [
+                'type' => FuelAntifraudCase::TYPE_DUPLICATE_INVOICE,
+                'status' => FuelAntifraudCase::STATUS_PENDING,
+                'invoice_number' => $invoiceNumber,
+                'fuel_invoice_id' => $invoiceId,
+                'conflicting_fuel_invoice_id' => null,
+                'fuel_log_id' => (int) $duplicateLog->id,
+                'conflicting_fuel_log_id' => null,
+                'vehicle_id' => $vehicleLog?->vehicles_id ?? $duplicateLog->vehicle_id,
+                'driver_id' => $vehicleLog?->drivers_id ?? $duplicateLog->driver_id,
+                'conflicting_vehicle_id' => $incomingVehicleId,
+                'conflicting_driver_id' => $incomingDriverId,
+                'detected_source' => 'mobile_api',
+                'summary' => 'Intento movil bloqueado porque la factura ya existe en el sistema.',
+                'evidence_json' => [
+                    'incoming_vehicle_id' => $incomingVehicleId,
+                    'incoming_driver_id' => $incomingDriverId,
+                    'incoming_user_id' => (int) ($request->user()?->id ?? 0) ?: null,
+                    'ip_address' => (string) $request->ip(),
+                ],
+                'activo' => true,
+            ]
+        );
     }
 
     private function registerCapacityExceededAlert(

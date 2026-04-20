@@ -32,12 +32,15 @@ class MaintenanceAppointment extends Model
         'evidencia_path',
         'formulario_documento_path',
         'estado',
+        'approved_at',
+        'approved_by_user_id',
         'activo',
     ];
 
     protected $casts = [
         'fecha_programada' => 'datetime',
         'solicitud_fecha' => 'datetime',
+        'approved_at' => 'datetime',
         'es_accidente' => 'boolean',
         'activo' => 'boolean',
     ];
@@ -64,6 +67,11 @@ class MaintenanceAppointment extends Model
     public function requestedBy()
     {
         return $this->belongsTo(User::class, 'requested_by_user_id');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by_user_id');
     }
 
     public function tipoMantenimiento()

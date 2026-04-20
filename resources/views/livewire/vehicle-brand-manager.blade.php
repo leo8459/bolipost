@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         .brand-form-field {
             border-radius: 10px;
@@ -74,11 +75,22 @@
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="p-3 border-bottom">
-                    <input
-                        type="text"
-                        class="form-control"
-                        wire:model.live.debounce.350ms="search"
-                        placeholder="Buscar por cualquier campo">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-8">
+                            <input
+                                type="text"
+                                class="form-control"
+                                wire:model.live.debounce.350ms="search"
+                                placeholder="Buscar por cualquier campo">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <select class="form-control brand-form-field" wire:model.live="statusFilter">
+                                <option value="todos">Todos</option>
+                                <option value="activos">Activos</option>
+                                <option value="inactivos">Inactivos</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 @if($brands->count())
                     <div class="table-responsive">
@@ -87,6 +99,7 @@
                                 <tr>
                                     <th>Nombre</th>
                                     <th>Pais de Origen</th>
+                                    <th>Estado</th>
                                     <th class="text-center">Acciones</th>
                                 </tr>
                             </thead>
@@ -95,10 +108,19 @@
                                     <tr>
                                         <td>{{ $brand->nombre }}</td>
                                         <td>{{ $brand->pais_origen ?? '-' }}</td>
+                                        <td>
+                                            <span class="badge {{ $brand->activo ? 'bg-success' : 'bg-danger' }}">
+                                                {{ $brand->activo ? 'Activo' : 'Inactivo' }}
+                                            </span>
+                                        </td>
                                         <td class="text-center">
                                             <div class="btn-group">
                                                 <button wire:click="edit({{ $brand->id }})" class="btn btn-sm btn-outline-warning"><i class="fas fa-edit"></i></button>
-                                                <button wire:click="delete({{ $brand->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                                @if($brand->activo)
+                                                    <button wire:click="delete({{ $brand->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                                @else
+                                                    <button wire:click="reactivate({{ $brand->id }})" onclick="return confirm('Confirmar reactivacion?')" class="btn btn-sm btn-outline-success"><i class="fas fa-power-off"></i></button>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>

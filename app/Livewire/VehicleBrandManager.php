@@ -39,6 +39,7 @@ class VehicleBrandManager extends Component
     ];
 
     public string $search = '';
+    public string $statusFilter = 'activos';
 
     #[Validate('required|string|max:255')]
     public string $nombre = '';
@@ -51,7 +52,13 @@ class VehicleBrandManager extends Component
 
     public function render()
     {
-        $query = VehicleBrand::query()->active()->orderBy('nombre');
+        $query = VehicleBrand::query()->orderBy('nombre');
+
+        if ($this->statusFilter === 'activos') {
+            $query->where('activo', true);
+        } elseif ($this->statusFilter === 'inactivos') {
+            $query->where('activo', false);
+        }
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -72,6 +79,15 @@ class VehicleBrandManager extends Component
     public function updatedSearch(): void
     {
         $this->search = $this->sanitizeText($this->search);
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(string $value): void
+    {
+        if (!in_array($value, ['activos', 'inactivos', 'todos'], true)) {
+            $this->statusFilter = 'activos';
+        }
+
         $this->resetPage();
     }
 
@@ -140,6 +156,12 @@ class VehicleBrandManager extends Component
     {
         $brand->update(['activo' => false]);
         session()->flash('message', 'Marca inactivada correctamente.');
+    }
+
+    public function reactivate(VehicleBrand $brand): void
+    {
+        $brand->update(['activo' => true]);
+        session()->flash('message', 'Marca reactivada correctamente.');
     }
 
     public function resetForm()

@@ -20,6 +20,11 @@ class User extends Authenticatable
     private const ROLE_ALIASES = [
         'administrador' => 'admin',
         'admin' => 'admin',
+        'super admin' => 'admin',
+        'superadmin' => 'admin',
+        'super administrador' => 'admin',
+        'superadministrador' => 'admin',
+        'super admin nuevo' => 'admin',
         'recepcion' => 'recepcion',
         'recepcionista' => 'recepcion',
         'taller' => 'taller',

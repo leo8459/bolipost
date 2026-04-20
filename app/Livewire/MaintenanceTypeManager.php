@@ -8,15 +8,18 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 use Livewire\Attributes\Validate;
 
 class MaintenanceTypeManager extends Component
 {
     use WithPagination;
+    use WithoutUrlPagination;
 
     protected string $paginationTheme = 'bootstrap';
 
     public string $search = '';
+    public string $statusFilter = 'activos';
 
     private const MAINTENANCE_FORM_TYPES = [
         'vehiculo',
@@ -53,10 +56,18 @@ class MaintenanceTypeManager extends Component
 
     public bool $isEdit = false;
     public ?int $editingId = null;
+    public bool $showVehicleInfoModal = false;
+    public array $vehicleInfo = [];
 
     public function render()
     {
-        $query = MaintenanceType::query()->active()->with(['vehicles:id,placa'])->orderBy('nombre');
+        $query = MaintenanceType::query()->with(['vehicles:id,placa'])->orderBy('nombre');
+
+        if ($this->statusFilter === 'activos') {
+            $query->where('activo', true);
+        } elseif ($this->statusFilter === 'inactivos') {
+            $query->where('activo', false);
+        }
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -84,7 +95,7 @@ class MaintenanceTypeManager extends Component
             });
         }
 
-        $types = $query->paginate(10);
+        $types = $this->paginateWithinBounds($query, 10);
         $vehicles = $this->filteredVehicles();
         $selectedVehicles = Vehicle::query()
             ->whereIn('id', collect($this->selected_vehicle_ids)->map(fn ($id) => (int) $id)->all())
@@ -101,6 +112,15 @@ class MaintenanceTypeManager extends Component
 
     public function updatedSearch(): void
     {
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        if (!in_array($this->statusFilter, ['activos', 'inactivos', 'todos'], true)) {
+            $this->statusFilter = 'activos';
+        }
+
         $this->resetPage();
     }
 
@@ -373,6 +393,47 @@ class MaintenanceTypeManager extends Component
         session()->flash('message', 'Tipo de mantenimiento inactivado correctamente.');
     }
 
+    public function reactivate(MaintenanceType $type): void
+    {
+        $type->update(['activo' => true]);
+        session()->flash('message', 'Tipo de mantenimiento reactivado correctamente.');
+    }
+
+    public function openVehicleInfoModal(int $vehicleId): void
+    {
+        $vehicle = Vehicle::query()
+            ->with(['brand:id,nombre', 'vehicleClass:id,nombre'])
+            ->find($vehicleId);
+
+        if (!$vehicle) {
+            session()->flash('error', 'No se encontro el vehiculo seleccionado.');
+            return;
+        }
+
+        $this->vehicleInfo = [
+            'id' => (int) $vehicle->id,
+            'placa' => (string) ($vehicle->placa ?? '-'),
+            'marca' => (string) ($vehicle->brand?->nombre ?? $vehicle->marca ?? '-'),
+            'modelo' => (string) ($vehicle->modelo ?? '-'),
+            'clase' => (string) ($vehicle->vehicleClass?->nombre ?? '-'),
+            'formulario' => (string) ($vehicle->maintenance_form_type_label ?? '-'),
+            'combustible' => (string) ($vehicle->tipo_combustible ?? '-'),
+            'color' => (string) ($vehicle->color ?? '-'),
+            'anio' => $vehicle->anio !== null ? (string) $vehicle->anio : '-',
+            'capacidad_tanque' => $vehicle->capacidad_tanque !== null ? (string) $vehicle->capacidad_tanque : '-',
+            'kilometraje' => (string) ($vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje ?? '-'),
+            'estado' => (bool) ($vehicle->activo ?? false) ? 'Activo' : 'Inactivo',
+        ];
+
+        $this->showVehicleInfoModal = true;
+    }
+
+    public function closeVehicleInfoModal(): void
+    {
+        $this->showVehicleInfoModal = false;
+        $this->vehicleInfo = [];
+    }
+
     private function resolveIntervalPayload(): array
     {
         $cadaKm = $this->cada_km;
@@ -434,5 +495,18 @@ class MaintenanceTypeManager extends Component
             })
             ->orderBy('placa')
             ->get(['id', 'placa', 'vehicle_class_id', 'maintenance_form_type']);
+    }
+
+    private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')
+    {
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = max(1, (int) $this->getPage($pageName));
+
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage, $pageName);
+        }
+
+        return $query->paginate($perPage, ['*'], $pageName);
     }
 }

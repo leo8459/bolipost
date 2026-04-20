@@ -12,16 +12,19 @@ use Illuminate\Validation\Rule;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 
 class VehicleAssignmentManager extends Component
 {
     use WithPagination;
+    use WithoutUrlPagination;
 
     protected string $paginationTheme = 'bootstrap';
 
     public bool $showForm = false;
     public string $search = '';
     public string $plateFilter = '';
+    public string $assignmentStatusFilter = 'active';
     public bool $showUnassignedDrivers = false;
 
     #[Validate('required|integer|min:1|exists:drivers,id')]
@@ -52,6 +55,7 @@ class VehicleAssignmentManager extends Component
     public ?int $conflictDriverAssignmentId = null;
     public ?string $conflictDriverName = null;
     public ?string $conflictDriverVehiclePlate = null;
+    public bool $reactivatingAssignment = false;
 
     public function mount(): void
     {
@@ -61,6 +65,8 @@ class VehicleAssignmentManager extends Component
 
     public function render()
     {
+        $this->syncExpiredAssignments();
+
         $query = $this->visibleAssignmentsQuery()->orderByDesc('fecha_inicio');
 
         $search = trim($this->search);
@@ -85,8 +91,8 @@ class VehicleAssignmentManager extends Component
             });
         }
 
-        $assignments = $query->paginate(10);
-        $assignedDriverIds = $this->visibleAssignmentsQuery()
+        $assignments = $this->paginateWithinBounds($query, 10);
+        $assignedDriverIds = $this->activeAssignmentsQuery()
             ->pluck('driver_id')
             ->filter()
             ->map(fn($id) => (int) $id)
@@ -105,20 +111,6 @@ class VehicleAssignmentManager extends Component
         $vehiclesQuery = Vehicle::query()
             ->where('activo', true)
             ->operationallyAvailable();
-
-        if (!$this->isEdit) {
-            $vehiclesQuery->whereDoesntHave('assignments', function ($assignmentQuery) use ($assignmentDate, $editingId) {
-                $assignmentQuery
-                    ->where('activo', true)
-                    ->when($editingId, fn ($q) => $q->where('id', '!=', $editingId))
-                    ->where(function ($q) use ($assignmentDate) {
-                        $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
-                    })
-                    ->where(function ($q) use ($assignmentDate) {
-                        $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
-                    });
-            });
-        }
 
         $vehicles = $vehiclesQuery
             ->orderBy('placa')
@@ -145,6 +137,10 @@ class VehicleAssignmentManager extends Component
             'drivers' => $drivers,
             'vehicles' => $vehicles,
             'unassignedDrivers' => $unassignedDrivers,
+            'activeAssignmentsByDriver' => $this->activeAssignmentsIndexedBy('driver_id'),
+            'activeAssignmentsByVehicle' => $this->activeAssignmentsIndexedBy('vehicle_id'),
+            'reportDrivers' => Driver::query()->orderBy('nombre')->get(),
+            'reportVehicles' => Vehicle::query()->orderBy('placa')->get(),
         ]);
     }
 
@@ -159,9 +155,30 @@ class VehicleAssignmentManager extends Component
         $this->resetPage();
     }
 
+    public function updatedAssignmentStatusFilter(): void
+    {
+        if (!in_array($this->assignmentStatusFilter, ['active', 'inactive', 'all'], true)) {
+            $this->assignmentStatusFilter = 'active';
+        }
+
+        $this->resetPage();
+    }
+
     public function updatedShowUnassignedDrivers(): void
     {
         $this->resetPage();
+    }
+
+    public function updatedDriverId(): void
+    {
+        $this->skipNextReassignCheck = false;
+        $this->closeReassignConfirm();
+    }
+
+    public function updatedVehicleId(): void
+    {
+        $this->skipNextReassignCheck = false;
+        $this->closeReassignConfirm();
     }
 
     public function openForm(): void
@@ -259,12 +276,25 @@ class VehicleAssignmentManager extends Component
             return;
         }
 
+        if ($this->reactivatingAssignment) {
+            $this->isEdit = true;
+            $this->activo = true;
+        }
+
         $this->persistAssignment();
     }
     public function cancelReassignment(): void
     {
+        $wasReactivating = $this->reactivatingAssignment;
         $message = $this->buildReassignmentCancelledMessage();
         $this->closeReassignConfirm();
+        $this->reactivatingAssignment = false;
+        $this->skipNextReassignCheck = false;
+
+        if ($wasReactivating) {
+            $this->resetForm();
+        }
+
         session()->flash('message', $message);
     }
 
@@ -282,6 +312,12 @@ class VehicleAssignmentManager extends Component
 
     public function edit(VehicleAssignment $assignment): void
     {
+        $this->resetErrorBag();
+        $this->resetValidation();
+        $this->skipNextReassignCheck = false;
+        $this->reactivatingAssignment = false;
+        $this->closeReassignConfirm();
+
         $this->isEdit = true;
         $this->editingId = $assignment->id;
         $this->driver_id = $assignment->driver_id ?? 0;
@@ -295,8 +331,46 @@ class VehicleAssignmentManager extends Component
 
     public function delete(VehicleAssignment $assignment): void
     {
-        $assignment->delete();
-        session()->flash('message', 'Asignacion eliminada correctamente.');
+        $assignment->update([
+            'activo' => false,
+            'fecha_fin' => $assignment->fecha_fin?->toDateString() ?: now()->toDateString(),
+        ]);
+
+        session()->flash('message', 'Asignacion inactivada correctamente.');
+    }
+
+    public function reactivate(VehicleAssignment $assignment): void
+    {
+        if (!$assignment->driver_id || !$assignment->vehicle_id) {
+            session()->flash('error', 'No se puede reactivar una asignacion sin conductor o vehiculo historico.');
+            return;
+        }
+
+        $this->driver_id = (int) $assignment->driver_id;
+        $this->vehicle_id = (int) $assignment->vehicle_id;
+        $this->fecha_inicio = now()->toDateString();
+        $this->fecha_fin = null;
+        $this->tipo_asignacion = (string) ($assignment->tipo_asignacion ?: 'Fijo');
+        $this->activo = true;
+        $this->isEdit = true;
+        $this->editingId = (int) $assignment->id;
+        $this->reactivatingAssignment = true;
+
+        if (!$this->ensureValidAssignmentSelection()) {
+            $this->resetForm();
+            return;
+        }
+
+        if (!$this->skipNextReassignCheck && $this->prepareReassignConfirmation()) {
+            return;
+        }
+
+        if (!$this->ensureNoActiveAssignmentConflicts()) {
+            $this->resetForm();
+            return;
+        }
+
+        $this->persistAssignment('Asignacion reactivada correctamente.');
     }
 
     public function unassign(VehicleAssignment $assignment): void
@@ -304,9 +378,12 @@ class VehicleAssignmentManager extends Component
         $driverName = (string) ($assignment->driver?->nombre ?? 'El conductor');
         $vehiclePlate = (string) ($assignment->vehicle?->placa ?? 'el vehiculo');
 
-        $assignment->delete();
+        $assignment->update([
+            'activo' => false,
+            'fecha_fin' => now()->toDateString(),
+        ]);
 
-        session()->flash('message', "{$driverName} quedo sin vehiculo asignado. Se elimino la asignacion de {$vehiclePlate}.");
+        session()->flash('message', "{$driverName} quedo sin vehiculo asignado. Se cerro logicamente la asignacion de {$vehiclePlate}.");
     }
 
     public function resetForm(): void
@@ -320,6 +397,7 @@ class VehicleAssignmentManager extends Component
         $this->isEdit = false;
         $this->editingId = null;
         $this->skipNextReassignCheck = false;
+        $this->reactivatingAssignment = false;
         $this->closeReassignConfirm();
         $this->showForm = false;
         $this->resetPage();
@@ -333,7 +411,7 @@ class VehicleAssignmentManager extends Component
         }
     }
 
-    private function persistAssignment(): void
+    private function persistAssignment(?string $successMessage = null): void
     {
         $payload = [
             'driver_id' => $this->driver_id,
@@ -348,11 +426,11 @@ class VehicleAssignmentManager extends Component
             $assignment = VehicleAssignment::find($this->editingId);
             if ($assignment) {
                 $assignment->update($payload);
-                session()->flash('message', 'Asignacion actualizada correctamente.');
+                session()->flash('message', $successMessage ?: 'Asignacion actualizada correctamente.');
             }
         } else {
             VehicleAssignment::create($payload);
-            session()->flash('message', 'Asignacion creada correctamente.');
+            session()->flash('message', $successMessage ?: 'Asignacion creada correctamente.');
         }
 
         $this->resetForm();
@@ -364,8 +442,8 @@ class VehicleAssignmentManager extends Component
             $this->conflictVehicleAssignmentId,
             $this->conflictDriverAssignmentId,
         ])
-            ->filter(fn ($id) => filled($id))
-            ->map(fn ($id) => (int) $id)
+            ->filter(fn($id) => filled($id))
+            ->map(fn($id) => (int) $id)
             ->unique()
             ->values();
 
@@ -380,7 +458,7 @@ class VehicleAssignmentManager extends Component
             ->get()
             ->each(function (VehicleAssignment $assignment) use ($effectiveEndDate) {
                 $assignment->update([
-                    'vehicle_id' => null,
+                    // QUITAMOS la linea de vehicle_id => null para mantener el historial
                     'activo' => false,
                     'fecha_fin' => $effectiveEndDate,
                 ]);
@@ -421,20 +499,14 @@ class VehicleAssignmentManager extends Component
             return true;
         }
 
-        $assignmentDate = $this->resolveAssignmentDate();
-
         $activeAssignments = VehicleAssignment::query()
             ->with(['driver', 'vehicle'])
             ->where('activo', true)
             ->whereNotNull('vehicle_id')
             ->whereNotNull('driver_id')
-            ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
-            ->where(function ($q) use ($assignmentDate) {
-                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
-            })
-            ->where(function ($q) use ($assignmentDate) {
-                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
-            });
+            ->when($this->editingId, fn($q) => $q->where('id', '!=', $this->editingId));
+
+        $this->applyAssignmentOverlapFilter($activeAssignments, $this->fecha_inicio, $this->fecha_fin);
 
         $vehicleConflict = (clone $activeAssignments)
             ->where('vehicle_id', $this->vehicle_id)
@@ -473,19 +545,13 @@ class VehicleAssignmentManager extends Component
 
     private function prepareReassignConfirmation(): bool
     {
-        $assignmentDate = $this->resolveAssignmentDate();
-
         $activeAssignments = VehicleAssignment::query()
             ->with(['driver', 'vehicle'])
             ->where('activo', true)
             ->whereNotNull('vehicle_id')
-            ->whereNotNull('driver_id')
-            ->where(function ($q) use ($assignmentDate) {
-                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
-            })
-            ->where(function ($q) use ($assignmentDate) {
-                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
-            });
+            ->whereNotNull('driver_id');
+
+        $this->applyAssignmentOverlapFilter($activeAssignments, $this->fecha_inicio, $this->fecha_fin);
 
         $vehicleConflict = (clone $activeAssignments)
             ->where('vehicle_id', $this->vehicle_id)
@@ -517,21 +583,88 @@ class VehicleAssignmentManager extends Component
         return true;
     }
 
-    private function visibleAssignmentsQuery()
+    private function activeAssignmentsIndexedBy(string $column)
     {
-        $today = now()->toDateString();
+        if (!in_array($column, ['driver_id', 'vehicle_id'], true)) {
+            return collect();
+        }
+
+        $assignmentDate = $this->resolveAssignmentDate();
 
         return VehicleAssignment::query()
             ->with(['driver', 'vehicle'])
             ->where('activo', true)
             ->whereNotNull('vehicle_id')
             ->whereNotNull('driver_id')
-            ->where(function ($q) use ($today) {
-                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+            ->when($this->editingId, fn($q) => $q->where('id', '!=', $this->editingId))
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
             })
-            ->where(function ($q) use ($today) {
-                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+            ->where(function ($q) use ($assignmentDate) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
+            })
+            ->get()
+            ->keyBy($column);
+    }
+
+    private function applyAssignmentOverlapFilter($query, ?string $startDate, ?string $endDate): void
+    {
+        $newStart = $this->normalizeDateForQuery($startDate) ?? now()->toDateString();
+        $newEnd = $this->normalizeDateForQuery($endDate);
+
+        if ($newEnd) {
+            $query->where(function ($q) use ($newEnd) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $newEnd);
             });
+        }
+
+        $query->where(function ($q) use ($newStart) {
+            $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $newStart);
+        });
+    }
+
+    private function normalizeDateForQuery(?string $date): ?string
+    {
+        if (!filled($date)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $date)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function visibleAssignmentsQuery()
+    {
+        if (in_array($this->assignmentStatusFilter, ['inactive', 'all'], true)) {
+            $query = VehicleAssignment::query()
+                ->with(['driver', 'vehicle'])
+                ->whereNotNull('vehicle_id')
+                ->whereNotNull('driver_id');
+
+            if ($this->assignmentStatusFilter === 'inactive') {
+                $query->where('activo', false);
+            }
+
+            return $query;
+        }
+
+        return VehicleAssignment::query()
+            ->with(['driver', 'vehicle'])
+            ->where('activo', true) // Solo lo que esté marcado como activo
+            ->whereNotNull('vehicle_id')
+            ->whereNotNull('driver_id');
+    }
+
+    private function activeAssignmentsQuery()
+    {
+        return VehicleAssignment::query()
+            ->with(['driver', 'vehicle'])
+            ->where('activo', true)
+            ->whereNotNull('vehicle_id')
+            ->whereNotNull('driver_id');
     }
 
     private function resolveAssignmentDate(): string
@@ -566,6 +699,29 @@ class VehicleAssignmentManager extends Component
         }
 
         return 'No se realizo la asignacion del vehiculo.';
+    }
+
+    private function syncExpiredAssignments(): void
+    {
+        VehicleAssignment::query()
+            ->where('activo', true)
+            ->where('tipo_asignacion', 'Temporal')
+            ->whereNotNull('fecha_fin')
+            ->whereDate('fecha_fin', '<', now()->toDateString())
+            ->update(['activo' => false]);
+    }
+
+    private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')
+    {
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = (int) ($this->getPage($pageName) ?: 1);
+
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage, $pageName);
+        }
+
+        return $query->paginate($perPage, ['*'], $pageName);
     }
 
     private function currentUser(): ?User

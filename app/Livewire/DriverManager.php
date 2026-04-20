@@ -29,6 +29,7 @@ class DriverManager extends Component
     private const FIXED_EMAIL_DOMAIN = '@correos.gob.bo';
 
     public string $search = '';
+    public string $statusFilter = 'activos';
 
     #[Validate('required|string|max:255')]
     public string $nombre = '';
@@ -78,8 +79,32 @@ class DriverManager extends Component
 
     public function render()
     {
-        $query = Driver::query()->where('activo', true)->with('user')->orderBy('nombre');
+        $this->syncExpiredDriverStatuses();
+
+        $query = Driver::query()->with('user')->orderBy('nombre');
         $driverProfile = null;
+
+        if (auth()->user()?->role !== 'conductor') {
+            $today = now()->toDateString();
+
+            if ($this->statusFilter === 'activos') {
+                $query->where('activo', true)
+                    ->where(function ($q) use ($today) {
+                        $q->whereNull('fecha_vencimiento_licencia')
+                            ->orWhereDate('fecha_vencimiento_licencia', '>', $today);
+                    });
+            } elseif ($this->statusFilter === 'inactivos') {
+                $query->where('activo', false)
+                    ->where(function ($q) use ($today) {
+                        $q->whereNull('fecha_vencimiento_licencia')
+                            ->orWhereDate('fecha_vencimiento_licencia', '>', $today);
+                    });
+            } elseif ($this->statusFilter === 'licencia_vencida') {
+                $query->whereDate('fecha_vencimiento_licencia', '<=', $today);
+            }
+        } else {
+            $query->where('activo', true);
+        }
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -124,6 +149,15 @@ class DriverManager extends Component
     public function updatedSearch(): void
     {
         $this->search = trim((string) preg_replace('/[^\pL\pN@\.\-\_\s]/u', '', $this->search));
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(string $value): void
+    {
+        if (!in_array($value, ['activos', 'inactivos', 'licencia_vencida', 'todos'], true)) {
+            $this->statusFilter = 'activos';
+        }
+
         $this->resetPage();
     }
 
@@ -193,7 +227,7 @@ class DriverManager extends Component
                 'user_id' => ['required', 'integer', 'exists:users,id'],
                 'licencia' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9\-\s\/]+$/'],
                 'tipo_licencia' => ['required', Rule::in(self::LICENSE_TYPES)],
-                'fecha_vencimiento_licencia' => ['required', 'date', 'after_or_equal:today'],
+                'fecha_vencimiento_licencia' => ['required', 'date'],
                 'telefono' => ['required', 'string', 'max:20', 'regex:/^[0-9]+$/'],
                 'email' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9._-]+$/'],
                 'activo' => ['required', 'boolean'],
@@ -214,7 +248,6 @@ class DriverManager extends Component
                 'tipo_licencia.in' => 'El tipo de licencia seleccionado no es valido.',
                 'fecha_vencimiento_licencia.required' => 'La fecha de vencimiento es obligatoria.',
                 'fecha_vencimiento_licencia.date' => 'La fecha de vencimiento no es valida.',
-                'fecha_vencimiento_licencia.after_or_equal' => 'La fecha de vencimiento no puede ser anterior a hoy.',
                 'telefono.required' => 'El telefono es obligatorio.',
                 'telefono.string' => 'El telefono debe ser texto.',
                 'telefono.max' => 'El telefono no debe superar :max caracteres.',
@@ -285,7 +318,7 @@ class DriverManager extends Component
             'telefono' => $this->telefono,
             'email' => $fullEmail,
             'memorandum_path' => $this->memorandum_path,
-            'activo' => $this->activo,
+            'activo' => !$this->isLicenseExpiredOnSelectedDate() && $this->activo,
         ];
 
         if ($this->isEdit && $this->editingDriverId) {
@@ -333,6 +366,22 @@ class DriverManager extends Component
 
         $driver->update(['activo' => false]);
         session()->flash('message', 'Conductor inactivado correctamente.');
+    }
+
+    public function reactivate(Driver $driver): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'Solo puede visualizar su perfil de conductor.');
+            return;
+        }
+
+        if ($driver->fecha_vencimiento_licencia && $driver->fecha_vencimiento_licencia->toDateString() <= now()->toDateString()) {
+            session()->flash('error', 'No se puede reactivar mientras la licencia este vencida o venza hoy.');
+            return;
+        }
+
+        $driver->update(['activo' => true]);
+        session()->flash('message', 'Conductor reactivado correctamente.');
     }
 
     public function resetForm()
@@ -438,5 +487,26 @@ class DriverManager extends Component
             ->where($field, $value)
             ->when($this->editingDriverId, fn ($query) => $query->whereKeyNot($this->editingDriverId))
             ->exists();
+    }
+
+    private function syncExpiredDriverStatuses(): void
+    {
+        Driver::query()
+            ->where('activo', true)
+            ->whereDate('fecha_vencimiento_licencia', '<=', now()->toDateString())
+            ->update(['activo' => false]);
+    }
+
+    private function isLicenseExpiredOnSelectedDate(): bool
+    {
+        if (!$this->fecha_vencimiento_licencia) {
+            return false;
+        }
+
+        try {
+            return $this->fecha_vencimiento_licencia <= now()->toDateString();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

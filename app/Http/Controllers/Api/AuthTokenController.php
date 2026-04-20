@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\MaintenanceAlert;
 use App\Models\MaintenanceAlertUserRead;
+use App\Models\MaintenanceAppointment;
 use App\Models\MaintenanceLog;
 use App\Models\MaintenanceType;
 use App\Models\Role;
@@ -188,6 +189,7 @@ class AuthTokenController extends Controller
         $fuelInvoices = collect();
         $gasStations = collect();
         $maintenanceAlerts = collect();
+        $maintenanceCalendar = collect();
         $maintenancePlan = collect();
         $resolvedDriverId = $driver ? (int) $driver->id : null;
         $resolvedVehicleId = $vehicle ? (int) $vehicle->id : null;
@@ -378,12 +380,15 @@ class AuthTokenController extends Controller
                 ->limit(50)
                 ->get();
 
-            $alertReadIds = MaintenanceAlertUserRead::query()
-                ->where('user_id', (int) ($user?->id ?? 0))
-                ->whereIn('maintenance_alert_id', $maintenanceAlertsCollection->pluck('id')->all())
-                ->pluck('maintenance_alert_id')
-                ->map(fn ($id) => (int) $id)
-                ->all();
+            $alertReadIds = [];
+            if (Schema::hasTable('maintenance_alert_user_reads') && $maintenanceAlertsCollection->isNotEmpty()) {
+                $alertReadIds = MaintenanceAlertUserRead::query()
+                    ->where('user_id', (int) ($user?->id ?? 0))
+                    ->whereIn('maintenance_alert_id', $maintenanceAlertsCollection->pluck('id')->all())
+                    ->pluck('maintenance_alert_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
+            }
 
             $maintenanceAlerts = $maintenanceAlertsCollection
                 ->map(function (MaintenanceAlert $alert) use ($alertReadIds) {
@@ -414,6 +419,38 @@ class AuthTokenController extends Controller
 
             if ($vehicle) {
                 $maintenancePlan = $this->buildVehicleMaintenancePlan($vehicle);
+                $maintenanceCalendar = MaintenanceAppointment::query()
+                    ->with(['vehicle:id,placa', 'driver:id,nombre', 'tipoMantenimiento:id,nombre'])
+                    ->active()
+                    ->where('vehicle_id', (int) $vehicle->id)
+                    ->whereIn('estado', [
+                        MaintenanceAppointment::STATUS_PENDING,
+                        MaintenanceAppointment::STATUS_APPROVED,
+                    ])
+                    ->whereDate('fecha_programada', '>=', now()->subDay()->toDateString())
+                    ->orderBy('fecha_programada')
+                    ->limit(30)
+                    ->get()
+                    ->map(function (MaintenanceAppointment $appointment) {
+                        return [
+                            'id' => (int) $appointment->id,
+                            'vehicle_id' => $appointment->vehicle_id ? (int) $appointment->vehicle_id : null,
+                            'vehicle_plate' => (string) ($appointment->vehicle?->placa ?? ''),
+                            'driver_id' => $appointment->driver_id ? (int) $appointment->driver_id : null,
+                            'driver_name' => (string) ($appointment->driver?->nombre ?? ''),
+                            'maintenance_type_id' => $appointment->tipo_mantenimiento_id ? (int) $appointment->tipo_mantenimiento_id : null,
+                            'maintenance_type_name' => (string) ($appointment->tipoMantenimiento?->nombre ?? 'Mantenimiento'),
+                            'title' => (string) ($appointment->tipoMantenimiento?->nombre ?? 'Mantenimiento programado'),
+                            'description' => (string) (($appointment->estado ?? '') . ' - ' . ($appointment->tipoMantenimiento?->nombre ?? 'Mantenimiento')),
+                            'status' => (string) $appointment->estado,
+                            'date' => optional($appointment->fecha_programada)->toDateString(),
+                            'scheduled_at' => optional($appointment->fecha_programada)?->toIso8601String(),
+                            'requested_at' => optional($appointment->solicitud_fecha)?->toIso8601String(),
+                            'source' => (string) ($appointment->origen_solicitud ?? ''),
+                            'is_accident' => (bool) $appointment->es_accidente,
+                        ];
+                    })
+                    ->values();
             }
         }
 
@@ -502,6 +539,7 @@ class AuthTokenController extends Controller
             'gas_stations' => $gasStations->values()->all(),
             'vales' => $vales->values()->all(),
             'maintenance_alerts' => $maintenanceAlerts->values()->all(),
+            'maintenance_calendar' => $maintenanceCalendar->values()->all(),
             'maintenance_plan' => $maintenancePlan->values()->all(),
             'incentive' => $incentive,
         ];

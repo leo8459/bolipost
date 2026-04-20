@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         .bp-select-like-vehicle {
             border-radius: 10px;
@@ -271,6 +272,24 @@
             border: 1px solid rgba(255, 255, 255, 0.65);
         }
 
+        .fraud-review-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 5100;
+            background: rgba(15, 23, 42, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .fraud-review-card {
+            width: min(1100px, 100%);
+            max-height: 92vh;
+            overflow: auto;
+            border-radius: 14px;
+        }
+
         @media (max-width: 992px) {
             .fuel-tables-shell {
                 margin-left: 0;
@@ -310,6 +329,12 @@
                     class="btn btn-outline-light">
                     <i class="fas fa-file-lines me-2"></i>Documento
                 </button>
+                <button
+                    type="button"
+                    wire:click="toggleAntiFraudTable"
+                    class="btn btn-outline-light">
+                    <i class="fas fa-shield-halved me-2"></i>{{ $showAntiFraudTable ? 'Ocultar casos fraude' : 'Casos fraude' }}
+                </button>
                 @endif
                 <button type="button" wire:click="openFuelForm" class="btn btn-warning">
                     Nuevo
@@ -318,39 +343,6 @@
             @endif
         </div>
         @if (!$showForm)
-        @if(auth()->user()?->role !== 'conductor' && ($antiFraudAlerts->count() ?? 0) > 0)
-        <div class="alert alert-warning mt-3 mb-0">
-            <div class="fw-bold mb-2">
-                <i class="fas fa-shield-halved me-2"></i>Control Anti-Fraude
-            </div>
-            <div class="small text-muted mb-2">Ultimas alertas detectadas por duplicidad de facturas o exceso de capacidad.</div>
-            <div class="d-flex flex-column gap-2">
-                @foreach($antiFraudAlerts as $alert)
-                    @php
-                        $changes = is_array($alert->changes_json) ? $alert->changes_json : [];
-                        $isDuplicate = $alert->action === 'FUEL_INVOICE_DUPLICATE_ALERT';
-                    @endphp
-                    <div class="border rounded-3 bg-white p-2">
-                        <div class="fw-semibold">
-                            {{ $isDuplicate ? 'Factura duplicada detectada' : 'Exceso de capacidad detectado' }}
-                        </div>
-                        <div class="small text-muted">
-                            @if($isDuplicate)
-                                Factura: {{ $changes['invoice_number'] ?? '-' }}
-                                | Vehiculo existente: {{ $changes['existing_vehicle_plate'] ?? '-' }}
-                                | Conductor existente: {{ $changes['existing_driver_name'] ?? '-' }}
-                            @else
-                                Vehiculo: {{ $changes['vehicle_plate'] ?? '-' }}
-                                | Litros intentados: {{ $changes['liters_attempted'] ?? '-' }}
-                                | Capacidad tanque: {{ $changes['tank_capacity'] ?? '-' }}
-                            @endif
-                            | Fecha: {{ optional($alert->fecha ?? $alert->created_at)->format('d/m/Y H:i') }}
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-        @endif
         <div class="fuel-toolbar__filters">
             <div class="row g-2 align-items-end">
                 <div class="col-12 col-md-4">
@@ -404,6 +396,192 @@
         </div>
         @endif
     </div>
+
+    @if (!$showForm && auth()->user()?->role !== 'conductor' && $showAntiFraudTable)
+    <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i class="fas fa-shield-halved me-2 text-warning"></i>Casos de fraude y supuesto fraude</span>
+            <span class="badge bg-secondary">{{ ($antiFraudCases->count() ?? 0) + ($antiFraudAlerts->count() ?? 0) }} registros</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Factura</th>
+                            <th>Vehiculo / Conductor</th>
+                            <th>Detalle</th>
+                            <th>Fecha</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @php
+                            $tableCaseRows = collect();
+
+                            foreach(($antiFraudCases ?? collect()) as $case) {
+                                $tableCaseRows->push([
+                                    'kind' => 'case',
+                                    'case_id' => (int) $case->id,
+                                    'alert_id' => null,
+                                    'type' => 'Factura duplicada',
+                                    'invoice' => $case->invoice_number ?: '-',
+                                    'vehicle' => $case->vehicle?->placa ?? $case->conflictingVehicle?->placa ?? '-',
+                                    'driver' => $case->driver?->nombre ?? $case->conflictingDriver?->nombre ?? '-',
+                                    'detail' => $case->summary ?: 'Caso detectado por validacion antifraude.',
+                                    'date' => $case->created_at,
+                                    'date_text' => optional($case->created_at)->format('d/m/Y H:i') ?: '-',
+                                ]);
+                            }
+
+                            foreach(($antiFraudAlerts ?? collect()) as $alert) {
+                                $changes = is_array($alert->changes_json) ? $alert->changes_json : [];
+                                $isDuplicate = $alert->action === 'FUEL_INVOICE_DUPLICATE_ALERT';
+
+                                $tableCaseRows->push([
+                                    'kind' => 'alert',
+                                    'case_id' => null,
+                                    'alert_id' => (int) $alert->id,
+                                    'type' => $isDuplicate ? 'Factura duplicada' : 'Supuesto fraude',
+                                    'invoice' => (string) ($changes['invoice_number'] ?? '-'),
+                                    'vehicle' => (string) ($changes['existing_vehicle_plate'] ?? $changes['vehicle_plate'] ?? '-'),
+                                    'driver' => (string) ($changes['existing_driver_name'] ?? '-'),
+                                    'detail' => $isDuplicate
+                                        ? 'Duplicidad detectada durante el registro de factura.'
+                                        : 'Exceso de capacidad detectado en carga de combustible.',
+                                    'date' => $alert->fecha ?? $alert->created_at,
+                                    'date_text' => optional($alert->fecha ?? $alert->created_at)->format('d/m/Y H:i') ?: '-',
+                                ]);
+                            }
+
+                            $tableCaseRows = $tableCaseRows->sortByDesc(fn ($row) => optional($row['date'])->timestamp ?? 0)->values();
+                        @endphp
+
+                        @forelse($tableCaseRows as $row)
+                            <tr>
+                                <td>
+                                    <span class="badge {{ $row['type'] === 'Factura duplicada' ? 'bg-warning text-dark' : 'bg-danger' }}">
+                                        {{ $row['type'] }}
+                                    </span>
+                                </td>
+                                <td class="fw-semibold">{{ $row['invoice'] }}</td>
+                                <td>
+                                    <div>{{ $row['vehicle'] }}</div>
+                                    <div class="small text-muted">{{ $row['driver'] !== '' ? $row['driver'] : '-' }}</div>
+                                </td>
+                                <td class="small text-muted">{{ $row['detail'] }}</td>
+                                <td>{{ $row['date_text'] }}</td>
+                                <td class="text-end">
+                                    @if($row['kind'] === 'case' && $row['case_id'])
+                                        <button type="button" wire:click="openFraudReviewCase({{ $row['case_id'] }})" class="btn btn-sm btn-outline-dark me-1">
+                                            Revisar
+                                        </button>
+                                    @elseif($row['kind'] === 'alert' && $row['alert_id'])
+                                        <button type="button" wire:click="openFraudReviewAlert({{ $row['alert_id'] }})" class="btn btn-sm btn-outline-dark me-1">
+                                            Revisar
+                                        </button>
+                                    @endif
+                                    @if($row['invoice'] !== '-')
+                                        <button type="button" wire:click='filterByInvoiceNumber(@json($row["invoice"]))' class="btn btn-sm btn-outline-primary">
+                                            Ver factura
+                                        </button>
+                                    @else
+                                        <span class="text-muted small">Sin accion</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No hay casos de fraude o supuesto fraude para mostrar.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    @if(!$showForm && $showFraudReviewModal)
+    <div class="fraud-review-overlay" wire:click="closeFraudReviewModal">
+        <div class="card fraud-review-card shadow-lg" wire:click.stop>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="fw-bold">
+                        <i class="fas fa-shield-halved me-2 text-warning"></i>Revision de fraude / supuesto fraude
+                    </div>
+                    <div class="small text-muted">
+                        Tipo: {{ $fraudReview['type'] ?? '-' }}
+                        | Factura: {{ ($fraudReview['invoice_number'] ?? '') !== '' ? $fraudReview['invoice_number'] : 'N/A' }}
+                        | Detectado: {{ $fraudReview['detected_at'] ?? '-' }}
+                    </div>
+                </div>
+                <button type="button" class="btn-close" wire:click="closeFraudReviewModal"></button>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning mb-3">
+                    <div class="fw-semibold mb-1">Resumen del caso</div>
+                    <div class="small">{{ $fraudReview['summary'] ?? 'Sin resumen.' }}</div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    @foreach([($fraudReview['invoice_a'] ?? []), ($fraudReview['invoice_b'] ?? [])] as $invoiceData)
+                        <div class="col-12 col-lg-6">
+                            <div class="border rounded-3 p-3 h-100">
+                                <div class="fw-bold mb-2">{{ $invoiceData['label'] ?? 'Factura' }}</div>
+                                @if(!empty($invoiceData['exists']))
+                                    <div class="small"><strong>Nro:</strong> {{ $invoiceData['number'] ?? '-' }}</div>
+                                    <div class="small"><strong>Fecha:</strong> {{ $invoiceData['date'] ?? '-' }}</div>
+                                    <div class="small"><strong>Cliente:</strong> {{ $invoiceData['client'] ?? '-' }}</div>
+                                    <div class="small mb-3"><strong>Total:</strong> {{ $invoiceData['total'] ?? '-' }}</div>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        @if(!empty($invoiceData['document_url']))
+                                            <button type="button" class="btn btn-sm btn-outline-primary fuel-view-file-btn" data-url="{{ $invoiceData['document_url'] }}" data-kind="pdf" data-title="Factura SIAT {{ $invoiceData['number'] ?? '' }}">
+                                                PDF factura
+                                            </button>
+                                        @endif
+                                        @if(!empty($invoiceData['rollo_url']))
+                                            <button type="button" class="btn btn-sm btn-outline-dark fuel-view-file-btn" data-url="{{ $invoiceData['rollo_url'] }}" data-kind="pdf" data-title="Factura rollo {{ $invoiceData['number'] ?? '' }}">
+                                                PDF rollo
+                                            </button>
+                                        @endif
+                                        @if(!empty($invoiceData['photo_url']))
+                                            <button type="button" class="btn btn-sm btn-outline-secondary fuel-view-file-btn" data-url="{{ $invoiceData['photo_url'] }}" data-kind="image" data-title="Foto factura {{ $invoiceData['number'] ?? '' }}">
+                                                Foto factura
+                                            </button>
+                                        @endif
+                                        @if(!empty($invoiceData['meter_photo_url']))
+                                            <button type="button" class="btn btn-sm btn-outline-success fuel-view-file-btn" data-url="{{ $invoiceData['meter_photo_url'] }}" data-kind="image" data-title="Foto medidor {{ $invoiceData['number'] ?? '' }}">
+                                                Foto medidor
+                                            </button>
+                                        @endif
+                                    </div>
+                                @else
+                                    <div class="text-muted small">No se encontro esta factura en la base de datos.</div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+
+                <div class="border rounded-3 p-3 bg-light">
+                    <div class="fw-bold mb-2">Acciones recomendadas</div>
+                    <ul class="mb-0">
+                        @forelse(($fraudReview['actions'] ?? []) as $action)
+                            <li class="small">{{ $action }}</li>
+                        @empty
+                            <li class="small text-muted">Sin acciones sugeridas para este caso.</li>
+                        @endforelse
+                    </ul>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-end">
+                <button type="button" class="btn btn-secondary" wire:click="closeFraudReviewModal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+    @endif
 
     @if (session('message'))
     <div class="alert alert-success fade show js-auto-dismiss-alert" data-auto-dismiss="3000" role="alert">
@@ -1051,7 +1229,7 @@
     </div>
     @endif
 
-    <div class="modal fade" id="locationPickerModal" wire:ignore.self tabindex="-1" aria-labelledby="locationPickerLabel" aria-hidden="true">
+    <div class="modal fade" id="locationPickerModal" wire:ignore.self tabindex="-1" aria-labelledby="locationPickerLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -2262,7 +2440,7 @@
         })();
     </script>
     @if(auth()->user()?->role !== 'conductor')
-    <div class="modal fade" id="fuelDocumentModal" tabindex="-1" aria-labelledby="fuelDocumentModalLabel" aria-hidden="true">
+    <div class="modal fade" id="fuelDocumentModal" tabindex="-1" aria-labelledby="fuelDocumentModalLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -2369,7 +2547,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="fuelFileViewerModal" tabindex="-1" aria-labelledby="fuelFileViewerLabel" aria-hidden="true">
+    <div class="modal fade" id="fuelFileViewerModal" tabindex="-1" aria-labelledby="fuelFileViewerLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -2561,4 +2739,54 @@
         })();
     </script>
     @endif
+    <script>
+        (function() {
+            if (window.__fuelModalCloseFallbackInit) return;
+            window.__fuelModalCloseFallbackInit = true;
+
+            function getModalInstance(el) {
+                if (!el) return null;
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                        return window.bootstrap.Modal.getOrCreateInstance(el);
+                    }
+                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                    }
+                    return new window.bootstrap.Modal(el);
+                }
+                if (window.jQuery) {
+                    return {
+                        hide: () => window.jQuery(el).modal('hide'),
+                    };
+                }
+                return null;
+            }
+
+            const modalIds = ['locationPickerModal', 'fuelDocumentModal', 'fuelFileViewerModal'];
+
+            document.addEventListener('click', function(event) {
+                modalIds.forEach(function(id) {
+                    const modalEl = document.getElementById(id);
+                    if (!modalEl) return;
+
+                    const closeBtn = event.target.closest(
+                        '#' + id + " .btn-close, #" + id + " [data-bs-dismiss='modal'], #" + id + " [data-dismiss='modal']"
+                    );
+
+                    if (closeBtn) {
+                        event.preventDefault();
+                        const modal = getModalInstance(modalEl);
+                        if (modal) modal.hide();
+                        return;
+                    }
+
+                    if (event.target === modalEl) {
+                        const modal = getModalInstance(modalEl);
+                        if (modal) modal.hide();
+                    }
+                });
+            });
+        })();
+    </script>
 </div>

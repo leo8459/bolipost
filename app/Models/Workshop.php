@@ -36,6 +36,8 @@ class Workshop extends Model
         'order_number',
         'nombre_taller',
         'fecha_ingreso',
+        'attention_started_at',
+        'service_location',
         'fecha_prometida_entrega',
         'fecha_listo',
         'fecha_salida',
@@ -69,6 +71,7 @@ class Workshop extends Model
 
     protected $casts = [
         'fecha_ingreso' => 'date',
+        'attention_started_at' => 'datetime',
         'fecha_prometida_entrega' => 'date',
         'fecha_listo' => 'date',
         'fecha_salida' => 'date',

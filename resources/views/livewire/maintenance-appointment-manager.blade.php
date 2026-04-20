@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         .bp-select-like-vehicle {
             border-radius: 10px;
@@ -276,27 +277,11 @@
         </div>
         </div>
     @else
-        <div class="row g-3 mb-3">
-            <div class="col-12 col-md-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">Citas aprobadas</div>
-                        <div class="fs-3 fw-bold text-primary">{{ $approvedCount }}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-md-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">Solicitudes pendientes</div>
-                        <div class="fs-3 fw-bold text-warning">{{ $pendingCount }}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-md-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        <label class="form-label fw-bold">Filtro de citas</label>
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md-4 col-lg-3">
+                        <label class="form-label fw-bold mb-1">Filtro de citas</label>
                         <select wire:model.live="statusFilter" class="form-select bp-select-like-vehicle">
                             <option value="">Todas</option>
                             <option value="Pendiente">Pendientes</option>
@@ -306,49 +291,20 @@
                             <option value="Cancelado">Canceladas</option>
                         </select>
                     </div>
+                    <div class="col-12 col-md-8 col-lg-9">
+                        <label class="form-label fw-bold mb-1">Busqueda</label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            wire:model.live.debounce.350ms="search"
+                            placeholder="Buscar por cualquier campo">
+                    </div>
                 </div>
             </div>
         </div>
 
-        @if($approvedAppointments->count() > 0)
-            <div class="card shadow-sm mb-3 border-0">
-                <div class="card-header bg-success text-white">
-                    <i class="fas fa-calendar-check me-2"></i>Listado de citas aprobadas
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        @foreach($approvedAppointments as $approvedAppointment)
-                            <div class="col-12 col-lg-6">
-                                <div class="border rounded-3 p-3 h-100">
-                                    <div class="fw-bold">{{ $approvedAppointment->vehicle?->placa ?? '-' }}</div>
-                                    <div class="text-muted small">
-                                        {{ $approvedAppointment->vehicle?->brand?->nombre ?? '-' }}
-                                        | {{ $approvedAppointment->driver?->nombre ?? 'Sin conductor' }}
-                                    </div>
-                                    <div class="mt-2">
-                                        <span class="badge bg-info text-dark">{{ $approvedAppointment->tipoMantenimiento?->nombre ?? 'Mantenimiento' }}</span>
-                                        <span class="badge bg-primary">Aprobado</span>
-                                    </div>
-                                    <div class="small text-muted mt-2">
-                                        Cita: {{ optional($approvedAppointment->fecha_programada)->format('d/m/Y H:i') ?? '-' }}
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-        @endif
-
         <div class="card shadow-sm">
             <div class="card-body p-0">
-                <div class="p-3 border-bottom">
-                    <input
-                        type="text"
-                        class="form-control"
-                        wire:model.live.debounce.350ms="search"
-                        placeholder="Buscar por cualquier campo">
-                </div>
                 <div class="table-responsive">
                     <table class="table table-hover mb-0 align-middle">
                         <thead class="table-light">
@@ -469,7 +425,7 @@
         </div>
     @endif
 
-    <div class="modal fade" id="maintenanceAppointmentFileModal" tabindex="-1" aria-labelledby="maintenanceAppointmentFileModalLabel" aria-hidden="true">
+    <div class="modal fade" id="maintenanceAppointmentFileModal" tabindex="-1" aria-labelledby="maintenanceAppointmentFileModalLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -521,6 +477,8 @@
         if (modalEl.parentElement !== document.body) {
             document.body.appendChild(modalEl);
         }
+        modalEl.setAttribute('data-bs-backdrop', 'true');
+        modalEl.setAttribute('data-bs-keyboard', 'true');
 
         const titleEl = document.getElementById('maintenanceAppointmentFileModalLabel');
         const imageEl = document.getElementById('maintenance-appointment-file-image');
@@ -561,6 +519,24 @@
 
             const modal = getModalInstance(modalEl);
             if (modal) modal.show();
+        });
+
+        document.addEventListener('click', function (event) {
+            const closeBtn = event.target.closest(
+                "#maintenanceAppointmentFileModal .btn-close, #maintenanceAppointmentFileModal [data-bs-dismiss='modal'], #maintenanceAppointmentFileModal [data-dismiss='modal']"
+            );
+
+            if (closeBtn) {
+                event.preventDefault();
+                const modal = getModalInstance(modalEl);
+                if (modal) modal.hide();
+                return;
+            }
+
+            if (event.target === modalEl) {
+                const modal = getModalInstance(modalEl);
+                if (modal) modal.hide();
+            }
         });
     })();
 </script>

@@ -19,11 +19,13 @@ use Livewire\Attributes\Validate;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 
 class VehicleLogManager extends Component
 {
     use WithFileUploads;
     use WithPagination;
+    use WithoutUrlPagination;
 
     protected string $paginationTheme = 'bootstrap';
 
@@ -152,8 +154,8 @@ class VehicleLogManager extends Component
                 ->orWhere('responsible_driver_id', (int) $this->driver_filter_id));
         }
 
-        $logs = $query->paginate(10);
-        $operationAlerts = $operationAlertsQuery->paginate(10, ['*'], 'alertsPage');
+        $logs = $this->paginateWithinBounds($query, 10);
+        $operationAlerts = $this->paginateWithinBounds($operationAlertsQuery, 10, 'alertsPage');
         $crossSummary = $this->buildOperationalSummary($logs);
 
         if ($this->currentUser()?->role === 'conductor') {
@@ -395,21 +397,21 @@ class VehicleLogManager extends Component
             $log = VehicleLog::find($this->editingLogId);
             if ($log) {
                 $log->update($data);
-                $this->updateVehicleKilometraje(
+                $kmUpdateStatus = $this->updateVehicleKilometraje(
                     $this->vehicles_id,
                     $this->kilometraje_llegada,
                     $this->kilometraje_salida
                 );
-                session()->flash('message', 'Registro de bitacora actualizado correctamente.');
+                session()->flash('message', 'Registro de bitacora actualizado correctamente.' . ($kmUpdateStatus === 'same' ? ' El kilometraje se mantuvo igual al anterior.' : ''));
             }
         } else {
             VehicleLog::create($data);
-            $this->updateVehicleKilometraje(
+            $kmUpdateStatus = $this->updateVehicleKilometraje(
                 $this->vehicles_id,
                 $this->kilometraje_llegada,
                 $this->kilometraje_salida
             );
-            session()->flash('message', 'Registro de bitacora creado correctamente.');
+            session()->flash('message', 'Registro de bitacora creado correctamente.' . ($kmUpdateStatus === 'same' ? ' El kilometraje se mantuvo igual al anterior.' : ''));
         }
 
         $this->resetForm();
@@ -485,7 +487,7 @@ class VehicleLogManager extends Component
         $this->isEdit = false;
         $this->editingLogId = null;
         $this->showForm = false;
-        $this->resetPage();
+        $this->resetListPages();
     }
 
     public function create(): void
@@ -501,35 +503,35 @@ class VehicleLogManager extends Component
 
     public function updatedSearch(): void
     {
-        $this->resetPage();
+        $this->resetListPages();
     }
 
     public function updatedFechaDesde(): void
     {
         $this->validateFilterDateRange();
-        $this->resetPage();
+        $this->resetListPages();
     }
 
     public function updatedFechaHasta(): void
     {
         $this->validateFilterDateRange();
-        $this->resetPage();
+        $this->resetListPages();
     }
 
     public function updatedVehicleFilterId(): void
     {
-        $this->resetPage();
+        $this->resetListPages();
     }
 
     public function updatedDriverFilterId(): void
     {
-        $this->resetPage();
+        $this->resetListPages();
     }
 
     public function searchLogs(): void
     {
         $this->search = trim((string) $this->search);
-        $this->resetPage();
+        $this->resetListPages();
     }
 
     public function limpiarFiltrosListado(): void
@@ -542,7 +544,7 @@ class VehicleLogManager extends Component
         $this->driver_filter_id = $this->currentUser()?->role === 'conductor'
             ? (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0) ?: null
             : null;
-        $this->resetPage();
+        $this->resetListPages();
     }
 
     public function updatedVehiclesId($value): void
@@ -622,22 +624,23 @@ class VehicleLogManager extends Component
         return round($value, 8);
     }
 
-    private function updateVehicleKilometraje(?int $vehicleId, ?float $kmActual, ?float $kmInicial): void
+    private function updateVehicleKilometraje(?int $vehicleId, ?float $kmActual, ?float $kmInicial): string
     {
         if (!$vehicleId) {
-            return;
+            return 'skipped';
         }
 
         $vehicle = Vehicle::find($vehicleId);
         if (!$vehicle) {
-            return;
+            return 'skipped';
         }
 
         if ((bool) ($vehicle->tacometro_danado ?? false)) {
-            return;
+            return 'skipped';
         }
 
         $updates = [];
+        $status = 'skipped';
         if ($kmInicial !== null && $vehicle->kilometraje_inicial === null) {
             $updates['kilometraje_inicial'] = $kmInicial;
         }
@@ -647,6 +650,7 @@ class VehicleLogManager extends Component
             if ($prev === null || $kmActual >= $prev) {
                 $updates['kilometraje_actual'] = $kmActual;
                 $updates['kilometraje'] = $kmActual;
+                $status = $prev !== null && abs($kmActual - $prev) < 0.000001 ? 'same' : 'updated';
             }
         }
 
@@ -655,6 +659,7 @@ class VehicleLogManager extends Component
         }
 
         MaintenanceAlertService::evaluateVehicleByKilometraje((int) $vehicleId);
+        return $status;
     }
 
     private function syncKmSalidaFromVehicle(?int $vehicleId): void
@@ -1072,5 +1077,25 @@ class VehicleLogManager extends Component
         $user = Auth::user();
 
         return $user instanceof User ? $user : null;
+    }
+
+    private function resetListPages(): void
+    {
+        $this->resetPage();
+        $this->resetPage('logsPage');
+        $this->resetPage('alertsPage');
+    }
+
+    private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')
+    {
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = max(1, (int) $this->getPage($pageName));
+
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage, $pageName);
+        }
+
+        return $query->paginate($perPage, ['*'], $pageName);
     }
 }

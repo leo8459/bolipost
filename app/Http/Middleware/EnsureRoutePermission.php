@@ -32,6 +32,12 @@ class EnsureRoutePermission
             return $next($request);
         }
 
+        // Compatibilidad con instalaciones que usan variantes de rol admin
+        // (por ejemplo: "Super Admin", "Super Admin Nuevo", etc.).
+        if ($this->isPrivilegedAdminUser($user)) {
+            return $next($request);
+        }
+
         $permissionName = $request->route()?->getName();
 
         if (! is_string($permissionName) || $permissionName === '') {
@@ -61,5 +67,15 @@ class EnsureRoutePermission
         }
 
         abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
+    }
+
+    private function isPrivilegedAdminUser(mixed $user): bool
+    {
+        $role = mb_strtolower(trim((string) ($user->role ?? '')));
+        if ($role === '') {
+            return false;
+        }
+
+        return $role === 'admin' || str_contains($role, 'admin');
     }
 }

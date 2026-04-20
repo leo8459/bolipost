@@ -46,14 +46,19 @@ use App\Http\Controllers\Web\FuelLogController;
 use App\Http\Controllers\Web\DriverMemorandumController;
 use App\Http\Controllers\Web\FuelInvoiceFileController;
 use App\Http\Controllers\Web\MaintenanceFileController;
+use App\Http\Controllers\Web\MaintenanceIncentiveReportController;
+use App\Http\Controllers\Web\MaintenanceDocumentReportController;
+use App\Http\Controllers\Web\MaintenanceApprovedAppointmentReportController;
 use App\Http\Controllers\Web\MaintenanceRequestFormController;
 use App\Http\Controllers\Web\MapController;
 use App\Http\Controllers\Web\QrDecoderController;
 use App\Http\Controllers\Web\VehicleLogMapController;
 use App\Http\Controllers\Web\VehicleLogMapPageController;
+use App\Http\Controllers\Web\VehicleAssignmentReportController;
 use App\Http\Controllers\Web\VehicleMaintenanceReportController;
 use App\Http\Controllers\Web\VehicleLogOdometerController;
 use App\Http\Controllers\Web\VehicleLogStagePhotoController;
+use App\Http\Controllers\Web\WorkshopLocationReportController;
 use App\Livewire\FuelLogManager;
 use App\Livewire\MapTracker;
 use App\Livewire\MaintenanceAlertManager;
@@ -342,6 +347,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::view('/livewire/vehicle-brands', 'livewire.pages.vehicle-brands')->name('livewire.vehicle-brands');
     Route::view('/livewire/drivers', 'livewire.pages.drivers')->name('livewire.drivers');
     Route::view('/livewire/vehicle-assignments', 'livewire.pages.vehicle-assignments')->name('livewire.vehicle-assignments');
+    Route::get('/vehicle-assignments/report/pdf', [VehicleAssignmentReportController::class, 'exportPdf'])
+        ->name('vehicle-assignments.report.pdf');
     Route::view('/livewire/vehicle-logs', 'livewire.pages.vehicle-logs')->name('livewire.vehicle-logs');
     Route::view('/map', 'livewire.pages.map')->name('map.index');
     Route::view('/livewire/map', 'livewire.pages.map')->name('livewire.map');
@@ -349,11 +356,19 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::view('/livewire/fuel-logs', 'livewire.pages.fuel-logs')->name('livewire.fuel-logs');
     Route::view('/livewire/maintenance-logs', 'livewire.pages.maintenance-logs')->name('livewire.maintenance-logs');
     Route::view('/livewire/maintenance-incentives', 'livewire.pages.maintenance-incentives')->name('livewire.maintenance-incentives');
+    Route::get('/maintenance-incentives/export/pdf', [MaintenanceIncentiveReportController::class, 'exportPdf'])
+        ->name('maintenance-incentives.export.pdf');
+    Route::get('/maintenance-documents/report/pdf', [MaintenanceDocumentReportController::class, 'exportPdf'])
+        ->name('maintenance-documents.report.pdf');
+    Route::get('/maintenance-appointments/approved-report/pdf', [MaintenanceApprovedAppointmentReportController::class, 'exportPdf'])
+        ->name('maintenance-appointments.approved-report.pdf');
     Route::view('/livewire/maintenance-alerts', 'livewire.pages.maintenance-alerts')->name('livewire.maintenance-alerts');
     Route::view('/livewire/maintenance-calendar', 'livewire.pages.maintenance-calendar')->name('livewire.maintenance-calendar');
     Route::view('/livewire/maintenance-types', 'livewire.pages.maintenance-types')->name('livewire.maintenance-types');
     Route::view('/livewire/maintenance-appointments', 'livewire.pages.maintenance-appointments')->name('livewire.maintenance-appointments');
     Route::view('/livewire/workshops', 'livewire.pages.workshops')->name('livewire.workshops');
+    Route::get('/workshops/location-report/pdf', [WorkshopLocationReportController::class, 'exportPdf'])
+        ->name('workshops.location-report.pdf');
     Route::get('/maintenance-logs/{maintenanceLog}/comprobante', [MaintenanceFileController::class, 'comprobante'])
         ->name('maintenance-logs.comprobante');
     Route::get('/maintenance-appointments/{maintenanceAppointment}/evidence', [MaintenanceFileController::class, 'appointmentEvidence'])

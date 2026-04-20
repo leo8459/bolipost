@@ -120,7 +120,8 @@
     @endpush
 @endonce
 
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="page-title mb-0">
             <i class="fas fa-map-marked-alt me-2"></i>Mapa de Vehiculos
@@ -338,7 +339,7 @@
                                    <div class="small text-primary">Puntos recorridos: ${item.points_count || 0}</div>`
                             }
                             <div class="small ${item.is_stale ? 'text-danger' : 'text-success'}">
-                                ${item.is_stale ? 'Sin señal' : 'En línea'} (${formatAge(item.seconds_since_update)})
+                                ${item.is_stale ? 'Sin se�al' : 'En l�nea'} (${formatAge(item.seconds_since_update)})
                             </div>
                             <div class="small text-muted">Velocidad: ${formatSpeed(item.current_speed_kmh)}</div>
                             <div class="small text-primary">Puntos marcados: ${(item.marked_points || []).length}</div>
@@ -416,7 +417,7 @@
                                 Conductor: ${item.driver_name || 'N/A'}<br>
                                 Estado de bitacora: ${currentStatus}<br>
                                 ${item.is_stale ? 'Ultima ubicacion' : 'Direccion actual'}: ${item.current_address || 'Sin direccion'}<br>
-                                Estado: ${item.is_stale ? 'Sin señal' : 'En línea'} (${formatAge(item.seconds_since_update)})<br>
+                                Estado: ${item.is_stale ? 'Sin se�al' : 'En l�nea'} (${formatAge(item.seconds_since_update)})<br>
                                 Velocidad: ${formatSpeed(item.current_speed_kmh)}<br>
                                 Origen del dia: ${item.recorrido_inicio || 'N/A'}<br>
                                 Destino del dia: ${item.recorrido_destino || 'N/A'}<br>

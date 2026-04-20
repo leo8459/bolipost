@@ -2,6 +2,6 @@
 
 @section('content')
 <div class="container-fluid bp-gestiones-module">
-    <livewire:maintenance-log-manager wire:poll.5s.keep-alive />
+    <livewire:maintenance-log-manager />
 </div>
 @endsection

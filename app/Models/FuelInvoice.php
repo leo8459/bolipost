@@ -52,6 +52,11 @@ class FuelInvoice extends Model
         return $this->hasMany(FuelInvoiceDetail::class, 'fuel_invoice_id')->active();
     }
 
+    public function fuelLogs()
+    {
+        return $this->hasMany(FuelLog::class, 'fuel_invoice_id');
+    }
+
     public function allDetails()
     {
         return $this->hasMany(FuelInvoiceDetail::class, 'fuel_invoice_id');

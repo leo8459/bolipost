@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         .bp-select-like-vehicle {
             border-radius: 10px;
@@ -560,51 +561,8 @@
                 <div class="bitacora-shell__count">Total en pagina: {{ $logs->count() }}</div>
             </div>
 
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-md-6 col-xl-2">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <div class="text-muted small text-uppercase">Placa</div>
-                            <div class="fw-bold">{{ $crossSummary['plate_label'] ?? 'Todas las placas' }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-6 col-xl-2">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <div class="text-muted small text-uppercase">Mes</div>
-                            <div class="fw-bold">{{ $crossSummary['month_label'] ?? 'Sin rango' }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-6 col-xl-3">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <div class="text-muted small text-uppercase">Fecha</div>
-                            <div class="fw-bold">{{ $crossSummary['date_label'] ?? 'Sin fechas' }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-6 col-xl-2">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <div class="text-muted small text-uppercase">Gasolina</div>
-                            <div class="fw-bold">{{ number_format((float) ($crossSummary['fuel_total'] ?? 0), 2) }} L</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-6 col-xl-3">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <div class="text-muted small text-uppercase">{{ $crossSummary['guides_label'] ?? 'Guias entregadas' }}</div>
-                            <div class="fw-bold">{{ $crossSummary['package_total'] ?? 0 }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row g-2 mb-3">
-                <div class="col-12 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+            <div class="row g-2 mb-3 align-items-end">
+                <div class="col-12 col-lg-2 d-flex flex-column gap-2">
                     <div class="btn-group" role="group" aria-label="Cambiar tabla">
                         <button
                             type="button"
@@ -619,18 +577,21 @@
                             Alertas operativas
                         </button>
                     </div>
+                    <button type="button" wire:click="limpiarFiltrosListado" class="btn btn-outline-secondary">
+                        Limpiar filtros
+                    </button>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label fw-bold mb-1">Fecha desde</label>
                     <input type="date" wire:model.live="fecha_desde" class="form-control @error('fecha_desde') is-invalid @enderror" max="{{ now()->toDateString() }}">
                     @error('fecha_desde') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label fw-bold mb-1">Fecha hasta</label>
                     <input type="date" wire:model.live="fecha_hasta" class="form-control @error('fecha_hasta') is-invalid @enderror" max="{{ now()->toDateString() }}">
                     @error('fecha_hasta') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-md-6 col-lg-2">
                     <label class="form-label fw-bold mb-1">Vehiculo</label>
                     <select wire:model.live="vehicle_filter_id" class="form-control vehicle-log-select">
                         <option value="">Todos los vehiculos</option>
@@ -639,7 +600,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-md-6 col-lg-2">
                     <label class="form-label fw-bold mb-1">Conductor</label>
                     <select wire:model.live="driver_filter_id" class="form-control vehicle-log-select">
                         <option value="">Todos los conductores</option>
@@ -647,11 +608,6 @@
                         <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
                         @endforeach
                     </select>
-                </div>
-                <div class="col-12 d-flex justify-content-end">
-                    <button type="button" wire:click="limpiarFiltrosListado" class="btn btn-outline-secondary">
-                        Limpiar filtros
-                    </button>
                 </div>
             </div>
 
@@ -789,7 +745,7 @@
 
 
 
-    <div class="modal fade" id="vehicleLocationPickerModal" wire:ignore tabindex="-1" aria-labelledby="vehicleLocationPickerLabel" aria-hidden="true">
+    <div class="modal fade" id="vehicleLocationPickerModal" wire:ignore tabindex="-1" aria-labelledby="vehicleLocationPickerLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -811,7 +767,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="vehicleViewMapModal" wire:ignore tabindex="-1" aria-labelledby="vehicleViewMapLabel" aria-hidden="true">
+    <div class="modal fade" id="vehicleViewMapModal" wire:ignore tabindex="-1" aria-labelledby="vehicleViewMapLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -838,7 +794,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="vehicleOdometroModal" wire:ignore tabindex="-1" aria-labelledby="vehicleOdometroLabel" aria-hidden="true">
+    <div class="modal fade" id="vehicleOdometroModal" wire:ignore tabindex="-1" aria-labelledby="vehicleOdometroLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -1104,6 +1060,25 @@
                 if (!document.querySelector('.modal-backdrop')) {
                     const backdrop = document.createElement('div');
                     backdrop.className = 'modal-backdrop fade show';
+                    backdrop.dataset.vehicleModalOwner = el.id || '';
+                    backdrop.addEventListener('click', function() {
+                        if (el.id === 'vehicleViewMapModal') {
+                            resetViewMapState();
+                            if (viewMetaEl) {
+                                viewMetaEl.textContent = 'Sin datos';
+                            }
+                            currentViewMapUrl = '';
+                            setViewMapStatus('');
+                        }
+
+                        if (el.id === 'vehicleOdometroModal') {
+                            odometroImageEl?.classList.add('d-none');
+                            odometroImageEl?.removeAttribute('src');
+                            odometroEmptyEl?.classList.remove('d-none');
+                        }
+
+                        forceHideModalEl(el);
+                    });
                     document.body.appendChild(backdrop);
                 }
             }
@@ -1926,6 +1901,28 @@
                 forceHideModalEl(odometroModalEl);
             });
 
+            document.addEventListener('click', function(event) {
+                if (!viewModalEl || !odometroModalEl) return;
+
+                if (event.target === viewModalEl) {
+                    resetViewMapState();
+                    if (viewMetaEl) {
+                        viewMetaEl.textContent = 'Sin datos';
+                    }
+                    currentViewMapUrl = '';
+                    setViewMapStatus('');
+                    forceHideModalEl(viewModalEl);
+                    return;
+                }
+
+                if (event.target === odometroModalEl) {
+                    odometroImageEl?.classList.add('d-none');
+                    odometroImageEl?.removeAttribute('src');
+                    odometroEmptyEl?.classList.remove('d-none');
+                    forceHideModalEl(odometroModalEl);
+                }
+            });
+
             reloadViewMapBtn?.addEventListener('click', function() {
                 forceReloadViewMap();
             });
@@ -2074,7 +2071,7 @@
         })();
     </script>
     @if(auth()->user()?->role !== 'conductor')
-    <div class="modal fade" id="vehicleDocumentModal" tabindex="-1" aria-labelledby="vehicleDocumentModalLabel" aria-hidden="true">
+    <div class="modal fade" id="vehicleDocumentModal" tabindex="-1" aria-labelledby="vehicleDocumentModalLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -2320,4 +2317,58 @@
         })();
     </script>
     @endif
+    <script>
+        (function() {
+            if (window.__vehicleModalCloseFallbackInit) return;
+            window.__vehicleModalCloseFallbackInit = true;
+
+            function getModalInstance(el) {
+                if (!el) return null;
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                        return window.bootstrap.Modal.getOrCreateInstance(el);
+                    }
+                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                    }
+                    return new window.bootstrap.Modal(el);
+                }
+                if (window.jQuery) {
+                    return {
+                        hide: () => window.jQuery(el).modal('hide'),
+                    };
+                }
+                return null;
+            }
+
+            const modalIds = [
+                'vehicleLocationPickerModal',
+                'vehicleViewMapModal',
+                'vehicleOdometroModal',
+                'vehicleDocumentModal',
+            ];
+
+            document.addEventListener('click', function(event) {
+                modalIds.forEach(function(id) {
+                    const modalEl = document.getElementById(id);
+                    if (!modalEl) return;
+
+                    const closeBtn = event.target.closest(
+                        '#' + id + " .btn-close, #" + id + " [data-bs-dismiss='modal'], #" + id + " [data-dismiss='modal']"
+                    );
+
+                    if (closeBtn) {
+                        const modal = getModalInstance(modalEl);
+                        if (modal) modal.hide();
+                        return;
+                    }
+
+                    if (event.target === modalEl) {
+                        const modal = getModalInstance(modalEl);
+                        if (modal) modal.hide();
+                    }
+                });
+            });
+        })();
+    </script>
 </div>

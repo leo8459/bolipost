@@ -9,10 +9,12 @@ use App\Models\Workshop;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 
 class MaintenanceAlertManager extends Component
 {
     use WithPagination;
+    use WithoutUrlPagination;
 
     protected string $paginationTheme = 'bootstrap';
 
@@ -55,8 +57,22 @@ class MaintenanceAlertManager extends Component
 
         if ($this->filterEstado === 'abiertas') {
             $query->whereIn('status', MaintenanceAlert::openStatuses());
-        } elseif ($this->filterEstado === 'resuelta') {
+        } elseif ($this->filterEstado === 'resueltas') {
             $query->where('status', MaintenanceAlert::STATUS_RESOLVED);
+        } elseif ($this->filterEstado === 'solicitado') {
+            $query->where('status', MaintenanceAlert::STATUS_REQUESTED);
+        } elseif ($this->filterEstado === 'en_taller') {
+            $query->where('status', MaintenanceAlert::STATUS_IN_WORKSHOP);
+        } elseif ($this->filterEstado === 'pospuestas') {
+            $query
+                ->whereIn('status', [MaintenanceAlert::STATUS_ACTIVE, MaintenanceAlert::STATUS_REQUESTED])
+                ->whereNotNull('postponed_until')
+                ->where('postponed_until', '>', now());
+        } elseif ($this->filterEstado === 'vencidas') {
+            $query
+                ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+                ->whereNotNull('faltante_km')
+                ->where('faltante_km', '<', 0);
         }
 
         $pendingCountQuery = MaintenanceAlert::query();
@@ -67,7 +83,7 @@ class MaintenanceAlertManager extends Component
                 $query->where('user_id', (int) auth()->id());
             });
         }
-        $alerts = $query->paginate(12);
+        $alerts = $this->paginateWithinBounds($query, 12);
         $this->applyReadStateToPaginator($alerts);
         $pendingCount = $pendingCountQuery->count();
 
@@ -454,6 +470,19 @@ class MaintenanceAlertManager extends Component
                 return $alert;
             })
         );
+    }
+
+    private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')
+    {
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = max(1, (int) $this->getPage($pageName));
+
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage, $pageName);
+        }
+
+        return $query->paginate($perPage, ['*'], $pageName);
     }
 
 }

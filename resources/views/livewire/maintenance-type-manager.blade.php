@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         .bp-select-like-vehicle {
             border-radius: 10px;
@@ -70,6 +71,31 @@
         .bp-switch .form-check-input[type="checkbox"]:focus {
             box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
             outline: 0;
+        }
+
+        .plate-badge-btn {
+            border: 0;
+            cursor: pointer;
+        }
+
+        .maintenance-vehicle-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            z-index: 1080;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .maintenance-vehicle-modal-card {
+            width: min(720px, 100%);
+            max-height: 90vh;
+            overflow: auto;
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.35);
         }
     </style>
 
@@ -272,7 +298,14 @@
                                         @if($type->vehicles->count() > 0)
                                             <div class="d-flex flex-wrap gap-1">
                                                 @foreach($type->vehicles as $vehicle)
-                                                    <span class="badge bg-secondary">{{ $vehicle->placa }}</span>
+                                                    <button
+                                                        type="button"
+                                                        wire:click="openVehicleInfoModal({{ $vehicle->id }})"
+                                                        class="badge bg-secondary plate-badge-btn"
+                                                        title="Ver informacion del vehiculo {{ $vehicle->placa }}"
+                                                    >
+                                                        {{ $vehicle->placa }}
+                                                    </button>
                                                 @endforeach
                                             </div>
                                         @else
@@ -313,6 +346,70 @@
         </div>
         <div class="mt-3">
             {{ $types->links() }}
+        </div>
+    @endif
+
+    @if($showVehicleInfoModal)
+        <div class="maintenance-vehicle-modal-backdrop" wire:click="closeVehicleInfoModal">
+            <div class="maintenance-vehicle-modal-card card shadow-sm" wire:click.stop>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">
+                        <i class="fas fa-car me-2 text-primary"></i>Informacion del vehiculo
+                    </span>
+                    <button type="button" class="btn-close" wire:click="closeVehicleInfoModal"></button>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Placa</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['placa'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Estado</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['estado'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Marca</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['marca'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Modelo</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['modelo'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Clase</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['clase'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Tipo formulario</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['formulario'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Combustible</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['combustible'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Color</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['color'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold mb-1">Año</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['anio'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold mb-1">Capacidad tanque</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['capacidad_tanque'] ?? '-' }}</div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold mb-1">Kilometraje</label>
+                            <div class="form-control bg-light">{{ $vehicleInfo['kilometraje'] ?? '-' }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-end">
+                    <button type="button" class="btn btn-secondary" wire:click="closeVehicleInfoModal">Cerrar</button>
+                </div>
+            </div>
         </div>
     @endif
 </div>

@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Schema;
 class MapController extends Controller
 {
     private const LIVE_STALE_SECONDS = 20;
+    private const FUTURE_POINT_TOLERANCE_SECONDS = 120;
 
     public function index(Request $request)
     {
@@ -602,13 +603,43 @@ class MapController extends Controller
         $value = trim($raw);
         if ($value !== '') {
             try {
-                return Carbon::parse($value, config('app.timezone'))->startOfDay();
+                $selected = Carbon::parse($value, config('app.timezone'))->startOfDay();
+                $today = now(config('app.timezone'))->startOfDay();
+
+                return $selected->greaterThan($today) ? $today : $selected;
             } catch (\Throwable) {
                 // Fallback a hoy si el formato no es valido.
             }
         }
 
         return now(config('app.timezone'))->startOfDay();
+    }
+
+    private function normalizeRealtimeTimestamp(mixed $raw): ?string
+    {
+        if ($raw === null || $raw === '') {
+            return now(config('app.timezone'))->toIso8601String();
+        }
+
+        try {
+            if (is_numeric($raw)) {
+                $numeric = (float) $raw;
+                $time = $numeric > 1000000000000
+                    ? Carbon::createFromTimestampMs((int) $numeric)
+                    : Carbon::createFromTimestamp((int) $numeric);
+            } else {
+                $time = Carbon::parse((string) $raw);
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $time = $time->setTimezone(config('app.timezone'));
+        if ($time->greaterThan(now(config('app.timezone'))->addSeconds(self::FUTURE_POINT_TOLERANCE_SECONDS))) {
+            return null;
+        }
+
+        return $time->toIso8601String();
     }
 
     /**
@@ -759,10 +790,15 @@ class MapController extends Controller
                 $driver = Driver::query()->find($driverId);
             }
             $vehicle = $vehicleModels->get($vehicleId);
+            $lastPointTime = $this->normalizeRealtimeTimestamp($hb['point_timestamp'] ?? $hb['sent_at'] ?? $hb['received_at'] ?? null);
+            if ($lastPointTime === null) {
+                continue;
+            }
+
             $lastPoint = [
                 'lat' => $lat,
                 'lng' => $lng,
-                't' => (string) ($hb['point_timestamp'] ?? $hb['sent_at'] ?? $hb['received_at'] ?? now()->toIso8601String()),
+                't' => $lastPointTime,
                 'is_marked' => false,
                 'address' => '',
                 'point_label' => (string) ($hb['estado'] ?? ($hb['waiting_stop'] ?? false ? 'ESPERA' : 'EN_RUTA')),
@@ -784,10 +820,15 @@ class MapController extends Controller
                         return null;
                     }
 
+                    $timestamp = $this->normalizeRealtimeTimestamp($point['t'] ?? $point['timestamp'] ?? null);
+                    if ($timestamp === null) {
+                        return null;
+                    }
+
                     return [
                         'lat' => $lat,
                         'lng' => $lng,
-                        't' => (string) ($point['t'] ?? $point['timestamp'] ?? ''),
+                        't' => $timestamp,
                         'is_marked' => false,
                         'address' => (string) ($point['address'] ?? ''),
                         'point_label' => (string) ($point['point_label'] ?? $point['label'] ?? ''),

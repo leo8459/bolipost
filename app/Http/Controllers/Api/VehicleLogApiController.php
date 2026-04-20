@@ -572,8 +572,6 @@ class VehicleLogApiController extends Controller
             'responsible_driver_id' => $responsibleDriverId,
             'current_driver_id' => $currentDriverId,
             'handover_driver_id' => $actingDriverId,
-            'vehicle_snapshot' => $payload['vehicle_snapshot'] ?? null,
-            'session_snapshot' => $payload['session_snapshot'] ?? null,
             'issued_at' => now()->toIso8601String(),
             'expires_at' => now()->addMinutes(20)->toIso8601String(),
         ];

@@ -13,16 +13,21 @@ use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
 use Livewire\Attributes\Validate;
 
 class MaintenanceLogManager extends Component
 {
     use WithPagination;
     use WithFileUploads;
+    use WithoutUrlPagination;
 
     protected string $paginationTheme = 'bootstrap';
 
     public string $search = '';
+    public ?string $date_from = null;
+    public ?string $date_to = null;
+    public ?int $history_vehicle_filter_id = null;
 
     #[Validate('required|integer|exists:vehicles,id')]
     public ?int $vehicle_id = null;
@@ -63,6 +68,8 @@ class MaintenanceLogManager extends Component
     public function mount(): void
     {
         abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion']), 403);
+        $this->date_from = now()->startOfMonth()->toDateString();
+        $this->date_to = now()->toDateString();
 
         $fromAlertId = request()->integer('from_alert_id');
         if ($fromAlertId > 0) {
@@ -100,7 +107,18 @@ class MaintenanceLogManager extends Component
             });
         }
 
-        $maintenanceLogs = $query->paginate(10);
+        [$fromDate, $toDate] = $this->resolveOrderedDateRange();
+        if ($fromDate) {
+            $query->whereDate('fecha', '>=', $fromDate);
+        }
+        if ($toDate) {
+            $query->whereDate('fecha', '<=', $toDate);
+        }
+        if ($this->history_vehicle_filter_id) {
+            $query->where('vehicle_id', (int) $this->history_vehicle_filter_id);
+        }
+
+        $maintenanceLogs = $this->paginateWithinBounds($query, 10);
         
         $vehicles = $this->loadAlertVehicles();
         $maintenanceTypes = $this->loadMaintenanceTypes();
@@ -128,6 +146,21 @@ class MaintenanceLogManager extends Component
         $this->resetPage();
     }
 
+    public function updatedDateFrom(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedDateTo(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedHistoryVehicleFilterId(): void
+    {
+        $this->resetPage();
+    }
+
     public function setTableView(string $view): void
     {
         if (!in_array($view, ['pending', 'history'], true)) {
@@ -144,10 +177,12 @@ class MaintenanceLogManager extends Component
             'vehicle_id' => 'required|integer|exists:vehicles,id',
             'maintenance_type_id' => 'required|integer|exists:maintenance_types,id',
             'fecha' => 'required|date',
-            'costo' => 'required|numeric|min:0',
+            'costo' => 'required|numeric|gt:0',
             'kilometraje' => 'required|numeric|min:0',
             'intervalo_km_fh' => 'nullable|numeric|min:0',
             'comprobante_file' => 'nullable|file|max:5120|mimes:pdf,jpg,jpeg,png,webp',
+        ], [
+            'costo.gt' => 'Debe registrar un costo mayor a 0 para guardar el mantenimiento.',
         ]);
 
         $selectedType = MaintenanceType::find($this->maintenance_type_id);
@@ -251,15 +286,15 @@ class MaintenanceLogManager extends Component
                 $savedMaintenance = $maintenance->fresh();
                 $this->markResolvedAlertsAsRead();
                 $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
-                $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
-                session()->flash('message', 'Registro de mantenimiento actualizado correctamente.');
+                $kmUpdateStatus = $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
+                session()->flash('message', 'Registro de mantenimiento actualizado correctamente.' . ($kmUpdateStatus === 'same' ? ' El kilometraje se mantuvo igual al anterior.' : ''));
             }
         } else {
             $savedMaintenance = MaintenanceLog::create($data);
             $this->markResolvedAlertsAsRead();
             $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
-            $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
-            session()->flash('message', 'Registro de mantenimiento creado correctamente.');
+            $kmUpdateStatus = $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
+            session()->flash('message', 'Registro de mantenimiento creado correctamente.' . ($kmUpdateStatus === 'same' ? ' El kilometraje se mantuvo igual al anterior.' : ''));
         }
 
         if ($savedMaintenance && (int) ($this->from_workshop_id ?? 0) > 0) {
@@ -665,19 +700,19 @@ class MaintenanceLogManager extends Component
         $this->km_alerta_previa = $type->km_alerta_previa !== null ? (int) $type->km_alerta_previa : 15;
     }
 
-    private function updateVehicleKilometraje(?int $vehicleId, ?float $kmActual): void
+    private function updateVehicleKilometraje(?int $vehicleId, ?float $kmActual): string
     {
         if (!$vehicleId || $kmActual === null) {
-            return;
+            return 'skipped';
         }
 
         $vehicle = Vehicle::find($vehicleId);
         if (!$vehicle) {
-            return;
+            return 'skipped';
         }
 
         if ((bool) ($vehicle->tacometro_danado ?? false)) {
-            return;
+            return 'skipped';
         }
 
         $hasInicial = Schema::hasColumn('vehicles', 'kilometraje_inicial');
@@ -685,6 +720,7 @@ class MaintenanceLogManager extends Component
         $hasLegacy = Schema::hasColumn('vehicles', 'kilometraje');
 
         $updates = [];
+        $status = 'skipped';
 
         if ($hasInicial && $vehicle->kilometraje_inicial === null) {
             $updates['kilometraje_inicial'] = $kmActual;
@@ -694,6 +730,7 @@ class MaintenanceLogManager extends Component
             $prev = $vehicle->kilometraje_actual !== null ? (float) $vehicle->kilometraje_actual : null;
             if ($prev === null || $kmActual >= $prev) {
                 $updates['kilometraje_actual'] = $kmActual;
+                $status = $prev !== null && abs($kmActual - $prev) < 0.000001 ? 'same' : 'updated';
             }
         }
 
@@ -701,6 +738,9 @@ class MaintenanceLogManager extends Component
             $prevLegacy = $vehicle->kilometraje !== null ? (float) $vehicle->kilometraje : null;
             if ($prevLegacy === null || $kmActual >= $prevLegacy) {
                 $updates['kilometraje'] = $kmActual;
+                if ($status === 'skipped') {
+                    $status = $prevLegacy !== null && abs($kmActual - $prevLegacy) < 0.000001 ? 'same' : 'updated';
+                }
             }
         }
 
@@ -709,6 +749,7 @@ class MaintenanceLogManager extends Component
         }
 
         MaintenanceAlertService::evaluateVehicleByKilometraje((int) $vehicleId);
+        return $status;
     }
 
     private function prefillFromAlert(int $alertId): void
@@ -894,6 +935,44 @@ class MaintenanceLogManager extends Component
         $km = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
         $this->kilometraje_actual_vehiculo = $km !== null ? (float) $km : null;
         $this->tacometro_danado_vehiculo = (bool) ($vehicle->tacometro_danado ?? false);
+    }
+
+    private function resolveOrderedDateRange(): array
+    {
+        $from = $this->normalizeDate($this->date_from);
+        $to = $this->normalizeDate($this->date_to);
+
+        if ($from && $to && $from > $to) {
+            return [$to, $from];
+        }
+
+        return [$from, $to];
+    }
+
+    private function normalizeDate(?string $value): ?string
+    {
+        if (!filled($value)) {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse((string) $value)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')
+    {
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = max(1, (int) $this->getPage($pageName));
+
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage, $pageName);
+        }
+
+        return $query->paginate($perPage, ['*'], $pageName);
     }
 
 }

@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         .maintenance-calendar .calendar-cell {
             min-height: 165px;
