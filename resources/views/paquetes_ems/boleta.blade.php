@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Boleta EMS</title>
     <style>
-        @page { size: 80mm 260mm; margin: 4mm; }
+        @page { size: 80mm 190mm; margin: 3mm 4mm; }
         * { box-sizing: border-box; }
         html, body {
             margin: 0;
@@ -22,11 +22,13 @@
         }
         .ticket {
             width: 72mm;
-            margin: 0 auto 6mm;
+            margin: 0 auto;
             page-break-inside: avoid;
+            page-break-after: always;
         }
         .ticket:last-child {
             margin-bottom: 0;
+            page-break-after: auto;
         }
         .center { text-align: center; }
         .brand {
@@ -62,8 +64,10 @@
             text-align: center;
         }
         .barcode img {
+            width: 66mm;
             max-width: 100%;
-            height: auto;
+            height: 18mm;
+            object-fit: fill;
         }
         .code {
             font-size: 16px;
@@ -144,11 +148,13 @@
 </head>
 @php
     $codigo = (string) ($paquete->codigo ?? '');
+    $barcodeWidth = 1.5;
+    $barcodeHeight = 68;
     $barcodePngB64 = null;
 
     if ($codigo !== '' && class_exists('\DNS1D')) {
         try {
-            $barcodePngB64 = DNS1D::getBarcodePNG($codigo, 'C128', 1.5, 42);
+            $barcodePngB64 = DNS1D::getBarcodePNG($codigo, 'C128', $barcodeWidth, $barcodeHeight);
         } catch (\Throwable $e) {
             $barcodePngB64 = null;
         }
@@ -207,7 +213,7 @@
             @if($barcodePngB64)
                 <img src="data:image/png;base64,{{ $barcodePngB64 }}" alt="Codigo de barras {{ $codigo }}">
             @elseif($codigo !== '' && class_exists('\DNS1D'))
-                {!! DNS1D::getBarcodeHTML($codigo, 'C128', 1.0, 42) !!}
+                {!! DNS1D::getBarcodeHTML($codigo, 'C128', 1.0, $barcodeHeight) !!}
             @endif
             <div class="code">{{ $codigo !== '' ? $codigo : 'SIN CODIGO' }}</div>
         </div>
