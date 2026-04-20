@@ -416,7 +416,7 @@ class PaquetesEms extends Component
                 return;
             }
 
-            session()->flash('error', 'No se encontro paquete.');
+            session()->flash('error', $this->resolveCodigoFueraDeAlmacenMessage($codigo));
             $this->search = '';
             $this->searchQuery = '';
             return;
@@ -751,6 +751,61 @@ class PaquetesEms extends Component
         $this->authorizeCreateRouteAccess();
 
         return $this->redirect(route('paquetes-ems.create', absolute: false), navigate: false);
+    }
+
+    private function resolveCodigoFueraDeAlmacenMessage(string $codigo): string
+    {
+        $codigoNormalizado = strtoupper(trim($codigo));
+        if ($codigoNormalizado === '') {
+            return 'No se encontro paquete.';
+        }
+
+        $estadoNombres = Estado::query()
+            ->pluck('nombre_estado', 'id')
+            ->mapWithKeys(fn ($nombre, $id) => [(int) $id => strtoupper(trim((string) $nombre))])
+            ->all();
+
+        $ems = PaqueteEms::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado]);
+            })
+            ->orderByDesc('id')
+            ->first(['id', 'codigo', 'cod_especial', 'estado_id']);
+
+        if ($ems) {
+            $estado = $estadoNombres[(int) ($ems->estado_id ?? 0)] ?? ('ID ' . (int) ($ems->estado_id ?? 0));
+            return 'No se encontro en ALMACEN. Se encuentra en: ' . $estado . '.';
+        }
+
+        $contrato = RecojoContrato::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado]);
+            })
+            ->orderByDesc('id')
+            ->first(['id', 'codigo', 'cod_especial', 'estados_id']);
+
+        if ($contrato) {
+            $estado = $estadoNombres[(int) ($contrato->estados_id ?? 0)] ?? ('ID ' . (int) ($contrato->estados_id ?? 0));
+            return 'No se encontro en ALMACEN. Se encuentra en: ' . $estado . '.';
+        }
+
+        $solicitud = SolicitudCliente::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(COALESCE(codigo_solicitud, \'\'))) = ?', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(barcode, \'\'))) = ?', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado]);
+            })
+            ->orderByDesc('id')
+            ->first(['id', 'codigo_solicitud', 'barcode', 'cod_especial', 'estado_id']);
+
+        if ($solicitud) {
+            $estado = $estadoNombres[(int) ($solicitud->estado_id ?? 0)] ?? ('ID ' . (int) ($solicitud->estado_id ?? 0));
+            return 'No se encontro en ALMACEN. Se encuentra en: ' . $estado . '.';
+        }
+
+        return 'No se encontro en ALMACEN ni en otros modulos con ese codigo.';
     }
 
     public function openEnvioOficialModal()
