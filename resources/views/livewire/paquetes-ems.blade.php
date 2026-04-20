@@ -861,7 +861,7 @@
                                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes(true)">Buscar</button>
                                 </div>
                                 @if ($this->isAlmacenEms && $canEmsCreate && $canEmsCreateRoute)
-                                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                                    <button class="btn btn-dorado" type="button" wire:click="openEnvioOficialModal">GENERAR ENVIO OFICIAL</button>
                                 @endif
                             </div>
                         </div>
@@ -2316,6 +2316,73 @@
         </div>
     </div>
 
+    <div class="modal fade" id="envioOficialModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generar envio oficial</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Origen (automatico del usuario)</label>
+                        <input type="text" class="form-control" wire:model="oficialOrigen" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Destino</label>
+                        <select class="form-control" wire:model.defer="oficialDestino">
+                            <option value="">Seleccione...</option>
+                            @foreach($ciudades as $ciudadOpt)
+                                <option value="{{ $ciudadOpt }}">{{ $ciudadOpt }}</option>
+                            @endforeach
+                        </select>
+                        @error('oficialDestino') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="form-group">
+                        <x-peso-qz-field
+                            model="oficialPeso"
+                            input-id="peso-envio-oficial-modal"
+                            min="0.001"
+                            :required="true"
+                            :use-scale="true"
+                            :show-clear="true"
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Nombre del remitente</label>
+                        <input type="text" class="form-control" wire:model.defer="oficialNombreRemitente" placeholder="Ej: Unidad de Administracion">
+                        @error('oficialNombreRemitente') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="form-group">
+                        <label>Nombre destinatario</label>
+                        <input type="text" class="form-control" wire:model.defer="oficialNombreDestinatario" placeholder="Ej: Juan Perez">
+                        @error('oficialNombreDestinatario') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="form-group mb-0">
+                        <label>Direccion destinatario</label>
+                        <input type="text" class="form-control" wire:model.defer="oficialDireccionDestinatario" placeholder="Ej: Av. Principal #123">
+                        @error('oficialDireccionDestinatario') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsCreate)
+                    <button type="button" class="btn btn-dorado" wire:click="guardarEnvioOficial">
+                        Generar envio oficial
+                    </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="contratoPesoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
@@ -2620,6 +2687,8 @@
             closeRegionalMismatchModal: '#regionalMismatchModal',
             openContratoRegistrarModal: '#contratoRegistrarModal',
             closeContratoRegistrarModal: '#contratoRegistrarModal',
+            openEnvioOficialModal: '#envioOficialModal',
+            closeEnvioOficialModal: '#envioOficialModal',
             openContratoPesoModal: '#contratoPesoModal',
             closeContratoPesoModal: '#contratoPesoModal',
             openTiktokerPesoModal: '#tiktokerPesoModal',

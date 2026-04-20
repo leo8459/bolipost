@@ -119,6 +119,12 @@ class PaquetesEms extends Component
     public $registroContratoOrigen = '';
     public $registroContratoDestino = '';
     public $registroContratoPeso = '';
+    public $oficialOrigen = '';
+    public $oficialDestino = '';
+    public $oficialPeso = '';
+    public $oficialNombreRemitente = '';
+    public $oficialNombreDestinatario = '';
+    public $oficialDireccionDestinatario = '';
     public $showCn33Reprint = false;
     public $showCn33Assign = false;
     public $cn33Despacho = '';
@@ -745,6 +751,116 @@ class PaquetesEms extends Component
         $this->authorizeCreateRouteAccess();
 
         return $this->redirect(route('paquetes-ems.create', absolute: false), navigate: false);
+    }
+
+    public function openEnvioOficialModal()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('create', 'almacen_ems'));
+
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $user = Auth::user();
+        $origen = strtoupper(trim((string) optional($user)->ciudad));
+        if ($origen === '') {
+            $origen = strtoupper(trim((string) optional($user)->name));
+        }
+
+        $this->oficialOrigen = $origen;
+        $this->oficialDestino = '';
+        $this->oficialPeso = '0.001';
+        $this->oficialNombreRemitente = '';
+        $this->oficialNombreDestinatario = '';
+        $this->oficialDireccionDestinatario = '';
+        $this->resetValidation([
+            'oficialDestino',
+            'oficialPeso',
+            'oficialNombreRemitente',
+            'oficialNombreDestinatario',
+            'oficialDireccionDestinatario',
+        ]);
+
+        $this->dispatch('openEnvioOficialModal');
+    }
+
+    public function guardarEnvioOficial()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('create', 'almacen_ems'));
+
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'oficialDestino' => ['required', 'string', Rule::in($this->ciudades)],
+            'oficialPeso' => 'required|numeric|min:0.001',
+            'oficialNombreRemitente' => 'required|string|max:255',
+            'oficialNombreDestinatario' => 'required|string|max:255',
+            'oficialDireccionDestinatario' => 'required|string|max:255',
+        ], [], [
+            'oficialDestino' => 'destino',
+            'oficialPeso' => 'peso',
+            'oficialNombreRemitente' => 'nombre del remitente',
+            'oficialNombreDestinatario' => 'nombre destinatario',
+            'oficialDireccionDestinatario' => 'direccion destinatario',
+        ]);
+
+        $user = Auth::user();
+        if (!$user) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
+        $this->editingId = null;
+        $this->setOrigenFromUser();
+        $this->estado_id = $this->findEstadoId('ALMACEN');
+        if (!$this->estado_id) {
+            session()->flash('error', 'No se encontro el estado ALMACEN para crear el envio oficial.');
+            return;
+        }
+
+        $this->tipo_correspondencia = 'OFICIAL';
+        $this->servicio_especial = 'IDA';
+        $this->contenido = 'ENVIO OFICIAL';
+        $this->cantidad = 1;
+        $this->peso = round((float) $validated['oficialPeso'], 3);
+        $this->auto_codigo = true;
+        $this->codigo = $this->generateCodigo();
+        $this->precio = 0;
+        $this->precio_confirm = 0;
+        $this->tarifario_id = null;
+        $this->servicio_id = '';
+        $this->destino_id = '';
+
+        $this->nombre_remitente = trim((string) $validated['oficialNombreRemitente']);
+        $this->nombre_envia = '';
+        $this->carnet = 'S/N';
+        $this->telefono_remitente = 'S/N';
+        $this->nombre_destinatario = trim((string) $validated['oficialNombreDestinatario']);
+        $this->telefono_destinatario = '';
+        $this->direccion = trim((string) $validated['oficialDireccionDestinatario']);
+        $this->referencia = '';
+        $this->ciudad = $this->normalizeDestinoNombre((string) $validated['oficialDestino']);
+
+        $paquete = null;
+        DB::transaction(function () use ($user, &$paquete) {
+            $paquete = PaqueteEms::create($this->payload((int) $user->id));
+            $this->syncFormularioData($paquete);
+            $this->registerAdmisionEvento($paquete, (int) $user->id);
+        });
+
+        $this->oficialOrigen = '';
+        $this->oficialDestino = '';
+        $this->oficialPeso = '';
+        $this->oficialNombreRemitente = '';
+        $this->oficialNombreDestinatario = '';
+        $this->oficialDireccionDestinatario = '';
+        $this->dispatch('closeEnvioOficialModal');
+
+        session()->flash('success', 'Envio oficial generado correctamente. Codigo: ' . ($paquete->codigo ?? 'SIN CODIGO') . '.');
+
+        return $this->redirect(route('paquetes-ems.boleta', $paquete->id, false), navigate: false);
     }
 
     public function openRegionalModal()
