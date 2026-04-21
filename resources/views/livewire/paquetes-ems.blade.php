@@ -1387,9 +1387,6 @@
 
                 <div class="table-scroll-wrap">
                     <div class="table-responsive">
-                    @php
-                        $fechaGeneracionReporte = '10/03/2026 18:36:44';
-                    @endphp
                     <table class="table table-hover align-middle">
                         <thead>
                             @if ($this->isEnTransitoEms)
@@ -1455,7 +1452,7 @@
                                         <td>{{ $row->origen ?: '-' }}</td>
                                         <td>{{ $row->destino ?: '-' }}</td>
                                         <td>{{ $row->cod_especial ?: '-' }}</td>
-                                        <td>{{ $fechaGeneracionReporte }}</td>
+                                        <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -1493,7 +1490,7 @@
                                         <td>{{ $row->telefono_r }}</td>
                                         <td>{{ $row->telefono_d }}</td>
                                         <td>{{ \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') }}</td>
-                                        <td>{{ $fechaGeneracionReporte }}</td>
+                                        <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
                                         <td class="action-cell">
                                             <div class="action-stack">
                                             @if (($row->record_type ?? '') === 'EMS')
@@ -1578,7 +1575,7 @@
                                         <td>{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario }}</td>
                                         <td>{{ $formulario->telefono_destinatario ?? $paquete->telefono_destinatario }}</td>
                                         <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
-                                        <td>{{ $fechaGeneracionReporte }}</td>
+                                        <td>{{ optional($paquete->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                         <td class="action-cell">
                                             <div class="action-stack">
                                             @if ($canEmsEdit)
