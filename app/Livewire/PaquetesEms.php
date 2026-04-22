@@ -1940,7 +1940,7 @@ class PaquetesEms extends Component
                 $this->auto_codigo = true;
                 $this->servicio_especial = 'IDA';
                 return redirect()
-                    ->route('paquetes-ems.almacen')
+                    ->route('paquetes-ems.index')
                     ->with('download_boleta_url', route('paquetes-ems.boleta', $paquete->id, false));
             }
             return $this->redirect(route('paquetes-ems.boleta', $paquete->id, false), navigate: false);
@@ -5533,7 +5533,7 @@ class PaquetesEms extends Component
 
     protected function setEstadoByMode()
     {
-        if ($this->isAlmacenEms || $this->isCreateEms) {
+        if ($this->isAlmacenEms) {
             $this->estado_id = $this->findEstadoId('ALMACEN');
             return;
         }
