@@ -10,6 +10,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\NamedRange;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -559,6 +560,7 @@ class TarifaContratoController extends Controller
             $sheetCatalogos->setTitle('Catalogos');
             $sheetCatalogos->setCellValue('A1', 'SERVICIOS');
             $sheetCatalogos->setCellValue('B1', 'DEPARTAMENTOS');
+            $sheetCatalogos->setCellValue('D1', 'PROVINCIAS POR DEPARTAMENTO');
 
             $serviceRow = 2;
             foreach (self::SERVICIOS as $servicio) {
@@ -572,6 +574,31 @@ class TarifaContratoController extends Controller
                 $depRow++;
             }
 
+            $provHeaderCol = 'D';
+            foreach (self::DEPARTAMENTOS as $departamento) {
+                $rangeName = $this->normalizeExcelRangeName($departamento);
+                $sheetCatalogos->setCellValue($provHeaderCol . '1', $departamento);
+                $provincias = self::PROVINCIAS_POR_DEPARTAMENTO[$departamento] ?? [];
+                $provRow = 2;
+                foreach ($provincias as $provincia) {
+                    $sheetCatalogos->setCellValue($provHeaderCol . $provRow, $provincia);
+                    $provRow++;
+                }
+
+                if ($provRow === 2) {
+                    $sheetCatalogos->setCellValue($provHeaderCol . '2', '');
+                }
+
+                $lastProvRow = max(2, $provRow - 1);
+                $spreadsheet->addNamedRange(new NamedRange(
+                    $rangeName,
+                    $sheetCatalogos,
+                    '$' . $provHeaderCol . '$2:$' . $provHeaderCol . '$' . $lastProvRow
+                ));
+
+                $provHeaderCol++;
+            }
+
             $sheetCatalogos->getStyle('A1:B1')->applyFromArray([
                 'font' => ['bold' => true],
                 'fill' => [
@@ -581,6 +608,16 @@ class TarifaContratoController extends Controller
             ]);
             $sheetCatalogos->getColumnDimension('A')->setWidth(34);
             $sheetCatalogos->getColumnDimension('B')->setWidth(20);
+            $sheetCatalogos->getStyle('D1:L1')->applyFromArray([
+                'font' => ['bold' => true],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['argb' => 'FFF3E5F5'],
+                ],
+            ]);
+            foreach (range('D', 'L') as $col) {
+                $sheetCatalogos->getColumnDimension($col)->setWidth(24);
+            }
 
             $sheetInstrucciones = $spreadsheet->createSheet();
             $sheetInstrucciones->setTitle('Instrucciones');
@@ -590,6 +627,7 @@ class TarifaContratoController extends Controller
             $sheetInstrucciones->setCellValue('A5', '3) Usa empresa_nombre igual al nombre exacto en hoja Empresas.');
             $sheetInstrucciones->setCellValue('A6', '4) direccion, zona, peso y provincia son opcionales.');
             $sheetInstrucciones->setCellValue('A7', '5) origen, destino y servicio tienen listas desplegables.');
+            $sheetInstrucciones->setCellValue('A8', '6) En provincia, primero elige destino (departamento) para ver solo provincias de ese destino.');
             $sheetInstrucciones->getStyle('A1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 14],
                 'color' => ['argb' => 'FF0D47A1'],
@@ -604,6 +642,7 @@ class TarifaContratoController extends Controller
             $this->applyListValidation($sheet, 'B2:B5000', "=Catalogos!\$B\$2:\$B\${$lastDepartamentoRow}");
             $this->applyListValidation($sheet, 'C2:C5000', "=Catalogos!\$B\$2:\$B\${$lastDepartamentoRow}");
             $this->applyListValidation($sheet, 'D2:D5000', "=Catalogos!\$A\$2:\$A\${$lastServiceRow}");
+            $this->applyProvinciaValidation($sheet, 'J2:J5000');
 
             $spreadsheet->setActiveSheetIndex(0);
 
@@ -743,6 +782,28 @@ class TarifaContratoController extends Controller
         return [$m[1], (int) $m[2]];
     }
 
+    private function applyProvinciaValidation(Worksheet $sheet, string $range): void
+    {
+        [$start, $end] = explode(':', $range);
+        [$startCol, $startRow] = $this->splitCell($start);
+        [$endCol, $endRow] = $this->splitCell($end);
+
+        for ($row = $startRow; $row <= $endRow; $row++) {
+            for ($col = $startCol; $col <= $endCol; $col++) {
+                $cell = $col . $row;
+                $validation = $sheet->getCell($cell)->getDataValidation();
+                $validation->setType(DataValidation::TYPE_LIST);
+                $validation->setAllowBlank(true);
+                $validation->setShowDropDown(true);
+                $validation->setShowErrorMessage(true);
+                $validation->setErrorTitle('Provincia invalida');
+                $validation->setError('Selecciona una provincia del destino elegido.');
+                $validation->setFormula1('=INDIRECT(SUBSTITUTE($C' . $row . '," ","_"))');
+                $sheet->getCell($cell)->setDataValidation($validation);
+            }
+        }
+    }
+
     private function parseDecimal($value): ?float
     {
         if ($value === null) {
@@ -820,6 +881,19 @@ class TarifaContratoController extends Controller
         }
 
         return strtoupper($text);
+    }
+
+    private function normalizeExcelRangeName(string $value): string
+    {
+        $value = strtoupper(trim($value));
+        $value = str_replace(' ', '_', $value);
+        $value = preg_replace('/[^A-Z0-9_]/', '', $value) ?? $value;
+
+        if ($value === '' || ctype_digit(substr($value, 0, 1))) {
+            $value = 'RANGO_' . $value;
+        }
+
+        return $value;
     }
 }
 

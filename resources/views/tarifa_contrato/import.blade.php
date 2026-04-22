@@ -56,7 +56,11 @@
                                     En la plantilla tienes la hoja <strong>Empresas</strong> con la lista registrada.
                                 </p>
                                 <p class="mt-2 mb-2">
-                                    <strong>provincia</strong> es opcional.
+                                    <strong>direccion</strong>, <strong>zona</strong>, <strong>peso</strong> y <strong>provincia</strong> son opcionales.
+                                </p>
+                                <p class="mt-2 mb-2">
+                                    En la plantilla, <strong>provincia</strong> depende del <strong>destino</strong> (departamento):
+                                    primero elige destino y luego veras sus provincias.
                                 </p>
                                 <p class="mt-2 mb-2">
                                     La plantilla <strong>ya no incluye fila de ejemplo</strong> para evitar cargas equivocadas.
