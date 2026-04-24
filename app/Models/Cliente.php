@@ -103,11 +103,11 @@ class Cliente extends Authenticatable
     public static function tiposDocumentoIdentidad(): array
     {
         return [
-            '1' => 'CI - Cedula de identidad',
-            '2' => 'CEX - Cedula de identidad de extranjero',
-            '3' => 'PAS - Pasaporte',
-            '4' => 'OD - Otro Documento de Identidad',
-            '5' => 'NIT - Numero de identificacion Tributaria',
+            '1' => 'CI - CEDULA DE IDENTIDAD',
+            '2' => 'CEX - CEDULA DE IDENTIDAD DE EXTRANJERO',
+            '5' => 'NIT - NUMERO DE IDENTIFICACION TRIBUTARIA',
+            '3' => 'PAS - PASAPORTE',
+            '4' => 'OD - OTRO DOCUMENTO DE IDENTIDAD',
         ];
     }
 

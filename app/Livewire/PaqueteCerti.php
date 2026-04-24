@@ -4,7 +4,9 @@ namespace App\Livewire;
 
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteCerti as PaqueteCertiModel;
+use App\Models\Servicio as ServicioModel;
 use App\Models\Ventanilla as VentanillaModel;
+use App\Services\FacturacionCartService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +16,7 @@ use Livewire\WithPagination;
 class PaqueteCerti extends Component
 {
     use WithPagination;
+    private const DEFAULT_SERVICE_NAME = 'CERTIFICADAS';
 
     private const ROLE_VENTANILLA_MAP = [
         'auxiliar_urbano_dnd' => ['DND', 'CASILLA'],
@@ -51,6 +54,7 @@ class PaqueteCerti extends Component
 
     public $codigo = '';
     public $cod_especial = '';
+    public $servicio_id = '';
     public $destinatario = '';
     public $telefono = '';
     public $cuidad = '';
@@ -67,6 +71,7 @@ class PaqueteCerti extends Component
     {
         $allowedModes = ['almacen', 'inventario', 'rezago', 'todos'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'almacen';
+        $this->setDefaultServicioId();
     }
 
     public function getIsAlmacenProperty()
@@ -112,6 +117,7 @@ class PaqueteCerti extends Component
 
         $this->resetForm();
         $this->editingId = null;
+        $this->setDefaultServicioId();
         $userCity = trim((string) optional(auth()->user())->ciudad);
         if ($userCity !== '') {
             $this->cuidad = $userCity;
@@ -134,6 +140,10 @@ class PaqueteCerti extends Component
         $this->editingId = $paquete->id;
         $this->codigo = $paquete->codigo;
         $this->cod_especial = $paquete->cod_especial ?? '';
+        $this->servicio_id = $paquete->servicio_id ? (string) $paquete->servicio_id : '';
+        if ($this->servicio_id === '') {
+            $this->setDefaultServicioId();
+        }
         $this->destinatario = $paquete->destinatario;
         $this->telefono = $paquete->telefono;
         $this->cuidad = $paquete->cuidad;
@@ -194,6 +204,7 @@ class PaqueteCerti extends Component
             : $this->modeFeaturePermission('create', 'almacen');
 
         $this->authorizePermission($permission);
+        $this->setDefaultServicioId();
 
         $this->validate($this->rules());
 
@@ -402,8 +413,36 @@ class PaqueteCerti extends Component
         });
         $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
 
+        $facturacionAgregados = 0;
+        $facturacionFallidos = 0;
+        $user = Auth::user();
+        if ($this->canUseFacturacionShortcut($user)) {
+            $paquetesFacturacion = PaqueteCertiModel::query()
+                ->whereIn('id', $ids)
+                ->get();
+
+            foreach ($paquetesFacturacion as $paqueteFacturacion) {
+                try {
+                    app(FacturacionCartService::class)->addPaqueteCerti($user, $paqueteFacturacion);
+                    $facturacionAgregados++;
+                } catch (\Throwable $e) {
+                    $facturacionFallidos++;
+                }
+            }
+        }
+
         $this->selectedPaquetes = [];
-        session()->flash('success', 'Paquetes enviados a ENTREGADO correctamente.');
+        if ($facturacionAgregados > 0 && $facturacionFallidos === 0) {
+            session()->flash('success', "Paquetes enviados a ENTREGADO correctamente. Se agregaron {$facturacionAgregados} paquete(s) al carrito de facturacion.");
+            $this->dispatch('facturacionCartSyncNeeded');
+        } elseif ($facturacionAgregados > 0 && $facturacionFallidos > 0) {
+            session()->flash('success', "Paquetes enviados a ENTREGADO correctamente. Se agregaron {$facturacionAgregados} paquete(s) al carrito de facturacion y {$facturacionFallidos} fallaron.");
+            $this->dispatch('facturacionCartSyncNeeded');
+        } elseif ($facturacionFallidos > 0) {
+            session()->flash('success', "Paquetes enviados a ENTREGADO correctamente. No se pudo agregar {$facturacionFallidos} paquete(s) al carrito de facturacion.");
+        } else {
+            session()->flash('success', 'Paquetes enviados a ENTREGADO correctamente.');
+        }
 
         $this->resetPage();
         $this->dispatch('$refresh');
@@ -498,6 +537,7 @@ class PaqueteCerti extends Component
         $this->reset([
             'codigo',
             'cod_especial',
+            'servicio_id',
             'destinatario',
             'telefono',
             'cuidad',
@@ -517,6 +557,7 @@ class PaqueteCerti extends Component
         return [
             'codigo' => 'required|string|max:255',
             'cod_especial' => 'nullable|string|max:255',
+            'servicio_id' => 'required|exists:servicio,id',
             'destinatario' => 'required|string|max:255',
             'telefono' => 'required|integer|min:0',
             'cuidad' => 'required|string|max:255',
@@ -584,6 +625,7 @@ class PaqueteCerti extends Component
         return [
             'codigo' => $this->upper($this->codigo),
             'cod_especial' => $this->emptyToNull($this->cod_especial),
+            'servicio_id' => $this->servicio_id !== '' ? (int) $this->servicio_id : null,
             'destinatario' => $this->upper($this->destinatario),
             'telefono' => $this->telefono,
             'cuidad' => $this->upper($this->cuidad),
@@ -598,12 +640,34 @@ class PaqueteCerti extends Component
         ];
     }
 
-    protected function calcularPrecio($pesoGramos): ?float
+    protected function calcularPrecio($pesoIngresado): ?float
     {
-        $kg = (float) $pesoGramos / 1000;
+        $peso = $this->parsePeso($pesoIngresado);
+        if ($peso <= 0) {
+            return null;
+        }
+
+        // Compatibilidad: si el valor es grande asumimos gramos (ej. 500), si no, kilogramos (ej. 0.500).
+        $kg = $peso > 10 ? ($peso / 1000) : $peso;
+
         if ($kg >= 0.001 && $kg <= 0.500) return 5.00;
         if ($kg > 0.500 && $kg <= 2.000) return 10.00;
         return null;
+    }
+
+    private function parsePeso($value): float
+    {
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return 0.0;
+        }
+
+        $normalized = str_replace(',', '.', $raw);
+        return is_numeric($normalized) ? (float) $normalized : 0.0;
     }
 
     protected function upper($value)
@@ -734,7 +798,7 @@ class PaqueteCerti extends Component
         $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
 
         $paquetes = $this->authorizedPaquetesQuery()
-            ->with(['estado', 'ventanillaRef'])
+            ->with(['estado', 'ventanillaRef', 'servicio'])
             ->when($userCity !== '', function ($query) use ($userCity) {
                 $query->whereRaw('TRIM(UPPER(cuidad)) = TRIM(UPPER(?))', [$userCity]);
             })
@@ -795,6 +859,8 @@ class PaqueteCerti extends Component
             'previewReencaminarPaquetes' => $previewReencaminarPaquetes,
             'estados' => EstadoModel::orderBy('nombre_estado')->get(),
             'ventanillas' => $this->ventanillasQuery()->orderBy('nombre_ventanilla')->get(),
+            'servicios' => ServicioModel::query()->orderBy('nombre_servicio')->get(['id', 'nombre_servicio']),
+            'servicioModuloLabel' => self::DEFAULT_SERVICE_NAME,
             'canCertiCreate' => $this->userCan($this->modeFeaturePermission('create')),
             'canCertiEdit' => $this->userCan($this->modeFeaturePermission('edit')),
             'canCertiReencaminar' => $this->userCan($this->modeFeaturePermission('reencaminar')),
@@ -829,6 +895,32 @@ class PaqueteCerti extends Component
         if (! $this->userCan($permission)) {
             abort(403, 'No tienes permiso para realizar esta accion.');
         }
+    }
+
+    private function canUseFacturacionShortcut(?object $user = null): bool
+    {
+        $user ??= auth()->user();
+
+        return (bool) ($user && method_exists($user, 'can') && $user->can('feature.dashboard.facturacion'));
+    }
+
+    private function setDefaultServicioId(): void
+    {
+        if ($this->servicio_id !== '') {
+            return;
+        }
+
+        $servicio = ServicioModel::query()
+            ->whereRaw('trim(upper(nombre_servicio)) = trim(upper(?))', [self::DEFAULT_SERVICE_NAME])
+            ->first();
+
+        if (!$servicio) {
+            $servicio = ServicioModel::query()->create([
+                'nombre_servicio' => self::DEFAULT_SERVICE_NAME,
+            ]);
+        }
+
+        $this->servicio_id = (string) $servicio->id;
     }
 
     private function authorizedPaquetesQuery()

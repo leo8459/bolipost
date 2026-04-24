@@ -4,7 +4,9 @@ namespace App\Livewire;
 
 use App\Models\Estado;
 use App\Models\PaqueteOrdi;
+use App\Models\Servicio as ServicioModel;
 use App\Models\Ventanilla;
+use App\Services\FacturacionCartService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +17,7 @@ use Livewire\WithPagination;
 class PaquetesOrdi extends Component
 {
     use WithPagination;
+    private const DEFAULT_SERVICE_NAME = 'ORDINARIAS';
 
     private const ROLE_VENTANILLA_MAP = [
         'auxiliar_urbano_dnd' => ['DND', 'CASILLA'],
@@ -50,6 +53,7 @@ class PaquetesOrdi extends Component
     public $previewReencaminarIds = [];
 
     public $codigo = '';
+    public $servicio_id = '';
     public $destinatario = '';
     public $telefono = '';
     public $ciudad = '';
@@ -82,6 +86,7 @@ class PaquetesOrdi extends Component
     {
         $allowedModes = ['clasificacion', 'despacho', 'almacen', 'entregado', 'rezago', 'todos'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'clasificacion';
+        $this->setDefaultServicioId();
     }
 
     public function getIsClasificacionProperty()
@@ -393,6 +398,8 @@ class PaquetesOrdi extends Component
     private function buscarYGuardarDesdeApiDespacho(string $codigo, int $estadoEnviadoId): ?PaqueteOrdi
     {
         try {
+            $servicioModulo = $this->resolveOrCreateModuloServicio();
+
             $response = Http::withToken('eZMlItx6mQMNZjxoijEvf7K3pYvGGXMvEHmQcqvtlAPOEAPgyKDVOpyF7JP0ilbK')
                 ->withoutVerifying()
                 ->timeout(10)
@@ -426,6 +433,7 @@ class PaquetesOrdi extends Component
             $pesoApi = $data['PESO'] ?? 0;
             $paquete = PaqueteOrdi::create([
                 'codigo'        => strtoupper(trim($data['CODIGO'])),
+                'servicio_id'   => (int) $servicioModulo->id,
                 'destinatario'  => $data['DESTINATARIO'] ?? '',
                 'telefono'      => $data['TELEFONO'] ?? '',
                 'ciudad'        => strtoupper(trim($data['CUIDAD'] ?? '')),
@@ -495,11 +503,35 @@ class PaquetesOrdi extends Component
             return;
         }
 
+        $servicioModulo = $this->resolveOrCreateModuloServicio();
+        PaqueteOrdi::query()
+            ->whereIn('id', $idsActualizar)
+            ->whereNull('servicio_id')
+            ->update(['servicio_id' => (int) $servicioModulo->id]);
+
         PaqueteOrdi::query()
             ->whereIn('id', $idsActualizar)
             ->update(['fk_estado' => $estadoEntregadoId]);
 
         $this->registrarEventosOrdiPorIds($idsActualizar, self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE);
+
+        $facturacionAgregados = 0;
+        $facturacionFallidos = 0;
+        $user = auth()->user();
+        if ($this->canUseFacturacionShortcut($user)) {
+            $paquetesFacturacion = PaqueteOrdi::query()
+                ->whereIn('id', $idsActualizar)
+                ->get();
+
+            foreach ($paquetesFacturacion as $paqueteFacturacion) {
+                try {
+                    app(FacturacionCartService::class)->addPaqueteOrdi($user, $paqueteFacturacion);
+                    $facturacionAgregados++;
+                } catch (\Throwable $e) {
+                    $facturacionFallidos++;
+                }
+            }
+        }
 
         $packages = PaqueteOrdi::query()
             ->with(['estado', 'ventanillaRef'])
@@ -510,7 +542,17 @@ class PaquetesOrdi extends Component
 
         $this->selectAll = false;
         $this->selectedPaquetes = [];
-        session()->flash('success', 'Paquetes enviados a ENTREGADO correctamente.');
+        if ($facturacionAgregados > 0 && $facturacionFallidos === 0) {
+            session()->flash('success', "Paquetes enviados a ENTREGADO correctamente. Se agregaron {$facturacionAgregados} paquete(s) al carrito de facturacion.");
+            $this->dispatch('facturacionCartSyncNeeded');
+        } elseif ($facturacionAgregados > 0 && $facturacionFallidos > 0) {
+            session()->flash('success', "Paquetes enviados a ENTREGADO correctamente. Se agregaron {$facturacionAgregados} paquete(s) al carrito de facturacion y {$facturacionFallidos} fallaron.");
+            $this->dispatch('facturacionCartSyncNeeded');
+        } elseif ($facturacionFallidos > 0) {
+            session()->flash('success', "Paquetes enviados a ENTREGADO correctamente. No se pudo agregar {$facturacionFallidos} paquete(s) al carrito de facturacion.");
+        } else {
+            session()->flash('success', 'Paquetes enviados a ENTREGADO correctamente.');
+        }
         $this->resetPage();
 
         $pdf = Pdf::loadView('paquetes_ordi.reporte_baja', [
@@ -590,6 +632,7 @@ class PaquetesOrdi extends Component
 
         $this->resetForm();
         $this->editingId = null;
+        $this->setDefaultServicioId();
 
         $userCity = trim((string) optional(auth()->user())->ciudad);
         if ($userCity !== '') {
@@ -618,6 +661,10 @@ class PaquetesOrdi extends Component
 
         $this->editingId = $paquete->id;
         $this->codigo = $paquete->codigo;
+        $this->servicio_id = $paquete->servicio_id ? (string) $paquete->servicio_id : '';
+        if ($this->servicio_id === '') {
+            $this->setDefaultServicioId();
+        }
         $this->destinatario = $paquete->destinatario;
         $this->telefono = $paquete->telefono;
         $this->ciudad = $paquete->ciudad;
@@ -679,6 +726,7 @@ class PaquetesOrdi extends Component
             ? $this->modeFeaturePermission('edit')
             : $this->modeFeaturePermission('create', $createMode);
         $this->authorizePermission($permission);
+        $this->setDefaultServicioId();
 
         if (!$this->editingId) {
             $estadoCreacionId = $this->isAlmacen
@@ -1007,6 +1055,7 @@ class PaquetesOrdi extends Component
     {
         $this->reset([
             'codigo',
+            'servicio_id',
             'destinatario',
             'telefono',
             'ciudad',
@@ -1026,6 +1075,7 @@ class PaquetesOrdi extends Component
     {
         return [
             'codigo' => 'required|string|max:255',
+            'servicio_id' => 'required|exists:servicio,id',
             'destinatario' => 'required|string|max:255',
             'telefono' => 'required|string|max:30',
             'ciudad' => 'required|string|max:255',
@@ -1084,16 +1134,39 @@ class PaquetesOrdi extends Component
 
     protected function calcularPrecio($pesoGramos): ?float
     {
-        $kg = (float) $pesoGramos / 1000;
+        $peso = $this->parsePeso($pesoGramos);
+        if ($peso <= 0) {
+            return null;
+        }
+
+        // Compatibilidad: algunos flujos guardan en gramos y otros en kg.
+        $kg = $peso > 10 ? ($peso / 1000) : $peso;
+
         if ($kg >= 0.001 && $kg <= 0.500) return 5.00;
         if ($kg > 0.500 && $kg <= 2.000) return 10.00;
         return null;
+    }
+
+    private function parsePeso($value): float
+    {
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return 0.0;
+        }
+
+        $normalized = str_replace(',', '.', $raw);
+        return is_numeric($normalized) ? (float) $normalized : 0.0;
     }
 
     protected function payload()
     {
         return [
             'codigo' => $this->upper($this->codigo),
+            'servicio_id' => $this->servicio_id !== '' ? (int) $this->servicio_id : null,
             'destinatario' => $this->upper($this->destinatario),
             'telefono' => trim((string) $this->telefono),
             'ciudad' => $this->upper($this->ciudad),
@@ -1434,6 +1507,8 @@ class PaquetesOrdi extends Component
         return view('livewire.paquetes-ordi', [
             'paquetes' => $paquetes,
             'ventanillas' => $this->getVentanillasByCiudad(),
+            'servicios' => ServicioModel::query()->orderBy('nombre_servicio')->get(['id', 'nombre_servicio']),
+            'servicioModuloLabel' => self::DEFAULT_SERVICE_NAME,
             'ciudadesDisponibles' => $this->ciudadesDisponibles(),
             'previewRecibirPaquetes' => $previewRecibirPaquetes,
             'previewReencaminarPaquetes' => $previewReencaminarPaquetes,
@@ -1472,6 +1547,38 @@ class PaquetesOrdi extends Component
         if (! $this->userCan($permission)) {
             abort(403, 'No tienes permiso para realizar esta accion.');
         }
+    }
+
+    private function canUseFacturacionShortcut(?object $user = null): bool
+    {
+        $user ??= auth()->user();
+
+        return (bool) ($user && method_exists($user, 'can') && $user->can('feature.dashboard.facturacion'));
+    }
+
+    private function setDefaultServicioId(): void
+    {
+        if ($this->servicio_id !== '') {
+            return;
+        }
+
+        $servicio = $this->resolveOrCreateModuloServicio();
+        $this->servicio_id = (string) $servicio->id;
+    }
+
+    private function resolveOrCreateModuloServicio(): ServicioModel
+    {
+        $servicio = ServicioModel::query()
+            ->whereRaw('trim(upper(nombre_servicio)) = trim(upper(?))', [self::DEFAULT_SERVICE_NAME])
+            ->first();
+
+        if (!$servicio) {
+            $servicio = ServicioModel::query()->create([
+                'nombre_servicio' => self::DEFAULT_SERVICE_NAME,
+            ]);
+        }
+
+        return $servicio;
     }
 
     private function accessiblePaquetesQuery(): Builder

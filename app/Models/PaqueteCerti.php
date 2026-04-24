@@ -14,6 +14,7 @@ class PaqueteCerti extends Model
     protected $fillable = [
         'codigo',
         'cod_especial',
+        'servicio_id',
         'destinatario',
         'telefono',
         'cuidad',
@@ -41,6 +42,11 @@ class PaqueteCerti extends Model
     public function malencaminados()
     {
         return $this->hasMany(Malencaminado::class, 'paquetes_certi_id');
+    }
+
+    public function servicio()
+    {
+        return $this->belongsTo(Servicio::class, 'servicio_id');
     }
 
 }

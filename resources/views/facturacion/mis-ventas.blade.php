@@ -1,4 +1,4 @@
-@extends('adminlte::page')
+﻿@extends('adminlte::page')
 
 @section('title', 'Mis ventas')
 
@@ -18,11 +18,23 @@
 
 @section('content')
     @php
+        $facturacionFeedback = session('facturacion_feedback');
+        $cajaEstado = strtoupper(trim((string) data_get($cajaContext ?? [], 'estado', 'SIN_APERTURA')));
+        $isCajaAbierta = in_array($cajaEstado, ['ABIERTA', 'ABIERTO'], true);
+        $cajaMensaje = trim((string) data_get($cajaContext ?? [], 'mensaje', ''));
+        $arqueosMes = (string) data_get($arqueosContext ?? [], 'mes', ($filters['arqueo_mes'] ?? now()->format('Y-m')));
+        $arqueosError = trim((string) data_get($arqueosContext ?? [], 'error', ''));
+        $arqueosResumen = (array) data_get($arqueosContext ?? [], 'resumen', []);
+        $arqueosDias = data_get($arqueosContext ?? [], 'dias', collect());
+        $arqueosDias = $arqueosDias instanceof \Illuminate\Support\Collection
+            ? $arqueosDias
+            : collect(is_array($arqueosDias) ? $arqueosDias : []);
         $baseFilterParams = [
             'q' => $filters['q'],
             'from' => $filters['from'],
             'to' => $filters['to'],
             'per_page' => $filters['per_page'],
+            'arqueo_mes' => $filters['arqueo_mes'] ?? now()->format('Y-m'),
         ];
 
         $summaryCards = [
@@ -76,6 +88,16 @@
             ],
         ];
     @endphp
+
+    @if (is_array($facturacionFeedback) && in_array((string) ($facturacionFeedback['action'] ?? ''), ['caja_abrir', 'caja_cerrar'], true))
+        <div class="alert ventas-feedback-alert ventas-feedback-alert--{{ $facturacionFeedback['type'] ?? 'info' }}">
+            <strong>{{ $facturacionFeedback['title'] ?? 'Caja diaria' }}</strong>
+            <div>{{ $facturacionFeedback['message'] ?? '' }}</div>
+            @if (!empty($facturacionFeedback['detail']))
+                <small>{{ $facturacionFeedback['detail'] }}</small>
+            @endif
+        </div>
+    @endif
 
     <div class="card ventas-panel mb-4">
         <div class="card-header ventas-panel__header">
@@ -140,6 +162,137 @@
         </div>
     </div>
 
+    <div class="ventas-caja-card">
+        <div class="ventas-caja-card__left">
+            <div class="ventas-caja-card__label">Caja diaria</div>
+            <div class="ventas-caja-card__state">
+                Estado:
+                <span class="ventas-caja-badge {{ $isCajaAbierta ? 'is-open' : 'is-closed' }}">
+                    {{ $isCajaAbierta ? 'Caja abierta' : 'Sin apertura' }}
+                </span>
+            </div>
+            <div class="ventas-caja-card__hint">
+                {{ $cajaMensaje !== '' ? $cajaMensaje : ($isCajaAbierta ? 'Cierra caja al finalizar tu jornada.' : 'Abre caja para habilitar emisión en facturación.') }}
+            </div>
+        </div>
+        <div class="ventas-caja-card__right">
+            @if($isCajaAbierta)
+                <form method="POST" action="{{ route('facturacion.cart.caja.cerrar') }}" onsubmit="return confirm('Se cerrará la caja diaria. ¿Deseas continuar?');">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-danger">
+                        <i class="fas fa-door-closed mr-1"></i> Cerrar caja
+                    </button>
+                </form>
+            @else
+                <form method="POST" action="{{ route('facturacion.cart.caja.abrir') }}" onsubmit="return confirm('Se abrirá una nueva caja diaria. ¿Deseas continuar?');">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="fas fa-lock-open mr-1"></i> Abrir caja
+                    </button>
+                </form>
+            @endif
+        </div>
+    </div>
+
+    <div class="card ventas-panel ventas-arqueo-card mb-4">
+        <div class="card-header ventas-panel__header d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <strong>Arqueos del mes</strong>
+                <div class="text-muted small">Control diario de cierres de caja y conciliación de ventas.</div>
+            </div>
+            <form method="GET" action="{{ route('mis-ventas.index') }}" class="ventas-arqueo-filter">
+                <input type="hidden" name="q" value="{{ $filters['q'] }}">
+                <input type="hidden" name="estado" value="{{ $filters['estado'] }}">
+                <input type="hidden" name="estado_emision" value="{{ $filters['estado_emision'] }}">
+                <input type="hidden" name="from" value="{{ $filters['from'] }}">
+                <input type="hidden" name="to" value="{{ $filters['to'] }}">
+                <input type="hidden" name="per_page" value="{{ $filters['per_page'] }}">
+                <input type="month" name="arqueo_mes" class="form-control ventas-control" value="{{ $arqueosMes }}" onchange="this.form.submit()">
+            </form>
+        </div>
+        <div class="card-body">
+            @if ($arqueosError !== '')
+                <div class="alert ventas-feedback-alert ventas-feedback-alert--warning mb-3">
+                    {{ $arqueosError }}
+                </div>
+            @endif
+
+            <div class="ventas-arqueo-resumen">
+                <div class="ventas-arqueo-pill">
+                    <span>Días arqueados</span>
+                    <strong>{{ number_format((int) ($arqueosResumen['dias'] ?? 0)) }}</strong>
+                </div>
+                <div class="ventas-arqueo-pill">
+                    <span>Ventas conciliadas</span>
+                    <strong>{{ number_format((int) ($arqueosResumen['cantidadVentas'] ?? 0)) }}</strong>
+                </div>
+                <div class="ventas-arqueo-pill">
+                    <span>Total arqueado</span>
+                    <strong>Bs {{ number_format((float) ($arqueosResumen['montoTotal'] ?? 0), 2) }}</strong>
+                </div>
+                <div class="ventas-arqueo-pill {{ ((float) ($arqueosResumen['diferencia'] ?? 0)) == 0.0 ? 'is-ok' : 'is-alert' }}">
+                    <span>Diferencia</span>
+                    <strong>Bs {{ number_format((float) ($arqueosResumen['diferencia'] ?? 0), 2) }}</strong>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table ventas-table ventas-arqueo-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th class="text-center">Arqueos</th>
+                            <th class="text-center">Ventas</th>
+                            <th class="text-right">Total</th>
+                            <th class="text-right">Declarado</th>
+                            <th class="text-right">Diferencia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($arqueosDias as $dia)
+                            @php
+                                $dia = is_array($dia) ? (object) $dia : $dia;
+                                $fechaDia = trim((string) data_get($dia, 'fecha', ''));
+                                $fechaDiaLabel = '-';
+                                if ($fechaDia !== '') {
+                                    try {
+                                        $fechaDiaLabel = \Carbon\Carbon::parse($fechaDia)->format('d/m/Y');
+                                    } catch (\Throwable $e) {
+                                        $fechaDiaLabel = $fechaDia;
+                                    }
+                                }
+                                $cantidadArqueos = is_countable(data_get($dia, 'arqueos', [])) ? count(data_get($dia, 'arqueos', [])) : 0;
+                                $cantidadVentasDia = (int) data_get($dia, 'cantidadVentas', 0);
+                                $montoTotalDia = (float) data_get($dia, 'montoTotal', 0);
+                                $montoDeclaradoDia = (float) data_get($dia, 'montoDeclarado', 0);
+                                $diferenciaDia = (float) data_get($dia, 'diferencia', 0);
+                            @endphp
+                            <tr>
+                                <td>
+                                    <div class="ventas-table__primary">{{ $fechaDiaLabel }}</div>
+                                    <div class="ventas-table__secondary">{{ $fechaDia !== '' ? $fechaDia : 'Sin fecha' }}</div>
+                                </td>
+                                <td class="text-center">{{ $cantidadArqueos }}</td>
+                                <td class="text-center">{{ $cantidadVentasDia }}</td>
+                                <td class="text-right">Bs {{ number_format($montoTotalDia, 2) }}</td>
+                                <td class="text-right">Bs {{ number_format($montoDeclaradoDia, 2) }}</td>
+                                <td class="text-right">
+                                    <span class="ventas-status-chip {{ $diferenciaDia == 0.0 ? 'ventas-status-chip--success' : 'ventas-status-chip--danger' }}">
+                                        Bs {{ number_format($diferenciaDia, 2) }}
+                                    </span>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">No hay cierres arqueados para este mes.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="ventas-summary-grid">
         @foreach($summaryCards as $card)
             <a
@@ -179,23 +332,60 @@
                     <tbody>
                         @forelse($carts as $cart)
                             @php
-                                $respuesta = (array) ($cart->respuesta_emision ?? []);
+                                $cart = is_array($cart) ? (object) $cart : $cart;
+                                $rawCartItems = data_get($cart, 'items', []);
+                                $cartItems = ($rawCartItems instanceof \Illuminate\Support\Collection
+                                    ? $rawCartItems
+                                    : (is_array($rawCartItems) ? collect($rawCartItems) : collect()))
+                                    ->map(fn ($item) => is_array($item) ? (object) $item : $item)
+                                    ->filter(fn ($item) => is_object($item))
+                                    ->values();
+
+                                $respuesta = (array) data_get($cart, 'respuesta_emision', []);
                                 $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
-                                $facturaEstado = strtoupper((string) ($cart->estado_emision ?? ''));
-                                $mensajeEmision = trim((string) ($cart->mensaje_emision ?? ''));
+                                $numeroFactura = trim((string) (
+                                    data_get($respuesta, 'factura.nroFactura')
+                                    ?? data_get($respuesta, 'factura.numeroFactura')
+                                    ?? data_get($respuesta, 'nroFactura')
+                                    ?? data_get($respuesta, 'numeroFactura')
+                                    ?? data_get($respuesta, 'consultaSefe.nroFactura')
+                                ));
+                                $facturaEstado = strtoupper((string) data_get($cart, 'estado_emision', ''));
+                                $mensajeEmision = trim((string) data_get($cart, 'mensaje_emision', ''));
+                                $cartId = (int) data_get($cart, 'id', 0);
+                                $codigoOrden = trim((string) data_get($cart, 'codigo_orden', ''));
+                                $numeroDocumento = trim((string) data_get($cart, 'numero_documento', ''));
+                                $razonSocial = trim((string) data_get($cart, 'razon_social', ''));
+                                $modalidadFacturacion = (string) data_get($cart, 'modalidad_facturacion', 'con_datos');
+                                $estadoCart = (string) data_get($cart, 'estado', '');
+                                $codigoSeguimiento = trim((string) data_get($cart, 'codigo_seguimiento', ''));
+                                $totalCart = (float) data_get($cart, 'total', 0);
+                                $itemsCountApi = (int) data_get($cart, 'items_count', 0);
+                                $fechaRaw = data_get($cart, 'emitido_en') ?: data_get($cart, 'created_at');
+                                $fecha = null;
+
+                                if ($fechaRaw instanceof \Carbon\CarbonInterface) {
+                                    $fecha = $fechaRaw;
+                                } elseif (!empty($fechaRaw)) {
+                                    try {
+                                        $fecha = \Carbon\Carbon::parse((string) $fechaRaw);
+                                    } catch (\Throwable $e) {
+                                        $fecha = null;
+                                    }
+                                }
                             @endphp
                             <tr>
                                 <td>
-                                    <div class="ventas-table__primary">{{ optional($cart->emitido_en ?? $cart->created_at)->format('d/m/Y') }}</div>
-                                    <div class="ventas-table__secondary">{{ optional($cart->emitido_en ?? $cart->created_at)->format('H:i') }}</div>
+                                    <div class="ventas-table__primary">{{ $fecha ? $fecha->format('d/m/Y') : '-' }}</div>
+                                    <div class="ventas-table__secondary">{{ $fecha ? $fecha->format('H:i') : '-' }}</div>
                                 </td>
                                 <td>
-                                    <div class="ventas-table__primary">{{ $cart->codigo_orden ?: 'Sin código' }}</div>
-                                    <div class="ventas-table__secondary">Doc: {{ $cart->numero_documento ?: 'S/N' }}</div>
+                                    <div class="ventas-table__primary">{{ $codigoOrden !== '' ? $codigoOrden : 'Sin código' }}</div>
+                                    <div class="ventas-table__secondary">Doc: {{ $numeroDocumento !== '' ? $numeroDocumento : 'S/N' }} · Fact: {{ $numeroFactura !== '' ? $numeroFactura : 'S/N' }}</div>
                                 </td>
                                 <td>
-                                    <div class="ventas-table__primary">{{ $cart->razon_social ?: 'SIN NOMBRE' }}</div>
-                                    <div class="ventas-table__secondary">{{ ucfirst(str_replace('_', ' ', $cart->modalidad_facturacion ?? 'con_datos')) }}</div>
+                                    <div class="ventas-table__primary">{{ $razonSocial !== '' ? $razonSocial : 'SIN NOMBRE' }}</div>
+                                    <div class="ventas-table__secondary">{{ ucfirst(str_replace('_', ' ', $modalidadFacturacion)) }}</div>
                                 </td>
                                 <td>
                                     @if($facturaEstado === 'FACTURADA')
@@ -219,31 +409,31 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <span class="ventas-status-chip {{ $cart->estado === 'emitido' ? 'ventas-status-chip--primary' : 'ventas-status-chip--muted' }}">
-                                        {{ strtoupper($cart->estado) }}
+                                    <span class="ventas-status-chip {{ $estadoCart === 'emitido' ? 'ventas-status-chip--primary' : 'ventas-status-chip--muted' }}">
+                                        {{ strtoupper($estadoCart !== '' ? $estadoCart : 'sin estado') }}
                                     </span>
                                 </td>
                                 <td class="text-center">
-                                    @if($cart->items->isNotEmpty())
+                                    @if($cartItems->isNotEmpty())
                                         <button
                                             type="button"
                                             class="ventas-count-pill ventas-count-pill--button"
                                             data-toggle="modal"
-                                            data-target="#ventasItemsModal-{{ $cart->id }}"
-                                            aria-label="Ver {{ $cart->items->count() }} items de la venta {{ $cart->codigo_orden ?: $cart->id }}"
+                                            data-target="#ventasItemsModal-{{ $cartId }}"
+                                            aria-label="Ver {{ $cartItems->count() }} items de la venta {{ $codigoOrden !== '' ? $codigoOrden : $cartId }}"
                                         >
-                                            {{ $cart->items->count() }}
+                                            {{ $cartItems->count() }}
                                         </button>
                                     @else
-                                        <span class="ventas-count-pill">0</span>
+                                        <span class="ventas-count-pill">{{ $itemsCountApi > 0 ? $itemsCountApi : 0 }}</span>
                                     @endif
                                 </td>
                                 <td class="text-right">
-                                    <div class="ventas-table__amount">Bs {{ number_format((float) $cart->total, 2) }}</div>
+                                    <div class="ventas-table__amount">Bs {{ number_format($totalCart, 2) }}</div>
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex flex-wrap justify-content-center">
-                                        @if($cart->codigo_seguimiento)
+                                        @if($codigoSeguimiento !== '')
                                             <form
                                                 method="POST"
                                                 action="{{ route('facturacion.cart.consultar') }}"
@@ -253,7 +443,8 @@
                                                 @endif
                                             >
                                                 @csrf
-                                                <input type="hidden" name="cart_id" value="{{ $cart->id }}">
+                                                <input type="hidden" name="cart_id" value="{{ $cartId }}">
+                                                <input type="hidden" name="codigo_seguimiento" value="{{ $codigoSeguimiento }}">
                                                 <button type="submit" class="btn btn-xs btn-outline-secondary">
                                                     {{ $facturaEstado === 'PENDIENTE' ? 'Actualizar estado' : 'Consultar' }}
                                                 </button>
@@ -262,7 +453,7 @@
                                         @if($pdfUrl !== '')
                                             <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary mr-2 mb-2">PDF original</a>
                                         @endif
-                                        <a href="{{ route('mis-ventas.ticket', $cart) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-dark mb-2">Ticket</a>
+                                        <a href="{{ route('mis-ventas.ticket', $cartId) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-dark mb-2">Ticket</a>
                                     </div>
                                 </td>
                             </tr>
@@ -283,15 +474,28 @@
     </div>
 
     @foreach($carts as $cart)
-        @if($cart->items->isNotEmpty())
-            <div class="modal fade ventas-items-modal" id="ventasItemsModal-{{ $cart->id }}" tabindex="-1" role="dialog" aria-labelledby="ventasItemsModalLabel-{{ $cart->id }}" aria-hidden="true">
+        @php
+            $cart = is_array($cart) ? (object) $cart : $cart;
+            $rawCartItems = data_get($cart, 'items', []);
+            $cartItems = ($rawCartItems instanceof \Illuminate\Support\Collection
+                ? $rawCartItems
+                : (is_array($rawCartItems) ? collect($rawCartItems) : collect()))
+                ->map(fn ($item) => is_array($item) ? (object) $item : $item)
+                ->filter(fn ($item) => is_object($item))
+                ->values();
+            $cartId = (int) data_get($cart, 'id', 0);
+            $codigoOrden = trim((string) data_get($cart, 'codigo_orden', ''));
+            $totalCart = (float) data_get($cart, 'total', 0);
+        @endphp
+        @if($cartItems->isNotEmpty())
+            <div class="modal fade ventas-items-modal" id="ventasItemsModal-{{ $cartId }}" tabindex="-1" role="dialog" aria-labelledby="ventasItemsModalLabel-{{ $cartId }}" aria-hidden="true">
                 <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
                     <div class="modal-content">
                         <div class="modal-header ventas-items-modal__header">
                             <div>
-                                <h5 class="modal-title" id="ventasItemsModalLabel-{{ $cart->id }}">Detalle de items</h5>
+                                <h5 class="modal-title" id="ventasItemsModalLabel-{{ $cartId }}">Detalle de items</h5>
                                 <div class="ventas-items-modal__subtitle">
-                                    Venta {{ $cart->codigo_orden ?: ('#' . $cart->id) }} · {{ $cart->items->count() }} item(s)
+                                    Venta {{ $codigoOrden !== '' ? $codigoOrden : ('#' . $cartId) }} · {{ $cartItems->count() }} item(s)
                                 </div>
                             </div>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
@@ -312,23 +516,36 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($cart->items as $item)
+                                        @foreach($cartItems as $item)
+                                            @php
+                                                $item = is_array($item) ? (object) $item : $item;
+                                                $itemId = (int) data_get($item, 'id', 0);
+                                                $itemCodigo = trim((string) data_get($item, 'codigo', ''));
+                                                $itemOrigenTipo = trim((string) data_get($item, 'origen_tipo', ''));
+                                                $itemTitulo = trim((string) data_get($item, 'titulo', ''));
+                                                $itemServicio = trim((string) data_get($item, 'nombre_servicio', ''));
+                                                $itemDestinatario = trim((string) data_get($item, 'nombre_destinatario', ''));
+                                                $itemCantidad = (int) data_get($item, 'cantidad', 0);
+                                                $itemMontoBase = (float) data_get($item, 'monto_base', 0);
+                                                $itemMontoExtras = (float) data_get($item, 'monto_extras', 0);
+                                                $itemTotalLinea = (float) data_get($item, 'total_linea', 0);
+                                            @endphp
                                             <tr>
                                                 <td>
-                                                    <div class="ventas-table__primary">{{ $item->codigo ?: ('Item #' . $item->id) }}</div>
-                                                    <div class="ventas-table__secondary">{{ $item->origen_tipo ?: 'Sin origen' }}</div>
+                                                    <div class="ventas-table__primary">{{ $itemCodigo !== '' ? $itemCodigo : ('Item #' . $itemId) }}</div>
+                                                    <div class="ventas-table__secondary">{{ $itemOrigenTipo !== '' ? $itemOrigenTipo : 'Sin origen' }}</div>
                                                 </td>
                                                 <td>
-                                                    <div class="ventas-table__primary">{{ $item->titulo ?: 'Sin título' }}</div>
-                                                    <div class="ventas-table__secondary">{{ $item->nombre_servicio ?: 'Sin servicio registrado' }}</div>
-                                                    <div class="ventas-table__secondary">{{ $item->nombre_destinatario ?: 'Sin destinatario' }}</div>
+                                                    <div class="ventas-table__primary">{{ $itemTitulo !== '' ? $itemTitulo : 'Sin título' }}</div>
+                                                    <div class="ventas-table__secondary">{{ $itemServicio !== '' ? $itemServicio : 'Sin servicio registrado' }}</div>
+                                                    <div class="ventas-table__secondary">{{ $itemDestinatario !== '' ? $itemDestinatario : 'Sin destinatario' }}</div>
                                                 </td>
                                                 <td class="text-center">
-                                                    <span class="ventas-items-table__qty">{{ (int) $item->cantidad }}</span>
+                                                    <span class="ventas-items-table__qty">{{ $itemCantidad }}</span>
                                                 </td>
-                                                <td class="text-right">Bs {{ number_format((float) $item->monto_base, 2) }}</td>
-                                                <td class="text-right">Bs {{ number_format((float) $item->monto_extras, 2) }}</td>
-                                                <td class="text-right ventas-items-table__total">Bs {{ number_format((float) $item->total_linea, 2) }}</td>
+                                                <td class="text-right">Bs {{ number_format($itemMontoBase, 2) }}</td>
+                                                <td class="text-right">Bs {{ number_format($itemMontoExtras, 2) }}</td>
+                                                <td class="text-right ventas-items-table__total">Bs {{ number_format($itemTotalLinea, 2) }}</td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -337,7 +554,7 @@
                         </div>
                         <div class="modal-footer ventas-items-modal__footer">
                             <div class="ventas-items-modal__summary">
-                                Total venta: Bs {{ number_format((float) $cart->total, 2) }}
+                                Total venta: Bs {{ number_format($totalCart, 2) }}
                             </div>
                             <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cerrar</button>
                         </div>
@@ -384,6 +601,136 @@
         .ventas-mini-badge--warning {
             background: rgba(255, 193, 7, 0.18);
             color: #9a6b00;
+        }
+
+        .ventas-feedback-alert {
+            border-radius: 12px;
+            border: 1px solid transparent;
+        }
+
+        .ventas-feedback-alert--success {
+            background: #edf9f1;
+            border-color: #cfead8;
+            color: #1f6a3e;
+        }
+
+        .ventas-feedback-alert--error {
+            background: #fff1f0;
+            border-color: #f2cfca;
+            color: #a33e34;
+        }
+
+        .ventas-feedback-alert--warning {
+            background: #fff7ec;
+            border-color: #f6dec0;
+            color: #9a5a00;
+        }
+
+        .ventas-feedback-alert--info {
+            background: #eef5ff;
+            border-color: #d5e4fb;
+            color: #20539a;
+        }
+
+        .ventas-caja-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1rem 1.1rem;
+            border-radius: 12px;
+            border: 1px solid rgba(32, 83, 154, 0.14);
+            background: #fff;
+            box-shadow: 0 8px 20px rgba(16, 43, 84, 0.05);
+            margin-bottom: 1rem;
+        }
+
+        .ventas-caja-card__label {
+            font-size: .78rem;
+            font-weight: 700;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: #6a7f9e;
+            margin-bottom: .2rem;
+        }
+
+        .ventas-caja-card__state {
+            font-weight: 700;
+            color: #173b73;
+            margin-bottom: .2rem;
+        }
+
+        .ventas-caja-card__hint {
+            color: #70839f;
+            font-size: .86rem;
+        }
+
+        .ventas-caja-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: .25rem .6rem;
+            border-radius: 999px;
+            font-size: .76rem;
+            font-weight: 700;
+            margin-left: .35rem;
+        }
+
+        .ventas-caja-badge.is-open {
+            background: rgba(40, 167, 69, 0.14);
+            color: #1f7a35;
+        }
+
+        .ventas-caja-badge.is-closed {
+            background: rgba(255, 193, 7, 0.22);
+            color: #9a6b00;
+        }
+
+        .ventas-arqueo-card .card-body {
+            padding: 1rem 1.25rem 1.25rem;
+        }
+
+        .ventas-arqueo-filter {
+            min-width: 170px;
+        }
+
+        .ventas-arqueo-resumen {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: .75rem;
+            margin-bottom: 1rem;
+        }
+
+        .ventas-arqueo-pill {
+            border: 1px solid rgba(32, 83, 154, 0.15);
+            border-radius: 10px;
+            background: #f9fbff;
+            padding: .65rem .75rem;
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: .6rem;
+            color: #466084;
+            font-size: .82rem;
+        }
+
+        .ventas-arqueo-pill strong {
+            color: #173b73;
+            font-size: .95rem;
+        }
+
+        .ventas-arqueo-pill.is-ok {
+            border-color: rgba(40, 167, 69, 0.25);
+            background: #eff9f2;
+        }
+
+        .ventas-arqueo-pill.is-alert {
+            border-color: rgba(220, 53, 69, 0.25);
+            background: #fff3f2;
+        }
+
+        .ventas-arqueo-table td,
+        .ventas-arqueo-table th {
+            vertical-align: middle;
         }
 
         .ventas-summary-grid {
@@ -667,11 +1014,24 @@
             .ventas-summary-grid {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
+
+            .ventas-arqueo-resumen {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
         }
 
         @media (max-width: 767.98px) {
             .ventas-summary-grid {
                 grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+
+            .ventas-arqueo-resumen {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+
+            .ventas-caja-card {
+                flex-direction: column;
+                align-items: flex-start;
             }
 
             .ventas-stat-card {
@@ -768,3 +1128,6 @@
         });
     </script>
 @stop
+
+
+

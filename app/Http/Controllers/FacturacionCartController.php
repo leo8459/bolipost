@@ -6,6 +6,7 @@ use App\Services\FacturacionCartService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class FacturacionCartController extends Controller
 {
@@ -17,7 +18,7 @@ class FacturacionCartController extends Controller
         $validated = $request->validate([
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
             'canal_emision' => ['nullable', 'in:qr,factura_electronica'],
-            'tipo_documento' => ['nullable', 'string', 'max:20'],
+            'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
             'numero_documento' => ['nullable', 'string', 'max:80'],
             'complemento_documento' => ['nullable', 'string', 'max:30'],
             'razon_social' => ['nullable', 'string', 'max:255'],
@@ -108,6 +109,23 @@ class FacturacionCartController extends Controller
         $this->authorizeFacturacionAccess($user);
 
         try {
+            $ctx = $service->getRemoteContextForUser($user);
+            $draft = $ctx['draft'] ?? null;
+            $draftItems = collect($draft?->items ?? []);
+            if ($draftItems->isEmpty()) {
+                return back()->with('facturacion_feedback', [
+                    'type' => 'warning',
+                    'title' => 'Carrito vacío',
+                    'message' => 'Agrega al menos un ítem antes de emitir la factura.',
+                    'detail' => 'No se envió ninguna solicitud de emisión porque el borrador no tiene ítems.',
+                    'action' => 'emitir',
+                ]);
+            }
+        } catch (\Throwable) {
+            // Si falla la consulta previa, continúa con el flujo existente.
+        }
+
+        try {
             $resultado = $service->emitirBorrador($user);
             $respuesta = (array) ($resultado['respuesta'] ?? []);
             $redirect = back()->with('facturacion_feedback', $this->buildBridgeFeedback($respuesta, 'emitir'));
@@ -132,21 +150,81 @@ class FacturacionCartController extends Controller
         $this->authorizeFacturacionAccess($user);
 
         try {
-            $resultado = $service->consultarEstadoEmision($user, $request->integer('cart_id') ?: null);
-            $respuesta = (array) ($resultado['respuesta'] ?? []);
+            $codigoSeguimiento = trim((string) $request->input('codigo_seguimiento', ''));
+
+            if ($codigoSeguimiento !== '') {
+                $respuesta = (array) $service->consultarVentaSeguimiento($user, $codigoSeguimiento);
+                $resultado = ['carrito' => null, 'respuesta' => $respuesta];
+            } else {
+                $resultado = $service->consultarEstadoEmision($user, $request->integer('cart_id') ?: null);
+                $respuesta = (array) ($resultado['respuesta'] ?? []);
+            }
+
             $redirect = back()->with('facturacion_feedback', $this->buildBridgeFeedback($respuesta, 'consultar'));
 
             $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
                 $redirect->with('facturacion_download_pdf', [
                     'url' => $pdfUrl,
-                    'key' => (string) ($respuesta['codigoOrden'] ?? $resultado['carrito']->codigo_orden ?? now()->timestamp),
+                    'key' => (string) ($respuesta['codigoOrden'] ?? data_get($resultado, 'carrito.codigo_orden', now()->timestamp)),
                 ]);
             }
 
             return $redirect;
         } catch (\RuntimeException $e) {
             return back()->with('facturacion_feedback', $this->buildRuntimeFeedback($e->getMessage(), 'consultar'));
+        }
+    }
+
+    public function abrirCaja(Request $request, FacturacionCartService $service): RedirectResponse
+    {
+        $user = $request->user();
+        $this->authorizeFacturacionAccess($user);
+
+        try {
+            $resultado = $service->abrirCaja($user);
+
+            return back()->with('facturacion_feedback', [
+                'type' => 'success',
+                'title' => 'Caja abierta',
+                'message' => $resultado['mensaje'] ?: 'Ya puedes emitir facturas desde el acceso rapido.',
+                'detail' => 'Estado actual: ' . ($resultado['estado'] ?: 'ABIERTA'),
+                'action' => 'caja_abrir',
+            ]);
+        } catch (\RuntimeException $e) {
+            return back()->with('facturacion_feedback', [
+                'type' => 'error',
+                'title' => 'No se pudo abrir caja',
+                'message' => 'Revisa la configuracion de sucursal/punto de venta y vuelve a intentar.',
+                'detail' => trim($e->getMessage()),
+                'action' => 'caja_abrir',
+            ]);
+        }
+    }
+
+    public function cerrarCaja(Request $request, FacturacionCartService $service): RedirectResponse
+    {
+        $user = $request->user();
+        $this->authorizeFacturacionAccess($user);
+
+        try {
+            $resultado = $service->cerrarCaja($user);
+
+            return back()->with('facturacion_feedback', [
+                'type' => 'success',
+                'title' => 'Caja cerrada',
+                'message' => $resultado['mensaje'] ?: 'La caja diaria se cerro correctamente.',
+                'detail' => 'Estado actual: ' . ($resultado['estado'] ?: 'CERRADA'),
+                'action' => 'caja_cerrar',
+            ]);
+        } catch (\RuntimeException $e) {
+            return back()->with('facturacion_feedback', [
+                'type' => 'error',
+                'title' => 'No se pudo cerrar caja',
+                'message' => 'No fue posible completar el cierre diario.',
+                'detail' => trim($e->getMessage()),
+                'action' => 'caja_cerrar',
+            ]);
         }
     }
 
