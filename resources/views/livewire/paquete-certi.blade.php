@@ -440,6 +440,12 @@
                                 @error('cod_especial') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
+                                <label>Servicio</label>
+                                <input type="text" class="form-control" value="{{ $servicioModuloLabel ?? 'CERTIFICADAS' }}" readonly>
+                                <input type="hidden" wire:model.defer="servicio_id">
+                                @error('servicio_id') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group col-md-6">
                                 <label>Destinatario</label>
                                 <input type="text" wire:model.live.debounce.300ms="destinatario" class="form-control uppercase-input">
                                 @error('destinatario') <small class="text-danger">{{ $message }}</small> @enderror
@@ -755,6 +761,12 @@
         if (url) {
             window.open(url, '_blank');
         }
+    });
+
+    window.addEventListener('facturacionCartSyncNeeded', () => {
+        window.setTimeout(() => {
+            window.location.reload();
+        }, 350);
     });
 </script>
 

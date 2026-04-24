@@ -13,6 +13,7 @@ class PaqueteOrdi extends Model
 
     protected $fillable = [
         'codigo',
+        'servicio_id',
         'destinatario',
         'telefono',
         'ciudad',
@@ -40,5 +41,10 @@ class PaqueteOrdi extends Model
     public function malencaminados()
     {
         return $this->hasMany(Malencaminado::class, 'paquetes_ordi_id');
+    }
+
+    public function servicio()
+    {
+        return $this->belongsTo(Servicio::class, 'servicio_id');
     }
 }

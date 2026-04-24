@@ -137,10 +137,14 @@
     $headerImage = file_exists($headerImagePath) ? 'data:image/jpeg;base64,' . base64_encode(file_get_contents($headerImagePath)) : null;
     $sucursal = $user->sucursal;
     $oficinaPostal = trim((string) ($sucursal->nombre ?? $sucursal->descripcion ?? $sucursal->municipio ?? ''));
-    $isAdmisionesEms = $carts->contains(function ($cart) {
-        return $cart->items->contains(function ($item) {
-            $titulo = strtoupper(trim((string) ($item->titulo ?? '')));
-            $servicio = strtoupper(trim((string) ($item->nombre_servicio ?? '')));
+    $isAdmisionesEms = collect($carts)->contains(function ($cart) {
+        $rawItems = data_get($cart, 'items', []);
+        $cartItems = $rawItems instanceof \Illuminate\Support\Collection
+            ? $rawItems
+            : (is_array($rawItems) ? collect($rawItems) : collect());
+        return $cartItems->contains(function ($item) {
+            $titulo = strtoupper(trim((string) data_get($item, 'titulo', '')));
+            $servicio = strtoupper(trim((string) data_get($item, 'nombre_servicio', '')));
 
             return str_contains($titulo, 'ADMISION EMS') || str_contains($servicio, 'EMS');
         });
