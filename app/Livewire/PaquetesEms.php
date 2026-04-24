@@ -2978,6 +2978,161 @@ class PaquetesEms extends Component
         }, 'guia-entrega-ventanilla-ems-' . $generatedAt->format('Ymd-His') . '.pdf');
     }
 
+    public function devolverSeleccionadosVentanillaAEstadoAnterior()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('deliver', 'ventanilla_ems'));
+
+        if (!$this->isVentanillaEms) {
+            return;
+        }
+
+        $idsEms = collect($this->selectedPaquetes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $idsContratos = collect($this->selectedContratos)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $idsSolicitudes = collect($this->selectedSolicitudes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+            return;
+        }
+
+        $estadoVentanillaId = $this->resolveVentanillaEstado()['id'] ?? null;
+        $estadoAlmacenId = $this->findEstadoId('ALMACEN');
+        $estadoRecibidoId = $this->findEstadoId('RECIBIDO');
+        if (!$estadoVentanillaId || (!$estadoAlmacenId && !$estadoRecibidoId)) {
+            session()->flash('error', 'No existen los estados requeridos (VENTANILLA/ALMACEN/RECIBIDO) en la tabla estados.');
+            return;
+        }
+
+        $actorUserId = (int) optional(Auth::user())->id;
+        if ($actorUserId <= 0) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
+        $userCity = strtoupper(trim((string) optional(Auth::user())->ciudad));
+
+        $paquetes = PaqueteEms::query()
+            ->whereIn('id', $idsEms)
+            ->where('estado_id', (int) $estadoVentanillaId)
+            ->get(['id', 'codigo', 'origen', 'ciudad']);
+
+        $contratos = RecojoContrato::query()
+            ->whereIn('id', $idsContratos)
+            ->where('estados_id', (int) $estadoVentanillaId)
+            ->get(['id', 'codigo', 'origen', 'destino']);
+
+        $solicitudes = SolicitudCliente::query()
+            ->whereIn('id', $idsSolicitudes)
+            ->where('estado_id', (int) $estadoVentanillaId)
+            ->get(['id', 'codigo_solicitud', 'barcode', 'origen', 'ciudad']);
+
+        if ($paquetes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
+            session()->flash('error', 'No hay registros en VENTANILLA para devolver.');
+            return;
+        }
+
+        $updatedEms = 0;
+        $updatedContratos = 0;
+        $updatedSolicitudes = 0;
+
+        DB::transaction(function () use (
+            $paquetes,
+            $contratos,
+            $solicitudes,
+            $estadoAlmacenId,
+            $estadoRecibidoId,
+            $userCity,
+            $actorUserId,
+            &$updatedEms,
+            &$updatedContratos,
+            &$updatedSolicitudes
+        ) {
+            $paquetesActualizados = collect();
+            $contratosActualizados = collect();
+            $solicitudesActualizadas = collect();
+
+            foreach ($paquetes as $paquete) {
+                $targetEstado = $this->resolveEstadoAnteriorDesdeVentanilla(
+                    (string) ($paquete->origen ?? ''),
+                    (string) ($paquete->ciudad ?? ''),
+                    $userCity,
+                    $estadoAlmacenId,
+                    $estadoRecibidoId
+                );
+                if (!$targetEstado) {
+                    continue;
+                }
+
+                PaqueteEms::query()->where('id', (int) $paquete->id)->update(['estado_id' => $targetEstado]);
+                $paquete->estado_id = $targetEstado;
+                $paquetesActualizados->push($paquete);
+                $updatedEms++;
+            }
+
+            foreach ($contratos as $contrato) {
+                $targetEstado = $this->resolveEstadoAnteriorDesdeVentanilla(
+                    (string) ($contrato->origen ?? ''),
+                    (string) ($contrato->destino ?? ''),
+                    $userCity,
+                    $estadoAlmacenId,
+                    $estadoRecibidoId
+                );
+                if (!$targetEstado) {
+                    continue;
+                }
+
+                RecojoContrato::query()->where('id', (int) $contrato->id)->update(['estados_id' => $targetEstado]);
+                $contrato->estados_id = $targetEstado;
+                $contratosActualizados->push($contrato);
+                $updatedContratos++;
+            }
+
+            foreach ($solicitudes as $solicitud) {
+                $targetEstado = $this->resolveEstadoAnteriorDesdeVentanilla(
+                    (string) ($solicitud->origen ?? ''),
+                    (string) ($solicitud->ciudad ?? ''),
+                    $userCity,
+                    $estadoAlmacenId,
+                    $estadoRecibidoId
+                );
+                if (!$targetEstado) {
+                    continue;
+                }
+
+                SolicitudCliente::query()->where('id', (int) $solicitud->id)->update(['estado_id' => $targetEstado]);
+                $solicitud->estado_id = $targetEstado;
+                $solicitudesActualizadas->push($solicitud);
+                $updatedSolicitudes++;
+            }
+
+            if ($paquetesActualizados->isNotEmpty()) {
+                $this->registerEventosEms($paquetesActualizados, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
+            }
+            if ($contratosActualizados->isNotEmpty()) {
+                $this->registerEventosContrato($contratosActualizados, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
+            }
+            if ($solicitudesActualizadas->isNotEmpty()) {
+                $this->registerEventosTiktoker($solicitudesActualizadas, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
+            }
+        });
+
+        $updatedTotal = $updatedEms + $updatedContratos + $updatedSolicitudes;
+        $this->selectedPaquetes = [];
+        $this->selectedContratos = [];
+        $this->selectedSolicitudes = [];
+
+        if ($updatedTotal <= 0) {
+            session()->flash('error', 'No se pudo determinar el estado anterior (ALMACEN/RECIBIDO) para los seleccionados.');
+            return;
+        }
+
+        session()->flash(
+            'success',
+            $updatedTotal . ' registro(s) devuelto(s) desde VENTANILLA al estado anterior. EMS: '
+            . $updatedEms . ', Contratos: ' . $updatedContratos . ', Solicitudes: ' . $updatedSolicitudes . '.'
+        );
+    }
+
     public function openDevolucionEmsModal()
     {
         $this->authorizePermission($this->modeFeaturePermission('deliver', 'devolucion_ems'));
@@ -5765,6 +5920,46 @@ class PaquetesEms extends Component
             $this->findEstadoId('ALMACEN'),
             $this->findEstadoId('RECIBIDO'),
         ])->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    protected function resolveEstadoAnteriorDesdeVentanilla(
+        string $origen,
+        string $destino,
+        string $userCity,
+        ?int $estadoAlmacenId,
+        ?int $estadoRecibidoId
+    ): ?int {
+        $origenNorm = strtoupper(trim($origen));
+        $destinoNorm = strtoupper(trim($destino));
+        $userCityNorm = strtoupper(trim($userCity));
+
+        if ($userCityNorm !== '') {
+            if ($origenNorm !== '' && $origenNorm === $userCityNorm && $estadoAlmacenId) {
+                return (int) $estadoAlmacenId;
+            }
+
+            if ($destinoNorm !== '' && $destinoNorm === $userCityNorm && $estadoRecibidoId) {
+                return (int) $estadoRecibidoId;
+            }
+        }
+
+        if ($origenNorm !== '' && $estadoAlmacenId) {
+            return (int) $estadoAlmacenId;
+        }
+
+        if ($destinoNorm !== '' && $estadoRecibidoId) {
+            return (int) $estadoRecibidoId;
+        }
+
+        if ($estadoAlmacenId) {
+            return (int) $estadoAlmacenId;
+        }
+
+        if ($estadoRecibidoId) {
+            return (int) $estadoRecibidoId;
+        }
+
+        return null;
     }
 
     protected function storeDevolucionImage(?TemporaryUploadedFile $image): ?string

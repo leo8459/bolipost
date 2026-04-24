@@ -923,6 +923,14 @@
                                     <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
                                         Entregar seleccionados
                                     </button>
+                                    <button
+                                        class="btn btn-outline-light2"
+                                        type="button"
+                                        wire:click="devolverSeleccionadosVentanillaAEstadoAnterior"
+                                        onclick="return confirm('Seguro que deseas devolver los seleccionados al estado anterior (ALMACEN o RECIBIDO)?')"
+                                    >
+                                        Devolver a almacen
+                                    </button>
                                     @endif
                                 @elseif ($this->isDevolucionEms)
                                     @if ($canEmsDeliver)
