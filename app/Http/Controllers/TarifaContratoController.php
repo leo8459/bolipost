@@ -106,7 +106,19 @@ class TarifaContratoController extends Controller
         'kilo_de_1_a_2',
         'kilo',
         'kilo_extra',
-        'provincia',
+        'provincia_origen',
+        'provincia_destino',
+        'retencion',
+        'horas_entrega',
+    ];
+
+    private const REQUIRED_IMPORT_COLUMNS = [
+        'empresa_nombre',
+        'origen',
+        'destino',
+        'servicio',
+        'kilo',
+        'kilo_extra',
         'retencion',
         'horas_entrega',
     ];
@@ -122,6 +134,7 @@ class TarifaContratoController extends Controller
         'kilo',
         'kilo_extra',
         'provincia',
+        'provincia_origen',
         'retencion',
         'horas_entrega',
     ];
@@ -184,6 +197,7 @@ class TarifaContratoController extends Controller
                         ->orWhere('destino', 'ILIKE', "%{$q}%")
                         ->orWhere('servicio', 'ILIKE', "%{$q}%")
                         ->orWhere('provincia', 'ILIKE', "%{$q}%")
+                        ->orWhere('provincia_origen', 'ILIKE', "%{$q}%")
                         ->orWhere('horas_entrega', 'ILIKE', "%{$q}%");
                 })->orWhereHas('empresa', function ($sub) use ($q) {
                     $sub->where('nombre', 'ILIKE', "%{$q}%")
@@ -299,8 +313,8 @@ class TarifaContratoController extends Controller
         $header = array_map(fn ($value) => $this->normalizeHeader($value), $header);
         $usesEmpresaCodigo = in_array('empresa_codigo', $header, true) && !in_array('empresa_nombre', $header, true);
         $requiredColumns = $usesEmpresaCodigo
-            ? array_map(fn ($col) => $col === 'empresa_nombre' ? 'empresa_codigo' : $col, self::IMPORT_COLUMNS)
-            : self::IMPORT_COLUMNS;
+            ? array_map(fn ($col) => $col === 'empresa_nombre' ? 'empresa_codigo' : $col, self::REQUIRED_IMPORT_COLUMNS)
+            : self::REQUIRED_IMPORT_COLUMNS;
         $missing = array_values(array_diff($requiredColumns, $header));
 
         if (!empty($missing)) {
@@ -349,13 +363,15 @@ class TarifaContratoController extends Controller
                 $data[$column] = trim((string) ($row[$index] ?? ''));
             }
 
+            $filaResumen = $this->buildImportRowSummary($data);
+
             $empresaId = null;
             if ($usesEmpresaCodigo) {
                 $empresaCodigo = strtoupper((string) ($data['empresa_codigo'] ?? ''));
                 $empresaId = $empresaCodigoMap[$empresaCodigo] ?? null;
 
                 if (!$empresaId) {
-                    $errors[] = "Linea {$line}: empresa_codigo '{$empresaCodigo}' no existe.";
+                    $errors[] = "Linea {$line} ({$filaResumen}): no se guardo porque empresa_codigo '{$empresaCodigo}' no existe.";
                     continue;
                 }
             } else {
@@ -363,12 +379,12 @@ class TarifaContratoController extends Controller
                 $empresaNombreKey = $this->normalizeCompanyName($empresaNombre);
 
                 if ($empresaNombreKey === '') {
-                    $errors[] = "Linea {$line}: empresa_nombre es obligatorio.";
+                    $errors[] = "Linea {$line} ({$filaResumen}): no se guardo porque empresa_nombre es obligatorio.";
                     continue;
                 }
 
                 if (isset($empresaNombreDuplicado[$empresaNombreKey])) {
-                    $errors[] = "Linea {$line}: empresa_nombre '{$empresaNombre}' es ambiguo (duplicado).";
+                    $errors[] = "Linea {$line} ({$filaResumen}): no se guardo porque empresa_nombre '{$empresaNombre}' es ambiguo (duplicado).";
                     continue;
                 }
 
@@ -377,9 +393,15 @@ class TarifaContratoController extends Controller
                     $empresaId = $empresaCodigoMap[strtoupper($empresaNombreKey)] ?? null;
                 }
                 if (!$empresaId) {
-                    $errors[] = "Linea {$line}: empresa_nombre '{$empresaNombre}' no existe.";
+                    $errors[] = "Linea {$line} ({$filaResumen}): no se guardo porque empresa_nombre '{$empresaNombre}' no existe.";
                     continue;
                 }
+            }
+
+            $erroresNumericos = $this->detectInvalidNumericImportValues($data);
+            if (!empty($erroresNumericos)) {
+                $errors[] = "Linea {$line} ({$filaResumen}): no se guardo porque " . implode('; ', $erroresNumericos) . '.';
+                continue;
             }
 
             $payload = [
@@ -392,15 +414,16 @@ class TarifaContratoController extends Controller
                 'peso' => $this->parseDecimal($data['kilo_de_1_a_2'] ?? ($data['peso'] ?? null)),
                 'kilo' => $this->parseDecimal($data['kilo'] ?? null),
                 'kilo_extra' => $this->parseDecimal($data['kilo_extra'] ?? null),
-                'provincia' => $this->normalizeNullableUpper($data['provincia'] ?? null),
+                'provincia_origen' => $this->normalizeNullableUpper($data['provincia_origen'] ?? null),
+                'provincia' => $this->normalizeNullableUpper($data['provincia_destino'] ?? ($data['provincia'] ?? null)),
                 'retencion' => $this->parseDecimal($data['retencion'] ?? null),
                 'horas_entrega' => $data['horas_entrega'] ?? null,
             ];
 
             $validator = Validator::make(
                 $payload,
-                $this->validationRules((string) ($payload['destino'] ?? '')),
-                [],
+                $this->validationRules((string) ($payload['destino'] ?? ''), (string) ($payload['origen'] ?? '')),
+                $this->importValidationMessages(),
                 [
                     'empresa_id' => 'empresa',
                     'origen' => 'origen',
@@ -411,14 +434,15 @@ class TarifaContratoController extends Controller
                     'peso' => 'peso',
                     'kilo' => 'kilo',
                     'kilo_extra' => 'kilo extra',
-                    'provincia' => 'provincia',
+                    'provincia' => 'provincia destino',
+                    'provincia_origen' => 'provincia origen',
                     'retencion' => 'retencion',
                     'horas_entrega' => 'horas de entrega',
                 ]
             );
 
             if ($validator->fails()) {
-                $errors[] = "Linea {$line}: " . $validator->errors()->first();
+                $errors[] = "Linea {$line} ({$filaResumen}): no se guardo porque " . $validator->errors()->first();
                 continue;
             }
 
@@ -431,6 +455,7 @@ class TarifaContratoController extends Controller
                 'kilo',
                 'kilo_extra',
                 'provincia',
+                'provincia_origen',
             ]);
 
             $values = Arr::only($validated, ['direccion', 'zona', 'peso', 'retencion', 'horas_entrega']);
@@ -446,7 +471,14 @@ class TarifaContratoController extends Controller
         }
 
         $message = "Importacion completada. Creadas: {$created}, actualizadas: {$updated}.";
-        $redirect = redirect()->route('tarifa-contrato.index')->with('success', $message);
+        $redirect = redirect()->route('tarifa-contrato.import-form');
+
+        if ($created === 0 && $updated === 0 && empty($errors)) {
+            $redirect->with('warning', 'No se guardo ninguna fila. Revisa que el archivo tenga datos desde la fila 2 y valores validos.');
+            return $redirect;
+        }
+
+        $redirect->with('success', $message);
 
         if (!empty($errors)) {
             $redirect->with('warning', 'Se encontraron ' . count($errors) . ' fila(s) con error.');
@@ -454,6 +486,61 @@ class TarifaContratoController extends Controller
         }
 
         return $redirect;
+    }
+
+    private function buildImportRowSummary(array $data): string
+    {
+        $empresa = trim((string) ($data['empresa_nombre'] ?? $data['empresa_codigo'] ?? 'SIN EMPRESA'));
+        $origen = trim((string) ($data['origen'] ?? 'SIN ORIGEN'));
+        $destino = trim((string) ($data['destino'] ?? 'SIN DESTINO'));
+        $servicio = trim((string) ($data['servicio'] ?? 'SIN SERVICIO'));
+
+        return "empresa: {$empresa}, origen: {$origen}, destino: {$destino}, servicio: {$servicio}";
+    }
+
+    private function detectInvalidNumericImportValues(array $data): array
+    {
+        $errores = [];
+
+        $decimalColumns = [
+            'kilo_de_1_a_2' => 'kilo_de_1_a_2 (peso)',
+            'kilo' => 'kilo',
+            'kilo_extra' => 'kilo_extra',
+            'retencion' => 'retencion',
+        ];
+
+        foreach ($decimalColumns as $column => $label) {
+            $raw = trim((string) ($data[$column] ?? ''));
+            if ($raw === '') {
+                continue;
+            }
+
+            if ($this->parseDecimal($raw) === null) {
+                $errores[] = "el campo {$label} tiene formato numerico invalido ('{$raw}')";
+            }
+        }
+
+        $horasRaw = trim((string) ($data['horas_entrega'] ?? ''));
+        if ($horasRaw !== '' && filter_var($horasRaw, FILTER_VALIDATE_INT) === false) {
+            $errores[] = "el campo horas_entrega debe ser un numero entero ('{$horasRaw}')";
+        }
+
+        return $errores;
+    }
+
+    private function importValidationMessages(): array
+    {
+        return [
+            'required' => 'el campo :attribute es obligatorio.',
+            'numeric' => 'el campo :attribute debe ser numerico.',
+            'integer' => 'el campo :attribute debe ser un numero entero.',
+            'min.numeric' => 'el campo :attribute no puede ser menor a :min.',
+            'min.integer' => 'el campo :attribute no puede ser menor a :min.',
+            'max.numeric' => 'el campo :attribute no puede ser mayor a :max.',
+            'max.string' => 'el campo :attribute no debe exceder :max caracteres.',
+            'in' => 'el valor de :attribute no es valido para el departamento/servicio seleccionado.',
+            'exists' => 'el valor de :attribute no existe en el sistema.',
+        ];
     }
 
     public function downloadTemplateExcel()
@@ -473,7 +560,7 @@ class TarifaContratoController extends Controller
 
             $sheet->fromArray($columns, null, 'A1');
 
-            $sheet->getStyle('A1:L1')->applyFromArray([
+            $sheet->getStyle('A1:M1')->applyFromArray([
                 'font' => [
                     'bold' => true,
                     'color' => ['argb' => 'FFFFFFFF'],
@@ -495,7 +582,7 @@ class TarifaContratoController extends Controller
             ]);
 
             $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:L1');
+            $sheet->setAutoFilter('A1:M1');
 
             $columnWidths = [
                 'A' => 38,
@@ -508,16 +595,17 @@ class TarifaContratoController extends Controller
                 'H' => 12,
                 'I' => 12,
                 'J' => 18,
-                'K' => 12,
-                'L' => 14,
+                'K' => 20,
+                'L' => 12,
+                'M' => 14,
             ];
             foreach ($columnWidths as $column => $width) {
                 $sheet->getColumnDimension($column)->setWidth($width);
             }
 
             $sheet->getStyle('G2:I5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('K2:K5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('L2:L5000')->getNumberFormat()->setFormatCode('0');
+            $sheet->getStyle('L2:L5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('M2:M5000')->getNumberFormat()->setFormatCode('0');
 
             $sheetEmpresas = $spreadsheet->createSheet();
             $sheetEmpresas->setTitle('Empresas');
@@ -625,9 +713,10 @@ class TarifaContratoController extends Controller
             $sheetInstrucciones->setCellValue('A3', '1) No cambies los nombres de columnas en la hoja TarifaContrato.');
             $sheetInstrucciones->setCellValue('A4', '2) Empieza a llenar datos desde la fila 2.');
             $sheetInstrucciones->setCellValue('A5', '3) Usa empresa_nombre igual al nombre exacto en hoja Empresas.');
-            $sheetInstrucciones->setCellValue('A6', '4) direccion, zona, peso y provincia son opcionales.');
-            $sheetInstrucciones->setCellValue('A7', '5) origen, destino y servicio tienen listas desplegables.');
-            $sheetInstrucciones->setCellValue('A8', '6) En provincia, primero elige destino (departamento) para ver solo provincias de ese destino.');
+            $sheetInstrucciones->setCellValue('A6', '4) Columnas obligatorias: empresa_nombre, origen, destino, servicio, kilo, kilo_extra, retencion, horas_entrega.');
+            $sheetInstrucciones->setCellValue('A7', '5) Columnas opcionales: direccion, zona, kilo_de_1_a_2, provincia_origen, provincia_destino.');
+            $sheetInstrucciones->setCellValue('A8', '6) origen, destino y servicio tienen listas desplegables.');
+            $sheetInstrucciones->setCellValue('A9', '7) En provincia_origen, primero elige origen (departamento). En provincia_destino, primero elige destino (departamento).');
             $sheetInstrucciones->getStyle('A1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 14],
                 'color' => ['argb' => 'FF0D47A1'],
@@ -642,7 +731,8 @@ class TarifaContratoController extends Controller
             $this->applyListValidation($sheet, 'B2:B5000', "=Catalogos!\$B\$2:\$B\${$lastDepartamentoRow}");
             $this->applyListValidation($sheet, 'C2:C5000', "=Catalogos!\$B\$2:\$B\${$lastDepartamentoRow}");
             $this->applyListValidation($sheet, 'D2:D5000', "=Catalogos!\$A\$2:\$A\${$lastServiceRow}");
-            $this->applyProvinciaValidation($sheet, 'J2:J5000');
+            $this->applyProvinciaValidation($sheet, 'J2:J5000', 'B', 'Selecciona una provincia del origen elegido.');
+            $this->applyProvinciaValidation($sheet, 'K2:K5000', 'C', 'Selecciona una provincia del destino elegido.');
 
             $spreadsheet->setActiveSheetIndex(0);
 
@@ -701,9 +791,10 @@ class TarifaContratoController extends Controller
             'direccion' => $this->normalizeNullableUpper($request->input('direccion')),
             'zona' => $this->normalizeNullableUpper($request->input('zona')),
             'provincia' => $provincia === '' ? null : strtoupper($provincia),
+            'provincia_origen' => $this->normalizeNullableUpper($request->input('provincia_origen')),
         ]);
 
-        $data = $request->validate($this->validationRules((string) $request->input('destino')));
+        $data = $request->validate($this->validationRules((string) $request->input('destino'), (string) $request->input('origen')));
 
         if ($request->filled('peso')) {
             $data['peso'] = $this->parseDecimal($request->input('peso'));
@@ -712,10 +803,12 @@ class TarifaContratoController extends Controller
         return $data;
     }
 
-    private function validationRules(string $destino = ''): array
+    private function validationRules(string $destino = '', string $origen = ''): array
     {
         $destino = strtoupper(trim($destino));
+        $origen = strtoupper(trim($origen));
         $provinciasDestino = self::PROVINCIAS_POR_DEPARTAMENTO[$destino] ?? [];
+        $provinciasOrigen = self::PROVINCIAS_POR_DEPARTAMENTO[$origen] ?? [];
 
         return [
             'empresa_id' => ['required', 'integer', Rule::exists('empresa', 'id')],
@@ -728,6 +821,7 @@ class TarifaContratoController extends Controller
             'kilo' => 'required|numeric|min:0',
             'kilo_extra' => 'required|numeric|min:0',
             'provincia' => ['nullable', 'string', 'max:255', Rule::in($provinciasDestino)],
+            'provincia_origen' => ['nullable', 'string', 'max:255', Rule::in($provinciasOrigen)],
             'retencion' => 'required|numeric|min:0|max:100',
             'horas_entrega' => 'required|integer|min:0',
         ];
@@ -739,6 +833,8 @@ class TarifaContratoController extends Controller
 
         return match ($value) {
             'kilo de 1 a 2', 'kilo 1 a 2', 'kilo_de_1_a_2' => 'kilo_de_1_a_2',
+            'provincia origen', 'provincia_origen' => 'provincia_origen',
+            'provincia destino', 'provincia_destino', 'provincia' => 'provincia_destino',
             default => $value,
         };
     }
@@ -782,7 +878,7 @@ class TarifaContratoController extends Controller
         return [$m[1], (int) $m[2]];
     }
 
-    private function applyProvinciaValidation(Worksheet $sheet, string $range): void
+    private function applyProvinciaValidation(Worksheet $sheet, string $range, string $departamentoColumn, string $errorMessage): void
     {
         [$start, $end] = explode(':', $range);
         [$startCol, $startRow] = $this->splitCell($start);
@@ -797,8 +893,8 @@ class TarifaContratoController extends Controller
                 $validation->setShowDropDown(true);
                 $validation->setShowErrorMessage(true);
                 $validation->setErrorTitle('Provincia invalida');
-                $validation->setError('Selecciona una provincia del destino elegido.');
-                $validation->setFormula1('=INDIRECT(SUBSTITUTE($C' . $row . '," ","_"))');
+                $validation->setError($errorMessage);
+                $validation->setFormula1('=INDIRECT(SUBSTITUTE($' . strtoupper($departamentoColumn) . $row . '," ","_"))');
                 $sheet->getCell($cell)->setDataValidation($validation);
             }
         }

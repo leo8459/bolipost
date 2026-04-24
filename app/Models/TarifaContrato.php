@@ -22,6 +22,7 @@ class TarifaContrato extends Model
         'kilo',
         'kilo_extra',
         'provincia',
+        'provincia_origen',
         'retencion',
         'horas_entrega',
     ];

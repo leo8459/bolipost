@@ -130,7 +130,7 @@
                                             id="filterSearch"
                                             value="{{ $q }}"
                                             class="form-control"
-                                            placeholder="Empresa, provincia, horas de entrega..."
+                                            placeholder="Empresa, provincia, provincia origen, horas de entrega..."
                                         >
                                     </div>
                                 </div>
@@ -180,6 +180,7 @@
                                         <th>Kilo</th>
                                         <th>Kilo Extra</th>
                                         <th>Provincia</th>
+                                        <th>Provincia Origen</th>
                                         <th>Retencion</th>
                                         <th>Horas Entrega</th>
                                         <th></th>
@@ -198,7 +199,8 @@
                                             <td>{{ $tarifa->peso !== null ? number_format((float) $tarifa->peso, 2) : '-' }}</td>
                                             <td>{{ $tarifa->kilo }}</td>
                                             <td>{{ $tarifa->kilo_extra }}</td>
-                                            <td>{{ $tarifa->provincia }}</td>
+                                            <td>{{ $tarifa->provincia ?: '-' }}</td>
+                                            <td>{{ $tarifa->provincia_origen ?: '-' }}</td>
                                             <td>{{ number_format((float) $tarifa->retencion, 2) }}%</td>
                                             <td>{{ $tarifa->horas_entrega }}</td>
                                             <td>
@@ -234,7 +236,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="14" class="text-center py-4">No hay registros</td>
+                                            <td colspan="15" class="text-center py-4">No hay registros</td>
                                         </tr>
                                     @endforelse
                                 </tbody>

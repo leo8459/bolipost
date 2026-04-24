@@ -7,8 +7,10 @@
     $selectedOrigen = old('origen', $tarifaContrato->origen ?? ($defaults['origen'] ?? ''));
     $selectedDestino = old('destino', $tarifaContrato->destino ?? ($defaults['destino'] ?? ''));
     $selectedProvincia = old('provincia', $tarifaContrato->provincia ?? ($defaults['provincia'] ?? ''));
+    $selectedProvinciaOrigen = old('provincia_origen', $tarifaContrato->provincia_origen ?? ($defaults['provincia_origen'] ?? ''));
     $provinciasPorDepartamento = $provinciasPorDepartamento ?? [];
     $provinciasDestino = $provinciasPorDepartamento[$selectedDestino] ?? [];
+    $provinciasOrigen = $provinciasPorDepartamento[$selectedOrigen] ?? [];
 @endphp
 
 <div class="box box-info padding-1">
@@ -203,7 +205,31 @@
         </div>
 
         <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-4">
+                <div class="form-group mb-3">
+                    <label for="provincia_origen">Provincia Origen (Opcional)</label>
+                    <select
+                        id="provincia_origen"
+                        name="provincia_origen"
+                        class="form-control @error('provincia_origen') is-invalid @enderror"
+                    >
+                        <option value="">Seleccione...</option>
+                        @foreach($provinciasOrigen as $provinciaItem)
+                            <option value="{{ $provinciaItem }}" {{ $selectedProvinciaOrigen === $provinciaItem ? 'selected' : '' }}>
+                                {{ $provinciaItem }}
+                            </option>
+                        @endforeach
+                        @if($selectedProvinciaOrigen !== '' && !in_array($selectedProvinciaOrigen, $provinciasOrigen, true))
+                            <option value="{{ $selectedProvinciaOrigen }}" selected>{{ $selectedProvinciaOrigen }}</option>
+                        @endif
+                    </select>
+                    @error('provincia_origen')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <div class="col-md-4">
                 <div class="form-group mb-3">
                     <label for="provincia">Provincia (Opcional)</label>
                     <select
@@ -227,7 +253,7 @@
                 </div>
             </div>
 
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="form-group mb-3">
                     <label for="horas_entrega">Horas de Entrega</label>
                     <input
@@ -269,22 +295,24 @@
 
 <script>
     (function () {
+        const origen = document.getElementById('origen');
         const destino = document.getElementById('destino');
         const provincia = document.getElementById('provincia');
+        const provinciaOrigen = document.getElementById('provincia_origen');
         const provinciasPorDepartamento = @json($provinciasPorDepartamento);
 
-        if (!destino || !provincia) return;
+        if (!destino || !provincia || !origen || !provinciaOrigen) return;
 
-        const renderProvincias = (departamento, selected = '') => {
+        const renderProvincias = (selectElement, departamento, selected = '') => {
             const key = (departamento || '').toUpperCase().trim();
             const provincias = provinciasPorDepartamento[key] || [];
             const selectedText = (selected || '').toUpperCase().trim();
 
-            provincia.innerHTML = '';
+            selectElement.innerHTML = '';
             const empty = document.createElement('option');
             empty.value = '';
             empty.textContent = 'Seleccione...';
-            provincia.appendChild(empty);
+            selectElement.appendChild(empty);
 
             provincias.forEach((nombre) => {
                 const option = document.createElement('option');
@@ -293,14 +321,19 @@
                 if (nombre === selectedText) {
                     option.selected = true;
                 }
-                provincia.appendChild(option);
+                selectElement.appendChild(option);
             });
         };
 
         destino.addEventListener('change', function () {
-            renderProvincias(this.value, '');
+            renderProvincias(provincia, this.value, '');
         });
 
-        renderProvincias(destino.value, provincia.value);
+        origen.addEventListener('change', function () {
+            renderProvincias(provinciaOrigen, this.value, '');
+        });
+
+        renderProvincias(provincia, destino.value, provincia.value);
+        renderProvincias(provinciaOrigen, origen.value, provinciaOrigen.value);
     })();
 </script>
