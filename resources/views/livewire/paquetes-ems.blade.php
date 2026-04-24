@@ -1385,6 +1385,42 @@
                     </div>
                 @endif
 
+                @if ($this->isAlmacenEms && $seleccionadosTotalGlobal > 0)
+                    @php
+                        $ventanillaResumenBase = collect($ventanillaResumenRows ?? collect());
+                    @endphp
+                    <div class="section-block mb-3">
+                        <div class="section-title">Resumen para enviar a ventanilla</div>
+                        <div class="muted mb-2">Vista rapida de seleccionados: codigo, origen y destino.</div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th>Codigo</th>
+                                        <th>Origen</th>
+                                        <th>Destino</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($ventanillaResumenBase as $item)
+                                        <tr>
+                                            <td>{{ $item->tipo ?? '-' }}</td>
+                                            <td><span class="pill-id">{{ $item->codigo ?? '-' }}</span></td>
+                                            <td>{{ $item->origen ?? '-' }}</td>
+                                            <td>{{ $item->destino ?? '-' }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted">No hay datos para mostrar.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
+
                 <div class="table-scroll-wrap">
                     <div class="table-responsive">
                     <table class="table table-hover align-middle">
@@ -1416,7 +1452,9 @@
                                     <th>Telefono R</th>
                                     <th>Telefono D</th>
                                     <th>Creado</th>
-                                    <th>Traspaso</th>
+                                    @if (!$this->isAlmacenEms)
+                                        <th>Traspaso</th>
+                                    @endif
                                     <th class="text-center action-cell">Acciones</th>
                                 </tr>
                             @else
@@ -1489,8 +1527,10 @@
                                         <td>{{ $row->empresa }}</td>
                                         <td>{{ $row->telefono_r }}</td>
                                         <td>{{ $row->telefono_d }}</td>
-                                        <td>{{ \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') }}</td>
                                         <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
+                                        @if (!$this->isAlmacenEms)
+                                            <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
+                                        @endif
                                         <td class="action-cell">
                                             <div class="action-stack">
                                             @if (($row->record_type ?? '') === 'EMS')
@@ -1543,7 +1583,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms) ? 17 : 16 }}" class="text-center py-5">
+                                        <td colspan="{{ $this->isAlmacenEms ? 16 : (($this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms) ? 17 : 16) }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>

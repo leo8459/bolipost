@@ -37,7 +37,7 @@
                 <form method="GET" action="{{ route('paquetes-ems.entregados') }}" class="row ems-toolbar">
                     <div class="col-lg-8 col-md-12 mb-2 mb-lg-0">
                         <input type="text" name="q" value="{{ $search }}" class="form-control"
-                            placeholder="Buscar EMS/Contrato/Solicitud por codigo, destinatario, telefono, ciudad, recibido por o descripcion...">
+                            placeholder="Buscar EMS/Contrato/Solicitud por codigo, CN-33, destinatario, telefono, ciudad, recibido por o descripcion...">
                     </div>
                     <div class="col-lg-2 col-md-6 mb-2 mb-md-0">
                         <button type="submit" class="btn ems-btn-primary btn-block">Buscar</button>
@@ -56,6 +56,7 @@
                             <tr>
                                 <th>Tipo</th>
                                 <th>Codigo</th>
+                                <th>CN-33</th>
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
                                 <th>Ciudad</th>
@@ -72,6 +73,7 @@
                                 <tr>
                                     <td>{{ $paquete->tipo_paquete }}</td>
                                     <td>{{ $paquete->codigo }}</td>
+                                    <td>{{ $paquete->cod_especial ?: '-' }}</td>
                                     <td>{{ $paquete->destinatario }}</td>
                                     <td>{{ $paquete->telefono ?: '-' }}</td>
                                     <td>{{ $paquete->ciudad }}</td>
@@ -96,7 +98,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-4">
+                                    <td colspan="12" class="text-center py-4">
                                         No hay registros en estado ENTREGADO.
                                     </td>
                                 </tr>

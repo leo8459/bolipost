@@ -524,6 +524,7 @@ class PaquetesEmsController extends Controller
                 DB::raw("'EMS' as tipo_paquete"),
                 'paquetes_ems.id',
                 'paquetes_ems.codigo',
+                'paquetes_ems.cod_especial',
                 DB::raw('paquetes_ems.nombre_destinatario as destinatario'),
                 DB::raw('paquetes_ems.telefono_destinatario as telefono'),
                 DB::raw('paquetes_ems.ciudad as ciudad'),
@@ -542,6 +543,7 @@ class PaquetesEmsController extends Controller
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
                     $sub->where('paquetes_ems.codigo', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_ems.cod_especial', 'like', '%' . $search . '%')
                         ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%' . $search . '%')
                         ->orWhere('paquetes_ems.telefono_destinatario', 'like', '%' . $search . '%')
                         ->orWhere('paquetes_ems.ciudad', 'like', '%' . $search . '%')
@@ -558,6 +560,7 @@ class PaquetesEmsController extends Controller
                 DB::raw("'CONTRATO' as tipo_paquete"),
                 'paquetes_contrato.id',
                 'paquetes_contrato.codigo',
+                'paquetes_contrato.cod_especial',
                 DB::raw('paquetes_contrato.nombre_d as destinatario'),
                 DB::raw('paquetes_contrato.telefono_d as telefono'),
                 DB::raw('paquetes_contrato.destino as ciudad'),
@@ -576,6 +579,7 @@ class PaquetesEmsController extends Controller
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
                     $sub->where('paquetes_contrato.codigo', 'like', '%' . $search . '%')
+                        ->orWhere('paquetes_contrato.cod_especial', 'like', '%' . $search . '%')
                         ->orWhere('paquetes_contrato.nombre_d', 'like', '%' . $search . '%')
                         ->orWhere('paquetes_contrato.telefono_d', 'like', '%' . $search . '%')
                         ->orWhere('paquetes_contrato.destino', 'like', '%' . $search . '%')
@@ -590,6 +594,7 @@ class PaquetesEmsController extends Controller
                 DB::raw("'SOLICITUD' as tipo_paquete"),
                 'solicitud_clientes.id',
                 DB::raw("COALESCE(NULLIF(TRIM(solicitud_clientes.codigo_solicitud), ''), NULLIF(TRIM(solicitud_clientes.barcode), ''), 'SIN CODIGO') as codigo"),
+                DB::raw("COALESCE(NULLIF(TRIM(solicitud_clientes.cod_especial), ''), '-') as cod_especial"),
                 DB::raw('solicitud_clientes.nombre_destinatario as destinatario'),
                 DB::raw('solicitud_clientes.telefono_destinatario as telefono'),
                 DB::raw('solicitud_clientes.ciudad as ciudad'),
@@ -609,6 +614,7 @@ class PaquetesEmsController extends Controller
                 $query->where(function ($sub) use ($search) {
                     $sub->where('solicitud_clientes.codigo_solicitud', 'like', '%' . $search . '%')
                         ->orWhere('solicitud_clientes.barcode', 'like', '%' . $search . '%')
+                        ->orWhere('solicitud_clientes.cod_especial', 'like', '%' . $search . '%')
                         ->orWhere('solicitud_clientes.nombre_destinatario', 'like', '%' . $search . '%')
                         ->orWhere('solicitud_clientes.telefono_destinatario', 'like', '%' . $search . '%')
                         ->orWhere('solicitud_clientes.ciudad', 'like', '%' . $search . '%');
