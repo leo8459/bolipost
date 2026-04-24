@@ -913,6 +913,16 @@
                                         Manda a regional
                                     </button>
                                     @endif
+                                    @if ($canEmsRestore)
+                                    <button
+                                        class="btn btn-outline-light2"
+                                        type="button"
+                                        wire:click="darDeBajaOficialSeleccionados"
+                                        onclick="return confirm('Solo se daran de baja envios OFICIAL seleccionados. Deseas continuar?')"
+                                    >
+                                        Dar de baja oficial
+                                    </button>
+                                    @endif
                                     @if ($canEmsReprintCn33)
                                     <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
                                         Reimprimir CN-33

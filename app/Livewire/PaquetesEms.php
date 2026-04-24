@@ -2707,6 +2707,93 @@ class PaquetesEms extends Component
         return $this->redirect(route('paquetes-ems.ventanilla'), navigate: false);
     }
 
+    public function darDeBajaOficialSeleccionados()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('restore', 'almacen_ems'));
+
+        if (!$this->isAlmacenEms) {
+            session()->flash('error', 'Esta accion solo esta disponible en ALMACEN EMS.');
+            return;
+        }
+
+        $idsEms = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($idsEms)) {
+            session()->flash('error', 'Selecciona al menos un envio OFICIAL (EMS).');
+            return;
+        }
+
+        $estadoEntregadoId = $this->findEstadoId('ENTREGADO');
+        if (!$estadoEntregadoId) {
+            session()->flash('error', 'No existe el estado ENTREGADO en la tabla estados.');
+            return;
+        }
+
+        $actorUserId = (int) optional(Auth::user())->id;
+        if ($actorUserId <= 0) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
+        $oficiales = PaqueteEms::query()
+            ->leftJoin('paquetes_ems_formulario as formulario', 'formulario.paquete_ems_id', '=', 'paquetes_ems.id')
+            ->whereIn('paquetes_ems.id', $idsEms)
+            ->whereRaw("trim(upper(coalesce(formulario.tipo_correspondencia, paquetes_ems.tipo_correspondencia, ''))) = 'OFICIAL'")
+            ->select('paquetes_ems.id')
+            ->get();
+
+        if ($oficiales->isEmpty()) {
+            session()->flash('error', 'No hay envios OFICIAL seleccionados para dar de baja.');
+            return;
+        }
+
+        $idsOficiales = $oficiales->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+
+        $selectedContratosCount = count($this->selectedContratos);
+        $selectedSolicitudesCount = count($this->selectedSolicitudes);
+
+        $paquetesOficiales = PaqueteEms::query()
+            ->whereIn('id', $idsOficiales)
+            ->orderBy('id')
+            ->get(['id', 'codigo']);
+
+        DB::transaction(function () use ($idsOficiales, $estadoEntregadoId, $paquetesOficiales, $actorUserId) {
+            PaqueteEms::query()
+                ->whereIn('id', $idsOficiales)
+                ->update(['estado_id' => (int) $estadoEntregadoId]);
+
+            if ($paquetesOficiales->isNotEmpty()) {
+                $this->registerEventosEms(
+                    $paquetesOficiales,
+                    $actorUserId,
+                    self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE
+                );
+            }
+        });
+
+        $updated = $paquetesOficiales->count();
+
+        $omitidos = max(0, count($idsEms) - count($idsOficiales))
+            + $selectedContratosCount
+            + $selectedSolicitudesCount;
+
+        $this->selectedPaquetes = [];
+        $this->selectedContratos = [];
+        $this->selectedSolicitudes = [];
+
+        $mensaje = $updated . ' envio(s) OFICIAL marcado(s) como ENTREGADO.';
+        if ($omitidos > 0) {
+            $mensaje .= ' ' . $omitidos . ' seleccionado(s) no aplicaban y no fueron modificados.';
+        }
+
+        session()->flash('success', $mensaje);
+    }
+
     public function openEntregaVentanillaModal()
     {
         $this->authorizePermission($this->modeFeaturePermission('deliver', 'ventanilla_ems'));
@@ -3047,9 +3134,12 @@ class PaquetesEms extends Component
             &$updatedContratos,
             &$updatedSolicitudes
         ) {
-            $paquetesActualizados = collect();
-            $contratosActualizados = collect();
-            $solicitudesActualizadas = collect();
+            $paquetesAlmacen = collect();
+            $paquetesRecibido = collect();
+            $contratosAlmacen = collect();
+            $contratosRecibido = collect();
+            $solicitudesAlmacen = collect();
+            $solicitudesRecibido = collect();
 
             foreach ($paquetes as $paquete) {
                 $targetEstado = $this->resolveEstadoAnteriorDesdeVentanilla(
@@ -3065,7 +3155,11 @@ class PaquetesEms extends Component
 
                 PaqueteEms::query()->where('id', (int) $paquete->id)->update(['estado_id' => $targetEstado]);
                 $paquete->estado_id = $targetEstado;
-                $paquetesActualizados->push($paquete);
+                if ((int) $targetEstado === (int) $estadoAlmacenId) {
+                    $paquetesAlmacen->push($paquete);
+                } else {
+                    $paquetesRecibido->push($paquete);
+                }
                 $updatedEms++;
             }
 
@@ -3083,7 +3177,11 @@ class PaquetesEms extends Component
 
                 RecojoContrato::query()->where('id', (int) $contrato->id)->update(['estados_id' => $targetEstado]);
                 $contrato->estados_id = $targetEstado;
-                $contratosActualizados->push($contrato);
+                if ((int) $targetEstado === (int) $estadoAlmacenId) {
+                    $contratosAlmacen->push($contrato);
+                } else {
+                    $contratosRecibido->push($contrato);
+                }
                 $updatedContratos++;
             }
 
@@ -3101,18 +3199,31 @@ class PaquetesEms extends Component
 
                 SolicitudCliente::query()->where('id', (int) $solicitud->id)->update(['estado_id' => $targetEstado]);
                 $solicitud->estado_id = $targetEstado;
-                $solicitudesActualizadas->push($solicitud);
+                if ((int) $targetEstado === (int) $estadoAlmacenId) {
+                    $solicitudesAlmacen->push($solicitud);
+                } else {
+                    $solicitudesRecibido->push($solicitud);
+                }
                 $updatedSolicitudes++;
             }
 
-            if ($paquetesActualizados->isNotEmpty()) {
-                $this->registerEventosEms($paquetesActualizados, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
+            if ($paquetesAlmacen->isNotEmpty()) {
+                $this->registerEventosEms($paquetesAlmacen, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE);
             }
-            if ($contratosActualizados->isNotEmpty()) {
-                $this->registerEventosContrato($contratosActualizados, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
+            if ($paquetesRecibido->isNotEmpty()) {
+                $this->registerEventosEms($paquetesRecibido, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
             }
-            if ($solicitudesActualizadas->isNotEmpty()) {
-                $this->registerEventosTiktoker($solicitudesActualizadas, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
+            if ($contratosAlmacen->isNotEmpty()) {
+                $this->registerEventosContrato($contratosAlmacen, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE);
+            }
+            if ($contratosRecibido->isNotEmpty()) {
+                $this->registerEventosContrato($contratosRecibido, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
+            }
+            if ($solicitudesAlmacen->isNotEmpty()) {
+                $this->registerEventosTiktoker($solicitudesAlmacen, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE);
+            }
+            if ($solicitudesRecibido->isNotEmpty()) {
+                $this->registerEventosTiktoker($solicitudesRecibido, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
             }
         });
 
