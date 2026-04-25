@@ -99,7 +99,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
         return [
             (int) ($row['sequence'] ?? 0),
-            $this->formatDate($model->fecha_recojo),
+            $this->formatDate($model->created_at),
             (string) ($model->codigo ?? ''),
             (string) ($model->origen ?? ''),
             '',
@@ -155,7 +155,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                     $drawing->setWorksheet($sheet);
                 }
 
-                $sheet->setCellValue('A4', 'REPORTE DE CONTRATOS ENTREGADOS Y DEVUELTOS');
+                $sheet->setCellValue('A4', 'REPORTE DE CONTRATOS');
                 $sheet->setCellValue('A5', 'ORIGEN:');
                 $sheet->setCellValue('C5', $this->origin);
                 $sheet->setCellValue('A6', 'SERVICIO:');

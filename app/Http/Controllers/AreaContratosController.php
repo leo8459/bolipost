@@ -92,24 +92,22 @@ class AreaContratosController extends Controller
         $empresaId = (int) $request->query('empresa_id', 0);
         $from = trim((string) $request->query('from', ''));
         $to = trim((string) $request->query('to', ''));
-        $estadoReporteIds = $this->resolveEstadoReporteIds();
-
         $empresas = Empresa::query()
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'sigla']);
 
-        $query = $this->buildEntregadosReportQuery($search, $empresaId, $from, $to, $estadoReporteIds);
+        $query = $this->buildContratosReportQuery($search, $empresaId, $from, $to);
 
         $contratos = (clone $query)
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->paginate(25)
             ->withQueryString();
 
         $rows = (clone $query)
             ->orderBy('origen')
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->get();
 
         $groupedSummary = $rows
@@ -128,7 +126,6 @@ class AreaContratosController extends Controller
             'search' => $search,
             'from' => $from,
             'to' => $to,
-            'estadoReporteDisponible' => !empty($estadoReporteIds),
             'groupedSummary' => $groupedSummary,
             'totalReportes' => $rows->count(),
         ]);
@@ -140,16 +137,15 @@ class AreaContratosController extends Controller
         $empresaId = (int) $request->query('empresa_id', 0);
         $from = trim((string) $request->query('from', ''));
         $to = trim((string) $request->query('to', ''));
-        $estadoReporteIds = $this->resolveEstadoReporteIds();
 
         $empresa = $empresaId > 0
             ? Empresa::query()->find($empresaId, ['id', 'nombre', 'sigla'])
             : null;
 
-        $rows = $this->buildEntregadosReportQuery($search, $empresaId, $from, $to, $estadoReporteIds)
+        $rows = $this->buildContratosReportQuery($search, $empresaId, $from, $to)
             ->orderBy('origen')
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->get();
 
         $empresaNombre = trim((string) ($empresa->nombre ?? 'GENERAL'));
@@ -206,31 +202,53 @@ class AreaContratosController extends Controller
             });
     }
 
-    private function buildEntregadosReportQuery(
+    private function buildContratosReportQuery(
         string $search,
         int $empresaId,
         string $from,
-        string $to,
-        array $estadoIds
+        string $to
     ) {
-        return $this->buildEntregadosQuery($search, $estadoIds)
+        return Recojo::query()
+            ->with([
+                'estadoRegistro:id,nombre_estado',
+                'empresa:id,nombre,sigla',
+                'user:id,name',
+            ])
+            ->whereNotNull('estados_id')
+            ->where('estados_id', '!=', 0)
+            ->whereDoesntHave('estadoRegistro', function ($query) {
+                $query->whereRaw('trim(upper(nombre_estado)) = ?', ['CANCELADO']);
+            })
             ->when($empresaId > 0, function ($query) use ($empresaId) {
                 $query->where('empresa_id', $empresaId);
             })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('codigo', 'like', '%' . $search . '%')
+                        ->orWhere('cod_especial', 'like', '%' . $search . '%')
+                        ->orWhere('origen', 'like', '%' . $search . '%')
+                        ->orWhere('destino', 'like', '%' . $search . '%')
+                        ->orWhere('nombre_r', 'like', '%' . $search . '%')
+                        ->orWhere('nombre_d', 'like', '%' . $search . '%')
+                        ->orWhere('direccion_r', 'like', '%' . $search . '%')
+                        ->orWhere('direccion_d', 'like', '%' . $search . '%')
+                        ->orWhere('telefono_r', 'like', '%' . $search . '%')
+                        ->orWhere('telefono_d', 'like', '%' . $search . '%')
+                        ->orWhereHas('empresa', function ($empresaQuery) use ($search) {
+                            $empresaQuery->where('nombre', 'like', '%' . $search . '%')
+                                ->orWhere('sigla', 'like', '%' . $search . '%');
+                        })
+                        ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($search) {
+                            $estadoQuery->where('nombre_estado', 'like', '%' . $search . '%');
+                        });
+                });
+            })
             ->when($from !== '', function ($query) use ($from) {
-                $query->whereDate('updated_at', '>=', $from);
+                $query->whereDate('created_at', '>=', $from);
             })
             ->when($to !== '', function ($query) use ($to) {
-                $query->whereDate('updated_at', '<=', $to);
+                $query->whereDate('created_at', '<=', $to);
             });
-    }
-
-    private function resolveEstadoReporteIds(): array
-    {
-        return collect([
-            $this->resolveEstadoIdByName('ENTREGADO'),
-            $this->resolveEstadoIdByName('DEVOLUCION'),
-        ])->filter()->unique()->values()->all();
     }
 
     private function resolveEstadoIdByName(string $nombre): int

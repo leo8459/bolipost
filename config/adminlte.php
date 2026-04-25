@@ -1012,6 +1012,11 @@ return [
                 ],
             ],
         ],
+        [
+            'text' => 'Entregas',
+            'url' => '/entregas',
+            'icon' => 'fas fa-clipboard-check',
+        ],
 
     ],
 

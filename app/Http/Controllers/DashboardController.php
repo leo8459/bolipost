@@ -101,6 +101,52 @@ class DashboardController extends Controller
         return view('dashboard', $data);
     }
 
+    public function entregas(Request $request)
+    {
+        $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
+        [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
+
+        $entregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null)
+            ->map(function ($row) {
+                $ems = (int) ($row->ems ?? 0);
+                $contrato = (int) ($row->contrato ?? 0);
+                $certi = (int) ($row->certi ?? 0);
+                $ordi = (int) ($row->ordi ?? 0);
+
+                $porServicio = [
+                    'EMS' => $ems,
+                    'CONTRATOS' => $contrato,
+                    'CERTIFICADOS' => $certi,
+                    'ORDINARIOS' => $ordi,
+                ];
+
+                $maximo = max($porServicio);
+                $masEntregados = $maximo > 0
+                    ? collect($porServicio)->filter(fn ($total) => (int) $total === (int) $maximo)->keys()->values()->all()
+                    : [];
+
+                $row->total_entregados = (int) ($row->total_entregados ?? 0);
+                $row->ems = $ems;
+                $row->contrato = $contrato;
+                $row->certi = $certi;
+                $row->ordi = $ordi;
+                $row->servicio_mas_entregado = empty($masEntregados) ? 'SIN DATOS' : implode(' / ', $masEntregados);
+                $row->servicio_mas_entregado_total = (int) $maximo;
+
+                return $row;
+            });
+
+        return view('entregas', [
+            'entregadores' => $entregadores,
+            'modulosDisponibles' => self::MODULOS,
+            'modulosSeleccionados' => $modulosSeleccionados,
+            'rangoDesde' => $desde ? $desde->toDateString() : null,
+            'rangoHasta' => $hasta ? $hasta->toDateString() : null,
+            'rangoLabel' => $rangoLabel,
+            'rangoKey' => $rangoKey,
+        ]);
+    }
+
     public function reportes(Request $request)
     {
         $data = $this->buildDashboardData($request);
@@ -832,7 +878,7 @@ class DashboardController extends Controller
         return [$labels, "to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"];
     }
 
-    private function buildRankingEntregadores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to)
+    private function buildRankingEntregadores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, ?int $limit = 10)
     {
         $queries = [];
 
@@ -851,7 +897,7 @@ class DashboardController extends Controller
             $queries[] = $query;
         }
 
-        return $this->resolveRankingUsuarios($queries, 'total_entregados');
+        return $this->resolveRankingUsuarios($queries, 'total_entregados', $limit);
     }
 
     private function buildRankingRegistradores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to)
@@ -881,7 +927,7 @@ class DashboardController extends Controller
         return $this->resolveRankingUsuarios($queries, 'total_registrados');
     }
 
-    private function resolveRankingUsuarios(array $queries, string $totalAlias)
+    private function resolveRankingUsuarios(array $queries, string $totalAlias, ?int $limit = 10)
     {
         if (empty($queries)) {
             return collect();
@@ -892,7 +938,7 @@ class DashboardController extends Controller
             $base->unionAll($nextQuery);
         }
 
-        return DB::query()
+        $query = DB::query()
             ->fromSub($base, 'r')
             ->join('users', 'users.id', '=', 'r.user_id')
             ->select([
@@ -905,9 +951,13 @@ class DashboardController extends Controller
                 DB::raw("SUM(CASE WHEN r.modulo = 'ORDINARIOS' THEN r.total ELSE 0 END) as ordi"),
             ])
             ->groupBy('users.id', 'users.name')
-            ->orderByDesc($totalAlias)
-            ->limit(10)
-            ->get();
+            ->orderByDesc($totalAlias);
+
+        if ($limit !== null) {
+            $query->limit($limit);
+        }
+
+        return $query->get();
     }
 
     private function buildExecutiveInsights(

@@ -614,7 +614,10 @@
         <div class="col-lg-4">
             <div class="card mb-3" data-widget="ranking_entregadores">
                 <div class="card-header">
-                    <strong>Top Entregadores</strong>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>Top Entregadores</strong>
+                        <a href="{{ route('entregas.index') }}" class="btn btn-xs btn-outline-primary">Ver todos</a>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     <table class="table table-sm table-striped mb-0">

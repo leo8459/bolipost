@@ -265,7 +265,7 @@ class AreaContratosEntregadosResumenSheetExport implements FromArray, ShouldAuto
 
     private function numberToWords(float $amount): string
     {
-        $formatted = number_format($amount, 2, '.', '');
+        $formatted = number_format($amount, 2, ',', '');
         return strtoupper($formatted . ' BOLIVIANOS');
     }
 
