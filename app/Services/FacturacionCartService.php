@@ -742,11 +742,11 @@ class FacturacionCartService
     {
         return Servicio::query()
             ->whereNotNull('actividadEconomica')
-            ->whereRaw("trim(actividadEconomica) <> ''")
+            ->whereRaw("trim(\"actividadEconomica\") <> ''")
             ->whereNotNull('codigoSin')
-            ->whereRaw("trim(codigoSin) <> ''")
+            ->whereRaw("trim(\"codigoSin\") <> ''")
             ->whereNotNull('codigo')
-            ->whereRaw("trim(codigo) <> ''")
+            ->whereRaw("trim(\"codigo\") <> ''")
             ->whereNotNull('unidadMedida')
             ->where('unidadMedida', '>', 0)
             ->first();
