@@ -303,7 +303,7 @@
             return $iso2DesdeOficina($item->office ?? '') ?? $iso2DesdeOficina($item->next_office ?? '');
         }, null);
         $codigoIso2 = $iso2DesdeCodigoS10($codigo);
-        $esDestinoNacional = $ciudadDestinoLocal !== '' || $destinoIso2 === 'BO' || $codigoIso2 === 'BO';
+        $esDestinoNacional = $ciudadDestinoLocal !== '' || $destinoIso2 === 'BO' || $codigoIso2 === 'BO' || $servicioActual === 'CONTRATO';
         $destinoLabel = $ciudadDestinoLocal !== ''
             ? ucwords(mb_strtolower($ciudadDestinoLocal))
             : ($esDestinoNacional ? 'Nacional' : ($destinoIso2 ?? 'Internacional'));

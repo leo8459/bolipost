@@ -681,10 +681,15 @@ class BusquedaController extends Controller
             $query->leftJoin('paquetes_ordi as p', 'p.codigo', '=', 'ee.codigo');
             $select[] = DB::raw("(SELECT u.ciudad FROM eventos_ordi eo LEFT JOIN users u ON u.id = eo.user_id WHERE eo.codigo = ee.codigo ORDER BY eo.created_at ASC, eo.id ASC LIMIT 1) as ciudad_origen");
             $select[] = DB::raw('p.ciudad as ciudad_destino');
+        } elseif ($fuente['tabla'] === 'eventos_contrato' && Schema::hasTable('paquetes_contrato')) {
+            $query->leftJoin('paquetes_contrato as p', 'p.codigo', '=', 'ee.codigo');
+            $select[] = DB::raw("COALESCE(NULLIF(TRIM(p.origen), ''), (SELECT u.ciudad FROM eventos_contrato ec LEFT JOIN users u ON u.id = ec.user_id WHERE ec.codigo = ee.codigo ORDER BY ec.created_at ASC, ec.id ASC LIMIT 1)) as ciudad_origen");
+            $select[] = DB::raw('NULLIF(TRIM(p.destino), \'\') as ciudad_destino');
         } elseif ($fuente['tabla'] === 'eventos_contrato' && Schema::hasTable('recojos')) {
+            // Compatibilidad con bases antiguas antes del rename a paquetes_contrato.
             $query->leftJoin('recojos as r', 'r.codigo', '=', 'ee.codigo');
-            $select[] = DB::raw('r.origen as ciudad_origen');
-            $select[] = DB::raw('r.destino as ciudad_destino');
+            $select[] = DB::raw("COALESCE(NULLIF(TRIM(r.origen), ''), (SELECT u.ciudad FROM eventos_contrato ec LEFT JOIN users u ON u.id = ec.user_id WHERE ec.codigo = ee.codigo ORDER BY ec.created_at ASC, ec.id ASC LIMIT 1)) as ciudad_origen");
+            $select[] = DB::raw('NULLIF(TRIM(r.destino), \'\') as ciudad_destino');
         } else {
             $select[] = DB::raw('NULL as ciudad_origen');
             $select[] = DB::raw('NULL as ciudad_destino');
