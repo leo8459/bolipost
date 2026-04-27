@@ -325,6 +325,7 @@ class AclPermissionRegistry
         'paquetes-certificados.inventario' => ['edit', 'delete', 'assign', 'export'],
         'paquetes-certificados.rezago' => ['edit', 'delete', 'assign'],
         'paquetes-certificados.todos' => ['edit', 'delete'],
+        'todos-paquetes.index' => ['edit', 'assign'],
         'empresas.index' => ['create', 'edit', 'delete', 'import', 'export'],
         'servicios.index' => ['create', 'edit', 'delete'],
         'sucursales.index' => ['create', 'edit', 'delete'],

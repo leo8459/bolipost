@@ -881,6 +881,11 @@ return [
                             'icon' => 'fas fa-boxes',
                             'submenu' => [
                                 [
+                                    'text' => 'Todos los paquetes',
+                                    'url' => 'todos-paquetes',
+                                    'icon' => 'fas fa-layer-group',
+                                ],
+                                [
                                     'text' => 'Importacion de Paquetes',
                                     'url' => 'importar/paquets',
                                     'icon' => 'fas fa-upload',

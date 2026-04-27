@@ -18,6 +18,7 @@ use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\TarifarioController;
 use App\Http\Controllers\TarifaContratoController;
 use App\Http\Controllers\TarifarioTiktokerController;
+use App\Http\Controllers\TodosPaquetesController;
 use App\Http\Controllers\ServicioExtraController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\PaquetesCertiController;
@@ -269,6 +270,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/importar/paquets', [ImportController::class, 'paquets'])->name('importar.paquets');
     Route::post('/importar/paquets', [ImportController::class, 'importPaquets'])->name('importar.paquets.store');
     Route::get('/importar/paquets/plantilla-excel', [ImportController::class, 'downloadPaquetsTemplateExcel'])->name('importar.paquets.template-excel');
+    Route::get('/todos-paquetes', [TodosPaquetesController::class, 'index'])->name('todos-paquetes.index');
+    Route::patch('/todos-paquetes/{type}/{id}/estado', [TodosPaquetesController::class, 'updateEstado'])->name('todos-paquetes.estado');
+    Route::put('/todos-paquetes/{type}/{id}/datos', [TodosPaquetesController::class, 'updateDatos'])->name('todos-paquetes.datos');
     Route::post('/tarifa-contrato', [TarifaContratoController::class, 'store'])->name('tarifa-contrato.store');
     Route::get('/tarifa-contrato/{tarifaContrato}/edit', [TarifaContratoController::class, 'edit'])->name('tarifa-contrato.edit');
     Route::put('/tarifa-contrato/{tarifaContrato}', [TarifaContratoController::class, 'update'])->name('tarifa-contrato.update');
