@@ -30,25 +30,18 @@
         $esTrackingInternacionalExterno = in_array(($fuenteTracking ?? null), ['api', 'mixta'], true) && !$esCodigoBoliviano;
 
         $primerPaso = in_array($servicioActual, ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';
-        $estadoActualTexto = mb_strtolower(trim((string) ($ultimoEvento->paquete_estado_nombre ?? '')));
-        $estadoDefinePaso = $estadoActualTexto !== '';
-        $estadoIndicaCartero = str_contains($estadoActualTexto, 'cartero');
-        $estadoIndicaVentanilla = str_contains($estadoActualTexto, 'ventanilla');
-        $estadoIndicaEntregado = str_contains($estadoActualTexto, 'entregado');
-
-        $textoIndicaCartero = str_contains($eventoTextos, 'cartero')
+        $incluyeCartero = str_contains($eventoTextos, 'cartero')
             || str_contains($eventoTextos, 'distrib')
             || str_contains($eventoTextos, 'domicilio')
-            || str_contains($eventoTextos, 'intento')
-            || str_contains($eventoTextos, 'entrega fisica')
-            || str_contains($eventoTextos, 'camino para entrega');
-        $incluyeCartero = $estadoDefinePaso ? $estadoIndicaCartero : $textoIndicaCartero;
+            || str_contains($eventoTextos, 'intento');
 
-        $pasos = $incluyeCartero
-            ? [$primerPaso, 'Despacho', 'Expedicion', 'Cartero', 'Entregado']
-            : [$primerPaso, 'Despacho', 'Expedicion', 'Ventanilla', 'Entregado'];
+        $pasos = [$primerPaso, 'Despacho', 'Expedicion', 'Ventanilla'];
+        if ($incluyeCartero) {
+            $pasos[] = 'Cartero';
+        }
+        $pasos[] = 'Entregado';
 
-        $idxEntregado = 4;
+        $idxEntregado = $incluyeCartero ? 5 : 4;
         $pasoActual = 0;
         $textoIndicaDespacho = str_contains($eventoTextos, 'despach');
         $textoIndicaExpedicion = str_contains($eventoTextos, 'exped')
@@ -66,18 +59,9 @@
         }
         if ($textoIndicaDespacho) $pasoActual = max($pasoActual, 1);
         if ($textoIndicaExpedicion) $pasoActual = max($pasoActual, 2);
-        if ($estadoDefinePaso) {
-            if ($estadoIndicaVentanilla && !$incluyeCartero) $pasoActual = max($pasoActual, 3);
-            if ($estadoIndicaCartero && $incluyeCartero) $pasoActual = max($pasoActual, 3);
-            if ($estadoIndicaEntregado) $pasoActual = max($pasoActual, $idxEntregado);
-        } else {
-            if (!$incluyeCartero && $textoIndicaVentanilla) $pasoActual = max($pasoActual, 3);
-            if ($incluyeCartero && $textoIndicaCartero) {
-                $pasoActual = max($pasoActual, 3);
-            }
-        }
-        if ($incluyeCartero && $textoIndicaCartero && !$estadoDefinePaso) {
-            $pasoActual = max($pasoActual, 3);
+        if ($textoIndicaVentanilla) $pasoActual = max($pasoActual, 3);
+        if ($incluyeCartero && (str_contains($eventoTextos, 'cartero') || str_contains($eventoTextos, 'distrib') || str_contains($eventoTextos, 'domicilio') || str_contains($eventoTextos, 'intento'))) {
+            $pasoActual = max($pasoActual, 4);
         }
 
         $entregaConfirmada = $eventos->contains(function ($item) {
@@ -120,7 +104,7 @@
             return false;
         });
 
-        if ($entregaConfirmada || $estadoIndicaEntregado) $pasoActual = max($pasoActual, $idxEntregado);
+        if ($entregaConfirmada) $pasoActual = max($pasoActual, $idxEntregado);
 
         $estadoGlobal = $pasoActual === $idxEntregado ? 'Entregado' : 'En transito';
         if ($tieneIncidencia && $pasoActual < $idxEntregado) $estadoGlobal = 'En transito con incidencia';
