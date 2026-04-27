@@ -273,8 +273,7 @@
         $ciudadOrigenDesdeEventos = $eventos
             ->reverse()
             ->map(function ($item) use ($detectarDepartamentoBolivia) {
-                return $detectarDepartamentoBolivia($item->nombre_evento ?? '')
-                    ?? $detectarDepartamentoBolivia($item->office ?? '')
+                return $detectarDepartamentoBolivia($item->office ?? '')
                     ?? $detectarDepartamentoBolivia($item->next_office ?? '');
             })
             ->first(fn (?string $ciudad) => $ciudad !== null && $ciudad !== '');
@@ -284,11 +283,11 @@
         if ($preferirOrigenExterno) {
             $origenLabel = $paisOrigenExterno;
             $origenIso2 = $origenExternoIso2;
-        } elseif ($servicioActual === 'CONTRATO' && $ciudadOrigenDesdeEventos) {
-            $origenLabel = $ciudadOrigenDesdeEventos;
-            $origenIso2 = 'BO';
         } elseif ($ciudadOrigenLocal !== '') {
             $origenLabel = ucwords(mb_strtolower($ciudadOrigenLocal));
+            $origenIso2 = 'BO';
+        } elseif ($servicioActual === 'CONTRATO' && $ciudadOrigenDesdeEventos) {
+            $origenLabel = $ciudadOrigenDesdeEventos;
             $origenIso2 = 'BO';
         } elseif ($ciudadOrigenDesdeOficina) {
             $origenLabel = $ciudadOrigenDesdeOficina;

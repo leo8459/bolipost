@@ -616,8 +616,8 @@ class BusquedaController extends Controller
     {
         $candidatos = [
             $evento->office ?? null,
-            $evento->ciudad_destino ?? null,
             $evento->ciudad_origen ?? null,
+            $evento->ciudad_destino ?? null,
             $evento->next_office ?? null,
         ];
 
