@@ -559,11 +559,13 @@ class BusquedaController extends Controller
             ->map(function ($evento, int $index) {
                 $item = (object) $evento;
                 $createdAt = (string) ($item->created_at ?? '');
+                $nombreEventoBase = trim((string) ($item->nombre_evento ?? ''));
                 $timestamp = strtotime($createdAt);
 
                 $item->_sort_ts = $timestamp !== false ? $timestamp : (PHP_INT_MAX - $index);
-                $item->_sort_priority = $this->calcularPrioridadEvento((string) ($item->nombre_evento ?? ''));
+                $item->_sort_priority = $this->calcularPrioridadEvento($nombreEventoBase);
                 $item->_sort_id = (int) ($item->id ?? 0);
+                $item->nombre_evento = $this->concatenarEventoConLugar($nombreEventoBase, $item);
 
                 return $item;
             })
@@ -586,6 +588,47 @@ class BusquedaController extends Controller
                 return $evento;
             })
             ->values();
+    }
+
+    private function concatenarEventoConLugar(string $nombreEvento, object $evento): string
+    {
+        $nombreEvento = trim($nombreEvento);
+        if ($nombreEvento === '') {
+            return $nombreEvento;
+        }
+
+        $lugar = $this->resolverLugarEvento($evento);
+        if ($lugar === '') {
+            return $nombreEvento;
+        }
+
+        $nombreNormalizado = mb_strtolower(trim($nombreEvento));
+        $lugarNormalizado = mb_strtolower(trim($lugar));
+
+        if ($nombreNormalizado === $lugarNormalizado || str_contains($nombreNormalizado, ' - '.$lugarNormalizado)) {
+            return $nombreEvento;
+        }
+
+        return $nombreEvento.' - '.$lugar;
+    }
+
+    private function resolverLugarEvento(object $evento): string
+    {
+        $candidatos = [
+            $evento->office ?? null,
+            $evento->ciudad_destino ?? null,
+            $evento->ciudad_origen ?? null,
+            $evento->next_office ?? null,
+        ];
+
+        foreach ($candidatos as $valor) {
+            $texto = trim((string) $valor);
+            if ($texto !== '') {
+                return $texto;
+            }
+        }
+
+        return '';
     }
 
     private function resolverFuenteTracking(Collection $eventosApi, Collection $eventosLocales): string

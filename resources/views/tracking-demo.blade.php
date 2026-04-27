@@ -229,48 +229,6 @@
 
             return null;
         };
-        $eventoOrigen = $eventos->first(function ($item) use ($extraerPaisDesdeOffice) {
-            return $extraerPaisDesdeOffice($item->office ?? '') !== '';
-        });
-        $paisOrigenExterno = $eventoOrigen ? $extraerPaisDesdeOffice($eventoOrigen->office ?? '') : '';
-        $origenExternoIso2 = $eventoOrigen
-            ? ($iso2DesdeCodigoS10($eventoOrigen->codigo ?? $codigo) ?? $iso2DesdeNombrePais($paisOrigenExterno))
-            : null;
-        $ciudadOrigenLocal = trim((string) ($eventos->firstWhere('ciudad_origen')?->ciudad_origen ?? ''));
-        $ciudadDestinoLocal = trim((string) ($eventos->firstWhere('ciudad_destino')?->ciudad_destino ?? ''));
-        $preferirOrigenExterno = $paisOrigenExterno !== '' && $origenExternoIso2 !== 'BO' && !$esCodigoBoliviano;
-
-        if ($preferirOrigenExterno) {
-            $origenLabel = $paisOrigenExterno;
-            $origenIso2 = $origenExternoIso2;
-        } elseif ($ciudadOrigenLocal !== '') {
-            $origenLabel = ucwords(mb_strtolower($ciudadOrigenLocal));
-            $origenIso2 = 'BO';
-        } elseif ($eventoOrigen) {
-            $origenLabel = $paisOrigenExterno;
-            $origenIso2 = $origenExternoIso2;
-        } else {
-            $origenIso2 = $iso2DesdeCodigoS10($codigo);
-            if ($origenIso2 !== null) {
-                $origenLabel = $nombrePaisDesdeIso2($origenIso2) ?? $origenIso2;
-            }
-        }
-
-        $destinoIso2 = $eventos->reduce(function ($carry, $item) use ($iso2DesdeOficina) {
-            if ($carry !== null) {
-                return $carry;
-            }
-
-            return $iso2DesdeOficina($item->office ?? '') ?? $iso2DesdeOficina($item->next_office ?? '');
-        }, null);
-        $codigoIso2 = $iso2DesdeCodigoS10($codigo);
-        $esDestinoNacional = $ciudadDestinoLocal !== '' || $destinoIso2 === 'BO' || $codigoIso2 === 'BO';
-        $destinoLabel = $ciudadDestinoLocal !== ''
-            ? ucwords(mb_strtolower($ciudadDestinoLocal))
-            : ($esDestinoNacional ? 'Nacional' : ($destinoIso2 ?? 'Internacional'));
-        $destinoBanderaIso2 = $esDestinoNacional ? 'BO' : $destinoIso2;
-        $historial = $eventos->groupBy(fn($item) => \Illuminate\Support\Carbon::parse($item->created_at)->format('Y-m-d'));
-
         $detectarDepartamentoBolivia = function (?string $texto): ?string {
             $valor = mb_strtoupper(trim((string) $texto));
             if ($valor === '') {
@@ -297,6 +255,60 @@
 
             return null;
         };
+        $eventoOrigen = $eventos->first(function ($item) use ($extraerPaisDesdeOffice) {
+            return $extraerPaisDesdeOffice($item->office ?? '') !== '';
+        });
+        $paisOrigenExterno = $eventoOrigen ? $extraerPaisDesdeOffice($eventoOrigen->office ?? '') : '';
+        $origenExternoIso2 = $eventoOrigen
+            ? ($iso2DesdeCodigoS10($eventoOrigen->codigo ?? $codigo) ?? $iso2DesdeNombrePais($paisOrigenExterno))
+            : null;
+        $ciudadOrigenLocal = trim((string) ($eventos->firstWhere('ciudad_origen')?->ciudad_origen ?? ''));
+        $ciudadOrigenDesdeOficina = $eventos
+            ->reverse()
+            ->map(function ($item) use ($detectarDepartamentoBolivia) {
+                return $detectarDepartamentoBolivia($item->office ?? '')
+                    ?? $detectarDepartamentoBolivia($item->next_office ?? '');
+            })
+            ->first(fn (?string $ciudad) => $ciudad !== null && $ciudad !== '');
+        $ciudadDestinoLocal = trim((string) ($eventos->firstWhere('ciudad_destino')?->ciudad_destino ?? ''));
+        $preferirOrigenExterno = $paisOrigenExterno !== '' && $origenExternoIso2 !== 'BO' && !$esCodigoBoliviano;
+
+        if ($preferirOrigenExterno) {
+            $origenLabel = $paisOrigenExterno;
+            $origenIso2 = $origenExternoIso2;
+        } elseif ($ciudadOrigenLocal !== '') {
+            $origenLabel = ucwords(mb_strtolower($ciudadOrigenLocal));
+            $origenIso2 = 'BO';
+        } elseif ($ciudadOrigenDesdeOficina) {
+            $origenLabel = $ciudadOrigenDesdeOficina;
+            $origenIso2 = 'BO';
+        } elseif ($eventoOrigen) {
+            $origenLabel = $paisOrigenExterno;
+            $origenIso2 = $origenExternoIso2;
+        } else {
+            $origenIso2 = $iso2DesdeCodigoS10($codigo);
+            if ($origenIso2 !== null) {
+                $origenLabel = $nombrePaisDesdeIso2($origenIso2) ?? $origenIso2;
+            }
+        }
+        $origenNombrePais = $origenIso2 ? (string) ($nombrePaisDesdeIso2($origenIso2) ?? $origenIso2) : '';
+        $origenMostrarComoPais = $origenIso2
+            && mb_strtolower(trim($origenLabel)) === mb_strtolower(trim($origenNombrePais));
+
+        $destinoIso2 = $eventos->reduce(function ($carry, $item) use ($iso2DesdeOficina) {
+            if ($carry !== null) {
+                return $carry;
+            }
+
+            return $iso2DesdeOficina($item->office ?? '') ?? $iso2DesdeOficina($item->next_office ?? '');
+        }, null);
+        $codigoIso2 = $iso2DesdeCodigoS10($codigo);
+        $esDestinoNacional = $ciudadDestinoLocal !== '' || $destinoIso2 === 'BO' || $codigoIso2 === 'BO';
+        $destinoLabel = $ciudadDestinoLocal !== ''
+            ? ucwords(mb_strtolower($ciudadDestinoLocal))
+            : ($esDestinoNacional ? 'Nacional' : ($destinoIso2 ?? 'Internacional'));
+        $destinoBanderaIso2 = $esDestinoNacional ? 'BO' : $destinoIso2;
+        $historial = $eventos->groupBy(fn($item) => \Illuminate\Support\Carbon::parse($item->created_at)->format('Y-m-d'));
 
         $contactosRegional = [
             'La Paz' => [
@@ -306,43 +318,43 @@
             ],
             'Cochabamba' => [
                 'regional' => 'Regional: Cochabamba',
-                'direccion' => 'Calle Ayacucho esquina Av. Heroinas NÃ‚Â° 113',
-                'coords' => "17Ã‚Â°23'34.1\"S 66Ã‚Â°09'31.0\"W",
+                'direccion' => 'Calle Ayacucho esquina Av. Heroinas N° 113',
+                'coords' => "17°23'34.1\"S 66°09'31.0\"W",
             ],
             'Santa Cruz' => [
                 'regional' => 'Regional: Santa Cruz',
-                'direccion' => 'Calle Cobija Entre Sucre y Ballivian NÃ‚Â° 24',
-                'coords' => "17Ã‚Â°47'00.6\"S 63Ã‚Â°10'28.8\"W",
+                'direccion' => 'Calle Cobija Entre Sucre y Ballivian N° 24',
+                'coords' => "17°47'00.6\"S 63°10'28.8\"W",
             ],
             'Oruro' => [
                 'regional' => 'Regional: Oruro',
-                'direccion' => 'Calle Presidente Montes Esquina Junin NÃ‚Â° 1456',
-                'coords' => "17Ã‚Â°58'07.3\"S 67Ã‚Â°06'53.6\"W",
+                'direccion' => 'Calle Presidente Montes Esquina Junin N° 1456',
+                'coords' => "17°58'07.3\"S 67°06'53.6\"W",
             ],
             'Potosi' => [
                 'regional' => 'Regional: Potosi',
                 'direccion' => 'Calle Hoyos Esquina Topater, Villa Imperial de Potosi',
-                'coords' => "19Ã‚Â°35'19.3\"S 65Ã‚Â°44'56.2\"W",
+                'coords' => "19°35'19.3\"S 65°44'56.2\"W",
             ],
             'Tarija' => [
                 'regional' => 'Regional: Tarija',
-                'direccion' => 'Calle Mariscal Sucre esquina Virginio Lema NÃ‚Â° 397',
-                'coords' => "21Ã‚Â°32'10.0\"S 64Ã‚Â°44'04.5\"W",
+                'direccion' => 'Calle Mariscal Sucre esquina Virginio Lema N° 397',
+                'coords' => "21°32'10.0\"S 64°44'04.5\"W",
             ],
             'Sucre' => [
                 'regional' => 'Regional: Sucre',
-                'direccion' => 'Calle Junin Esquina Ayacucho NÃ‚Â° 699',
-                'coords' => "19Ã‚Â°02'49.8\"S 65Ã‚Â°15'41.0\"W",
+                'direccion' => 'Calle Junin Esquina Ayacucho N° 699',
+                'coords' => "19°02'49.8\"S 65°15'41.0\"W",
             ],
             'Trinidad' => [
                 'regional' => 'Regional: Trinidad',
-                'direccion' => 'Calle Cipriano Barace NÃ‚Â°10 Entre Manuel Limpias y Calle Sucre',
-                'coords' => "14Ã‚Â°50'04.0\"S 64Ã‚Â°54'11.8\"W",
+                'direccion' => 'Calle Cipriano Barace N°10 Entre Manuel Limpias y Calle Sucre',
+                'coords' => "14°50'04.0\"S 64°54'11.8\"W",
             ],
             'Cobija' => [
                 'regional' => 'Regional: Cobija',
                 'direccion' => 'Av. Bruno Recua N.- 59',
-                'coords' => "11Ã‚Â°01'03.8\"S 68Ã‚Â°45'15.9\"W",
+                'coords' => "11°01'03.8\"S 68°45'15.9\"W",
             ],
         ];
 
@@ -406,7 +418,7 @@
                     <div class="status-meta">
                         <div class="meta-item meta-accent-a">
                             <small>Origen</small>
-                            <strong><span data-country-name @if($origenIso2) data-country-iso="{{ strtolower($origenIso2) }}" @endif>{{ $origenLabel }}</span> @if($origenIso2)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($origenIso2) }}.png" alt="Bandera origen">@endif</strong>
+                            <strong><span @if($origenMostrarComoPais && $origenIso2) data-country-name data-country-iso="{{ strtolower($origenIso2) }}" @endif>{{ $origenLabel }}</span> @if($origenIso2)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($origenIso2) }}.png" alt="Bandera origen">@endif</strong>
                         </div>
                         <div class="meta-item meta-accent-b">
                             <small>Destino</small>
