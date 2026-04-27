@@ -747,6 +747,118 @@
             font-size:11px;
             padding:3px 8px;
         }
+
+        #regionalMismatchModal .modal-content{
+            border:0;
+            border-radius:14px;
+            overflow:hidden;
+            box-shadow:0 18px 48px rgba(15, 23, 42, .22);
+        }
+        #regionalMismatchModal .modal-header{
+            background:#20539A;
+            color:#fff;
+            border:0;
+            padding:1.1rem 1.4rem;
+        }
+        #regionalMismatchModal .modal-title{
+            font-weight:800;
+        }
+        #regionalMismatchModal .close{
+            color:#fff;
+            opacity:.85;
+            text-shadow:none;
+        }
+        #regionalMismatchModal .modal-body{
+            padding:1.35rem 1.5rem 1.25rem;
+            background:#f8fafc;
+        }
+        .regional-warning-text,
+        .regional-warning-subtitle{
+            color:#111827;
+            font-size:1rem;
+        }
+        .regional-mismatch-list{
+            max-height:320px;
+            overflow-y:auto;
+            padding:10px;
+            border:1px solid #dbe3ef;
+            border-radius:12px;
+            background:#fff;
+        }
+        .regional-mismatch-item{
+            padding:12px;
+            border:1px solid #e4e9f2;
+            border-radius:10px;
+            background:#fbfdff;
+            display:grid;
+            grid-template-columns:minmax(220px, 32%) 1fr;
+            gap:12px;
+            align-items:stretch;
+        }
+        .regional-mismatch-item + .regional-mismatch-item{
+            margin-top:10px;
+        }
+        .regional-mismatch-row{
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:12px;
+            margin-bottom:0;
+            flex-direction:column;
+        }
+        .regional-mismatch-code{
+            color:#0f2f5f;
+            font-weight:800;
+            letter-spacing:.2px;
+        }
+        .regional-mismatch-label{
+            color:#64748b;
+            font-size:.78rem;
+            line-height:1.1;
+        }
+        .regional-mismatch-destino{
+            display:inline-flex;
+            align-items:center;
+            min-height:28px;
+            padding:4px 10px;
+            border-radius:999px;
+            background:#eef4ff;
+            color:#20539A;
+            font-weight:800;
+            white-space:nowrap;
+            width:max-content;
+        }
+        .regional-mismatch-observation{
+            min-height:76px;
+            border-radius:10px;
+            border-color:#cbd5e1;
+            resize:vertical;
+            background:#fff;
+        }
+        .regional-mismatch-observation:focus{
+            border-color:#20539A;
+            box-shadow:0 0 0 .18rem rgba(32, 83, 154, .15);
+        }
+        .regional-mismatch-alert{
+            border-radius:10px;
+            background:#c1121f;
+            color:#fff;
+            font-size:1.2rem;
+            font-weight:800;
+            line-height:1.55;
+            padding:1rem 1.15rem;
+            box-shadow:inset 4px 0 0 rgba(255, 255, 255, .28);
+        }
+        #regionalMismatchModal .modal-footer{
+            border-top:1px solid #e5eaf2;
+            background:#fff;
+            padding:1rem 1.5rem;
+        }
+        @media (max-width: 767.98px){
+            .regional-mismatch-item{
+                grid-template-columns:1fr;
+            }
+        }
     </style>
 
     <div class="plantilla-wrap">
@@ -2278,24 +2390,41 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-2">
+                    <p class="mb-2 regional-warning-text">
                         Seguro que quieres mandar estos paquetes a <strong>{{ $regionalMismatchDestino ?: 'LA REGIONAL SELECCIONADA' }}</strong>.
                     </p>
-                    <p class="mb-2">
+                    <p class="mb-2 regional-warning-subtitle">
                         Su destino es:
                     </p>
 
-                    <div class="border rounded p-2 mb-3" style="max-height: 280px; overflow-y: auto;">
+                    <div class="regional-mismatch-list mb-3">
                         @forelse($regionalMismatchItems as $item)
-                            <div>
-                                <strong>{{ $item['codigo'] ?? 'SIN CODIGO' }}</strong> - {{ $item['destino'] ?? 'SIN DESTINO' }}
+                            <div class="regional-mismatch-item">
+                                <div class="regional-mismatch-row">
+                                    <div>
+                                        <div class="regional-mismatch-code">{{ $item['codigo'] ?? 'SIN CODIGO' }}</div>
+                                        <div class="regional-mismatch-label">Destino original</div>
+                                    </div>
+                                    <span class="regional-mismatch-destino">{{ $item['destino'] ?? 'SIN DESTINO' }}</span>
+                                </div>
+                                @if(!empty($item['key']))
+                                    <textarea
+                                        class="form-control regional-mismatch-observation"
+                                        rows="3"
+                                        wire:model.defer="regionalMismatchObservaciones.{{ $item['key'] }}"
+                                        placeholder="Escribe la observacion que saldra en el CN-33..."
+                                    ></textarea>
+                                    @error('regionalMismatchObservaciones.' . $item['key'])
+                                        <small class="text-danger font-weight-bold d-block mt-1">{{ $message }}</small>
+                                    @enderror
+                                @endif
                             </div>
                         @empty
                             <div class="text-muted">No hay diferencias de destino.</div>
                         @endforelse
                     </div>
 
-                    <div class="alert mb-0 text-white border-0" style="background:#c1121f; font-size:1.45rem; font-weight:800; line-height:1.6; padding:1.35rem 1.5rem;">
+                    <div class="regional-mismatch-alert">
                         ESTA REENCAMINANDO PAQUETES O USANDO CIUDAD INTERMEDIO SI NO ES ASI REVISALO POR FAVOR LOS PAQUETES QUE ESTAS MANDANDO A LA REGIONAL.
                     </div>
                 </div>

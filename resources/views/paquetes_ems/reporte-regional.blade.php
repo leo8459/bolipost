@@ -188,7 +188,7 @@
                     <td>{{ $paquete->nombre_remitente }}</td>
                     <td></td>
                     <td>X</td>
-                    <td></td>
+                    <td>{{ $paquete->observacion ?? '' }}</td>
                 </tr>
             @endforeach
         </tbody>

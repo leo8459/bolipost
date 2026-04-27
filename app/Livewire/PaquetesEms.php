@@ -142,6 +142,7 @@ class PaquetesEms extends Component
     public $regionalMismatchItems = [];
     public $regionalMismatchDestino = '';
     public $regionalMismatchScope = 'general';
+    public $regionalMismatchObservaciones = [];
 
     public $ciudades = [
         'LA PAZ',
@@ -1732,6 +1733,7 @@ class PaquetesEms extends Component
                 'peso',
                 'nombre_remitente',
                 'user_id',
+                'observacion',
                 'created_at',
                 'updated_at',
             ]);
@@ -1750,12 +1752,31 @@ class PaquetesEms extends Component
                 'peso',
                 'nombre_r',
                 'user_id',
+                'observacion',
                 'created_at',
                 'updated_at',
             ]);
 
-        if ($paquetes->isEmpty() && $contratos->isEmpty()) {
-            session()->flash('error', 'No se encontraron paquetes/contratos para el despacho ' . $despacho . '.');
+        $solicitudes = SolicitudCliente::query()
+            ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo_solicitud',
+                'barcode',
+                'cod_especial',
+                'origen',
+                'ciudad',
+                'cantidad',
+                'peso',
+                'nombre_remitente',
+                'observacion',
+                'created_at',
+                'updated_at',
+            ]);
+
+        if ($paquetes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
+            session()->flash('error', 'No se encontraron paquetes/contratos/solicitudes para el despacho ' . $despacho . '.');
             return;
         }
 
@@ -1769,6 +1790,7 @@ class PaquetesEms extends Component
                     $paquete->nombre_remitente,
                     optional(optional($paquete->user)->empresa)->nombre
                 ),
+                'observacion' => (string) ($paquete->observacion ?? ''),
             ];
         })->all())
             ->concat($contratos->map(function ($contrato) {
@@ -1781,17 +1803,28 @@ class PaquetesEms extends Component
                         $contrato->nombre_r,
                         optional($contrato->empresa)->nombre
                     ),
+                    'observacion' => (string) ($contrato->observacion ?? ''),
+                ];
+            })->all())
+            ->concat($solicitudes->map(function ($solicitud) {
+                return (object) [
+                    'codigo' => $solicitud->codigo_solicitud ?: ($solicitud->barcode ?: 'SIN CODIGO'),
+                    'origen' => $solicitud->origen,
+                    'cantidad' => (int) ($solicitud->cantidad ?? 1),
+                    'peso' => (float) ($solicitud->peso ?? 0),
+                    'nombre_remitente' => (string) ($solicitud->nombre_remitente ?? 'SIN REMITENTE'),
+                    'observacion' => (string) ($solicitud->observacion ?? ''),
                 ];
             })->all())
             ->values();
 
-        $generatedAt = collect([$paquetes->max('updated_at'), $contratos->max('updated_at')])
+        $generatedAt = collect([$paquetes->max('updated_at'), $contratos->max('updated_at'), $solicitudes->max('updated_at')])
             ->filter()
             ->sortDesc()
             ->first() ?: now();
         $loggedUserName = trim((string) optional(Auth::user())->name);
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
-        $destinationCity = trim((string) (optional($paquetes->first())->ciudad ?? optional($contratos->first())->destino));
+        $destinationCity = trim((string) (optional($paquetes->first())->ciudad ?? optional($contratos->first())->destino ?? optional($solicitudes->first())->ciudad));
 
         $pdf = Pdf::loadView('paquetes_ems.reporte-regional', [
             'paquetes' => $rowsPdf,
@@ -2192,6 +2225,7 @@ class PaquetesEms extends Component
         );
         if (!$confirmadoDestino && !empty($mismatchItems)) {
             $this->regionalMismatchItems = $mismatchItems;
+            $this->regionalMismatchObservaciones = $this->buildRegionalMismatchObservationInputs($mismatchItems);
             $this->regionalMismatchDestino = strtoupper(trim((string) $this->regionalDestino));
             $this->regionalMismatchScope = 'general';
             $this->dispatch('closeRegionalModal');
@@ -2238,6 +2272,7 @@ class PaquetesEms extends Component
                         'precio',
                         'nombre_remitente',
                         'user_id',
+                        'observacion',
                         'created_at',
                     ]);
             } else {
@@ -2262,6 +2297,7 @@ class PaquetesEms extends Component
                         'precio',
                         'nombre_r',
                         'user_id',
+                        'observacion',
                         'created_at',
                     ]);
             } else {
@@ -2285,6 +2321,7 @@ class PaquetesEms extends Component
                         'peso',
                         'precio',
                         'nombre_remitente',
+                        'observacion',
                         'created_at',
                     ]);
             } else {
@@ -2298,9 +2335,13 @@ class PaquetesEms extends Component
             $manifiesto = $this->nextSpecialCodeForLoggedUser();
 
             foreach ($paquetes as $paquete) {
+                $observacion = $this->regionalObservationForItem('ems', (int) $paquete->id);
                 $paquete->cod_especial = $manifiesto;
                 $paquete->estado_id = $estadoRegionalId;
                 $paquete->ciudad = $this->regionalDestino;
+                if ($observacion !== null) {
+                    $paquete->observacion = $observacion;
+                }
                 $paquete->save();
                 $updated++;
             }
@@ -2315,17 +2356,25 @@ class PaquetesEms extends Component
             }
 
             foreach ($contratos as $contrato) {
+                $observacion = $this->regionalObservationForItem('contrato', (int) $contrato->id);
                 $contrato->cod_especial = $manifiesto;
                 $contrato->estados_id = (int) $estadoRegionalId;
                 $contrato->destino = $this->regionalDestino;
+                if ($observacion !== null) {
+                    $contrato->observacion = $observacion;
+                }
                 $contrato->save();
                 $updated++;
             }
 
             foreach ($solicitudes as $solicitud) {
+                $observacion = $this->regionalObservationForItem('solicitud', (int) $solicitud->id);
                 $solicitud->cod_especial = $manifiesto;
                 $solicitud->estado_id = (int) $estadoRegionalId;
                 $solicitud->ciudad = $this->regionalDestino;
+                if ($observacion !== null) {
+                    $solicitud->observacion = $observacion;
+                }
                 $solicitud->save();
                 $updated++;
             }
@@ -2373,6 +2422,7 @@ class PaquetesEms extends Component
                     $paquete->nombre_remitente,
                     optional(optional($paquete->user)->empresa)->nombre
                 ),
+                'observacion' => (string) ($paquete->observacion ?? ''),
             ];
         })->merge(
             $contratos->map(function ($contrato) {
@@ -2385,6 +2435,7 @@ class PaquetesEms extends Component
                         $contrato->nombre_r,
                         optional($contrato->empresa)->nombre
                     ),
+                    'observacion' => (string) ($contrato->observacion ?? ''),
                 ];
             })
         )->merge(
@@ -2395,6 +2446,7 @@ class PaquetesEms extends Component
                     'cantidad' => (int) ($solicitud->cantidad ?? 1),
                     'peso' => (float) ($solicitud->peso ?? 0),
                     'nombre_remitente' => (string) ($solicitud->nombre_remitente ?? 'SIN REMITENTE'),
+                    'observacion' => (string) ($solicitud->observacion ?? ''),
                 ];
             })
         );
@@ -2415,6 +2467,8 @@ class PaquetesEms extends Component
         $this->selectedPaquetes = [];
         $this->selectedContratos = [];
         $this->selectedSolicitudes = [];
+        $this->regionalMismatchItems = [];
+        $this->regionalMismatchObservaciones = [];
         $this->regionalDestino = '';
         $this->dispatch('closeRegionalModal');
 
@@ -2468,6 +2522,7 @@ class PaquetesEms extends Component
         );
         if (!$confirmadoDestino && !empty($mismatchItems)) {
             $this->regionalMismatchItems = $mismatchItems;
+            $this->regionalMismatchObservaciones = $this->buildRegionalMismatchObservationInputs($mismatchItems);
             $this->regionalMismatchDestino = strtoupper(trim((string) $this->regionalDestinoContrato));
             $this->regionalMismatchScope = 'contratos';
             $this->dispatch('closeRegionalContratoModal');
@@ -2504,6 +2559,7 @@ class PaquetesEms extends Component
                     'precio',
                     'nombre_r',
                     'user_id',
+                    'observacion',
                     'created_at',
                 ]);
 
@@ -2514,9 +2570,13 @@ class PaquetesEms extends Component
             $manifiesto = $this->nextSpecialCodeForLoggedUser();
 
             foreach ($contratos as $contrato) {
+                $observacion = $this->regionalObservationForItem('contrato', (int) $contrato->id);
                 $contrato->cod_especial = $manifiesto;
                 $contrato->estados_id = (int) $estadoRegionalId;
                 $contrato->destino = $this->regionalDestinoContrato;
+                if ($observacion !== null) {
+                    $contrato->observacion = $observacion;
+                }
                 $contrato->save();
                 $updated++;
             }
@@ -2552,6 +2612,7 @@ class PaquetesEms extends Component
                     $contrato->nombre_r,
                     optional($contrato->empresa)->nombre
                 ),
+                'observacion' => (string) ($contrato->observacion ?? ''),
             ];
         });
 
@@ -2569,6 +2630,8 @@ class PaquetesEms extends Component
         ])->setPaper('a4', 'portrait');
 
         $this->selectedContratos = [];
+        $this->regionalMismatchItems = [];
+        $this->regionalMismatchObservaciones = [];
         $this->regionalDestinoContrato = '';
         $this->dispatch('closeRegionalContratoModal');
 
@@ -2582,6 +2645,10 @@ class PaquetesEms extends Component
     public function confirmarEnvioRegionalConDestinoDiferente()
     {
         $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
+
+        if (!$this->validateRegionalMismatchObservaciones()) {
+            return;
+        }
 
         $this->dispatch('closeRegionalMismatchModal');
 
@@ -6513,7 +6580,7 @@ class PaquetesEms extends Component
             $emsItems = PaqueteEms::query()
                 ->whereIn('id', $idsEms)
                 ->whereIn('estado_id', $eligibleEstadoIds)
-                ->get(['codigo', 'ciudad'])
+                ->get(['id', 'codigo', 'ciudad', 'observacion'])
                 ->map(function ($row) use ($targetDestino) {
                     $destino = strtoupper(trim((string) ($row->ciudad ?? '')));
                     if ($destino === '' || $destino === $targetDestino) {
@@ -6521,8 +6588,12 @@ class PaquetesEms extends Component
                     }
 
                     return [
+                        'type' => 'ems',
+                        'id' => (int) $row->id,
+                        'key' => $this->regionalObservationKey('ems', (int) $row->id),
                         'codigo' => (string) ($row->codigo ?: 'SIN CODIGO'),
                         'destino' => $destino,
+                        'observacion' => (string) ($row->observacion ?? ''),
                     ];
                 })
                 ->filter();
@@ -6534,7 +6605,7 @@ class PaquetesEms extends Component
             $contratoItems = RecojoContrato::query()
                 ->whereIn('id', $idsContratos)
                 ->whereIn('estados_id', $eligibleEstadoIds)
-                ->get(['codigo', 'destino'])
+                ->get(['id', 'codigo', 'destino', 'observacion'])
                 ->map(function ($row) use ($targetDestino) {
                     $destino = strtoupper(trim((string) ($row->destino ?? '')));
                     if ($destino === '' || $destino === $targetDestino) {
@@ -6542,8 +6613,12 @@ class PaquetesEms extends Component
                     }
 
                     return [
+                        'type' => 'contrato',
+                        'id' => (int) $row->id,
+                        'key' => $this->regionalObservationKey('contrato', (int) $row->id),
                         'codigo' => (string) ($row->codigo ?: 'SIN CODIGO'),
                         'destino' => $destino,
+                        'observacion' => (string) ($row->observacion ?? ''),
                     ];
                 })
                 ->filter();
@@ -6555,7 +6630,7 @@ class PaquetesEms extends Component
             $solicitudItems = SolicitudCliente::query()
                 ->whereIn('id', $idsSolicitudes)
                 ->whereIn('estado_id', $eligibleEstadoIds)
-                ->get(['codigo_solicitud', 'barcode', 'ciudad'])
+                ->get(['id', 'codigo_solicitud', 'barcode', 'ciudad', 'observacion'])
                 ->map(function ($row) use ($targetDestino) {
                     $destino = strtoupper(trim((string) ($row->ciudad ?? '')));
                     if ($destino === '' || $destino === $targetDestino) {
@@ -6565,8 +6640,12 @@ class PaquetesEms extends Component
                     $codigo = (string) ($row->codigo_solicitud ?: ($row->barcode ?: 'SIN CODIGO'));
 
                     return [
+                        'type' => 'solicitud',
+                        'id' => (int) $row->id,
+                        'key' => $this->regionalObservationKey('solicitud', (int) $row->id),
                         'codigo' => $codigo,
                         'destino' => $destino,
+                        'observacion' => (string) ($row->observacion ?? ''),
                     ];
                 })
                 ->filter();
@@ -6575,7 +6654,7 @@ class PaquetesEms extends Component
         }
 
         return $items
-            ->unique(fn ($item) => ($item['codigo'] ?? '') . '|' . ($item['destino'] ?? ''))
+            ->unique(fn ($item) => $item['key'] ?? (($item['codigo'] ?? '') . '|' . ($item['destino'] ?? '')))
             ->values()
             ->all();
     }
@@ -6590,7 +6669,7 @@ class PaquetesEms extends Component
         return RecojoContrato::query()
             ->whereIn('id', $ids)
             ->where('estados_id', (int) $estadoAlmacenId)
-            ->get(['codigo', 'destino'])
+            ->get(['id', 'codigo', 'destino', 'observacion'])
             ->map(function ($row) use ($targetDestino) {
                 $destino = strtoupper(trim((string) ($row->destino ?? '')));
                 if ($destino === '' || $destino === $targetDestino) {
@@ -6598,14 +6677,72 @@ class PaquetesEms extends Component
                 }
 
                 return [
+                    'type' => 'contrato',
+                    'id' => (int) $row->id,
+                    'key' => $this->regionalObservationKey('contrato', (int) $row->id),
                     'codigo' => (string) ($row->codigo ?: 'SIN CODIGO'),
                     'destino' => $destino,
+                    'observacion' => (string) ($row->observacion ?? ''),
                 ];
             })
             ->filter()
-            ->unique(fn ($item) => ($item['codigo'] ?? '') . '|' . ($item['destino'] ?? ''))
+            ->unique(fn ($item) => $item['key'] ?? (($item['codigo'] ?? '') . '|' . ($item['destino'] ?? '')))
             ->values()
             ->all();
+    }
+
+    protected function buildRegionalMismatchObservationInputs(array $items): array
+    {
+        return collect($items)
+            ->mapWithKeys(function ($item) {
+                $key = (string) ($item['key'] ?? '');
+                if ($key === '') {
+                    return [];
+                }
+
+                return [$key => (string) ($item['observacion'] ?? '')];
+            })
+            ->all();
+    }
+
+    protected function regionalObservationForItem(string $type, int $id): ?string
+    {
+        $key = $this->regionalObservationKey($type, $id);
+        if (!array_key_exists($key, $this->regionalMismatchObservaciones)) {
+            return null;
+        }
+
+        $value = trim((string) $this->regionalMismatchObservaciones[$key]);
+
+        return $value !== '' ? mb_substr($value, 0, 1000) : null;
+    }
+
+    protected function regionalObservationKey(string $type, int $id): string
+    {
+        return strtolower(trim($type)) . '_' . $id;
+    }
+
+    protected function validateRegionalMismatchObservaciones(): bool
+    {
+        $valid = true;
+
+        foreach ($this->regionalMismatchItems as $item) {
+            $key = (string) ($item['key'] ?? '');
+            if ($key === '') {
+                continue;
+            }
+
+            if (trim((string) ($this->regionalMismatchObservaciones[$key] ?? '')) === '') {
+                $this->addError('regionalMismatchObservaciones.' . $key, 'El campo es obligatorio.');
+                $valid = false;
+            }
+        }
+
+        if (!$valid) {
+            session()->flash('error', 'Completa las observaciones obligatorias antes de enviar a regional.');
+        }
+
+        return $valid;
     }
 
     protected function refreshRemitenteSugerencias(string $value): void

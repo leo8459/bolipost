@@ -34,6 +34,7 @@ class PaqueteEms extends Model
         'estado_id',
         'user_id',
         'imagen',
+        'observacion',
     ];
 
     public function user()
