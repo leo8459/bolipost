@@ -616,6 +616,7 @@ class BusquedaController extends Controller
     {
         $candidatos = [
             $evento->office ?? null,
+            $evento->ciudad_evento ?? null,
             $evento->ciudad_origen ?? null,
             $evento->ciudad_destino ?? null,
             $evento->next_office ?? null,
@@ -652,6 +653,7 @@ class BusquedaController extends Controller
     {
         $query = DB::table($fuente['tabla'] . ' as ee')
             ->leftJoin('eventos as e', 'e.id', '=', 'ee.evento_id')
+            ->leftJoin('users as uev', 'uev.id', '=', 'ee.user_id')
             ->whereRaw('TRIM(UPPER(ee.codigo)) = TRIM(UPPER(?))', [$codigo]);
 
         $select = [
@@ -667,6 +669,7 @@ class BusquedaController extends Controller
             DB::raw('NULL as office'),
             DB::raw('NULL as next_office'),
             DB::raw('NULL as condition'),
+            DB::raw("NULLIF(TRIM(uev.ciudad), '') as ciudad_evento"),
         ];
 
         if ($fuente['tabla'] === 'eventos_ems') {
