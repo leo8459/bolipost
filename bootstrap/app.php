@@ -4,6 +4,9 @@ use Illuminate\Foundation\Application;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -32,7 +35,23 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (TokenMismatchException $e, Request $request) {
+            $message = 'Por favor vuelva a iniciar sesion, tiempo de espera acabado.';
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                ], 419);
+            }
+
+            $loginRoute = $request->is('clientes/*') && Route::has('clientes.login')
+                ? 'clientes.login'
+                : 'login';
+
+            return redirect()
+                ->route($loginRoute)
+                ->with('status', $message);
+        });
     })
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('tracking:check')->cron('0 */8 * * *')->withoutOverlapping();
