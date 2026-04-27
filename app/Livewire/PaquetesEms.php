@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -1723,7 +1724,7 @@ class PaquetesEms extends Component
             ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
             ->with(['user:id,empresa_id', 'user.empresa:id,nombre'])
             ->orderBy('id')
-            ->get([
+            ->get($this->paqueteEmsColumns([
                 'id',
                 'codigo',
                 'cod_especial',
@@ -1733,10 +1734,9 @@ class PaquetesEms extends Component
                 'peso',
                 'nombre_remitente',
                 'user_id',
-                'observacion',
                 'created_at',
                 'updated_at',
-            ]);
+            ]));
 
         $contratos = RecojoContrato::query()
             ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
@@ -2261,7 +2261,7 @@ class PaquetesEms extends Component
                     ->with(['user:id,name,empresa_id', 'user.empresa:id,nombre'])
                     ->orderBy('id')
                     ->lockForUpdate()
-                    ->get([
+                    ->get($this->paqueteEmsColumns([
                         'id',
                         'codigo',
                         'cod_especial',
@@ -2272,9 +2272,8 @@ class PaquetesEms extends Component
                         'precio',
                         'nombre_remitente',
                         'user_id',
-                        'observacion',
                         'created_at',
-                    ]);
+                    ]));
             } else {
                 $paquetes = collect();
             }
@@ -2339,7 +2338,7 @@ class PaquetesEms extends Component
                 $paquete->cod_especial = $manifiesto;
                 $paquete->estado_id = $estadoRegionalId;
                 $paquete->ciudad = $this->regionalDestino;
-                if ($observacion !== null) {
+                if ($observacion !== null && $this->paquetesEmsHasObservacionColumn()) {
                     $paquete->observacion = $observacion;
                 }
                 $paquete->save();
@@ -6580,7 +6579,7 @@ class PaquetesEms extends Component
             $emsItems = PaqueteEms::query()
                 ->whereIn('id', $idsEms)
                 ->whereIn('estado_id', $eligibleEstadoIds)
-                ->get(['id', 'codigo', 'ciudad', 'observacion'])
+                ->get($this->paqueteEmsColumns(['id', 'codigo', 'ciudad']))
                 ->map(function ($row) use ($targetDestino) {
                     $destino = strtoupper(trim((string) ($row->ciudad ?? '')));
                     if ($destino === '' || $destino === $targetDestino) {
@@ -6720,6 +6719,26 @@ class PaquetesEms extends Component
     protected function regionalObservationKey(string $type, int $id): string
     {
         return strtolower(trim($type)) . '_' . $id;
+    }
+
+    protected function paqueteEmsColumns(array $columns): array
+    {
+        if ($this->paquetesEmsHasObservacionColumn() && !in_array('observacion', $columns, true)) {
+            $columns[] = 'observacion';
+        }
+
+        return $columns;
+    }
+
+    protected function paquetesEmsHasObservacionColumn(): bool
+    {
+        static $hasColumn = null;
+
+        if ($hasColumn === null) {
+            $hasColumn = Schema::hasColumn('paquetes_ems', 'observacion');
+        }
+
+        return $hasColumn;
     }
 
     protected function validateRegionalMismatchObservaciones(): bool

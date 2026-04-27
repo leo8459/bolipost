@@ -132,7 +132,7 @@ class CarterosController extends Controller
     {
         $this->authorizeRoutePermission('carteros.asignados');
 
-        return $this->combinedDataResponse($request, $this->resolveEstadoCarteroId());
+        return $this->combinedDataResponse($request, $this->resolveEstadoCarteroId(), null, true);
     }
 
     public function carteroData(Request $request): JsonResponse
@@ -142,7 +142,8 @@ class CarterosController extends Controller
         return $this->combinedDataResponse(
             $request,
             $this->resolveEstadoCarteroId(),
-            (int) $request->user()->id
+            (int) $request->user()->id,
+            true
         );
     }
 
@@ -154,7 +155,8 @@ class CarterosController extends Controller
         return $this->combinedDataResponse(
             $request,
             $this->resolveEstadoProvinciaId(),
-            (int) $request->user()->id
+            (int) $request->user()->id,
+            true
         );
     }
 
@@ -1210,7 +1212,7 @@ class CarterosController extends Controller
         return strtoupper($regional !== '' ? $regional : 'SIN REGIONAL');
     }
 
-    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null): JsonResponse
+    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false): JsonResponse
     {
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
@@ -1292,6 +1294,7 @@ class CarterosController extends Controller
                 'precio',
                 'estado_id',
                 'created_at',
+                'updated_at',
             ])
             ->when($codigo !== '', function ($query) use ($codigo) {
                 $query->whereRaw('LOWER(codigo) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
@@ -1300,7 +1303,9 @@ class CarterosController extends Controller
                 $query->whereIn('id', $emsFilterIds ?: [0]);
             })
             ->get()
-            ->map(function ($item) {
+            ->map(function ($item) use ($useUpdatedAtAsFecha) {
+                $fecha = $useUpdatedAtAsFecha ? $item->updated_at : $item->created_at;
+
                 return [
                     'id' => $item->id,
                     'tipo_paquete' => 'EMS',
@@ -1317,7 +1322,7 @@ class CarterosController extends Controller
                     'intento' => 0,
                     'recibido_por' => null,
                     'descripcion' => null,
-                    'created_at' => optional($item->created_at)->toDateTimeString(),
+                    'created_at' => optional($fecha)->toDateTimeString(),
                 ];
             });
 
@@ -1332,6 +1337,7 @@ class CarterosController extends Controller
                 'peso',
                 'fk_estado as estado_id',
                 'created_at',
+                'updated_at',
             ])
             ->when($codigo !== '', function ($query) use ($codigo) {
                 $query->whereRaw('LOWER(codigo) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
@@ -1340,7 +1346,9 @@ class CarterosController extends Controller
                 $query->whereIn('id', $certiFilterIds ?: [0]);
             })
             ->get()
-            ->map(function ($item) {
+            ->map(function ($item) use ($useUpdatedAtAsFecha) {
+                $fecha = $useUpdatedAtAsFecha ? $item->updated_at : $item->created_at;
+
                 return [
                     'id' => $item->id,
                     'tipo_paquete' => 'CERTI',
@@ -1357,7 +1365,7 @@ class CarterosController extends Controller
                     'intento' => 0,
                     'recibido_por' => null,
                     'descripcion' => null,
-                    'created_at' => optional($item->created_at)->toDateTimeString(),
+                    'created_at' => optional($fecha)->toDateTimeString(),
                 ];
             });
 
@@ -1373,6 +1381,7 @@ class CarterosController extends Controller
                 'peso',
                 'fk_estado as estado_id',
                 'created_at',
+                'updated_at',
             ])
             ->when($codigo !== '', function ($query) use ($codigo) {
                 $query->where(function ($sub) use ($codigo) {
@@ -1384,7 +1393,9 @@ class CarterosController extends Controller
                 $query->whereIn('id', $ordiFilterIds ?: [0]);
             })
             ->get()
-            ->map(function ($item) {
+            ->map(function ($item) use ($useUpdatedAtAsFecha) {
+                $fecha = $useUpdatedAtAsFecha ? $item->updated_at : $item->created_at;
+
                 return [
                     'id' => $item->id,
                     'tipo_paquete' => 'ORDI',
@@ -1402,7 +1413,7 @@ class CarterosController extends Controller
                     'intento' => 0,
                     'recibido_por' => null,
                     'descripcion' => null,
-                    'created_at' => optional($item->created_at)->toDateTimeString(),
+                    'created_at' => optional($fecha)->toDateTimeString(),
                 ];
             });
 
@@ -1418,6 +1429,7 @@ class CarterosController extends Controller
                 'peso',
                 'estados_id as estado_id',
                 'created_at',
+                'updated_at',
             ])
             ->when($codigo !== '', function ($query) use ($codigo) {
                 $query->where(function ($sub) use ($codigo) {
@@ -1429,7 +1441,9 @@ class CarterosController extends Controller
                 $query->whereIn('id', $contratoFilterIds ?: [0]);
             })
             ->get()
-            ->map(function ($item) {
+            ->map(function ($item) use ($useUpdatedAtAsFecha) {
+                $fecha = $useUpdatedAtAsFecha ? $item->updated_at : $item->created_at;
+
                 return [
                     'id' => $item->id,
                     'tipo_paquete' => 'CONTRATO',
@@ -1447,7 +1461,7 @@ class CarterosController extends Controller
                     'intento' => 0,
                     'recibido_por' => null,
                     'descripcion' => null,
-                    'created_at' => optional($item->created_at)->toDateTimeString(),
+                    'created_at' => optional($fecha)->toDateTimeString(),
                 ];
             });
 
@@ -1464,6 +1478,7 @@ class CarterosController extends Controller
                 'precio',
                 'estado_id',
                 'created_at',
+                'updated_at',
             ])
             ->when($codigo !== '', function ($query) use ($codigo) {
                 $query->where(function ($sub) use ($codigo) {
@@ -1476,7 +1491,9 @@ class CarterosController extends Controller
                 $query->whereIn('id', $solicitudFilterIds ?: [0]);
             })
             ->get()
-            ->map(function ($item) {
+            ->map(function ($item) use ($useUpdatedAtAsFecha) {
+                $fecha = $useUpdatedAtAsFecha ? $item->updated_at : $item->created_at;
+
                 return [
                     'id' => $item->id,
                     'tipo_paquete' => 'SOLICITUD',
@@ -1496,7 +1513,7 @@ class CarterosController extends Controller
                     'descripcion' => null,
                     'imagen' => null,
                     'imagen_devolucion' => null,
-                    'created_at' => optional($item->created_at)->toDateTimeString(),
+                    'created_at' => optional($fecha)->toDateTimeString(),
                 ];
             });
 
