@@ -69,7 +69,7 @@
                 <td class="text-right"><strong>Total empresas:</strong> {{ $empresas->count() }}</td>
             </tr>
             <tr>
-                <td colspan="2"><strong>Orden:</strong> Codigo cliente ascendente | <strong>Excluye:</strong> codigo_cliente 9999</td>
+                <td colspan="2"><strong>Orden:</strong> Codigo cliente ascendente</td>
             </tr>
         </table>
     </div>
