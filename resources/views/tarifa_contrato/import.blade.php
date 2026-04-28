@@ -85,8 +85,8 @@
                                     <strong>Opcionales:</strong> direccion, zona, kilo_de_1_a_2 (peso), provincia_origen, provincia_destino.
                                 </p>
                                 <p class="mt-2 mb-2">
-                                    En la plantilla, <strong>provincia_origen</strong> depende del <strong>origen</strong> y
-                                    <strong>provincia_destino</strong> depende del <strong>destino</strong>.
+                                    En la plantilla, <strong>provincia_origen</strong> y <strong>provincia_destino</strong>
+                                    son campos libres. Puedes escribir cualquier provincia directamente.
                                 </p>
                                 <p class="mt-2 mb-2">
                                     La plantilla <strong>ya no incluye fila de ejemplo</strong> para evitar cargas equivocadas.

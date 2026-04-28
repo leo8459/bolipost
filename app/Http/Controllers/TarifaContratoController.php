@@ -10,7 +10,6 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-use PhpOffice\PhpSpreadsheet\NamedRange;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -46,6 +45,12 @@ class TarifaContratoController extends Controller
         'SUCRE',
         'TRINIDAD',
         'COBIJA',
+    ];
+
+    private const DEPARTAMENTO_ALIASES = [
+        'CHUQUISACA' => 'SUCRE',
+        'BENI' => 'TRINIDAD',
+        'PANDO' => 'COBIJA',
     ];
 
     private const PROVINCIAS_POR_DEPARTAMENTO = [
@@ -406,8 +411,8 @@ class TarifaContratoController extends Controller
 
             $payload = [
                 'empresa_id' => $empresaId,
-                'origen' => strtoupper((string) ($data['origen'] ?? '')),
-                'destino' => strtoupper((string) ($data['destino'] ?? '')),
+                'origen' => $this->normalizeDepartamento($data['origen'] ?? null),
+                'destino' => $this->normalizeDepartamento($data['destino'] ?? null),
                 'servicio' => $this->normalizeServicio((string) ($data['servicio'] ?? '')),
                 'direccion' => $this->normalizeNullableUpper($data['direccion'] ?? null),
                 'zona' => $this->normalizeNullableUpper($data['zona'] ?? null),
@@ -442,7 +447,7 @@ class TarifaContratoController extends Controller
             );
 
             if ($validator->fails()) {
-                $errors[] = "Linea {$line} ({$filaResumen}): no se guardo porque " . $validator->errors()->first();
+                $errors[] = "Linea {$line} ({$filaResumen}): " . $this->buildFriendlyImportValidationError($validator, $payload);
                 continue;
             }
 
@@ -541,6 +546,40 @@ class TarifaContratoController extends Controller
             'in' => 'el valor de :attribute no es valido para el departamento/servicio seleccionado.',
             'exists' => 'el valor de :attribute no existe en el sistema.',
         ];
+    }
+
+    private function buildFriendlyImportValidationError($validator, array $payload): string
+    {
+        $failed = $validator->failed();
+        $field = array_key_first($failed);
+        $rules = is_string($field) ? array_keys((array) ($failed[$field] ?? [])) : [];
+        $rule = $rules[0] ?? null;
+
+        if ($field === 'origen' && $rule === 'In') {
+            return 'no se guardo porque el origen no coincide con un departamento valido. Usa por ejemplo LA PAZ, COCHABAMBA, SANTA CRUZ, SUCRE, TRINIDAD o COBIJA.';
+        }
+
+        if ($field === 'destino' && $rule === 'In') {
+            return 'no se guardo porque el destino no coincide con un departamento valido. Si escribiste una provincia como destino, pon el departamento. Ejemplo: SUCRE para CHUQUISACA, TRINIDAD para BENI y COBIJA para PANDO.';
+        }
+
+        if ($field === 'servicio' && $rule === 'In') {
+            return 'no se guardo porque el servicio no coincide con uno permitido en la plantilla. Revisa la columna servicio y usa uno de los valores del archivo modelo.';
+        }
+
+        if (in_array($field, ['kilo', 'kilo_extra', 'peso', 'retencion'], true) && in_array($rule, ['Numeric', 'Min', 'Max'], true)) {
+            return 'no se guardo porque uno de los importes o pesos tiene un formato invalido. Revisa que esos campos solo tengan numeros.';
+        }
+
+        if ($field === 'horas_entrega' && in_array($rule, ['Integer', 'Min'], true)) {
+            return 'no se guardo porque horas_entrega debe ser un numero entero mayor o igual a 0.';
+        }
+
+        if ($field === 'empresa_id' && in_array($rule, ['Exists', 'Required'], true)) {
+            return 'no se guardo porque la empresa no se pudo identificar. Revisa el nombre de la empresa en el Excel.';
+        }
+
+        return 'no se guardo porque ' . $validator->errors()->first();
     }
 
     public function downloadTemplateExcel()
@@ -648,8 +687,6 @@ class TarifaContratoController extends Controller
             $sheetCatalogos->setTitle('Catalogos');
             $sheetCatalogos->setCellValue('A1', 'SERVICIOS');
             $sheetCatalogos->setCellValue('B1', 'DEPARTAMENTOS');
-            $sheetCatalogos->setCellValue('D1', 'PROVINCIAS POR DEPARTAMENTO');
-
             $serviceRow = 2;
             foreach (self::SERVICIOS as $servicio) {
                 $sheetCatalogos->setCellValue("A{$serviceRow}", $servicio);
@@ -662,31 +699,6 @@ class TarifaContratoController extends Controller
                 $depRow++;
             }
 
-            $provHeaderCol = 'D';
-            foreach (self::DEPARTAMENTOS as $departamento) {
-                $rangeName = $this->normalizeExcelRangeName($departamento);
-                $sheetCatalogos->setCellValue($provHeaderCol . '1', $departamento);
-                $provincias = self::PROVINCIAS_POR_DEPARTAMENTO[$departamento] ?? [];
-                $provRow = 2;
-                foreach ($provincias as $provincia) {
-                    $sheetCatalogos->setCellValue($provHeaderCol . $provRow, $provincia);
-                    $provRow++;
-                }
-
-                if ($provRow === 2) {
-                    $sheetCatalogos->setCellValue($provHeaderCol . '2', '');
-                }
-
-                $lastProvRow = max(2, $provRow - 1);
-                $spreadsheet->addNamedRange(new NamedRange(
-                    $rangeName,
-                    $sheetCatalogos,
-                    '$' . $provHeaderCol . '$2:$' . $provHeaderCol . '$' . $lastProvRow
-                ));
-
-                $provHeaderCol++;
-            }
-
             $sheetCatalogos->getStyle('A1:B1')->applyFromArray([
                 'font' => ['bold' => true],
                 'fill' => [
@@ -696,16 +708,6 @@ class TarifaContratoController extends Controller
             ]);
             $sheetCatalogos->getColumnDimension('A')->setWidth(34);
             $sheetCatalogos->getColumnDimension('B')->setWidth(20);
-            $sheetCatalogos->getStyle('D1:L1')->applyFromArray([
-                'font' => ['bold' => true],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['argb' => 'FFF3E5F5'],
-                ],
-            ]);
-            foreach (range('D', 'L') as $col) {
-                $sheetCatalogos->getColumnDimension($col)->setWidth(24);
-            }
 
             $sheetInstrucciones = $spreadsheet->createSheet();
             $sheetInstrucciones->setTitle('Instrucciones');
@@ -716,7 +718,7 @@ class TarifaContratoController extends Controller
             $sheetInstrucciones->setCellValue('A6', '4) Columnas obligatorias: empresa_nombre, origen, destino, servicio, kilo, kilo_extra, retencion, horas_entrega.');
             $sheetInstrucciones->setCellValue('A7', '5) Columnas opcionales: direccion, zona, kilo_de_1_a_2, provincia_origen, provincia_destino.');
             $sheetInstrucciones->setCellValue('A8', '6) origen, destino y servicio tienen listas desplegables.');
-            $sheetInstrucciones->setCellValue('A9', '7) En provincia_origen, primero elige origen (departamento). En provincia_destino, primero elige destino (departamento).');
+            $sheetInstrucciones->setCellValue('A9', '7) provincia_origen y provincia_destino son campos libres: puedes escribir cualquier provincia.');
             $sheetInstrucciones->getStyle('A1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 14],
                 'color' => ['argb' => 'FF0D47A1'],
@@ -731,8 +733,6 @@ class TarifaContratoController extends Controller
             $this->applyListValidation($sheet, 'B2:B5000', "=Catalogos!\$B\$2:\$B\${$lastDepartamentoRow}");
             $this->applyListValidation($sheet, 'C2:C5000', "=Catalogos!\$B\$2:\$B\${$lastDepartamentoRow}");
             $this->applyListValidation($sheet, 'D2:D5000', "=Catalogos!\$A\$2:\$A\${$lastServiceRow}");
-            $this->applyProvinciaValidation($sheet, 'J2:J5000', 'B', 'Selecciona una provincia del origen elegido.');
-            $this->applyProvinciaValidation($sheet, 'K2:K5000', 'C', 'Selecciona una provincia del destino elegido.');
 
             $spreadsheet->setActiveSheetIndex(0);
 
@@ -785,8 +785,8 @@ class TarifaContratoController extends Controller
         $provincia = trim((string) $request->input('provincia'));
 
         $request->merge([
-            'origen' => strtoupper(trim((string) $request->input('origen'))),
-            'destino' => strtoupper(trim((string) $request->input('destino'))),
+            'origen' => $this->normalizeDepartamento($request->input('origen')),
+            'destino' => $this->normalizeDepartamento($request->input('destino')),
             'servicio' => $this->normalizeServicio((string) $request->input('servicio')),
             'direccion' => $this->normalizeNullableUpper($request->input('direccion')),
             'zona' => $this->normalizeNullableUpper($request->input('zona')),
@@ -805,11 +805,6 @@ class TarifaContratoController extends Controller
 
     private function validationRules(string $destino = '', string $origen = ''): array
     {
-        $destino = strtoupper(trim($destino));
-        $origen = strtoupper(trim($origen));
-        $provinciasDestino = self::PROVINCIAS_POR_DEPARTAMENTO[$destino] ?? [];
-        $provinciasOrigen = self::PROVINCIAS_POR_DEPARTAMENTO[$origen] ?? [];
-
         return [
             'empresa_id' => ['required', 'integer', Rule::exists('empresa', 'id')],
             'origen' => ['required', 'string', Rule::in(self::DEPARTAMENTOS)],
@@ -820,8 +815,8 @@ class TarifaContratoController extends Controller
             'peso' => ['nullable', 'numeric', 'min:0'],
             'kilo' => 'required|numeric|min:0',
             'kilo_extra' => 'required|numeric|min:0',
-            'provincia' => ['nullable', 'string', 'max:255', Rule::in($provinciasDestino)],
-            'provincia_origen' => ['nullable', 'string', 'max:255', Rule::in($provinciasOrigen)],
+            'provincia' => ['nullable', 'string', 'max:255'],
+            'provincia_origen' => ['nullable', 'string', 'max:255'],
             'retencion' => 'required|numeric|min:0|max:100',
             'horas_entrega' => 'required|integer|min:0',
         ];
@@ -876,28 +871,6 @@ class TarifaContratoController extends Controller
     {
         preg_match('/^([A-Z]+)(\d+)$/', strtoupper($cell), $m);
         return [$m[1], (int) $m[2]];
-    }
-
-    private function applyProvinciaValidation(Worksheet $sheet, string $range, string $departamentoColumn, string $errorMessage): void
-    {
-        [$start, $end] = explode(':', $range);
-        [$startCol, $startRow] = $this->splitCell($start);
-        [$endCol, $endRow] = $this->splitCell($end);
-
-        for ($row = $startRow; $row <= $endRow; $row++) {
-            for ($col = $startCol; $col <= $endCol; $col++) {
-                $cell = $col . $row;
-                $validation = $sheet->getCell($cell)->getDataValidation();
-                $validation->setType(DataValidation::TYPE_LIST);
-                $validation->setAllowBlank(true);
-                $validation->setShowDropDown(true);
-                $validation->setShowErrorMessage(true);
-                $validation->setErrorTitle('Provincia invalida');
-                $validation->setError($errorMessage);
-                $validation->setFormula1('=INDIRECT(SUBSTITUTE($' . strtoupper($departamentoColumn) . $row . '," ","_"))');
-                $sheet->getCell($cell)->setDataValidation($validation);
-            }
-        }
     }
 
     private function parseDecimal($value): ?float
@@ -979,17 +952,12 @@ class TarifaContratoController extends Controller
         return strtoupper($text);
     }
 
-    private function normalizeExcelRangeName(string $value): string
+    private function normalizeDepartamento($value): string
     {
-        $value = strtoupper(trim($value));
-        $value = str_replace(' ', '_', $value);
-        $value = preg_replace('/[^A-Z0-9_]/', '', $value) ?? $value;
+        $text = strtoupper(trim((string) $value));
 
-        if ($value === '' || ctype_digit(substr($value, 0, 1))) {
-            $value = 'RANGO_' . $value;
-        }
-
-        return $value;
+        return self::DEPARTAMENTO_ALIASES[$text] ?? $text;
     }
+
 }
 
