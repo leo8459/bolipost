@@ -18,6 +18,7 @@ class Cartero extends Model
         'id_paquetes_contrato',
         'id_solicitud_cliente',
         'id_estados',
+        'id_estado_anterior',
         'id_user',
         'intento',
         'recibido_por',

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Cartero;
 use App\Models\Estado;
+use App\Models\Evento;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
@@ -14,6 +15,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -26,6 +28,7 @@ class CarterosController extends Controller
     private const EVENTO_ID_PAQUETE_CAMINO_ENTREGA_FISICA = 184;
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
     private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
+    private const EVENTO_DESASIGNAR_CARTERO = 'Desasignado de CARTERO y devuelto a estado anterior desde Carteros Asignados.';
     private const DISTRIBUTION_ASSIGNEE_ROLES = [
         'auxiliar_urbano',
         'auxiliar_urbano_dnd',
@@ -274,6 +277,11 @@ class CarterosController extends Controller
         $updatedOrdi = 0;
         $updatedContrato = 0;
         $updatedSolicitud = 0;
+        $previousEmsStates = PaqueteEms::query()->whereIn('id', $emsIds)->pluck('estado_id', 'id')->map(fn ($value) => (int) $value)->all();
+        $previousCertiStates = PaqueteCerti::query()->whereIn('id', $certiIds)->pluck('fk_estado', 'id')->map(fn ($value) => (int) $value)->all();
+        $previousOrdiStates = PaqueteOrdi::query()->whereIn('id', $ordiIds)->pluck('fk_estado', 'id')->map(fn ($value) => (int) $value)->all();
+        $previousContratoStates = RecojoContrato::query()->whereIn('id', $contratoIds)->pluck('estados_id', 'id')->map(fn ($value) => (int) $value)->all();
+        $previousSolicitudStates = SolicitudCliente::query()->whereIn('id', $solicitudIds)->pluck('estado_id', 'id')->map(fn ($value) => (int) $value)->all();
         DB::transaction(function () use (
             &$updatedEms,
             &$updatedCerti,
@@ -287,7 +295,12 @@ class CarterosController extends Controller
             $solicitudIds,
             $estadoAsignadoId,
             $assigneeUserId,
-            $eventoId
+            $eventoId,
+            $previousEmsStates,
+            $previousCertiStates,
+            $previousOrdiStates,
+            $previousContratoStates,
+            $previousSolicitudStates
         ) {
             if (!empty($emsIds)) {
                 $updatedEms = PaqueteEms::query()
@@ -302,6 +315,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAsignadoId;
+                    $asignacion->id_estado_anterior = $previousEmsStates[$id] ?? null;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
@@ -320,6 +334,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAsignadoId;
+                    $asignacion->id_estado_anterior = $previousCertiStates[$id] ?? null;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
@@ -338,6 +353,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAsignadoId;
+                    $asignacion->id_estado_anterior = $previousOrdiStates[$id] ?? null;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
@@ -356,6 +372,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoAsignadoId;
+                    $asignacion->id_estado_anterior = $previousContratoStates[$id] ?? null;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
@@ -374,6 +391,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_estados = $estadoAsignadoId;
+                    $asignacion->id_estado_anterior = $previousSolicitudStates[$id] ?? null;
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
@@ -522,6 +540,11 @@ class CarterosController extends Controller
         $updatedOrdi = 0;
         $updatedContrato = 0;
         $updatedSolicitud = 0;
+        $previousEmsStates = PaqueteEms::query()->whereIn('id', $emsIds)->pluck('estado_id', 'id')->map(fn ($value) => (int) $value)->all();
+        $previousCertiStates = PaqueteCerti::query()->whereIn('id', $certiIds)->pluck('fk_estado', 'id')->map(fn ($value) => (int) $value)->all();
+        $previousOrdiStates = PaqueteOrdi::query()->whereIn('id', $ordiIds)->pluck('fk_estado', 'id')->map(fn ($value) => (int) $value)->all();
+        $previousContratoStates = RecojoContrato::query()->whereIn('id', $contratoIds)->pluck('estados_id', 'id')->map(fn ($value) => (int) $value)->all();
+        $previousSolicitudStates = SolicitudCliente::query()->whereIn('id', $solicitudIds)->pluck('estado_id', 'id')->map(fn ($value) => (int) $value)->all();
         DB::transaction(function () use (&$updatedEms, &$updatedCerti, &$updatedOrdi, &$updatedContrato, &$updatedSolicitud, $emsIds, $certiIds, $ordiIds, $contratoIds, $solicitudIds, $estadoCarteroId, $actorUserId) {
             if (!empty($emsIds)) {
                 $updatedEms = PaqueteEms::query()->whereIn('id', $emsIds)->update(['estado_id' => $estadoCarteroId]);
@@ -532,6 +555,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoCarteroId;
+                    $asignacion->id_estado_anterior = $previousEmsStates[$id] ?? null;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
@@ -545,6 +569,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoCarteroId;
+                    $asignacion->id_estado_anterior = $previousCertiStates[$id] ?? null;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
@@ -558,6 +583,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoCarteroId;
+                    $asignacion->id_estado_anterior = $previousOrdiStates[$id] ?? null;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
@@ -571,6 +597,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $estadoCarteroId;
+                    $asignacion->id_estado_anterior = $previousContratoStates[$id] ?? null;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
@@ -584,6 +611,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_estados = $estadoCarteroId;
+                    $asignacion->id_estado_anterior = $previousSolicitudStates[$id] ?? null;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
@@ -591,6 +619,184 @@ class CarterosController extends Controller
         });
         return response()->json([
             'message' => 'Paquetes aceptados correctamente y enviados a estado CARTERO.',
+            'updated' => [
+                'ems' => $updatedEms,
+                'certi' => $updatedCerti,
+                'ordi' => $updatedOrdi,
+                'contrato' => $updatedContrato,
+                'solicitud' => $updatedSolicitud,
+                'total' => $updatedEms + $updatedCerti + $updatedOrdi + $updatedContrato + $updatedSolicitud,
+            ],
+        ]);
+    }
+
+    public function unassignFromCartero(Request $request): JsonResponse
+    {
+        $this->authorizeRoutePermission('carteros.asignados');
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
+        ]);
+
+        $actorUserId = (int) $request->user()->id;
+        $eventoId = $this->resolveDynamicEventId(self::EVENTO_DESASIGNAR_CARTERO);
+
+        $emsIds = collect($validated['items'])->where('tipo_paquete', 'EMS')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $certiIds = collect($validated['items'])->where('tipo_paquete', 'CERTI')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $ordiIds = collect($validated['items'])->where('tipo_paquete', 'ORDI')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $contratoIds = collect($validated['items'])->where('tipo_paquete', 'CONTRATO')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $solicitudIds = collect($validated['items'])->where('tipo_paquete', 'SOLICITUD')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        $updatedEms = 0;
+        $updatedCerti = 0;
+        $updatedOrdi = 0;
+        $updatedContrato = 0;
+        $updatedSolicitud = 0;
+
+        DB::transaction(function () use (
+            &$updatedEms,
+            &$updatedCerti,
+            &$updatedOrdi,
+            &$updatedContrato,
+            &$updatedSolicitud,
+            $emsIds,
+            $certiIds,
+            $ordiIds,
+            $contratoIds,
+            $solicitudIds,
+            $actorUserId,
+            $eventoId
+        ) {
+            if (!empty($emsIds)) {
+                foreach ($emsIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_paquetes_ems' => $id]);
+                    $targetEstadoId = $this->resolvePreviousStateForAssignment('EMS', $id, $asignacion);
+                    if ($targetEstadoId <= 0) {
+                        continue;
+                    }
+
+                    PaqueteEms::query()->where('id', $id)->update([
+                        'estado_id' => $targetEstadoId,
+                    ]);
+
+                    $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
+                    $asignacion->id_estados = $targetEstadoId;
+                    $asignacion->id_user = $actorUserId;
+                    $asignacion->save();
+                    $updatedEms++;
+                }
+
+                $this->insertEventosPorTipoDesdeIds('EMS', $emsIds, $eventoId, $actorUserId);
+            }
+
+            if (!empty($certiIds)) {
+                foreach ($certiIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_paquetes_certi' => $id]);
+                    $targetEstadoId = $this->resolvePreviousStateForAssignment('CERTI', $id, $asignacion);
+                    if ($targetEstadoId <= 0) {
+                        continue;
+                    }
+
+                    PaqueteCerti::query()->where('id', $id)->update([
+                        'fk_estado' => $targetEstadoId,
+                    ]);
+
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
+                    $asignacion->id_estados = $targetEstadoId;
+                    $asignacion->id_user = $actorUserId;
+                    $asignacion->save();
+                    $updatedCerti++;
+                }
+
+                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, $eventoId, $actorUserId);
+            }
+
+            if (!empty($ordiIds)) {
+                foreach ($ordiIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_paquetes_ordi' => $id]);
+                    $targetEstadoId = $this->resolvePreviousStateForAssignment('ORDI', $id, $asignacion);
+                    if ($targetEstadoId <= 0) {
+                        continue;
+                    }
+
+                    PaqueteOrdi::query()->where('id', $id)->update([
+                        'fk_estado' => $targetEstadoId,
+                    ]);
+
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_solicitud_cliente = null;
+                    $asignacion->id_estados = $targetEstadoId;
+                    $asignacion->id_user = $actorUserId;
+                    $asignacion->save();
+                    $updatedOrdi++;
+                }
+
+                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, $eventoId, $actorUserId);
+            }
+
+            if (!empty($contratoIds)) {
+                foreach ($contratoIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_paquetes_contrato' => $id]);
+                    $targetEstadoId = $this->resolvePreviousStateForAssignment('CONTRATO', $id, $asignacion);
+                    if ($targetEstadoId <= 0) {
+                        continue;
+                    }
+
+                    RecojoContrato::query()->where('id', $id)->update([
+                        'estados_id' => $targetEstadoId,
+                    ]);
+
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_solicitud_cliente = null;
+                    $asignacion->id_estados = $targetEstadoId;
+                    $asignacion->id_user = $actorUserId;
+                    $asignacion->save();
+                    $updatedContrato++;
+                }
+
+                $this->insertEventosPorTipoDesdeIds('CONTRATO', $contratoIds, $eventoId, $actorUserId);
+            }
+
+            if (!empty($solicitudIds)) {
+                foreach ($solicitudIds as $id) {
+                    $asignacion = Cartero::query()->firstOrNew(['id_solicitud_cliente' => $id]);
+                    $targetEstadoId = $this->resolvePreviousStateForAssignment('SOLICITUD', $id, $asignacion);
+                    if ($targetEstadoId <= 0) {
+                        continue;
+                    }
+
+                    SolicitudCliente::query()->where('id', $id)->update([
+                        'estado_id' => $targetEstadoId,
+                    ]);
+
+                    $asignacion->id_paquetes_ems = null;
+                    $asignacion->id_paquetes_certi = null;
+                    $asignacion->id_paquetes_ordi = null;
+                    $asignacion->id_paquetes_contrato = null;
+                    $asignacion->id_estados = $targetEstadoId;
+                    $asignacion->id_user = $actorUserId;
+                    $asignacion->save();
+                    $updatedSolicitud++;
+                }
+
+                $this->insertEventosPorTipoDesdeIds('SOLICITUD', $solicitudIds, $eventoId, $actorUserId);
+            }
+        });
+
+        return response()->json([
+            'message' => 'Paquete desasignado correctamente y devuelto a su estado anterior.',
             'updated' => [
                 'ems' => $updatedEms,
                 'certi' => $updatedCerti,
@@ -1939,6 +2145,267 @@ class CarterosController extends Controller
         DB::table($tablaEventos)->insert($rows);
     }
 
+    private function resolvePreviousStateForAssignment(string $tipoPaquete, int $id, Cartero $asignacion): int
+    {
+        $assigneeCity = '';
+        if ((int) ($asignacion->id_user ?? 0) > 0) {
+            $assigneeCity = (string) (User::query()->whereKey((int) $asignacion->id_user)->value('ciudad') ?? '');
+        }
+
+        $fromEvents = $this->resolvePreviousStateFromEvents($tipoPaquete, $id, $assigneeCity);
+        if ($fromEvents > 0) {
+            return $fromEvents;
+        }
+
+        $stored = (int) ($asignacion->id_estado_anterior ?? 0);
+        if ($stored > 0) {
+            return $stored;
+        }
+
+        return $this->inferPreviousStateByPackageContext($tipoPaquete, $id, $assigneeCity);
+    }
+
+    private function resolvePreviousStateFromEvents(string $tipoPaquete, int $id, string $assigneeCity): int
+    {
+        $codigo = trim((string) $this->getCodigosPorTipo($tipoPaquete, [$id])->first());
+        if ($codigo === '') {
+            return 0;
+        }
+
+        $tablaEventos = $this->resolveTablaEventosPorTipo($tipoPaquete);
+        $eventos = DB::table($tablaEventos . ' as t')
+            ->leftJoin('eventos as e', 'e.id', '=', 't.evento_id')
+            ->whereRaw('TRIM(UPPER(t.codigo)) = TRIM(UPPER(?))', [$codigo])
+            ->orderByDesc('t.created_at')
+            ->orderByDesc('t.id')
+            ->limit(25)
+            ->get([
+                't.evento_id',
+                'e.nombre_evento',
+            ]);
+
+        foreach ($eventos as $evento) {
+            $estadoId = $this->mapEventNameToStateId(
+                (string) ($evento->nombre_evento ?? ''),
+                $tipoPaquete,
+                $id,
+                $assigneeCity
+            );
+
+            if ($estadoId > 0 && $estadoId !== $this->resolveEstadoCarteroId()) {
+                return $estadoId;
+            }
+        }
+
+        return 0;
+    }
+
+    private function mapEventNameToStateId(string $eventName, string $tipoPaquete, int $id, string $assigneeCity): int
+    {
+        $texto = mb_strtolower(trim($eventName));
+        if ($texto === '') {
+            return 0;
+        }
+
+        $estadoCarteroId = $this->safeResolveEstadoByName('CARTERO');
+        $estadoEntregadoId = $this->safeResolveEstadoByName('ENTREGADO');
+        $estadoDevolucionId = $this->safeResolveEstadoByName('DEVOLUCION');
+        $estadoProvinciaId = $this->safeResolveEstadoByName('PROVINCIA');
+        $estadoRecibidoId = $this->safeResolveEstadoByName('RECIBIDO');
+        $estadoAlmacenId = $this->safeResolveEstadoByName('ALMACEN');
+        $estadoRezagoId = $this->safeResolveEstadoByName('REZAGO');
+        $estadoVentanillaId = $this->resolveVentanillaLikeStateId($tipoPaquete);
+        $estadoTransitoId = $this->safeResolveEstadoByName('TRANSITO');
+        $estadoEnviadoId = $this->safeResolveEstadoByName('ENVIADO');
+
+        if (str_contains($texto, 'desasignado de cartero')) {
+            return 0;
+        }
+
+        if (str_contains($texto, 'entregado exitosamente')) {
+            return $estadoEntregadoId;
+        }
+
+        if (str_contains($texto, 'intento fallido') || str_contains($texto, 'devoluci')) {
+            return $estadoDevolucionId;
+        }
+
+        if (
+            str_contains($texto, 'camino para entrega fisica')
+            || str_contains($texto, 'transferido al agente de entrega')
+        ) {
+            return $estadoCarteroId;
+        }
+
+        if (str_contains($texto, 'retenido en punto de entrega')) {
+            return $estadoRezagoId;
+        }
+
+        if (
+            str_contains($texto, 'ventanilla')
+            || str_contains($texto, 'punto de recogida')
+        ) {
+            return $estadoVentanillaId;
+        }
+
+        if (
+            str_contains($texto, 'oficina destino de transito')
+            || str_contains($texto, 'oficina de entrega')
+            || str_contains($texto, 'ubicacion especifica')
+            || str_contains($texto, 'oficina de transito nacional')
+            || str_contains($texto, 'oficina de transito internacional')
+            || str_contains($texto, 'recibido automaticamente en oficina de transito')
+            || str_contains($texto, 'recibido desde el extranjero')
+            || str_contains($texto, 'oficina origen de transito')
+        ) {
+            return $this->resolveReceivedOrProvinceState($tipoPaquete, $id, $assigneeCity, $estadoRecibidoId, $estadoProvinciaId, $estadoAlmacenId);
+        }
+
+        if (
+            str_contains($texto, 'saca interna creada')
+            || str_contains($texto, 'saca nacional recibido en ubicacion')
+            || str_contains($texto, 'recibido del cliente')
+            || str_contains($texto, 'documento oficial registrado')
+            || str_contains($texto, 'datos digitalizados para transporte')
+        ) {
+            return $estadoAlmacenId;
+        }
+
+        if (
+            str_contains($texto, 'camino a ubicacion nacional')
+            || str_contains($texto, 'incluido en la saca')
+            || str_contains($texto, 'saca nacional enviado a ubicacion')
+            || str_contains($texto, 'despacho')
+            || str_contains($texto, 'enviado al extranjero')
+            || str_contains($texto, 'centro de procesamiento')
+        ) {
+            return $estadoTransitoId > 0 ? $estadoTransitoId : $estadoEnviadoId;
+        }
+
+        return 0;
+    }
+
+    private function resolveReceivedOrProvinceState(
+        string $tipoPaquete,
+        int $id,
+        string $assigneeCity,
+        int $estadoRecibidoId,
+        int $estadoProvinciaId,
+        int $estadoAlmacenId
+    ): int {
+        $destino = '';
+
+        if ($tipoPaquete === 'EMS') {
+            $destino = (string) (PaqueteEms::query()->whereKey($id)->value('ciudad') ?? '');
+        } elseif ($tipoPaquete === 'CONTRATO') {
+            $destino = (string) (RecojoContrato::query()->whereKey($id)->value('destino') ?? '');
+        } elseif ($tipoPaquete === 'ORDI') {
+            $destino = (string) (PaqueteOrdi::query()->whereKey($id)->value('ciudad') ?? '');
+        } elseif ($tipoPaquete === 'CERTI') {
+            $destino = (string) (PaqueteCerti::query()->whereKey($id)->value('cuidad') ?? '');
+        } elseif ($tipoPaquete === 'SOLICITUD') {
+            $destino = (string) (SolicitudCliente::query()->whereKey($id)->value('ciudad') ?? '');
+        }
+
+        $destinoNorm = strtoupper(trim($destino));
+        $assigneeCityNorm = strtoupper(trim($assigneeCity));
+
+        if ($estadoProvinciaId > 0 && $destinoNorm !== '' && $assigneeCityNorm !== '' && $destinoNorm !== $assigneeCityNorm) {
+            return $estadoProvinciaId;
+        }
+
+        if ($estadoRecibidoId > 0) {
+            return $estadoRecibidoId;
+        }
+
+        if ($estadoAlmacenId > 0) {
+            return $estadoAlmacenId;
+        }
+
+        return 0;
+    }
+
+    private function resolveVentanillaLikeStateId(string $tipoPaquete): int
+    {
+        if (in_array($tipoPaquete, ['EMS', 'SOLICITUD'], true)) {
+            $estadoVentanillaEms = $this->safeResolveEstadoByName('VENTANILLA EMS');
+            if ($estadoVentanillaEms > 0) {
+                return $estadoVentanillaEms;
+            }
+        }
+
+        return $this->safeResolveEstadoByName('VENTANILLA');
+    }
+
+    private function inferPreviousStateByPackageContext(string $tipoPaquete, int $id, string $assigneeCity): int
+    {
+        $estadoAlmacenId = $this->safeResolveEstadoByName('ALMACEN');
+        $estadoRecibidoId = $this->safeResolveEstadoByName('RECIBIDO');
+        $estadoProvinciaId = $this->safeResolveEstadoByName('PROVINCIA');
+
+        $origen = '';
+        $destino = '';
+
+        if ($tipoPaquete === 'EMS') {
+            $pkg = PaqueteEms::query()->whereKey($id)->first(['origen', 'ciudad']);
+            $origen = (string) ($pkg->origen ?? '');
+            $destino = (string) ($pkg->ciudad ?? '');
+        } elseif ($tipoPaquete === 'CONTRATO') {
+            $pkg = RecojoContrato::query()->whereKey($id)->first(['origen', 'destino']);
+            $origen = (string) ($pkg->origen ?? '');
+            $destino = (string) ($pkg->destino ?? '');
+        } elseif ($tipoPaquete === 'ORDI') {
+            $pkg = PaqueteOrdi::query()->whereKey($id)->first(['ciudad']);
+            $destino = (string) ($pkg->ciudad ?? '');
+        } elseif ($tipoPaquete === 'CERTI') {
+            $pkg = PaqueteCerti::query()->whereKey($id)->first(['cuidad']);
+            $destino = (string) ($pkg->cuidad ?? '');
+        } elseif ($tipoPaquete === 'SOLICITUD') {
+            $pkg = SolicitudCliente::query()->whereKey($id)->first(['origen', 'ciudad']);
+            $origen = (string) ($pkg->origen ?? '');
+            $destino = (string) ($pkg->ciudad ?? '');
+        }
+
+        $origenNorm = strtoupper(trim($origen));
+        $destinoNorm = strtoupper(trim($destino));
+        $assigneeCityNorm = strtoupper(trim($assigneeCity));
+
+        if ($assigneeCityNorm !== '') {
+            if ($destinoNorm !== '' && $destinoNorm === $assigneeCityNorm && $estadoRecibidoId > 0) {
+                return $estadoRecibidoId;
+            }
+
+            if ($origenNorm !== '' && $origenNorm === $assigneeCityNorm && $estadoAlmacenId > 0) {
+                return $estadoAlmacenId;
+            }
+        }
+
+        if ($estadoProvinciaId > 0 && $destinoNorm !== '' && $assigneeCityNorm !== '' && $destinoNorm !== $assigneeCityNorm) {
+            return $estadoProvinciaId;
+        }
+
+        if ($estadoRecibidoId > 0 && $destinoNorm !== '') {
+            return $estadoRecibidoId;
+        }
+
+        if ($estadoAlmacenId > 0) {
+            return $estadoAlmacenId;
+        }
+
+        if ($estadoProvinciaId > 0) {
+            return $estadoProvinciaId;
+        }
+
+        return $this->resolveEstadoAsignadoId();
+    }
+
+    private function resolveDynamicEventId(string $eventName): int
+    {
+        return (int) Evento::query()->firstOrCreate([
+            'nombre_evento' => $eventName,
+        ])->id;
+    }
+
     private function getCodigosPorTipo(string $tipoPaquete, array $ids)
     {
         if ($tipoPaquete === 'EMS') {
@@ -2168,6 +2635,15 @@ class CarterosController extends Controller
         }
 
         return (int) $estadoId;
+    }
+
+    private function safeResolveEstadoByName(string $estadoNombre): int
+    {
+        try {
+            return $this->resolveEstadoByName($estadoNombre);
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     private function nextGuideNumber(): string

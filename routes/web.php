@@ -315,6 +315,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/empresas/import', [EmpresaController::class, 'importForm'])->name('empresas.import-form');
     Route::post('/empresas/import', [EmpresaController::class, 'import'])->name('empresas.import');
     Route::get('/empresas/plantilla-excel', [EmpresaController::class, 'downloadTemplateExcel'])->name('empresas.template-excel');
+    Route::get('/empresas/pdf', [EmpresaController::class, 'downloadPdf'])->name('empresas.pdf');
     Route::get('/codigo-empresa', [CodigoEmpresaController::class, 'index'])->name('codigo-empresa.index');
     Route::get('/paquetes-contrato', [RecojoController::class, 'index'])->name('paquetes-contrato.index');
     Route::get('/paquetes-contrato/recoger-envios', [RecojoController::class, 'recogerEnvios'])->name('paquetes-contrato.recoger-envios');
@@ -361,6 +362,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/api/carteros/domicilio', [CarterosController::class, 'domicilioData'])->name('api.carteros.domicilio');
     Route::get('/api/carteros/users', [CarterosController::class, 'users'])->name('api.carteros.users');
     Route::post('/api/carteros/asignar', [CarterosController::class, 'assign'])->name('api.carteros.asignar');
+    Route::post('/api/carteros/desasignar', [CarterosController::class, 'unassignFromCartero'])->name('api.carteros.desasignar');
     Route::post('/api/carteros/registrar-guia', [CarterosController::class, 'registerGuide'])->name('api.carteros.registrar-guia');
     Route::post('/api/carteros/devolver-almacen', [CarterosController::class, 'returnToAlmacen'])->name('api.carteros.devolver-almacen');
     Route::post('/api/carteros/aceptar-paquetes', [CarterosController::class, 'acceptPackages'])->name('api.carteros.aceptar-paquetes');

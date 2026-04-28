@@ -153,6 +153,7 @@
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchEmpresas">Buscar</button>
                     @if (auth()->user()?->can('empresas.template-excel') || auth()->user()?->can('feature.empresas.export'))
+                    <a class="btn btn-outline-light2" href="{{ route('empresas.pdf') }}" target="_blank">Reporte PDF</a>
                     <a class="btn btn-outline-light2" href="{{ route('empresas.template-excel') }}">Plantilla Excel</a>
                     @endif
                     @if (auth()->user()?->can('empresas.import-form') || auth()->user()?->can('feature.empresas.import'))

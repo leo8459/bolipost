@@ -41,11 +41,12 @@
                                 <th>Asignado a</th>
                                 <th>Intento</th>
                                 <th>Fecha</th>
+                                <th>Accion</th>
                             </tr>
                         </thead>
                         <tbody id="tabla-asignados-body">
                             <tr>
-                                <td colspan="11" class="text-center py-4">Cargando datos...</td>
+                                <td colspan="12" class="text-center py-4">Cargando datos...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -129,6 +130,21 @@
         .asignados-table-wrap {
             border-top: 1px solid #e4e8f2;
         }
+
+        .btn-carteros-danger {
+            background: #fff1f2;
+            border: 1px solid #f5c2c7;
+            color: #b42318;
+            min-height: 38px;
+            border-radius: 10px;
+            font-weight: 800;
+            padding: 8px 14px;
+        }
+
+        .btn-carteros-danger:hover {
+            background: #ffe4e6;
+            color: #912018;
+        }
     </style>
 @endsection
 
@@ -148,6 +164,7 @@
             const searchInput = document.getElementById('asignados-search');
             const searchBtn = document.getElementById('asignados-search-btn');
             const clearBtn = document.getElementById('asignados-clear-btn');
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
             function escapeHtml(value) {
                 if (value === null || value === undefined) return '';
@@ -160,16 +177,16 @@
             }
 
             function setLoading() {
-                body.innerHTML = '<tr><td colspan="11" class="text-center py-4">Cargando datos...</td></tr>';
+                body.innerHTML = '<tr><td colspan="12" class="text-center py-4">Cargando datos...</td></tr>';
             }
 
             function setError() {
-                body.innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
+                body.innerHTML = '<tr><td colspan="12" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
             }
 
             function renderRows(rows) {
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="11" class="text-center py-4">No hay paquetes en estado CARTERO.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="12" class="text-center py-4">No hay paquetes en estado CARTERO.</td></tr>';
                     return;
                 }
 
@@ -186,8 +203,57 @@
                         '<td>' + escapeHtml(row.asignado_a) + '</td>' +
                         '<td>' + escapeHtml(row.intento) + '</td>' +
                         '<td>' + escapeHtml(row.created_at) + '</td>' +
+                        '<td><button type="button" class="btn btn-carteros-danger btn-sm asignados-unassign-btn" data-id="' + escapeHtml(row.id) + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '" data-codigo="' + escapeHtml(row.codigo) + '">Desasignar</button></td>' +
                         '</tr>';
                 }).join('');
+            }
+
+            async function unassignRow(id, tipoPaquete, codigo, button) {
+                const confirmed = window.confirm('Se quitara este paquete del cartero y volvera a su estado anterior. Deseas continuar?');
+                if (!confirmed) {
+                    return;
+                }
+
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = 'Procesando...';
+                }
+
+                try {
+                    const response = await fetch('{{ route('api.carteros.desasignar') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                        body: JSON.stringify({
+                            items: [
+                                {
+                                    id: Number(id),
+                                    tipo_paquete: tipoPaquete,
+                                }
+                            ]
+                        })
+                    });
+
+                    const payload = await response.json().catch(function() {
+                        return {};
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'No se pudo desasignar el paquete.');
+                    }
+
+                    window.alert(payload.message || ('El paquete ' + codigo + ' fue desasignado correctamente.'));
+                    loadPage(currentPage);
+                } catch (error) {
+                    window.alert(error.message || 'Ocurrio un error al desasignar el paquete.');
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = 'Desasignar';
+                    }
+                }
             }
 
             function updatePagination(meta) {
@@ -242,6 +308,20 @@
                     currentSearch = (searchInput.value || '').trim();
                     loadPage(1);
                 }
+            });
+
+            body.addEventListener('click', function(e) {
+                const button = e.target.closest('.asignados-unassign-btn');
+                if (!button) {
+                    return;
+                }
+
+                unassignRow(
+                    button.getAttribute('data-id'),
+                    button.getAttribute('data-tipo'),
+                    button.getAttribute('data-codigo'),
+                    button
+                );
             });
 
             loadPage(1);

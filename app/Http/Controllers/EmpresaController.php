@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Empresa;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -117,6 +118,24 @@ class EmpresaController extends Controller
         $writer->save($xlsxPath);
 
         return response()->download($xlsxPath, 'plantilla_empresas.xlsx')->deleteFileAfterSend(true);
+    }
+
+    public function downloadPdf()
+    {
+        $empresas = Empresa::query()
+            ->whereRaw("TRIM(COALESCE(codigo_cliente, '')) <> ?", ['9999'])
+            ->orderBy('codigo_cliente')
+            ->orderBy('nombre')
+            ->get(['nombre', 'sigla', 'codigo_cliente', 'created_at']);
+
+        $pdf = Pdf::loadView('empresa.report-pdf', [
+            'empresas' => $empresas,
+            'generatedAt' => now(),
+        ])->setPaper('letter', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'reporte-empresas-' . now()->format('Ymd-His') . '.pdf');
     }
 
     private function normalizeExcelText(mixed $value): string
