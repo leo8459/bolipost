@@ -31,7 +31,7 @@
                                 </div>
                             </div>
 
-                            <div class="table-responsive">
+                            <div class="table-responsive distribution-results-hidden" aria-hidden="true">
                                 <table class="table table-striped table-hover mb-0">
                                     <thead>
                                         <tr>
@@ -56,7 +56,7 @@
                                 </table>
                             </div>
 
-                            <div class="distribution-footer">
+                            <div class="distribution-footer distribution-results-hidden" aria-hidden="true">
                                 <div class="carteros-meta" id="page-summary">Selecciona paquetes para preparar la asignacion.</div>
                                 <ul class="pagination pagination-sm m-0">
                                     <li class="page-item" id="prev-page-item"><a class="page-link" href="#" id="prev-page-link">Anterior</a></li>
@@ -161,6 +161,9 @@
         }
         .distribution-pane .table-responsive {
             margin-bottom: 0;
+        }
+        .distribution-results-hidden {
+            display: none;
         }
         .distribution-pane .table {
             margin-bottom: 0;
