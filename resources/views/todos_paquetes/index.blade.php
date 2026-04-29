@@ -166,7 +166,7 @@
                         <div class="modal-header">
                             <div>
                                 <h5 class="modal-title">Editar {{ $editing['label'] }}</h5>
-                                <div class="small text-white-50">Los cambios se registraran en la tabla de eventos correspondiente.</div>
+                                <div class="small text-white-50">Los cambios actualizaran solo los datos del paquete.</div>
                             </div>
                             <a href="{{ route('todos-paquetes.index', request()->except(['edit_type', 'edit_id'])) }}" class="close text-white" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>

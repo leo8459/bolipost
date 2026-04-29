@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Estado;
-use App\Models\Evento;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
@@ -11,22 +10,17 @@ use App\Models\Recojo;
 use App\Models\SolicitudCliente;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class TodosPaquetesController extends Controller
 {
-    private const DATA_EDIT_EVENT = 'Correccion de datos del paquete';
-
     private const TYPES = [
         'ems' => [
             'label' => 'EMS',
             'model' => PaqueteEms::class,
             'table' => 'paquetes_ems',
             'state_col' => 'estado_id',
-            'event_table' => 'eventos_ems',
-            'code_col' => 'codigo',
             'editable' => [
                 'codigo' => 'Codigo',
                 'cod_especial' => 'Cod. especial',
@@ -48,8 +42,6 @@ class TodosPaquetesController extends Controller
             'model' => Recojo::class,
             'table' => 'paquetes_contrato',
             'state_col' => 'estados_id',
-            'event_table' => 'eventos_contrato',
-            'code_col' => 'codigo',
             'editable' => [
                 'codigo' => 'Codigo',
                 'cod_especial' => 'Cod. especial',
@@ -72,8 +64,6 @@ class TodosPaquetesController extends Controller
             'model' => PaqueteCerti::class,
             'table' => 'paquetes_certi',
             'state_col' => 'fk_estado',
-            'event_table' => 'eventos_certi',
-            'code_col' => 'codigo',
             'editable' => [
                 'codigo' => 'Codigo',
                 'cod_especial' => 'Cod. especial',
@@ -94,8 +84,6 @@ class TodosPaquetesController extends Controller
             'model' => PaqueteOrdi::class,
             'table' => 'paquetes_ordi',
             'state_col' => 'fk_estado',
-            'event_table' => 'eventos_ordi',
-            'code_col' => 'codigo',
             'editable' => [
                 'codigo' => 'Codigo',
                 'cod_especial' => 'Cod. especial',
@@ -115,8 +103,6 @@ class TodosPaquetesController extends Controller
             'model' => SolicitudCliente::class,
             'table' => 'solicitud_clientes',
             'state_col' => 'estado_id',
-            'event_table' => 'eventos_tiktoker',
-            'code_col' => 'codigo_solicitud',
             'editable' => [
                 'codigo_solicitud' => 'Codigo solicitud',
                 'barcode' => 'Barcode',
@@ -182,16 +168,12 @@ class TodosPaquetesController extends Controller
             return back()->with('success', 'El paquete ya tenia ese estado.');
         }
 
-        DB::transaction(function () use ($model, $stateColumn, $newEstado, $config) {
+        DB::transaction(function () use ($model, $stateColumn, $newEstado) {
             $model->{$stateColumn} = $newEstado;
             $model->save();
-
-            $estadoNombre = (string) (Estado::query()->whereKey($newEstado)->value('nombre_estado') ?? $newEstado);
-            $eventoId = $this->resolveEventId('Cambio manual de estado a ' . strtoupper(trim($estadoNombre)) . ' desde Todos los paquetes.');
-            $this->registerEvent($config, $model, $eventoId);
         });
 
-        return back()->with('success', 'Estado actualizado y evento registrado.');
+        return back()->with('success', 'Estado actualizado.');
     }
 
     public function updateDatos(Request $request, string $type, int $id)
@@ -209,19 +191,17 @@ class TodosPaquetesController extends Controller
 
         $model = $this->findPackage($config, $id);
 
-        DB::transaction(function () use ($model, $data, $config) {
+        DB::transaction(function () use ($model, $data) {
             foreach ($data as $field => $value) {
                 $model->{$field} = is_string($value) ? trim($value) : $value;
             }
 
             $model->save();
-            $eventoId = $this->resolveEventId(self::DATA_EDIT_EVENT);
-            $this->registerEvent($config, $model, $eventoId);
         });
 
         return redirect()
             ->route('todos-paquetes.index', $request->only(['q', 'type', 'estado_id', 'page']))
-            ->with('success', 'Datos actualizados y evento registrado.');
+            ->with('success', 'Datos actualizados.');
     }
 
     private function buildUnionQuery()
@@ -383,34 +363,4 @@ class TodosPaquetesController extends Controller
         return $modelClass::query()->findOrFail($id);
     }
 
-    private function resolveEventId(string $eventName): int
-    {
-        return (int) Evento::query()->firstOrCreate(['nombre_evento' => $eventName])->id;
-    }
-
-    private function registerEvent(array $config, Model $model, int $eventoId): void
-    {
-        $codigo = trim((string) ($model->{$config['code_col']} ?? ''));
-        if ($codigo === '' && $model instanceof SolicitudCliente) {
-            $codigo = trim((string) ($model->barcode ?? ''));
-        }
-
-        if ($codigo === '' || $eventoId <= 0) {
-            return;
-        }
-
-        $payload = [
-            'codigo' => $codigo,
-            'evento_id' => $eventoId,
-            'user_id' => (int) Auth::id(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ];
-
-        if ($config['event_table'] === 'eventos_tiktoker') {
-            $payload['cliente_id'] = $model instanceof SolicitudCliente ? $model->cliente_id : null;
-        }
-
-        DB::table($config['event_table'])->insert($payload);
-    }
 }
