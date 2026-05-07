@@ -512,6 +512,30 @@ class PaquetesEmsController extends Controller
     public function entregados(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
+        $user = $request->user();
+        $printPermissions = [
+            'feature.paquetes-ems.entregados.print',
+            'feature.paquetes-ems.index.print',
+            'feature.paquetes-ems.almacen.print',
+            'feature.paquetes-ems.ventanilla.print',
+            'feature.paquetes-ems.devolucion.print',
+            'feature.paquetes-ems.recibir-regional.print',
+            'feature.paquetes-ems.en-transito.print',
+        ];
+
+        $canEmsEntregadosPrint = false;
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        if ($user && $superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+            $canEmsEntregadosPrint = true;
+        } elseif ($user) {
+            foreach ($printPermissions as $permission) {
+                if ($user->can($permission)) {
+                    $canEmsEntregadosPrint = true;
+                    break;
+                }
+            }
+        }
 
         $estadoEntregadoId = Estado::query()
             ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
@@ -631,6 +655,7 @@ class PaquetesEmsController extends Controller
             'paquetes' => $paquetes,
             'search' => $search,
             'estadoEntregadoDisponible' => (bool) $estadoEntregadoId,
+            'canEmsEntregadosPrint' => $canEmsEntregadosPrint,
         ]);
     }
 

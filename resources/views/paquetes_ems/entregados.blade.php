@@ -66,6 +66,7 @@
                                 <th>Imagen</th>
                                 <th>Asignado a</th>
                                 <th>Fecha entrega</th>
+                                <th class="ems-action-col">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -95,10 +96,22 @@
                                     <td>
                                         {{ !empty($paquete->fecha_entrega) ? \Illuminate\Support\Carbon::parse($paquete->fecha_entrega)->format('d/m/Y H:i') : '-' }}
                                     </td>
+                                    <td class="ems-action-col">
+                                        @if (($paquete->tipo_paquete ?? '') === 'EMS' && ($canEmsEntregadosPrint ?? false))
+                                            <a href="{{ route('paquetes-ems.boleta', $paquete->id, false) }}"
+                                               class="btn btn-sm btn-outline-primary ems-action-btn"
+                                               target="_blank"
+                                               title="Reimprimir boleta">
+                                                <i class="fas fa-print"></i>
+                                            </a>
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-4">
+                                    <td colspan="13" class="text-center py-4">
                                         No hay registros en estado ENTREGADO.
                                     </td>
                                 </tr>
@@ -203,6 +216,23 @@
 
         .btn-block {
             min-height: 38px;
+        }
+
+        .ems-action-col {
+            width: 92px;
+            min-width: 92px;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .ems-action-btn {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
         }
 
         .ems-entregados-card .form-control {
