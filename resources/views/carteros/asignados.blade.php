@@ -5,6 +5,9 @@
 @endsection
 
 @section('content')
+    @php
+        $canUnassignAsignados = auth()->user()?->can('feature.carteros.asignados.unassign') ?? false;
+    @endphp
     <div class="carteros-wrap">
         <div class="card card-carteros">
             <div class="card-header">
@@ -176,6 +179,7 @@
             const clearBtn = document.getElementById('asignados-clear-btn');
             const countText = document.getElementById('asignados-count');
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const canUnassignAsignados = @json($canUnassignAsignados);
 
             function escapeHtml(value) {
                 if (value === null || value === undefined) return '';
@@ -216,7 +220,9 @@
                         '<td>' + escapeHtml(row.asignado_a) + '</td>' +
                         '<td>' + escapeHtml(row.intento) + '</td>' +
                         '<td>' + escapeHtml(row.created_at) + '</td>' +
-                        '<td><button type="button" class="btn btn-carteros-danger btn-sm asignados-unassign-btn" data-id="' + escapeHtml(row.id) + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '" data-codigo="' + escapeHtml(row.codigo) + '">Desasignar</button></td>' +
+                        '<td>' + (canUnassignAsignados
+                            ? '<button type="button" class="btn btn-carteros-danger btn-sm asignados-unassign-btn" data-id="' + escapeHtml(row.id) + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '" data-codigo="' + escapeHtml(row.codigo) + '">Desasignar</button>'
+                            : '-') + '</td>' +
                         '</tr>';
                 }).join('');
             }

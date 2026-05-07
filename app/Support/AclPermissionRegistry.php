@@ -317,6 +317,7 @@ class AclPermissionRegistry
         'paquetes-ems.recibir-regional' => ['assign', 'edit', 'print'],
         'paquetes-ems.en-transito' => ['edit', 'print'],
         'paquetes-ems.entregados' => ['print'],
+        'carteros.asignados' => ['unassign'],
         'paquetes-ordinarios.index' => ['create', 'edit', 'delete', 'assign'],
         'paquetes-ordinarios.almacen' => ['create', 'edit', 'reencaminar', 'assign', 'dropoff', 'rezago'],
         'paquetes-ordinarios.despacho' => ['edit', 'restore', 'print'],
@@ -575,6 +576,10 @@ class AclPermissionRegistry
         'carteros.entrega.intento' => [
             'carteros.entrega.intento',
             'feature.carteros.entrega.attempt',
+        ],
+        'api.carteros.desasignar' => [
+            'api.carteros.desasignar',
+            'feature.carteros.asignados.unassign',
         ],
         ];
 
@@ -1565,6 +1570,7 @@ class AclPermissionRegistry
             'feature.carteros.devolucion.restore' => 'Boton: Recuperar',
             'feature.carteros.entrega.deliver' => 'Boton: Confirmar entrega',
             'feature.carteros.entrega.attempt' => 'Boton: Agregar intento',
+            'feature.carteros.asignados.unassign' => 'Boton: Desasignar',
             'feature.eventos-ems.index.create' => 'Boton: Nuevo registro EMS',
             'feature.eventos-ems.index.edit' => 'Boton: Editar registro EMS',
             'feature.eventos-ems.index.delete' => 'Boton: Eliminar registro EMS',
@@ -1834,6 +1840,7 @@ class AclPermissionRegistry
             'feature.carteros.devolucion.restore' => 'Controla el boton Recuperar dentro de la ventana Devolucion.',
             'feature.carteros.entrega.deliver' => 'Controla el boton Confirmar entrega dentro de la ventana Entrega.',
             'feature.carteros.entrega.attempt' => 'Controla el boton Agregar intento dentro de la ventana Entrega.',
+            'feature.carteros.asignados.unassign' => 'Controla el boton Desasignar dentro de la ventana Asignados.',
             'feature.eventos-ems.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos EMS.',
             'feature.eventos-ems.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Eventos EMS.',
             'feature.eventos-ems.index.delete' => 'Controla el boton Eliminar dentro de la ventana Eventos EMS.',

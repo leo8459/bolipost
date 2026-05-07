@@ -36,8 +36,8 @@ return [
     ],
 
     'tracking_sqlserver' => [
-        'base_url' => env('TRACKING_SQLSERVER_BASE_URL'),
-        'token' => env('TRACKING_SQLSERVER_TOKEN'),
+        'base_url' => env('TRACKING_SQLSERVER_BASE_URL', env('TRACKING_API_URL')),
+        'token' => env('TRACKING_SQLSERVER_TOKEN', env('TRACKING_API_TOKEN')),
     ],
 
     'solicitudes_sync' => [

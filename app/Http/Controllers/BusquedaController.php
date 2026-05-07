@@ -411,7 +411,9 @@ class BusquedaController extends Controller
         $baseUrl = $this->resolveTrackingApiUrl(
             trim((string) config('services.tracking_sqlserver.base_url', ''))
         );
-        $token = trim((string) config('services.tracking_sqlserver.token', ''));
+        $token = $this->normalizarTokenBearer(
+            trim((string) config('services.tracking_sqlserver.token', ''))
+        );
 
         if ($codigo === '' || $baseUrl === '' || $token === '') {
             return collect();
@@ -443,6 +445,17 @@ class BusquedaController extends Controller
         return $this->ordenarEventosTracking(
             $eventosApi->map(fn ($item, $index) => $this->transformarEventoApi($item, $index, $codigo, $payload))
         );
+    }
+
+    private function normalizarTokenBearer(string $token): string
+    {
+        $token = trim($token);
+
+        if (str_starts_with(strtolower($token), 'bearer ')) {
+            return trim(substr($token, 7));
+        }
+
+        return $token;
     }
 
     private function normalizeTrackingCode(string $codigo): string

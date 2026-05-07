@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\MobileUtilityController;
 use App\Http\Controllers\Api\QrDecoderApiController;
 use App\Http\Controllers\Api\VehicleLogApiController;
 use App\Http\Controllers\RecojoController;
+use App\Http\Controllers\AppConfigController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/public/paquetes-contrato', [RecojoController::class, 'storePublic'])
@@ -19,6 +20,8 @@ Route::post('/public/paquetes-contrato', [RecojoController::class, 'storePublic'
 
 Route::get('/public/tracking/eventos', [BusquedaController::class, 'consultarEventosTrackingPublico'])
     ->name('api.public.tracking.eventos');
+Route::get('/public/app-version', [AppConfigController::class, 'publicVersion'])
+    ->name('api.public.app-version');
 Route::get('/public/tracking/captcha', [BusquedaController::class, 'captchaTrackingPublico'])
     ->middleware('throttle:30,1')
     ->name('api.public.tracking.captcha');

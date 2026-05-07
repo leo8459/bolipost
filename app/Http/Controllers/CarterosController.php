@@ -633,6 +633,7 @@ class CarterosController extends Controller
     public function unassignFromCartero(Request $request): JsonResponse
     {
         $this->authorizeRoutePermission('carteros.asignados');
+        $this->authorizeFeaturePermission('feature.carteros.asignados.unassign');
 
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],

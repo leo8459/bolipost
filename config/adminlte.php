@@ -1005,6 +1005,11 @@ return [
                     'icon' => 'fas fa-chart-line',
                 ],
                 [
+                    'text' => 'Aplicación',
+                    'url' => '/configuracion/aplicacion',
+                    'icon' => 'fas fa-mobile-alt',
+                ],
+                [
                     'text' => 'Logs',
                     'url' => '/log-viewer',
 

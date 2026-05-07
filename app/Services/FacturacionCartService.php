@@ -531,18 +531,61 @@ class FacturacionCartService
         try {
             $response->throw();
         } catch (RequestException $e) {
-            $body = $response->json();
+            $body = $this->decodeJsonBody($response);
             $msg = is_array($body)
-                ? (string) ($body['message'] ?? $body['mensaje'] ?? 'Error remoto')
-                : (string) $e->getMessage();
+                ? (string) ($body['message'] ?? $body['mensaje'] ?? $this->firstValidationError($body) ?? 'Error remoto')
+                : trim((string) $response->body());
+            if ($msg === '') {
+                $msg = (string) $e->getMessage();
+            }
             throw new \RuntimeException($response->status() . ' ' . $msg, 0, $e);
         }
 
-        $body = $response->json();
-        if (!is_array($body)) {
-            throw new \RuntimeException('Respuesta no valida de API facturacion.');
+        if ($response->status() === 204) {
+            return [];
         }
-        return $body;
+
+        $body = $this->decodeJsonBody($response);
+        if (is_array($body)) {
+            return $body;
+        }
+
+        $rawBody = trim((string) $response->body());
+        if ($rawBody === '') {
+            return [];
+        }
+
+        $contentType = (string) ($response->header('Content-Type') ?? 'desconocido');
+        $snippet = mb_substr($rawBody, 0, 240);
+        throw new \RuntimeException('Respuesta no valida de API facturacion. status=' . $response->status() . ' content_type=' . $contentType . ' body=' . $snippet);
+    }
+
+    private function decodeJsonBody($response): ?array
+    {
+        $raw = (string) $response->body();
+        if (trim($raw) === '') {
+            return null;
+        }
+
+        $rawWithoutBom = preg_replace('/^\xEF\xBB\xBF/', '', ltrim($raw)) ?? $raw;
+        $decoded = json_decode($rawWithoutBom, true);
+        return (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) ? $decoded : null;
+    }
+
+    private function firstValidationError(array $body): ?string
+    {
+        $errors = $body['errors'] ?? null;
+        if (!is_array($errors)) {
+            return null;
+        }
+
+        foreach ($errors as $messages) {
+            if (is_array($messages) && isset($messages[0]) && is_string($messages[0])) {
+                return $messages[0];
+            }
+        }
+
+        return null;
     }
 
     private function resolveBaseUrl(): string

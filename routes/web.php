@@ -52,6 +52,7 @@ use App\Http\Controllers\Web\FuelLogController;
 use App\Http\Controllers\Web\MaintenanceFileController;
 use App\Http\Controllers\Web\MapController;
 use App\Http\Controllers\Web\QrDecoderController;
+use App\Http\Controllers\AppConfigController;
 use App\Livewire\FuelLogManager;
 use App\Livewire\MapTracker;
 use App\Livewire\MaintenanceAlertManager;
@@ -143,6 +144,8 @@ Route::get('/mis-ventas/{cart}/ticket', [MisVentasController::class, 'ticket'])
     ->name('mis-ventas.ticket');
 
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
+    Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');
+    Route::put('/configuracion/aplicacion', [AppConfigController::class, 'update'])->name('configuracion.aplicacion.update');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
