@@ -156,6 +156,7 @@ return [
         'feature.tarifa-contrato.save',
         'feature.tarifa-contrato.import',
         'feature.tarifa-contrato.export',
+        'feature.tarifa-contrato.report',
     ],
 
     /*

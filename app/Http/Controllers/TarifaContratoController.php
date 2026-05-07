@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Empresa;
 use App\Models\TarifaContrato;
 use App\Support\AclPermissionRegistry;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -743,6 +744,72 @@ class TarifaContratoController extends Controller
         ]);
     }
 
+    public function reporte()
+    {
+        $this->authorizeTarifaContratoAnyButtonAction(['report', 'export']);
+
+        $totalTarifas = TarifaContrato::query()->count();
+        $totalEmpresasConTarifa = TarifaContrato::query()
+            ->whereNotNull('empresa_id')
+            ->distinct('empresa_id')
+            ->count('empresa_id');
+        $totalServicios = TarifaContrato::query()
+            ->whereNotNull('servicio')
+            ->whereRaw("trim(servicio) <> ''")
+            ->distinct('servicio')
+            ->count('servicio');
+        $totalRutas = TarifaContrato::query()
+            ->select('origen', 'destino')
+            ->whereNotNull('origen')
+            ->whereNotNull('destino')
+            ->whereRaw("trim(origen) <> ''")
+            ->whereRaw("trim(destino) <> ''")
+            ->distinct()
+            ->get()
+            ->count();
+
+        $tarifasPorEmpresa = TarifaContrato::query()
+            ->leftJoin('empresa', 'empresa.id', '=', 'tarifa_contrato.empresa_id')
+            ->selectRaw("COALESCE(NULLIF(TRIM(empresa.nombre), ''), 'SIN EMPRESA') as empresa_nombre, COUNT(*) as total")
+            ->groupByRaw("COALESCE(NULLIF(TRIM(empresa.nombre), ''), 'SIN EMPRESA')")
+            ->orderByDesc('total')
+            ->orderBy('empresa_nombre')
+            ->get();
+
+        $tarifasPorServicio = TarifaContrato::query()
+            ->selectRaw("COALESCE(NULLIF(TRIM(servicio), ''), 'SIN SERVICIO') as servicio_nombre, COUNT(*) as total")
+            ->groupByRaw("COALESCE(NULLIF(TRIM(servicio), ''), 'SIN SERVICIO')")
+            ->orderByDesc('total')
+            ->orderBy('servicio_nombre')
+            ->get();
+
+        $tarifasPorRuta = TarifaContrato::query()
+            ->selectRaw("COALESCE(NULLIF(TRIM(origen), ''), 'SIN ORIGEN') as origen_nombre")
+            ->selectRaw("COALESCE(NULLIF(TRIM(destino), ''), 'SIN DESTINO') as destino_nombre")
+            ->selectRaw('COUNT(*) as total')
+            ->groupByRaw("COALESCE(NULLIF(TRIM(origen), ''), 'SIN ORIGEN')")
+            ->groupByRaw("COALESCE(NULLIF(TRIM(destino), ''), 'SIN DESTINO')")
+            ->orderByDesc('total')
+            ->orderBy('origen_nombre')
+            ->orderBy('destino_nombre')
+            ->limit(20)
+            ->get();
+
+        $generatedAt = now();
+        $pdf = Pdf::loadView('tarifa_contrato.reporte-pdf', [
+            'totalTarifas' => $totalTarifas,
+            'totalEmpresasConTarifa' => $totalEmpresasConTarifa,
+            'totalServicios' => $totalServicios,
+            'totalRutas' => $totalRutas,
+            'tarifasPorEmpresa' => $tarifasPorEmpresa,
+            'tarifasPorServicio' => $tarifasPorServicio,
+            'tarifasPorRuta' => $tarifasPorRuta,
+            'generatedAt' => $generatedAt,
+        ])->setPaper('A4', 'portrait');
+
+        return $pdf->stream('reporte-tarifas-contrato-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
     public function edit(TarifaContrato $tarifaContrato)
     {
         $this->authorizeTarifaContratoButtonAction('edit');
@@ -899,6 +966,11 @@ class TarifaContratoController extends Controller
 
     private function authorizeTarifaContratoButtonAction(string $action): void
     {
+        $this->authorizeTarifaContratoAnyButtonAction([$action]);
+    }
+
+    private function authorizeTarifaContratoAnyButtonAction(array $actions): void
+    {
         $user = auth()->user();
 
         if (! $user) {
@@ -911,9 +983,13 @@ class TarifaContratoController extends Controller
             return;
         }
 
-        $permissions = AclPermissionRegistry::existingPermissionsFrom([
-            'feature.tarifa-contrato.'.$action,
-        ]);
+        $permissions = AclPermissionRegistry::existingPermissionsFrom(
+            collect($actions)
+                ->filter(fn ($action): bool => is_string($action) && trim($action) !== '')
+                ->map(fn (string $action): string => 'feature.tarifa-contrato.'.trim($action))
+                ->values()
+                ->all()
+        );
 
         if ($permissions === []) {
             if ((bool) config('acl.route_permission.allow_when_permission_missing', true)) {

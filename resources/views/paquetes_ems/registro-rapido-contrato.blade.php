@@ -210,6 +210,11 @@
             text-align:center;
             white-space:nowrap;
         }
+        .empresa-count {
+            color: var(--azul);
+            font-size: 12px;
+            font-weight: 800;
+        }
         @media (max-width: 991.98px) {
             .quick-form-row .peso-cell .peso-cas-panel {
                 position: static;
@@ -329,16 +334,26 @@
                         </div>
                         <div class="col-lg-3 col-md-6">
                             <div class="form-group">
-                                <label>Empresa (opcional)</label>
+                                <label class="d-flex justify-content-between align-items-center">
+                                    <span>Empresa (opcional)</span>
+                                    <span class="empresa-count">{{ (int) ($empresasCount ?? count($empresas ?? [])) }} empresas</span>
+                                </label>
                                 <select name="empresa_id" id="registroRapidoEmpresa" class="form-control">
                                     <option value="">Sin empresa</option>
                                     @foreach (($empresas ?? []) as $empresa)
+                                        @php
+                                            $empresaNombre = strtoupper(trim((string) ($empresa->nombre ?? '')));
+                                            $empresaSigla = strtoupper(trim((string) ($empresa->sigla ?? '')));
+                                            $empresaCodigo = strtoupper(trim((string) ($empresa->codigo_cliente ?? '')));
+                                            $empresaLabel = $empresaNombre !== '' ? $empresaNombre : 'EMPRESA #' . (int) $empresa->id;
+                                            $empresaDetalles = collect([$empresaSigla, $empresaCodigo])->filter()->unique()->implode(' - ');
+                                        @endphp
                                         <option value="{{ (int) $empresa->id }}" @selected($empresaPrefill === (int) $empresa->id)>
-                                            {{ strtoupper((string) $empresa->nombre) }}
+                                            {{ $empresaLabel }}{{ $empresaDetalles !== '' ? ' (' . $empresaDetalles . ')' : '' }}
                                         </option>
                                     @endforeach
                                 </select>
-                                <small class="text-muted d-block mt-1">Se usa solo si el codigo no detecta empresa automaticamente.</small>
+                                <small class="text-muted d-block mt-1">Se estan mostrando todas las empresas registradas. Se usa solo si el codigo no detecta empresa automaticamente.</small>
                             </div>
                         </div>
                         <div class="col-lg-3 col-md-6">

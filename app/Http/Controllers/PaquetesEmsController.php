@@ -990,12 +990,16 @@ class PaquetesEmsController extends Controller
             $origen = strtoupper(trim((string) optional($user)->name));
         }
 
+        $empresas = Empresa::query()
+            ->orderBy('nombre')
+            ->orderBy('id')
+            ->get(['id', 'nombre', 'sigla', 'codigo_cliente']);
+
         return view('paquetes_ems.registro-rapido-contrato', [
             'origen' => $origen,
             'ciudades' => self::CIUDADES_BOLIVIA,
-            'empresas' => Empresa::query()
-                ->orderBy('nombre')
-                ->get(['id', 'nombre', 'sigla', 'codigo_cliente']),
+            'empresas' => $empresas,
+            'empresasCount' => $empresas->count(),
             'provinciasPorDestino' => $this->buildProvinciasPorDestino(),
             'listado' => [],
             'canQuickContractCreate' => $canRegisterQuickContractFromAlmacen

@@ -265,6 +265,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/tarifa-contrato/import', [TarifaContratoController::class, 'importForm'])->name('tarifa-contrato.import-form');
     Route::post('/tarifa-contrato/import', [TarifaContratoController::class, 'import'])->name('tarifa-contrato.import');
     Route::get('/tarifa-contrato/plantilla-excel', [TarifaContratoController::class, 'downloadTemplateExcel'])->name('tarifa-contrato.template-excel');
+    Route::get('/tarifa-contrato/reporte', [TarifaContratoController::class, 'reporte'])->name('tarifa-contrato.reporte');
     Route::get('/tarifario-tiktoker', [TarifarioTiktokerController::class, 'index'])->name('tarifario-tiktoker.index');
     Route::get('/tarifario-tiktoker/create', [TarifarioTiktokerController::class, 'create'])->name('tarifario-tiktoker.create');
     Route::get('/tarifario-tiktoker/import', [TarifarioTiktokerController::class, 'importForm'])->name('tarifario-tiktoker.import-form');

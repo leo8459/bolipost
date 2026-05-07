@@ -13,6 +13,21 @@
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                             <span id="card_title">Administracion de Tarifas de Contrato</span>
                             <div class="d-flex" style="gap:8px;">
+                                @php
+                                    $tarifaReportUser = auth()->user();
+                                    $tarifaReportSuperRole = (string) config('acl.super_admin_role', 'administrador');
+                                    $canTarifaReport = $tarifaReportUser
+                                        && (
+                                            ($tarifaReportSuperRole !== '' && method_exists($tarifaReportUser, 'hasRole') && $tarifaReportUser->hasRole($tarifaReportSuperRole))
+                                            || $tarifaReportUser->can('feature.tarifa-contrato.report')
+                                            || $tarifaReportUser->can('feature.tarifa-contrato.export')
+                                        );
+                                @endphp
+                                @if ($canTarifaReport)
+                                <a href="{{ route('tarifa-contrato.reporte') }}" target="_blank" class="btn btn-outline-dark btn-sm">
+                                    Generar reporte
+                                </a>
+                                @endif
                                 @aclcan('import', null, 'tarifa-contrato')
                                 <a href="{{ route('tarifa-contrato.import-form') }}" class="btn btn-info btn-sm">
                                     Importar Excel
