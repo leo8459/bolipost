@@ -11,6 +11,7 @@ class PaquetesEmsBoletaController extends Controller
     public function show(PaqueteEms $paquete)
     {
         $this->authorizeAnyPermission(request(), [
+            'feature.paquetes-ems.index.print',
             'feature.paquetes-ems.entregados.print',
         ]);
 
