@@ -98,7 +98,7 @@
                             </span>
                             @if(($departamento ?? '') !== '')
                             <span class="badge badge-primary ml-2 mb-1">
-                                Departamento: {{ $departamento }}
+                                Departamento destino: {{ $departamento }}
                             </span>
                             @endif
                         </div>
@@ -124,7 +124,7 @@
                             </select>
                         </div>
                         <div class="col-lg-3 mb-3">
-                            <label for="departamento" class="font-weight-bold">Departamento</label>
+                            <label for="departamento" class="font-weight-bold">Departamento destino</label>
                             <select id="departamento" name="departamento" class="form-control" data-auto-filter="true">
                                 <option value="">Todos</option>
                                 @foreach(($departamentosDisponibles ?? []) as $departamentoDisponible)
@@ -155,7 +155,7 @@
                             <span class="badge badge-light border mr-2 mb-1">Hasta: {{ $rangoHasta ? \Carbon\Carbon::parse($rangoHasta)->format('d/m/Y') : '-' }}</span>
                             <span class="badge badge-info mr-2 mb-1">Agrupar: {{ strtoupper($agrupacion) }}</span>
                             @if(($departamento ?? '') !== '')
-                            <span class="badge badge-primary mr-2 mb-1">Departamento: {{ $departamento }}</span>
+                            <span class="badge badge-primary mr-2 mb-1">Departamento destino: {{ $departamento }}</span>
                             @endif
                             <span class="badge badge-secondary mb-1">Modulos: {{ count($modulosSeleccionados) }}</span>
                         </div>
@@ -185,7 +185,7 @@
                         </span>
                         @if(($departamento ?? '') !== '')
                             <span class="badge badge-pill badge-primary mr-2 mb-2">
-                                Departamento: {{ $departamento }}
+                                Departamento destino: {{ $departamento }}
                             </span>
                         @endif
                         @foreach($modulosSeleccionados as $moduloKey)

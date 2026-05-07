@@ -9,7 +9,7 @@
         <td colspan="9">Agrupacion: {{ strtoupper($agrupacion) }}</td>
     </tr>
     <tr>
-        <td colspan="9">Departamento: {{ ($departamento ?? '') !== '' ? $departamento : 'TODOS' }}</td>
+        <td colspan="9">Departamento destino: {{ ($departamento ?? '') !== '' ? $departamento : 'TODOS' }}</td>
     </tr>
     <tr><td colspan="9"></td></tr>
 </table>
