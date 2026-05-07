@@ -52,6 +52,7 @@ class DashboardController extends Controller
             'label' => 'EMS',
             'table' => 'paquetes_ems',
             'estado_column' => 'estado_id',
+            'departamento_column' => 'ciudad',
             'peso_column' => 'peso',
             'precio_column' => 'precio',
             'event_table' => 'eventos_ems',
@@ -63,6 +64,7 @@ class DashboardController extends Controller
             'label' => 'CONTRATOS',
             'table' => 'paquetes_contrato',
             'estado_column' => 'estados_id',
+            'departamento_column' => 'destino',
             'peso_column' => 'peso',
             'precio_column' => 'precio',
             'event_table' => 'eventos_contrato',
@@ -74,6 +76,7 @@ class DashboardController extends Controller
             'label' => 'CERTIFICADOS',
             'table' => 'paquetes_certi',
             'estado_column' => 'fk_estado',
+            'departamento_column' => 'cuidad',
             'peso_column' => 'peso',
             'precio_column' => null,
             'event_table' => 'eventos_certi',
@@ -85,6 +88,7 @@ class DashboardController extends Controller
             'label' => 'ORDINARIOS',
             'table' => 'paquetes_ordi',
             'estado_column' => 'fk_estado',
+            'departamento_column' => 'ciudad',
             'peso_column' => 'peso',
             'precio_column' => null,
             'event_table' => 'eventos_ordi',
@@ -189,6 +193,7 @@ class DashboardController extends Controller
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
         $agrupacion = $this->resolveAgrupacion($request);
+        $departamento = $this->resolveDepartamentoFiltro($request);
         $authUser = Auth::user();
         $userCity = strtoupper(trim((string) optional($authUser)->ciudad));
         $allowedSoundRoles = ['encargado_ems', 'cartero_ems'];
@@ -210,6 +215,7 @@ class DashboardController extends Controller
             $config = self::MODULOS[$moduloKey];
             $query = DB::table($config['table']);
             $this->applyDateFilter($query, 'created_at', $desde, $hasta);
+            $this->applyDepartamentoFilter($query, $config, $departamento);
 
             $total = (int) (clone $query)->count();
             $entregados = $estadoEntregadoId
@@ -220,7 +226,8 @@ class DashboardController extends Controller
                 $config,
                 $estadoEntregadoId,
                 $desde,
-                $hasta
+                $hasta,
+                $departamento
             );
             $correctos = (int) ($situacionInventario['correcto'] ?? 0);
             $atrasados = (int) ($situacionInventario['retraso'] ?? 0);
@@ -269,18 +276,19 @@ class DashboardController extends Controller
             ? round(($totales['entregados'] * 100) / $totales['paquetes'], 1)
             : 0.0;
 
-        $kpisPeriodo = $this->buildKpisPeriodo($modulosSeleccionados);
+        $kpisPeriodo = $this->buildKpisPeriodo($modulosSeleccionados, $departamento);
         [$trendLabels, $trendSeries, $rangoTendenciaLabel] = $this->buildTrendSeries(
             $modulosSeleccionados,
             $desde,
             $hasta,
             $rangoLabel,
             $rangoKey,
-            $agrupacion
+            $agrupacion,
+            $departamento
         );
 
-        $rankingEntregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta);
-        $rankingRegistradores = $this->buildRankingRegistradores($modulosSeleccionados, $desde, $hasta);
+        $rankingEntregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null, $departamento);
+        $rankingRegistradores = $this->buildRankingRegistradores($modulosSeleccionados, $desde, $hasta, $departamento);
         $insightsEjecutivos = $this->buildExecutiveInsights(
             $totales,
             $resumenPorModulo,
@@ -308,6 +316,8 @@ class DashboardController extends Controller
             'rangoLabel' => $rangoLabel,
             'rangoKey' => $rangoKey,
             'agrupacion' => $agrupacion,
+            'departamento' => $departamento,
+            'departamentosDisponibles' => self::DESTINOS_BASE,
             'resumenPorModulo' => $resumenPorModulo,
             'totales' => $totales,
             'kpisPeriodo' => $kpisPeriodo,
@@ -361,6 +371,14 @@ class DashboardController extends Controller
         }
 
         return $value;
+    }
+
+    private function resolveDepartamentoFiltro(Request $request): string
+    {
+        $value = strtoupper(trim((string) $request->query('departamento', '')));
+        $value = preg_replace('/\s+/', ' ', $value) ?? $value;
+
+        return in_array($value, self::DESTINOS_BASE, true) ? $value : '';
     }
 
     private function resolveRangoFechas(Request $request): array
@@ -484,7 +502,8 @@ class DashboardController extends Controller
         array $config,
         ?int $estadoEntregadoId,
         ?Carbon $from,
-        ?Carbon $to
+        ?Carbon $to,
+        string $departamento = ''
     ): array {
         $query = null;
         $now = now();
@@ -506,6 +525,7 @@ class DashboardController extends Controller
                 ]);
             $this->applyNoEntregadoScope($query, 't.estados_id', $estadoEntregadoId);
             $this->applyDateFilter($query, 't.created_at', $from, $to);
+            $this->applyDepartamentoFilter($query, $config, $departamento, 't');
 
             foreach ($query->orderBy('t.id')->cursor() as $row) {
                 $inicio = $this->safeCarbonValue($row->fecha_recojo ?? null);
@@ -536,6 +556,7 @@ class DashboardController extends Controller
                 ]);
             $this->applyNoEntregadoScope($query, 't.estado_id', $estadoEntregadoId);
             $this->applyDateFilter($query, 't.created_at', $from, $to);
+            $this->applyDepartamentoFilter($query, $config, $departamento, 't');
 
             foreach ($query->orderBy('t.id')->cursor() as $row) {
                 $inicio = $this->safeCarbonValue($row->solicitud_at ?? null)
@@ -566,6 +587,7 @@ class DashboardController extends Controller
                 ]);
             $this->applyNoEntregadoScope($query, 't.' . $config['estado_column'], $estadoEntregadoId);
             $this->applyDateFilter($query, 't.created_at', $from, $to);
+            $this->applyDepartamentoFilter($query, $config, $departamento, 't');
 
             foreach ($query->orderBy('t.id')->cursor() as $row) {
                 $inicio = $this->safeCarbonValue($row->primer_evento_at ?? null)
@@ -709,7 +731,7 @@ class DashboardController extends Controller
         }
     }
 
-    private function buildKpisPeriodo(array $modulosSeleccionados): array
+    private function buildKpisPeriodo(array $modulosSeleccionados, string $departamento = ''): array
     {
         $now = now();
         $periodos = [
@@ -730,14 +752,16 @@ class DashboardController extends Controller
             foreach ($modulosSeleccionados as $moduloKey) {
                 $config = self::MODULOS[$moduloKey];
 
-                $countRegistros += (int) DB::table($config['table'])
-                    ->whereBetween('created_at', [$desde, $hasta])
-                    ->count();
+                $registrosQuery = DB::table($config['table'])
+                    ->whereBetween('created_at', [$desde, $hasta]);
+                $this->applyDepartamentoFilter($registrosQuery, $config, $departamento);
+                $countRegistros += (int) $registrosQuery->count();
 
-                $countEntregas += (int) DB::table($config['event_table'])
+                $entregasQuery = DB::table($config['event_table'])
                     ->where('evento_id', self::EVENTO_ENTREGADO_ID)
-                    ->whereBetween('created_at', [$desde, $hasta])
-                    ->count(DB::raw('distinct codigo'));
+                    ->whereBetween($config['event_table'] . '.created_at', [$desde, $hasta]);
+                $this->applyEventDepartamentoFilter($entregasQuery, $config, $departamento);
+                $countEntregas += (int) $entregasQuery->count(DB::raw('distinct ' . $config['event_table'] . '.codigo'));
             }
 
             $resultados['registros'][$periodoKey] = $countRegistros;
@@ -753,7 +777,8 @@ class DashboardController extends Controller
         ?Carbon $to,
         string $rangoLabel,
         string $rangoKey,
-        string $agrupacion
+        string $agrupacion,
+        string $departamento = ''
     ): array {
         [$chartFrom, $chartTo, $chartLabel] = $this->resolveChartRange($from, $to, $rangoLabel, $rangoKey, $agrupacion);
         [$labels, $bucketExpression] = $this->buildBuckets($chartFrom, $chartTo, $agrupacion);
@@ -766,7 +791,9 @@ class DashboardController extends Controller
 
             $rowsRegistros = DB::table($config['table'])
                 ->selectRaw($bucketExpression . ' as bucket, COUNT(*) as total')
-                ->whereBetween('created_at', [$chartFrom, $chartTo])
+                ->whereBetween('created_at', [$chartFrom, $chartTo]);
+            $this->applyDepartamentoFilter($rowsRegistros, $config, $departamento);
+            $rowsRegistros = $rowsRegistros
                 ->groupBy(DB::raw($bucketExpression))
                 ->pluck('total', 'bucket')
                 ->toArray();
@@ -777,11 +804,14 @@ class DashboardController extends Controller
                 }
             }
 
+            $eventBucketExpression = str_replace('created_at', $config['event_table'] . '.created_at', $bucketExpression);
             $rowsEntregados = DB::table($config['event_table'])
-                ->selectRaw($bucketExpression . ' as bucket, COUNT(DISTINCT codigo) as total')
+                ->selectRaw($eventBucketExpression . ' as bucket, COUNT(DISTINCT ' . $config['event_table'] . '.codigo) as total')
                 ->where('evento_id', self::EVENTO_ENTREGADO_ID)
-                ->whereBetween('created_at', [$chartFrom, $chartTo])
-                ->groupBy(DB::raw($bucketExpression))
+                ->whereBetween($config['event_table'] . '.created_at', [$chartFrom, $chartTo]);
+            $this->applyEventDepartamentoFilter($rowsEntregados, $config, $departamento);
+            $rowsEntregados = $rowsEntregados
+                ->groupBy(DB::raw($eventBucketExpression))
                 ->pluck('total', 'bucket')
                 ->toArray();
 
@@ -878,7 +908,7 @@ class DashboardController extends Controller
         return [$labels, "to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"];
     }
 
-    private function buildRankingEntregadores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, ?int $limit = 10)
+    private function buildRankingEntregadores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, ?int $limit = 10, string $departamento = '')
     {
         $queries = [];
 
@@ -886,21 +916,48 @@ class DashboardController extends Controller
             $config = self::MODULOS[$moduloKey];
             $query = DB::table($config['event_table'])
                 ->select([
-                    'user_id',
+                    $config['event_table'] . '.user_id as user_id',
                     DB::raw("'" . $config['label'] . "' as modulo"),
-                    DB::raw('COUNT(DISTINCT codigo) as total'),
+                    DB::raw('COUNT(DISTINCT ' . $config['event_table'] . '.codigo) as total'),
                 ])
                 ->where('evento_id', self::EVENTO_ENTREGADO_ID)
-                ->groupBy('user_id');
+                ->groupBy($config['event_table'] . '.user_id');
 
-            $this->applyDateFilter($query, 'created_at', $from, $to);
+            $this->applyDateFilter($query, $config['event_table'] . '.created_at', $from, $to);
+            $this->applyEventDepartamentoFilter($query, $config, $departamento);
             $queries[] = $query;
         }
 
         return $this->resolveRankingUsuarios($queries, 'total_entregados', $limit);
     }
 
-    private function buildRankingRegistradores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to)
+    private function applyDepartamentoFilter(Builder $query, array $config, string $departamento, string $tableAlias = ''): void
+    {
+        if ($departamento === '') {
+            return;
+        }
+
+        $column = (string) ($config['departamento_column'] ?? '');
+        if ($column === '') {
+            return;
+        }
+
+        $qualifiedColumn = ($tableAlias !== '' ? $tableAlias . '.' : '') . $column;
+        $query->whereRaw('trim(upper(' . $qualifiedColumn . ')) = ?', [$departamento]);
+    }
+
+    private function applyEventDepartamentoFilter(Builder $query, array $config, string $departamento, string $eventAlias = ''): void
+    {
+        if ($departamento === '') {
+            return;
+        }
+
+        $eventCodeColumn = ($eventAlias !== '' ? $eventAlias : $config['event_table']) . '.codigo';
+        $query->join($config['table'] . ' as pkg_departamento', 'pkg_departamento.codigo', '=', $eventCodeColumn);
+        $this->applyDepartamentoFilter($query, $config, $departamento, 'pkg_departamento');
+    }
+
+    private function buildRankingRegistradores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, string $departamento = '')
     {
         $queries = [];
 
@@ -913,14 +970,15 @@ class DashboardController extends Controller
 
             $query = DB::table($config['event_table'])
                 ->select([
-                    'user_id',
+                    $config['event_table'] . '.user_id as user_id',
                     DB::raw("'" . $config['label'] . "' as modulo"),
-                    DB::raw('COUNT(DISTINCT codigo) as total'),
+                    DB::raw('COUNT(DISTINCT ' . $config['event_table'] . '.codigo) as total'),
                 ])
                 ->whereIn('evento_id', $registroEventos)
-                ->groupBy('user_id');
+                ->groupBy($config['event_table'] . '.user_id');
 
-            $this->applyDateFilter($query, 'created_at', $from, $to);
+            $this->applyDateFilter($query, $config['event_table'] . '.created_at', $from, $to);
+            $this->applyEventDepartamentoFilter($query, $config, $departamento);
             $queries[] = $query;
         }
 

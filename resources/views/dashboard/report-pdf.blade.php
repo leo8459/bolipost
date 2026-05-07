@@ -205,6 +205,7 @@
     <div class="meta">
         <strong>Rango:</strong> {{ $rangoLabel }} |
         <strong>Agrupacion:</strong> {{ strtoupper($agrupacion) }} |
+        <strong>Departamento:</strong> {{ ($departamento ?? '') !== '' ? $departamento : 'TODOS' }} |
         <strong>Fecha de emision:</strong> {{ now()->format('d/m/Y H:i') }}
     </div>
 </div>

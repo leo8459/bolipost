@@ -96,26 +96,42 @@
                             <span class="badge badge-info mb-1">
                                 Agrupar: {{ strtoupper($agrupacion) }}
                             </span>
+                            @if(($departamento ?? '') !== '')
+                            <span class="badge badge-primary ml-2 mb-1">
+                                Departamento: {{ $departamento }}
+                            </span>
+                            @endif
                         </div>
                     </div>
                 </div>
 
                 <div id="advancedFiltersPanel">
                     <div class="row">
-                        <div class="col-lg-4 mb-3">
+                        <div class="col-lg-3 mb-3">
                             <label for="from" class="font-weight-bold">Desde</label>
                             <input type="date" id="from" name="from" class="form-control" value="{{ $rangoDesde }}" data-auto-filter="true">
                         </div>
-                        <div class="col-lg-4 mb-3">
+                        <div class="col-lg-3 mb-3">
                             <label for="to" class="font-weight-bold">Hasta</label>
                             <input type="date" id="to" name="to" class="form-control" value="{{ $rangoHasta }}" data-auto-filter="true">
                         </div>
-                        <div class="col-lg-4 mb-3">
+                        <div class="col-lg-3 mb-3">
                             <label for="group" class="font-weight-bold">Agrupar por</label>
                             <select id="group" name="group" class="form-control" data-auto-filter="true">
                                 <option value="day" {{ $agrupacion === 'day' ? 'selected' : '' }}>Dia</option>
                                 <option value="week" {{ $agrupacion === 'week' ? 'selected' : '' }}>Semana</option>
                                 <option value="month" {{ $agrupacion === 'month' ? 'selected' : '' }}>Mes</option>
+                            </select>
+                        </div>
+                        <div class="col-lg-3 mb-3">
+                            <label for="departamento" class="font-weight-bold">Departamento</label>
+                            <select id="departamento" name="departamento" class="form-control" data-auto-filter="true">
+                                <option value="">Todos</option>
+                                @foreach(($departamentosDisponibles ?? []) as $departamentoDisponible)
+                                    <option value="{{ $departamentoDisponible }}" {{ ($departamento ?? '') === $departamentoDisponible ? 'selected' : '' }}>
+                                        {{ $departamentoDisponible }}
+                                    </option>
+                                @endforeach
                             </select>
                         </div>
                     </div>
@@ -138,6 +154,9 @@
                             <span class="badge badge-light border mr-2 mb-1">Desde: {{ $rangoDesde ? \Carbon\Carbon::parse($rangoDesde)->format('d/m/Y') : '-' }}</span>
                             <span class="badge badge-light border mr-2 mb-1">Hasta: {{ $rangoHasta ? \Carbon\Carbon::parse($rangoHasta)->format('d/m/Y') : '-' }}</span>
                             <span class="badge badge-info mr-2 mb-1">Agrupar: {{ strtoupper($agrupacion) }}</span>
+                            @if(($departamento ?? '') !== '')
+                            <span class="badge badge-primary mr-2 mb-1">Departamento: {{ $departamento }}</span>
+                            @endif
                             <span class="badge badge-secondary mb-1">Modulos: {{ count($modulosSeleccionados) }}</span>
                         </div>
                         <button type="button" class="btn btn-sm btn-primary" id="expandTopFilters">
@@ -164,6 +183,11 @@
                         <span class="badge badge-pill badge-light border mr-2 mb-2">
                             Agrupacion: {{ strtoupper($agrupacion) }}
                         </span>
+                        @if(($departamento ?? '') !== '')
+                            <span class="badge badge-pill badge-primary mr-2 mb-2">
+                                Departamento: {{ $departamento }}
+                            </span>
+                        @endif
                         @foreach($modulosSeleccionados as $moduloKey)
                             <span class="badge badge-pill badge-info mr-2 mb-2">
                                 {{ $modulosDisponibles[$moduloKey]['label'] ?? strtoupper($moduloKey) }}
