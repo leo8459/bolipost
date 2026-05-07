@@ -23,6 +23,7 @@
                         <button id="asignados-search-btn" type="button" class="btn btn-carteros-secondary">Buscar</button>
                         <button id="asignados-clear-btn" type="button" class="btn btn-carteros-clear">Limpiar</button>
                     </div>
+                    <div id="asignados-count" class="asignados-count">Mostrando 0 registros</div>
                 </div>
             </div>
             <div class="card-body p-0">
@@ -75,7 +76,10 @@
         .asignados-toolbar {
             margin-top: 14px;
             display: flex;
+            align-items: center;
             justify-content: flex-end;
+            gap: 14px;
+            flex-wrap: wrap;
         }
 
         .asignados-search-cluster {
@@ -84,6 +88,12 @@
             align-items: center;
             gap: 10px;
             flex-wrap: nowrap;
+        }
+
+        .asignados-count {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 800;
+            white-space: nowrap;
         }
 
         .asignados-search-cluster .form-control {
@@ -164,6 +174,7 @@
             const searchInput = document.getElementById('asignados-search');
             const searchBtn = document.getElementById('asignados-search-btn');
             const clearBtn = document.getElementById('asignados-clear-btn');
+            const countText = document.getElementById('asignados-count');
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
             function escapeHtml(value) {
@@ -178,10 +189,12 @@
 
             function setLoading() {
                 body.innerHTML = '<tr><td colspan="12" class="text-center py-4">Cargando datos...</td></tr>';
+                countText.textContent = 'Cargando registros...';
             }
 
             function setError() {
                 body.innerHTML = '<tr><td colspan="12" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
+                countText.textContent = 'No se pudo contar los registros';
             }
 
             function renderRows(rows) {
@@ -264,6 +277,13 @@
                 else nextItem.classList.remove('disabled');
             }
 
+            function updateCount(meta, rows) {
+                const total = Number(meta.total || 0);
+                const shown = Array.isArray(rows) ? rows.length : 0;
+                const suffix = currentSearch !== '' ? ' para la busqueda actual' : '';
+                countText.textContent = 'Mostrando ' + shown + ' de ' + total + ' registros' + suffix;
+            }
+
             async function loadPage(page) {
                 setLoading();
                 try {
@@ -273,9 +293,11 @@
                     if (!response.ok) throw new Error('Request failed');
                     const payload = await response.json();
                     const meta = payload.meta || { page: 1, last_page: 1 };
+                    const rows = payload.data || [];
                     currentPage = meta.page;
-                    renderRows(payload.data || []);
+                    renderRows(rows);
                     updatePagination(meta);
+                    updateCount(meta, rows);
                 } catch (e) {
                     setError();
                 }

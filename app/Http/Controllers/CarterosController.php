@@ -428,7 +428,7 @@ class CarterosController extends Controller
             'items.*.id' => ['required', 'integer'],
             'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
         ]);
-        $estadoAlmacenId = $this->resolveEstadoByName('ALMACEN');
+        $estadoRecibidoId = $this->resolveEstadoByName('RECIBIDO');
         $actorUserId = (int) $request->user()->id;
         $emsIds = collect($validated['items'])->where('tipo_paquete', 'EMS')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $certiIds = collect($validated['items'])->where('tipo_paquete', 'CERTI')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
@@ -440,75 +440,75 @@ class CarterosController extends Controller
         $updatedOrdi = 0;
         $updatedContrato = 0;
         $updatedSolicitud = 0;
-        DB::transaction(function () use (&$updatedEms, &$updatedCerti, &$updatedOrdi, &$updatedContrato, &$updatedSolicitud, $emsIds, $certiIds, $ordiIds, $contratoIds, $solicitudIds, $estadoAlmacenId, $actorUserId) {
+        DB::transaction(function () use (&$updatedEms, &$updatedCerti, &$updatedOrdi, &$updatedContrato, &$updatedSolicitud, $emsIds, $certiIds, $ordiIds, $contratoIds, $solicitudIds, $estadoRecibidoId, $actorUserId) {
             if (!empty($emsIds)) {
-                $updatedEms = PaqueteEms::query()->whereIn('id', $emsIds)->update(['estado_id' => $estadoAlmacenId]);
+                $updatedEms = PaqueteEms::query()->whereIn('id', $emsIds)->update(['estado_id' => $estadoRecibidoId]);
                 foreach ($emsIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_ems' => $id]);
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
-                    $asignacion->id_estados = $estadoAlmacenId;
+                    $asignacion->id_estados = $estadoRecibidoId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
             }
             if (!empty($certiIds)) {
-                $updatedCerti = PaqueteCerti::query()->whereIn('id', $certiIds)->update(['fk_estado' => $estadoAlmacenId]);
+                $updatedCerti = PaqueteCerti::query()->whereIn('id', $certiIds)->update(['fk_estado' => $estadoRecibidoId]);
                 foreach ($certiIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_certi' => $id]);
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
-                    $asignacion->id_estados = $estadoAlmacenId;
+                    $asignacion->id_estados = $estadoRecibidoId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
             }
             if (!empty($ordiIds)) {
-                $updatedOrdi = PaqueteOrdi::query()->whereIn('id', $ordiIds)->update(['fk_estado' => $estadoAlmacenId]);
+                $updatedOrdi = PaqueteOrdi::query()->whereIn('id', $ordiIds)->update(['fk_estado' => $estadoRecibidoId]);
                 foreach ($ordiIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_ordi' => $id]);
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
-                    $asignacion->id_estados = $estadoAlmacenId;
+                    $asignacion->id_estados = $estadoRecibidoId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
             }
             if (!empty($contratoIds)) {
-                $updatedContrato = RecojoContrato::query()->whereIn('id', $contratoIds)->update(['estados_id' => $estadoAlmacenId]);
+                $updatedContrato = RecojoContrato::query()->whereIn('id', $contratoIds)->update(['estados_id' => $estadoRecibidoId]);
                 foreach ($contratoIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_paquetes_contrato' => $id]);
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_solicitud_cliente = null;
-                    $asignacion->id_estados = $estadoAlmacenId;
+                    $asignacion->id_estados = $estadoRecibidoId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
             }
             if (!empty($solicitudIds)) {
-                $updatedSolicitud = SolicitudCliente::query()->whereIn('id', $solicitudIds)->update(['estado_id' => $estadoAlmacenId]);
+                $updatedSolicitud = SolicitudCliente::query()->whereIn('id', $solicitudIds)->update(['estado_id' => $estadoRecibidoId]);
                 foreach ($solicitudIds as $id) {
                     $asignacion = Cartero::query()->firstOrNew(['id_solicitud_cliente' => $id]);
                     $asignacion->id_paquetes_ems = null;
                     $asignacion->id_paquetes_certi = null;
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
-                    $asignacion->id_estados = $estadoAlmacenId;
+                    $asignacion->id_estados = $estadoRecibidoId;
                     $asignacion->id_user = $actorUserId;
                     $asignacion->save();
                 }
             }
         });
         return response()->json([
-            'message' => 'Paquetes devueltos a ALMACEN (estado 1).',
+            'message' => 'Paquetes devueltos a RECIBIDO.',
             'updated' => [
                 'ems' => $updatedEms,
                 'certi' => $updatedCerti,

@@ -14,7 +14,7 @@
                 <div class="cartero-header-top">
                     <div>
                         <h3 class="card-title mb-1">Paquetes en DEVOLUCION</h3>
-                        <div class="devolucion-header-subtitle">Bandeja de paquetes observados para recuperar y reenviar a almacen.</div>
+                        <div class="devolucion-header-subtitle">Bandeja de paquetes observados para recuperar y devolver a recibido.</div>
                     </div>
                     <span class="carteros-chip">Devolucion</span>
                 </div>
@@ -311,7 +311,7 @@
                         return;
                     }
 
-                    showMessage('Paquete recuperado y enviado a ALMACEN.', 'success');
+                    showMessage('Paquete recuperado y enviado a RECIBIDO.', 'success');
                     loadPage(currentPage);
                 } catch (err) {
                     showMessage('Error recuperando el paquete.', 'danger');
