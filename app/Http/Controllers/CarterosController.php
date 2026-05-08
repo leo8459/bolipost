@@ -180,7 +180,10 @@ class CarterosController extends Controller
 
         return $this->combinedDataResponse(
             $request,
-            $this->resolveEstadoByName('ENTREGADO')
+            $this->resolveEstadoByName('ENTREGADO'),
+            null,
+            false,
+            true
         );
     }
 
@@ -1428,7 +1431,7 @@ class CarterosController extends Controller
         return strtoupper($regional !== '' ? $regional : 'SIN REGIONAL');
     }
 
-    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false): JsonResponse
+    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false, bool $includePackageStateMatches = false): JsonResponse
     {
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
@@ -1518,7 +1521,15 @@ class CarterosController extends Controller
             ->when($codigo !== '', function ($query) use ($codigo) {
                 $query->whereRaw('LOWER(codigo) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
             })
-            ->when($estadoId !== null || $userId !== null, function ($query) use ($emsFilterIds) {
+            ->when($estadoId !== null || $userId !== null, function ($query) use ($emsFilterIds, $estadoId, $userId, $includePackageStateMatches) {
+                if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
+                    $query->where(function ($sub) use ($emsFilterIds, $estadoId) {
+                        $sub->whereIn('id', $emsFilterIds ?: [0])
+                            ->orWhere('estado_id', $estadoId);
+                    });
+                    return;
+                }
+
                 $query->whereIn('id', $emsFilterIds ?: [0]);
             })
             ->get()
@@ -1561,7 +1572,15 @@ class CarterosController extends Controller
             ->when($codigo !== '', function ($query) use ($codigo) {
                 $query->whereRaw('LOWER(codigo) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
             })
-            ->when($estadoId !== null || $userId !== null, function ($query) use ($certiFilterIds) {
+            ->when($estadoId !== null || $userId !== null, function ($query) use ($certiFilterIds, $estadoId, $userId, $includePackageStateMatches) {
+                if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
+                    $query->where(function ($sub) use ($certiFilterIds, $estadoId) {
+                        $sub->whereIn('id', $certiFilterIds ?: [0])
+                            ->orWhere('fk_estado', $estadoId);
+                    });
+                    return;
+                }
+
                 $query->whereIn('id', $certiFilterIds ?: [0]);
             })
             ->get()
@@ -1608,7 +1627,15 @@ class CarterosController extends Controller
                         ->orWhereRaw('LOWER(COALESCE(cod_especial, \'\')) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
                 });
             })
-            ->when($estadoId !== null || $userId !== null, function ($query) use ($ordiFilterIds) {
+            ->when($estadoId !== null || $userId !== null, function ($query) use ($ordiFilterIds, $estadoId, $userId, $includePackageStateMatches) {
+                if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
+                    $query->where(function ($sub) use ($ordiFilterIds, $estadoId) {
+                        $sub->whereIn('id', $ordiFilterIds ?: [0])
+                            ->orWhere('fk_estado', $estadoId);
+                    });
+                    return;
+                }
+
                 $query->whereIn('id', $ordiFilterIds ?: [0]);
             })
             ->get()
@@ -1656,7 +1683,15 @@ class CarterosController extends Controller
                         ->orWhereRaw('LOWER(COALESCE(cod_especial, \'\')) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
                 });
             })
-            ->when($estadoId !== null || $userId !== null, function ($query) use ($contratoFilterIds) {
+            ->when($estadoId !== null || $userId !== null, function ($query) use ($contratoFilterIds, $estadoId, $userId, $includePackageStateMatches) {
+                if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
+                    $query->where(function ($sub) use ($contratoFilterIds, $estadoId) {
+                        $sub->whereIn('id', $contratoFilterIds ?: [0])
+                            ->orWhere('estados_id', $estadoId);
+                    });
+                    return;
+                }
+
                 $query->whereIn('id', $contratoFilterIds ?: [0]);
             })
             ->get()
@@ -1706,7 +1741,15 @@ class CarterosController extends Controller
                         ->orWhereRaw('LOWER(COALESCE(cod_especial, \'\')) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
                 });
             })
-            ->when($estadoId !== null || $userId !== null, function ($query) use ($solicitudFilterIds) {
+            ->when($estadoId !== null || $userId !== null, function ($query) use ($solicitudFilterIds, $estadoId, $userId, $includePackageStateMatches) {
+                if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
+                    $query->where(function ($sub) use ($solicitudFilterIds, $estadoId) {
+                        $sub->whereIn('id', $solicitudFilterIds ?: [0])
+                            ->orWhere('estado_id', $estadoId);
+                    });
+                    return;
+                }
+
                 $query->whereIn('id', $solicitudFilterIds ?: [0]);
             })
             ->get()
