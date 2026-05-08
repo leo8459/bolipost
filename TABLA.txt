@@ -1,4 +1,4 @@
-    php artisan migrate --path=/database/migrations/2026_04_24_120000_add_provincia_origen_to_tarifa_contrato_table.php
+    php artisan migrate --path=/database/migrations/2026_05_08_160000_add_codigo_madre_to_paquetes_contrato_table.php
 
 
 

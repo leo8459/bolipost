@@ -274,6 +274,10 @@
                                             <div class="contrato-preview-value">{{ $contratoBuscado->cod_especial ?: '-' }}</div>
                                         </div>
                                         <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Codigo madre</div>
+                                            <div class="contrato-preview-value">{{ $contratoBuscado->codigo_madre ?: '-' }}</div>
+                                        </div>
+                                        <div class="contrato-preview-item">
                                             <div class="contrato-preview-label">Destinatario</div>
                                             <div class="contrato-preview-value">{{ $contratoBuscado->nombre_d ?: '-' }}</div>
                                         </div>

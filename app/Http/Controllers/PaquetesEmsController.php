@@ -6,7 +6,9 @@ use App\Models\CodigoEmpresa;
 use App\Models\Empresa;
 use App\Models\Estado;
 use App\Models\Origen;
+use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
+use App\Models\PaqueteOrdi;
 use App\Models\Recojo as RecojoContrato;
 use App\Models\Destino;
 use App\Models\ServicioExtra;
@@ -851,6 +853,9 @@ class PaquetesEmsController extends Controller
                 ->get(['id', 'nombre', 'sigla', 'codigo_cliente']),
             'ciudades' => self::CIUDADES_BOLIVIA,
             'returnQuery' => trim((string) $request->query('q', '')),
+            'codigoMadreSugerido' => preg_match('/^[A-Za-z0-9]+$/', trim((string) $request->query('q', '')))
+                ? strtoupper(trim((string) $request->query('q', '')))
+                : '',
         ]);
     }
 
@@ -870,6 +875,7 @@ class PaquetesEmsController extends Controller
             'direccion_d' => ['required', 'string', 'max:255'],
             'peso' => ['required', 'numeric', 'min:0.001'],
             'observacion' => ['nullable', 'string', 'max:1000'],
+            'codigo_madre' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/'],
             'return_query' => ['nullable', 'string', 'max:255'],
         ], [], [
             'empresa_id' => 'empresa',
@@ -879,6 +885,7 @@ class PaquetesEmsController extends Controller
             'direccion_d' => 'destino direccion',
             'peso' => 'peso',
             'observacion' => 'observacion',
+            'codigo_madre' => 'codigo madre',
         ]);
 
         $empresa = Empresa::query()->findOrFail((int) $data['empresa_id']);
@@ -925,11 +932,13 @@ class PaquetesEmsController extends Controller
         DB::transaction(function () use ($empresa, $user, $data, $codigoCliente, $estadoRecibidoId, &$contrato) {
             $correlativo = $this->nextCorrelativoEmpresa((int) $empresa->id, $codigoCliente);
             $codigo = $this->buildCodigoEmpresa($codigoCliente, $correlativo);
+            $codigoMadre = strtoupper(trim((string) ($data['codigo_madre'] ?? '')));
 
             $contrato = RecojoContrato::query()->create([
                 'user_id' => (int) $user->id,
                 'empresa_id' => (int) $empresa->id,
                 'codigo' => $codigo,
+                'codigo_madre' => $codigoMadre !== '' ? $codigoMadre : null,
                 'cod_especial' => null,
                 'estados_id' => $estadoRecibidoId,
                 'origen' => strtoupper(trim((string) $data['origen'])),
@@ -965,6 +974,10 @@ class PaquetesEmsController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            if ($codigoMadre !== '') {
+                $this->insertCodigoContinuacionEvents($codigoMadre, $codigo, (int) $user->id);
+            }
         });
 
         $contrato->loadMissing('empresa:id,nombre,sigla,codigo_cliente');
@@ -1418,6 +1431,84 @@ class PaquetesEmsController extends Controller
         }
 
         return $max + 1;
+    }
+
+    private function insertCodigoContinuacionEvents(string $codigoMadre, string $codigoHijo, int $userId): void
+    {
+        $codigoMadre = strtoupper(trim($codigoMadre));
+        $codigoHijo = strtoupper(trim($codigoHijo));
+
+        if ($codigoMadre === '' || $codigoHijo === '' || $userId <= 0) {
+            return;
+        }
+
+        $eventoMadreId = (int) DB::table('eventos')->insertGetId([
+            'nombre_evento' => 'Se genero el codigo hijo ' . $codigoHijo . ' como continuacion de este codigo madre.',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $eventoHijoId = (int) DB::table('eventos')->insertGetId([
+            'nombre_evento' => 'Este codigo es la continuacion del codigo madre ' . $codigoMadre . '.',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('eventos_contrato')->insert([
+            'codigo' => $codigoHijo,
+            'evento_id' => $eventoHijoId,
+            'user_id' => $userId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $tablaMadre = $this->resolveEventTableForCodigo($codigoMadre);
+        DB::table($tablaMadre)->insert([
+            'codigo' => $codigoMadre,
+            'evento_id' => $eventoMadreId,
+            'user_id' => $userId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function resolveEventTableForCodigo(string $codigo): string
+    {
+        $codigo = strtoupper(trim($codigo));
+
+        if ($codigo === '') {
+            return 'eventos_contrato';
+        }
+
+        if (PaqueteEms::query()->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])->exists()) {
+            return 'eventos_ems';
+        }
+
+        if (PaqueteCerti::query()->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])->exists()) {
+            return 'eventos_certi';
+        }
+
+        if (PaqueteOrdi::query()->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])->exists()) {
+            return 'eventos_ordi';
+        }
+
+        if (RecojoContrato::query()->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])->exists()) {
+            return 'eventos_contrato';
+        }
+
+        if (DB::table('eventos_ems')->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])->exists()) {
+            return 'eventos_ems';
+        }
+
+        if (DB::table('eventos_certi')->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])->exists()) {
+            return 'eventos_certi';
+        }
+
+        if (DB::table('eventos_ordi')->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])->exists()) {
+            return 'eventos_ordi';
+        }
+
+        return 'eventos_contrato';
     }
 
     private function buildCodigoEmpresa(string $codigoCliente, int $correlativo): string

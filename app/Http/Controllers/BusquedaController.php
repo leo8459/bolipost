@@ -666,8 +666,24 @@ class BusquedaController extends Controller
     {
         $query = DB::table($fuente['tabla'] . ' as ee')
             ->leftJoin('eventos as e', 'e.id', '=', 'ee.evento_id')
-            ->leftJoin('users as uev', 'uev.id', '=', 'ee.user_id')
-            ->whereRaw('TRIM(UPPER(ee.codigo)) = TRIM(UPPER(?))', [$codigo]);
+            ->leftJoin('users as uev', 'uev.id', '=', 'ee.user_id');
+
+        if (
+            $fuente['tabla'] === 'eventos_contrato'
+            && Schema::hasTable('paquetes_contrato')
+            && Schema::hasColumn('paquetes_contrato', 'codigo_madre')
+        ) {
+            $query->where(function ($sub) use ($codigo) {
+                $sub->whereRaw('TRIM(UPPER(ee.codigo)) = TRIM(UPPER(?))', [$codigo])
+                    ->orWhereIn('ee.codigo', function ($childQuery) use ($codigo) {
+                        $childQuery->select('codigo')
+                            ->from('paquetes_contrato')
+                            ->whereRaw('TRIM(UPPER(codigo_madre)) = TRIM(UPPER(?))', [$codigo]);
+                    });
+            });
+        } else {
+            $query->whereRaw('TRIM(UPPER(ee.codigo)) = TRIM(UPPER(?))', [$codigo]);
+        }
 
         $select = [
             'ee.id',

@@ -15,6 +15,7 @@ class Recojo extends Model
         'user_id',
         'empresa_id',
         'codigo',
+        'codigo_madre',
         'cod_especial',
         'estados_id',
         'origen',

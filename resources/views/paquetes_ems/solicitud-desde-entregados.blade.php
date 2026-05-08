@@ -25,6 +25,18 @@
                     <input type="hidden" name="return_query" value="{{ $returnQuery }}">
 
                     <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Copiar codigo madre</label>
+                        <input
+                            type="text"
+                            name="codigo_madre"
+                            class="form-control"
+                            value="{{ old('codigo_madre', $codigoMadreSugerido ?? '') }}"
+                            placeholder="Codigo madre original"
+                        >
+                        @error('codigo_madre') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Empresa</label>
                         <select name="empresa_id" class="form-control" required>
                             <option value="">Selecciona una empresa</option>

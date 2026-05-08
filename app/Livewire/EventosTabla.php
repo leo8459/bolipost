@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -135,11 +136,23 @@ class EventosTabla extends Component
                 'e.nombre_evento as evento_nombre',
                 'u.name as usuario_nombre',
             ])
-            ->when($q !== '', function ($query) use ($q, $supportsClienteId) {
-                $query->where(function ($sub) use ($q, $supportsClienteId) {
+            ->when($q !== '', function ($query) use ($q, $supportsClienteId, $table) {
+                $query->where(function ($sub) use ($q, $supportsClienteId, $table) {
                     $sub->where('t.codigo', 'ILIKE', '%' . $q . '%')
                         ->orWhere('e.nombre_evento', 'ILIKE', '%' . $q . '%')
                         ->orWhere('u.name', 'ILIKE', '%' . $q . '%');
+
+                    if (
+                        $table === 'eventos_contrato'
+                        && Schema::hasTable('paquetes_contrato')
+                        && Schema::hasColumn('paquetes_contrato', 'codigo_madre')
+                    ) {
+                        $sub->orWhereIn('t.codigo', function ($childQuery) use ($q) {
+                            $childQuery->select('codigo')
+                                ->from('paquetes_contrato')
+                                ->where('codigo_madre', 'ILIKE', '%' . $q . '%');
+                        });
+                    }
 
                     if ($supportsClienteId) {
                         $sub->orWhere('c.name', 'ILIKE', '%' . $q . '%');
@@ -167,6 +180,7 @@ class EventosTabla extends Component
                 ->select([
                     'p.id',
                     'p.codigo',
+                    'p.codigo_madre',
                     'p.cod_especial',
                     'p.nombre_r',
                     'p.nombre_d',
