@@ -633,6 +633,104 @@ class CarterosController extends Controller
         ]);
     }
 
+    public function dropOffSelected(Request $request): JsonResponse
+    {
+        $this->authorizeRoutePermission('carteros.cartero');
+        $this->authorizeFeaturePermission('feature.carteros.cartero.deliver');
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.tipo_paquete' => ['required', 'in:CERTI,ORDI'],
+        ]);
+
+        $estadoCarteroId = $this->resolveEstadoCarteroId();
+        $estadoEntregadoId = $this->resolveEstadoByName('ENTREGADO');
+        $actorUserId = (int) $request->user()->id;
+
+        $certiIds = collect($validated['items'])
+            ->where('tipo_paquete', 'CERTI')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $ordiIds = collect($validated['items'])
+            ->where('tipo_paquete', 'ORDI')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $certiIds = Cartero::query()
+            ->where('id_user', $actorUserId)
+            ->where('id_estados', $estadoCarteroId)
+            ->whereIn('id_paquetes_certi', $certiIds ?: [0])
+            ->pluck('id_paquetes_certi')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $ordiIds = Cartero::query()
+            ->where('id_user', $actorUserId)
+            ->where('id_estados', $estadoCarteroId)
+            ->whereIn('id_paquetes_ordi', $ordiIds ?: [0])
+            ->pluck('id_paquetes_ordi')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($certiIds) && empty($ordiIds)) {
+            throw ValidationException::withMessages([
+                'items' => 'Selecciona certificados u ordinarios que esten en tu bandeja CARTERO.',
+            ]);
+        }
+
+        $updatedCerti = 0;
+        $updatedOrdi = 0;
+
+        DB::transaction(function () use (&$updatedCerti, &$updatedOrdi, $certiIds, $ordiIds, $estadoEntregadoId, $actorUserId) {
+            if (!empty($certiIds)) {
+                $updatedCerti = PaqueteCerti::query()
+                    ->whereIn('id', $certiIds)
+                    ->update(['fk_estado' => $estadoEntregadoId]);
+
+                Cartero::query()
+                    ->whereIn('id_paquetes_certi', $certiIds)
+                    ->where('id_user', $actorUserId)
+                    ->update(['id_estados' => $estadoEntregadoId]);
+
+                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE, $actorUserId);
+            }
+
+            if (!empty($ordiIds)) {
+                $updatedOrdi = PaqueteOrdi::query()
+                    ->whereIn('id', $ordiIds)
+                    ->update(['fk_estado' => $estadoEntregadoId]);
+
+                Cartero::query()
+                    ->whereIn('id_paquetes_ordi', $ordiIds)
+                    ->where('id_user', $actorUserId)
+                    ->update(['id_estados' => $estadoEntregadoId]);
+
+                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE, $actorUserId);
+            }
+        });
+
+        return response()->json([
+            'message' => 'Paquetes dados de baja correctamente y enviados a ENTREGADO.',
+            'updated' => [
+                'certi' => $updatedCerti,
+                'ordi' => $updatedOrdi,
+                'total' => $updatedCerti + $updatedOrdi,
+            ],
+        ]);
+    }
+
     public function unassignFromCartero(Request $request): JsonResponse
     {
         $this->authorizeRoutePermission('carteros.asignados');

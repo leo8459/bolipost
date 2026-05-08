@@ -370,6 +370,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/api/carteros/registrar-guia', [CarterosController::class, 'registerGuide'])->name('api.carteros.registrar-guia');
     Route::post('/api/carteros/devolver-almacen', [CarterosController::class, 'returnToAlmacen'])->name('api.carteros.devolver-almacen');
     Route::post('/api/carteros/aceptar-paquetes', [CarterosController::class, 'acceptPackages'])->name('api.carteros.aceptar-paquetes');
+    Route::post('/api/carteros/dar-baja', [CarterosController::class, 'dropOffSelected'])->name('api.carteros.dar-baja');
     Route::post('/carteros/entrega', [CarterosController::class, 'deliverPackage'])->name('carteros.entrega.store');
     Route::post('/carteros/entrega/ida-vuelta', [CarterosController::class, 'deliverRoundTripPackage'])->name('carteros.entrega.ida-vuelta');
     Route::post('/carteros/entrega/intento', [CarterosController::class, 'addAttempt'])->name('carteros.entrega.intento');

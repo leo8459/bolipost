@@ -22,6 +22,9 @@
                         @if ($canCarteroGuide)
                             <button id="btn-open-guia-modal" class="btn btn-sm btn-carteros-primary">Mandar provincia</button>
                         @endif
+                        @if ($canCarteroDeliver)
+                            <button id="btn-dar-baja" type="button" class="btn btn-sm btn-carteros-warning">Dar de baja</button>
+                        @endif
                         @if ($canCarteroProvince)
                             <button id="btn-show-provincia" class="btn btn-sm btn-outline-light cartero-mode-btn">Mostrar provincias</button>
                             <button id="btn-show-cartero" class="btn btn-sm btn-outline-light cartero-mode-btn" style="display:none;">Mostrar cartero</button>
@@ -225,7 +228,8 @@
 
         .cartero-mode-btn,
         .btn-carteros-secondary,
-        .btn-carteros-clear {
+        .btn-carteros-clear,
+        .btn-carteros-warning {
             min-height: 42px;
             border-radius: 12px;
             font-weight: 800;
@@ -252,6 +256,22 @@
         .btn-carteros-clear:hover {
             background: rgba(32, 83, 154, 0.05);
             color: var(--carteros-primary);
+        }
+
+        .btn-carteros-warning {
+            background: #fff;
+            border: 1px solid var(--carteros-secondary);
+            color: var(--carteros-primary);
+        }
+
+        .btn-carteros-warning:hover {
+            background: var(--carteros-secondary);
+            color: #fff;
+        }
+
+        .btn-carteros-warning:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
         }
 
         #guiaModal .modal-content {
@@ -331,6 +351,7 @@
             const nextLink = document.getElementById('next-page-link');
             const selectAll = document.getElementById('select-all-cartero');
             const btnOpenGuiaModal = document.getElementById('btn-open-guia-modal');
+            const btnDarBaja = document.getElementById('btn-dar-baja');
             const guiaForm = document.getElementById('guia-form');
             const guiaTransportadora = document.getElementById('guia-transportadora');
             const guiaProvincia = document.getElementById('guia-provincia');
@@ -358,6 +379,12 @@
 
             function refreshSelectedCount() {
                 guiaSelectedCount.textContent = String(Object.keys(selectedItems).length);
+            }
+
+            function selectedItemsList() {
+                return Object.values(selectedItems).map(function(item) {
+                    return { id: item.id, tipo_paquete: item.tipo_paquete };
+                });
             }
 
             function updateSelectAllState() {
@@ -589,6 +616,65 @@
                 } finally {
                     btnGuardarGuia.disabled = false;
                 }
+                });
+            }
+
+            if (canCarteroDeliver && btnDarBaja) {
+                btnDarBaja.addEventListener('click', async function() {
+                    if (currentModeLabel !== 'CARTERO') {
+                        showMessage('Para dar de baja, vuelve a la bandeja CARTERO.', 'danger');
+                        return;
+                    }
+
+                    const items = selectedItemsList();
+                    if (!items.length) {
+                        showMessage('Selecciona al menos un certificado u ordinario.', 'danger');
+                        return;
+                    }
+
+                    const invalid = items.filter(function(item) {
+                        return item.tipo_paquete !== 'CERTI' && item.tipo_paquete !== 'ORDI';
+                    });
+
+                    if (invalid.length > 0) {
+                        showMessage('Dar de baja solo aplica para paquetes CERTI y ORDI. Quita los otros tipos seleccionados.', 'danger');
+                        return;
+                    }
+
+                    const confirmed = window.confirm('Se cambiaran los certificados/ordinarios seleccionados a ENTREGADO. Deseas continuar?');
+                    if (!confirmed) {
+                        return;
+                    }
+
+                    btnDarBaja.disabled = true;
+
+                    try {
+                        const response = await fetch('{{ route('api.carteros.dar-baja') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({ items: items })
+                        });
+
+                        const data = await response.json().catch(function() {
+                            return {};
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(data.message || 'No se pudo dar de baja los paquetes.');
+                        }
+
+                        showMessage(data.message || 'Paquetes dados de baja correctamente.', 'success');
+                        resetSelection();
+                        loadPage(currentPage);
+                    } catch (err) {
+                        showMessage(err.message || 'Error al dar de baja los paquetes.', 'danger');
+                    } finally {
+                        btnDarBaja.disabled = false;
+                    }
                 });
             }
 

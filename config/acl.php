@@ -78,6 +78,7 @@ return [
         'api.carteros.registrar-guia',
         'api.carteros.devolver-almacen',
         'api.carteros.aceptar-paquetes',
+        'api.carteros.dar-baja',
         'carteros.distribucion.report',
         'tarifario.pdf',
         'tarifario.global-excel',
