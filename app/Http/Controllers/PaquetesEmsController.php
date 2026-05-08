@@ -1388,13 +1388,18 @@ class PaquetesEmsController extends Controller
     private function nextCorrelativoEmpresa(int $empresaId, string $codigoCliente): int
     {
         $cliente = strtoupper(trim($codigoCliente));
+        $cliente = preg_replace('/\s+/', '', $cliente) ?: '';
         $pattern = '/^C'.preg_quote($cliente, '/').'A(\d{5})BO$/';
         $prefix = 'C'.$cliente.'A';
         $max = 0;
 
         $codigosEmpresa = CodigoEmpresa::query()
-            ->where('empresa_id', $empresaId)
-            ->pluck('codigo');
+            ->where(function ($query) use ($prefix) {
+                $query->where('codigo', 'like', $prefix.'%BO')
+                    ->orWhere('barcode', 'like', $prefix.'%BO');
+            })
+            ->get(['codigo', 'barcode'])
+            ->flatMap(fn ($row) => [$row->codigo, $row->barcode]);
 
         foreach ($codigosEmpresa as $codigo) {
             if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
@@ -1403,7 +1408,6 @@ class PaquetesEmsController extends Controller
         }
 
         $codigosContrato = RecojoContrato::query()
-            ->where('empresa_id', $empresaId)
             ->where('codigo', 'like', $prefix.'%BO')
             ->pluck('codigo');
 

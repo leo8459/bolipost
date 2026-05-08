@@ -438,6 +438,7 @@ class RecojoController extends Controller
         ]);
 
         $generatedAt = now();
+        $contrato->loadMissing(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla']);
         $pdf = Pdf::loadView('paquetes_contrato.reporte', [
             'contrato' => $contrato,
             'generatedAt' => $generatedAt,
@@ -457,6 +458,7 @@ class RecojoController extends Controller
 
         $hoy = now()->toDateString();
         $contratos = Recojo::query()
+            ->with(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla'])
             ->whereDate('created_at', $hoy)
             ->orderBy('id')
             ->get();
@@ -482,13 +484,18 @@ class RecojoController extends Controller
     protected function nextCorrelativo(int $empresaId, string $codigoCliente): int
     {
         $cliente = strtoupper(trim($codigoCliente));
+        $cliente = preg_replace('/\s+/', '', $cliente) ?: '';
         $prefix = 'C' . $cliente . 'A';
         $pattern = '/^C' . preg_quote($cliente, '/') . 'A(\d{5})BO$/';
         $max = 0;
 
         $codigosEmpresa = CodigoEmpresa::query()
-            ->where('empresa_id', $empresaId)
-            ->pluck('codigo');
+            ->where(function ($query) use ($prefix) {
+                $query->where('codigo', 'like', $prefix . '%BO')
+                    ->orWhere('barcode', 'like', $prefix . '%BO');
+            })
+            ->get(['codigo', 'barcode'])
+            ->flatMap(fn ($row) => [$row->codigo, $row->barcode]);
 
         foreach ($codigosEmpresa as $codigo) {
             if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {

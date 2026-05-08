@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\CodigoEmpresa as CodigoEmpresaModel;
 use App\Models\Empresa as EmpresaModel;
+use App\Models\Recojo as RecojoContratoModel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -314,14 +315,32 @@ class CodigoEmpresa extends Component
     {
         $cliente = strtoupper(trim((string) $empresa->codigo_cliente));
         $cliente = preg_replace('/\s+/', '', $cliente) ?: '';
+        $prefix = 'C' . $cliente . 'A';
         $pattern = '/^C' . preg_quote($cliente, '/') . 'A(\d{5})BO$/';
 
         $max = 0;
         $codigos = CodigoEmpresaModel::query()
-            ->where('empresa_id', (int) $empresa->id)
-            ->pluck('codigo');
+            ->where(function ($query) use ($prefix) {
+                $query->where('codigo', 'like', $prefix . '%BO')
+                    ->orWhere('barcode', 'like', $prefix . '%BO');
+            })
+            ->get(['codigo', 'barcode'])
+            ->flatMap(fn ($row) => [$row->codigo, $row->barcode]);
 
         foreach ($codigos as $codigo) {
+            if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
+                $valor = (int) $matches[1];
+                if ($valor > $max) {
+                    $max = $valor;
+                }
+            }
+        }
+
+        $codigosContrato = RecojoContratoModel::query()
+            ->where('codigo', 'like', $prefix . '%BO')
+            ->pluck('codigo');
+
+        foreach ($codigosContrato as $codigo) {
             if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
                 $valor = (int) $matches[1];
                 if ($valor > $max) {

@@ -469,7 +469,7 @@ return [
                             'icon' => 'fas fa-calculator',
                         ],
                         [
-                            'text' => 'Gestion contratos',
+                            'text' => 'Solicitud de Correspondencia',
                             'url' => 'paquetes-contrato',
                             'icon' => 'fas fa-tasks',
                         ],
