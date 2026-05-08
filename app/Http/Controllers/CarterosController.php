@@ -1426,6 +1426,9 @@ class CarterosController extends Controller
         $search = trim((string) $request->query('search', ''));
         $codigo = trim((string) $request->query('codigo', ''));
         $cartero = trim((string) $request->query('cartero', ''));
+        $nombre = trim((string) $request->query('nombre', ''));
+        $fechaInicio = trim((string) $request->query('fecha_inicio', ''));
+        $fechaFin = trim((string) $request->query('fecha_fin', ''));
         if ($search !== '') {
             $codigo = '';
             $cartero = '';
@@ -1755,6 +1758,39 @@ class CarterosController extends Controller
                         mb_strtolower((string) ($row['asignado_a'] ?? '')),
                         $needle
                     );
+                })
+                ->values();
+        }
+
+        if ($nombre !== '') {
+            $needle = mb_strtolower($nombre);
+            $all = $this->attachCarteroData($all)
+                ->filter(function ($row) use ($needle) {
+                    return str_contains(mb_strtolower((string) ($row['destinatario'] ?? '')), $needle)
+                        || str_contains(mb_strtolower((string) ($row['asignado_a'] ?? '')), $needle)
+                        || str_contains(mb_strtolower((string) ($row['recibido_por'] ?? '')), $needle);
+                })
+                ->values();
+        }
+
+        if ($fechaInicio !== '' || $fechaFin !== '') {
+            $all = $all
+                ->filter(function ($row) use ($fechaInicio, $fechaFin) {
+                    $fecha = substr((string) ($row['created_at'] ?? ''), 0, 10);
+
+                    if ($fecha === '') {
+                        return false;
+                    }
+
+                    if ($fechaInicio !== '' && $fecha < $fechaInicio) {
+                        return false;
+                    }
+
+                    if ($fechaFin !== '' && $fecha > $fechaFin) {
+                        return false;
+                    }
+
+                    return true;
                 })
                 ->values();
         }

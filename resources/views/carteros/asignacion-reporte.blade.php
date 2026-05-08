@@ -7,10 +7,9 @@
         @page { size: A4; margin: 10mm; }
         body { font-family: Arial, sans-serif; font-size: 11px; color: #111; }
         .header-title { text-align: center; font-size: 19px; font-weight: 700; margin: 8px 0 14px; }
-        .meta-table, .detail-table, .legend-table, .summary-table { width: 100%; border-collapse: collapse; }
+        .meta-table, .detail-table, .summary-table { width: 100%; border-collapse: collapse; }
         .meta-table td { padding: 4px 2px; vertical-align: top; }
         .detail-table th, .detail-table td,
-        .legend-table td, .legend-table th,
         .summary-table td, .summary-table th {
             border: 1px solid #666;
             padding: 4px;
@@ -29,14 +28,12 @@
         .sign-line { border-top: 1px solid #444; margin: 34px auto 6px; width: 78%; }
         .muted { color: #444; }
         .w-no { width: 4%; }
-        .w-code { width: 28%; }
-        .w-dest { width: 15%; }
-        .w-dir { width: 13%; }
-        .w-peso { width: 6%; }
-        .w-fecha { width: 7%; }
-        .w-razon { width: 8%; }
-        .w-firma { width: 11%; }
-        .w-cobro { width: 8%; }
+        .w-code { width: 32%; }
+        .w-dest { width: 18%; }
+        .w-dir { width: 18%; }
+        .w-peso { width: 7%; }
+        .w-firma { width: 14%; }
+        .w-cobro { width: 7%; }
     </style>
 </head>
 <body>
@@ -71,8 +68,6 @@
                 <th class="w-dest">Destinatario</th>
                 <th class="w-dir">Direccion</th>
                 <th class="w-peso">Peso (Kg.)</th>
-                <th class="w-fecha">Fecha y Hora</th>
-                <th class="w-razon">Razon / Accion</th>
                 <th class="w-firma">Firma/Sello Destinatario</th>
                 <th class="w-cobro">Cobro (Bs.)</th>
             </tr>
@@ -93,28 +88,15 @@
                     <td>{{ $row['destinatario'] ?? '' }}</td>
                     <td>{{ $row['direccion'] ?? '' }}</td>
                     <td class="center">{{ is_numeric($row['peso'] ?? null) ? number_format((float) $row['peso'], 3, '.', '') : '' }}</td>
-                    <td class="center">{{ $assignedAtText }}</td>
-                    <td></td>
                     <td></td>
                     <td></td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="9" class="center">No hay paquetes asignados para este reporte.</td>
+                    <td colspan="7" class="center">No hay paquetes asignados para este reporte.</td>
                 </tr>
             @endforelse
         </tbody>
-    </table>
-
-    <table class="legend-table" style="margin-top:14px;">
-        <tr>
-            <td style="width:10%;"><strong>Accion</strong></td>
-            <td>10.Direccion incorrecta - 11.No se localizo el destinatario - 12.El destinatario no esta direccion - 13.Articulo rechazado por el destinatario - 14.El remitente solicito para despues - 15.Direccion inaccesible - 16.Articulo incorrecto - 17.Articulo danado - 18.No Reclamado - 19.Fallecido - 20.Por Fuerza Mayor, articulo no entregado - 21.Destinatario solicita recojo en Agencia - 22.Destinatario en Vacaciones - 23.Destinatario en Traslado - 99.Otros</td>
-        </tr>
-        <tr>
-            <td><strong>Razon</strong></td>
-            <td>A.Intento de entrega hoy - B.Intento de entrega manana - C.Articulo retenido, destinatario notificado - D.Remitente contactado - E.Devuelto a Ventanilla</td>
-        </tr>
     </table>
 
     <table class="summary-table" style="margin-top:16px; width:72%; margin-left:auto; margin-right:auto;">
