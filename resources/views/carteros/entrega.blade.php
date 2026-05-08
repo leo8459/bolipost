@@ -8,7 +8,8 @@
     @php
         $canEntregaDeliver = (auth()->user()?->can('feature.carteros.entrega.deliver') ?? false)
             || (auth()->user()?->can('feature.carteros.cartero.deliver') ?? false);
-        $canEntregaAttempt = auth()->user()?->can('feature.carteros.entrega.attempt') ?? false;
+        $canEntregaAttempt = (auth()->user()?->can('feature.carteros.entrega.attempt') ?? false)
+            || (auth()->user()?->can('feature.carteros.cartero.deliver') ?? false);
         $forceCameraCapture = in_array($tipo_paquete, ['CONTRATO', 'EMS', 'SOLICITUD'], true);
     @endphp
     <div class="carteros-wrap entrega-wrap">
