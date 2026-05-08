@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TrackingBO | Plataforma Empresarial Postal</title>
+    <title>TrackingBO | Plataforma Postal</title>
     <meta name="description"
         content="TrackingBO ofrece rastreo postal y gesti&#xF3;n operativa con enfoque empresarial e institucional.">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
