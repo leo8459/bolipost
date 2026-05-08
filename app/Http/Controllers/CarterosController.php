@@ -1042,7 +1042,10 @@ class CarterosController extends Controller
 
     public function deliverPackage(Request $request)
     {
-        $this->authorizeFeaturePermission('feature.carteros.entrega.deliver');
+        $this->authorizeAnyFeaturePermission([
+            'feature.carteros.entrega.deliver',
+            'feature.carteros.cartero.deliver',
+        ]);
 
         $validated = $request->validate([
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
@@ -1121,7 +1124,10 @@ class CarterosController extends Controller
 
     public function deliverRoundTripPackage(Request $request)
     {
-        $this->authorizeFeaturePermission('feature.carteros.entrega.deliver');
+        $this->authorizeAnyFeaturePermission([
+            'feature.carteros.entrega.deliver',
+            'feature.carteros.cartero.deliver',
+        ]);
 
         $validated = $request->validate([
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
@@ -1188,7 +1194,10 @@ class CarterosController extends Controller
 
     public function addAttempt(Request $request)
     {
-        $this->authorizeFeaturePermission('feature.carteros.entrega.attempt');
+        $this->authorizeAnyFeaturePermission([
+            'feature.carteros.entrega.attempt',
+            'feature.carteros.cartero.deliver',
+        ]);
 
         $validated = $request->validate([
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
