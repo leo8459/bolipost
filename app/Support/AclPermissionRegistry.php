@@ -575,6 +575,12 @@ class AclPermissionRegistry
             'carteros.entrega.store',
             'feature.carteros.entrega.deliver',
         ],
+        'carteros.entrega' => [
+            'carteros.entrega',
+            'feature.carteros.cartero.deliver',
+            'feature.carteros.entrega.deliver',
+            'feature.carteros.entrega.attempt',
+        ],
         'carteros.entrega.ida-vuelta' => [
             'carteros.entrega.ida-vuelta',
             'feature.carteros.entrega.deliver',
