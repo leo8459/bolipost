@@ -20,7 +20,7 @@
                     <div class="alert alert-danger">{{ session('error') }}</div>
                 @endif
 
-                <form method="POST" action="{{ route('paquetes-ems.entregados.solicitud.store') }}" class="row g-3 ems-form-grid">
+                <form method="POST" action="{{ route('paquetes-ems.entregados.solicitud.store') }}" class="row g-3 ems-form-grid" id="ems-solicitud-form">
                     @csrf
                     <input type="hidden" name="return_query" value="{{ $returnQuery }}">
 
@@ -236,4 +236,28 @@
             color: #fff;
         }
     </style>
+@endsection
+
+@section('js')
+    <script>
+        (function() {
+            const form = document.getElementById('ems-solicitud-form');
+            if (!form) {
+                return;
+            }
+
+            form.addEventListener('keydown', function(event) {
+                if (event.key !== 'Enter') {
+                    return;
+                }
+
+                const target = event.target;
+                if (target && target.tagName === 'TEXTAREA') {
+                    return;
+                }
+
+                event.preventDefault();
+            });
+        })();
+    </script>
 @endsection
