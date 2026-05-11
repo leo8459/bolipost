@@ -71,4 +71,11 @@
     </div>
     <div class="footer-copy">&copy; 2026 Todos los derechos reservados - Correos de Bolivia</div>
     <div class="footer-copy footer-copy-tight">Copyright &copy; MAER 2026</div>
+
+<script
+       src="https://chatbot.correos.gob.bo:5000/widget-embed.js"
+  data-lang="es"
+  data-position="right"
+  defer>
+</script>
 </footer>
