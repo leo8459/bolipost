@@ -46,6 +46,10 @@
         .modal-title{ font-weight:800; }
         .modal-body{ padding:20px; background:#fff; }
         .modal-footer{ border-top:1px solid var(--line); padding:14px 20px; background:#fafafa; }
+        .duplicate-code-alert{ display:flex; align-items:flex-start; gap:12px; border:1px solid #f6c76f; background:#fff8e5; color:#7a4b00; border-radius:14px; padding:12px 14px; margin-bottom:16px; }
+        .duplicate-code-alert .alert-icon{ flex:0 0 34px; width:34px; height:34px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#FECC36; color:#20539A; font-weight:900; }
+        .duplicate-code-alert strong{ display:block; color:#1f2937; margin-bottom:2px; }
+        .duplicate-code-alert p{ margin:0; line-height:1.35; }
         .form-control, .custom-select, select.form-control{ border-radius:10px; border:1px solid #d1d5db; box-shadow:none; }
         .uppercase-input{ text-transform: uppercase; }
         .form-control:focus, select.form-control:focus{ border-color: var(--azul); box-shadow:0 0 0 0.15rem rgba(52,68,124,.15); }
@@ -97,6 +101,11 @@
                                 @foreach ($ciudadesDisponibles as $ciudadDisponible)
                                     <option value="{{ $ciudadDisponible }}">{{ $ciudadDisponible }}</option>
                                 @endforeach
+                            </select>
+                            <select wire:model="selectedAduanaMarcado" class="form-control search-input" style="min-width:150px; flex:0 0 160px;">
+                                <option value="">Aduana: todas</option>
+                                <option value="SI">Aduana: SI</option>
+                                <option value="NO">Aduana: NO</option>
                             </select>
                             @if ($canOrdiAssign)
                             <button
@@ -336,6 +345,18 @@
                     </div>
 
                     <div class="modal-body">
+                        @error('codigo')
+                            @if ($message === 'Este codigo ya existe.')
+                                <div class="duplicate-code-alert" role="alert">
+                                    <span class="alert-icon">!</span>
+                                    <div>
+                                        <strong>Codigo ya registrado</strong>
+                                        <p>Este codigo ya existe. Revisa el numero o busca el paquete antes de crear uno nuevo.</p>
+                                    </div>
+                                </div>
+                            @endif
+                        @enderror
+
                         <div class="form-row">
                             <div class="form-group col-md-6">
                                 <label>Codigo</label>

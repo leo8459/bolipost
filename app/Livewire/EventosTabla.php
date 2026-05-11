@@ -23,6 +23,10 @@ class EventosTabla extends Component
     public $tipo = 'ems';
     public $search = '';
     public $searchQuery = '';
+    public $fecha_desde = '';
+    public $fecha_hasta = '';
+    public $fechaDesdeQuery = '';
+    public $fechaHastaQuery = '';
     public $editingId = null;
     public $codigo = '';
     public $evento_id = '';
@@ -39,6 +43,20 @@ class EventosTabla extends Component
     public function searchRegistros(): void
     {
         $this->searchQuery = trim((string) $this->search);
+        $this->fechaDesdeQuery = trim((string) $this->fecha_desde);
+        $this->fechaHastaQuery = trim((string) $this->fecha_hasta);
+
+        if ($this->fechaDesdeQuery !== '' && $this->fechaHastaQuery !== '' && $this->fechaHastaQuery < $this->fechaDesdeQuery) {
+            [$this->fechaDesdeQuery, $this->fechaHastaQuery] = [$this->fechaHastaQuery, $this->fechaDesdeQuery];
+            [$this->fecha_desde, $this->fecha_hasta] = [$this->fechaDesdeQuery, $this->fechaHastaQuery];
+        }
+
+        $this->resetPage();
+    }
+
+    public function clearFilters(): void
+    {
+        $this->reset(['search', 'searchQuery', 'fecha_desde', 'fecha_hasta', 'fechaDesdeQuery', 'fechaHastaQuery']);
         $this->resetPage();
     }
 
@@ -120,6 +138,8 @@ class EventosTabla extends Component
     public function render()
     {
         $q = trim((string) $this->searchQuery);
+        $fechaDesde = trim((string) $this->fechaDesdeQuery);
+        $fechaHasta = trim((string) $this->fechaHastaQuery);
         $table = $this->tableName();
         $supportsClienteId = $this->supportsClienteId();
         $contratoBuscado = null;
@@ -158,6 +178,12 @@ class EventosTabla extends Component
                         $sub->orWhere('c.name', 'ILIKE', '%' . $q . '%');
                     }
                 });
+            })
+            ->when($fechaDesde !== '', function ($query) use ($fechaDesde) {
+                $query->whereDate('t.created_at', '>=', $fechaDesde);
+            })
+            ->when($fechaHasta !== '', function ($query) use ($fechaHasta) {
+                $query->whereDate('t.created_at', '<=', $fechaHasta);
             });
 
         if ($supportsClienteId) {
@@ -213,6 +239,8 @@ class EventosTabla extends Component
             'canEventosDelete' => $this->userCan($this->featurePermission('delete')),
             'supportsClienteId' => $supportsClienteId,
             'contratoBuscado' => $contratoBuscado,
+            'fechaDesdeQuery' => $fechaDesde,
+            'fechaHastaQuery' => $fechaHasta,
         ]);
     }
 

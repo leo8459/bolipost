@@ -34,6 +34,36 @@
             background: rgba(255,255,255,.95);
         }
 
+        .events-filter-panel{
+            background:#fff;
+            border:1px solid #dbe4f2;
+            border-radius:16px;
+            padding:14px;
+            margin:16px 16px 0;
+            box-shadow:0 8px 18px rgba(32,83,154,.06);
+        }
+        .events-filter-grid{
+            display:grid;
+            grid-template-columns:minmax(220px, 1fr) 170px 170px auto auto;
+            gap:10px;
+            align-items:end;
+        }
+        .events-filter-field label{
+            display:block;
+            margin-bottom:6px;
+            color:#334155;
+            font-weight:800;
+            font-size:.82rem;
+        }
+        .events-filter-field .form-control{
+            min-height:42px;
+        }
+        .events-filter-actions{
+            display:flex;
+            gap:10px;
+            align-items:center;
+        }
+
         .btn-dorado{
             background: var(--dorado);
             color:#fff;
@@ -170,6 +200,13 @@
             .contrato-preview-grid{
                 grid-template-columns: 1fr;
             }
+            .events-filter-grid{
+                grid-template-columns:1fr;
+            }
+            .events-filter-actions{
+                flex-direction:column;
+                align-items:stretch;
+            }
         }
 
         .modal-content{
@@ -213,17 +250,34 @@
                 </div>
 
                 <div class="d-flex gap-2 align-items-center">
-                    <input
-                        type="text"
-                        class="form-control search-input"
-                        placeholder="Buscar..."
-                        wire:model="search"
-                        wire:keydown.enter.prevent="searchRegistros"
-                    >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchRegistros">Buscar</button>
                     @if ($canEventosCreate)
                         <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                     @endif
+                </div>
+            </div>
+
+            <div class="events-filter-panel">
+                <div class="events-filter-grid">
+                    <div class="events-filter-field">
+                        <label>Busqueda</label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            placeholder="Codigo, evento o usuario..."
+                            wire:model="search"
+                            wire:keydown.enter.prevent="searchRegistros"
+                        >
+                    </div>
+                    <div class="events-filter-field">
+                        <label>Desde</label>
+                        <input type="date" class="form-control" wire:model="fecha_desde">
+                    </div>
+                    <div class="events-filter-field">
+                        <label>Hasta</label>
+                        <input type="date" class="form-control" wire:model="fecha_hasta">
+                    </div>
+                    <button class="btn btn-azul" type="button" wire:click="searchRegistros">Filtrar</button>
+                    <button class="btn btn-outline-azul" type="button" wire:click="clearFilters">Limpiar</button>
                 </div>
             </div>
 
@@ -322,8 +376,19 @@
 
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="muted">
-                        @if(!empty($searchQuery))
-                            Resultados para: <strong>{{ $searchQuery }}</strong>
+                        @if(!empty($searchQuery) || !empty($fechaDesdeQuery) || !empty($fechaHastaQuery))
+                            Resultados
+                            @if(!empty($searchQuery))
+                                para: <strong>{{ $searchQuery }}</strong>
+                            @endif
+                            @if(!empty($fechaDesdeQuery) || !empty($fechaHastaQuery))
+                                <span class="ml-1">
+                                    fechas:
+                                    <strong>{{ $fechaDesdeQuery ?: 'inicio' }}</strong>
+                                    a
+                                    <strong>{{ $fechaHastaQuery ?: 'hoy' }}</strong>
+                                </span>
+                            @endif
                         @else
                             Mostrando todos los registros
                         @endif

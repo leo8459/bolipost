@@ -45,6 +45,7 @@ class PaquetesOrdi extends Component
     public $selectedPaquetes = [];
     public $selectAll = false;
     public $selectedCiudadMarcado = '';
+    public $selectedAduanaMarcado = '';
     public $reprintCodEspecial = '';
     public $codigoRecibir = '';
     public $previewRecibirIds = [];
@@ -125,6 +126,7 @@ class PaquetesOrdi extends Component
         $this->selectAll = false;
         $this->selectedPaquetes = [];
         $this->selectedCiudadMarcado = '';
+        $this->selectedAduanaMarcado = '';
         $this->resetPage();
     }
 
@@ -134,6 +136,7 @@ class PaquetesOrdi extends Component
         $this->selectAll = false;
         $this->selectedPaquetes = [];
         $this->selectedCiudadMarcado = '';
+        $this->selectedAduanaMarcado = '';
         $this->resetPage();
     }
 
@@ -744,6 +747,12 @@ class PaquetesOrdi extends Component
 
         $this->validate($this->rules());
 
+        if ($this->codigoYaExiste()) {
+            $this->addError('codigo', 'Este codigo ya existe.');
+            $this->dispatch('paqueteOrdiCodigoDuplicado', message: 'Este codigo ya existe.');
+            return;
+        }
+
         if (! $this->selectedVentanillaIsAllowed()) {
             $this->addError('fk_ventanilla', 'No puedes asignar esa ventanilla.');
             return;
@@ -1089,6 +1098,20 @@ class PaquetesOrdi extends Component
         ];
     }
 
+    protected function codigoYaExiste(): bool
+    {
+        $codigo = $this->upper($this->codigo);
+
+        if ($codigo === '') {
+            return false;
+        }
+
+        return PaqueteOrdi::query()
+            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
+            ->when($this->editingId, fn (Builder $query) => $query->where('id', '!=', (int) $this->editingId))
+            ->exists();
+    }
+
     protected function autocompletarDatosDestinatario(): void
     {
         if ($this->editingId) {
@@ -1351,10 +1374,24 @@ class PaquetesOrdi extends Component
             return;
         }
 
-        $ciudad = $this->upper($value);
-        $this->selectedCiudadMarcado = $ciudad;
+        $this->selectedCiudadMarcado = $this->upper($value);
+        $this->syncSelectedPaquetesByMarcadoFilters();
+    }
 
-        if ($ciudad === '') {
+    public function updatedSelectedAduanaMarcado($value)
+    {
+        if (!$this->isClasificacion) {
+            return;
+        }
+
+        $aduana = $this->upper($value);
+        $this->selectedAduanaMarcado = in_array($aduana, ['SI', 'NO'], true) ? $aduana : '';
+        $this->syncSelectedPaquetesByMarcadoFilters();
+    }
+
+    private function syncSelectedPaquetesByMarcadoFilters(): void
+    {
+        if (!$this->isClasificacion || ($this->selectedCiudadMarcado === '' && $this->selectedAduanaMarcado === '')) {
             $this->selectAll = false;
             $this->selectedPaquetes = [];
             $this->resetPage();
@@ -1460,6 +1497,9 @@ class PaquetesOrdi extends Component
             })
             ->when($this->isClasificacion && $this->selectedCiudadMarcado !== '', function ($query) {
                 $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$this->selectedCiudadMarcado]);
+            })
+            ->when($this->isClasificacion && $this->selectedAduanaMarcado !== '', function ($query) {
+                $query->whereRaw('trim(upper(aduana)) = trim(upper(?))', [$this->selectedAduanaMarcado]);
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
