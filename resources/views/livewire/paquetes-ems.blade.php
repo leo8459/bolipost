@@ -367,6 +367,33 @@
             padding:14px 20px;
             background:#fafafa;
         }
+        .cod-especial-btn{
+            border:0;
+            background:rgba(32, 83, 154, .10);
+            color:var(--azul);
+            font-weight:900;
+            border-radius:999px;
+            padding:6px 12px;
+            cursor:pointer;
+            white-space:nowrap;
+        }
+        .cod-especial-btn:hover{
+            background:rgba(32, 83, 154, .18);
+            color:var(--azul);
+        }
+        .cod-especial-summary{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            flex-wrap:wrap;
+            border:1px solid #dbe2f2;
+            background:#f8fafc;
+            border-radius:14px;
+            padding:12px 14px;
+            margin-bottom:14px;
+        }
+        .cod-especial-summary .pill-id{ font-size:15px; }
         .form-control, .custom-select, select.form-control{
             border-radius:10px;
             border:1px solid #d1d5db;
@@ -911,7 +938,7 @@
                             @elseif ($this->isEnTransitoEms)
                                 <span class="header-chip">TRANSITO</span>
                                 <span class="header-city">
-                                    Origen aplicado: <strong>{{ $ciudadUsuarioHeader !== '' ? $ciudadUsuarioHeader : 'SIN CIUDAD' }}</strong>
+                                    Origen: <strong>TODOS</strong>
                                 </span>
                             @elseif ($this->isVentanillaEms)
                                 <span class="header-chip">VENTANILLA EMS</span>
@@ -966,7 +993,7 @@
                                     <input
                                         type="text"
                                         class="form-control search-input"
-                                        placeholder="Buscar en toda la tabla..."
+                                        placeholder="{{ $this->isEnTransitoEms ? 'Buscar por codigo, origen, destino...' : 'Buscar en toda la tabla...' }}"
                                         wire:model="search"
                                         wire:keydown.enter.prevent="searchPaquetes(true)"
                                     >
@@ -978,6 +1005,23 @@
                             </div>
                         </div>
                         <div class="header-actions-row">
+                            @if ($this->isEnTransitoEms)
+                                <select wire:model.live="filtroOrigenTransito" class="form-control search-input" style="min-width:190px; flex:0 0 220px;">
+                                    <option value="">Origen: todos</option>
+                                    @foreach ($origenesTransito as $origenTransito)
+                                        <option value="{{ $origenTransito }}">{{ $origenTransito }}</option>
+                                    @endforeach
+                                </select>
+                                <select wire:model.live="filtroDestinoTransito" class="form-control search-input" style="min-width:190px; flex:0 0 220px;">
+                                    <option value="">Destino: todos</option>
+                                    @foreach ($destinosTransito as $destinoTransito)
+                                        <option value="{{ $destinoTransito }}">{{ $destinoTransito }}</option>
+                                    @endforeach
+                                </select>
+                                @if ($filtroOrigenTransito !== '' || $filtroDestinoTransito !== '' || $searchQuery !== '')
+                                    <button class="btn btn-outline-light2" type="button" wire:click="limpiarFiltrosTransito">Limpiar</button>
+                                @endif
+                            @endif
                             @if (!$this->isAlmacenEms && ((($this->isAdmision && $canEmsAdmisionCreate) || ($this->isAlmacenEms && $canEmsCreate)) && $canEmsCreateRoute))
                                 <div class="header-primary-action">
                                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
@@ -1619,7 +1663,20 @@
                                         <td><span class="pill-id">{{ $row->codigo }}</span></td>
                                         <td>{{ $row->origen ?: '-' }}</td>
                                         <td>{{ $row->destino ?: '-' }}</td>
-                                        <td>{{ $row->cod_especial ?: '-' }}</td>
+                                        <td>
+                                            @if(!empty($row->cod_especial))
+                                                <button
+                                                    type="button"
+                                                    class="cod-especial-btn"
+                                                    wire:click="openCodEspecialDetalle(@js($row->cod_especial))"
+                                                    title="Ver todos los paquetes de este codigo especial"
+                                                >
+                                                    {{ $row->cod_especial }}
+                                                </button>
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
                                         <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
                                     </tr>
                                 @empty
@@ -2844,6 +2901,71 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="codEspecialDetalleModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Paquetes del codigo especial</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="cod-especial-summary">
+                        <div>
+                            <div class="muted small">Codigo especial seleccionado</div>
+                            <span class="pill-id">{{ $codEspecialDetalle ?: '-' }}</span>
+                        </div>
+                        <div class="muted">
+                            Total paquetes: <strong>{{ count($codEspecialDetalleRows) }}</strong>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th>Codigo</th>
+                                    <th>Origen</th>
+                                    <th>Destino</th>
+                                    <th>Destinatario</th>
+                                    <th>Peso</th>
+                                    <th>Estado</th>
+                                    <th>Creado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($codEspecialDetalleRows as $item)
+                                    <tr>
+                                        <td><span class="badge-estado">{{ $item['tipo'] ?? '-' }}</span></td>
+                                        <td><span class="pill-id">{{ $item['codigo'] ?? '-' }}</span></td>
+                                        <td>{{ $item['origen'] ?? '-' }}</td>
+                                        <td>{{ $item['destino'] ?? '-' }}</td>
+                                        <td>{{ $item['destinatario'] ?? '-' }}</td>
+                                        <td>{{ $item['peso'] ?? '0' }}</td>
+                                        <td>{{ $item['estado'] ?? '-' }}</td>
+                                        <td>{{ !empty($item['created_at'] ?? null) ? \Illuminate\Support\Carbon::parse($item['created_at'])->format('d/m/Y H:i') : '-' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="8" class="text-center py-4">
+                                            <div class="fw-bold" style="color:var(--azul);">No hay paquetes para este codigo especial</div>
+                                            <div class="muted">Selecciona otro codigo especial de la tabla.</div>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <x-peso-qz-assets />
@@ -2883,6 +3005,8 @@
             closeDevolucionEmsModal: '#devolucionEmsModal',
             openRecibirRegionalModal: '#recibirRegionalModal',
             closeRecibirRegionalModal: '#recibirRegionalModal',
+            openCodEspecialDetalleModal: '#codEspecialDetalleModal',
+            closeCodEspecialDetalleModal: '#codEspecialDetalleModal',
         };
 
         const handleModalEvent = (eventName, selector) => {
