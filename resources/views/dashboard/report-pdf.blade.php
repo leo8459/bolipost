@@ -258,6 +258,49 @@
     </tr>
 </table>
 
+<div class="section">
+    <div class="h">Ranking departamentos: entregados vs pendientes</div>
+    <div class="b">
+        @if(($rankingDepartamentos ?? collect())->isNotEmpty())
+            @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
+            <p style="margin-top:0;">
+                <strong>#1 {{ $topDepartamento->departamento }}</strong> con
+                <strong>{{ number_format((float) $topDepartamento->cumplimiento, 1) }}%</strong> de cumplimiento.
+                Mejor entregador: <strong>{{ $topDepartamento->top_entregador }}</strong>
+                ({{ number_format((int) $topDepartamento->top_entregador_total) }} entregas).
+            </p>
+        @endif
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Departamento</th>
+                    <th>Registrados</th>
+                    <th>Entregados</th>
+                    <th>Pendientes</th>
+                    <th>Cumplimiento</th>
+                    <th>Quien entrega mas</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse(($rankingDepartamentos ?? collect()) as $item)
+                    <tr>
+                        <td class="num">{{ $item->puesto }}</td>
+                        <td>{{ $item->departamento }}</td>
+                        <td class="num">{{ number_format((int) $item->total) }}</td>
+                        <td class="num">{{ number_format((int) $item->entregados) }}</td>
+                        <td class="num">{{ number_format((int) $item->pendientes) }}</td>
+                        <td class="num">{{ number_format((float) $item->cumplimiento, 1) }}%</td>
+                        <td>{{ $item->top_entregador }} ({{ number_format((int) $item->top_entregador_total) }})</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="7" class="muted">Sin datos por departamento.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <table class="grid2">
     <tr>
         <td width="50%"><div class="mini"><div class="k">Registros hoy / semana / mes</div><div class="v">{{ number_format($kpisPeriodo['registros']['dia']) }} / {{ number_format($kpisPeriodo['registros']['semana']) }} / {{ number_format($kpisPeriodo['registros']['mes']) }}</div></div></td>

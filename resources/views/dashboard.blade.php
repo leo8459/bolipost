@@ -581,6 +581,175 @@
         </div>
     </div>
 
+    <div class="card mb-3" data-widget="ranking_departamentos">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <strong>Ranking de cumplimiento por departamento</strong>
+                <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+                    @if(($rankingDepartamentos ?? collect())->isNotEmpty())
+                        @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
+                        <a
+                            href="{{ route('dashboard.export.pdf', array_merge(request()->query(), ['ranking_departamentos' => 1])) }}"
+                            class="btn btn-sm btn-danger"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            <i class="fas fa-file-pdf mr-1"></i> Reporte competencia PDF
+                        </a>
+                        <span class="badge badge-success">
+                            #1 {{ $topDepartamento->departamento }} - {{ number_format((float) $topDepartamento->cumplimiento, 1) }}%
+                        </span>
+                    @endif
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            @if(($rankingDepartamentos ?? collect())->isNotEmpty())
+                @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
+                <div class="alert alert-info mb-3">
+                    <strong>Departamento lider:</strong> {{ $topDepartamento->departamento }}
+                    con <strong>{{ number_format((float) $topDepartamento->cumplimiento, 1) }}%</strong> de cumplimiento.
+                    Entrego <strong>{{ number_format((int) $topDepartamento->entregados) }}</strong> de
+                    <strong>{{ number_format((int) $topDepartamento->total) }}</strong> registros.
+                    Mejor entregador: <strong>{{ $topDepartamento->top_entregador }}</strong>
+                    ({{ number_format((int) $topDepartamento->top_entregador_total) }} entregas).
+                </div>
+            @endif
+            <div class="table-responsive">
+                <table class="table table-sm table-striped table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Departamento</th>
+                            <th class="text-right">Registrados</th>
+                            <th class="text-right">Entregados</th>
+                            <th class="text-right">Pendientes</th>
+                            <th class="text-right">Cumplimiento</th>
+                            <th>Quien entrega mas</th>
+                            <th class="text-center">Ver</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse(($rankingDepartamentos ?? collect()) as $item)
+                            <tr>
+                                <td><strong>{{ $item->puesto }}</strong></td>
+                                <td><strong>{{ $item->departamento }}</strong></td>
+                                <td class="text-right">{{ number_format((int) $item->total) }}</td>
+                                <td class="text-right text-success">{{ number_format((int) $item->entregados) }}</td>
+                                <td class="text-right text-warning">{{ number_format((int) $item->pendientes) }}</td>
+                                <td class="text-right">
+                                    <div class="tasa-entrega-wrap">
+                                        <span>{{ number_format((float) $item->cumplimiento, 1) }}%</span>
+                                        <div class="tasa-entrega-bar">
+                                            <div class="tasa-entrega-fill" style="width: {{ min(100, max(0, (float) $item->cumplimiento)) }}%;"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <strong>{{ $item->top_entregador }}</strong><br>
+                                    <small class="text-muted">{{ number_format((int) $item->top_entregador_total) }} entregas</small>
+                                </td>
+                                <td class="text-center">
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-primary"
+                                        data-toggle="modal"
+                                        data-target="#departamentoDetalleModal{{ $item->puesto }}"
+                                        title="Ver paquetes entregados"
+                                    >
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">No hay datos por departamento para los filtros seleccionados.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    @foreach(($rankingDepartamentos ?? collect()) as $item)
+        @php($totalesModulo = $item->entregados_por_modulo ?? [])
+        <div class="modal fade" id="departamentoDetalleModal{{ $item->puesto }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title mb-0">
+                            {{ $item->departamento }} - paquetes entregados
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                                <div class="col-6 col-md-3 mb-3">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="text-muted small">{{ $moduloDetalle }}</div>
+                                        <div class="h4 mb-0 text-primary">{{ number_format((int) ($totalesModulo[$moduloDetalle] ?? 0)) }}</div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="alert alert-light border">
+                            <strong>Total entregado:</strong> {{ number_format((int) $item->entregados) }}
+                            <span class="mx-2">|</span>
+                            <strong>Mejor entregador:</strong> {{ $item->top_entregador }}
+                            <span class="mx-2">|</span>
+                            <strong>Cumplimiento:</strong> {{ number_format((float) $item->cumplimiento, 1) }}%
+                        </div>
+
+                        <div class="table-responsive" style="max-height: 430px; overflow:auto;">
+                            <table class="table table-sm table-striped table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Modulo</th>
+                                        <th>Codigo</th>
+                                        <th>Entregado por</th>
+                                        <th>Fecha entrega</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse(($item->entregados_detalle ?? []) as $detalle)
+                                        <tr>
+                                            <td>{{ $detalle['modulo'] ?? '-' }}</td>
+                                            <td><span class="badge badge-light">{{ $detalle['codigo'] ?? '-' }}</span></td>
+                                            <td>{{ $detalle['usuario'] ?? '-' }}</td>
+                                            <td>
+                                                {{ !empty($detalle['entregado_at'] ?? '') ? \Illuminate\Support\Carbon::parse($detalle['entregado_at'])->format('d/m/Y H:i') : '-' }}
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">No hay entregas registradas para este departamento.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <a
+                            href="{{ route('dashboard.export.pdf', array_merge(request()->query(), ['departamento_reporte' => $item->departamento])) }}"
+                            class="btn btn-danger"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            <i class="fas fa-file-pdf mr-1"></i> Reporte PDF
+                        </a>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
+
     <div class="row">
         <div class="col-lg-8">
             <div class="card" data-widget="tabla_resumen">

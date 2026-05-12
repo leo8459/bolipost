@@ -169,6 +169,33 @@ class DashboardController extends Controller
     public function exportPdf(Request $request)
     {
         $data = $this->buildDashboardData($request);
+
+        if ($request->boolean('ranking_departamentos')) {
+            $pdf = Pdf::loadView('dashboard.ranking-departamentos-pdf', $data)->setPaper('A4', 'landscape');
+            $filename = 'dashboard-competencia-departamentos-' . now()->format('Ymd-His') . '.pdf';
+
+            return response()->streamDownload(function () use ($pdf) {
+                echo $pdf->output();
+            }, $filename);
+        }
+
+        $departamentoReporte = strtoupper(trim((string) $request->query('departamento_reporte', '')));
+        if ($departamentoReporte !== '') {
+            $departamentoData = collect($data['rankingDepartamentos'] ?? [])
+                ->first(fn ($row) => strtoupper(trim((string) ($row->departamento ?? ''))) === $departamentoReporte);
+
+            if ($departamentoData) {
+                $pdf = Pdf::loadView('dashboard.departamento-report-pdf', array_merge($data, [
+                    'departamentoReporte' => $departamentoData,
+                ]))->setPaper('A4', 'landscape');
+                $filename = 'dashboard-departamento-' . str_replace(' ', '-', strtolower($departamentoReporte)) . '-' . now()->format('Ymd-His') . '.pdf';
+
+                return response()->streamDownload(function () use ($pdf) {
+                    echo $pdf->output();
+                }, $filename);
+            }
+        }
+
         $pdf = Pdf::loadView('dashboard.report-pdf', $data)->setPaper('A4', 'landscape');
         $filename = 'dashboard-reporte-' . now()->format('Ymd-His') . '.pdf';
 
@@ -288,6 +315,7 @@ class DashboardController extends Controller
         );
 
         $rankingEntregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null, $departamento);
+        $rankingDepartamentos = $this->buildRankingDepartamentos($modulosSeleccionados, $desde, $hasta);
         $rankingRegistradores = $this->buildRankingRegistradores($modulosSeleccionados, $desde, $hasta, $departamento);
         $insightsEjecutivos = $this->buildExecutiveInsights(
             $totales,
@@ -295,7 +323,8 @@ class DashboardController extends Controller
             $trendLabels,
             $trendSeries,
             $rankingEntregadores,
-            $rankingRegistradores
+            $rankingRegistradores,
+            $rankingDepartamentos
         );
 
         $contratosPorRecoger = 0;
@@ -341,6 +370,7 @@ class DashboardController extends Controller
             'trendSeries' => $trendSeries,
             'rangoTendenciaLabel' => $rangoTendenciaLabel,
             'rankingEntregadores' => $rankingEntregadores,
+            'rankingDepartamentos' => $rankingDepartamentos,
             'rankingRegistradores' => $rankingRegistradores,
             'insightsEjecutivos' => $insightsEjecutivos,
             'userCity' => $userCity,
@@ -931,6 +961,129 @@ class DashboardController extends Controller
         return $this->resolveRankingUsuarios($queries, 'total_entregados', $limit);
     }
 
+    private function buildRankingDepartamentos(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to)
+    {
+        $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
+
+        return collect($this->departamentoAliasMap())
+            ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId) {
+                $total = 0;
+                $entregados = 0;
+
+                foreach ($modulosSeleccionados as $moduloKey) {
+                    $config = self::MODULOS[$moduloKey];
+
+                    $query = DB::table($config['table']);
+                    $this->applyDateFilter($query, 'created_at', $from, $to);
+                    $this->applyDepartamentoAliasesFilter($query, $config, $aliases);
+
+                    $total += (int) (clone $query)->count();
+                    $entregados += $estadoEntregadoId
+                        ? (int) (clone $query)->where($config['estado_column'], $estadoEntregadoId)->count()
+                        : 0;
+                }
+
+                $pendientes = max(0, $total - $entregados);
+                $cumplimiento = $total > 0 ? round(($entregados * 100) / $total, 1) : 0.0;
+                $topEntregador = $this->buildTopEntregadorDepartamento($modulosSeleccionados, $from, $to, $aliases);
+                $detalleEntregados = $this->buildDepartamentoDeliveredDetails($modulosSeleccionados, $from, $to, $aliases);
+
+                return (object) [
+                    'departamento' => $departamento,
+                    'total' => $total,
+                    'entregados' => $entregados,
+                    'pendientes' => $pendientes,
+                    'cumplimiento' => $cumplimiento,
+                    'top_entregador' => $topEntregador?->name ?? 'SIN DATOS',
+                    'top_entregador_total' => (int) ($topEntregador?->total_entregados ?? 0),
+                    'entregados_por_modulo' => $detalleEntregados['totales'],
+                    'entregados_detalle' => $detalleEntregados['rows'],
+                ];
+            })
+            ->sortByDesc(fn ($row) => sprintf('%08.1f-%08d-%08d', (float) $row->cumplimiento, (int) $row->entregados, (int) $row->total))
+            ->values()
+            ->map(function ($row, int $index) {
+                $row->puesto = $index + 1;
+                return $row;
+            });
+    }
+
+    private function buildTopEntregadorDepartamento(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases)
+    {
+        $queries = [];
+
+        foreach ($modulosSeleccionados as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
+            $eventTable = $config['event_table'];
+
+            $query = DB::table($eventTable)
+                ->join($config['table'] . ' as pkg_departamento', 'pkg_departamento.codigo', '=', $eventTable . '.codigo')
+                ->select([
+                    $eventTable . '.user_id as user_id',
+                    DB::raw("'" . $config['label'] . "' as modulo"),
+                    DB::raw('COUNT(DISTINCT ' . $eventTable . '.codigo) as total'),
+                ])
+                ->where($eventTable . '.evento_id', self::EVENTO_ENTREGADO_ID)
+                ->groupBy($eventTable . '.user_id');
+
+            $this->applyDateFilter($query, $eventTable . '.created_at', $from, $to);
+            $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 'pkg_departamento');
+            $queries[] = $query;
+        }
+
+        return $this->resolveRankingUsuarios($queries, 'total_entregados', 1)->first();
+    }
+
+    private function buildDepartamentoDeliveredDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases): array
+    {
+        $totales = [
+            'EMS' => 0,
+            'CONTRATOS' => 0,
+            'CERTIFICADOS' => 0,
+            'ORDINARIOS' => 0,
+        ];
+        $rows = collect();
+
+        foreach ($modulosSeleccionados as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
+            $eventTable = $config['event_table'];
+            $label = $config['label'];
+
+            $query = DB::table($eventTable)
+                ->join($config['table'] . ' as pkg_departamento', 'pkg_departamento.codigo', '=', $eventTable . '.codigo')
+                ->leftJoin('users', 'users.id', '=', $eventTable . '.user_id')
+                ->select([
+                    DB::raw("'" . $label . "' as modulo"),
+                    $eventTable . '.codigo as codigo',
+                    DB::raw("coalesce(MAX(users.name), 'SIN USUARIO') as usuario"),
+                    DB::raw('MIN(' . $eventTable . '.created_at) as entregado_at'),
+                ])
+                ->where($eventTable . '.evento_id', self::EVENTO_ENTREGADO_ID)
+                ->groupBy($eventTable . '.codigo');
+
+            $this->applyDateFilter($query, $eventTable . '.created_at', $from, $to);
+            $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 'pkg_departamento');
+
+            $moduleRows = $query->orderByDesc(DB::raw('MIN(' . $eventTable . '.created_at)'))->get();
+            $totales[$label] = (int) $moduleRows->count();
+            $rows = $rows->concat($moduleRows);
+        }
+
+        return [
+            'totales' => $totales,
+            'rows' => $rows
+                ->sortByDesc(fn ($row) => (string) ($row->entregado_at ?? ''))
+                ->values()
+                ->map(fn ($row) => [
+                    'modulo' => (string) ($row->modulo ?? ''),
+                    'codigo' => (string) ($row->codigo ?? ''),
+                    'usuario' => (string) ($row->usuario ?? ''),
+                    'entregado_at' => (string) ($row->entregado_at ?? ''),
+                ])
+                ->all(),
+        ];
+    }
+
     private function applyDepartamentoFilter(Builder $query, array $config, string $departamento, string $tableAlias = ''): void
     {
         if ($departamento === '') {
@@ -944,6 +1097,39 @@ class DashboardController extends Controller
 
         $qualifiedColumn = ($tableAlias !== '' ? $tableAlias . '.' : '') . $column;
         $query->whereRaw('trim(upper(' . $qualifiedColumn . ')) = ?', [$departamento]);
+    }
+
+    private function applyDepartamentoAliasesFilter(Builder $query, array $config, array $aliases, string $tableAlias = ''): void
+    {
+        $column = (string) ($config['departamento_column'] ?? '');
+        $aliases = collect($aliases)
+            ->map(fn ($value) => strtoupper(trim((string) $value)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($column === '' || empty($aliases)) {
+            return;
+        }
+
+        $qualifiedColumn = ($tableAlias !== '' ? $tableAlias . '.' : '') . $column;
+        $query->whereIn(DB::raw('trim(upper(' . $qualifiedColumn . '))'), $aliases);
+    }
+
+    private function departamentoAliasMap(): array
+    {
+        return [
+            'LA PAZ' => ['LA PAZ'],
+            'COCHABAMBA' => ['COCHABAMBA'],
+            'SANTA CRUZ' => ['SANTA CRUZ'],
+            'ORURO' => ['ORURO'],
+            'POTOSI' => ['POTOSI'],
+            'TARIJA' => ['TARIJA'],
+            'CHUQUISACA' => ['CHUQUISACA', 'SUCRE'],
+            'BENI' => ['BENI', 'TRINIDAD'],
+            'PANDO' => ['PANDO', 'COBIJA'],
+        ];
     }
 
     private function applyEventDepartamentoFilter(Builder $query, array $config, string $departamento, string $eventAlias = ''): void
@@ -1024,7 +1210,8 @@ class DashboardController extends Controller
         array $trendLabels,
         array $trendSeries,
         $rankingEntregadores,
-        $rankingRegistradores
+        $rankingRegistradores,
+        $rankingDepartamentos = null
     ): array {
         $modulos = array_values($resumenPorModulo);
         $mejorModulo = collect($modulos)->sortByDesc('tasa_entrega')->first();
@@ -1036,6 +1223,7 @@ class DashboardController extends Controller
 
         $topEntregador = $rankingEntregadores->first();
         $topRegistrador = $rankingRegistradores->first();
+        $topDepartamento = $rankingDepartamentos ? $rankingDepartamentos->first() : null;
 
         $registrosTrend = $trendSeries['registros'] ?? [];
         $entregasTrend = $trendSeries['entregados'] ?? [];
@@ -1080,6 +1268,9 @@ class DashboardController extends Controller
         if ($topRegistrador) {
             $hallazgos[] = 'Top registrador: ' . $topRegistrador->name . ' (' . number_format((int) $topRegistrador->total_registrados) . ' registros).';
         }
+        if ($topDepartamento) {
+            $hallazgos[] = 'Departamento #1: ' . $topDepartamento->departamento . ' con ' . number_format((float) $topDepartamento->cumplimiento, 1) . '% de cumplimiento y ' . number_format((int) $topDepartamento->entregados) . ' entregados.';
+        }
 
         $recomendaciones = [];
         if ($rezagoRatio >= 8) {
@@ -1112,6 +1303,7 @@ class DashboardController extends Controller
             'top' => [
                 'entregador' => $topEntregador?->name,
                 'registrador' => $topRegistrador?->name,
+                'departamento' => $topDepartamento?->departamento,
             ],
             'ultimo_periodo' => [
                 'label' => $trendLabels[count($trendLabels) - 1] ?? null,
