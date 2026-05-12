@@ -1,18 +1,15 @@
-@php
-    $landingPrefix = request()->is('/') ? '' : url('/');
-@endphp
-
 <header class="topbar" id="topbar">
     <div class="container nav">
-        <a class="brand" href="{{ $landingPrefix }}#inicio">
+        <a class="brand" href="https://www.correos.gob.bo/" aria-label="Ir al sitio oficial de Correos de Bolivia">
             <img src="{{ asset('images/AGBClogo1.png') }}" alt="Correos de Bolivia">
             <span>TrackingBO</span>
         </a>
 
         <ul class="menu" id="menu">
-            <li><a href="https://correos.gob.bo/about/" target="_blank" rel="noopener noreferrer">Qui&eacute;nes Somos</a></li>
-            <li><a href="https://correos.gob.bo/services/" target="_blank" rel="noopener noreferrer">Nuestros Servicios</a></li>
-            <li><a href="https://correos.gob.bo/contact-us/" target="_blank" rel="noopener noreferrer">Cont&aacute;ctanos</a></li>
+            <li><a href="#inicio">Inicio</a></li>
+            <li><a href="https://www.correos.gob.bo/quienes-somos" target="_blank" rel="noopener noreferrer">&iquest;Qui&eacute;nes somos?</a></li>
+            <li><a href="https://www.correos.gob.bo/noticias" target="_blank" rel="noopener noreferrer">Noticias</a></li>
+            <li><a href="https://institucional.correos.gob.bo:8007/" target="_blank" rel="noopener noreferrer">Institucional</a></li>
             <li style="display:none;">
                 <a href="{{ route('clientes.login') }}" class="menu-client-access">
                     <span class="menu-client-access-label">Ingresar</span>
