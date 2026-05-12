@@ -8,6 +8,7 @@ use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\SolicitudCliente;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -202,6 +203,24 @@ class TodosPaquetesController extends Controller
         return redirect()
             ->route('todos-paquetes.index', $request->only(['q', 'type', 'estado_id', 'page']))
             ->with('success', 'Datos actualizados.');
+    }
+
+    public function reimprimirGuia(string $type, int $id)
+    {
+        abort_unless($type === 'contrato', 404);
+
+        $contrato = Recojo::query()->findOrFail($id);
+        $contrato->loadMissing(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla']);
+        $generatedAt = now();
+
+        $pdf = Pdf::loadView('paquetes_contrato.reporte', [
+            'contrato' => $contrato,
+            'generatedAt' => $generatedAt,
+        ])->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'contrato-' . $contrato->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
     }
 
     private function buildUnionQuery()

@@ -275,6 +275,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/importar/paquets', [ImportController::class, 'importPaquets'])->name('importar.paquets.store');
     Route::get('/importar/paquets/plantilla-excel', [ImportController::class, 'downloadPaquetsTemplateExcel'])->name('importar.paquets.template-excel');
     Route::get('/todos-paquetes', [TodosPaquetesController::class, 'index'])->name('todos-paquetes.index');
+    Route::get('/todos-paquetes/{type}/{id}/guia', [TodosPaquetesController::class, 'reimprimirGuia'])->name('todos-paquetes.guia');
     Route::patch('/todos-paquetes/{type}/{id}/estado', [TodosPaquetesController::class, 'updateEstado'])->name('todos-paquetes.estado');
     Route::put('/todos-paquetes/{type}/{id}/datos', [TodosPaquetesController::class, 'updateDatos'])->name('todos-paquetes.datos');
     Route::post('/tarifa-contrato', [TarifaContratoController::class, 'store'])->name('tarifa-contrato.store');

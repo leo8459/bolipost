@@ -228,10 +228,11 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-8">
                                 <div class="form-group">
-                                    <label>Direccion<span class="required-star">*</span></label>
-                                    <input type="text" name="direccion" class="form-control" value="{{ old('direccion') }}" required>
+                                    <label>Direccion destinatario<span class="required-star">*</span></label>
+                                    <textarea name="direccion" class="form-control" rows="3" required
+                                        placeholder="Escribe la direccion completa del destinatario...">{{ old('direccion') }}</textarea>
                                 </div>
                             </div>
                         </div>

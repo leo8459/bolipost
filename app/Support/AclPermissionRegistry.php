@@ -327,7 +327,7 @@ class AclPermissionRegistry
         'paquetes-certificados.inventario' => ['edit', 'delete', 'assign', 'export'],
         'paquetes-certificados.rezago' => ['edit', 'delete', 'assign'],
         'paquetes-certificados.todos' => ['edit', 'delete'],
-        'todos-paquetes.index' => ['edit', 'assign'],
+        'todos-paquetes.index' => ['edit', 'assign', 'print'],
         'tarifa-contrato.index' => ['create', 'duplicate', 'edit', 'delete', 'save', 'import', 'export', 'report'],
         'empresas.index' => ['create', 'edit', 'delete', 'import', 'export'],
         'servicios.index' => ['create', 'edit', 'delete'],
@@ -516,6 +516,11 @@ class AclPermissionRegistry
         'sacas.index' => [
             'sacas.index',
             'feature.despachos.abiertos.opensacas',
+        ],
+        'todos-paquetes.guia' => [
+            'todos-paquetes.guia',
+            'feature.todos-paquetes.index.print',
+            'feature.todos-paquetes.index.edit',
         ],
         'paquetes-ems.boleta' => [
             'paquetes-ems.boleta',

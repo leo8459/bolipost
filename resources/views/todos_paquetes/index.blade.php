@@ -127,13 +127,25 @@
                                     </td>
                                     <td>{{ $paquete->updated_at ? \Illuminate\Support\Carbon::parse($paquete->updated_at)->format('d/m/Y H:i') : '-' }}</td>
                                     <td class="text-right">
-                                        <a
-                                            href="{{ route('todos-paquetes.index', array_merge(request()->query(), ['edit_type' => $paquete->type_key, 'edit_id' => $paquete->record_id])) }}"
-                                            class="btn btn-sm btn-outline-primary"
-                                            title="Editar datos"
-                                        >
-                                            <i class="fas fa-pencil-alt"></i>
-                                        </a>
+                                        <div class="tp-row-actions">
+                                            @if($paquete->type_key === 'contrato')
+                                                <a
+                                                    href="{{ route('todos-paquetes.guia', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"
+                                                    class="btn btn-sm btn-outline-success"
+                                                    title="Reimprimir guia de empresa"
+                                                    target="_blank"
+                                                >
+                                                    <i class="fas fa-print"></i>
+                                                </a>
+                                            @endif
+                                            <a
+                                                href="{{ route('todos-paquetes.index', array_merge(request()->query(), ['edit_type' => $paquete->type_key, 'edit_id' => $paquete->record_id])) }}"
+                                                class="btn btn-sm btn-outline-primary"
+                                                title="Editar datos"
+                                            >
+                                                <i class="fas fa-pencil-alt"></i>
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -261,6 +273,12 @@
         .tp-state-select {
             min-width:170px;
             font-weight:700;
+        }
+        .tp-row-actions {
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+            white-space:nowrap;
         }
     </style>
 @endsection
