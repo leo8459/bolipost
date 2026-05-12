@@ -234,12 +234,6 @@
                                     <input type="text" name="direccion" class="form-control" value="{{ old('direccion') }}" required>
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Mapa (opcional)</label>
-                                    <input type="text" name="mapa" class="form-control" value="{{ old('mapa') }}">
-                                </div>
-                            </div>
                         </div>
                         <div class="row">
                             <div class="col-md-4">
@@ -291,7 +285,6 @@
             'telefono_d',
             'destino',
             'direccion',
-            'mapa',
             'provincia'
         ];
 
@@ -307,6 +300,12 @@
 
         const getField = (name) => form.querySelector(`[name="${name}"]`);
         const normalizeText = (value) => String(value || '').trim().toUpperCase();
+        const escapeHtml = (value) => String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
 
         const getFrecuentes = () => {
             try {
@@ -358,8 +357,9 @@
 
             dropdown.innerHTML = filtered.map((item, index) => `
                 <button type="button" class="frecuente-item" data-index="${index}">
-                    <div><strong>${item.nombre_r || '-'}</strong></div>
-                    <small>Destinatario: ${item.nombre_d || '-'}</small>
+                    <div><strong>${escapeHtml(item.nombre_r || '-')}</strong></div>
+                    <small>Destinatario: ${escapeHtml(item.nombre_d || '-')}</small>
+                    <small>Direccion destinatario: ${escapeHtml(item.direccion || '-')}</small>
                 </button>
             `).join('');
 
