@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Boleta EMS</title>
     <style>
-        @page { size: 80mm 190mm; margin: 3mm 4mm; }
+        @page { size: 80mm 210mm; margin: 3mm 4mm; }
         * { box-sizing: border-box; }
         html, body {
             margin: 0;
@@ -140,9 +140,18 @@
         }
         .signature-line {
             display: block;
-            margin-top: 3mm;
+            margin-top: 8mm;
             border-top: 1px solid #000;
             height: 0;
+        }
+        .responsibility-note {
+            margin-top: 2.5mm;
+            padding: 1.5mm;
+            border: 1px solid #000;
+            font-size: 8px;
+            line-height: 1.25;
+            font-weight: 700;
+            text-align: justify;
         }
     </style>
 </head>
@@ -292,8 +301,12 @@
         </div>
 
         <div class="section">
-            <span class="label">Firma</span>
+            <span class="label">Firma del cliente</span>
             <span class="signature-line"></span>
+        </div>
+
+        <div class="responsibility-note">
+            El cliente declara que los datos proporcionados son ciertos; y que el contenido cumple con las normas de seguridad postal, bajo su unica y exclusiva responsabilidad.
         </div>
 
     </div>

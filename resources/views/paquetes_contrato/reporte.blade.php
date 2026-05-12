@@ -24,6 +24,15 @@
         .dots { border-top: 2px dotted #666; margin-top: 16px; }
         .compact { font-size: 12px; }
         .full-text { min-height: 26px; }
+        .responsibility-note {
+            margin-top: 10px;
+            padding: 7px;
+            border: 1px solid #333;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.25;
+            text-align: justify;
+        }
     </style>
 </head>
 @php
@@ -141,6 +150,10 @@
             </td>
         </tr>
     </table>
+
+    <div class="responsibility-note">
+        El cliente declara que los datos proporcionados son ciertos; y que el contenido cumple con las normas de seguridad postal, bajo su unica y exclusiva responsabilidad.
+    </div>
 
     <div class="dots"></div>
 </body>

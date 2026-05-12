@@ -24,7 +24,7 @@ class PaquetesEmsBoletaController extends Controller
 
         $pdf = Pdf::loadView('paquetes_ems.boleta', [
             'paquete' => $paquete,
-        ])->setPaper([0, 0, 226.77, 538.58], 'portrait');
+        ])->setPaper([0, 0, 226.77, 595.28], 'portrait');
 
         return $pdf->download('boleta-' . $paquete->id . '.pdf');
     }
