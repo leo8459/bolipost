@@ -527,10 +527,6 @@
         </div>
     </div>
 
-    <button class="back-to-top" id="backToTop" type="button" aria-label="Subir al inicio">
-        &uarr;
-    </button>
-
     @include('partials.landing-footer')
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-27HR41ZF2X"></script>
     <script>
@@ -768,25 +764,6 @@
             setActive('inicio');
         }
         detectActiveByScroll();
-
-        const backToTop = document.getElementById('backToTop');
-        const handleBackButton = () => {
-            if (!backToTop) return;
-            backToTop.classList.toggle('is-visible', window.scrollY > 420);
-        };
-        window.addEventListener('scroll', handleBackButton, {
-            passive: true
-        });
-        handleBackButton();
-
-        backToTop?.addEventListener('click', () => {
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
-            history.replaceState(null, '', '#inicio');
-            setActive('inicio');
-        });
 
         const trackForm = document.getElementById('trackForm');
         const trackCodeInput = document.getElementById('trackCodeInput');
