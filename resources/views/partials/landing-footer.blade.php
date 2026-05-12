@@ -1,16 +1,10 @@
 ﻿<footer class="site-footer" id="contacto">
-    <div class="container footer-top">
-        <div class="footer-callout">
-            <h3>Te invitamos a visitar nuestra pagina web de Correos de Bolivia</h3>
-            <p>En nuestro sitio encontraras informacion sobre servicios postales, institucion, horarios de atencion y ubicaciones de oficinas a nivel nacional.</p>
-            <a class="btn btn-light" href="https://correos.gob.bo" target="_blank" rel="noopener noreferrer">Visitar</a>
-        </div>
-    </div>
-
     <div class="container footer-grid">
         <div class="footer-col">
             <div class="footer-brand">
-                <img src="{{ asset('images/AGBClogo1.png') }}" alt="Correos de Bolivia">
+                <a href="https://www.correos.gob.bo/" aria-label="Ir al sitio oficial de Correos de Bolivia">
+                    <img src="{{ asset('images/AGBClogo1.png') }}" alt="Correos de Bolivia">
+                </a>
             </div>
         </div>
 
