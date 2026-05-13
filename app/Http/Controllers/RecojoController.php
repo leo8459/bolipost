@@ -483,13 +483,14 @@ class RecojoController extends Controller
 
     protected function nextCorrelativo(int $empresaId, string $codigoCliente): int
     {
-        $cliente = strtoupper(trim($codigoCliente));
-        $cliente = preg_replace('/\s+/', '', $cliente) ?: '';
+        $cliente = $this->normalizarCodigoCliente($codigoCliente);
         $prefix = 'C' . $cliente . 'A';
         $pattern = '/^C' . preg_quote($cliente, '/') . 'A(\d{5})BO$/';
+        $empresaIds = $this->empresaIdsConMismoCodigoCliente($empresaId, $cliente);
         $max = 0;
 
         $codigosEmpresa = CodigoEmpresa::query()
+            ->whereIn('empresa_id', $empresaIds)
             ->where(function ($query) use ($prefix) {
                 $query->where('codigo', 'like', $prefix . '%BO')
                     ->orWhere('barcode', 'like', $prefix . '%BO');
@@ -524,7 +525,31 @@ class RecojoController extends Controller
 
     protected function buildCodigo(string $codigoCliente, int $correlativo): string
     {
-        return 'C' . $codigoCliente . 'A' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT) . 'BO';
+        return 'C' . $this->normalizarCodigoCliente($codigoCliente) . 'A' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT) . 'BO';
+    }
+
+    protected function normalizarCodigoCliente(string $codigoCliente): string
+    {
+        $cliente = strtoupper(trim($codigoCliente));
+
+        return preg_replace('/\s+/', '', $cliente) ?: '';
+    }
+
+    protected function empresaIdsConMismoCodigoCliente(int $empresaId, string $codigoCliente): array
+    {
+        $cliente = $this->normalizarCodigoCliente($codigoCliente);
+
+        if ($cliente === '') {
+            return [$empresaId];
+        }
+
+        $ids = Empresa::query()
+            ->whereRaw("REPLACE(TRIM(UPPER(COALESCE(codigo_cliente, ''))), ' ', '') = ?", [$cliente])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return !empty($ids) ? $ids : [$empresaId];
     }
 
     protected function normalizeServicioTarifa(string $servicio): string

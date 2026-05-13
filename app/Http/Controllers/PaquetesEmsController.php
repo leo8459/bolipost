@@ -1400,13 +1400,14 @@ class PaquetesEmsController extends Controller
 
     private function nextCorrelativoEmpresa(int $empresaId, string $codigoCliente): int
     {
-        $cliente = strtoupper(trim($codigoCliente));
-        $cliente = preg_replace('/\s+/', '', $cliente) ?: '';
+        $cliente = $this->normalizarCodigoClienteEmpresa($codigoCliente);
         $pattern = '/^C'.preg_quote($cliente, '/').'A(\d{5})BO$/';
         $prefix = 'C'.$cliente.'A';
+        $empresaIds = $this->empresaIdsConMismoCodigoCliente($empresaId, $cliente);
         $max = 0;
 
         $codigosEmpresa = CodigoEmpresa::query()
+            ->whereIn('empresa_id', $empresaIds)
             ->where(function ($query) use ($prefix) {
                 $query->where('codigo', 'like', $prefix.'%BO')
                     ->orWhere('barcode', 'like', $prefix.'%BO');
@@ -1431,6 +1432,30 @@ class PaquetesEmsController extends Controller
         }
 
         return $max + 1;
+    }
+
+    private function normalizarCodigoClienteEmpresa(string $codigoCliente): string
+    {
+        $cliente = strtoupper(trim($codigoCliente));
+
+        return preg_replace('/\s+/', '', $cliente) ?: '';
+    }
+
+    private function empresaIdsConMismoCodigoCliente(int $empresaId, string $codigoCliente): array
+    {
+        $cliente = $this->normalizarCodigoClienteEmpresa($codigoCliente);
+
+        if ($cliente === '') {
+            return [$empresaId];
+        }
+
+        $ids = Empresa::query()
+            ->whereRaw("REPLACE(TRIM(UPPER(COALESCE(codigo_cliente, ''))), ' ', '') = ?", [$cliente])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return !empty($ids) ? $ids : [$empresaId];
     }
 
     private function insertCodigoContinuacionEvents(string $codigoMadre, string $codigoHijo, int $userId): void
@@ -1513,7 +1538,7 @@ class PaquetesEmsController extends Controller
 
     private function buildCodigoEmpresa(string $codigoCliente, int $correlativo): string
     {
-        return 'C'.$codigoCliente.'A'.str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT).'BO';
+        return 'C'.$this->normalizarCodigoClienteEmpresa($codigoCliente).'A'.str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT).'BO';
     }
 }
 

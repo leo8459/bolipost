@@ -211,7 +211,7 @@ class CodigoEmpresa extends Component
             ->values();
 
         $existentes = CodigoEmpresaModel::query()
-            ->where('empresa_id', (int) $empresa->id)
+            ->whereIn('empresa_id', $this->empresaIdsConMismoCodigoCliente($empresa))
             ->whereIn('codigo', $solicitados->all())
             ->pluck('codigo')
             ->flip();
@@ -311,15 +311,40 @@ class CodigoEmpresa extends Component
         return 'C' . $cliente . 'A' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT) . 'BO';
     }
 
+    protected function normalizarCodigoCliente(string $codigoCliente): string
+    {
+        $cliente = strtoupper(trim($codigoCliente));
+
+        return preg_replace('/\s+/', '', $cliente) ?: '';
+    }
+
+    protected function empresaIdsConMismoCodigoCliente(EmpresaModel $empresa): array
+    {
+        $cliente = $this->normalizarCodigoCliente((string) $empresa->codigo_cliente);
+
+        if ($cliente === '') {
+            return [(int) $empresa->id];
+        }
+
+        $ids = EmpresaModel::query()
+            ->whereRaw("REPLACE(TRIM(UPPER(COALESCE(codigo_cliente, ''))), ' ', '') = ?", [$cliente])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return !empty($ids) ? $ids : [(int) $empresa->id];
+    }
+
     protected function nextCorrelativo(EmpresaModel $empresa): int
     {
-        $cliente = strtoupper(trim((string) $empresa->codigo_cliente));
-        $cliente = preg_replace('/\s+/', '', $cliente) ?: '';
+        $cliente = $this->normalizarCodigoCliente((string) $empresa->codigo_cliente);
         $prefix = 'C' . $cliente . 'A';
         $pattern = '/^C' . preg_quote($cliente, '/') . 'A(\d{5})BO$/';
+        $empresaIds = $this->empresaIdsConMismoCodigoCliente($empresa);
 
         $max = 0;
         $codigos = CodigoEmpresaModel::query()
+            ->whereIn('empresa_id', $empresaIds)
             ->where(function ($query) use ($prefix) {
                 $query->where('codigo', 'like', $prefix . '%BO')
                     ->orWhere('barcode', 'like', $prefix . '%BO');
