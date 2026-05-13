@@ -41,7 +41,7 @@
         rxRaw: Boolean(cfg.rxRaw ?? false),
         startCommand: decodeEscaped(cfg.startCommand ?? 'W'),
         stopCommand: decodeEscaped(cfg.stopCommand ?? ''),
-        portRegex: cfg.portRegex ?? '^COM\\d+$',
+        portRegex: cfg.portRegex ?? '^COM(?!1$)\\d+$',
         pollCommands: normalizePollCommands(cfg.pollCommands ?? []),
         pollGapMs: Number(cfg.pollGapMs ?? 120),
         pollEveryMs: Number(cfg.pollEveryMs ?? 900),
@@ -148,11 +148,11 @@
         state.lifecycleBound = true;
 
         window.addEventListener('pagehide', () => {
-            releasePortForBackground(true).catch(() => {});
+            releasePortForBackground(true).catch(() => { });
         });
 
         window.addEventListener('beforeunload', () => {
-            releasePortForBackground(true).catch(() => {});
+            releasePortForBackground(true).catch(() => { });
         });
     }
 
@@ -394,14 +394,18 @@
 
     function orderPorts(ports) {
         const remembered = localStorage.getItem('cas:last_port');
-        const regex = safeRegex(serial.portRegex, /^COM\d+$/i);
-        const all = [...new Set(ports)];
-        const preferred = all.filter((port) => regex.test(port));
-        const rest = all.filter((port) => !regex.test(port));
+        const filteredPorts = ports.filter(
+            (port) => String(port).toUpperCase() !== 'COM1'
+        );
+        const regex = /^COM\d+$/i;
+        const preferred = filteredPorts.filter((port) => regex.test(port));
+        const rest = filteredPorts.filter((port) => !regex.test(port));
         const ordered = [...preferred, ...rest];
-
         if (remembered && ordered.includes(remembered)) {
-            return [remembered, ...ordered.filter((port) => port !== remembered)];
+            return [
+                remembered,
+                ...ordered.filter((port) => port !== remembered),
+            ];
         }
 
         return ordered;
