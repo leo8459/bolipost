@@ -395,7 +395,7 @@ class CodigoEmpresa extends Component
                 });
             })
             ->orderByDesc('id')
-            ->paginate(10);
+            ->paginate(100);
 
         return view('livewire.codigo-empresa', [
             'codigos' => $codigos,
