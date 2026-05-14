@@ -2143,6 +2143,12 @@ class PaquetesEms extends Component
             return;
         }
 
+        $eventoSacaInternaSalidaId = $this->findEventoIdByName('Saca interna creada (salida).');
+        if (!$eventoSacaInternaSalidaId) {
+            session()->flash('error', 'No existe el evento "Saca interna creada (salida)." en la tabla eventos.');
+            return;
+        }
+
         $estadoTransitoId = $this->findEstadoId('TRANSITO');
         if (!$estadoTransitoId) {
             session()->flash('error', 'No existe el estado TRANSITO en la tabla estados.');
@@ -2156,39 +2162,70 @@ class PaquetesEms extends Component
         }
 
         $updated = 0;
+        $actorUserId = (int) (auth()->id() ?? 0);
 
-        DB::transaction(function () use ($idsEms, $idsContratos, $idsSolicitudes, $eligibleEstadoIds, $estadoTransitoId, $codEspecial, &$updated) {
+        DB::transaction(function () use ($idsEms, $idsContratos, $idsSolicitudes, $eligibleEstadoIds, $estadoTransitoId, $codEspecial, $eventoSacaInternaSalidaId, $actorUserId, &$updated) {
             if (!empty($idsEms)) {
-                $updated += PaqueteEms::query()
+                $paquetes = PaqueteEms::query()
                     ->whereIn('id', $idsEms)
                     ->whereIn('estado_id', $eligibleEstadoIds)
-                    ->update([
-                        'cod_especial' => $codEspecial,
-                        'estado_id' => (int) $estadoTransitoId,
-                        'updated_at' => now(),
-                    ]);
+                    ->get(['id', 'codigo']);
+
+                $updated += $paquetes->count();
+
+                if ($paquetes->isNotEmpty()) {
+                    PaqueteEms::query()
+                        ->whereIn('id', $paquetes->pluck('id')->all())
+                        ->update([
+                            'cod_especial' => $codEspecial,
+                            'estado_id' => (int) $estadoTransitoId,
+                            'updated_at' => now(),
+                        ]);
+
+                    $this->registerEventosEms($paquetes, $actorUserId, (int) $eventoSacaInternaSalidaId);
+                }
             }
 
             if (!empty($idsContratos)) {
-                $updated += RecojoContrato::query()
+                $contratos = RecojoContrato::query()
                     ->whereIn('id', $idsContratos)
                     ->whereIn('estados_id', $eligibleEstadoIds)
-                    ->update([
-                        'cod_especial' => $codEspecial,
-                        'estados_id' => (int) $estadoTransitoId,
-                        'updated_at' => now(),
-                    ]);
+                    ->get(['id', 'codigo']);
+
+                $updated += $contratos->count();
+
+                if ($contratos->isNotEmpty()) {
+                    RecojoContrato::query()
+                        ->whereIn('id', $contratos->pluck('id')->all())
+                        ->update([
+                            'cod_especial' => $codEspecial,
+                            'estados_id' => (int) $estadoTransitoId,
+                            'updated_at' => now(),
+                        ]);
+
+                    $this->registerEventosContrato($contratos, $actorUserId, (int) $eventoSacaInternaSalidaId);
+                }
             }
 
             if (!empty($idsSolicitudes)) {
-                $updated += SolicitudCliente::query()
+                $solicitudes = SolicitudCliente::query()
                     ->whereIn('id', $idsSolicitudes)
                     ->whereIn('estado_id', $eligibleEstadoIds)
-                    ->update([
-                        'cod_especial' => $codEspecial,
-                        'estado_id' => (int) $estadoTransitoId,
-                        'updated_at' => now(),
-                    ]);
+                    ->get(['id', 'codigo_solicitud', 'barcode']);
+
+                $updated += $solicitudes->count();
+
+                if ($solicitudes->isNotEmpty()) {
+                    SolicitudCliente::query()
+                        ->whereIn('id', $solicitudes->pluck('id')->all())
+                        ->update([
+                            'cod_especial' => $codEspecial,
+                            'estado_id' => (int) $estadoTransitoId,
+                            'updated_at' => now(),
+                        ]);
+
+                    $this->registerEventosTiktoker($solicitudes, $actorUserId, (int) $eventoSacaInternaSalidaId);
+                }
             }
         });
 

@@ -264,10 +264,12 @@
         @if(($rankingDepartamentos ?? collect())->isNotEmpty())
             @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
             <p style="margin-top:0;">
-                <strong>#1 {{ $topDepartamento->departamento }}</strong> con
-                <strong>{{ number_format((float) $topDepartamento->cumplimiento, 1) }}%</strong> de cumplimiento.
+                <strong>#1 {{ $topDepartamento->departamento }}</strong> aporta
+                <strong>{{ number_format((float) ($topDepartamento->puntaje_ranking ?? 0), 1) }}%</strong>
+                entregado al total nacional.
                 Mejor entregador: <strong>{{ $topDepartamento->top_entregador }}</strong>
                 ({{ number_format((int) $topDepartamento->top_entregador_total) }} entregas).
+                Total nacional registrado: <strong>{{ number_format((int) ($topDepartamento->total_nacional ?? 0)) }}</strong>.
             </p>
         @endif
         <table class="table">
@@ -278,7 +280,9 @@
                     <th>Registrados</th>
                     <th>Entregados</th>
                     <th>Pendientes</th>
-                    <th>Cumplimiento</th>
+                    <th>Parte nacional</th>
+                    <th>Cumplio de su parte</th>
+                    <th>Valor ranking</th>
                     <th>Quien entrega mas</th>
                 </tr>
             </thead>
@@ -290,11 +294,13 @@
                         <td class="num">{{ number_format((int) $item->total) }}</td>
                         <td class="num">{{ number_format((int) $item->entregados) }}</td>
                         <td class="num">{{ number_format((int) $item->pendientes) }}</td>
-                        <td class="num">{{ number_format((float) $item->cumplimiento, 1) }}%</td>
+                        <td class="num">{{ number_format((float) ($item->participacion_nacional ?? 0), 1) }}%</td>
+                        <td class="num">{{ number_format((float) $item->cumplimiento, 1) }}% / aporta {{ number_format((float) ($item->aporte_entregado_nacional ?? 0), 1) }}%</td>
+                        <td class="num">{{ number_format((float) ($item->puntaje_ranking ?? 0), 1) }}%</td>
                         <td>{{ $item->top_entregador }} ({{ number_format((int) $item->top_entregador_total) }})</td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="muted">Sin datos por departamento.</td></tr>
+                    <tr><td colspan="9" class="muted">Sin datos por departamento.</td></tr>
                 @endforelse
             </tbody>
         </table>

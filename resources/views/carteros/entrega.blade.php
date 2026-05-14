@@ -11,6 +11,8 @@
         $canEntregaAttempt = (auth()->user()?->can('feature.carteros.entrega.attempt') ?? false)
             || (auth()->user()?->can('feature.carteros.cartero.deliver') ?? false);
         $forceCameraCapture = in_array($tipo_paquete, ['CONTRATO', 'EMS', 'SOLICITUD'], true);
+        $usuarioCiudad = strtoupper(trim((string) (auth()->user()?->ciudad ?? '')));
+        $fotoEntregaOpcional = $tipo_paquete === 'CONTRATO' && $usuarioCiudad === 'LA PAZ';
     @endphp
     <div class="carteros-wrap entrega-wrap">
         <div class="card card-carteros">
@@ -89,9 +91,14 @@
                                     </div>
 
                                     <div class="form-group mb-3">
-                                        <label for="foto_entrega">Foto (obligatoria)</label>
+                                        <label for="foto_entrega">Foto {{ $fotoEntregaOpcional ? '(opcional para contrato)' : '(obligatoria)' }}</label>
                                         <input type="file" name="foto" id="foto_entrega" class="form-control-file foto-input"
-                                            accept="image/*" @if ($forceCameraCapture) capture="environment" @endif data-preview-img="preview_entrega" required>
+                                            accept="image/*" @if ($forceCameraCapture) capture="environment" @endif data-preview-img="preview_entrega" @unless($fotoEntregaOpcional) required @endunless>
+                                        @if ($fotoEntregaOpcional)
+                                            <small class="text-success d-block mt-1">
+                                                Para contratos entregados por usuarios de LA PAZ solo es obligatorio registrar quien recibio.
+                                            </small>
+                                        @endif
                                         <small class="text-muted d-block mt-1">
                                             @if ($forceCameraCapture)
                                                 En celular se abre directamente la camara trasera. En PC se abre selector de archivos.

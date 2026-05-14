@@ -78,13 +78,14 @@
 
 <table>
     <tr><td colspan="7"></td></tr>
-    <tr><td colspan="7"><strong>RANKING DEPARTAMENTOS: ENTREGADOS VS PENDIENTES</strong></td></tr>
+    <tr><td colspan="10"><strong>RANKING DEPARTAMENTOS: VALOR NACIONAL ENTREGADO</strong></td></tr>
     @if(($rankingDepartamentos ?? collect())->isNotEmpty())
         @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
         <tr>
-            <td colspan="7">
-                #1 {{ $topDepartamento->departamento }} - {{ $topDepartamento->cumplimiento }}% cumplimiento.
+            <td colspan="10">
+                #1 {{ $topDepartamento->departamento }} - {{ $topDepartamento->puntaje_ranking ?? 0 }}% valor ranking.
                 Mejor entregador: {{ $topDepartamento->top_entregador }} ({{ $topDepartamento->top_entregador_total }} entregas)
+                | Total nacional registrado: {{ $topDepartamento->total_nacional ?? 0 }}
             </td>
         </tr>
     @endif
@@ -94,7 +95,10 @@
         <th>Registrados</th>
         <th>Entregados</th>
         <th>Pendientes</th>
-        <th>Cumplimiento</th>
+        <th>Parte nacional</th>
+        <th>Cumplio de su parte</th>
+        <th>Aporte entregado nacional</th>
+        <th>Valor ranking</th>
         <th>Quien entrega mas</th>
     </tr>
     @forelse(($rankingDepartamentos ?? collect()) as $item)
@@ -104,11 +108,14 @@
             <td>{{ $item->total }}</td>
             <td>{{ $item->entregados }}</td>
             <td>{{ $item->pendientes }}</td>
+            <td>{{ $item->participacion_nacional ?? 0 }}%</td>
             <td>{{ $item->cumplimiento }}%</td>
+            <td>{{ $item->aporte_entregado_nacional ?? 0 }}%</td>
+            <td>{{ $item->puntaje_ranking ?? 0 }}%</td>
             <td>{{ $item->top_entregador }} ({{ $item->top_entregador_total }})</td>
         </tr>
     @empty
-        <tr><td colspan="7">Sin datos por departamento</td></tr>
+        <tr><td colspan="10">Sin datos por departamento</td></tr>
     @endforelse
 </table>
 

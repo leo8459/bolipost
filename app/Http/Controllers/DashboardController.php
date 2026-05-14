@@ -965,7 +965,7 @@ class DashboardController extends Controller
     {
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
 
-        return collect($this->departamentoAliasMap())
+        $rows = collect($this->departamentoAliasMap())
             ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId) {
                 $total = 0;
                 $entregados = 0;
@@ -999,8 +999,35 @@ class DashboardController extends Controller
                     'entregados_por_modulo' => $detalleEntregados['totales'],
                     'entregados_detalle' => $detalleEntregados['rows'],
                 ];
+            });
+
+        $totalNacional = (int) $rows->sum('total');
+        $entregadosNacional = (int) $rows->sum('entregados');
+
+        return $rows
+            ->map(function ($row) use ($totalNacional, $entregadosNacional) {
+                $row->total_nacional = $totalNacional;
+                $row->entregados_nacional = $entregadosNacional;
+                $row->participacion_nacional = $totalNacional > 0
+                    ? round(((int) $row->total * 100) / $totalNacional, 1)
+                    : 0.0;
+                $row->aporte_entregado_nacional = $totalNacional > 0
+                    ? round(((int) $row->entregados * 100) / $totalNacional, 1)
+                    : 0.0;
+                $row->participacion_entregas_nacionales = $entregadosNacional > 0
+                    ? round(((int) $row->entregados * 100) / $entregadosNacional, 1)
+                    : 0.0;
+                $row->puntaje_ranking = $row->aporte_entregado_nacional;
+
+                return $row;
             })
-            ->sortByDesc(fn ($row) => sprintf('%08.1f-%08d-%08d', (float) $row->cumplimiento, (int) $row->entregados, (int) $row->total))
+            ->sortByDesc(fn ($row) => sprintf(
+                '%08.1f-%08.1f-%08.1f-%08d',
+                (float) ($row->puntaje_ranking ?? 0),
+                (float) $row->cumplimiento,
+                (float) ($row->participacion_nacional ?? 0),
+                (int) $row->entregados
+            ))
             ->values()
             ->map(function ($row, int $index) {
                 $row->puesto = $index + 1;
