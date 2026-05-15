@@ -16,7 +16,7 @@
                                 En plazo: {{ number_format((int) ($slaResumen['correcto'] ?? 0)) }}
                             </span>
                             <span class="sla-summary-pill sla-summary-yellow">
-                                Retraso: {{ number_format((int) ($slaResumen['retraso'] ?? 0)) }}
+                                Atraso: {{ number_format((int) ($slaResumen['retraso'] ?? 0)) }}
                             </span>
                             <span class="sla-summary-pill sla-summary-red">
                                 Rezago: {{ number_format((int) ($slaResumen['rezago'] ?? 0)) }}
@@ -36,17 +36,50 @@
                 @endif
 
                 <form method="GET" action="{{ route($searchRouteName) }}" class="row area-toolbar">
-                    <div class="col-lg-10 col-md-12 mb-2 mb-lg-0">
+                    <div class="col-lg-3 col-md-6 mb-2">
                         <input
                             type="text"
                             name="q"
                             value="{{ $search }}"
                             class="form-control"
-                            placeholder="Buscar por codigo, estado, destino, destinatario, empresa o usuario..."
+                            placeholder="Buscar codigo, estado, destinatario..."
                         >
                     </div>
-                    <div class="col-lg-2 col-md-6">
+                    <div class="col-lg-2 col-md-6 mb-2">
+                        <select name="origen" class="form-control" @if(empty($origenOptions)) disabled @endif>
+                            <option value="">Todos los origenes</option>
+                            @foreach ($origenOptions as $option)
+                                <option value="{{ $option }}" @selected(($filterOrigen ?? '') === $option)>
+                                    {{ $option }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2">
+                        <select name="destino" class="form-control">
+                            <option value="">Todos los destinos</option>
+                            @foreach ($destinoOptions as $option)
+                                <option value="{{ $option }}" @selected(($filterDestino ?? '') === $option)>
+                                    {{ $option }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2">
+                        <select name="sla" class="form-control">
+                            <option value="">Todos los estados</option>
+                            <option value="en_plazo" @selected(($filterSla ?? '') === 'en_plazo')>En plazo</option>
+                            <option value="atraso" @selected(($filterSla ?? '') === 'atraso')>Atraso</option>
+                            <option value="rezago" @selected(($filterSla ?? '') === 'rezago')>Rezago</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2">
                         <button type="submit" class="btn area-btn-primary btn-block">Buscar</button>
+                    </div>
+                    <div class="col-lg-1 col-md-6 mb-2">
+                        <a href="{{ route($searchRouteName) }}" class="btn area-btn-secondary btn-block" title="Limpiar filtros">
+                            Limpiar
+                        </a>
                     </div>
                 </form>
 
@@ -96,7 +129,7 @@
                                             @php
                                                 $estadoSlaTexto = match ($row->sla_color ?? '') {
                                                     'VERDE' => 'En plazo',
-                                                    'AMARILLO' => 'Retraso',
+                                                    'AMARILLO' => 'Atraso',
                                                     'ROJO' => 'Rezago',
                                                     default => 'Sin datos',
                                                 };
@@ -185,6 +218,20 @@
         .area-btn-primary:hover {
             background: #f4c21d;
             color: #fff;
+        }
+
+        .area-btn-secondary {
+            min-height: 44px;
+            border-radius: 12px;
+            font-weight: 800;
+            background: #eef2f7;
+            border: 1px solid #d7dee9;
+            color: #20539A;
+        }
+
+        .area-btn-secondary:hover {
+            background: #e3e9f2;
+            color: #173d72;
         }
         .sla-summary-group {
             display: flex;

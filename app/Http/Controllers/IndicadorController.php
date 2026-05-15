@@ -6,6 +6,7 @@ use App\Models\Estado;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class IndicadorController extends Controller
@@ -89,6 +90,9 @@ class IndicadorController extends Controller
     private function buildContratos(Request $request, bool $entregados)
     {
         $search = trim((string) $request->query('q', ''));
+        $origen = $this->cleanFilterValue($request->query('origen'));
+        $destino = $this->cleanFilterValue($request->query('destino'));
+        $sla = $this->cleanSlaFilter($request->query('sla'));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
         $entregadoSub = DB::table('eventos_contrato')
             ->select('codigo', DB::raw('MIN(created_at) as entregado_evento_at'))
@@ -136,11 +140,19 @@ class IndicadorController extends Controller
             });
         }
 
-        $slaResumen = $this->buildSlaResumen((clone $rows), [$this, 'decorateContratoSlaRow'], $entregados);
-        $rows = $rows->orderByDesc('paquetes_contrato.id')->paginate(20)->withQueryString();
-        $rows->through(function ($row) use ($entregados) {
-            return $this->decorateContratoSlaRow($row, $entregados);
-        });
+        $origenOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_contrato.origen');
+        $destinoOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_contrato.destino');
+        $this->applyLocationFilter($rows, 'paquetes_contrato.origen', $origen);
+        $this->applyLocationFilter($rows, 'paquetes_contrato.destino', $destino);
+
+        [$rows, $slaResumen] = $this->finalizeIndicadorRows(
+            $rows,
+            [$this, 'decorateContratoSlaRow'],
+            $entregados,
+            $request,
+            $sla,
+            'paquetes_contrato.id'
+        );
 
         return $this->renderListado(
             $rows,
@@ -152,13 +164,21 @@ class IndicadorController extends Controller
             (bool) $estadoEntregadoId,
             $entregados,
             true,
-            $slaResumen
+            $slaResumen,
+            $origen,
+            $destino,
+            $sla,
+            $origenOptions,
+            $destinoOptions
         );
     }
 
     private function buildEms(Request $request, bool $entregados)
     {
         $search = trim((string) $request->query('q', ''));
+        $origen = $this->cleanFilterValue($request->query('origen'));
+        $destino = $this->cleanFilterValue($request->query('destino'));
+        $sla = $this->cleanSlaFilter($request->query('sla'));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
         $solicitudSub = DB::table('eventos_ems')
             ->select('codigo', DB::raw('MIN(created_at) as solicitud_at'))
@@ -209,11 +229,19 @@ class IndicadorController extends Controller
             });
         }
 
-        $slaResumen = $this->buildSlaResumen((clone $rows), [$this, 'decorateEmsSlaRow'], $entregados);
-        $rows = $rows->orderByDesc('paquetes_ems.id')->paginate(20)->withQueryString();
-        $rows->through(function ($row) use ($entregados) {
-            return $this->decorateEmsSlaRow($row, $entregados);
-        });
+        $origenOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_ems.origen');
+        $destinoOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_ems.ciudad');
+        $this->applyLocationFilter($rows, 'paquetes_ems.origen', $origen);
+        $this->applyLocationFilter($rows, 'paquetes_ems.ciudad', $destino);
+
+        [$rows, $slaResumen] = $this->finalizeIndicadorRows(
+            $rows,
+            [$this, 'decorateEmsSlaRow'],
+            $entregados,
+            $request,
+            $sla,
+            'paquetes_ems.id'
+        );
 
         return $this->renderListado(
             $rows,
@@ -225,13 +253,21 @@ class IndicadorController extends Controller
             (bool) $estadoEntregadoId,
             $entregados,
             true,
-            $slaResumen
+            $slaResumen,
+            $origen,
+            $destino,
+            $sla,
+            $origenOptions,
+            $destinoOptions
         );
     }
 
     private function buildCertificados(Request $request, bool $entregados)
     {
         $search = trim((string) $request->query('q', ''));
+        $origen = $this->cleanFilterValue($request->query('origen'));
+        $destino = $this->cleanFilterValue($request->query('destino'));
+        $sla = $this->cleanSlaFilter($request->query('sla'));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
         $inicioSub = DB::table('eventos_certi')
             ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
@@ -277,11 +313,18 @@ class IndicadorController extends Controller
             });
         }
 
-        $slaResumen = $this->buildSlaResumen((clone $rows), [$this, 'decorateCertiOrdiSlaRow'], $entregados);
-        $rows = $rows->orderByDesc('paquetes_certi.id')->paginate(20)->withQueryString();
-        $rows->through(function ($row) use ($entregados) {
-            return $this->decorateCertiOrdiSlaRow($row, $entregados);
-        });
+        $origenOptions = [];
+        $destinoOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_certi.cuidad');
+        $this->applyLocationFilter($rows, 'paquetes_certi.cuidad', $destino);
+
+        [$rows, $slaResumen] = $this->finalizeIndicadorRows(
+            $rows,
+            [$this, 'decorateCertiOrdiSlaRow'],
+            $entregados,
+            $request,
+            $sla,
+            'paquetes_certi.id'
+        );
 
         return $this->renderListado(
             $rows,
@@ -293,13 +336,21 @@ class IndicadorController extends Controller
             (bool) $estadoEntregadoId,
             $entregados,
             true,
-            $slaResumen
+            $slaResumen,
+            $origen,
+            $destino,
+            $sla,
+            $origenOptions,
+            $destinoOptions
         );
     }
 
     private function buildOrdinarios(Request $request, bool $entregados)
     {
         $search = trim((string) $request->query('q', ''));
+        $origen = $this->cleanFilterValue($request->query('origen'));
+        $destino = $this->cleanFilterValue($request->query('destino'));
+        $sla = $this->cleanSlaFilter($request->query('sla'));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
         $inicioSub = DB::table('eventos_ordi')
             ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
@@ -345,11 +396,18 @@ class IndicadorController extends Controller
             });
         }
 
-        $slaResumen = $this->buildSlaResumen((clone $rows), [$this, 'decorateCertiOrdiSlaRow'], $entregados);
-        $rows = $rows->orderByDesc('paquetes_ordi.id')->paginate(20)->withQueryString();
-        $rows->through(function ($row) use ($entregados) {
-            return $this->decorateCertiOrdiSlaRow($row, $entregados);
-        });
+        $origenOptions = [];
+        $destinoOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_ordi.ciudad');
+        $this->applyLocationFilter($rows, 'paquetes_ordi.ciudad', $destino);
+
+        [$rows, $slaResumen] = $this->finalizeIndicadorRows(
+            $rows,
+            [$this, 'decorateCertiOrdiSlaRow'],
+            $entregados,
+            $request,
+            $sla,
+            'paquetes_ordi.id'
+        );
 
         return $this->renderListado(
             $rows,
@@ -361,7 +419,12 @@ class IndicadorController extends Controller
             (bool) $estadoEntregadoId,
             $entregados,
             true,
-            $slaResumen
+            $slaResumen,
+            $origen,
+            $destino,
+            $sla,
+            $origenOptions,
+            $destinoOptions
         );
     }
 
@@ -404,7 +467,12 @@ class IndicadorController extends Controller
         bool $estadoEntregadoDisponible,
         bool $isEntregados,
         bool $showSla = false,
-        array $slaResumen = []
+        array $slaResumen = [],
+        string $filterOrigen = '',
+        string $filterDestino = '',
+        string $filterSla = '',
+        array $origenOptions = [],
+        array $destinoOptions = []
     ) {
         return view('indicadores.listado', [
             'rows' => $rows,
@@ -417,34 +485,121 @@ class IndicadorController extends Controller
             'isEntregados' => $isEntregados,
             'showSla' => $showSla,
             'slaResumen' => $slaResumen,
+            'filterOrigen' => $filterOrigen,
+            'filterDestino' => $filterDestino,
+            'filterSla' => $filterSla,
+            'origenOptions' => $origenOptions,
+            'destinoOptions' => $destinoOptions,
         ]);
     }
 
-    private function buildSlaResumen(Builder $query, callable $decorateRow, bool $entregados): array
+    private function finalizeIndicadorRows(
+        Builder $query,
+        callable $decorateRow,
+        bool $entregados,
+        Request $request,
+        string $slaFilter,
+        string $orderColumn
+    ): array {
+        $rows = collect();
+        $slaResumen = $this->emptySlaResumen();
+
+        foreach ((clone $query)->orderByDesc($orderColumn)->cursor() as $row) {
+            $row = $decorateRow($row, $entregados);
+            $this->addSlaResumenRow($slaResumen, $row);
+
+            if ($slaFilter !== '' && $this->slaKeyFromRow($row) !== $slaFilter) {
+                continue;
+            }
+
+            $rows->push($row);
+        }
+
+        $perPage = 20;
+        $page = max(1, (int) $request->query('page', 1));
+        $items = $rows->forPage($page, $perPage)->values();
+
+        $paginator = new LengthAwarePaginator(
+            $items,
+            $rows->count(),
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
+
+        return [$paginator, $slaResumen];
+    }
+
+    private function emptySlaResumen(): array
     {
-        $resumen = [
+        return [
             'correcto' => 0,
             'retraso' => 0,
             'rezago' => 0,
             'sin_datos' => 0,
         ];
+    }
 
-        foreach ($query->cursor() as $row) {
-            $row = $decorateRow($row, $entregados);
-            $color = strtoupper((string) ($row->sla_color ?? ''));
+    private function addSlaResumenRow(array &$resumen, object $row): void
+    {
+        $color = strtoupper((string) ($row->sla_color ?? ''));
 
-            if ($color === 'VERDE') {
-                $resumen['correcto']++;
-            } elseif ($color === 'AMARILLO') {
-                $resumen['retraso']++;
-            } elseif ($color === 'ROJO') {
-                $resumen['rezago']++;
-            } else {
-                $resumen['sin_datos']++;
-            }
+        if ($color === 'VERDE') {
+            $resumen['correcto']++;
+        } elseif ($color === 'AMARILLO') {
+            $resumen['retraso']++;
+        } elseif ($color === 'ROJO') {
+            $resumen['rezago']++;
+        } else {
+            $resumen['sin_datos']++;
+        }
+    }
+
+    private function slaKeyFromRow(object $row): string
+    {
+        return match (strtoupper((string) ($row->sla_color ?? ''))) {
+            'VERDE' => 'en_plazo',
+            'AMARILLO' => 'atraso',
+            'ROJO' => 'rezago',
+            default => 'sin_datos',
+        };
+    }
+
+    private function cleanSlaFilter($value): string
+    {
+        $value = strtolower(trim((string) $value));
+
+        return in_array($value, ['en_plazo', 'atraso', 'rezago'], true) ? $value : '';
+    }
+
+    private function cleanFilterValue($value): string
+    {
+        return trim((string) $value);
+    }
+
+    private function applyLocationFilter(Builder $query, string $column, string $value): void
+    {
+        if ($value === '') {
+            return;
         }
 
-        return $resumen;
+        $query->whereRaw("trim(coalesce({$column}, '')) = ?", [$value]);
+    }
+
+    private function buildDistinctOptions(Builder $query, string $column): array
+    {
+        return $query
+            ->select(DB::raw("distinct trim(coalesce({$column}, '')) as value"))
+            ->whereRaw("trim(coalesce({$column}, '')) <> ''")
+            ->orderBy('value')
+            ->pluck('value')
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private function decorateEmsSlaRow(object $row, bool $entregados): object
