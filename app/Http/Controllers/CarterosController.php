@@ -114,12 +114,20 @@ class CarterosController extends Controller
         $this->authorizeRoutePermission('carteros.distribucion');
         $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
 
+        $userCity = $this->normalizeUserCity((string) optional(auth()->user())->ciudad);
+        if ($userCity === '') {
+            return response()->json(['data' => []]);
+        }
+
         $users = User::query()
             ->whereHas('roles', function ($query) {
                 $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
             })
+            ->where(function ($query) use ($userCity) {
+                $query->whereRaw('TRIM(UPPER(ciudad)) = ?', [$userCity]);
+            })
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'ciudad']);
 
         return response()->json(['data' => $users]);
     }
@@ -216,6 +224,10 @@ class CarterosController extends Controller
                 'user_id' => 'Debes seleccionar un usuario para asignar.',
             ]);
         }
+        $actorUserId = (int) $request->user()->id;
+        $actorUser = User::query()->find($actorUserId, ['id', 'name', 'ciudad']);
+        $assigneeUser = User::query()->find($assigneeUserId, ['id', 'name', 'ciudad']);
+
         if ($validated['assignment_mode'] === 'user') {
             $assigneeHasAllowedRole = User::query()
                 ->whereKey($assigneeUserId)
@@ -229,16 +241,14 @@ class CarterosController extends Controller
                     'user_id' => 'El usuario seleccionado no tiene un rol habilitado para distribucion.',
                 ]);
             }
+
+            if (! $this->isSameUserCity($request->user(), $assigneeUser)) {
+                throw ValidationException::withMessages([
+                    'user_id' => 'Solo puedes asignar a usuarios de tu mismo departamento.',
+                ]);
+            }
         }
-        $eventoId = self::EVENTO_ID_PAQUETE_CAMINO_ENTREGA_FISICA;
-        $eventoExiste = DB::table('eventos')
-            ->where('id', $eventoId)
-            ->exists();
-        if (!$eventoExiste) {
-            throw ValidationException::withMessages([
-                'items' => "No existe el evento con ID {$eventoId} (Paquete en camino para entrega fisica.).",
-            ]);
-        }
+        $eventoId = $this->resolveDynamicEventId($this->assignmentEventName($actorUser, $assigneeUser));
         $estadoAsignadoId = $this->resolveEstadoCarteroId();
         $emsIds = collect($validated['items'])
             ->where('tipo_paquete', 'EMS')
@@ -298,6 +308,7 @@ class CarterosController extends Controller
             $solicitudIds,
             $estadoAsignadoId,
             $assigneeUserId,
+            $actorUserId,
             $eventoId,
             $previousEmsStates,
             $previousCertiStates,
@@ -2555,6 +2566,7 @@ class CarterosController extends Controller
 
         if (
             str_contains($texto, 'camino para entrega fisica')
+            || str_contains($texto, 'asignado a cartero')
             || str_contains($texto, 'transferido al agente de entrega')
         ) {
             return $estadoCarteroId;
@@ -2727,6 +2739,42 @@ class CarterosController extends Controller
         return (int) Evento::query()->firstOrCreate([
             'nombre_evento' => $eventName,
         ])->id;
+    }
+
+    private function assignmentEventName(?User $actor, ?User $assignee): string
+    {
+        $actorName = trim((string) ($actor?->name ?? 'SIN USUARIO'));
+        $assigneeName = trim((string) ($assignee?->name ?? 'SIN USUARIO'));
+
+        return 'Paquete en camino para entrega fisica. Asignado a CARTERO por '
+            . ($actorName !== '' ? $actorName : 'SIN USUARIO')
+            . ' a '
+            . ($assigneeName !== '' ? $assigneeName : 'SIN USUARIO')
+            . '.';
+    }
+
+    private function normalizeUserCity(string $city): string
+    {
+        $city = mb_strtoupper(trim($city));
+        $city = preg_replace('/\s+/', ' ', $city) ?? $city;
+
+        return $city;
+    }
+
+    private function isSameUserCity(?User $actor, ?User $assignee): bool
+    {
+        if (! $actor || ! $assignee) {
+            return false;
+        }
+
+        $actorCity = $this->normalizeUserCity((string) ($actor->ciudad ?? ''));
+        $assigneeCity = $this->normalizeUserCity((string) ($assignee->ciudad ?? ''));
+
+        if ($actorCity === '' || $assigneeCity === '') {
+            return false;
+        }
+
+        return $actorCity === $assigneeCity;
     }
 
     private function getCodigosPorTipo(string $tipoPaquete, array $ids)
