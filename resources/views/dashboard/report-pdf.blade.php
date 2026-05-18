@@ -264,9 +264,9 @@
         @if(($rankingDepartamentos ?? collect())->isNotEmpty())
             @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
             <p style="margin-top:0;">
-                <strong>#1 {{ $topDepartamento->departamento }}</strong> aporta
+                <strong>#1 {{ $topDepartamento->departamento }}</strong> tiene
                 <strong>{{ number_format((float) ($topDepartamento->puntaje_ranking ?? 0), 1) }}%</strong>
-                entregado al total nacional.
+                de valor ranking.
                 Mejor entregador: <strong>{{ $topDepartamento->top_entregador }}</strong>
                 ({{ number_format((int) $topDepartamento->top_entregador_total) }} entregas).
                 Total nacional registrado: <strong>{{ number_format((int) ($topDepartamento->total_nacional ?? 0)) }}</strong>.
@@ -296,7 +296,7 @@
                         <td class="num">{{ number_format((int) $item->pendientes) }}</td>
                         <td class="num">{{ number_format((float) ($item->participacion_nacional ?? 0), 1) }}%</td>
                         <td class="num">{{ number_format((float) $item->cumplimiento, 1) }}% / aporta {{ number_format((float) ($item->aporte_entregado_nacional ?? 0), 1) }}%</td>
-                        <td class="num">{{ number_format((float) ($item->puntaje_ranking ?? 0), 1) }}%</td>
+                        <td class="num">{{ number_format((float) ($item->puntaje_ranking ?? 0), 1) }}% ({{ (int) ($item->ranking_cumplimiento_peso ?? 70) }}/{{ (int) ($item->ranking_participacion_peso ?? 30) }})</td>
                         <td>{{ $item->top_entregador }} ({{ number_format((int) $item->top_entregador_total) }})</td>
                     </tr>
                 @empty

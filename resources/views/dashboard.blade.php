@@ -597,7 +597,7 @@
                             <i class="fas fa-file-pdf mr-1"></i> Reporte competencia PDF
                         </a>
                         <span class="badge badge-success">
-                            #1 {{ $topDepartamento->departamento }} - aporta {{ number_format((float) ($topDepartamento->puntaje_ranking ?? 0), 1) }}%
+                            #1 {{ $topDepartamento->departamento }} - puntaje {{ number_format((float) ($topDepartamento->puntaje_ranking ?? 0), 1) }}%
                         </span>
                     @endif
                 </div>
@@ -652,7 +652,7 @@
                                 <td class="text-right">
                                     <strong class="text-primary">{{ number_format((float) ($item->puntaje_ranking ?? 0), 1) }}%</strong>
                                     <div class="small text-muted">
-                                        {{ number_format((float) ($item->participacion_nacional ?? 0), 1) }}% x {{ number_format((float) $item->cumplimiento, 1) }}%
+                                        {{ (int) ($item->ranking_cumplimiento_peso ?? 70) }}% cumplimiento + {{ (int) ($item->ranking_participacion_peso ?? 30) }}% parte nacional
                                     </div>
                                 </td>
                                 <td>

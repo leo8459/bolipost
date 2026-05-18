@@ -78,12 +78,13 @@
 
 <table>
     <tr><td colspan="7"></td></tr>
-    <tr><td colspan="10"><strong>RANKING DEPARTAMENTOS: VALOR NACIONAL ENTREGADO</strong></td></tr>
+    <tr><td colspan="10"><strong>RANKING DEPARTAMENTOS: CUMPLIMIENTO PONDERADO</strong></td></tr>
     @if(($rankingDepartamentos ?? collect())->isNotEmpty())
         @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
         <tr>
             <td colspan="10">
                 #1 {{ $topDepartamento->departamento }} - {{ $topDepartamento->puntaje_ranking ?? 0 }}% valor ranking.
+                Formula: {{ (int) ($topDepartamento->ranking_cumplimiento_peso ?? 70) }}% cumplimiento + {{ (int) ($topDepartamento->ranking_participacion_peso ?? 30) }}% parte nacional.
                 Mejor entregador: {{ $topDepartamento->top_entregador }} ({{ $topDepartamento->top_entregador_total }} entregas)
                 | Total nacional registrado: {{ $topDepartamento->total_nacional ?? 0 }}
             </td>

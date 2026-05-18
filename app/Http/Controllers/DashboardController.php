@@ -19,6 +19,8 @@ class DashboardController extends Controller
     private const EVENTO_EMS_SOLICITUD_ID = 295;
     private const CERTI_ORDI_GREEN_DAYS = 7;
     private const CERTI_ORDI_YELLOW_DAYS = 15;
+    private const RANKING_CUMPLIMIENTO_WEIGHT = 0.70;
+    private const RANKING_PARTICIPACION_WEIGHT = 0.30;
     private const DESTINOS_LARGA_DISTANCIA = [
         'SANTA CRUZ',
         'TRINIDAD',
@@ -1017,7 +1019,13 @@ class DashboardController extends Controller
                 $row->participacion_entregas_nacionales = $entregadosNacional > 0
                     ? round(((int) $row->entregados * 100) / $entregadosNacional, 1)
                     : 0.0;
-                $row->puntaje_ranking = $row->aporte_entregado_nacional;
+                $row->ranking_cumplimiento_peso = (int) (self::RANKING_CUMPLIMIENTO_WEIGHT * 100);
+                $row->ranking_participacion_peso = (int) (self::RANKING_PARTICIPACION_WEIGHT * 100);
+                $row->puntaje_ranking = round(
+                    ((float) $row->cumplimiento * self::RANKING_CUMPLIMIENTO_WEIGHT)
+                    + ((float) ($row->participacion_nacional ?? 0) * self::RANKING_PARTICIPACION_WEIGHT),
+                    1
+                );
 
                 return $row;
             })

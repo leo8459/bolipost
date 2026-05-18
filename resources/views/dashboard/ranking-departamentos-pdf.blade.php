@@ -40,14 +40,14 @@
 @if($leader)
     <div class="leader">
         <strong>Departamento lider:</strong> {{ $leader->departamento }}
-        aporta <strong>{{ number_format((float) ($leader->puntaje_ranking ?? 0), 1) }}%</strong>
-        entregado al total nacional.
+        tiene <strong>{{ number_format((float) ($leader->puntaje_ranking ?? 0), 1) }}%</strong>
+        de valor ranking.
         Su parte nacional es <strong>{{ number_format((float) ($leader->participacion_nacional ?? 0), 1) }}%</strong>
         y cumplio <strong>{{ number_format((float) $leader->cumplimiento, 1) }}%</strong> de esa parte.
         Mejor entregador: <strong>{{ $leader->top_entregador }}</strong>
         ({{ number_format((int) $leader->top_entregador_total) }} entregas).
         <br>
-        <strong>Formula del ranking:</strong> parte nacional x cumplimiento.
+        <strong>Formula del ranking:</strong> {{ (int) ($leader->ranking_cumplimiento_peso ?? 70) }}% cumplimiento + {{ (int) ($leader->ranking_participacion_peso ?? 30) }}% parte nacional.
     </div>
 @endif
 
@@ -94,7 +94,7 @@
                 </td>
                 <td class="num">
                     {{ number_format((float) ($item->puntaje_ranking ?? 0), 1) }}%<br>
-                    {{ number_format((float) ($item->participacion_nacional ?? 0), 1) }} x {{ number_format((float) $item->cumplimiento, 1) }}
+                    {{ (int) ($item->ranking_cumplimiento_peso ?? 70) }}% cumpl. + {{ (int) ($item->ranking_participacion_peso ?? 30) }}% parte
                 </td>
                 <td>{{ $item->top_entregador }} ({{ number_format((int) $item->top_entregador_total) }})</td>
                 <td>
