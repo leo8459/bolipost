@@ -489,6 +489,30 @@ class BusquedaController extends Controller
     private function transformarEventoApi(mixed $item, int $index, string $codigo, array $payload): object
     {
         $evento = is_array($item) ? $item : (array) $item;
+        $office = trim((string) ($evento['office'] ?? ''));
+        $nextOffice = trim((string) ($evento['nextOffice'] ?? ''));
+        $detail = trim((string) ($evento['detail'] ?? ''));
+        $rutaTexto = $nextOffice . ' ' . $detail . ' ' . $office;
+        $destinoIso2Ruta = $this->extraerIso2DestinoDesdeRuta($rutaTexto);
+        $origenIso2Ruta = $this->extraerIso2OrigenDesdeRuta($rutaTexto);
+        $ciudadOrigen = trim((string) (
+            $evento['ciudad_origen']
+            ?? $evento['origen']
+            ?? data_get($payload, 'origen')
+            ?? ($origenIso2Ruta ? $this->nombrePaisDesdeIso2Simple($origenIso2Ruta) : '')
+            ?? ''
+        ));
+        $ciudadDestino = trim((string) (
+            $evento['ciudad_destino']
+            ?? $evento['destino']
+            ?? data_get($payload, 'destino')
+            ?? data_get($payload, 'pais_destino')
+            ?? data_get($payload, 'country_destino')
+            ?? data_get($payload, 'meta.destino')
+            ?? data_get($payload, 'meta.pais_destino')
+            ?? ($destinoIso2Ruta ? $this->nombrePaisDesdeIso2Simple($destinoIso2Ruta) : '')
+            ?? ''
+        ));
         $nombreEvento = (string) (
             $evento['nombre_evento']
             ?? $evento['eventType']
@@ -517,14 +541,108 @@ class BusquedaController extends Controller
             'nombre_evento' => $nombreEvento,
             'servicio' => $this->determinarServicio($evento, $payload, $codigo),
             'tabla_origen' => $evento['tabla_origen'] ?? 'api_sqlserver',
-            'office' => trim((string) ($evento['office'] ?? '')),
-            'next_office' => trim((string) ($evento['nextOffice'] ?? '')),
-            'ciudad_origen' => null,
-            'ciudad_destino' => null,
+            'office' => $office,
+            'next_office' => $nextOffice,
+            'ciudad_origen' => $ciudadOrigen !== '' ? $ciudadOrigen : null,
+            'ciudad_destino' => $ciudadDestino !== '' ? $ciudadDestino : null,
             'condition' => trim((string) ($evento['condition'] ?? '')),
             '_sort_ts' => $timestamp !== false ? $timestamp : (PHP_INT_MAX - $index),
             '_sort_priority' => $this->calcularPrioridadEvento($nombreEvento),
         ];
+    }
+
+    private function extraerIso2DestinoDesdeRuta(string $texto): ?string
+    {
+        $raw = strtoupper(trim($texto));
+        if ($raw === '') {
+            return null;
+        }
+
+        // Regla prioritaria para cadenas de receptaculo/despacho:
+        // [ORIGEN6][DESTINO6]...
+        // Ej saliente: BOLPBBESMADB... => destino ES
+        // Ej entrante: DEFRAABOLPBA... => destino BO (no internacional de salida)
+        if (preg_match('/([A-Z0-9]{12,})/', $raw, $longTokenMatch)) {
+            $token = (string) ($longTokenMatch[1] ?? '');
+            if (strlen($token) >= 12) {
+                $primerBloque = substr($token, 0, 6);
+                $segundoBloque = substr($token, 6, 6);
+                $origenIso = substr($primerBloque, 0, 2);
+                $destinoIso = substr($segundoBloque, 0, 2);
+                if ($origenIso === 'BO' && $destinoIso !== 'BO' && $this->nombrePaisDesdeIso2Simple($destinoIso) !== null) {
+                    return $destinoIso;
+                }
+                if ($origenIso !== 'BO' && $destinoIso === 'BO') {
+                    return 'BO';
+                }
+            }
+        }
+
+        // Captura codigos de oficina UPU incrustados (ej: ESMADB, BOLPBB) incluso dentro de cadenas largas
+        // como receptaculos/despachos (ej: BOLPBBESMADBAEN60014...).
+        preg_match_all('/(?=([A-Z]{2}[A-Z]{3}))/', $raw, $matches);
+        $bloques = $matches[1] ?? [];
+        $candidatos = array_map(static fn (string $bloque) => substr($bloque, 0, 2), $bloques);
+
+        foreach ($candidatos as $iso2) {
+            $iso2 = strtoupper((string) $iso2);
+            if ($iso2 !== '' && $iso2 !== 'BO' && $this->nombrePaisDesdeIso2Simple($iso2) !== null) {
+                return $iso2;
+            }
+        }
+
+        return null;
+    }
+
+    private function extraerIso2OrigenDesdeRuta(string $texto): ?string
+    {
+        $raw = strtoupper(trim($texto));
+        if ($raw === '') {
+            return null;
+        }
+
+        if (preg_match('/([A-Z0-9]{12,})/', $raw, $longTokenMatch)) {
+            $token = (string) ($longTokenMatch[1] ?? '');
+            if (strlen($token) >= 12) {
+                $primerBloque = substr($token, 0, 6);
+                $origenIso = substr($primerBloque, 0, 2);
+                if ($origenIso !== '' && $this->nombrePaisDesdeIso2Simple($origenIso) !== null) {
+                    return $origenIso;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function nombrePaisDesdeIso2Simple(?string $iso2): ?string
+    {
+        $iso2 = strtoupper(trim((string) $iso2));
+        if ($iso2 === '') {
+            return null;
+        }
+
+        return [
+            'ES' => 'Spain',
+            'AR' => 'Argentina',
+            'BR' => 'Brazil',
+            'CL' => 'Chile',
+            'PE' => 'Peru',
+            'US' => 'United States',
+            'FR' => 'France',
+            'DE' => 'Germany',
+            'IT' => 'Italy',
+            'GB' => 'United Kingdom',
+            'CN' => 'China',
+            'JP' => 'Japan',
+            'KR' => 'South Korea',
+            'MX' => 'Mexico',
+            'CO' => 'Colombia',
+            'UY' => 'Uruguay',
+            'PY' => 'Paraguay',
+            'EC' => 'Ecuador',
+            'VE' => 'Venezuela',
+        ][$iso2] ?? null;
     }
 
     private function obtenerCodigoEvento(array $evento, array $payload, string $codigoDefault): string
@@ -612,6 +730,11 @@ class BusquedaController extends Controller
 
         $lugar = $this->resolverLugarEvento($evento);
         if ($lugar === '') {
+            return $nombreEvento;
+        }
+        $lugarNormalizadoRaw = mb_strtolower(trim($lugar));
+        if (str_starts_with($lugarNormalizadoRaw, 'país origen:')
+            || str_starts_with($lugarNormalizadoRaw, 'pais origen:')) {
             return $nombreEvento;
         }
 

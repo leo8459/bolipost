@@ -129,6 +129,10 @@ class FacturacionCartController extends Controller
             $resultado = $service->emitirBorrador($user);
             $respuesta = (array) ($resultado['respuesta'] ?? []);
             $redirect = back()->with('facturacion_feedback', $this->buildBridgeFeedback($respuesta, 'emitir'));
+            $qrData = $this->extractQrData($respuesta);
+            if ($qrData !== null) {
+                $redirect->with('facturacion_qr_data', $qrData);
+            }
 
             $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
@@ -161,6 +165,10 @@ class FacturacionCartController extends Controller
             }
 
             $redirect = back()->with('facturacion_feedback', $this->buildBridgeFeedback($respuesta, 'consultar'));
+            $qrData = $this->extractQrData($respuesta);
+            if ($qrData !== null) {
+                $redirect->with('facturacion_qr_data', $qrData);
+            }
 
             $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
@@ -287,5 +295,22 @@ class FacturacionCartController extends Controller
     private function authorizeFacturacionAccess($user): void
     {
         abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
+    }
+
+    private function extractQrData(array $respuesta): ?array
+    {
+        $qrImage = trim((string) data_get($respuesta, 'factura.qrImage', ''));
+        $paymentUrl = trim((string) data_get($respuesta, 'factura.paymentUrl', ''));
+        $paymentStatus = trim((string) data_get($respuesta, 'factura.paymentStatus', ''));
+
+        if ($qrImage === '' && $paymentUrl === '') {
+            return null;
+        }
+
+        return [
+            'qr_image' => $qrImage,
+            'payment_url' => $paymentUrl,
+            'payment_status' => $paymentStatus,
+        ];
     }
 }

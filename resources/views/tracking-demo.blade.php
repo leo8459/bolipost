@@ -278,6 +278,7 @@
             })
             ->first(fn (?string $ciudad) => $ciudad !== null && $ciudad !== '');
         $ciudadDestinoLocal = trim((string) ($eventos->firstWhere('ciudad_destino')?->ciudad_destino ?? ''));
+        $destinoIso2DesdeCiudad = $ciudadDestinoLocal !== '' ? $iso2DesdeNombrePais($ciudadDestinoLocal) : null;
         $preferirOrigenExterno = $paisOrigenExterno !== '' && $origenExternoIso2 !== 'BO' && !$esCodigoBoliviano;
 
         if ($preferirOrigenExterno) {
@@ -305,20 +306,62 @@
         $origenMostrarComoPais = $origenIso2
             && mb_strtolower(trim($origenLabel)) === mb_strtolower(trim($origenNombrePais));
 
-        $destinoIso2 = $eventos->reduce(function ($carry, $item) use ($iso2DesdeOficina) {
-            if ($carry !== null) {
-                return $carry;
-            }
-
+        $destinoIso2Raw = $eventos->map(function ($item) use ($iso2DesdeOficina) {
             return $iso2DesdeOficina($item->office ?? '') ?? $iso2DesdeOficina($item->next_office ?? '');
-        }, null);
-        $codigoIso2 = $iso2DesdeCodigoS10($codigo);
-        $esDestinoNacional = $ciudadDestinoLocal !== '' || $destinoIso2 === 'BO' || $codigoIso2 === 'BO' || $servicioActual === 'CONTRATO';
+        })->filter()->values();
+        $destinoIso2 = $destinoIso2Raw->first(fn ($iso) => strtoupper((string) $iso) !== 'BO')
+            ?? $destinoIso2Raw->first();
+        $hasEdiInboundSignals = $eventos->contains(function ($item) {
+            $nombre = mb_strtolower((string) ($item->nombre_evento ?? ''));
+            $fuente = mb_strtolower((string) ($item->tabla_origen ?? ''));
+            return str_contains($nombre, '(entrada)')
+                || str_contains($nombre, ' entrada ')
+                || str_contains($nombre, '(inb)')
+                || str_contains($nombre, ' inb')
+                || str_contains($fuente, 'ips5db-edi')
+                || str_contains($fuente, '-edi');
+        });
+        $forzarInternacional = $esCodigoS10
+            && str_ends_with($codigoS10, 'BO')
+            && $ciudadDestinoLocal === ''
+            && $hasEdiInboundSignals;
+        $esDestinoNacional = !$forzarInternacional
+            && (
+                ($ciudadDestinoLocal !== '' && $destinoIso2DesdeCiudad === null)
+                || $destinoIso2 === 'BO'
+                || $servicioActual === 'CONTRATO'
+            );
         $destinoLabel = $ciudadDestinoLocal !== ''
             ? ucwords(mb_strtolower($ciudadDestinoLocal))
             : ($esDestinoNacional ? 'Nacional' : ($destinoIso2 ?? 'Internacional'));
-        $destinoBanderaIso2 = $esDestinoNacional ? 'BO' : $destinoIso2;
+        $destinoBanderaIso2 = $destinoIso2DesdeCiudad ?? ($esDestinoNacional ? 'BO' : $destinoIso2);
+        $esEventoLocalBolivia = function ($evento) use ($detectarDepartamentoBolivia) {
+            $office = trim((string) ($evento->office ?? ''));
+            $nextOffice = trim((string) ($evento->next_office ?? ''));
+            $ciudadEvento = trim((string) ($evento->ciudad_evento ?? ''));
+            $ciudadDestino = trim((string) ($evento->ciudad_destino ?? ''));
+            $tablaOrigen = mb_strtolower(trim((string) ($evento->tabla_origen ?? '')));
+
+            if (str_starts_with($tablaOrigen, 'eventos_')) {
+                return true;
+            }
+            if ($detectarDepartamentoBolivia($office) !== null || $detectarDepartamentoBolivia($nextOffice) !== null) {
+                return true;
+            }
+            if ($ciudadEvento !== '' && $detectarDepartamentoBolivia($ciudadEvento) !== null) {
+                return true;
+            }
+            if ($ciudadDestino !== '' && $detectarDepartamentoBolivia($ciudadDestino) !== null) {
+                return true;
+            }
+
+            return false;
+        };
+        $eventosLocalesBolivia = $eventos->filter($esEventoLocalBolivia)->values();
+        $eventosInternacionales = $eventos->reject($esEventoLocalBolivia)->values();
         $historial = $eventos->groupBy(fn($item) => \Illuminate\Support\Carbon::parse($item->created_at)->format('Y-m-d'));
+        $historialLocal = $eventosLocalesBolivia->groupBy(fn($item) => \Illuminate\Support\Carbon::parse($item->created_at)->format('Y-m-d'));
+        $historialInternacional = $eventosInternacionales->groupBy(fn($item) => \Illuminate\Support\Carbon::parse($item->created_at)->format('Y-m-d'));
 
         $contactosRegional = [
             'La Paz' => [
@@ -384,7 +427,7 @@
         } elseif ($eventoListoParaEntregar) {
             $oficinaAviso = trim((string) ($eventoListoParaEntregar->office ?? ''));
             $isoOficinaAviso = $iso2DesdeOficina($oficinaAviso);
-            $esBolivia = ($isoOficinaAviso === 'BO') || str_ends_with(strtoupper($codigo), 'BO');
+            $esBolivia = ($isoOficinaAviso === 'BO');
 
             if ($esBolivia) {
                 $departamento = $detectarDepartamentoBolivia($oficinaAviso);
@@ -427,11 +470,11 @@
 
                     <div class="status-meta">
                         <div class="meta-item meta-accent-a">
-                            <small>Origen</small>
+                            <small>Origen postal</small>
                             <strong><span @if($origenMostrarComoPais && $origenIso2) data-country-name data-country-iso="{{ strtolower($origenIso2) }}" @endif>{{ $origenLabel }}</span> @if($origenIso2)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($origenIso2) }}.png" alt="Bandera origen">@endif</strong>
                         </div>
                         <div class="meta-item meta-accent-b">
-                            <small>Destino</small>
+                            <small>Destino de entrega</small>
                             <strong><span @if(!$esDestinoNacional && $destinoBanderaIso2) data-country-name data-country-iso="{{ strtolower($destinoBanderaIso2) }}" @endif>{{ $destinoLabel }}</span> @if($destinoBanderaIso2)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($destinoBanderaIso2) }}.png" alt="Bandera destino">@endif</strong>
                         </div>
                         <div class="meta-item meta-accent-c">
@@ -495,7 +538,14 @@
                         <h2>Historial de seguimiento</h2>
                     </div>
 
-                    @foreach ($historial as $fecha => $items)
+                    @if($historialInternacional->isNotEmpty())
+                        <div class="history-group-head" style="margin-top:10px;">
+                            <h3>Tramo internacional</h3>
+                            <span>{{ $eventosInternacionales->count() }} evento(s)</span>
+                        </div>
+                    @endif
+
+                    @foreach ($historialInternacional as $fecha => $items)
                         <section class="history-group">
                             <div class="history-group-head">
                                 <h3>{{ \Illuminate\Support\Carbon::parse($fecha)->locale('es')->translatedFormat('j M Y') }}</h3>
@@ -522,12 +572,74 @@
                                                     $nextOffice = trim((string) ($evento->next_office ?? ''));
                                                     $codigoEvento = trim((string) ($evento->codigo ?? $codigo));
                                                     $paisDesdeOffice = $extraerPaisDesdeOffice($office);
+                                                    $officeEsPaisOrigenGenerico = str_starts_with(mb_strtolower($office), 'país origen:')
+                                                        || str_starts_with(mb_strtolower($office), 'pais origen:');
                                                     $isoOffice = $paisDesdeOffice !== ''
-                                                        ? ($iso2DesdeCodigoS10($codigoEvento) ?? $iso2DesdeNombrePais($paisDesdeOffice))
+                                                        ? $iso2DesdeNombrePais($paisDesdeOffice)
                                                         : $iso2DesdeOficina($office);
                                                     $isoNextOffice = $iso2DesdeOficina($nextOffice);
                                                 @endphp
-                                                @if ($office !== '')
+                                                @if ($office !== '' && !$officeEsPaisOrigenGenerico)
+                                                    <div class="history-meta-row">
+                                                        <span class="history-meta-label">Oficina</span>
+                                                        <span class="history-meta-value">{{ $office }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
+                                                    </div>
+                                                @endif
+                                                @if ($nextOffice !== '')
+                                                    <div class="history-meta-row">
+                                                        <span class="history-meta-label">Siguiente Oficina</span>
+                                                        <span class="history-meta-value">{{ $nextOffice }} @if($isoNextOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoNextOffice) }}.png" alt="Bandera siguiente oficina">@endif</span>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </article>
+                                @endforeach
+                            </div>
+                        </section>
+                    @endforeach
+
+                    @if($historialLocal->isNotEmpty())
+                        <div class="history-group-head" style="margin-top:16px;">
+                            <h3>Tramo local en Bolivia</h3>
+                            <span>{{ $eventosLocalesBolivia->count() }} evento(s)</span>
+                        </div>
+                    @endif
+
+                    @foreach ($historialLocal as $fecha => $items)
+                        <section class="history-group">
+                            <div class="history-group-head">
+                                <h3>{{ \Illuminate\Support\Carbon::parse($fecha)->locale('es')->translatedFormat('j M Y') }}</h3>
+                                <span>{{ $items->count() }} evento(s)</span>
+                            </div>
+
+                            <div class="history-feed">
+                                @foreach ($items as $evento)
+                                    @php
+                                        $esUltimo = false;
+                                    @endphp
+                                    <article class="history-event {{ $esUltimo ? 'is-latest' : '' }} reveal-item" style="--item-index: {{ $loop->iteration }};">
+                                        <div class="history-event-side">
+                                            <time>{{ \Illuminate\Support\Carbon::parse($evento->created_at)->format('H:i') }}</time>
+                                        </div>
+                                        <div class="history-event-body">
+                                            <div class="history-event-head">
+                                                <h4>{{ $evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-')) }}</h4>
+                                            </div>
+                                            <div class="history-event-meta">
+                                                @php
+                                                    $office = trim((string) ($evento->office ?? ''));
+                                                    $nextOffice = trim((string) ($evento->next_office ?? ''));
+                                                    $codigoEvento = trim((string) ($evento->codigo ?? $codigo));
+                                                    $paisDesdeOffice = $extraerPaisDesdeOffice($office);
+                                                    $officeEsPaisOrigenGenerico = str_starts_with(mb_strtolower($office), 'país origen:')
+                                                        || str_starts_with(mb_strtolower($office), 'pais origen:');
+                                                    $isoOffice = $paisDesdeOffice !== ''
+                                                        ? $iso2DesdeNombrePais($paisDesdeOffice)
+                                                        : $iso2DesdeOficina($office);
+                                                    $isoNextOffice = $iso2DesdeOficina($nextOffice);
+                                                @endphp
+                                                @if ($office !== '' && !$officeEsPaisOrigenGenerico)
                                                     <div class="history-meta-row">
                                                         <span class="history-meta-label">Oficina</span>
                                                         <span class="history-meta-value">{{ $office }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
