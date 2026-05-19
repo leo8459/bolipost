@@ -1,4 +1,4 @@
-ï»¿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
@@ -17,8 +17,8 @@
 </head>
 <body>
     @php
-        $ultimoNombre = $ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-'));
-        $eventoTextos = $eventos->map(fn($item) => mb_strtolower((string) ($item->nombre_evento ?? '')))->implode(' | ');
+        $ultimoNombre = \$ultimoEvento->nombre_evento_publico ?? \$ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-'));
+        $eventoTextos = $eventos->map(fn($item) => mb_strtolower((string) (\$item->nombre_evento_publico ?? \$item->nombre_evento ?? '')))->implode(' | ');
         $tieneIncidencia = str_contains($eventoTextos, 'fall') || str_contains($eventoTextos, 'incid') || str_contains($eventoTextos, 'devuelt');
         $fechaUltima = \Illuminate\Support\Carbon::parse($ultimoEvento->created_at);
         $servicioActual = strtoupper((string) ($ultimoEvento->servicio ?? 'EMS'));
@@ -65,7 +65,7 @@
         }
 
         $entregaConfirmada = $eventos->contains(function ($item) {
-            $texto = mb_strtolower((string) ($item->nombre_evento ?? ''));
+            $texto = mb_strtolower((string) (\$item->nombre_evento_publico ?? \$item->nombre_evento ?? ''));
             if ($texto === '') {
                 return false;
             }
@@ -312,7 +312,7 @@
         $destinoIso2 = $destinoIso2Raw->first(fn ($iso) => strtoupper((string) $iso) !== 'BO')
             ?? $destinoIso2Raw->first();
         $hasEdiInboundSignals = $eventos->contains(function ($item) {
-            $nombre = mb_strtolower((string) ($item->nombre_evento ?? ''));
+            $nombre = mb_strtolower((string) (\$item->nombre_evento_publico ?? \$item->nombre_evento ?? ''));
             $fuente = mb_strtolower((string) ($item->tabla_origen ?? ''));
             return str_contains($nombre, '(entrada)')
                 || str_contains($nombre, ' entrada ')
@@ -371,48 +371,48 @@
             ],
             'Cochabamba' => [
                 'regional' => 'Regional: Cochabamba',
-                'direccion' => 'Calle Ayacucho esquina Av. Heroinas NÂ° 113',
-                'coords' => "17Â°23'34.1\"S 66Â°09'31.0\"W",
+                'direccion' => 'Calle Ayacucho esquina Av. Heroinas N° 113',
+                'coords' => "17°23'34.1\"S 66°09'31.0\"W",
             ],
             'Santa Cruz' => [
                 'regional' => 'Regional: Santa Cruz',
-                'direccion' => 'Calle Cobija Entre Sucre y Ballivian NÂ° 24',
-                'coords' => "17Â°47'00.6\"S 63Â°10'28.8\"W",
+                'direccion' => 'Calle Cobija Entre Sucre y Ballivian N° 24',
+                'coords' => "17°47'00.6\"S 63°10'28.8\"W",
             ],
             'Oruro' => [
                 'regional' => 'Regional: Oruro',
-                'direccion' => 'Calle Presidente Montes Esquina Junin NÂ° 1456',
-                'coords' => "17Â°58'07.3\"S 67Â°06'53.6\"W",
+                'direccion' => 'Calle Presidente Montes Esquina Junin N° 1456',
+                'coords' => "17°58'07.3\"S 67°06'53.6\"W",
             ],
             'Potosi' => [
                 'regional' => 'Regional: Potosi',
                 'direccion' => 'Calle Hoyos Esquina Topater, Villa Imperial de Potosi',
-                'coords' => "19Â°35'19.3\"S 65Â°44'56.2\"W",
+                'coords' => "19°35'19.3\"S 65°44'56.2\"W",
             ],
             'Tarija' => [
                 'regional' => 'Regional: Tarija',
-                'direccion' => 'Calle Mariscal Sucre esquina Virginio Lema NÂ° 397',
-                'coords' => "21Â°32'10.0\"S 64Â°44'04.5\"W",
+                'direccion' => 'Calle Mariscal Sucre esquina Virginio Lema N° 397',
+                'coords' => "21°32'10.0\"S 64°44'04.5\"W",
             ],
             'Sucre' => [
                 'regional' => 'Regional: Sucre',
-                'direccion' => 'Calle Junin Esquina Ayacucho NÂ° 699',
-                'coords' => "19Â°02'49.8\"S 65Â°15'41.0\"W",
+                'direccion' => 'Calle Junin Esquina Ayacucho N° 699',
+                'coords' => "19°02'49.8\"S 65°15'41.0\"W",
             ],
             'Trinidad' => [
                 'regional' => 'Regional: Trinidad',
-                'direccion' => 'Calle Cipriano Barace NÂ°10 Entre Manuel Limpias y Calle Sucre',
-                'coords' => "14Â°50'04.0\"S 64Â°54'11.8\"W",
+                'direccion' => 'Calle Cipriano Barace N°10 Entre Manuel Limpias y Calle Sucre',
+                'coords' => "14°50'04.0\"S 64°54'11.8\"W",
             ],
             'Cobija' => [
                 'regional' => 'Regional: Cobija',
                 'direccion' => 'Av. Bruno Recua N.- 59',
-                'coords' => "11Â°01'03.8\"S 68Â°45'15.9\"W",
+                'coords' => "11°01'03.8\"S 68°45'15.9\"W",
             ],
         ];
 
         $eventoListoParaEntregar = $eventos->first(function ($item) {
-            $texto = mb_strtolower((string) ($item->nombre_evento ?? ''));
+            $texto = mb_strtolower((string) (\$item->nombre_evento_publico ?? \$item->nombre_evento ?? ''));
             return str_contains($texto, 'listo para entregar')
                 || str_contains($texto, 'oficina de entrega');
         });
@@ -564,7 +564,7 @@
 
                                         <div class="history-event-body">
                                             <div class="history-event-head">
-                                                <h4>{{ $evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-')) }}</h4>
+                                                <h4>{{ \$evento->nombre_evento_publico ?? \$evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-')) }}</h4>
                                             </div>
                                             <div class="history-event-meta">
                                                 @php
@@ -572,7 +572,7 @@
                                                     $nextOffice = trim((string) ($evento->next_office ?? ''));
                                                     $codigoEvento = trim((string) ($evento->codigo ?? $codigo));
                                                     $paisDesdeOffice = $extraerPaisDesdeOffice($office);
-                                                    $officeEsPaisOrigenGenerico = str_starts_with(mb_strtolower($office), 'paÃ­s origen:')
+                                                    $officeEsPaisOrigenGenerico = str_starts_with(mb_strtolower($office), 'país origen:')
                                                         || str_starts_with(mb_strtolower($office), 'pais origen:');
                                                     $isoOffice = $paisDesdeOffice !== ''
                                                         ? $iso2DesdeNombrePais($paisDesdeOffice)
@@ -624,7 +624,7 @@
                                         </div>
                                         <div class="history-event-body">
                                             <div class="history-event-head">
-                                                <h4>{{ $evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-')) }}</h4>
+                                                <h4>{{ \$evento->nombre_evento_publico ?? \$evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-')) }}</h4>
                                             </div>
                                             <div class="history-event-meta">
                                                 @php
@@ -632,7 +632,7 @@
                                                     $nextOffice = trim((string) ($evento->next_office ?? ''));
                                                     $codigoEvento = trim((string) ($evento->codigo ?? $codigo));
                                                     $paisDesdeOffice = $extraerPaisDesdeOffice($office);
-                                                    $officeEsPaisOrigenGenerico = str_starts_with(mb_strtolower($office), 'paÃ­s origen:')
+                                                    $officeEsPaisOrigenGenerico = str_starts_with(mb_strtolower($office), 'país origen:')
                                                         || str_starts_with(mb_strtolower($office), 'pais origen:');
                                                     $isoOffice = $paisDesdeOffice !== ''
                                                         ? $iso2DesdeNombrePais($paisDesdeOffice)
