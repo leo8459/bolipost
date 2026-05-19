@@ -538,14 +538,7 @@
                         <h2>Historial de seguimiento</h2>
                     </div>
 
-                    @if($historialInternacional->isNotEmpty())
-                        <div class="history-group-head" style="margin-top:10px;">
-                            <h3>Tramo internacional</h3>
-                            <span>{{ $eventosInternacionales->count() }} evento(s)</span>
-                        </div>
-                    @endif
-
-                    @foreach ($historialInternacional as $fecha => $items)
+                    @foreach ($historial as $fecha => $items)
                         <section class="history-group">
                             <div class="history-group-head">
                                 <h3>{{ \Illuminate\Support\Carbon::parse($fecha)->locale('es')->translatedFormat('j M Y') }}</h3>
@@ -556,67 +549,6 @@
                                 @foreach ($items as $evento)
                                     @php
                                         $esUltimo = $loop->first && $loop->parent->first;
-                                    @endphp
-                                    <article class="history-event {{ $esUltimo ? 'is-latest' : '' }} reveal-item" style="--item-index: {{ $loop->iteration }};">
-                                        <div class="history-event-side">
-                                            <time>{{ \Illuminate\Support\Carbon::parse($evento->created_at)->format('H:i') }}</time>
-                                        </div>
-
-                                        <div class="history-event-body">
-                                            <div class="history-event-head">
-                                                <h4>{{ $evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-')) }}</h4>
-                                            </div>
-                                            <div class="history-event-meta">
-                                                @php
-                                                    $office = trim((string) ($evento->office ?? ''));
-                                                    $nextOffice = trim((string) ($evento->next_office ?? ''));
-                                                    $codigoEvento = trim((string) ($evento->codigo ?? $codigo));
-                                                    $paisDesdeOffice = $extraerPaisDesdeOffice($office);
-                                                    $officeEsPaisOrigenGenerico = str_starts_with(mb_strtolower($office), 'país origen:')
-                                                        || str_starts_with(mb_strtolower($office), 'pais origen:');
-                                                    $isoOffice = $paisDesdeOffice !== ''
-                                                        ? $iso2DesdeNombrePais($paisDesdeOffice)
-                                                        : $iso2DesdeOficina($office);
-                                                    $isoNextOffice = $iso2DesdeOficina($nextOffice);
-                                                @endphp
-                                                @if ($office !== '' && !$officeEsPaisOrigenGenerico)
-                                                    <div class="history-meta-row">
-                                                        <span class="history-meta-label">Oficina</span>
-                                                        <span class="history-meta-value">{{ $office }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
-                                                    </div>
-                                                @endif
-                                                @if ($nextOffice !== '')
-                                                    <div class="history-meta-row">
-                                                        <span class="history-meta-label">Siguiente Oficina</span>
-                                                        <span class="history-meta-value">{{ $nextOffice }} @if($isoNextOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoNextOffice) }}.png" alt="Bandera siguiente oficina">@endif</span>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </article>
-                                @endforeach
-                            </div>
-                        </section>
-                    @endforeach
-
-                    @if($historialLocal->isNotEmpty())
-                        <div class="history-group-head" style="margin-top:16px;">
-                            <h3>Tramo local en Bolivia</h3>
-                            <span>{{ $eventosLocalesBolivia->count() }} evento(s)</span>
-                        </div>
-                    @endif
-
-                    @foreach ($historialLocal as $fecha => $items)
-                        <section class="history-group">
-                            <div class="history-group-head">
-                                <h3>{{ \Illuminate\Support\Carbon::parse($fecha)->locale('es')->translatedFormat('j M Y') }}</h3>
-                                <span>{{ $items->count() }} evento(s)</span>
-                            </div>
-
-                            <div class="history-feed">
-                                @foreach ($items as $evento)
-                                    @php
-                                        $esUltimo = false;
                                     @endphp
                                     <article class="history-event {{ $esUltimo ? 'is-latest' : '' }} reveal-item" style="--item-index: {{ $loop->iteration }};">
                                         <div class="history-event-side">
