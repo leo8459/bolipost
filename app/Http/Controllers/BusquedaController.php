@@ -697,7 +697,6 @@ class BusquedaController extends Controller
                 $item->_sort_priority = $this->calcularPrioridadEvento($nombreEventoBase);
                 $item->_sort_id = (int) ($item->id ?? 0);
                 $item->nombre_evento = $this->concatenarEventoConLugar($nombreEventoBase, $item);
-                $item->nombre_evento_publico = $this->limpiarTextoEventoPublico((string) $item->nombre_evento);
 
                 return $item;
             })
@@ -720,19 +719,6 @@ class BusquedaController extends Controller
                 return $evento;
             })
             ->values();
-    }
-
-    private function limpiarTextoEventoPublico(string $texto): string
-    {
-        $texto = trim($texto);
-        if ($texto === '') {
-            return $texto;
-        }
-
-        // No exponer detalle nominal de asignaciones internas de cartero en el canal público.
-        $limpio = preg_replace('/\s*Asignado a CARTERO por .*? a .*?(?=\s*-\s*|$)/iu', '', $texto);
-
-        return trim((string) ($limpio ?? $texto));
     }
 
     private function concatenarEventoConLugar(string $nombreEvento, object $evento): string
