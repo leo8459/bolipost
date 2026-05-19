@@ -7,6 +7,10 @@
 <body style="margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;background:#eef2f7;color:#172033;">
     @php
         $codigo = (string) $solicitud->codigo_solicitud;
+        $origen = trim((string) ($solicitud->origen ?? ''));
+        $destino = trim((string) ($solicitud->destino?->nombre_destino ?? $solicitud->ciudad ?? ''));
+        $direccionRecojo = trim((string) ($solicitud->direccion_recojo ?? ''));
+        $direccionEntrega = trim((string) ($solicitud->direccion ?? ''));
         $barcodePng = null;
         $barcodeCid = null;
 
@@ -69,13 +73,58 @@
                     </tr>
                     <tr>
                         <td style="padding:8px 0;color:#526075;">Destino</td>
-                        <td style="padding:8px 0;color:#172033;font-weight:600;">{{ $solicitud->ciudad }}</td>
+                        <td style="padding:8px 0;color:#172033;font-weight:600;">{{ $destino !== '' ? $destino : '-' }}</td>
                     </tr>
                     <tr>
                         <td style="padding:8px 0;color:#526075;">Estado inicial</td>
                         <td style="padding:8px 0;color:#172033;font-weight:600;">{{ optional($solicitud->estadoRegistro)->nombre_estado ?: '-' }}</td>
                     </tr>
                 </table>
+            </div>
+
+            <div style="margin-top:18px;padding:0;border:1px solid #d7e0eb;border-radius:16px;overflow:hidden;background:#ffffff;">
+                <div style="padding:16px 20px;background:#f1f6fd;border-bottom:1px solid #d7e0eb;">
+                    <p style="margin:0;font-size:16px;font-weight:700;color:#173f75;">Datos de ruta y entrega</p>
+                </div>
+                <div style="padding:20px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                        <tr>
+                            <td width="50%" valign="top" style="padding:0 8px 14px 0;">
+                                <div style="border:1px solid #e2e8f0;border-radius:14px;padding:14px;background:#fbfdff;">
+                                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#64748b;font-weight:700;">Origen</div>
+                                    <div style="margin-top:7px;font-size:16px;color:#172033;font-weight:700;">{{ $origen !== '' ? $origen : '-' }}</div>
+                                </div>
+                            </td>
+                            <td width="50%" valign="top" style="padding:0 0 14px 8px;">
+                                <div style="border:1px solid #e2e8f0;border-radius:14px;padding:14px;background:#fbfdff;">
+                                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#64748b;font-weight:700;">Destino</div>
+                                    <div style="margin-top:7px;font-size:16px;color:#172033;font-weight:700;">{{ $destino !== '' ? $destino : '-' }}</div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="50%" valign="top" style="padding:0 8px 0 0;">
+                                <div style="border-left:4px solid #20539a;border-radius:12px;padding:14px;background:#f8fafc;">
+                                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#64748b;font-weight:700;">Direccion de recojo</div>
+                                    <div style="margin-top:7px;font-size:14px;line-height:1.55;color:#172033;font-weight:600;">{{ $direccionRecojo !== '' ? $direccionRecojo : '-' }}</div>
+                                </div>
+                            </td>
+                            <td width="50%" valign="top" style="padding:0 0 0 8px;">
+                                <div style="border-left:4px solid #f7c948;border-radius:12px;padding:14px;background:#fffdf4;">
+                                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#64748b;font-weight:700;">Direccion de entrega</div>
+                                    <div style="margin-top:7px;font-size:14px;line-height:1.55;color:#172033;font-weight:600;">{{ $direccionEntrega !== '' ? $direccionEntrega : '-' }}</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div style="margin-top:18px;padding:16px 18px;border-radius:14px;background:#fff8db;border:1px solid #f4d56b;color:#4a3b00;">
+                <p style="margin:0;font-size:13px;line-height:1.65;">
+                    <strong>Declaracion del cliente:</strong>
+                    El cliente declara que los datos proporcionados son ciertos; y que el contenido cumple con las normas de seguridad postal, bajo su unica y exclusiva responsabilidad.
+                </p>
             </div>
 
             <p style="margin:24px 0 0 0;font-size:14px;line-height:1.7;">

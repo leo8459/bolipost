@@ -7,6 +7,7 @@ use App\Models\Destino;
 use App\Models\Estado;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
+use App\Support\SolicitudCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -123,7 +124,7 @@ class ClienteSolicitudController extends Controller
             'tarifario_tiktoker_id' => null,
         ]);
 
-        $codigoSolicitud = $this->generateSolicitudCode((int) $solicitud->id);
+        $codigoSolicitud = $this->generateSolicitudCode((int) $solicitud->id, $solicitud->origen);
 
         $solicitud->update([
             'codigo_solicitud' => $codigoSolicitud,
@@ -131,6 +132,7 @@ class ClienteSolicitudController extends Controller
         ]);
 
         $this->registrarEventoTiktokerCreacionCliente($solicitud, (int) $cliente->id);
+        $solicitud->loadMissing(['destino:id,nombre_destino', 'estadoRegistro:id,nombre_estado']);
 
         $message = 'Solicitud registrada correctamente con codigo ' . $solicitud->codigo_solicitud . '.';
 
@@ -155,9 +157,9 @@ class ClienteSolicitudController extends Controller
             ->with('success', $message);
     }
 
-    private function generateSolicitudCode(int $id): string
+    private function generateSolicitudCode(int $id, ?string $origin): string
     {
-        return 'SOL' . str_pad((string) $id, 8, '0', STR_PAD_LEFT);
+        return SolicitudCode::make($id, $origin);
     }
 
     private function resolveSolicitudEstadoId(): int

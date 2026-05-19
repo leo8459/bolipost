@@ -14,6 +14,7 @@ use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
+use App\Support\SolicitudCode;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -396,7 +397,7 @@ class PaquetesEmsController extends Controller
             'cliente_id' => null,
         ]));
 
-        $codigoSolicitud = 'SOL' . str_pad((string) $solicitud->id, 8, '0', STR_PAD_LEFT);
+        $codigoSolicitud = SolicitudCode::make((int) $solicitud->id, $solicitud->origen);
 
         $solicitud->update([
             'codigo_solicitud' => $codigoSolicitud,

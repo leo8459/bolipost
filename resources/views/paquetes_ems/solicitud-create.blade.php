@@ -250,7 +250,7 @@
                     <div class="solicitud-panel-head">
                         <h3>Formulario de solicitud</h3>
                     </div>
-        <form method="POST" action="{{ route('paquetes-ems.solicitudes.store') }}">
+        <form method="POST" action="{{ route('paquetes-ems.solicitudes.store') }}" target="_blank">
             @csrf
             <input type="hidden" name="solicitud_id" id="solicitud_id" value="{{ old('solicitud_id') }}">
                     <div class="solicitud-panel-body">
@@ -263,7 +263,7 @@
                                 type="text"
                                 id="codigo_solicitud_base"
                                 class="form-control"
-                                placeholder="Ejemplo: SOL00000011"
+                                placeholder="Ejemplo: SL00000011LP"
                             >
                             <small class="form-text text-muted">Pega el codigo y se autollenaran los datos. Solo faltara registrar el peso.</small>
                         </div>
