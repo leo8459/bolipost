@@ -24,6 +24,7 @@
                         @endif
                         @if ($canCarteroDeliver)
                             <button id="btn-dar-baja" type="button" class="btn btn-sm btn-carteros-warning">Dar de baja</button>
+                            <button id="btn-devolver-ventanilla" type="button" class="btn btn-sm btn-carteros-warning">Devolver a ventanilla</button>
                         @endif
                         @if ($canCarteroProvince)
                             <button id="btn-show-provincia" class="btn btn-sm btn-outline-light cartero-mode-btn">Mostrar provincias</button>
@@ -137,6 +138,43 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-carteros-primary" id="btn-guardar-guia">Guardar guia</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="devolverVentanillaModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="devolver-ventanilla-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Devolver a ventanilla</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group mb-2">
+                            <label for="devolver-ventanilla-observacion">Observacion</label>
+                            <select id="devolver-ventanilla-observacion" class="form-control" required>
+                                <option value="">Selecciona una observacion</option>
+                                <option value="DESCONOCIDO">DESCONOCIDO</option>
+                                <option value="SE MUDO">SE MUDO</option>
+                                <option value="DIRECCION INSUFICIENTE">DIRECCION INSUFICIENTE</option>
+                                <option value="SE AUSENTO">SE AUSENTO</option>
+                                <option value="RECHAZADO">RECHAZADO</option>
+                                <option value="NO RECLAMADO">NO RECLAMADO</option>
+                                <option value="NOTIFICADO">NOTIFICADO</option>
+                            </select>
+                        </div>
+                        <div class="small text-muted">
+                            Se agregara un intento y se enviaran los certificados/ordinarios seleccionados a DEVOLUCION.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-carteros-primary" id="btn-confirmar-devolver-ventanilla">Confirmar devolucion</button>
                     </div>
                 </form>
             </div>
@@ -274,48 +312,56 @@
             cursor: not-allowed;
         }
 
-        #guiaModal .modal-content {
+        #guiaModal .modal-content,
+        #devolverVentanillaModal .modal-content {
             border: 0;
             border-radius: 16px;
             overflow: hidden;
             box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
         }
 
-        #guiaModal .modal-header {
+        #guiaModal .modal-header,
+        #devolverVentanillaModal .modal-header {
             background: linear-gradient(95deg, var(--carteros-primary) 0%, #43538f 100%);
             color: #fff;
             border-bottom: 0;
         }
 
-        #guiaModal .modal-header .close {
+        #guiaModal .modal-header .close,
+        #devolverVentanillaModal .modal-header .close {
             color: #fff;
             opacity: 1;
             text-shadow: none;
         }
 
-        #guiaModal .modal-body {
+        #guiaModal .modal-body,
+        #devolverVentanillaModal .modal-body {
             padding: 1.2rem 1.25rem 1rem;
         }
 
-        #guiaModal .modal-body label {
+        #guiaModal .modal-body label,
+        #devolverVentanillaModal .modal-body label {
             color: #334155;
             font-weight: 700;
             margin-bottom: 0.45rem;
         }
 
-        #guiaModal .form-control {
+        #guiaModal .form-control,
+        #devolverVentanillaModal .form-control {
             min-height: 44px;
             border-radius: 10px;
             border-color: #cbd5e1;
             box-shadow: none;
         }
 
-        #guiaModal .form-control:focus {
+        #guiaModal .form-control:focus,
+        #devolverVentanillaModal .form-control:focus {
             border-color: var(--carteros-primary);
             box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
         }
 
-        #guiaModal .modal-footer {
+        #guiaModal .modal-footer,
+        #devolverVentanillaModal .modal-footer {
             border-top: 1px solid #e4e8f2;
             background: #f8faff;
         }
@@ -352,6 +398,10 @@
             const selectAll = document.getElementById('select-all-cartero');
             const btnOpenGuiaModal = document.getElementById('btn-open-guia-modal');
             const btnDarBaja = document.getElementById('btn-dar-baja');
+            const btnDevolverVentanilla = document.getElementById('btn-devolver-ventanilla');
+            const devolverVentanillaForm = document.getElementById('devolver-ventanilla-form');
+            const devolverVentanillaObservacion = document.getElementById('devolver-ventanilla-observacion');
+            const btnConfirmarDevolverVentanilla = document.getElementById('btn-confirmar-devolver-ventanilla');
             const guiaForm = document.getElementById('guia-form');
             const guiaTransportadora = document.getElementById('guia-transportadora');
             const guiaProvincia = document.getElementById('guia-provincia');
@@ -674,6 +724,97 @@
                         showMessage(err.message || 'Error al dar de baja los paquetes.', 'danger');
                     } finally {
                         btnDarBaja.disabled = false;
+                    }
+                });
+            }
+
+            if (canCarteroDeliver && btnDevolverVentanilla) {
+                btnDevolverVentanilla.addEventListener('click', async function() {
+                    if (currentModeLabel !== 'CARTERO') {
+                        showMessage('Para devolver a ventanilla, vuelve a la bandeja CARTERO.', 'danger');
+                        return;
+                    }
+
+                    const items = selectedItemsList();
+                    if (!items.length) {
+                        showMessage('Selecciona al menos un certificado u ordinario.', 'danger');
+                        return;
+                    }
+
+                    const invalid = items.filter(function(item) {
+                        return item.tipo_paquete !== 'CERTI' && item.tipo_paquete !== 'ORDI';
+                    });
+
+                    if (invalid.length > 0) {
+                        showMessage('Devolver a ventanilla solo aplica para paquetes CERTI y ORDI. Quita los otros tipos seleccionados.', 'danger');
+                        return;
+                    }
+
+                    if (devolverVentanillaObservacion) {
+                        devolverVentanillaObservacion.value = '';
+                    }
+
+                    $('#devolverVentanillaModal').modal('show');
+                });
+            }
+
+            if (canCarteroDeliver && devolverVentanillaForm) {
+                devolverVentanillaForm.addEventListener('submit', async function(event) {
+                    event.preventDefault();
+
+                    const items = selectedItemsList();
+                    const observacion = devolverVentanillaObservacion ? devolverVentanillaObservacion.value : '';
+
+                    if (!items.length) {
+                        showMessage('Selecciona al menos un certificado u ordinario.', 'danger');
+                        $('#devolverVentanillaModal').modal('hide');
+                        return;
+                    }
+
+                    if (!observacion) {
+                        showMessage('Selecciona una observacion para devolver a ventanilla.', 'danger');
+                        return;
+                    }
+
+                    btnConfirmarDevolverVentanilla.disabled = true;
+                    if (btnDevolverVentanilla) {
+                        btnDevolverVentanilla.disabled = true;
+                    }
+
+                    try {
+                        const response = await fetch('{{ route('api.carteros.devolver-ventanilla') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({
+                                items: items,
+                                observacion: observacion
+                            })
+                        });
+
+                        const data = await response.json().catch(function() {
+                            return {};
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(data.message || 'No se pudo devolver a ventanilla.');
+                        }
+
+                        showMessage(data.message || 'Paquetes devueltos a ventanilla correctamente.', 'success');
+                        devolverVentanillaForm.reset();
+                        $('#devolverVentanillaModal').modal('hide');
+                        resetSelection();
+                        loadPage(currentPage);
+                    } catch (err) {
+                        showMessage(err.message || 'Error al devolver a ventanilla.', 'danger');
+                    } finally {
+                        btnConfirmarDevolverVentanilla.disabled = false;
+                        if (btnDevolverVentanilla) {
+                            btnDevolverVentanilla.disabled = false;
+                        }
                     }
                 });
             }

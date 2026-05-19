@@ -29,6 +29,15 @@ class CarterosController extends Controller
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
     private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
     private const EVENTO_DESASIGNAR_CARTERO = 'Desasignado de CARTERO y devuelto a estado anterior desde Carteros Asignados.';
+    private const RETURN_TO_WINDOW_OBSERVATIONS = [
+        'DESCONOCIDO',
+        'SE MUDO',
+        'DIRECCION INSUFICIENTE',
+        'SE AUSENTO',
+        'RECHAZADO',
+        'NO RECLAMADO',
+        'NOTIFICADO',
+    ];
     private const DISTRIBUTION_ASSIGNEE_ROLES = [
         'auxiliar_urbano',
         'auxiliar_urbano_dnd',
@@ -734,6 +743,124 @@ class CarterosController extends Controller
 
         return response()->json([
             'message' => 'Paquetes dados de baja correctamente y enviados a ENTREGADO.',
+            'updated' => [
+                'certi' => $updatedCerti,
+                'ordi' => $updatedOrdi,
+                'total' => $updatedCerti + $updatedOrdi,
+            ],
+        ]);
+    }
+
+    public function returnSelectedToVentanilla(Request $request): JsonResponse
+    {
+        $this->authorizeRoutePermission('carteros.cartero');
+        $this->authorizeFeaturePermission('feature.carteros.cartero.deliver');
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.tipo_paquete' => ['required', 'in:CERTI,ORDI'],
+            'observacion' => ['required', 'string', 'in:' . implode(',', self::RETURN_TO_WINDOW_OBSERVATIONS)],
+        ]);
+
+        $estadoCarteroId = $this->resolveEstadoCarteroId();
+        $estadoDevolucionId = $this->resolveEstadoDevolucionId();
+        $actorUserId = (int) $request->user()->id;
+        $actorName = trim((string) ($request->user()->name ?? 'SIN USUARIO'));
+        $observacion = trim((string) $validated['observacion']);
+        $eventoId = $this->resolveDynamicEventId(
+            'Intento de entrega registrado por ' . ($actorName !== '' ? $actorName : 'SIN USUARIO') . '. Devuelto a ventanilla: ' . $observacion . '.'
+        );
+
+        $certiIds = collect($validated['items'])
+            ->where('tipo_paquete', 'CERTI')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $ordiIds = collect($validated['items'])
+            ->where('tipo_paquete', 'ORDI')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $certiIds = Cartero::query()
+            ->where('id_user', $actorUserId)
+            ->where('id_estados', $estadoCarteroId)
+            ->whereIn('id_paquetes_certi', $certiIds ?: [0])
+            ->pluck('id_paquetes_certi')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $ordiIds = Cartero::query()
+            ->where('id_user', $actorUserId)
+            ->where('id_estados', $estadoCarteroId)
+            ->whereIn('id_paquetes_ordi', $ordiIds ?: [0])
+            ->pluck('id_paquetes_ordi')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($certiIds) && empty($ordiIds)) {
+            throw ValidationException::withMessages([
+                'items' => 'Selecciona certificados u ordinarios que esten en tu bandeja CARTERO.',
+            ]);
+        }
+
+        $updatedCerti = 0;
+        $updatedOrdi = 0;
+
+        DB::transaction(function () use (&$updatedCerti, &$updatedOrdi, $certiIds, $ordiIds, $estadoDevolucionId, $actorUserId, $eventoId, $observacion) {
+            if (!empty($certiIds)) {
+                $updatedCerti = PaqueteCerti::query()
+                    ->whereIn('id', $certiIds)
+                    ->update([
+                        'fk_estado' => $estadoDevolucionId,
+                        'observaciones' => $observacion,
+                    ]);
+
+                Cartero::query()
+                    ->whereIn('id_paquetes_certi', $certiIds)
+                    ->where('id_user', $actorUserId)
+                    ->update([
+                        'id_estados' => $estadoDevolucionId,
+                        'intento' => DB::raw('COALESCE(intento, 0) + 1'),
+                        'descripcion' => $observacion,
+                    ]);
+
+                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, $eventoId, $actorUserId);
+            }
+
+            if (!empty($ordiIds)) {
+                $updatedOrdi = PaqueteOrdi::query()
+                    ->whereIn('id', $ordiIds)
+                    ->update([
+                        'fk_estado' => $estadoDevolucionId,
+                        'observaciones' => $observacion,
+                    ]);
+
+                Cartero::query()
+                    ->whereIn('id_paquetes_ordi', $ordiIds)
+                    ->where('id_user', $actorUserId)
+                    ->update([
+                        'id_estados' => $estadoDevolucionId,
+                        'intento' => DB::raw('COALESCE(intento, 0) + 1'),
+                        'descripcion' => $observacion,
+                    ]);
+
+                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, $eventoId, $actorUserId);
+            }
+        });
+
+        return response()->json([
+            'message' => 'Intento registrado y paquetes enviados a DEVOLUCION para devolver a ventanilla.',
             'updated' => [
                 'certi' => $updatedCerti,
                 'ordi' => $updatedOrdi,

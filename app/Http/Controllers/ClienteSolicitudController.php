@@ -145,13 +145,13 @@ class ClienteSolicitudController extends Controller
             ]);
 
             return redirect()
-                ->route('clientes.solicitudes.index')
+                ->route('clientes.solicitudes.history')
                 ->with('success', $message)
                 ->with('warning', 'La solicitud se registro, pero no se pudo enviar el correo automatico. Revisa la configuracion SMTP.');
         }
 
         return redirect()
-            ->route('clientes.solicitudes.index')
+            ->route('clientes.solicitudes.history')
             ->with('success', $message);
     }
 

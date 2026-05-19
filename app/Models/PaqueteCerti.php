@@ -24,6 +24,7 @@ class PaqueteCerti extends Model
         'precio',
         'tipo',
         'aduana',
+        'observaciones',
         'fk_estado',
         'fk_ventanilla',
         'imagen',
