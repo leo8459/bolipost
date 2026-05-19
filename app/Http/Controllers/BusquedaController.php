@@ -691,6 +691,8 @@ class BusquedaController extends Controller
                 $item = (object) $evento;
                 $createdAt = (string) ($item->created_at ?? '');
                 $nombreEventoBase = trim((string) ($item->nombre_evento ?? ''));
+                $nombreEventoBase = preg_replace('/\s*Asignado a CARTERO por .*? a .*?(?=\s*-\s*|$)/iu', '', $nombreEventoBase) ?? $nombreEventoBase;
+                $nombreEventoBase = preg_replace('/\s*por\s+[^-]+?\s+a\s+[^-]+?(?=\s*-\s*|$)/iu', '', $nombreEventoBase) ?? $nombreEventoBase;
                 $timestamp = strtotime($createdAt);
 
                 $item->_sort_ts = $timestamp !== false ? $timestamp : (PHP_INT_MAX - $index);
