@@ -102,6 +102,8 @@ class FacturacionCartService
 
     public function updateDraftBillingData(User $user, array $payload): object
     {
+        $payload = $this->withMotivoFromCanalEmision($payload);
+
         $body = $this->request('PUT', '/cart/billing', array_merge(
             $payload,
             $this->originUserPayload($user),
@@ -488,7 +490,8 @@ class FacturacionCartService
         $client = Http::baseUrl($this->resolveBaseUrl())
             ->withToken((string) config('services.facturacion_bridge.token'))
             ->accept('application/pdf')
-            ->timeout((int) config('services.facturacion_bridge.timeout', 30));
+            ->timeout((int) config('services.facturacion_bridge.timeout', 30))
+            ->withOptions(['verify' => config('services.facturacion_bridge.ssl_verify', true)]);
 
         $response = $client->get('/cart/ventas/pdf', $payload);
 
@@ -519,7 +522,8 @@ class FacturacionCartService
         $client = Http::baseUrl($this->resolveBaseUrl())
             ->withToken((string) config('services.facturacion_bridge.token'))
             ->acceptJson()
-            ->timeout((int) config('services.facturacion_bridge.timeout', 30));
+            ->timeout((int) config('services.facturacion_bridge.timeout', 30))
+            ->withOptions(['verify' => config('services.facturacion_bridge.ssl_verify', true)]);
 
         $response = match (strtoupper($method)) {
             'GET' => $client->get($path, $payload),
@@ -695,6 +699,7 @@ class FacturacionCartService
             'numero_documento' => (string) ($draft->numero_documento ?? ''),
             'complemento_documento' => (string) ($draft->complemento_documento ?? ''),
         ], fn ($v) => $v !== null);
+        $payload = $this->withMotivoFromCanalEmision($payload);
 
         $this->request('PUT', '/cart/billing', array_merge(
             $payload,
@@ -764,6 +769,22 @@ class FacturacionCartService
 
         $normalized = str_replace(',', '.', $raw);
         return is_numeric($normalized) ? (float) $normalized : 0.0;
+    }
+
+    private function withMotivoFromCanalEmision(array $payload): array
+    {
+        $canalEmision = strtolower(trim((string) ($payload['canal_emision'] ?? '')));
+        if ($canalEmision === '') {
+            return $payload;
+        }
+
+        $payload['motivo'] = match ($canalEmision) {
+            'qr' => 'qr',
+            'factura_electronica' => 'factura electronica',
+            default => (string) ($payload['motivo'] ?? ''),
+        };
+
+        return $payload;
     }
 
     private function resolveModuloServicio(string $nombre): ?Servicio

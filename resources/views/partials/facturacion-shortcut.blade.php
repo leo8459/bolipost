@@ -21,7 +21,7 @@
     $facturacionCartTotal = (float) ($activeFacturacionCart?->total ?? 0);
     $billingDocumentTypes = \App\Models\Cliente::tiposDocumentoIdentidad();
     $activeBillingMode = (string) ($activeFacturacionCart?->modalidad_facturacion ?? 'con_datos');
-    $isQrTemporarilyDisabled = true;
+    $isQrTemporarilyDisabled = false;
     $activeInvoiceChannelRaw = (string) ($activeFacturacionCart?->canal_emision ?? 'qr');
     $activeInvoiceChannel = $isQrTemporarilyDisabled && $activeInvoiceChannelRaw === 'qr'
         ? 'factura_electronica'
@@ -67,6 +67,7 @@
     $facturaEmitida = (array) ($resultadoEmision['factura'] ?? []);
     $facturacionFeedback = session('facturacion_feedback');
     $facturacionDownloadPdf = session('facturacion_download_pdf');
+    $facturacionQrData = session('facturacion_qr_data');
     $isRejectedDraft = $activeFacturacionCart && ($activeFacturacionCart->estado_emision ?? null) === 'RECHAZADA';
     $lastEmissionReason = (string) ($resultadoEmision['razon'] ?? '');
     $lastEmissionAttempts = (int) ($resultadoEmision['_meta']['intentos'] ?? 0);
@@ -141,6 +142,30 @@
                         <p>{{ $facturacionFeedback['message'] ?? '' }}</p>
                         @if (!empty($facturacionFeedback['detail']))
                             <span>{{ $facturacionFeedback['detail'] }}</span>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
+            @if (is_array($facturacionQrData) && (!empty($facturacionQrData['qr_image']) || !empty($facturacionQrData['payment_url'])))
+                <div class="global-shortcut-feedback global-shortcut-feedback--info">
+                    <div class="global-shortcut-feedback__icon">
+                        <i class="fas fa-qrcode"></i>
+                    </div>
+                    <div class="global-shortcut-feedback__body">
+                        <strong>QR generado</strong>
+                        @if (!empty($facturacionQrData['payment_status']))
+                            <p>Estado: {{ $facturacionQrData['payment_status'] }}</p>
+                        @endif
+                        @if (!empty($facturacionQrData['qr_image']))
+                            <img
+                                src="{{ \Illuminate\Support\Str::startsWith((string) $facturacionQrData['qr_image'], 'http') ? $facturacionQrData['qr_image'] : 'data:image/png;base64,' . $facturacionQrData['qr_image'] }}"
+                                alt="QR de pago"
+                                style="width: 180px; max-width: 100%; border: 1px solid #d6e2f5; border-radius: 10px; background:#fff; padding:8px;"
+                            >
+                        @endif
+                        @if (!empty($facturacionQrData['payment_url']))
+                            <span><a href="{{ $facturacionQrData['payment_url'] }}" target="_blank" rel="noopener noreferrer">Abrir enlace de pago</a></span>
                         @endif
                     </div>
                 </div>
