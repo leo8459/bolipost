@@ -4,7 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 
 class MaintenanceLog extends Model
 {
@@ -25,6 +27,7 @@ class MaintenanceLog extends Model
         'descripcion',
         'comprobante',
         'observaciones',
+        'activo',
     ];
 
     protected $casts = [
@@ -33,6 +36,7 @@ class MaintenanceLog extends Model
         'costo' => 'decimal:2',
         'kilometraje' => 'decimal:2',
         'proximo_kilometraje' => 'decimal:2',
+        'activo' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -49,6 +53,11 @@ class MaintenanceLog extends Model
     public function maintenanceType(): BelongsTo
     {
         return $this->belongsTo(MaintenanceType::class, 'maintenance_type_id');
+    }
+
+    public function workshops(): HasMany
+    {
+        return $this->hasMany(Workshop::class);
     }
 
     /**
@@ -120,5 +129,14 @@ class MaintenanceLog extends Model
         ];
 
         return $tipos[$this->tipo] ?? $this->tipo;
+    }
+
+    public function scopeActive($query)
+    {
+        if (Schema::hasColumn($this->getTable(), 'activo')) {
+            $query->where($this->qualifyColumn('activo'), true);
+        }
+
+        return $query;
     }
 }

@@ -1,4 +1,79 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
+    <style>
+        .bp-select-like-vehicle {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+
+        .bp-select-like-vehicle:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+
+        select.bp-select-like-vehicle {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
+
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
+            outline: 0;
+        }
+    </style>
+
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
         <h1 class="h3 mb-0">
             <i class="fas fa-tools me-2 text-primary"></i>Gestion de Mantenimiento
@@ -33,9 +108,24 @@
                                 </div>
                             </div>
                         @endif
+                        @if((int) ($from_workshop_id ?? 0) > 0)
+                            <div class="col-12">
+                                <div class="alert alert-warning py-2 mb-0">
+                                    Registro generado desde orden de taller #{{ $from_workshop_id }}. El vehiculo y el mantenimiento ya fueron seleccionados segun la entrega del taller.
+                                </div>
+                            </div>
+                        @endif
+                        @if($selectedVehicle)
+                            <div class="col-12">
+                                <div class="alert alert-light border py-2 mb-0">
+                                    <strong>Vehiculo del mantenimiento:</strong>
+                                    {{ $selectedVehicle->display_name ?? $selectedVehicle->placa ?? 'N/A' }}
+                                </div>
+                            </div>
+                        @endif
                         <div class="col-12 col-md-4">
                             <label for="vehicle_id" class="form-label fw-bold">Vehiculo <span class="text-danger">*</span></label>
-                            <select id="vehicle_id" wire:model="vehicle_id" class="form-select @error('vehicle_id') is-invalid @enderror" required>
+                            <select id="vehicle_id" wire:model="vehicle_id" class="form-select bp-select-like-vehicle @error('vehicle_id') is-invalid @enderror" @disabled((int) ($from_workshop_id ?? 0) > 0) required>
                                 <option value="">Seleccionar vehiculo</option>
                                 @foreach ($vehicles as $vehicle)
                                     <option value="{{ $vehicle->id }}">{{ $vehicle->placa }}</option>
@@ -50,7 +140,7 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="maintenance_type_id" class="form-label fw-bold">Tipo de Mantenimiento <span class="text-danger">*</span></label>
-                            <select id="maintenance_type_id" wire:model.live="maintenance_type_id" class="form-select @error('maintenance_type_id') is-invalid @enderror" required>
+                            <select id="maintenance_type_id" wire:model.live="maintenance_type_id" class="form-select bp-select-like-vehicle @error('maintenance_type_id') is-invalid @enderror" required>
                                 <option value="">Seleccionar tipo</option>
                                 @foreach ($maintenanceTypes as $type)
                                     <option value="{{ $type->id }}">{{ $type->nombre }}</option>
@@ -84,13 +174,23 @@
                             <label for="kilometraje" class="form-label fw-bold">Kilometraje <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" id="kilometraje" wire:model="kilometraje" class="form-control @error('kilometraje') is-invalid @enderror" required>
                             <div class="form-text">
-                                @if((int) ($from_alert_id ?? 0) > 0)
+                                @if($tacometro_danado_vehiculo)
+                                    Si el tacometro esta dañado, puede conservar el ultimo kilometraje valido.
+                                @elseif((int) ($from_alert_id ?? 0) > 0)
                                     Debe ser igual o mayor al KM actual del vehiculo.
                                 @else
                                     Debe ser mayor al KM actual del vehiculo.
                                 @endif
                             </div>
                             @error('kilometraje') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check bp-switch">
+                                <input type="checkbox" id="tacometro_danado_vehiculo" wire:model="tacometro_danado_vehiculo" class="form-check-input">
+                                <label class="form-check-label fw-bold" for="tacometro_danado_vehiculo">
+                                    Marcar vehiculo con tacometro danado
+                                </label>
+                            </div>
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="costo" class="form-label fw-bold">Costo <span class="text-danger">*</span></label>
@@ -137,14 +237,100 @@
         </div>
         </div>
     @else
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        wire:click="setTableView('pending')"
+                        class="btn {{ $tableView === 'pending' ? 'btn-primary' : 'btn-outline-primary' }}">
+                        <i class="fas fa-truck-ramp-box me-2"></i>Entregados de taller
+                        <span class="badge {{ $tableView === 'pending' ? 'bg-light text-dark' : 'bg-primary ms-1' }}">{{ $pendingWorkshopRecords->count() }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="setTableView('history')"
+                        class="btn {{ $tableView === 'history' ? 'btn-primary' : 'btn-outline-primary' }}">
+                        <i class="fas fa-tools me-2"></i>Registros de mantenimiento
+                        <span class="badge {{ $tableView === 'history' ? 'bg-light text-dark' : 'bg-primary ms-1' }}">{{ $maintenanceLogs->total() }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if($tableView === 'pending')
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    Vehiculos entregados por taller
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th>OT</th>
+                                    <th>Vehiculo</th>
+                                    <th>Taller</th>
+                                    <th>Mantenimiento</th>
+                                    <th>Fecha entrega</th>
+                                    <th class="text-end">Costo</th>
+                                    <th class="text-center">Accion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($pendingWorkshopRecords as $workshop)
+                                    <tr>
+                                        <td>{{ $workshop->order_number ?: ('#'.$workshop->id) }}</td>
+                                        <td>{{ $workshop->vehicle?->display_name ?? ($workshop->vehicle?->placa ?? 'N/A') }}</td>
+                                        <td>{{ $workshop->workshopCatalog?->nombre ?? $workshop->nombre_taller ?? 'Sin taller' }}</td>
+                                        <td>{{ $workshop->maintenanceAlert?->maintenanceType?->nombre ?? $workshop->maintenanceAppointment?->tipoMantenimiento?->nombre ?? 'Mantenimiento realizado' }}</td>
+                                        <td>{{ optional($workshop->fecha_salida)->format('d/m/Y') ?: optional($workshop->fecha_listo)->format('d/m/Y') ?: 'Pendiente' }}</td>
+                                        <td class="text-end">BOB{{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</td>
+                                        <td class="text-center">
+                                            <button type="button" wire:click="registerFromWorkshop({{ $workshop->id }})" class="btn btn-sm btn-outline-primary" title="{{ $workshop->maintenance_log_id ? 'Editar' : 'Registrar' }} mantenimiento de {{ $workshop->vehicle?->display_name ?? ($workshop->vehicle?->placa ?? 'N/A') }}">
+                                                <i class="fas fa-file-medical me-1"></i>{{ $workshop->maintenance_log_id ? 'Editar mantenimiento' : 'Registrar mantenimiento' }}
+                                            </button>
+                                            <div class="small text-muted mt-1">
+                                                {{ $workshop->vehicle?->placa ?? 'Sin placa' }}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if(!$pendingWorkshopRecords->count())
+                        <div class="p-5 text-center text-muted">
+                            <i class="fas fa-clipboard-check fa-3x mb-3 opacity-25"></i>
+                            <h5>Sin vehiculos entregados por taller</h5>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        @if($tableView === 'history')
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="p-3 border-bottom">
-                    <input
-                        type="text"
-                        class="form-control"
-                        wire:model.live.debounce.350ms="search"
-                        placeholder="Buscar por cualquier campo">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Busqueda</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                wire:model.live.debounce.350ms="search"
+                                placeholder="Buscar por cualquier campo">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label fw-bold mb-1">Fecha desde</label>
+                            <input type="date" class="form-control" wire:model.live="date_from">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label fw-bold mb-1">Fecha hasta</label>
+                            <input type="date" class="form-control" wire:model.live="date_to">
+                        </div>
+                    </div>
                 </div>
                 @if($maintenanceLogs->count())
                     <div class="table-responsive">
@@ -162,7 +348,7 @@
                             <tbody>
                                 @foreach ($maintenanceLogs as $log)
                                     <tr>
-                                        <td>{{ $log->vehicle->placa }}</td>
+                                        <td>{{ $log->vehicle?->display_name ?? 'N/A' }}</td>
                                         <td>{{ $log->tipo }}</td>
                                         <td>{{ optional($log->fecha)->format('d/m/Y') }}</td>
                                         <td>
@@ -202,5 +388,6 @@
         <div class="mt-4">
             {{ $maintenanceLogs->links() }}
         </div>
+        @endif
     @endif
 </div>

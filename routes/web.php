@@ -49,10 +49,23 @@ use App\Http\Controllers\ClientManagementController;
 use App\Http\Controllers\ClientRoleController;
 use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\Web\FuelLogController;
+use App\Http\Controllers\Web\DriverMemorandumController;
+use App\Http\Controllers\Web\FuelInvoiceFileController;
 use App\Http\Controllers\Web\MaintenanceFileController;
+use App\Http\Controllers\Web\MaintenanceIncentiveReportController;
+use App\Http\Controllers\Web\MaintenanceDocumentReportController;
+use App\Http\Controllers\Web\MaintenanceApprovedAppointmentReportController;
+use App\Http\Controllers\Web\MaintenanceRequestFormController;
 use App\Http\Controllers\Web\MapController;
 use App\Http\Controllers\Web\QrDecoderController;
 use App\Http\Controllers\AppConfigController;
+use App\Http\Controllers\Web\VehicleLogMapController;
+use App\Http\Controllers\Web\VehicleLogMapPageController;
+use App\Http\Controllers\Web\VehicleAssignmentReportController;
+use App\Http\Controllers\Web\VehicleMaintenanceReportController;
+use App\Http\Controllers\Web\VehicleLogOdometerController;
+use App\Http\Controllers\Web\VehicleLogStagePhotoController;
+use App\Http\Controllers\Web\WorkshopLocationReportController;
 use App\Livewire\FuelLogManager;
 use App\Livewire\MapTracker;
 use App\Livewire\MaintenanceAlertManager;
@@ -85,6 +98,8 @@ Route::match(['GET', 'POST'], '/api/busqueda/ems-eventos', [BusquedaController::
     ->name('api.busqueda.ems-eventos');
 Route::get('/api/busqueda/captcha', [BusquedaController::class, 'captchaTracking'])
     ->name('api.busqueda.captcha');
+Route::get('/maintenance-request-form/download', [MaintenanceRequestFormController::class, 'download'])
+    ->name('maintenance-request-form.download');
 
 Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
     ->name('api.public.zona-paquete');
@@ -385,18 +400,63 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::view('/livewire/vehicle-brands', 'livewire.pages.vehicle-brands')->name('livewire.vehicle-brands');
     Route::view('/livewire/drivers', 'livewire.pages.drivers')->name('livewire.drivers');
     Route::view('/livewire/vehicle-assignments', 'livewire.pages.vehicle-assignments')->name('livewire.vehicle-assignments');
+    Route::get('/vehicle-assignments/report/pdf', [VehicleAssignmentReportController::class, 'exportPdf'])
+        ->name('vehicle-assignments.report.pdf');
     Route::view('/livewire/vehicle-logs', 'livewire.pages.vehicle-logs')->name('livewire.vehicle-logs');
+    Route::redirect('/livewire/livewire/vehicle-logs', '/livewire/vehicle-logs', 301);
     Route::view('/map', 'livewire.pages.map')->name('map.index');
     Route::view('/livewire/map', 'livewire.pages.map')->name('livewire.map');
     Route::get('/map/data', [MapController::class, 'data'])->name('map.data');
     Route::view('/livewire/fuel-logs', 'livewire.pages.fuel-logs')->name('livewire.fuel-logs');
     Route::view('/livewire/maintenance-logs', 'livewire.pages.maintenance-logs')->name('livewire.maintenance-logs');
+    Route::view('/livewire/maintenance-incentives', 'livewire.pages.maintenance-incentives')->name('livewire.maintenance-incentives');
+    Route::get('/maintenance-incentives/export/pdf', [MaintenanceIncentiveReportController::class, 'exportPdf'])
+        ->name('maintenance-incentives.export.pdf');
+    Route::get('/maintenance-documents/report/pdf', [MaintenanceDocumentReportController::class, 'exportPdf'])
+        ->name('maintenance-documents.report.pdf');
+    Route::get('/maintenance-appointments/approved-report/pdf', [MaintenanceApprovedAppointmentReportController::class, 'exportPdf'])
+        ->name('maintenance-appointments.approved-report.pdf');
     Route::view('/livewire/maintenance-alerts', 'livewire.pages.maintenance-alerts')->name('livewire.maintenance-alerts');
     Route::view('/livewire/maintenance-calendar', 'livewire.pages.maintenance-calendar')->name('livewire.maintenance-calendar');
     Route::view('/livewire/maintenance-types', 'livewire.pages.maintenance-types')->name('livewire.maintenance-types');
     Route::view('/livewire/maintenance-appointments', 'livewire.pages.maintenance-appointments')->name('livewire.maintenance-appointments');
+    Route::view('/livewire/workshops', 'livewire.pages.workshops')->name('livewire.workshops');
+    Route::get('/workshops/location-report/pdf', [WorkshopLocationReportController::class, 'exportPdf'])
+        ->name('workshops.location-report.pdf');
     Route::get('/maintenance-logs/{maintenanceLog}/comprobante', [MaintenanceFileController::class, 'comprobante'])
         ->name('maintenance-logs.comprobante');
+    Route::get('/maintenance-appointments/{maintenanceAppointment}/evidence', [MaintenanceFileController::class, 'appointmentEvidence'])
+        ->name('maintenance-appointments.evidence');
+    Route::get('/maintenance-appointments/{maintenanceAppointment}/form', [MaintenanceFileController::class, 'appointmentForm'])
+        ->name('maintenance-appointments.form');
+    Route::get('/workshops/{workshop}/reception', [MaintenanceFileController::class, 'workshopReception'])
+        ->name('workshops.reception');
+    Route::get('/workshops/{workshop}/damage', [MaintenanceFileController::class, 'workshopDamage'])
+        ->name('workshops.damage');
+    Route::get('/workshops/{workshop}/invoice', [MaintenanceFileController::class, 'workshopInvoice'])
+        ->name('workshops.invoice');
+    Route::get('/workshops/{workshop}/receipt', [MaintenanceFileController::class, 'workshopReceipt'])
+        ->name('workshops.receipt');
+    Route::get('/fuel-invoices/{fuelInvoice}/document', [FuelInvoiceFileController::class, 'document'])
+        ->name('fuel-invoices.document');
+    Route::get('/fuel-invoices/{fuelInvoice}/rollo', [FuelInvoiceFileController::class, 'rollo'])
+        ->name('fuel-invoices.rollo');
+    Route::get('/fuel-invoices/{fuelInvoice}/photo', [FuelInvoiceFileController::class, 'photo'])
+        ->name('fuel-invoices.photo');
+    Route::get('/fuel-invoices/{fuelInvoice}/meter-photo', [FuelInvoiceFileController::class, 'meterPhoto'])
+        ->name('fuel-invoices.meter-photo');
+    Route::get('/drivers/{driver}/memorandum', [DriverMemorandumController::class, 'show'])
+        ->name('drivers.memorandum.download');
+    Route::get('/vehicle-logs/{vehicleLog}/map', [VehicleLogMapPageController::class, 'show'])
+        ->name('vehicle-logs.map');
+    Route::get('/vehicle-logs/{vehicleLog}/map-data', [VehicleLogMapController::class, 'show'])
+        ->name('vehicle-logs.map-data');
+    Route::get('/vehicles/{vehicle}/maintenance-report', [VehicleMaintenanceReportController::class, 'show'])
+        ->name('vehicles.maintenance-report');
+    Route::get('/vehicle-logs/{vehicleLog}/odometro-photo', [VehicleLogOdometerController::class, 'show'])
+        ->name('vehicle-logs.odometro.photo');
+    Route::get('/vehicle-log-stage-events/{stageEvent}/photo', [VehicleLogStagePhotoController::class, 'show'])
+        ->name('vehicle-log-stage-events.photo');
 
     Route::redirect('/vehicles', '/livewire/vehicles')->name('vehicles.index');
     Route::redirect('/drivers', '/livewire/drivers')->name('drivers.index');
@@ -405,7 +465,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::redirect('/maintenance-logs', '/livewire/maintenance-logs')->name('maintenance-logs.index');
 
     Route::get('/fuel-logs/bitacora/pdf', [FuelLogController::class, 'bitacoraPdf'])->name('fuel-logs.bitacora.pdf');
+    Route::get('/fuel-logs/bitacora/excel', [FuelLogController::class, 'bitacoraExcel'])->name('fuel-logs.bitacora.excel');
     Route::get('/vehicle-logs/pdf', [FuelLogController::class, 'vehicleLogsPdf'])->name('vehicle-logs.pdf');
+    Route::get('/vehicle-logs/excel', [FuelLogController::class, 'vehicleLogsExcel'])->name('vehicle-logs.excel');
     Route::post('/fuel-logs/scrape-from-qr', [FuelLogController::class, 'scrapeFromQr'])->name('fuel-logs.scrape-from-qr');
     Route::get('/fuel-logs/by-vehicle/{vehicle}', [FuelLogController::class, 'byVehicle'])->name('fuel-logs.by-vehicle');
     Route::post('/qr/decode-from-image', [QrDecoderController::class, 'decodeFromImage'])->name('api.qr.decode');

@@ -11,7 +11,35 @@ class VehicleBrandManager extends Component
 {
     use WithPagination;
 
+    protected string $paginationTheme = 'bootstrap';
+
+    private const COUNTRY_OPTIONS = [
+        'Japon',
+        'Corea del Sur',
+        'China',
+        'India',
+        'Tailandia',
+        'Indonesia',
+        'Estados Unidos',
+        'Mexico',
+        'Canada',
+        'Brasil',
+        'Argentina',
+        'Alemania',
+        'Francia',
+        'Italia',
+        'Espana',
+        'Reino Unido',
+        'Suecia',
+        'Republica Checa',
+        'Turquia',
+        'Sudafrica',
+        'Rusia',
+        'Hungria',
+    ];
+
     public string $search = '';
+    public string $statusFilter = 'activos';
 
     #[Validate('required|string|max:255')]
     public string $nombre = '';
@@ -26,6 +54,12 @@ class VehicleBrandManager extends Component
     {
         $query = VehicleBrand::query()->orderBy('nombre');
 
+        if ($this->statusFilter === 'activos') {
+            $query->where('activo', true);
+        } elseif ($this->statusFilter === 'inactivos') {
+            $query->where('activo', false);
+        }
+
         $search = trim($this->search);
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -36,21 +70,63 @@ class VehicleBrandManager extends Component
         }
 
         $brands = $query->paginate(10);
-        return view('livewire.vehicle-brand-manager', ['brands' => $brands]);
+        return view('livewire.vehicle-brand-manager', [
+            'brands' => $brands,
+            'countryOptions' => self::COUNTRY_OPTIONS,
+        ]);
     }
 
     public function updatedSearch(): void
     {
+        $this->search = $this->sanitizeText($this->search);
         $this->resetPage();
+    }
+
+    public function updatedStatusFilter(string $value): void
+    {
+        if (!in_array($value, ['activos', 'inactivos', 'todos'], true)) {
+            $this->statusFilter = 'activos';
+        }
+
+        $this->resetPage();
+    }
+
+    public function updatedNombre(string $value): void
+    {
+        $this->nombre = $this->sanitizeText($value);
+    }
+
+    public function updatedPaisOrigen(string $value): void
+    {
+        $clean = $this->sanitizeText($value);
+        $this->pais_origen = in_array($clean, self::COUNTRY_OPTIONS, true) ? $clean : '';
     }
 
     public function save()
     {
-        $this->validate();
+        $this->nombre = $this->sanitizeText($this->nombre);
+        $this->pais_origen = in_array($this->pais_origen, self::COUNTRY_OPTIONS, true) ? $this->pais_origen : '';
+
+        $this->validate(
+            [
+                'nombre' => ['required', 'string', 'max:255', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
+                'pais_origen' => ['required', 'string', 'max:255', 'in:' . implode(',', self::COUNTRY_OPTIONS)],
+            ],
+            [
+                'nombre.required' => 'El nombre es obligatorio.',
+                'nombre.string' => 'El nombre debe ser texto.',
+                'nombre.max' => 'El nombre no debe superar :max caracteres.',
+                'nombre.regex' => 'El nombre contiene caracteres no permitidos.',
+                'pais_origen.required' => 'El pais de origen es obligatorio.',
+                'pais_origen.string' => 'El pais de origen debe ser texto.',
+                'pais_origen.max' => 'El pais de origen no debe superar :max caracteres.',
+                'pais_origen.in' => 'Debe seleccionar un pais de origen valido.',
+            ]
+        );
 
         $payload = [
             'nombre' => $this->nombre,
-            'pais_origen' => $this->pais_origen !== '' ? $this->pais_origen : null,
+            'pais_origen' => $this->pais_origen,
         ];
 
         if ($this->isEdit && $this->editingBrandId) {
@@ -60,7 +136,7 @@ class VehicleBrandManager extends Component
                 session()->flash('message', 'Marca actualizada correctamente.');
             }
         } else {
-            VehicleBrand::create($payload);
+            VehicleBrand::create($payload + ['activo' => true]);
             session()->flash('message', 'Marca creada correctamente.');
         }
 
@@ -78,8 +154,14 @@ class VehicleBrandManager extends Component
 
     public function delete(VehicleBrand $brand)
     {
-        $brand->delete();
-        session()->flash('message', 'Marca eliminada correctamente.');
+        $brand->update(['activo' => false]);
+        session()->flash('message', 'Marca inactivada correctamente.');
+    }
+
+    public function reactivate(VehicleBrand $brand): void
+    {
+        $brand->update(['activo' => true]);
+        session()->flash('message', 'Marca reactivada correctamente.');
     }
 
     public function resetForm()
@@ -101,5 +183,12 @@ class VehicleBrandManager extends Component
     public function cancelForm()
     {
         $this->resetForm();
+    }
+
+    private function sanitizeText(?string $value): string
+    {
+        $clean = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{200D}]/u', '', (string) $value) ?? '';
+        $clean = preg_replace('/\s+/', ' ', trim($clean)) ?? $clean;
+        return $clean;
     }
 }

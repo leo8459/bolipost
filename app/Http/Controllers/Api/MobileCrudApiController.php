@@ -23,6 +23,7 @@ use App\Models\VehicleLog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class MobileCrudApiController extends Controller
 {
@@ -84,6 +85,37 @@ class MobileCrudApiController extends Controller
         $model = new $modelClass();
         $query = $modelClass::query();
 
+        if ($this->shouldFilterActiveOnly($request, $model)) {
+            $query->where($model->qualifyColumn('activo'), true);
+        }
+
+        if ($resource === 'maintenance_types') {
+            $authUserId = (int) ($request->user()?->id ?? 0);
+            if ($authUserId > 0) {
+                $driver = Driver::query()->where('user_id', $authUserId)->first();
+                $vehicle = null;
+
+                if ($driver) {
+                    $assignment = VehicleAssignment::query()
+                        ->where('driver_id', (int) $driver->id)
+                        ->where(function ($q) {
+                            $q->where('activo', true)->orWhereNull('activo');
+                        })
+                        ->orderByDesc('fecha_inicio')
+                        ->orderByDesc('id')
+                        ->first();
+
+                    if ($assignment?->vehicle_id) {
+                        $vehicle = Vehicle::query()->find((int) $assignment->vehicle_id);
+                    }
+                }
+
+                if ($vehicle) {
+                    $query->active()->applicableToVehicleForMobile($vehicle)->with('vehicles');
+                }
+            }
+        }
+
         $with = $this->parseWith($request, $model);
         if (!empty($with)) {
             $query->with($with);
@@ -104,7 +136,7 @@ class MobileCrudApiController extends Controller
 
         /** @var Model $model */
         $model = $modelClass::query()->find($id);
-        if (!$model) {
+        if (!$model || ($this->shouldFilterActiveOnly($request, $model) && !$this->isActiveRecord($model))) {
             return response()->json(['message' => 'Registro no encontrado.'], 404);
         }
 
@@ -126,6 +158,10 @@ class MobileCrudApiController extends Controller
         /** @var Model $model */
         $model = new $modelClass();
         $data = $this->extractAllowedPayload($request->all(), $model);
+
+        if ($this->supportsActiveFlag($model) && !array_key_exists('activo', $data)) {
+            $data['activo'] = true;
+        }
 
         if (empty($data)) {
             return response()->json([
@@ -190,6 +226,17 @@ class MobileCrudApiController extends Controller
         $model = $modelClass::query()->find($id);
         if (!$model) {
             return response()->json(['message' => 'Registro no encontrado.'], 404);
+        }
+
+        if ($this->supportsActiveFlag($model)) {
+            $model->forceFill(['activo' => false])->save();
+
+            return response()->json([
+                'message' => 'Registro inactivado.',
+                'id' => $id,
+                'resource' => $resource,
+                'activo' => false,
+            ]);
         }
 
         $model->delete();
@@ -258,5 +305,28 @@ class MobileCrudApiController extends Controller
             'message' => "Recurso '{$resource}' no soportado.",
             'resources' => array_keys($this->resourceMap()),
         ], 404);
+    }
+
+    private function supportsActiveFlag(Model $model): bool
+    {
+        return Schema::hasColumn($model->getTable(), 'activo');
+    }
+
+    private function shouldFilterActiveOnly(Request $request, Model $model): bool
+    {
+        if (!$this->supportsActiveFlag($model)) {
+            return false;
+        }
+
+        return !$request->boolean('include_inactive');
+    }
+
+    private function isActiveRecord(Model $model): bool
+    {
+        if (!$this->supportsActiveFlag($model)) {
+            return true;
+        }
+
+        return (bool) ($model->getAttribute('activo') ?? false);
     }
 }

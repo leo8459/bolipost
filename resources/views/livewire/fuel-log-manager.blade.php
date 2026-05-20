@@ -1,5 +1,78 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
+        .bp-select-like-vehicle {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+
+        .bp-select-like-vehicle:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+
+        select.bp-select-like-vehicle {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
+
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
+            outline: 0;
+        }
+
         [x-cloak] {
             display: none !important;
         }
@@ -47,13 +120,29 @@
             max-width: 900px;
         }
 
-        #bitacora-view-map {
-            height: 420px;
-            border-radius: 8px;
+        .fuel-file-viewer {
+            width: 100%;
+            min-height: 70vh;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            background: #fff;
         }
-
-        #bitacoraMapModal .modal-dialog {
-            max-width: 980px;
+        .fuel-file-image {
+            display: block;
+            max-width: 100%;
+            max-height: 70vh;
+            margin: 0 auto;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+            background: #fff;
+        }
+        .fuel-file-viewer-loading {
+            min-height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-weight: 600;
         }
 
         .fuel-form-map-card {
@@ -116,6 +205,106 @@
             color: #5f6770;
         }
 
+        .fuel-toolbar {
+            background: #2f5ea2;
+            border-radius: 20px 20px 0 0;
+            padding: 20px 22px;
+        }
+
+        .fuel-toolbar__title {
+            color: #fff;
+            font-size: 1.15rem;
+            font-weight: 800;
+            margin: 0;
+        }
+
+        .fuel-toolbar__actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .fuel-toolbar__search {
+            min-width: min(320px, 100%);
+            max-width: 420px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.65);
+            padding: 10px 14px;
+            box-shadow: none;
+        }
+
+        .fuel-toolbar .btn {
+            border-radius: 14px;
+            padding-left: 16px;
+            padding-right: 16px;
+            font-weight: 700;
+        }
+
+        .fuel-toolbar .btn-outline-light {
+            border-color: rgba(255, 255, 255, 0.75);
+            color: #fff;
+        }
+
+        .fuel-toolbar .btn-outline-light:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+
+        .fuel-toolbar .btn-warning {
+            color: #1f2937;
+        }
+
+        .fuel-toolbar__filters {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .fuel-toolbar__filters .form-label {
+            color: #eef4ff;
+            font-weight: 700;
+            display: block;
+            width: 100%;
+        }
+
+        .fuel-toolbar__filters .form-control,
+        .fuel-toolbar__filters .form-select {
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.65);
+        }
+
+        .fuel-toolbar__filters .filter-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .fraud-review-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 5100;
+            background: rgba(15, 23, 42, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .fraud-review-card {
+            width: min(1100px, 100%);
+            max-height: 92vh;
+            overflow: auto;
+            border-radius: 14px;
+        }
+
+        .fraud-invoice-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 1rem;
+        }
+
         @media (max-width: 992px) {
             .fuel-tables-shell {
                 margin-left: 0;
@@ -130,21 +319,327 @@
                 transform: none;
                 width: auto;
             }
+
+            .fraud-invoice-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 
-    <div class="page-title mb-4 d-flex justify-content-between align-items-center gap-2">
-        <h1 class="h3 mb-0">
-            <i class="fas fa-gas-pump me-2 text-primary"></i>Gestion de Combustible
+    <div class="page-title mb-4 fuel-toolbar">
+        <h1 class="fuel-toolbar__title mb-3">
+            Gestiones en gasolina
         </h1>
         @if (!$showForm)
-        <div class="d-flex flex-wrap gap-2">
-            <button type="button" wire:click="openFuelForm" class="btn btn-primary">
-                <i class="fas fa-receipt me-2"></i>Nuevo
+        <div class="fuel-toolbar__actions">
+            <input
+                type="text"
+                wire:model.live.debounce.350ms="search"
+                class="form-control fuel-toolbar__search"
+                placeholder="Buscar por cualquier campo">
+            <button type="button" wire:click="searchLogs" class="btn btn-outline-light">
+                Buscar
+            </button>
+            @if(auth()->user()?->role !== 'conductor')
+            <button
+                type="button"
+                id="fuel-document-trigger"
+                class="btn btn-outline-light">
+                <i class="fas fa-file-lines me-2"></i>Documento
+            </button>
+            <button
+                type="button"
+                wire:click="toggleAntiFraudTable"
+                class="btn btn-outline-light">
+                <i class="fas fa-shield-halved me-2"></i>{{ $showAntiFraudTable ? 'Ocultar casos fraude' : 'Casos fraude' }}
+            </button>
+            @endif
+            <button type="button" wire:click="openFuelForm" class="btn btn-warning">
+                Nuevo
             </button>
         </div>
         @endif
+        @if (!$showForm)
+        <div class="fuel-toolbar__filters">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-lg-4">
+                    <label class="form-label mb-1">Fecha desde</label>
+                    <input type="date" wire:model.live="fecha_desde" class="form-control">
+                </div>
+                <div class="col-12 col-lg-4">
+                    <label class="form-label mb-1">Fecha hasta</label>
+                    <input type="date" wire:model.live="fecha_hasta" class="form-control">
+                </div>
+                <div class="col-12 col-lg-4">
+                    <label class="form-label mb-1">Vehiculo</label>
+                    <select wire:model.live="vehicle_filter_id" class="form-select bp-select-like-vehicle">
+                        <option value="">Todos los vehiculos</option>
+                        @foreach($vehicles as $id => $placa)
+                            <option value="{{ $id }}">{{ $placa }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-lg-4 filter-stack">
+                    <label class="form-label mb-1">Conductor</label>
+                    <select wire:model.live="driver_filter_id" class="form-select bp-select-like-vehicle">
+                        <option value="">Todos los conductores</option>
+                        @foreach($drivers as $id => $nombre)
+                            <option value="{{ $id }}">{{ $nombre }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-lg-4 d-grid">
+                    <button type="button" wire:click="limpiarFiltrosFecha" class="btn btn-outline-light">Limpiar filtro de fechas</button>
+                </div>
+                <div class="col-12 col-lg-4"></div>
+                <div class="col-12 col-lg-4 filter-stack">
+                    <label class="form-label mb-1">Filtrar por placa</label>
+                    <select wire:model.live="placa_filtro" class="form-select bp-select-like-vehicle">
+                        <option value="">Todas las placas</option>
+                        @foreach(collect($vehicles)->values()->unique()->sort()->values() as $placa)
+                        <option value="{{ $placa }}">{{ $placa }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-lg-8">
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" wire:click="aplicarFiltroPlaca" class="btn btn-warning">Filtrar placa</button>
+                        <button type="button" wire:click="limpiarFiltroPlaca" class="btn btn-outline-light">Limpiar placa</button>
+                        <button type="button" wire:click="limpiarFiltrosListado" class="btn btn-warning">Restaurar hoy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @endif
     </div>
+
+    @if (!$showForm && auth()->user()?->role !== 'conductor' && $showAntiFraudTable)
+    <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i class="fas fa-shield-halved me-2 text-warning"></i>Casos de fraude y supuesto fraude</span>
+            <span class="badge bg-secondary">{{ ($antiFraudCases->count() ?? 0) + ($antiFraudAlerts->count() ?? 0) }} registros</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Factura</th>
+                            <th>Vehiculo / Conductor</th>
+                            <th>Detalle</th>
+                            <th>Fecha</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @php
+                            $tableCaseRows = collect();
+
+                            foreach(($antiFraudCases ?? collect()) as $case) {
+                                $tableCaseRows->push([
+                                    'kind' => 'case',
+                                    'case_id' => (int) $case->id,
+                                    'alert_id' => null,
+                                    'type' => 'Factura duplicada',
+                                    'invoice' => $case->invoice_number ?: '-',
+                                    'vehicle' => $case->vehicle?->placa ?? $case->conflictingVehicle?->placa ?? '-',
+                                    'driver' => $case->driver?->nombre ?? $case->conflictingDriver?->nombre ?? '-',
+                                    'detail' => $case->summary ?: 'Caso detectado por validacion antifraude.',
+                                    'date' => $case->created_at,
+                                    'date_text' => optional($case->created_at)->format('d/m/Y H:i') ?: '-',
+                                ]);
+                            }
+
+                            foreach(($antiFraudAlerts ?? collect()) as $alert) {
+                                $changes = is_array($alert->changes_json) ? $alert->changes_json : [];
+                                $isDuplicate = $alert->action === 'FUEL_INVOICE_DUPLICATE_ALERT';
+
+                                $tableCaseRows->push([
+                                    'kind' => 'alert',
+                                    'case_id' => null,
+                                    'alert_id' => (int) $alert->id,
+                                    'type' => $isDuplicate ? 'Factura duplicada' : 'Supuesto fraude',
+                                    'invoice' => (string) ($changes['invoice_number'] ?? '-'),
+                                    'vehicle' => (string) ($changes['existing_vehicle_plate'] ?? $changes['vehicle_plate'] ?? '-'),
+                                    'driver' => (string) ($changes['existing_driver_name'] ?? '-'),
+                                    'detail' => $isDuplicate
+                                        ? 'Duplicidad detectada durante el registro de factura.'
+                                        : 'Exceso de capacidad detectado en carga de combustible.',
+                                    'date' => $alert->fecha ?? $alert->created_at,
+                                    'date_text' => optional($alert->fecha ?? $alert->created_at)->format('d/m/Y H:i') ?: '-',
+                                ]);
+                            }
+
+                            $tableCaseRows = $tableCaseRows->sortByDesc(fn ($row) => optional($row['date'])->timestamp ?? 0)->values();
+                            $tableCaseRows = $tableCaseRows
+                                ->unique(fn ($row) => mb_strtolower(trim(implode('|', [
+                                    (string) ($row['type'] ?? ''),
+                                    (string) ($row['invoice'] ?? ''),
+                                    (string) ($row['vehicle'] ?? ''),
+                                    (string) ($row['driver'] ?? ''),
+                                    (string) ($row['date_text'] ?? ''),
+                                ]))))
+                                ->values();
+                        @endphp
+
+                        @forelse($tableCaseRows as $row)
+                            <tr>
+                                <td>
+                                    <span class="badge {{ $row['type'] === 'Factura duplicada' ? 'bg-warning text-dark' : 'bg-danger' }}">
+                                        {{ $row['type'] }}
+                                    </span>
+                                </td>
+                                <td class="fw-semibold">{{ $row['invoice'] }}</td>
+                                <td>
+                                    <div>{{ $row['vehicle'] }}</div>
+                                    <div class="small text-muted">{{ $row['driver'] !== '' ? $row['driver'] : '-' }}</div>
+                                </td>
+                                <td class="small text-muted">{{ $row['detail'] }}</td>
+                                <td>{{ $row['date_text'] }}</td>
+                                <td class="text-end">
+                                    @if($row['kind'] === 'case' && $row['case_id'])
+                                        <button type="button" wire:click="openFraudReviewCase({{ $row['case_id'] }})" class="btn btn-sm btn-outline-dark me-1">
+                                            Revisar
+                                        </button>
+                                    @elseif($row['kind'] === 'alert' && $row['alert_id'])
+                                        <button type="button" wire:click="openFraudReviewAlert({{ $row['alert_id'] }})" class="btn btn-sm btn-outline-dark me-1">
+                                            Revisar
+                                        </button>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No hay casos de fraude o supuesto fraude para mostrar.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    @if(!$showForm && $showFraudReviewModal)
+    <div class="fraud-review-overlay" wire:click.self="closeFraudReviewModal">
+        <div class="card fraud-review-card shadow-lg">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="fw-bold">
+                        <i class="fas fa-shield-halved me-2 text-warning"></i>Revision de fraude / supuesto fraude
+                    </div>
+                    <div class="small text-muted">
+                        Tipo: {{ $fraudReview['type'] ?? '-' }}
+                        | Factura: {{ ($fraudReview['invoice_number'] ?? '') !== '' ? $fraudReview['invoice_number'] : 'N/A' }}
+                        | Detectado: {{ $fraudReview['detected_at'] ?? '-' }}
+                    </div>
+                </div>
+                <button type="button" class="btn-close" wire:click="closeFraudReviewModal"></button>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning mb-3">
+                    <div class="fw-semibold mb-1">Resumen del caso</div>
+                    <div class="small">{{ $fraudReview['summary'] ?? 'Sin resumen.' }}</div>
+                </div>
+
+                <div class="fraud-invoice-grid">
+                    @foreach([($fraudReview['invoice_a'] ?? []), ($fraudReview['invoice_b'] ?? [])] as $invoiceData)
+                        <div class="border rounded-3 p-3 h-100">
+                                <div class="fw-bold mb-2">{{ $invoiceData['label'] ?? 'Factura' }}</div>
+                                @if(!empty($invoiceData['exists']))
+                                    <div class="small"><strong>Nro:</strong> {{ $invoiceData['number'] ?? '-' }}</div>
+                                    <div class="small"><strong>Fecha:</strong> {{ $invoiceData['date'] ?? '-' }}</div>
+                                    <div class="small"><strong>Cliente:</strong> {{ $invoiceData['client'] ?? '-' }}</div>
+                                    @if(!empty($invoiceData['vehicle']) && $invoiceData['vehicle'] !== '-')
+                                        <div class="small"><strong>Vehiculo:</strong> {{ $invoiceData['vehicle'] }}</div>
+                                    @endif
+                                    @if(!empty($invoiceData['driver']) && $invoiceData['driver'] !== '-')
+                                        <div class="small"><strong>Conductor:</strong> {{ $invoiceData['driver'] }}</div>
+                                    @endif
+                                    <div class="small mb-3"><strong>Total:</strong> {{ $invoiceData['total'] ?? '-' }}</div>
+                                    @if(!empty($invoiceData['note']))
+                                        <div class="small text-muted mb-2">{{ $invoiceData['note'] }}</div>
+                                    @endif
+                                    @if(!empty($invoiceData['id']))
+                                        <div class="mb-2">
+                                            <button type="button" class="btn btn-sm btn-outline-warning" wire:click="editFraudInvoice({{ (int) $invoiceData['id'] }})">
+                                                Modificar factura
+                                            </button>
+                                        </div>
+                                    @endif
+                                    <div class="d-flex flex-wrap gap-2">
+                                        @if(!empty($invoiceData['document_url']))
+                                            <button type="button" class="btn btn-sm btn-outline-primary fuel-view-file-btn" data-url="{{ $invoiceData['document_url'] }}" data-kind="pdf" data-title="Factura SIAT {{ $invoiceData['number'] ?? '' }}">
+                                                PDF factura
+                                            </button>
+                                        @endif
+                                        @if(!empty($invoiceData['rollo_url']))
+                                            <button type="button" class="btn btn-sm btn-outline-dark fuel-view-file-btn" data-url="{{ $invoiceData['rollo_url'] }}" data-kind="pdf" data-title="Factura rollo {{ $invoiceData['number'] ?? '' }}">
+                                                PDF rollo
+                                            </button>
+                                        @endif
+                                        @if(!empty($invoiceData['photo_url']))
+                                            <button type="button" class="btn btn-sm btn-outline-secondary fuel-view-file-btn" data-url="{{ $invoiceData['photo_url'] }}" data-kind="image" data-title="Foto factura {{ $invoiceData['number'] ?? '' }}">
+                                                Foto factura
+                                            </button>
+                                        @endif
+                                        @if(!empty($invoiceData['meter_photo_url']))
+                                            <button type="button" class="btn btn-sm btn-outline-success fuel-view-file-btn" data-url="{{ $invoiceData['meter_photo_url'] }}" data-kind="image" data-title="Foto medidor {{ $invoiceData['number'] ?? '' }}">
+                                                Foto medidor
+                                            </button>
+                                        @endif
+                                    </div>
+                                @else
+                                    <div class="text-muted small">No se encontro esta factura en la base de datos.</div>
+                                @endif
+                        </div>
+                    @endforeach
+                </div>
+
+                <div class="border rounded-3 p-3 bg-light">
+                    <div class="fw-bold mb-2">Acciones recomendadas</div>
+                    <ul class="mb-0">
+                        @forelse(($fraudReview['actions'] ?? []) as $action)
+                            <li class="small">{{ $action }}</li>
+                        @empty
+                            <li class="small text-muted">Sin acciones sugeridas para este caso.</li>
+                        @endforelse
+                    </ul>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="small text-muted">
+                    @if(!empty($fraudReview['operational_alert_sent_at']))
+                        Alerta operativa enviada: {{ $fraudReview['operational_alert_sent_at'] }} (ID {{ $fraudReview['operational_alert_id'] ?? '-' }})
+                    @else
+                        Esta revision puede escalarse al movil como alerta operativa activa cada hora.
+                    @endif
+                    @if(!empty($fraudReview['operational_alert_resolved_at']))
+                        <br>Alerta operativa cancelada en web: {{ $fraudReview['operational_alert_resolved_at'] }}
+                    @endif
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-warning" wire:click="sendFraudOperationalAlert">
+                        Alertar operativa al movil
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" wire:click="markFraudAsNoSend">
+                        No enviar al movil
+                    </button>
+                    @if(!empty($fraudReview['operational_alert_id']))
+                        <button type="button" class="btn btn-outline-danger" wire:click="resolveFraudOperationalAlert">
+                            Cancelar alerta (solo web)
+                        </button>
+                    @endif
+                    <button type="button" class="btn btn-success" wire:click="finishFraudReviewCase">
+                        Terminar caso
+                    </button>
+                    <button type="button" class="btn btn-secondary" wire:click="closeFraudReviewModal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 
     @if (session('message'))
     <div class="alert alert-success fade show js-auto-dismiss-alert" data-auto-dismiss="3000" role="alert">
@@ -153,82 +648,6 @@
     @endif
 
     @if (!$showForm)
-    <div class="d-flex flex-wrap gap-2 mb-3 justify-content-between align-items-center">
-        <div class="d-flex flex-wrap gap-2">
-            <button type="button" wire:click="setTableView('fuel')" class="btn {{ $tableView === 'fuel' ? 'btn-primary' : 'btn-outline-primary' }}">Vales de combustible</button>
-            <button type="button" wire:click="setTableView('bitacora')" class="btn {{ $tableView === 'bitacora' ? 'btn-primary' : 'btn-outline-primary' }}">Bitacora</button>
-            <button type="button" wire:click="setTableView('combined')" class="btn {{ $tableView === 'combined' ? 'btn-primary' : 'btn-outline-primary' }}">Tablas combinadas</button>
-        </div>
-        @if(auth()->user()?->role !== 'conductor')
-        <div class="d-flex gap-2">
-            <a
-                class="btn btn-outline-dark"
-                href="{{ route('fuel-logs.bitacora.pdf', array_filter([
-                            'fecha_desde' => $fecha_desde,
-                            'fecha_hasta' => $fecha_hasta,
-                            'placa_filtro' => $placa_filtro !== '' ? $placa_filtro : null,
-                        ])) }}"
-                target="_blank"
-                rel="noopener noreferrer">
-                <i class="fas fa-print me-2"></i>Imprimir PDF
-            </a>
-            <button
-                type="button"
-                class="btn btn-outline-secondary download-pdf-btn"
-                data-url="{{ route('fuel-logs.bitacora.pdf', array_filter([
-                            'fecha_desde' => $fecha_desde,
-                            'fecha_hasta' => $fecha_hasta,
-                            'placa_filtro' => $placa_filtro !== '' ? $placa_filtro : null,
-                            'download' => 1,
-                        ])) }}">
-                <i class="fas fa-file-arrow-down me-2"></i>Descargar PDF
-            </button>
-        </div>
-        @endif
-    </div>
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <div class="row g-2 align-items-end">
-                <div class="col-12 col-md-9">
-                    <label class="form-label fw-bold mb-1">Buscar</label>
-                    <input
-                        type="text"
-                        wire:model.live.debounce.350ms="search"
-                        class="form-control"
-                        placeholder="Buscar por cualquier campo">
-                </div>
-                <div class="col-12 col-md-3 d-grid">
-                    <button type="button" wire:click="searchLogs" class="btn btn-outline-primary">Buscar</button>
-                </div>
-                <div class="col-12 col-md-4">
-                    <label class="form-label fw-bold mb-1">Fecha desde</label>
-                    <input type="date" wire:model.live="fecha_desde" class="form-control">
-                </div>
-                <div class="col-12 col-md-4">
-                    <label class="form-label fw-bold mb-1">Fecha hasta</label>
-                    <input type="date" wire:model.live="fecha_hasta" class="form-control">
-                </div>
-                <div class="col-12 col-md-4 d-grid">
-                    <button type="button" wire:click="limpiarFiltrosFecha" class="btn btn-outline-secondary">Limpiar filtro de fechas</button>
-                </div>
-                <div class="col-12 col-md-6">
-                    <label class="form-label fw-bold mb-1">Filtrar por placa</label>
-                    <select wire:model.live="placa_filtro" class="form-select">
-                        <option value="">Todas las placas</option>
-                        @foreach(collect($vehicles)->values()->unique()->sort()->values() as $placa)
-                        <option value="{{ $placa }}">{{ $placa }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-12 col-md-3 d-grid">
-                    <button type="button" wire:click="aplicarFiltroPlaca" class="btn btn-outline-primary">Filtrar placa</button>
-                </div>
-                <div class="col-12 col-md-3 d-grid">
-                    <button type="button" wire:click="limpiarFiltroPlaca" class="btn btn-outline-secondary">Limpiar placa</button>
-                </div>
-            </div>
-        </div>
-    </div>
     @endif
 
     @if ($showForm && $formView === 'bitacora')
@@ -240,7 +659,7 @@
                     <div class="row g-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Vehiculo *</label>
-                            <select id="vehicle_id_bitacora" wire:model.live="vehicle_id" class="form-select @error('vehicle_id') is-invalid @enderror">
+                            <select id="vehicle_id_bitacora" wire:model.live="vehicle_id" class="form-select bp-select-like-vehicle @error('vehicle_id') is-invalid @enderror">
                                 <option value="">-- Ninguno --</option>
                                 @foreach($vehicles as $id => $placa)
                                 <option value="{{ $id }}" data-km-actual="{{ $vehicleKmMap[(int) $id] ?? '' }}">{{ $placa }}</option>
@@ -250,7 +669,7 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Conductor *</label>
-                            <select wire:model="driver_id" class="form-select @error('driver_id') is-invalid @enderror">
+                            <select wire:model="driver_id" class="form-select bp-select-like-vehicle @error('driver_id') is-invalid @enderror">
                                 <option value="">{{ $vehicle_id && !$driverAssigned ? 'Falta asignar' : '-- Ninguno --' }}</option>
                                 @foreach($drivers as $id => $nombre)
                                 <option value="{{ $id }}">{{ $nombre }}</option>
@@ -345,7 +764,7 @@
                                 <div class="row g-3">
                                     <div class="col-12 col-md-6">
                                         <label class="form-label fw-bold">Vehiculo *</label>
-                                        <select id="vehicle_id_fuel" wire:model.live="vehicle_id" class="form-select @error('vehicle_id') is-invalid @enderror">
+                                        <select id="vehicle_id_fuel" wire:model.live="vehicle_id" class="form-select bp-select-like-vehicle @error('vehicle_id') is-invalid @enderror">
                                             <option value="">-- Ninguno --</option>
                                             @foreach($vehicles as $id => $placa)
                                             <option value="{{ $id }}" data-km-actual="{{ $vehicleKmMap[(int) $id] ?? '' }}">{{ $placa }}</option>
@@ -355,7 +774,7 @@
                                     </div>
                                     <div class="col-12 col-md-6">
                                         <label class="form-label fw-bold">Conductor *</label>
-                                        <select wire:model="driver_id" class="form-select @error('driver_id') is-invalid @enderror">
+                                        <select wire:model="driver_id" class="form-select bp-select-like-vehicle @error('driver_id') is-invalid @enderror">
                                             <option value="">{{ $vehicle_id && !$driverAssigned ? 'Falta asignar' : '-- Ninguno --' }}</option>
                                             @foreach($drivers as $id => $nombre)
                                             <option value="{{ $id }}">{{ $nombre }}</option>
@@ -406,6 +825,178 @@
                                     <div class="col-12 col-md-4">
                                         <label class="form-label fw-bold">Direccion</label>
                                         <input id="direccion_emisor" type="text" wire:model="direccion_emisor" class="form-control bg-light" readonly>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="card border bg-light-subtle">
+                                            <div class="card-body">
+                                                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                                                    <div>
+                                                        <h6 class="fw-bold mb-1">
+                                                            <i class="fas fa-file-invoice me-2"></i>Factura obtenida del escaneo
+                                                        </h6>
+                                                        <div class="small text-muted">
+                                                            Aqui se muestran los datos obtenidos del QR SIAT y el documento guardado cuando ya exista.
+                                                        </div>
+                                                    </div>
+                                                    @if(($scannedInvoicePreview['estado'] ?? '') === 'Verificado')
+                                                    <span class="badge bg-success">Verificado</span>
+                                                    @elseif(!empty($scannedInvoicePreview))
+                                                    <span class="badge bg-warning text-dark">Falta verificar</span>
+                                                    @else
+                                                    <span class="badge bg-secondary">Sin escaneo</span>
+                                                    @endif
+                                                </div>
+
+                                                @if(!empty($scannedInvoicePreview))
+                                                <div class="row g-3">
+                                                    <div class="col-12 col-xl-7">
+                                                        <div class="row g-3">
+                                                    <div class="col-12 col-md-4">
+                                                        <div class="small text-muted">Numero de factura</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['numero_factura'] ?: 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-4">
+                                                        <div class="small text-muted">Fecha de emision</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['fecha_emision'] ?: 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-4">
+                                                        <div class="small text-muted">Monto total</div>
+                                                        <div class="fw-semibold">
+                                                            {{ $scannedInvoicePreview['monto_total'] !== null && $scannedInvoicePreview['monto_total'] !== '' ? 'Bs ' . number_format((float) $scannedInvoicePreview['monto_total'], 2) : 'Sin dato' }}
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-12 col-md-6">
+                                                        <div class="small text-muted">Cliente</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['nombre_cliente'] ?: 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-6">
+                                                        <div class="small text-muted">CUF</div>
+                                                        <div class="fw-semibold text-break">{{ $scannedInvoicePreview['cuf'] ?: 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-4">
+                                                        <div class="small text-muted">Razon social emisor</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['razon_social_emisor'] ?: 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-4">
+                                                        <div class="small text-muted">NIT emisor</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['nit_emisor'] ?: 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-4">
+                                                        <div class="small text-muted">Direccion emisor</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['direccion_emisor'] ?: 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-4">
+                                                        <div class="small text-muted">Cantidad</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['cantidad'] !== null && $scannedInvoicePreview['cantidad'] !== '' ? $scannedInvoicePreview['cantidad'] : 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-4">
+                                                        <div class="small text-muted">Precio unitario</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['precio_unitario'] !== null && $scannedInvoicePreview['precio_unitario'] !== '' ? $scannedInvoicePreview['precio_unitario'] : 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-4">
+                                                        <div class="small text-muted">Codigo producto</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['producto_codigo'] ?: 'Sin dato' }}</div>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <div class="small text-muted">Descripcion producto</div>
+                                                        <div class="fw-semibold">{{ $scannedInvoicePreview['producto_descripcion'] ?: 'Sin dato' }}</div>
+                                                    </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-12 col-xl-5">
+                                                        <div class="border rounded-4 bg-white p-3 h-100">
+                                                            <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+                                                                <div>
+                                                                    <div class="fw-bold">Vista previa tipo rollo</div>
+                                                                    <div class="small text-muted">Reconstruida con los datos extraidos del SIAT.</div>
+                                                                </div>
+                                                                @if($scannedInvoiceRolloDocumentUrl)
+                                                                <button type="button" class="btn btn-sm btn-outline-dark fuel-view-file-btn" data-url="{{ $scannedInvoiceRolloDocumentUrl }}" data-kind="pdf" data-title="Factura tipo rollo">
+                                                                    <i class="fas fa-receipt me-1"></i>Ver rollo PDF
+                                                                </button>
+                                                                @endif
+                                                            </div>
+                                                            <div class="border rounded-3 p-3 bg-light" style="max-width: 320px; margin: 0 auto; font-size: 12px; line-height: 1.35;">
+                                                                <div class="text-center fw-bold">FACTURA</div>
+                                                                <div class="text-center fw-bold">CON DERECHO A CREDITO FISCAL</div>
+                                                                <div class="text-center">{{ $scannedInvoicePreview['razon_social_emisor'] ?: 'SIN EMISOR' }}</div>
+                                                                <div class="text-center">{{ $scannedInvoicePreview['direccion_emisor'] ?: 'SIN DIRECCION' }}</div>
+                                                                <hr class="my-2">
+                                                                <div><strong>NIT:</strong> {{ $scannedInvoicePreview['nit_emisor'] ?: '-' }}</div>
+                                                                <div><strong>FACTURA N:</strong> {{ $scannedInvoicePreview['numero_factura'] ?: '-' }}</div>
+                                                                <div><strong>COD. AUTORIZACION:</strong> {{ $scannedInvoicePreview['cuf'] ?: '-' }}</div>
+                                                                <div><strong>NOMBRE/RAZON SOCIAL:</strong> {{ $scannedInvoicePreview['nombre_cliente'] ?: '-' }}</div>
+                                                                <div><strong>FECHA DE EMISION:</strong> {{ $scannedInvoicePreview['fecha_emision'] ?: '-' }}</div>
+                                                                <hr class="my-2">
+                                                                <div class="fw-bold text-center mb-1">DETALLE</div>
+                                                                <div>{{ $scannedInvoicePreview['producto_codigo'] ?: '' }}{{ $scannedInvoicePreview['producto_codigo'] ? ' - ' : '' }}{{ $scannedInvoicePreview['producto_descripcion'] ?: 'Combustible' }}</div>
+                                                                <div class="small text-muted">Unidad de Medida: Litro</div>
+                                                                <div>{{ $scannedInvoicePreview['cantidad'] !== null && $scannedInvoicePreview['cantidad'] !== '' ? $scannedInvoicePreview['cantidad'] : '0' }} X {{ $scannedInvoicePreview['precio_unitario'] !== null && $scannedInvoicePreview['precio_unitario'] !== '' ? $scannedInvoicePreview['precio_unitario'] : '0' }} - {{ $scannedInvoicePreview['monto_total'] !== null && $scannedInvoicePreview['monto_total'] !== '' ? number_format((float) $scannedInvoicePreview['monto_total'], 2) : '0.00' }}</div>
+                                                                <hr class="my-2">
+                                                                <div><strong>TOTAL Bs:</strong> {{ $scannedInvoicePreview['monto_total'] !== null && $scannedInvoicePreview['monto_total'] !== '' ? number_format((float) $scannedInvoicePreview['monto_total'], 2) : '0.00' }}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="d-flex flex-wrap gap-2 mt-3">
+                                                    @if($scannedInvoiceSourceUrl)
+                                                    <a href="{{ $scannedInvoiceSourceUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-up-right-from-square me-1"></i>Ver QR origen
+                                                    </a>
+                                                    @endif
+                                                    @if($scannedInvoiceDocumentUrl)
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary fuel-view-file-btn" data-url="{{ $scannedInvoiceDocumentUrl }}" data-kind="pdf" data-title="Factura guardada">
+                                                        <i class="fas fa-file-pdf me-1"></i>Ver factura guardada
+                                                    </button>
+                                                    @else
+                                                    <span class="small text-muted align-self-center">La factura PDF se mostrara aqui despues de guardar el registro.</span>
+                                                    @endif
+                                                    @if($scannedInvoiceRolloDocumentUrl)
+                                                    <button type="button" class="btn btn-sm btn-outline-dark fuel-view-file-btn" data-url="{{ $scannedInvoiceRolloDocumentUrl }}" data-kind="pdf" data-title="Factura rollo">
+                                                        <i class="fas fa-receipt me-1"></i>Ver factura rollo
+                                                    </button>
+                                                    @endif
+                                                </div>
+                                                @else
+                                                <div class="small text-muted">Escanea un QR para ver aqui la informacion de la factura obtenida.</div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="card border bg-light-subtle">
+                                            <div class="card-body">
+                                                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                                                    <div>
+                                                        <h6 class="fw-bold mb-1">
+                                                            <i class="fas fa-camera me-2"></i>Evidencia fotografica editable
+                                                        </h6>
+                                                        <div class="small text-muted">
+                                                            Puedes conservar la evidencia que vino del movil o reemplazarla desde este formulario.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row g-4">
+                                                    <div class="col-12">
+                                                        <label class="form-label fw-bold">Foto de la factura</label>
+                                                        <input type="file" wire:model="invoice_photo_file" class="form-control" accept="image/*">
+                                                        <div class="small text-muted mt-1">Sube una nueva imagen si quieres reemplazar la actual.</div>
+                                                        <div class="mt-3">
+                                                            @if($invoice_photo_file)
+                                                                <img src="{{ $invoice_photo_file->temporaryUrl() }}" alt="Nueva foto factura" class="img-fluid rounded border" style="max-height: 220px;">
+                                                            @elseif($invoicePhotoUrl)
+                                                                <a href="{{ $invoicePhotoUrl }}" target="_blank" rel="noopener noreferrer">
+                                                                    <img src="{{ $invoicePhotoUrl }}" alt="Foto factura" class="img-fluid rounded border" style="max-height: 220px;">
+                                                                </a>
+                                                            @else
+                                                                <div class="small text-muted">Sin foto de factura guardada.</div>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-12 col-md-6">
                                         <label class="form-label fw-bold">Kilometraje Salida *</label>
@@ -477,7 +1068,7 @@
                             <h6 class="fw-bold mb-3"><i class="fas fa-qrcode me-2"></i>Escaner QR Factura SIAT</h6>
                             <div class="mb-3">
                                 <label for="camera-select" class="form-label fw-bold">Camaras disponibles</label>
-                                <select id="camera-select" class="form-select form-select-sm">
+                                <select id="camera-select" class="form-select form-select-sm bp-select-like-vehicle">
                                     <option value="">Detectando camaras...</option>
                                 </select>
                             </div>
@@ -518,73 +1109,162 @@
     <div class="fuel-tables-shell">
         <div class="card shadow-sm">
             <div class="card-body p-0">
-                @if ($tableView === 'fuel')
                 <div class="table-responsive">
-                    <table class="table align-middle mb-0 fuel-table fuel-table--combined bitacora-style">
+                    <table class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th rowspan="2">Fecha</th>
-                                <th colspan="2" class="text-center">Kilometraje</th>
-                                <th rowspan="2" class="text-center">Total recorrido (Km)</th>
-                                <th colspan="2" class="text-center">Recorrido</th>
-                                <th rowspan="2">Abastecimiento de combustible</th>
-                                <th rowspan="2">Vehiculo</th>
-                                <th rowspan="2">Conductor</th>
-                                <th rowspan="2" class="text-center">Acciones</th>
-                            </tr>
-                            <tr class="subhead">
-                                <th class="text-end">Salida</th>
-                                <th class="text-end">Llegada</th>
+                                <th>Vehiculo</th>
+                                <th>Conductor</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                                <th>Km salida</th>
+                                <th>Km llegada</th>
                                 <th>Inicio</th>
                                 <th>Destino</th>
+                                <th>Gasolina</th>
+                                <th class="text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td colspan="10" class="bitacora-cell-note">
-                                    Formato bitacora | Factura/Ref se muestra dentro de abastecimiento.
-                                </td>
-                            </tr>
                             @forelse ($fuelLogs as $log)
                             <tr>
+                                <td>{{ optional($log->vehicle)->display_name ?? '-' }}</td>
+                                <td>{{ optional($log->driver)->nombre ?? '-' }}</td>
                                 <td>{{ optional($log->invoice?->fecha_emision)->format('d/m/Y H:i') }}</td>
-                                <td class="text-end">{{ $log->vehicleLog?->kilometraje_salida ?? '-' }}</td>
-                                <td class="text-end">{{ $log->vehicleLog?->kilometraje_llegada ?? '-' }}</td>
-                                <td class="text-end">
-                                    @if($log->vehicleLog?->kilometraje_salida !== null && $log->vehicleLog?->kilometraje_llegada !== null)
-                                    {{ number_format((float) $log->vehicleLog->kilometraje_llegada - (float) $log->vehicleLog->kilometraje_salida, 2) }}
+                                <td>
+                                    @php
+                                        $rowHasInvoicePhoto = !empty($log->invoice?->invoice_photo_path);
+                                        $rowStatus = (string) ($log->estado ?? '');
+                                        $showDeniedStatus = $rowHasInvoicePhoto && $rowStatus !== 'Verificado';
+                                    @endphp
+                                    @if(($log->estado ?? null) === 'Verificado')
+                                    <span class="badge bg-success">Verificado</span>
+                                    @elseif($showDeniedStatus)
+                                    <span class="badge bg-danger">Denegado</span>
                                     @else
-                                    -
+                                    <span class="badge bg-warning text-dark">Falta verificar</span>
                                     @endif
                                 </td>
+                                <td class="text-end">{{ $log->vehicleLog?->kilometraje_salida ?? '-' }}</td>
+                                <td class="text-end">{{ $log->vehicleLog?->kilometraje_llegada ?? '-' }}</td>
                                 <td>{{ $log->vehicleLog?->recorrido_inicio ?? '-' }}</td>
                                 <td>{{ $log->vehicleLog?->recorrido_destino ?? '-' }}</td>
                                 <td>
+                                    @php
+                                        $kmSalida = $log->vehicleLog?->kilometraje_salida;
+                                        $kmLlegada = $log->vehicleLog?->kilometraje_llegada;
+                                        $litros = (float) ($log->galones ?? 0);
+                                        $kmPorLitro = ($kmSalida !== null && $kmLlegada !== null && $litros > 0 && $kmLlegada >= $kmSalida)
+                                            ? round(((float) $kmLlegada - (float) $kmSalida) / $litros, 3)
+                                            : null;
+                                        $hasSiatPdf = !empty($log->invoice?->siat_document_path);
+                                        $hasRolloPdf = !empty($log->invoice?->siat_rollo_document_path);
+                                        $hasSiatSource = !empty($log->invoice?->siat_source_url) || !empty($log->invoice?->siat_snapshot_json);
+                                        $canViewSiatPdf = $hasSiatPdf || $hasSiatSource;
+                                        $canBuildRolloPdf = $hasRolloPdf
+                                            || $hasSiatPdf
+                                            || !empty($log->invoice?->siat_source_url)
+                                            || !empty($log->invoice?->siat_snapshot_json);
+                                        $hasInvoicePhoto = !empty($log->invoice?->invoice_photo_path);
+                                        $showSiatActions = !$hasInvoicePhoto && ($canViewSiatPdf || $canBuildRolloPdf);
+                                        $fuelMeterPhotoPath = data_get($log->invoice?->antifraud_payload_json, 'evidence.fuel_meter_photo_path');
+                                        $hasFuelMeterPhoto = !empty($fuelMeterPhotoPath);
+                                    @endphp
                                     <div>{{ number_format((float) ($log->galones ?? 0), 2) }} L</div>
-                                    <div class="bitacora-cell-note">Factura: {{ optional($log->invoice)->numero_factura ?? '-' }}</div>
-                                    <div class="bitacora-cell-note">Total: BOB{{ number_format((float) $log->total_calculado, 2) }}</div>
+                                    <div class="small text-muted">Factura: {{ optional($log->invoice)->numero_factura ?? '-' }}</div>
+                                    <div class="small text-muted">Total: BOB{{ number_format((float) $log->total_calculado, 2) }}</div>
+                                    <div class="small text-muted">Rendimiento: {{ $kmPorLitro !== null ? number_format($kmPorLitro, 3) . ' km/l' : '-' }}</div>
+                                    <div class="small text-muted">Foto factura: {{ $hasInvoicePhoto ? 'registrada' : 'no registrada' }}</div>
+                                    <div class="small text-muted">Foto medidor: {{ $hasFuelMeterPhoto ? 'registrada' : 'no registrada' }}</div>
+                                    @if(!$hasInvoicePhoto && $canViewSiatPdf)
+                                    <div class="mt-2">
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-secondary fuel-view-file-btn"
+                                            data-url="{{ route('fuel-invoices.document', $log->invoice) }}"
+                                            data-kind="pdf"
+                                            data-title="Factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
+                                            title="Ver factura PDF SIAT"
+                                        >
+                                            <i class="fas fa-file-pdf me-1"></i>Ver factura
+                                        </button>
+                                    </div>
+                                    @endif
                                 </td>
-                                <td>{{ optional($log->vehicle)->placa ?? '-' }}</td>
-                                <td>{{ optional($log->driver)->nombre ?? '-' }}</td>
                                 <td class="text-center">
+                                    @if(!$hasInvoicePhoto && $canViewSiatPdf)
                                     <button
                                         type="button"
-                                        class="btn btn-sm btn-outline-primary bitacora-map-view-btn"
-                                        title="{{ $log->vehicleLog ? 'Ver recorrido en mapa' : 'Sin bitacora vinculada' }}"
-                                        {{ $log->vehicleLog ? '' : 'disabled' }}
-                                        data-log-id="{{ $log->vehicleLog?->id ?? $log->id }}"
-                                        data-fecha="{{ optional($log->vehicleLog?->fecha ?? $log->invoice?->fecha_emision)->format('d/m/Y') }}"
-                                        data-placa="{{ $log->vehicle?->placa ?? '-' }}"
-                                        data-conductor="{{ $log->driver?->nombre ?? '-' }}"
-                                        data-recorrido-inicio="{{ $log->vehicleLog?->recorrido_inicio ?? '-' }}"
-                                        data-recorrido-destino="{{ $log->vehicleLog?->recorrido_destino ?? '-' }}"
-                                        data-lat-inicio="{{ $log->vehicleLog?->latitud_inicio }}"
-                                        data-lng-inicio="{{ $log->vehicleLog?->logitud_inicio }}"
-                                        data-lat-destino="{{ $log->vehicleLog?->latitud_destino }}"
-                                        data-lng-destino="{{ $log->vehicleLog?->logitud_destino }}"
-                                        data-route-points='@json($log->vehicleLog?->points_json ?? [])'>
-                                        <i class="fas fa-eye"></i>
+                                        class="btn btn-sm btn-outline-danger fuel-view-file-btn"
+                                        title="Ver factura PDF SIAT"
+                                        data-url="{{ route('fuel-invoices.document', $log->invoice) }}"
+                                        data-kind="pdf"
+                                        data-title="Factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
+                                    >
+                                        <i class="fas fa-file-pdf"></i>
                                     </button>
+                                    <a
+                                        href="{{ route('fuel-invoices.document', ['fuelInvoice' => $log->invoice, 'download' => 1]) }}"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        title="Descargar factura PDF SIAT"
+                                    >
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                    @endif
+                                    @if(!$hasInvoicePhoto && $canBuildRolloPdf)
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-secondary fuel-view-file-btn"
+                                        title="Ver factura rollo"
+                                        data-url="{{ route('fuel-invoices.rollo', $log->invoice) }}"
+                                        data-kind="pdf"
+                                        data-title="Factura rollo {{ optional($log->invoice)->numero_factura ?? '#' }}"
+                                    >
+                                        <i class="fas fa-receipt"></i>
+                                    </button>
+                                    <a
+                                        href="{{ route('fuel-invoices.rollo', ['fuelInvoice' => $log->invoice, 'download' => 1]) }}"
+                                        class="btn btn-sm btn-outline-dark"
+                                        title="Descargar factura rollo"
+                                    >
+                                        <i class="fas fa-file-download"></i>
+                                    </a>
+                                    @endif
+                                    @if($hasInvoicePhoto)
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-primary fuel-view-file-btn"
+                                        title="Ver foto de factura"
+                                        data-url="{{ route('fuel-invoices.photo', $log->invoice) }}"
+                                        data-kind="image"
+                                        data-title="Foto de factura {{ optional($log->invoice)->numero_factura ?? '#' }}"
+                                    >
+                                        <i class="fas fa-image"></i>
+                                    </button>
+                                    @endif
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-dark{{ $hasFuelMeterPhoto ? ' fuel-view-file-btn' : ' disabled' }}"
+                                        title="{{ $hasFuelMeterPhoto ? 'Ver foto del medidor' : 'Sin foto del medidor' }}"
+                                        data-url="{{ $hasFuelMeterPhoto ? route('fuel-invoices.meter-photo', $log->invoice) : '' }}"
+                                        data-kind="image"
+                                        data-title="Foto del medidor {{ optional($log->invoice)->numero_factura ?? '#' }}"
+                                        {{ $hasFuelMeterPhoto ? '' : 'disabled aria-disabled=true' }}
+                                    >
+                                        <i class="fas fa-tachometer-alt"></i>
+                                    </button>
+                                    <a
+                                        href="{{ $log->vehicleLog ? route('vehicle-logs.map', $log->vehicleLog->id) : '#' }}"
+                                        class="btn btn-sm btn-outline-info{{ $log->vehicleLog ? '' : ' disabled' }}"
+                                        title="{{ $log->vehicleLog ? 'Ver recorrido en mapa' : 'Sin bitacora vinculada' }}"
+                                        {{ $log->vehicleLog ? '' : 'aria-disabled=true tabindex=-1' }}>
+                                        <i class="fas fa-map-marked-alt"></i>
+                                    </a>
+                                    @if(auth()->user()?->role !== 'conductor' && ($log->estado ?? '') !== 'Verificado')
+                                    <button wire:click="markAsVerificado({{ $log->id }})" class="btn btn-sm btn-outline-success" title="Marcar como verificado">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    @endif
                                     @if(auth()->user()?->role !== 'conductor')
                                     <button wire:click="edit({{ $log->id }})" class="btn btn-sm btn-outline-warning"><i class="fas fa-edit"></i></button>
                                     <button wire:click="delete({{ $log->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
@@ -599,182 +1279,15 @@
                         </tbody>
                     </table>
                 </div>
-                @elseif ($tableView === 'bitacora')
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0 fuel-table bitacora-style">
-                        <thead>
-                            <tr>
-                                <th rowspan="2">Fecha</th>
-                                <th colspan="2" class="text-center">Kilometraje</th>
-                                <th rowspan="2" class="text-center">Total recorrido (Km)</th>
-                                <th colspan="2" class="text-center">Recorrido</th>
-                                <th rowspan="2">Abastecimiento de combustible</th>
-                                <th rowspan="2">Vehiculo</th>
-                                <th rowspan="2">Conductor</th>
-                                <th rowspan="2" class="text-center">Acciones</th>
-                            </tr>
-                            <tr class="subhead">
-                                <th class="text-end">Salida</th>
-                                <th class="text-end">Llegada</th>
-                                <th>Inicio</th>
-                                <th>Destino</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($vehicleLogs as $log)
-                            <tr>
-                                <td>{{ optional($log->fecha)->format('d/m/Y') }}</td>
-                                <td class="text-end">{{ $log->kilometraje_salida }}</td>
-                                <td class="text-end">{{ $log->kilometraje_llegada ?? '-' }}</td>
-                                <td class="text-end">
-                                    @if($log->kilometraje_salida !== null && $log->kilometraje_llegada !== null)
-                                    {{ number_format((float) $log->kilometraje_llegada - (float) $log->kilometraje_salida, 2) }}
-                                    @else
-                                    -
-                                    @endif
-                                </td>
-                                <td>{{ $log->recorrido_inicio ?? '-' }}</td>
-                                <td>{{ $log->recorrido_destino ?? '-' }}</td>
-                                <td>{{ $log->fuelLog?->galones ? number_format((float) $log->fuelLog->galones, 2) . ' L' : '-' }}</td>
-                                <td>{{ $log->vehicle?->placa ?? '-' }}</td>
-                                <td>{{ $log->driver?->nombre ?? '-' }}</td>
-                                <td class="text-center">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-primary bitacora-map-view-btn"
-                                        title="Ver recorrido en mapa"
-                                        data-log-id="{{ $log->id }}"
-                                        data-fecha="{{ optional($log->fecha)->format('d/m/Y') }}"
-                                        data-placa="{{ $log->vehicle?->placa ?? '-' }}"
-                                        data-conductor="{{ $log->driver?->nombre ?? '-' }}"
-                                        data-recorrido-inicio="{{ $log->recorrido_inicio ?? '-' }}"
-                                        data-recorrido-destino="{{ $log->recorrido_destino ?? '-' }}"
-                                        data-lat-inicio="{{ $log->latitud_inicio }}"
-                                        data-lng-inicio="{{ $log->logitud_inicio }}"
-                                        data-lat-destino="{{ $log->latitud_destino }}"
-                                        data-lng-destino="{{ $log->logitud_destino }}"
-                                        data-route-points='@json($log->points_json ?? [])'>
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    @if(auth()->user()?->role !== 'conductor')
-                                    @if($log->fuel_log_id)
-                                    <span class="text-muted small">Desde vale</span>
-                                    @else
-                                    <button wire:click="editBitacora({{ $log->id }})" class="btn btn-sm btn-outline-warning"><i class="fas fa-edit"></i></button>
-                                    <button wire:click="deleteBitacora({{ $log->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
-                                    @endif
-                                    @endif
-                                </td>
-                            </tr>
-                            @empty
-                            <tr>
-                                <td colspan="9" class="text-center py-4 text-muted">Sin registros de bitacora</td>
-                            </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-                @else
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0 fuel-table fuel-table--combined bitacora-style">
-                        <thead>
-                            <tr>
-                                <th>Tipo</th>
-                                <th>Fecha</th>
-                                <th>Vehiculo</th>
-                                <th>Conductor</th>
-                                <th>Referencia</th>
-                                <th>Recorrido / detalle</th>
-                                <th class="text-end">Combustible / total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td colspan="7" class="bitacora-cell-note">
-                                    Vista consolidada: muestra en una sola tabla los registros de bitacora y los vales de combustible.
-                                </td>
-                            </tr>
-                            @forelse($combinedRows as $row)
-                            <tr>
-                                <td>
-                                    <span class="fw-semibold">{{ ucfirst($row['tipo']) }}</span>
-                                    @if($row['tiene_combustible'])
-                                    <i class="fas fa-gas-pump text-success ms-1"></i>
-                                    @endif
-                                </td>
-                                <td>{{ $row['fecha'] }}</td>
-                                <td>{{ $row['vehiculo'] }}</td>
-                                <td>{{ $row['conductor'] }}</td>
-                                <td>
-                                    <div class="fw-semibold">{{ $row['detalle_titulo'] ?? 'Detalle' }}</div>
-                                    <div>{{ $row['detalle_principal'] ?? '-' }}</div>
-                                </td>
-                                <td>
-                                    @if(!empty($row['detalle_secundario']))
-                                    <div>{{ $row['detalle_secundario'] }}</div>
-                                    @endif
-                                    @if(!empty($row['detalle_terciario']))
-                                    <div class="text-muted small">{{ $row['detalle_terciario'] }}</div>
-                                    @endif
-                                    @if(empty($row['detalle_secundario']) && empty($row['detalle_terciario']))
-                                    <span class="text-muted">-</span>
-                                    @endif
-                                </td>
-                                <td class="text-end">
-                                    @if($row['total'] !== null)
-                                    <div class="fw-semibold">BOB{{ number_format((float) $row['total'], 2) }}</div>
-                                    @elseif($row['tiene_combustible'])
-                                    <div class="text-success fw-semibold">Con combustible</div>
-                                    @else
-                                    <span class="text-muted">-</span>
-                                    @endif
-                                </td>
-                            </tr>
-                            @empty
-                            <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">Sin datos para combinar</td>
-                            </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-                @endif
             </div>
             <div class="card-footer bg-white">
-                @if ($tableView === 'fuel')
                 {{ $fuelLogs->links() }}
-                @elseif ($tableView === 'bitacora')
-                {{ $vehicleLogs->links() }}
-                @else
-                {{ $combinedRows->links() }}
-                @endif
             </div>
         </div>
     </div>
     @endif
 
-    <div class="modal fade" id="bitacoraMapModal" wire:ignore.self tabindex="-1" aria-labelledby="bitacoraMapLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="bitacoraMapLabel">
-                        <i class="fas fa-map-marked-alt me-2"></i>Recorrido de bitacora
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="small text-muted mb-2" id="bitacora-map-summary">Sin datos</div>
-                    <div class="small text-muted mb-3" id="bitacora-map-detail">Sin detalles de recorrido.</div>
-                    <div id="bitacora-view-map" wire:ignore></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="locationPickerModal" wire:ignore.self tabindex="-1" aria-labelledby="locationPickerLabel" aria-hidden="true">
+    <div class="modal fade" id="locationPickerModal" wire:ignore.self tabindex="-1" aria-labelledby="locationPickerLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -1157,243 +1670,6 @@
     </script>
     <script>
         (function() {
-            if (window.__fuelBitacoraMapViewerInitialized) return;
-            window.__fuelBitacoraMapViewerInitialized = true;
-
-            const modalEl = document.getElementById('bitacoraMapModal');
-            if (!modalEl || !window.L) return;
-            if (modalEl.parentElement !== document.body) {
-                document.body.appendChild(modalEl);
-            }
-
-            const summaryEl = document.getElementById('bitacora-map-summary');
-            const detailEl = document.getElementById('bitacora-map-detail');
-            const mapContainerId = 'bitacora-view-map';
-            let map = null;
-            let layers = [];
-            let pendingPayload = null;
-
-            function getBsModal(el) {
-                if (!el) return null;
-                if (window.bootstrap && window.bootstrap.Modal) {
-                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
-                        return window.bootstrap.Modal.getOrCreateInstance(el);
-                    }
-                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
-                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
-                    }
-                    return new window.bootstrap.Modal(el);
-                }
-                if (window.jQuery) {
-                    return {
-                        show: () => window.jQuery(el).modal('show'),
-                        hide: () => window.jQuery(el).modal('hide'),
-                    };
-                }
-                return null;
-            }
-
-            function toNumber(value) {
-                const n = Number(value);
-                return Number.isFinite(n) ? n : null;
-            }
-
-            function extractCoordinates(text) {
-                if (!text) return [null, null];
-                const m = String(text).match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
-                if (!m) return [null, null];
-                return [toNumber(m[1]), toNumber(m[2])];
-            }
-
-            function validLatLng(lat, lng) {
-                return lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
-            }
-
-            function parseRoutePoints(raw) {
-                if (!raw) return [];
-
-                try {
-                    const parsed = JSON.parse(raw);
-                    if (!Array.isArray(parsed)) return [];
-
-                    return parsed
-                        .map((point) => ({
-                            lat: toNumber(point?.lat ?? point?.latitude),
-                            lng: toNumber(point?.lng ?? point?.longitude),
-                            address: typeof point?.address === 'string' ? point.address : '',
-                            label: typeof point?.point_label === 'string' ?
-                                point.point_label :
-                                (typeof point?.label === 'string' ? point.label : ''),
-                            marked: Boolean(point?.is_marked ?? point?.marked ?? point?.isMarked),
-                        }))
-                        .filter((point) => validLatLng(point.lat, point.lng));
-                } catch (_) {
-                    return [];
-                }
-            }
-
-            function ensureMap() {
-                const container = document.getElementById(mapContainerId);
-                if (!container) return;
-
-                if (map) {
-                    const currentContainer = map.getContainer ? map.getContainer() : null;
-                    if (currentContainer === container && document.body.contains(container)) {
-                        return;
-                    }
-
-                    try {
-                        map.off();
-                        map.remove();
-                    } catch (_) {}
-                    map = null;
-                    layers = [];
-                }
-
-                map = L.map(container).setView([-16.5, -68.15], 12);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; OpenStreetMap contributors'
-                }).addTo(map);
-            }
-
-            function clearLayers() {
-                if (!map) return;
-                layers.forEach((layer) => map.removeLayer(layer));
-                layers = [];
-            }
-
-            function renderRoute(data) {
-                ensureMap();
-                clearLayers();
-
-                const fromText = data.recorridoInicio || '-';
-                const toText = data.recorridoDestino || '-';
-                if (summaryEl) {
-                    summaryEl.textContent = `Bitacora #${data.logId} | Fecha: ${data.fecha} | Vehiculo: ${data.placa} | Conductor: ${data.conductor}`;
-                }
-                if (detailEl) {
-                    detailEl.textContent = `Inicio: ${fromText} | Destino: ${toText}`;
-                }
-
-                let fromLat = toNumber(data.latInicio);
-                let fromLng = toNumber(data.lngInicio);
-                let toLat = toNumber(data.latDestino);
-                let toLng = toNumber(data.lngDestino);
-                const routePoints = parseRoutePoints(data.routePoints);
-
-                if (!validLatLng(fromLat, fromLng)) {
-                    const coords = extractCoordinates(fromText);
-                    fromLat = coords[0];
-                    fromLng = coords[1];
-                }
-                if (!validLatLng(toLat, toLng)) {
-                    const coords = extractCoordinates(toText);
-                    toLat = coords[0];
-                    toLng = coords[1];
-                }
-
-                const points = routePoints.map((point) => [point.lat, point.lng]);
-                if (!points.length) {
-                    if (validLatLng(fromLat, fromLng)) points.push([fromLat, fromLng]);
-                    if (validLatLng(toLat, toLng)) points.push([toLat, toLng]);
-                }
-
-                if (!points.length) {
-                    if (detailEl) {
-                        detailEl.textContent += ' | No hay coordenadas validas para mostrar en el mapa.';
-                    }
-                    map.setView([-16.5, -68.15], 11);
-                    return;
-                }
-
-                if (validLatLng(fromLat, fromLng)) {
-                    const start = L.marker([fromLat, fromLng]).addTo(map)
-                        .bindPopup(`<strong>Inicio</strong><br>${fromText}`);
-                    layers.push(start);
-                }
-
-                if (validLatLng(toLat, toLng)) {
-                    const end = L.marker([toLat, toLng]).addTo(map)
-                        .bindPopup(`<strong>Destino</strong><br>${toText}`);
-                    layers.push(end);
-                }
-
-                if (routePoints.length > 0) {
-                    routePoints.forEach((point, index) => {
-                        const isStart = validLatLng(fromLat, fromLng) && point.lat === fromLat && point.lng === fromLng;
-                        const isEnd = validLatLng(toLat, toLng) && point.lat === toLat && point.lng === toLng;
-                        if (isStart || isEnd) {
-                            return;
-                        }
-
-                        const popupText = point.address || point.label || `Punto ${index + 1}`;
-                        const marker = L.circleMarker([point.lat, point.lng], {
-                            radius: point.marked ? 7 : 5,
-                            color: point.marked ? '#9a3412' : '#2563eb',
-                            weight: 2,
-                            fillColor: point.marked ? '#facc15' : '#93c5fd',
-                            fillOpacity: 0.95,
-                        }).addTo(map).bindPopup(`<strong>${point.marked ? 'Punto marcado' : 'Punto de ruta'}</strong><br>${popupText}`);
-                        layers.push(marker);
-                    });
-                }
-
-                if (points.length >= 2) {
-                    const line = L.polyline(points, {
-                        color: '#00509d',
-                        weight: 4,
-                        opacity: 0.8,
-                    }).addTo(map);
-                    layers.push(line);
-                }
-
-                map.fitBounds(L.latLngBounds(points), {
-                    padding: [40, 40],
-                    maxZoom: 16
-                });
-            }
-
-            document.addEventListener('click', function(event) {
-                const btn = event.target.closest('.bitacora-map-view-btn');
-                if (!btn) return;
-
-                pendingPayload = {
-                    logId: btn.getAttribute('data-log-id') || '-',
-                    fecha: btn.getAttribute('data-fecha') || '-',
-                    placa: btn.getAttribute('data-placa') || '-',
-                    conductor: btn.getAttribute('data-conductor') || '-',
-                    recorridoInicio: btn.getAttribute('data-recorrido-inicio') || '-',
-                    recorridoDestino: btn.getAttribute('data-recorrido-destino') || '-',
-                    latInicio: btn.getAttribute('data-lat-inicio'),
-                    lngInicio: btn.getAttribute('data-lng-inicio'),
-                    latDestino: btn.getAttribute('data-lat-destino'),
-                    lngDestino: btn.getAttribute('data-lng-destino'),
-                    routePoints: btn.getAttribute('data-route-points') || '[]',
-                };
-
-                const modal = getBsModal(modalEl);
-                if (!modal) return;
-                modal.show();
-            });
-
-            modalEl.addEventListener('shown.bs.modal', function() {
-                if (!pendingPayload) return;
-                renderRoute(pendingPayload);
-                if (map) {
-                    map.invalidateSize();
-                    setTimeout(() => map.invalidateSize(), 120);
-                }
-            });
-
-            modalEl.addEventListener('hidden.bs.modal', function() {
-                clearLayers();
-                pendingPayload = null;
-            });
-        })();
-    </script>
-    <script>
-        (function() {
             if (!window.__fuelMapPickerState) {
                 window.__fuelMapPickerState = {
                     map: null,
@@ -1605,7 +1881,23 @@
             function formatNearestPlaceFromNominatim(data) {
                 if (!data || typeof data !== 'object') return null;
                 const address = data.address || {};
-                const city =
+                const road =
+                    address.road ||
+                    address.pedestrian ||
+                    address.footway ||
+                    address.path ||
+                    address.cycleway ||
+                    address.residential ||
+                    '';
+                const houseNumber = address.house_number || '';
+                const neighbourhood =
+                    address.neighbourhood ||
+                    address.suburb ||
+                    address.quarter ||
+                    address.city_district ||
+                    address.borough ||
+                    '';
+                const locality =
                     address.city ||
                     address.town ||
                     address.village ||
@@ -1613,10 +1905,24 @@
                     address.county ||
                     address.state_district ||
                     address.state ||
-                    null;
-                const country = address.country || 'Bolivia';
-                if (city) return `${city}, ${country}`;
-                return data.display_name || null;
+                    '';
+
+                const primaryLine = [road, houseNumber].filter(Boolean).join(' ');
+                const secondaryLine = [neighbourhood, locality].filter(Boolean).join(', ');
+                const composed = [primaryLine, secondaryLine, 'Bolivia'].filter(Boolean).join(', ');
+
+                if (primaryLine) return composed;
+                if (secondaryLine) return `${secondaryLine}, Bolivia`;
+
+                if (typeof data.display_name === 'string' && data.display_name.trim() !== '') {
+                    const displayParts = data.display_name
+                        .split(',')
+                        .map((part) => part.trim())
+                        .filter(Boolean);
+                    return displayParts.slice(0, 4).join(', ');
+                }
+
+                return null;
             }
 
             async function reverseGeocode(lat, lng) {
@@ -2071,6 +2377,258 @@
     </script>
     <script>
         (function() {
+            if (window.__fuelFileViewerInit) return;
+            window.__fuelFileViewerInit = true;
+
+            function getModalInstance(el) {
+                if (!el) return null;
+
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                        return window.bootstrap.Modal.getOrCreateInstance(el);
+                    }
+                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                    }
+                    return new window.bootstrap.Modal(el);
+                }
+
+                if (window.jQuery) {
+                    return {
+                        show: () => window.jQuery(el).modal('show'),
+                        hide: () => window.jQuery(el).modal('hide'),
+                    };
+                }
+
+                return null;
+            }
+
+            function bootFuelFileViewer() {
+                const modalEl = document.getElementById('fuelFileViewerModal');
+                if (!modalEl || modalEl.dataset.viewerReady === '1') return;
+
+                modalEl.dataset.viewerReady = '1';
+
+                if (modalEl.parentElement !== document.body) {
+                    document.body.appendChild(modalEl);
+                }
+
+                const titleEl = document.getElementById('fuelFileViewerLabel');
+                const imageEl = document.getElementById('fuel-file-viewer-image');
+                const frameEl = document.getElementById('fuel-file-viewer-frame');
+                const emptyEl = document.getElementById('fuel-file-viewer-empty');
+                const loadingEl = document.getElementById('fuel-file-viewer-loading');
+
+                function resetViewer(showLoading = false) {
+                    imageEl?.classList.add('d-none');
+                    frameEl?.classList.add('d-none');
+                    emptyEl?.classList.add('d-none');
+                    loadingEl?.classList.toggle('d-none', !showLoading);
+                    imageEl?.removeAttribute('src');
+                    frameEl?.removeAttribute('src');
+                }
+
+                imageEl?.addEventListener('load', function() {
+                    loadingEl?.classList.add('d-none');
+                    emptyEl?.classList.add('d-none');
+                    imageEl.classList.remove('d-none');
+                });
+
+                imageEl?.addEventListener('error', function() {
+                    loadingEl?.classList.add('d-none');
+                    imageEl.classList.add('d-none');
+                    emptyEl?.classList.remove('d-none');
+                });
+
+                frameEl?.addEventListener('load', function() {
+                    loadingEl?.classList.add('d-none');
+                    emptyEl?.classList.add('d-none');
+                    frameEl.classList.remove('d-none');
+                });
+
+                frameEl?.addEventListener('error', function() {
+                    loadingEl?.classList.add('d-none');
+                    frameEl.classList.add('d-none');
+                    emptyEl?.classList.remove('d-none');
+                });
+
+                modalEl.addEventListener('hidden.bs.modal', function() {
+                    resetViewer(false);
+                });
+
+                document.addEventListener('click', function(event) {
+                    const btn = event.target.closest('.fuel-view-file-btn');
+                    if (!btn) return;
+
+                    const url = btn.getAttribute('data-url') || '';
+                    const kind = btn.getAttribute('data-kind') || 'image';
+                    const title = btn.getAttribute('data-title') || 'Archivo';
+
+                    if (titleEl) {
+                        titleEl.textContent = title;
+                    }
+
+                    resetViewer(Boolean(url));
+
+                    if (!url) {
+                        loadingEl?.classList.add('d-none');
+                        emptyEl?.classList.remove('d-none');
+                    } else if (kind === 'pdf') {
+                        if (frameEl) {
+                            frameEl.src = url;
+                        }
+                    } else if (imageEl) {
+                        imageEl.src = url;
+                    }
+
+                    const modal = getModalInstance(modalEl);
+                    if (modal) {
+                        modal.show();
+                    }
+                });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', bootFuelFileViewer, { once: true });
+            } else {
+                bootFuelFileViewer();
+            }
+
+            document.addEventListener('livewire:navigated', bootFuelFileViewer);
+        })();
+    </script>
+    @if(auth()->user()?->role !== 'conductor')
+    <div class="modal fade" id="fuelDocumentModal" tabindex="-1" aria-labelledby="fuelDocumentModalLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fuelDocumentModalLabel">Generar documento de gasolina</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Elige el tipo de documento, el rango de fechas y los campos exactos que quieres incluir para obtener solo la informacion que necesitas.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Accion</label>
+                            <select class="form-select bp-select-like-vehicle" id="fuel-report-action">
+                                <option value="print_pdf">Imprimir PDF</option>
+                                <option value="download_pdf">Descargar PDF</option>
+                                <option value="download_excel">Descargar Excel</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Fecha desde</label>
+                            <input type="date" class="form-control" id="fuel-report-fecha-desde" value="{{ $fecha_desde }}">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Fecha hasta</label>
+                            <input type="date" class="form-control" id="fuel-report-fecha-hasta" value="{{ $fecha_hasta }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Filtrar por</label>
+                            <select class="form-select bp-select-like-vehicle" id="fuel-report-scope">
+                                <option value="all">Todos los registros</option>
+                                <option value="vehicle" {{ $vehicle_filter_id ? 'selected' : '' }}>Vehiculo especifico</option>
+                                <option value="driver" {{ !$vehicle_filter_id && $driver_filter_id ? 'selected' : '' }}>Conductor especifico</option>
+                            </select>
+                        </div>
+                        <div class="col-12" id="fuel-report-vehicle-wrap">
+                            <label class="form-label fw-bold">Vehiculo</label>
+                            <select class="form-select bp-select-like-vehicle" id="fuel-report-vehicle-id">
+                                <option value="">Todos los vehiculos</option>
+                                @foreach($vehicles as $id => $placa)
+                                    <option value="{{ $id }}" {{ (int) $vehicle_filter_id === (int) $id ? 'selected' : '' }}>{{ $placa }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12" id="fuel-report-driver-wrap">
+                            <label class="form-label fw-bold">Conductor</label>
+                            <select class="form-select bp-select-like-vehicle" id="fuel-report-driver-id">
+                                <option value="">Todos los conductores</option>
+                                @foreach($drivers as $id => $name)
+                                    <option value="{{ $id }}" {{ (int) $driver_filter_id === (int) $id ? 'selected' : '' }}>{{ $name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Placa o texto libre</label>
+                            <input type="text" class="form-control" id="fuel-report-placa" value="{{ $placa_filtro }}" placeholder="Opcional">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold d-block">Campos del documento</label>
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="fuel-report-select-all">Todos</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="fuel-report-clear-all">Ninguno</button>
+                            </div>
+                            <div class="row g-2" id="fuel-report-columns">
+                                @php
+                                    $fuelDocumentColumns = [
+                                        'station_name' => 'Estacion',
+                                        'invoice_number' => 'Factura',
+                                        'regional' => 'Regional',
+                                        'fecha_carga' => 'Fecha',
+                                        'litros' => 'Litros',
+                                        'importe_bs' => 'Importe',
+                                        'total_km' => 'KM',
+                                        'placa' => 'Placa',
+                                        'vehiculo' => 'Vehiculo',
+                                        'driver_name' => 'Conductor',
+                                    ];
+                                @endphp
+                                @foreach($fuelDocumentColumns as $value => $label)
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input fuel-report-column" type="checkbox" value="{{ $value }}" id="fuel-column-{{ $value }}" checked>
+                                            <label class="form-check-label" for="fuel-column-{{ $value }}">{{ $label }}</label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <small class="text-muted">Selecciona las columnas que quieres incluir en el documento.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="fuel-report-submit"
+                        data-pdf-url="{{ route('fuel-logs.bitacora.pdf') }}"
+                        data-excel-url="{{ route('fuel-logs.bitacora.excel') }}">
+                        Generar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="fuelFileViewerModal" tabindex="-1" aria-labelledby="fuelFileViewerLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fuelFileViewerLabel">Archivo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="fuel-file-viewer-loading" class="fuel-file-viewer-loading d-none">
+                        Cargando archivo...
+                    </div>
+                    <img id="fuel-file-viewer-image" class="fuel-file-image d-none" alt="Archivo">
+                    <iframe id="fuel-file-viewer-frame" class="fuel-file-viewer d-none" title="Archivo"></iframe>
+                    <div id="fuel-file-viewer-empty" class="text-muted text-center py-4">No se pudo cargar el archivo.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+    <script>
+        (function() {
             if (window.__fuelFlashAutoDismissInitialized) return;
             window.__fuelFlashAutoDismissInitialized = true;
 
@@ -2094,6 +2652,198 @@
             new MutationObserver(() => scheduleDismiss(document)).observe(document.body, {
                 childList: true,
                 subtree: true
+            });
+        })();
+    </script>
+    @if(auth()->user()?->role !== 'conductor')
+    <script>
+        (function() {
+            if (window.__fuelReportModalInitialized) return;
+            window.__fuelReportModalInitialized = true;
+
+            const scopeEl = document.getElementById('fuel-report-scope');
+            const vehicleWrap = document.getElementById('fuel-report-vehicle-wrap');
+            const driverWrap = document.getElementById('fuel-report-driver-wrap');
+            const vehicleEl = document.getElementById('fuel-report-vehicle-id');
+            const driverEl = document.getElementById('fuel-report-driver-id');
+            const actionEl = document.getElementById('fuel-report-action');
+            const fechaDesdeEl = document.getElementById('fuel-report-fecha-desde');
+            const fechaHastaEl = document.getElementById('fuel-report-fecha-hasta');
+            const placaEl = document.getElementById('fuel-report-placa');
+            const submitEl = document.getElementById('fuel-report-submit');
+            const triggerEl = document.getElementById('fuel-document-trigger');
+            const modalEl = document.getElementById('fuelDocumentModal');
+            const selectAllEl = document.getElementById('fuel-report-select-all');
+            const clearAllEl = document.getElementById('fuel-report-clear-all');
+
+            if (!scopeEl || !submitEl) return;
+
+            function setFuelColumns(checked) {
+                document.querySelectorAll('.fuel-report-column').forEach((checkbox) => {
+                    checkbox.checked = checked;
+                });
+            }
+
+            function getFuelBootstrapModalInstance(el) {
+                if (!el || typeof window.bootstrap === 'undefined' || !window.bootstrap.Modal) {
+                    return null;
+                }
+
+                if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                    return window.bootstrap.Modal.getOrCreateInstance(el);
+                }
+
+                if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                    return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                }
+
+                return new window.bootstrap.Modal(el);
+            }
+
+            function syncFuelModalFromFilters() {
+                const pageDateInputs = Array.from(document.querySelectorAll('input[type="date"]'));
+                if (pageDateInputs[0] && fechaDesdeEl && !fechaDesdeEl.value) fechaDesdeEl.value = pageDateInputs[0].value;
+                if (pageDateInputs[1] && fechaHastaEl && !fechaHastaEl.value) fechaHastaEl.value = pageDateInputs[1].value;
+            }
+
+            function syncFuelScope() {
+                const scope = scopeEl.value || 'all';
+                if (vehicleWrap) vehicleWrap.style.display = scope === 'vehicle' ? '' : 'none';
+                if (driverWrap) driverWrap.style.display = scope === 'driver' ? '' : 'none';
+            }
+
+            function buildFuelUrl() {
+                const params = new URLSearchParams();
+                const action = actionEl ? actionEl.value : 'print_pdf';
+                const baseUrl = action === 'download_excel'
+                    ? submitEl.getAttribute('data-excel-url')
+                    : submitEl.getAttribute('data-pdf-url');
+
+                if (!baseUrl) return null;
+                if (fechaDesdeEl && fechaDesdeEl.value) params.set('fecha_desde', fechaDesdeEl.value);
+                if (fechaHastaEl && fechaHastaEl.value) params.set('fecha_hasta', fechaHastaEl.value);
+
+                const placa = placaEl ? placaEl.value.trim() : '';
+                if (placa !== '') params.set('placa_filtro', placa);
+
+                const scope = scopeEl.value || 'all';
+                if (scope === 'vehicle') {
+                    const vehicleId = vehicleEl ? vehicleEl.value : '';
+                    if (!vehicleId) {
+                        window.alert('Selecciona un vehiculo para generar el documento.');
+                        return null;
+                    }
+                    params.set('vehicle_id', vehicleId);
+                }
+
+                if (scope === 'driver') {
+                    const driverId = driverEl ? driverEl.value : '';
+                    if (!driverId) {
+                        window.alert('Selecciona un conductor para generar el documento.');
+                        return null;
+                    }
+                    params.set('driver_id', driverId);
+                }
+
+                if (action === 'download_pdf') {
+                    params.set('download', '1');
+                }
+
+                const selectedColumns = Array.from(document.querySelectorAll('.fuel-report-column:checked'))
+                    .map((checkbox) => checkbox.value)
+                    .filter(Boolean);
+
+                if (selectedColumns.length === 0) {
+                    window.alert('Selecciona al menos un campo para generar el documento.');
+                    return null;
+                }
+
+                selectedColumns.forEach((column) => params.append('columns[]', column));
+
+                const query = params.toString();
+                return query ? `${baseUrl}?${query}` : baseUrl;
+            }
+
+            scopeEl.addEventListener('change', syncFuelScope);
+            syncFuelScope();
+
+            selectAllEl?.addEventListener('click', function() {
+                setFuelColumns(true);
+            });
+
+            clearAllEl?.addEventListener('click', function() {
+                setFuelColumns(false);
+            });
+
+            triggerEl?.addEventListener('click', function() {
+                syncFuelModalFromFilters();
+                const modalInstance = getFuelBootstrapModalInstance(modalEl);
+                if (!modalInstance) return;
+                modalInstance.show();
+            });
+
+            submitEl.addEventListener('click', function() {
+                const url = buildFuelUrl();
+                if (!url) return;
+
+                const action = actionEl ? actionEl.value : 'print_pdf';
+                if (action === 'print_pdf') {
+                    window.open(url, '_blank', 'noopener');
+                    return;
+                }
+
+                window.location.href = url;
+            });
+        })();
+    </script>
+    @endif
+    <script>
+        (function() {
+            if (window.__fuelModalCloseFallbackInit) return;
+            window.__fuelModalCloseFallbackInit = true;
+
+            function getModalInstance(el) {
+                if (!el) return null;
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                        return window.bootstrap.Modal.getOrCreateInstance(el);
+                    }
+                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                    }
+                    return new window.bootstrap.Modal(el);
+                }
+                if (window.jQuery) {
+                    return {
+                        hide: () => window.jQuery(el).modal('hide'),
+                    };
+                }
+                return null;
+            }
+
+            const modalIds = ['locationPickerModal', 'fuelDocumentModal', 'fuelFileViewerModal'];
+
+            document.addEventListener('click', function(event) {
+                modalIds.forEach(function(id) {
+                    const modalEl = document.getElementById(id);
+                    if (!modalEl) return;
+
+                    const closeBtn = event.target.closest(
+                        '#' + id + " .btn-close, #" + id + " [data-bs-dismiss='modal'], #" + id + " [data-dismiss='modal']"
+                    );
+
+                    if (closeBtn) {
+                        event.preventDefault();
+                        const modal = getModalInstance(modalEl);
+                        if (modal) modal.hide();
+                        return;
+                    }
+
+                    if (event.target === modalEl) {
+                        const modal = getModalInstance(modalEl);
+                        if (modal) modal.hide();
+                    }
+                });
             });
         })();
     </script>

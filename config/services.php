@@ -71,6 +71,16 @@ return [
         'image_method' => env('QHANTUY_CHECKOUT_IMAGE_METHOD', 'URL'),
         'currency_code' => env('QHANTUY_CHECKOUT_CURRENCY_CODE', 'BOB'),
         'timeout' => env('QHANTUY_CHECKOUT_TIMEOUT', 30),
+    'whatsapp_alerts' => [
+        'enabled' => (bool) env('WHATSAPP_ALERTS_ENABLED', false),
+        'webhook_url' => env('WHATSAPP_ALERTS_WEBHOOK_URL'),
+        'webhook_token' => env('WHATSAPP_ALERTS_WEBHOOK_TOKEN'),
+        'recipients' => array_values(array_filter(array_map(
+            static fn ($item) => trim((string) $item),
+            explode(',', (string) env('WHATSAPP_ALERTS_RECIPIENTS', ''))
+        ))),
+        'timeout_seconds' => (int) env('WHATSAPP_ALERTS_TIMEOUT_SECONDS', 12),
+        'min_interval_minutes' => (int) env('WHATSAPP_ALERTS_MIN_INTERVAL_MINUTES', 10),
     ],
 
 ];

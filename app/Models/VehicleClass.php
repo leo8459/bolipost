@@ -15,6 +15,7 @@ class VehicleClass extends Model
         'modelo',
         'anio',
         'nombre',
+        'maintenance_form_type',
         'activo',
     ];
 

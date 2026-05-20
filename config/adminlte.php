@@ -727,32 +727,32 @@ return [
                     'submenu' => [
                         [
                             'text' => 'Marcas',
-                            'url' => 'livewire/vehicle-brands',
+                            'url' => '/livewire/vehicle-brands',
                             'icon' => 'fas fa-tags',
                         ],
                         [
                             'text' => 'Vehiculos',
-                            'url' => 'livewire/vehicles',
+                            'url' => '/livewire/vehicles',
                             'icon' => 'fas fa-truck',
                         ],
                         [
                             'text' => 'Conductores',
-                            'url' => 'livewire/drivers',
+                            'url' => '/livewire/drivers',
                             'icon' => 'fas fa-id-card',
                         ],
                         [
                             'text' => 'Asignaciones',
-                            'url' => 'livewire/vehicle-assignments',
+                            'url' => '/livewire/vehicle-assignments',
                             'icon' => 'fas fa-link',
                         ],
                         [
                             'text' => 'Bitacora Vehicular',
-                            'url' => 'livewire/vehicle-logs',
+                            'url' => '/livewire/vehicle-logs',
                             'icon' => 'fas fa-book',
                         ],
                         [
                             'text' => 'Mapa en tiempo real',
-                            'url' => 'livewire/map',
+                            'url' => '/livewire/map',
                             'icon' => 'fas fa-map-marked-alt',
                         ],
                     ],
@@ -763,34 +763,44 @@ return [
                     'submenu' => [
                         [
                             'text' => 'Tipos',
-                            'url' => 'livewire/maintenance-types',
+                            'url' => '/livewire/maintenance-types',
                             'icon' => 'fas fa-list',
                         ],
                         [
                             'text' => 'Citas',
-                            'url' => 'livewire/maintenance-appointments',
+                            'url' => '/livewire/maintenance-appointments',
                             'icon' => 'fas fa-calendar-plus',
                         ],
                         [
                             'text' => 'Calendario',
-                            'url' => 'livewire/maintenance-calendar',
+                            'url' => '/livewire/maintenance-calendar',
                             'icon' => 'fas fa-calendar-alt',
                         ],
                         [
                             'text' => 'Alerta',
-                            'url' => 'livewire/maintenance-alerts',
+                            'url' => '/livewire/maintenance-alerts',
                             'icon' => 'fas fa-bell',
                         ],
                         [
                             'text' => 'Registro',
-                            'url' => 'livewire/maintenance-logs',
+                            'url' => '/livewire/maintenance-logs',
                             'icon' => 'fas fa-tools',
+                        ],
+                        [
+                            'text' => 'Incentivos',
+                            'url' => '/livewire/maintenance-incentives',
+                            'icon' => 'fas fa-star',
+                        ],
+                        [
+                            'text' => 'Talleres',
+                            'url' => '/livewire/workshops',
+                            'icon' => 'fas fa-warehouse',
                         ],
                     ],
                 ],
                 [
                     'text' => 'Gasolina',
-                    'url' => 'livewire/fuel-logs',
+                    'url' => '/livewire/fuel-logs',
                     'icon' => 'fas fa-gas-pump',
                 ],
             ],

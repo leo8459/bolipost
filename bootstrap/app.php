@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'cliente.profile.complete' => \App\Http\Middleware\EnsureClienteProfileComplete::class,
             'cliente.acl.sync' => \App\Http\Middleware\EnsureClienteAclPermissionsSynced::class,
             'internal.only' => \App\Http\Middleware\EnsureInternalWebAccess::class,
+            'single.mobile.session' => \App\Http\Middleware\EnsureSingleMobileSession::class,
         ]);
 
         $middleware->web(append: [

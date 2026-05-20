@@ -1,4 +1,5 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
     <style>
         .profile-card {
             border: 0;
@@ -33,6 +34,117 @@
             font-size: 15px;
             font-weight: 600;
             color: #1f2937;
+        }
+        .vehicle-confirm-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.48);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 20;
+            border-radius: 14px;
+        }
+        .vehicle-confirm-card {
+            width: min(760px, 100%);
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 22px 50px rgba(15, 23, 42, 0.28);
+            overflow: hidden;
+            max-height: min(88vh, 760px);
+            display: flex;
+            flex-direction: column;
+        }
+        .vehicle-confirm-card .card-body {
+            overflow-y: auto;
+        }
+        .vehicle-form-field {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+        .vehicle-form-field:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+        select.vehicle-form-field {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
+        .bp-switch {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .bp-switch .form-check-input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 42px;
+            min-width: 42px;
+            height: 24px;
+            margin-top: 0;
+            border-radius: 999px;
+            border: 2px solid #c8d2e1;
+            background: #eef3f9;
+            position: relative;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+            box-shadow: none;
+        }
+        .bp-switch .form-check-input[type="checkbox"]::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(22, 40, 74, .25);
+            transition: transform .18s ease;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked {
+            background: #1e88ff;
+            border-color: #1e88ff;
+        }
+        .bp-switch .form-check-input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+        .bp-switch .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
+            outline: 0;
+        }
+        @media (max-width: 767.98px) {
+            .vehicle-confirm-overlay {
+                padding: 12px;
+                align-items: flex-end;
+            }
+            .vehicle-confirm-card {
+                width: 100%;
+                max-height: 92vh;
+                border-radius: 16px 16px 12px 12px;
+            }
+            .vehicle-confirm-card .card-header,
+            .vehicle-confirm-card .card-body,
+            .vehicle-confirm-card .card-footer {
+                padding-left: 14px;
+                padding-right: 14px;
+            }
+            .vehicle-confirm-card .card-footer {
+                flex-direction: column-reverse;
+            }
+            .vehicle-confirm-card .card-footer .btn {
+                width: 100%;
+            }
         }
     </style>
 
@@ -75,10 +187,11 @@
                         <div class="profile-field"><span class="profile-label">Placa</span><span class="profile-value">{{ $assignedVehicle->placa ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Marca</span><span class="profile-value">{{ $assignedVehicle->brand?->nombre ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Modelo</span><span class="profile-value">{{ $assignedVehicle->modelo ?? '-' }}</span></div>
-                        <div class="profile-field"><span class="profile-label">Clase</span><span class="profile-value">{{ $assignedVehicle->vehicleClass?->nombre ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">Formulario</span><span class="profile-value">{{ $assignedVehicle->maintenance_form_type_label ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Combustible</span><span class="profile-value">{{ $assignedVehicle->tipo_combustible ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Color</span><span class="profile-value">{{ $assignedVehicle->color ?? '-' }}</span></div>
-                        <div class="profile-field"><span class="profile-label">Año</span><span class="profile-value">{{ $assignedVehicle->anio ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">A�o</span><span class="profile-value">{{ $assignedVehicle->anio ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">Tacometro</span><span class="profile-value">{{ ($assignedVehicle->tacometro_danado ?? false) ? 'Danado' : 'Operativo' }}</span></div>
                         <div class="profile-field"><span class="profile-label">KM Actual</span><span class="profile-value">{{ $assignedVehicle->kilometraje_actual ?? $assignedVehicle->kilometraje_inicial ?? $assignedVehicle->kilometraje ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Capacidad tanque</span><span class="profile-value">{{ $assignedVehicle->capacidad_tanque ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Tipo asignacion</span><span class="profile-value">{{ $currentAssignment?->tipo_asignacion ?? '-' }}</span></div>
@@ -146,19 +259,19 @@
 
     @if($showForm)
         <div class="bp-gestiones-form-overlay">
-        <div class="card shadow-sm mb-4 bp-gestiones-form-card">
+        <div class="card shadow-sm mb-4 bp-gestiones-form-card position-relative">
             <div class="card-header">{{ $isEdit ? 'Editar Vehiculo' : 'Nuevo Vehiculo' }}</div>
             <div class="card-body">
                 <form wire:submit.prevent="save">
                     <div class="row g-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Placa *</label>
-                            <input type="text" wire:model="placa" class="form-control @error('placa') is-invalid @enderror" required>
+                            <input type="text" wire:model="placa" class="form-control vehicle-form-field @error('placa') is-invalid @enderror" required>
                             @error('placa') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Marca *</label>
-                            <select wire:model="marca_id" class="form-select @error('marca_id') is-invalid @enderror" required>
+                            <select wire:model="marca_id" class="form-control vehicle-form-field @error('marca_id') is-invalid @enderror" required>
                                 <option value="0">Seleccionar marca</option>
                                 @foreach ($brands as $brand)
                                     <option value="{{ $brand->id }}">{{ $brand->nombre }}</option>
@@ -168,12 +281,12 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Modelo *</label>
-                            <input type="text" wire:model="modelo" class="form-control @error('modelo') is-invalid @enderror" required>
+                            <input type="text" wire:model="modelo" class="form-control vehicle-form-field @error('modelo') is-invalid @enderror" required>
                             @error('modelo') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Tipo Combustible</label>
-                            <select wire:model="tipo_combustible" class="form-select @error('tipo_combustible') is-invalid @enderror">
+                            <select wire:model="tipo_combustible" class="form-control vehicle-form-field @error('tipo_combustible') is-invalid @enderror" required>
                                 <option value="">Seleccionar tipo</option>
                                 @foreach($fuelTypes as $fuelType)
                                     <option value="{{ $fuelType }}">{{ ucfirst($fuelType) }}</option>
@@ -181,28 +294,65 @@
                             </select>
                             @error('tipo_combustible') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Tipo de formulario mantenimiento *</label>
+                            <select wire:model="maintenance_form_type" class="form-control vehicle-form-field @error('maintenance_form_type') is-invalid @enderror" required>
+                                @foreach($maintenanceFormTypes as $formType)
+                                    <option value="{{ $formType }}">{{ $formType === 'moto' ? 'Moto' : 'Vehiculo' }}</option>
+                                @endforeach
+                            </select>
+                            @error('maintenance_form_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Color</label>
-                            <input type="text" wire:model="color" class="form-control">
+                            <select wire:model="color" class="form-control vehicle-form-field @error('color') is-invalid @enderror" required>
+                                <option value="">Seleccionar color</option>
+                                @foreach($vehicleColors as $vehicleColor)
+                                    <option value="{{ $vehicleColor }}">{{ $vehicleColor }}</option>
+                                @endforeach
+                            </select>
+                            @error('color') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Año</label>
-                            <input type="number" wire:model="anio" class="form-control">
+                            <input type="number" wire:model="anio" class="form-control vehicle-form-field @error('anio') is-invalid @enderror" required max="{{ date('Y') }}">
+                            @error('anio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Kilometraje Inicial</label>
-                            <input type="number" step="0.01" wire:model="kilometraje" class="form-control">
+                            <input
+                                type="number"
+                                step="0.01"
+                                wire:model="kilometraje"
+                                class="form-control vehicle-form-field @error('kilometraje') is-invalid @enderror"
+                                required
+                                min="5"
+                                @disabled($kilometrajeLocked)
+                            >
+                            <div class="form-text">Si el tacometro esta danado, se conservara este ultimo kilometraje como referencia del vehiculo.</div>
+                            @if($kilometrajeLocked)
+                                <div class="form-text text-warning fw-semibold">No se puede editar el kilometraje desde esta pantalla.</div>
+                            @endif
+                            @error('kilometraje') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">Capacidad Tanque</label>
-                            <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control">
+                            <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control vehicle-form-field @error('capacidad_tanque') is-invalid @enderror" required min="3" max="150">
+                            @error('capacidad_tanque') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
-                        <div class="col-12">
-                            <div class="form-check">
+                        <div class="col-12 col-md-4">
+                            <div class="form-check bp-switch mt-3 mt-md-4 pt-md-2">
                                 <input class="form-check-input" type="checkbox" id="vehiculo_activo" wire:model="activo">
                                 <label class="form-check-label" for="vehiculo_activo">Activo</label>
                             </div>
                         </div>
+                        <div class="col-12 col-md-4">
+                            <div class="form-check bp-switch mt-3 mt-md-4 pt-md-2">
+                                <input class="form-check-input" type="checkbox" id="vehiculo_tacometro_danado" wire:model="tacometro_danado">
+                                <label class="form-check-label" for="vehiculo_tacometro_danado">Tacometro danado</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4"></div>
                     </div>
 
                     <div class="d-flex gap-2 mt-4">
@@ -211,17 +361,108 @@
                     </div>
                 </form>
             </div>
+            @if($showInitialKilometrajeConfirm)
+                <div class="vehicle-confirm-overlay">
+                    <div class="vehicle-confirm-card">
+                        <div class="card-header bg-primary text-white fw-bold">
+                            <i class="fas fa-gauge-high me-2"></i>Confirmar kilometraje inicial
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">
+                                Estas registrando el vehiculo con kilometraje inicial
+                                <strong>{{ number_format((float) ($kilometraje ?? 0), 2) }} km</strong>.
+                            </p>
+                            <p class="mb-0 text-muted">
+                                Verifica que este valor sea correcto antes de guardar.
+                            </p>
+                        </div>
+                        <div class="card-footer d-flex justify-content-end gap-2">
+                            <button type="button" wire:click="cancelInitialKilometrajeConfirm" class="btn btn-outline-secondary">Revisar kilometraje</button>
+                            <button type="button" wire:click="confirmInitialKilometraje" class="btn btn-primary">Continuar y guardar</button>
+                        </div>
+                    </div>
+                </div>
+            @endif
+            @if($showMaintenanceBackfillConfirm)
+                <div class="vehicle-confirm-overlay">
+                    <div class="vehicle-confirm-card">
+                        <div class="card-header bg-warning text-dark fw-bold">
+                            <i class="fas fa-triangle-exclamation me-2"></i>Advertencia de mantenimientos
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-3">
+                                Este vehiculo no tiene informacion de si ya se le realizaron estos mantenimientos
+                                y su kilometraje actual supera varios intervalos programados.
+                                Decide si se asignaran o no se asignaran estos mantenimientos segun la lista.
+                            </p>
+                            @if(count($maintenanceBackfillPreview))
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Asignar</th>
+                                                <th>Mantenimiento</th>
+                                                <th>Cada KM</th>
+                                                <th>KM objetivo</th>
+                                                <th>KM excedidos</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($maintenanceBackfillPreview as $item)
+                                                <tr>
+                                                    <td>
+                                                        <div class="form-check">
+                                                            <input
+                                                                class="form-check-input"
+                                                                type="checkbox"
+                                                                wire:model="maintenanceBackfillSelections.{{ $item['key'] }}"
+                                                                id="backfill-{{ $item['key'] }}">
+                                                            <label class="form-check-label small" for="backfill-{{ $item['key'] }}">
+                                                                Si
+                                                            </label>
+                                                        </div>
+                                                    </td>
+                                                    <td>{{ $item['nombre'] ?? '-' }}</td>
+                                                    <td>{{ number_format((float) ($item['interval_km'] ?? 0), 0) }}</td>
+                                                    <td>{{ number_format((float) ($item['target_km'] ?? 0), 0) }}</td>
+                                                    <td>{{ number_format((float) ($item['overdue_km'] ?? 0), 2) }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
+                        </div>
+                        <div class="card-footer d-flex justify-content-end gap-2">
+                            <button type="button" wire:click="cancelMaintenanceBackfill" class="btn btn-outline-secondary">No asignar</button>
+                            <button type="button" wire:click="confirmMaintenanceBackfill" class="btn btn-warning text-dark">Guardar y aplicar seleccionados</button>
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
         </div>
     @elseif(auth()->user()?->role !== 'conductor')
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="p-3 border-bottom">
-                    <input
-                        type="text"
-                        class="form-control"
-                        wire:model.live.debounce.350ms="search"
-                        placeholder="Buscar por cualquier campo">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-8">
+                            <input
+                                type="text"
+                                class="form-control"
+                                wire:model.live.debounce.350ms="search"
+                                placeholder="Buscar por cualquier campo">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <select class="form-control vehicle-form-field" wire:model.live="statusFilter">
+                                <option value="todos">Todos</option>
+                                <option value="activos">Activos</option>
+                                <option value="mantenimiento">En mantenimiento</option>
+                                <option value="inactivos">Inactivos</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 @if($vehicles->count())
                     <div class="table-responsive">
@@ -232,6 +473,8 @@
                                     <th>Marca</th>
                                     <th>Modelo</th>
                                     <th>Clase</th>
+                                    <th>Formulario</th>
+                                    <th>Tacometro</th>
                                     <th>Km Inicial</th>
                                     <th>Combustible</th>
                                     <th>Estado</th>
@@ -247,22 +490,62 @@
                                         <td>{{ $vehicle->brand?->nombre ?? $vehicle->marca ?? '-' }}</td>
                                         <td>{{ $vehicle->modelo }}</td>
                                         <td>{{ $vehicle->vehicleClass?->nombre ?? '-' }}</td>
+                                        <td>{{ $vehicle->maintenance_form_type_label ?? '-' }}</td>
+                                        <td>
+                                            <span class="badge {{ ($vehicle->tacometro_danado ?? false) ? 'bg-danger' : 'bg-success' }}">
+                                                {{ ($vehicle->tacometro_danado ?? false) ? 'Danado' : 'Operativo' }}
+                                            </span>
+                                        </td>
                                         <td>{{ number_format((float) ($vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje ?? 0), 2) }}</td>
                                         <td>{{ $vehicle->tipo_combustible }}</td>
                                         <td>
-                                            @if((int) ($vehicle->pending_maintenance_alerts_count ?? 0) > 0)
+                                            @if(!$vehicle->activo)
+                                                <span class="badge bg-secondary">Inhabilitado</span>
+                                            @elseif((int) ($vehicle->pending_maintenance_alerts_count ?? 0) > 0)
                                                 <span class="badge bg-warning text-dark">En mantenimiento</span>
                                             @else
-                                                <span class="badge {{ $vehicle->activo ? 'bg-success' : 'bg-danger' }}">
-                                                    {{ $vehicle->activo ? 'Activo' : 'Inactivo' }}
-                                                </span>
+                                                <span class="badge bg-success">Activo</span>
                                             @endif
                                         </td>
                                         @if(auth()->user()?->role !== 'conductor')
                                             <td class="text-center">
-                                                <div class="btn-group">
-                                                    <button wire:click="edit({{ $vehicle->id }})" class="btn btn-sm btn-outline-warning"><i class="fas fa-edit"></i></button>
-                                                    <button wire:click="delete({{ $vehicle->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                                <div class="bp-action-row">
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-outline-primary bp-icon-btn vehicle-maintenance-preview-btn"
+                                                        data-url="{{ route('vehicles.maintenance-report', ['vehicle' => $vehicle, 'download' => 0]) }}"
+                                                        data-download-url="{{ route('vehicles.maintenance-report', ['vehicle' => $vehicle, 'download' => 1]) }}"
+                                                        data-title="Historial de mantenimientos {{ $vehicle->placa }}"
+                                                        title="Ver PDF de mantenimientos"
+                                                    >
+                                                        <i class="fas fa-file-pdf"></i>
+                                                    </button>
+                                                    <button
+                                                        wire:click="edit({{ $vehicle->id }})"
+                                                        class="btn btn-sm btn-outline-warning bp-icon-btn"
+                                                        title="Editar vehiculo"
+                                                    >
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    @if($vehicle->activo)
+                                                        <button
+                                                            wire:click="delete({{ $vehicle->id }})"
+                                                            onclick="if (!confirm('Confirmar eliminacion logica del vehiculo?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
+                                                            class="btn btn-sm btn-outline-danger bp-icon-btn"
+                                                            title="Inhabilitar vehiculo"
+                                                        >
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    @else
+                                                        <button
+                                                            wire:click="reactivate({{ $vehicle->id }})"
+                                                            onclick="if (!confirm('Confirmar reactivacion logica del vehiculo?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
+                                                            class="btn btn-sm btn-outline-success bp-icon-btn bp-reactivate-btn"
+                                                            title="Habilitar vehiculo"
+                                                        >
+                                                            <i class="fas fa-power-off"></i>
+                                                        </button>
+                                                    @endif
                                                 </div>
                                             </td>
                                         @endif
@@ -287,4 +570,98 @@
             </div>
         </div>
     @endif
+
+    <div class="modal fade" id="vehicleMaintenancePdfModal" tabindex="-1" aria-labelledby="vehicleMaintenancePdfModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="vehicleMaintenancePdfModalLabel">Historial de mantenimientos</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <iframe id="vehicleMaintenancePdfFrame" style="width:100%;min-height:72vh;border:1px solid #e9ecef;border-radius:10px;background:#fff;" title="PDF mantenimientos"></iframe>
+                </div>
+                <div class="modal-footer">
+                    <a id="vehicleMaintenancePdfDownloadBtn" href="#" class="btn btn-primary" target="_blank" rel="noopener">
+                        <i class="fas fa-download me-1"></i>Descargar
+                    </a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            if (window.__vehicleMaintenancePdfModalInitialized) {
+                return;
+            }
+            window.__vehicleMaintenancePdfModalInitialized = true;
+
+            function getModalInstance(el) {
+                if (!el) return null;
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                        return window.bootstrap.Modal.getOrCreateInstance(el);
+                    }
+                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                    }
+                    return new window.bootstrap.Modal(el);
+                }
+                if (window.jQuery) {
+                    return {
+                        show: function () { window.jQuery(el).modal('show'); },
+                        hide: function () { window.jQuery(el).modal('hide'); }
+                    };
+                }
+                return null;
+            }
+
+            var modalEl = document.getElementById('vehicleMaintenancePdfModal');
+            var titleEl = document.getElementById('vehicleMaintenancePdfModalLabel');
+            var frameEl = document.getElementById('vehicleMaintenancePdfFrame');
+            var downloadEl = document.getElementById('vehicleMaintenancePdfDownloadBtn');
+            if (!modalEl || !frameEl || !downloadEl) return;
+
+            if (modalEl.parentElement !== document.body) {
+                document.body.appendChild(modalEl);
+            }
+
+            document.addEventListener('click', function (event) {
+                var btn = event.target.closest('.vehicle-maintenance-preview-btn');
+                if (!btn) return;
+
+                var previewUrl = btn.getAttribute('data-url') || '';
+                var downloadUrl = btn.getAttribute('data-download-url') || previewUrl;
+                var title = btn.getAttribute('data-title') || 'Historial de mantenimientos';
+
+                if (titleEl) titleEl.textContent = title;
+                frameEl.src = previewUrl;
+                downloadEl.href = downloadUrl;
+
+                var modal = getModalInstance(modalEl);
+                if (modal) modal.show();
+            });
+
+            modalEl.addEventListener('click', function (event) {
+                var closeBtn = event.target.closest('[data-bs-dismiss="modal"], [data-dismiss="modal"]');
+                if (!closeBtn) return;
+                var modal = getModalInstance(modalEl);
+                if (modal && typeof modal.hide === 'function') {
+                    modal.hide();
+                }
+            });
+
+            modalEl.addEventListener('hidden.bs.modal', function () {
+                frameEl.src = '';
+            });
+
+            if (window.jQuery) {
+                window.jQuery(modalEl).on('hidden.bs.modal hidden', function () {
+                    frameEl.src = '';
+                });
+            }
+        })();
+    </script>
 </div>

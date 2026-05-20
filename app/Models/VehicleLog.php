@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 class VehicleLog extends Model
 {
@@ -17,6 +19,7 @@ class VehicleLog extends Model
         'fecha',
         'kilometraje_salida',
         'kilometraje_llegada',
+        'kilometraje_recorrido',
         'recorrido_inicio',
         'latitud_inicio',
         'logitud_inicio',
@@ -25,6 +28,11 @@ class VehicleLog extends Model
         'logitud_destino',
         'abastecimiento_combustible',
         'firma_digital',
+        'odometro_photo_path',
+        'session_reference',
+        'responsible_driver_id',
+        'current_driver_id',
+        'activo',
         'ruta_json', // <--- Agregamos esto
         'points_json',
     ];
@@ -33,11 +41,15 @@ class VehicleLog extends Model
         'fecha' => 'date',
         'kilometraje_salida' => 'decimal:2',
         'kilometraje_llegada' => 'decimal:2',
+        'kilometraje_recorrido' => 'decimal:2',
         'latitud_inicio' => 'decimal:8',
         'logitud_inicio' => 'decimal:8',
         'latitud_destino' => 'decimal:8',
         'logitud_destino' => 'decimal:8',
         'abastecimiento_combustible' => 'boolean',
+        'responsible_driver_id' => 'integer',
+        'current_driver_id' => 'integer',
+        'activo' => 'boolean',
         'ruta_json' => 'array', // <--- Importante: esto lo convierte en array de PHP
         'points_json' => 'array',
         'created_at' => 'datetime',
@@ -79,11 +91,21 @@ class VehicleLog extends Model
         return $this->belongsTo(FuelLog::class, 'fuel_log_id');
     }
 
+    public function stageEvents(): HasMany
+    {
+        return $this->hasMany(VehicleLogStageEvent::class, 'session_reference', 'session_reference')
+            ->orderBy('event_at');
+    }
+
     /**
      * Calcular distancia recorrida
      */
     public function getDistanceTravelledAttribute(): ?float
     {
+        if ($this->kilometraje_recorrido !== null) {
+            return (float) $this->kilometraje_recorrido;
+        }
+
         if ($this->kilometraje_llegada && $this->kilometraje_salida) {
             return $this->kilometraje_llegada - $this->kilometraje_salida;
         }
@@ -173,7 +195,7 @@ class VehicleLog extends Model
         }
 
         if ($lat !== null && $lng !== null) {
-            return 'Ubicacion marcada';
+            return $this->formatCoordinateLabel($lat, $lng);
         }
 
         return $fallback;
@@ -308,5 +330,14 @@ class VehicleLog extends Model
         }
 
         return $this->limitRouteLabel($candidate);
+    }
+
+    public function scopeActive($query)
+    {
+        if (Schema::hasColumn($this->getTable(), 'activo')) {
+            $query->where($this->qualifyColumn('activo'), true);
+        }
+
+        return $query;
     }
 }

@@ -1,0 +1,1493 @@
+<?php
+
+namespace App\Livewire;
+
+use App\Models\Driver;
+use App\Models\MaintenanceAlert;
+use App\Models\MaintenanceAppointment;
+use App\Models\MaintenanceLog;
+use App\Models\MaintenanceType;
+use App\Models\User;
+use App\Models\Vehicle;
+use App\Models\VehicleAssignment;
+use App\Models\Workshop;
+use App\Models\WorkshopCatalog;
+use App\Services\MaintenanceAlertService;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
+use Livewire\Component;
+use Livewire\WithFileUploads;
+use Livewire\WithPagination;
+use Livewire\WithoutUrlPagination;
+
+class WorkshopManager extends Component
+{
+    use WithFileUploads;
+    use WithPagination;
+    use WithoutUrlPagination;
+
+    protected string $paginationTheme = 'bootstrap';
+
+    public string $search = '';
+    public string $statusFilter = '';
+    public string $tableMode = 'operativa';
+    public bool $showCatalogModal = false;
+    public bool $showForm = false;
+    public bool $isEdit = false;
+    public ?int $editingId = null;
+    public ?int $vehicle_id = null;
+    public ?int $driver_id = null;
+    public ?int $maintenance_appointment_id = null;
+    public ?int $maintenance_log_id = null;
+    public ?int $maintenance_alert_id = null;
+    public ?int $workshop_catalog_id = null;
+    public string $order_number = '';
+    public string $nombre_taller = '';
+    public ?string $fecha_ingreso = null;
+    public ?string $fecha_prometida_entrega = null;
+    public ?string $fecha_listo = null;
+    public ?string $fecha_salida = null;
+    public string $estado = Workshop::STATUS_PENDING;
+    public string $workflow_kind = Workshop::FLOW_LIGHT;
+    public bool $approval_required = false;
+    public ?string $fixed_catalog_cost = null;
+    public ?string $labor_cost = null;
+    public ?string $additional_cost = null;
+    public string $rejection_reason = '';
+    public string $cancellation_reason = '';
+    public string $pre_entrada_estado = '';
+    public string $observaciones_tecnicas = '';
+    public string $diagnostico = '';
+    public string $observaciones = '';
+    public array $partChanges = [];
+    public $reception_photo_file = null;
+    public $damage_photo_file = null;
+    public $invoice_file = null;
+    public $receipt_file = null;
+    public ?string $reception_photo_path = null;
+    public ?string $damage_photo_path = null;
+    public ?string $invoice_file_path = null;
+    public ?string $receipt_file_path = null;
+    public string $catalog_name = '';
+    public string $catalog_type = 'Interno';
+    public string $catalog_attention_hours = '';
+    public string $catalog_location_label = '';
+    public string $catalog_attention_days = 'Lun-Vie';
+    public string $catalog_attention_from = '08:30';
+    public string $catalog_attention_to = '18:00';
+    public string $catalog_celular = '';
+    public ?int $catalog_user_id = null;
+    public bool $showCatalogQuickCreate = false;
+    public ?string $attention_started_at = null;
+    public string $service_location = '';
+    public array $incomingScheduleDates = [];
+    public array $incomingDiagnosisCosts = [];
+
+    public function mount(): void
+    {
+        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'taller']), 403);
+        $this->ensurePartRow();
+
+        $fromAlertId = (int) request()->query('from_alert_id', 0);
+        $editWorkshopId = (int) request()->query('edit_workshop_id', 0);
+
+        if ($editWorkshopId > 0) {
+            $workshop = Workshop::query()->find($editWorkshopId);
+            if ($workshop) {
+                if (!$this->canManageWorkshop($workshop)) {
+                    session()->flash('error', 'No tiene permiso para ver esta orden de taller.');
+                    return;
+                }
+                $this->edit($workshop);
+                return;
+            }
+        }
+
+        if ($fromAlertId > 0) {
+            $this->prefillFromAlert($fromAlertId);
+        }
+    }
+
+    public function render()
+    {
+        $this->syncOpenWorkshopsResponsibleDrivers();
+
+        $isWorkshopUser = $this->isWorkshopUser();
+        $query = Workshop::query()
+            ->active()
+            ->with([
+                'vehicle.brand',
+                'driver',
+                'maintenanceAppointment.tipoMantenimiento',
+                'maintenanceLog',
+                'maintenanceAlert.maintenanceType',
+                'workshopCatalog',
+                'dispatchedByUser',
+                'reassignedFromWorkshopCatalog',
+                'partChanges',
+            ])
+            ->orderByRaw("CASE WHEN estado IN ('" . implode("','", $this->openStatuses()) . "') THEN 0 ELSE 1 END")
+            ->orderByDesc('fecha_ingreso')
+            ->orderByDesc('id');
+
+        if ($isWorkshopUser) {
+            $query->whereHas('workshopCatalog', function ($catalogQuery) {
+                $catalogQuery->where('user_id', auth()->id());
+            });
+
+            // El panel de taller debe mostrar solo ordenes activas del propio taller,
+            // evitando mezclar entregados/cerrados con la cola operativa.
+            $query->whereIn('estado', $this->openStatuses());
+        }
+
+        if ($this->statusFilter !== '') {
+            $query->where('estado', $this->statusFilter);
+        }
+
+        $search = trim($this->search);
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhere('nombre_taller', 'like', "%{$search}%")
+                    ->orWhere('estado', 'like', "%{$search}%")
+                    ->orWhere('pre_entrada_estado', 'like', "%{$search}%")
+                    ->orWhere('observaciones_tecnicas', 'like', "%{$search}%")
+                    ->orWhere('diagnostico', 'like', "%{$search}%")
+                    ->orWhere('observaciones', 'like', "%{$search}%")
+                    ->orWhereHas('vehicle', fn ($vehicleQuery) => $vehicleQuery->where('placa', 'like', "%{$search}%"))
+                    ->orWhereHas('driver', fn ($driverQuery) => $driverQuery->where('nombre', 'like', "%{$search}%"))
+                    ->orWhereHas('workshopCatalog', fn ($catalogQuery) => $catalogQuery->where('nombre', 'like', "%{$search}%"))
+                    ->orWhereHas('partChanges', function ($partQuery) use ($search) {
+                        $partQuery->where('codigo_pieza_nueva', 'like', "%{$search}%")
+                            ->orWhere('codigo_pieza_antigua', 'like', "%{$search}%")
+                            ->orWhere('descripcion', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $vehicles = $this->availableVehicles();
+        $drivers = Driver::query()->where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        $appointments = MaintenanceAppointment::query()
+            ->active()
+            ->with(['vehicle:id,placa', 'tipoMantenimiento:id,nombre'])
+            ->whereNotIn('estado', [MaintenanceAppointment::STATUS_COMPLETED, MaintenanceAppointment::STATUS_CANCELLED, MaintenanceAppointment::STATUS_REJECTED])
+            ->orderByDesc('fecha_programada')
+            ->limit(100)
+            ->get();
+        $maintenanceLogs = MaintenanceLog::query()->active()->with('vehicle:id,placa')->orderByDesc('fecha')->limit(100)->get();
+        $workshopCatalogs = WorkshopCatalog::query()
+            ->active()
+            ->with('user:id,name,email')
+            ->orderBy('tipo')
+            ->orderBy('nombre')
+            ->get();
+        $allWorkshopCatalogs = WorkshopCatalog::query()
+            ->with('user:id,name,email')
+            ->withCount([
+                'workshops as total_ordenes_count' => fn ($workshopQuery) => $workshopQuery->active(),
+                'workshops as ordenes_abiertas_count' => fn ($workshopQuery) => $workshopQuery
+                    ->active()
+                    ->whereIn('estado', $this->openStatuses()),
+            ])
+            ->orderByDesc('activo')
+            ->orderBy('tipo')
+            ->orderBy('nombre')
+            ->get();
+        $currentWorkshopCatalog = $isWorkshopUser
+            ? $workshopCatalogs->firstWhere('user_id', auth()->id())
+            : null;
+        $assignedWorkshopUserIds = $workshopCatalogs
+            ->pluck('user_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values();
+        $workshopUsers = User::query()
+            ->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'taller'))
+            ->whereNotIn('id', $assignedWorkshopUserIds->all())
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
+        $openWorkshopsBaseQuery = Workshop::query()
+            ->active()
+            ->whereIn('estado', $this->openStatuses())
+            ->when($isWorkshopUser, fn ($openQuery) => $openQuery->whereHas('workshopCatalog', fn ($catalogQuery) => $catalogQuery->where('user_id', auth()->id())));
+
+        $workshopDashboardStats = [
+            'received' => (clone $openWorkshopsBaseQuery)->count(),
+            'pending' => (clone $openWorkshopsBaseQuery)->where('estado', Workshop::STATUS_PENDING)->count(),
+            'in_process' => (clone $openWorkshopsBaseQuery)->whereIn('estado', [
+                Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_APPROVED,
+                Workshop::STATUS_REPAIR,
+            ])->count(),
+            'ready' => (clone $openWorkshopsBaseQuery)->where('estado', Workshop::STATUS_READY)->count(),
+        ];
+
+        $vehiclesByWorkshopLocation = Workshop::query()
+            ->active()
+            ->with(['vehicle:id,placa,marca,modelo', 'driver:id,nombre', 'workshopCatalog:id,nombre,tipo,attention_hours,location_label'])
+            ->whereIn('estado', $this->openStatuses())
+            ->when($isWorkshopUser, fn ($locationQuery) => $locationQuery->whereHas('workshopCatalog', fn ($catalogQuery) => $catalogQuery->where('user_id', auth()->id())))
+            ->orderBy('workshop_catalog_id')
+            ->orderBy('fecha_ingreso')
+            ->get()
+            ->groupBy(fn (Workshop $workshop) => (string) ($workshop->workshopCatalog?->nombre ?? $workshop->nombre_taller ?? 'Sin taller'));
+
+        $incomingReviewQueue = Workshop::query()
+            ->active()
+            ->with([
+                'vehicle.brand',
+                'driver',
+                'maintenanceAlert.maintenanceType',
+                'maintenanceAppointment.tipoMantenimiento',
+                'workshopCatalog.user:id,name,email',
+                'dispatchedByUser:id,name,email',
+            ])
+            ->where('estado', Workshop::STATUS_PENDING)
+            ->when($isWorkshopUser, function ($queueQuery) {
+                $queueQuery->where(function ($pendingScope) {
+                    $pendingScope
+                        ->whereNull('workshop_catalog_id')
+                        ->orWhereHas('workshopCatalog', fn ($catalogQuery) => $catalogQuery->where('user_id', auth()->id()));
+                });
+            })
+            ->orderBy('fecha_ingreso')
+            ->limit(8)
+            ->get();
+
+        $companyReviewRequests = Workshop::query()
+            ->active()
+            ->with([
+                'vehicle.brand',
+                'driver',
+                'maintenanceAlert.maintenanceType',
+                'maintenanceAppointment.tipoMantenimiento',
+                'workshopCatalog.user:id,name,email',
+                'dispatchedByUser:id,name,email',
+            ])
+            ->whereIn('estado', [
+                Workshop::STATUS_PENDING,
+                Workshop::STATUS_DISPATCHED,
+                Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_APPROVED,
+                Workshop::STATUS_REPAIR,
+                Workshop::STATUS_READY,
+            ])
+            ->when($isWorkshopUser, fn ($requestQuery) => $requestQuery->whereHas('workshopCatalog', fn ($catalogQuery) => $catalogQuery->where('user_id', auth()->id())))
+            ->orderByDesc('created_at')
+            ->limit(12)
+            ->get();
+
+        $workshopHistory = Workshop::query()
+            ->active()
+            ->with([
+                'vehicle:id,placa,marca,modelo',
+                'driver:id,nombre',
+                'maintenanceAlert.maintenanceType:id,nombre',
+                'maintenanceAppointment.tipoMantenimiento:id,nombre',
+                'workshopCatalog:id,nombre,user_id',
+            ])
+            ->whereIn('estado', [
+                Workshop::STATUS_DELIVERED,
+                Workshop::STATUS_CLOSED,
+                Workshop::STATUS_REJECTED,
+                Workshop::STATUS_CANCELLED,
+            ])
+            ->when($isWorkshopUser, fn ($historyQuery) => $historyQuery->whereHas('workshopCatalog', fn ($catalogQuery) => $catalogQuery->where('user_id', auth()->id())))
+            ->orderByDesc('fecha_salida')
+            ->orderByDesc('updated_at')
+            ->limit(12)
+            ->get();
+
+        $workshops = $this->paginateWithinBounds(clone $query, 10);
+        $trackingQuery = (clone $query)
+            ->whereIn('estado', $this->openStatuses())
+            ->orderBy('fecha_prometida_entrega')
+            ->orderByDesc('fecha_ingreso')
+            ->orderByDesc('id');
+        $trackingWorkshops = $this->paginateWithinBounds($trackingQuery, 10, 'trackingPage');
+
+        return view('livewire.workshop-manager', [
+            'workshops' => $workshops,
+            'trackingWorkshops' => $trackingWorkshops,
+            'vehicles' => $vehicles,
+            'drivers' => $drivers,
+            'appointments' => $appointments,
+            'maintenanceLogs' => $maintenanceLogs,
+            'workshopCatalogs' => $workshopCatalogs,
+            'allWorkshopCatalogs' => $allWorkshopCatalogs,
+            'workshopUsers' => $workshopUsers,
+            'currentWorkshopCatalog' => $currentWorkshopCatalog,
+            'isWorkshopUser' => $isWorkshopUser,
+            'workshopDashboardStats' => $workshopDashboardStats,
+            'incomingReviewQueue' => $incomingReviewQueue,
+            'companyReviewRequests' => $companyReviewRequests,
+            'vehiclesByWorkshopLocation' => $vehiclesByWorkshopLocation,
+            'workshopHistory' => $workshopHistory,
+            'activeWorkshops' => Workshop::query()
+                ->active()
+                ->with(['vehicle:id,placa,marca,modelo', 'driver:id,nombre', 'workshopCatalog:id,nombre,user_id,attention_hours,location_label', 'maintenanceAlert.maintenanceType:id,nombre'])
+                ->whereIn('estado', $this->openStatuses())
+                ->when($isWorkshopUser, fn ($activeQuery) => $activeQuery->whereHas('workshopCatalog', fn ($catalogQuery) => $catalogQuery->where('user_id', auth()->id())))
+                ->orderBy('fecha_prometida_entrega')
+                ->orderByDesc('fecha_ingreso')
+                ->limit(8)
+                ->get(),
+            'sourceAlert' => $this->maintenance_alert_id
+                ? MaintenanceAlert::query()->with(['vehicle:id,placa', 'maintenanceType:id,nombre', 'maintenanceAppointment:id'])->find($this->maintenance_alert_id)
+                : null,
+        ]);
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+        $this->resetPage('trackingPage');
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
+        $this->resetPage('trackingPage');
+    }
+
+    public function showOperationalTable(): void
+    {
+        $this->tableMode = 'operativa';
+        $this->resetPage();
+    }
+
+    public function showTrackingTable(): void
+    {
+        $this->tableMode = 'seguimiento';
+        $this->resetPage('trackingPage');
+    }
+
+    private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')
+    {
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = max(1, (int) $this->getPage($pageName));
+
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage, $pageName);
+        }
+
+        return $query->paginate($perPage, ['*'], $pageName);
+    }
+
+    public function updatedMaintenanceAppointmentId($value): void
+    {
+        if (!$value) {
+            return;
+        }
+
+        $appointment = MaintenanceAppointment::query()->with('vehicle')->find((int) $value);
+        if (!$appointment) {
+            return;
+        }
+
+        $this->vehicle_id = $appointment->vehicle_id ? (int) $appointment->vehicle_id : null;
+        $this->driver_id = $this->vehicle_id
+            ? $this->resolveCurrentAssignmentDriverId((int) $this->vehicle_id)
+            : null;
+        if (!$this->maintenance_alert_id) {
+            $this->pre_entrada_estado = trim($this->pre_entrada_estado) !== ''
+                ? $this->pre_entrada_estado
+                : 'Ingreso por solicitud/cita de mantenimiento.';
+        }
+    }
+
+    public function updatedWorkshopCatalogId($value): void
+    {
+        $catalog = $value ? WorkshopCatalog::query()->find((int) $value) : null;
+        $this->nombre_taller = (string) ($catalog?->nombre ?? '');
+        if ($catalog && trim($this->service_location) === '') {
+            $this->service_location = (string) ($catalog->location_label ?? '');
+        }
+    }
+
+    public function updatedVehicleId(): void
+    {
+        if (!$this->vehicle_id) {
+            if (!$this->driver_id) {
+                $this->driver_id = null;
+            }
+            return;
+        }
+
+        $assignment = $this->resolveCurrentAssignmentForVehicle((int) $this->vehicle_id);
+        if ($assignment?->driver_id) {
+            $this->driver_id = (int) $assignment->driver_id;
+            return;
+        }
+
+        $this->driver_id = null;
+    }
+
+    public function updatedDriverId(): void
+    {
+        if (!$this->driver_id) {
+            return;
+        }
+
+        $assignment = $this->resolveCurrentAssignmentForDriver((int) $this->driver_id);
+        if ($assignment?->vehicle_id) {
+            $this->vehicle_id = (int) $assignment->vehicle_id;
+        }
+    }
+
+    public function updatedCatalogAttentionDays(): void
+    {
+        $this->syncCatalogAttentionHours();
+    }
+
+    public function updatedCatalogAttentionFrom(): void
+    {
+        $this->syncCatalogAttentionHours();
+    }
+
+    public function updatedCatalogAttentionTo(): void
+    {
+        $this->syncCatalogAttentionHours();
+    }
+
+    public function syncCatalogAttentionHours(): void
+    {
+        $days = trim($this->catalog_attention_days);
+        $from = trim($this->catalog_attention_from);
+        $to = trim($this->catalog_attention_to);
+
+        $this->catalog_attention_hours = trim(sprintf(
+            '%s %s%s%s',
+            $days !== '' ? $days : 'Lun-Vie',
+            $from !== '' ? $from : '08:30',
+            $to !== '' ? ' a ' : '',
+            $to
+        ));
+    }
+
+    public function toggleCatalogQuickCreate(): void
+    {
+        $this->showCatalogQuickCreate = !$this->showCatalogQuickCreate;
+    }
+
+    public function updatedWorkflowKind($value): void
+    {
+        if ($value === Workshop::FLOW_LIGHT) {
+            $this->approval_required = false;
+        }
+    }
+
+    public function create(): void
+    {
+        $this->resetForm();
+        $this->showForm = true;
+    }
+
+    public function openCatalogModal(): void
+    {
+        $this->showCatalogModal = true;
+    }
+
+    public function closeCatalogModal(): void
+    {
+        $this->showCatalogModal = false;
+    }
+
+    public function createCatalog(): void
+    {
+        $validated = $this->validate([
+            'catalog_name' => 'required|string|max:150',
+            'catalog_type' => 'required|string|in:Interno,Externo',
+            'catalog_attention_days' => 'nullable|string|max:30',
+            'catalog_attention_from' => 'nullable|string|max:10',
+            'catalog_attention_to' => 'nullable|string|max:10',
+            'catalog_attention_hours' => 'nullable|string|max:120',
+            'catalog_location_label' => 'nullable|string|max:255',
+            'catalog_celular' => 'nullable|string|max:30',
+            'catalog_user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $existingCatalogForUser = WorkshopCatalog::query()
+            ->where('user_id', (int) $validated['catalog_user_id'])
+            ->first();
+
+        if ($existingCatalogForUser) {
+            $this->addError('catalog_user_id', 'Este usuario de taller ya tiene un taller asignado.');
+            return;
+        }
+
+        $catalog = WorkshopCatalog::query()->create([
+            'nombre' => trim((string) $validated['catalog_name']),
+            'tipo' => $validated['catalog_type'],
+            'celular' => trim((string) ($validated['catalog_celular'] ?? '')) ?: null,
+            'attention_hours' => trim((string) ($validated['catalog_attention_hours'] ?? '')) ?: null,
+            'location_label' => trim((string) ($validated['catalog_location_label'] ?? '')) ?: null,
+            'user_id' => (int) $validated['catalog_user_id'],
+            'activo' => true,
+        ]);
+
+        $this->catalog_name = '';
+        $this->catalog_type = 'Interno';
+        $this->catalog_attention_days = 'Lun-Vie';
+        $this->catalog_attention_from = '08:30';
+        $this->catalog_attention_to = '18:00';
+        $this->catalog_attention_hours = '';
+        $this->catalog_location_label = '';
+        $this->catalog_celular = '';
+        $this->catalog_user_id = null;
+        $this->workshop_catalog_id = (int) $catalog->id;
+        $this->nombre_taller = (string) $catalog->nombre;
+        $this->service_location = (string) ($catalog->location_label ?? '');
+        $this->showCatalogQuickCreate = false;
+        $this->showCatalogModal = false;
+
+        session()->flash('message', 'Taller del catalogo creado correctamente.');
+    }
+
+    public function toggleCatalog(int $catalogId): void
+    {
+        $catalog = WorkshopCatalog::query()->find($catalogId);
+        if (!$catalog) {
+            return;
+        }
+
+        if (!$catalog->activo && !$catalog->user_id) {
+            session()->flash('error', 'No se puede activar un taller sin usuario de taller vinculado.');
+            return;
+        }
+
+        $catalog->update([
+            'activo' => !$catalog->activo,
+        ]);
+
+        session()->flash('message', 'Estado del taller actualizado correctamente.');
+    }
+
+    public function deleteCatalog(int $catalogId): void
+    {
+        $catalog = WorkshopCatalog::query()->withCount(['workshops' => fn ($query) => $query->active()])->find($catalogId);
+        if (!$catalog) {
+            return;
+        }
+
+        $catalog->update(['activo' => false]);
+
+        if ($this->workshop_catalog_id === (int) $catalogId) {
+            $this->workshop_catalog_id = null;
+            $this->nombre_taller = '';
+        }
+
+        session()->flash('message', 'Taller inactivado correctamente.');
+    }
+
+    public function assignCatalogUser(int $catalogId, $userId): void
+    {
+        $catalog = WorkshopCatalog::query()->find($catalogId);
+        if (!$catalog) {
+            return;
+        }
+
+        $resolvedUserId = (int) $userId;
+        if ($resolvedUserId <= 0) {
+            session()->flash('error', 'Debe seleccionar un usuario de taller valido.');
+            return;
+        }
+
+        $existingCatalogForUser = WorkshopCatalog::query()
+            ->where('user_id', $resolvedUserId)
+            ->where('id', '!=', $catalogId)
+            ->first();
+
+        if ($existingCatalogForUser) {
+            session()->flash('error', 'Ese usuario ya esta vinculado a otro taller.');
+            return;
+        }
+
+        $catalog->update([
+            'user_id' => $resolvedUserId,
+        ]);
+
+        session()->flash('message', 'Usuario del taller actualizado correctamente.');
+    }
+
+    public function approveIncomingReview(int $workshopId): void
+    {
+        $workshop = Workshop::query()
+            ->with(['workshopCatalog', 'maintenanceAlert', 'partChanges'])
+            ->find($workshopId);
+
+        if (!$workshop) {
+            return;
+        }
+
+        if (!$this->canAcceptIncomingReview($workshop)) {
+            session()->flash('error', 'No tiene permiso para aprobar esta revision.');
+            return;
+        }
+
+        if ($workshop->estado !== Workshop::STATUS_PENDING) {
+            session()->flash('error', 'Solo se pueden aprobar revisiones pendientes.');
+            return;
+        }
+
+        $updates = [];
+        $scheduledDate = trim((string) ($this->incomingScheduleDates[$workshopId] ?? ''));
+        $diagnosisCostRaw = $this->incomingDiagnosisCosts[$workshopId] ?? null;
+        $diagnosisCost = is_numeric($diagnosisCostRaw) ? round((float) $diagnosisCostRaw, 2) : null;
+
+        if ($this->isWorkshopUser()) {
+            $catalog = WorkshopCatalog::query()
+                ->where('user_id', auth()->id())
+                ->where('activo', true)
+                ->first();
+
+            if (!$catalog) {
+                session()->flash('error', 'Su usuario de taller no tiene un taller activo asignado para aceptar la solicitud.');
+                return;
+            }
+
+            if ($scheduledDate === '') {
+                $this->dispatch('incoming-review-validation-required', message: 'Debe programar una fecha para el diagnostico antes de aceptar la solicitud.');
+                $this->addError('incomingScheduleDates.' . $workshopId, 'Debe programar una fecha para el diagnostico.');
+                return;
+            }
+
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $scheduledDate) || $scheduledDate < now()->toDateString()) {
+                $this->addError('incomingScheduleDates.' . $workshopId, 'La fecha del diagnostico no puede ser anterior a hoy.');
+                return;
+            }
+
+            if ($diagnosisCost === null || $diagnosisCost < 0) {
+                $this->dispatch('incoming-review-validation-required', message: 'Debe registrar un costo de diagnostico valido antes de aceptar la solicitud.');
+                $this->addError('incomingDiagnosisCosts.' . $workshopId, 'Debe indicar un costo de diagnostico valido.');
+                return;
+            }
+
+            if ($workshop->workshop_catalog_id && (int) $workshop->workshopCatalog?->user_id !== (int) auth()->id()) {
+                session()->flash('error', 'Otro taller ya tomo esta solicitud.');
+                return;
+            }
+
+            $partsCost = (float) $workshop->partChanges->sum(fn ($part) => (float) ($part->costo ?? 0));
+            $totalCost = round($diagnosisCost + (float) ($workshop->labor_cost ?? 0) + (float) ($workshop->additional_cost ?? 0) + $partsCost, 2);
+
+            $updates = [
+                'workshop_catalog_id' => (int) $catalog->id,
+                'nombre_taller' => (string) $catalog->nombre,
+                'attention_started_at' => $scheduledDate . ' 08:00:00',
+                'fecha_prometida_entrega' => $scheduledDate,
+                'fixed_catalog_cost' => $diagnosisCost,
+                'total_cost' => $totalCost,
+            ];
+        }
+
+        $payload = [
+            'estado' => Workshop::STATUS_DISPATCHED,
+            'observaciones' => trim(implode(' ', array_filter([
+                (string) $workshop->observaciones,
+                $this->isWorkshopUser()
+                    ? 'Solicitud de diagnostico aceptada por el taller. Se programo la fecha de diagnostico y su costo.'
+                    : 'Revision aprobada por el taller. El vehiculo llegara para su evaluacion.',
+            ]))),
+        ] + $updates;
+
+        if ($this->isWorkshopUser()) {
+            $updated = Workshop::query()
+                ->where('id', (int) $workshop->id)
+                ->where('estado', Workshop::STATUS_PENDING)
+                ->where(function ($query) use ($workshop) {
+                    if ($workshop->workshop_catalog_id) {
+                        $query->where('workshop_catalog_id', (int) $workshop->workshop_catalog_id);
+                        return;
+                    }
+
+                    $query->whereNull('workshop_catalog_id');
+                })
+                ->update($payload);
+
+            if ($updated === 0) {
+                session()->flash('error', 'La solicitud ya fue tomada por otro taller.');
+                return;
+            }
+        } else {
+            $workshop->update($payload);
+        }
+
+        $this->applyWorkshopStateEffects($workshop->fresh(['maintenanceAlert', 'maintenanceAppointment', 'workshopCatalog']));
+
+        unset($this->incomingScheduleDates[$workshopId], $this->incomingDiagnosisCosts[$workshopId]);
+
+        session()->flash('message', $this->isWorkshopUser()
+            ? 'Solicitud aceptada correctamente. Se registro el taller, la fecha programada y el costo de diagnostico.'
+            : 'La revision fue aprobada por el taller y queda registrada como ingreso esperado.');
+    }
+
+    public function addPartRow(): void
+    {
+        $this->partChanges[] = [
+            'codigo_pieza_antigua' => '',
+            'codigo_pieza_nueva' => '',
+            'descripcion' => '',
+            'costo' => '',
+        ];
+    }
+
+    public function removePartRow(int $index): void
+    {
+        unset($this->partChanges[$index]);
+        $this->partChanges = array_values($this->partChanges);
+        $this->ensurePartRow();
+    }
+
+    public function save(): void
+    {
+        $this->validate([
+            'reception_photo_file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
+            'damage_photo_file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
+            'invoice_file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
+            'receipt_file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
+        ]);
+
+        $validated = $this->validate([
+            'vehicle_id' => 'required|integer|exists:vehicles,id',
+            'driver_id' => 'nullable|integer|exists:drivers,id',
+            'maintenance_appointment_id' => 'nullable|integer|exists:maintenance_appointments,id',
+            'maintenance_log_id' => 'nullable|integer|exists:maintenance_logs,id',
+            'maintenance_alert_id' => 'nullable|integer|exists:maintenance_alerts,id',
+            'workshop_catalog_id' => 'required|integer|exists:workshop_catalogs,id',
+            'fecha_ingreso' => 'required|date',
+            'attention_started_at' => 'nullable|date',
+            'service_location' => 'nullable|string|max:255',
+            'fecha_prometida_entrega' => 'nullable|date|after_or_equal:fecha_ingreso',
+            'fecha_listo' => 'nullable|date|after_or_equal:fecha_ingreso',
+            'fecha_salida' => 'nullable|date|after_or_equal:fecha_ingreso',
+            'estado' => 'required|string|in:' . implode(',', [
+                Workshop::STATUS_PENDING,
+                Workshop::STATUS_DISPATCHED,
+                Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_APPROVED,
+                Workshop::STATUS_REPAIR,
+                Workshop::STATUS_READY,
+                Workshop::STATUS_DELIVERED,
+                Workshop::STATUS_CLOSED,
+                Workshop::STATUS_REJECTED,
+                Workshop::STATUS_CANCELLED,
+            ]),
+            'workflow_kind' => 'required|string|in:' . Workshop::FLOW_LIGHT . ',' . Workshop::FLOW_HEAVY,
+            'approval_required' => 'boolean',
+            'fixed_catalog_cost' => 'nullable|numeric|min:0',
+            'labor_cost' => 'nullable|numeric|min:0',
+            'additional_cost' => 'nullable|numeric|min:0',
+            'rejection_reason' => 'nullable|string',
+            'cancellation_reason' => 'nullable|string',
+            'pre_entrada_estado' => 'required|string',
+            'observaciones_tecnicas' => 'nullable|string',
+            'diagnostico' => 'nullable|string',
+            'observaciones' => 'nullable|string',
+            'partChanges.*.codigo_pieza_antigua' => 'nullable|string|max:120',
+            'partChanges.*.codigo_pieza_nueva' => 'nullable|string|max:120',
+            'partChanges.*.descripcion' => 'nullable|string|max:255',
+            'partChanges.*.costo' => 'nullable|numeric|min:0',
+        ]);
+
+        if ($this->isWorkshopUser()) {
+            $ownCatalog = WorkshopCatalog::query()
+                ->where('user_id', (int) auth()->id())
+                ->where('activo', true)
+                ->first();
+
+            if (!$ownCatalog) {
+                session()->flash('error', 'Su usuario no tiene un taller activo asignado.');
+                return;
+            }
+
+            $validated['workshop_catalog_id'] = (int) $ownCatalog->id;
+        }
+
+        $catalog = WorkshopCatalog::query()->findOrFail((int) $validated['workshop_catalog_id']);
+        $vehicle = Vehicle::query()->findOrFail((int) $validated['vehicle_id']);
+
+        $currentAssignment = $this->resolveCurrentAssignmentForVehicle((int) $vehicle->id);
+        $requiresAssignedDriver = in_array((string) ($validated['estado'] ?? ''), $this->openStatuses(), true);
+        if ($requiresAssignedDriver && !$currentAssignment?->driver_id) {
+            $this->addError('vehicle_id', 'El vehiculo no tiene una asignacion activa en vehicle-assignments. Asigne un conductor antes de enviar a taller.');
+            return;
+        }
+
+        if ($currentAssignment?->driver_id) {
+            $assignedDriverId = (int) $currentAssignment->driver_id;
+            if (!empty($validated['driver_id']) && (int) $validated['driver_id'] !== $assignedDriverId) {
+                $this->addError('driver_id', 'El conductor no coincide con la asignacion activa del vehiculo.');
+                return;
+            }
+            $validated['driver_id'] = $assignedDriverId;
+        }
+
+        if (
+            $validated['workflow_kind'] === Workshop::FLOW_HEAVY &&
+            (bool) ($validated['approval_required'] ?? false) &&
+            $validated['estado'] === Workshop::STATUS_REPAIR &&
+            trim((string) ($validated['diagnostico'] ?? '')) === ''
+        ) {
+            $this->addError('diagnostico', 'Debe registrar el diagnostico antes de pasar un mantenimiento grave a reparacion.');
+            return;
+        }
+
+        if ($validated['estado'] === Workshop::STATUS_REJECTED && trim((string) ($validated['rejection_reason'] ?? '')) === '') {
+            $this->addError('rejection_reason', 'Debe indicar el motivo del rechazo.');
+            return;
+        }
+
+        if ($validated['estado'] === Workshop::STATUS_CANCELLED && trim((string) ($validated['cancellation_reason'] ?? '')) === '') {
+            $this->addError('cancellation_reason', 'Debe indicar el motivo de la cancelacion.');
+            return;
+        }
+
+        $existingOpenWorkshop = Workshop::query()
+            ->where('vehicle_id', (int) $vehicle->id)
+            ->whereIn('estado', $this->openStatuses())
+            ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+            ->first();
+
+        if ($existingOpenWorkshop) {
+            $this->addError('vehicle_id', 'Este vehiculo ya tiene una orden de taller abierta.');
+            return;
+        }
+
+        if (!empty($validated['maintenance_alert_id'])) {
+            $existingOpenForAlert = Workshop::query()
+                ->where('maintenance_alert_id', (int) $validated['maintenance_alert_id'])
+                ->whereIn('estado', $this->openStatuses())
+                ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+                ->first();
+
+            if ($existingOpenForAlert) {
+                $this->addError('maintenance_alert_id', 'Esta alerta ya tiene una orden de taller abierta.');
+                return;
+            }
+        }
+
+        $existingWorkshop = $this->isEdit && $this->editingId
+            ? Workshop::query()->find($this->editingId)
+            : null;
+
+        if ($existingWorkshop && !$this->canManageWorkshop($existingWorkshop)) {
+            session()->flash('error', 'No tiene permiso para actualizar esta orden de taller.');
+            return;
+        }
+
+        $previousCatalogId = $existingWorkshop?->workshop_catalog_id ? (int) $existingWorkshop->workshop_catalog_id : null;
+
+        $fixedCatalogCost = $validated['fixed_catalog_cost'] !== null ? (float) $validated['fixed_catalog_cost'] : 0.0;
+        $laborCost = $validated['labor_cost'] !== null ? (float) $validated['labor_cost'] : 0.0;
+        $additionalCost = $validated['additional_cost'] !== null ? (float) $validated['additional_cost'] : 0.0;
+        $partsCost = collect($this->partChanges)->sum(function (array $row) {
+            return (float) (($row['costo'] ?? '') !== '' && ($row['costo'] ?? null) !== null ? $row['costo'] : 0);
+        });
+        $totalCost = round($fixedCatalogCost + $laborCost + $additionalCost + $partsCost, 2);
+
+        if (in_array($validated['estado'], [Workshop::STATUS_DELIVERED, Workshop::STATUS_CLOSED], true) && $totalCost <= 0) {
+            $this->addError('labor_cost', 'No se puede cerrar o entregar un mantenimiento sin registrar costo.');
+            return;
+        }
+
+        $receptionPhotoPath = $this->storeWorkshopFile($this->reception_photo_file, 'workshop/reception') ?? $this->reception_photo_path;
+        $damagePhotoPath = $this->storeWorkshopFile($this->damage_photo_file, 'workshop/damage') ?? $this->damage_photo_path;
+        $invoiceFilePath = $this->storeWorkshopFile($this->invoice_file, 'workshop/invoice') ?? $this->invoice_file_path;
+        $receiptFilePath = $this->storeWorkshopFile($this->receipt_file, 'workshop/receipt') ?? $this->receipt_file_path;
+
+        $payload = [
+            'vehicle_id' => (int) $validated['vehicle_id'],
+            'driver_id' => $validated['driver_id'] ?? null,
+            'maintenance_appointment_id' => $validated['maintenance_appointment_id'] ?? null,
+            'maintenance_log_id' => $validated['maintenance_log_id'] ?? null,
+            'maintenance_alert_id' => $validated['maintenance_alert_id'] ?? null,
+            'workshop_catalog_id' => (int) $catalog->id,
+            'nombre_taller' => (string) $catalog->nombre,
+            'fecha_ingreso' => $validated['fecha_ingreso'],
+            'attention_started_at' => $validated['attention_started_at'] ?? null,
+            'service_location' => trim((string) ($validated['service_location'] ?? '')) ?: (string) ($catalog->location_label ?? ''),
+            'fecha_prometida_entrega' => $validated['fecha_prometida_entrega'] ?? null,
+            'fecha_listo' => $validated['fecha_listo'] ?? null,
+            'fecha_salida' => $validated['fecha_salida'] ?? null,
+            'estado' => $validated['estado'],
+            'workflow_kind' => $validated['workflow_kind'],
+            'approval_required' => (bool) ($validated['approval_required'] ?? false),
+            'fixed_catalog_cost' => $validated['fixed_catalog_cost'] !== null ? $fixedCatalogCost : null,
+            'labor_cost' => $validated['labor_cost'] !== null ? $laborCost : null,
+            'additional_cost' => $validated['additional_cost'] !== null ? $additionalCost : null,
+            'total_cost' => $totalCost,
+            'reassigned_from_workshop_catalog_id' => $previousCatalogId && $previousCatalogId !== (int) $catalog->id
+                ? $previousCatalogId
+                : ($existingWorkshop?->reassigned_from_workshop_catalog_id),
+            'rejection_reason' => trim((string) ($validated['rejection_reason'] ?? '')),
+            'cancellation_reason' => trim((string) ($validated['cancellation_reason'] ?? '')),
+            'reception_photo_path' => $receptionPhotoPath,
+            'damage_photo_path' => $damagePhotoPath,
+            'invoice_file_path' => $invoiceFilePath,
+            'receipt_file_path' => $receiptFilePath,
+            'pre_entrada_estado' => trim((string) $validated['pre_entrada_estado']),
+            'observaciones_tecnicas' => trim((string) ($validated['observaciones_tecnicas'] ?? '')),
+            'diagnostico' => trim((string) ($validated['diagnostico'] ?? '')),
+            'observaciones' => trim((string) ($validated['observaciones'] ?? '')),
+            'activo' => true,
+        ];
+
+        if ($this->isEdit && $this->editingId) {
+            $workshop = Workshop::query()->findOrFail($this->editingId);
+            $workshop->update($payload);
+        } else {
+            $workshop = Workshop::query()->create($payload);
+        }
+
+        if (!$workshop->order_number) {
+            $workshop->update([
+                'order_number' => $this->buildOrderNumber($workshop),
+            ]);
+        }
+
+        $changes = collect($this->partChanges)
+            ->map(fn (array $row) => [
+                'codigo_pieza_antigua' => trim((string) ($row['codigo_pieza_antigua'] ?? '')),
+                'codigo_pieza_nueva' => trim((string) ($row['codigo_pieza_nueva'] ?? '')),
+                'descripcion' => trim((string) ($row['descripcion'] ?? '')),
+                'costo' => $row['costo'] !== '' && $row['costo'] !== null ? (float) $row['costo'] : null,
+            ])
+            ->filter(fn (array $row) => $row['codigo_pieza_antigua'] !== '' || $row['codigo_pieza_nueva'] !== '' || $row['descripcion'] !== '' || $row['costo'] !== null)
+            ->values();
+
+        $workshop->partChanges()->delete();
+        foreach ($changes as $change) {
+            $workshop->partChanges()->create($change);
+        }
+
+        $this->applyWorkshopStateEffects($workshop->fresh(['maintenanceAlert', 'maintenanceAppointment']));
+
+        session()->flash('message', $this->isEdit
+            ? 'Orden de taller actualizada correctamente.'
+            : 'Orden de taller creada correctamente y el vehiculo fue enviado a mantenimiento.');
+
+        $this->resetForm();
+    }
+
+    public function edit(Workshop $workshop): void
+    {
+        if (!$this->canManageWorkshop($workshop)) {
+            session()->flash('error', 'No tiene permiso para editar esta orden de taller.');
+            return;
+        }
+
+        $this->showForm = true;
+        $this->isEdit = true;
+        $this->editingId = $workshop->id;
+        $this->vehicle_id = $workshop->vehicle_id ? (int) $workshop->vehicle_id : null;
+        $this->driver_id = $workshop->driver_id ? (int) $workshop->driver_id : null;
+        $this->maintenance_appointment_id = $workshop->maintenance_appointment_id ? (int) $workshop->maintenance_appointment_id : null;
+        $this->maintenance_log_id = $workshop->maintenance_log_id ? (int) $workshop->maintenance_log_id : null;
+        $this->maintenance_alert_id = $workshop->maintenance_alert_id ? (int) $workshop->maintenance_alert_id : null;
+        $this->workshop_catalog_id = $workshop->workshop_catalog_id ? (int) $workshop->workshop_catalog_id : null;
+        $this->order_number = (string) ($workshop->order_number ?? '');
+        $this->nombre_taller = (string) $workshop->nombre_taller;
+        $this->fecha_ingreso = optional($workshop->fecha_ingreso)->format('Y-m-d');
+        $this->attention_started_at = optional($workshop->attention_started_at)->format('Y-m-d\TH:i');
+        $this->service_location = (string) ($workshop->service_location ?? '');
+        $this->fecha_prometida_entrega = optional($workshop->fecha_prometida_entrega)->format('Y-m-d');
+        $this->fecha_listo = optional($workshop->fecha_listo)->format('Y-m-d');
+        $this->fecha_salida = optional($workshop->fecha_salida)->format('Y-m-d');
+        $this->estado = (string) $workshop->estado;
+        $this->workflow_kind = (string) ($workshop->workflow_kind ?: Workshop::FLOW_LIGHT);
+        $this->approval_required = (bool) $workshop->approval_required;
+        $this->fixed_catalog_cost = $workshop->fixed_catalog_cost !== null ? (string) $workshop->fixed_catalog_cost : null;
+        $this->labor_cost = $workshop->labor_cost !== null ? (string) $workshop->labor_cost : null;
+        $this->additional_cost = $workshop->additional_cost !== null ? (string) $workshop->additional_cost : null;
+        $this->rejection_reason = (string) ($workshop->rejection_reason ?? '');
+        $this->cancellation_reason = (string) ($workshop->cancellation_reason ?? '');
+        $this->pre_entrada_estado = (string) $workshop->pre_entrada_estado;
+        $this->observaciones_tecnicas = (string) ($workshop->observaciones_tecnicas ?? '');
+        $this->diagnostico = (string) ($workshop->diagnostico ?? '');
+        $this->observaciones = (string) ($workshop->observaciones ?? '');
+        $this->reception_photo_file = null;
+        $this->damage_photo_file = null;
+        $this->invoice_file = null;
+        $this->receipt_file = null;
+        $this->reception_photo_path = (string) ($workshop->reception_photo_path ?? '') ?: null;
+        $this->damage_photo_path = (string) ($workshop->damage_photo_path ?? '') ?: null;
+        $this->invoice_file_path = (string) ($workshop->invoice_file_path ?? '') ?: null;
+        $this->receipt_file_path = (string) ($workshop->receipt_file_path ?? '') ?: null;
+        $this->partChanges = $workshop->partChanges->map(fn ($row) => [
+            'codigo_pieza_antigua' => (string) ($row->codigo_pieza_antigua ?? ''),
+            'codigo_pieza_nueva' => (string) ($row->codigo_pieza_nueva ?? ''),
+            'descripcion' => (string) ($row->descripcion ?? ''),
+            'costo' => $row->costo !== null ? (string) $row->costo : '',
+        ])->values()->all();
+        $this->ensurePartRow();
+    }
+
+    public function delete(Workshop $workshop): void
+    {
+        if (!$this->canManageWorkshop($workshop)) {
+            session()->flash('error', 'No tiene permiso para eliminar esta orden de taller.');
+            return;
+        }
+
+        $vehicleId = (int) $workshop->vehicle_id;
+        $workshop->update(['activo' => false]);
+        $this->syncVehicleOperationalStatus($vehicleId);
+        session()->flash('message', 'Orden de taller inactivada correctamente.');
+    }
+
+    public function cancelForm(): void
+    {
+        $this->resetForm();
+    }
+
+    private function resetForm(): void
+    {
+        $this->reset([
+            'vehicle_id',
+            'driver_id',
+            'maintenance_appointment_id',
+            'maintenance_log_id',
+            'maintenance_alert_id',
+            'workshop_catalog_id',
+            'order_number',
+            'nombre_taller',
+            'fecha_ingreso',
+            'attention_started_at',
+            'service_location',
+            'fecha_prometida_entrega',
+            'fecha_listo',
+            'fecha_salida',
+            'estado',
+            'workflow_kind',
+            'approval_required',
+            'fixed_catalog_cost',
+            'labor_cost',
+            'additional_cost',
+            'rejection_reason',
+            'cancellation_reason',
+            'pre_entrada_estado',
+            'observaciones_tecnicas',
+            'diagnostico',
+            'observaciones',
+            'reception_photo_file',
+            'damage_photo_file',
+            'invoice_file',
+            'receipt_file',
+            'reception_photo_path',
+            'damage_photo_path',
+            'invoice_file_path',
+            'receipt_file_path',
+            'catalog_user_id',
+            'catalog_attention_hours',
+            'catalog_location_label',
+            'catalog_celular',
+            'catalog_attention_days',
+            'catalog_attention_from',
+            'catalog_attention_to',
+            'showCatalogQuickCreate',
+            'incomingScheduleDates',
+            'incomingDiagnosisCosts',
+            'isEdit',
+            'editingId',
+        ]);
+        $this->estado = Workshop::STATUS_DISPATCHED;
+        $this->workflow_kind = Workshop::FLOW_LIGHT;
+        $this->approval_required = false;
+        $this->showForm = false;
+        $this->partChanges = [];
+        $this->ensurePartRow();
+        $this->resetPage();
+    }
+
+    private function ensurePartRow(): void
+    {
+        if ($this->partChanges === []) {
+            $this->addPartRow();
+        }
+    }
+
+    private function prefillFromAlert(int $alertId): void
+    {
+        $alert = MaintenanceAlert::query()
+            ->with(['vehicle', 'maintenanceAppointment', 'maintenanceType'])
+            ->find($alertId);
+
+        if (!$alert) {
+            return;
+        }
+
+        $existing = Workshop::query()
+            ->where('maintenance_alert_id', $alertId)
+            ->whereIn('estado', $this->openStatuses())
+            ->first();
+
+        if ($existing) {
+            $this->edit($existing);
+            session()->flash('message', 'La alerta ya tenia una orden de taller abierta. Se cargo para editar.');
+            return;
+        }
+
+        $defaultCatalog = WorkshopCatalog::query()->where('activo', true)->orderBy('tipo')->orderBy('nombre')->first();
+
+        $this->resetForm();
+        $this->showForm = true;
+        $this->maintenance_alert_id = (int) $alert->id;
+        $this->maintenance_appointment_id = $alert->maintenance_appointment_id ? (int) $alert->maintenance_appointment_id : null;
+        $this->vehicle_id = $alert->vehicle_id ? (int) $alert->vehicle_id : null;
+        $this->driver_id = $this->vehicle_id
+            ? $this->resolveCurrentAssignmentDriverId((int) $this->vehicle_id)
+            : null;
+        $this->workshop_catalog_id = $defaultCatalog?->id ? (int) $defaultCatalog->id : null;
+        $this->nombre_taller = (string) ($defaultCatalog?->nombre ?? '');
+        $this->fecha_ingreso = now()->toDateString();
+        $requestDiagnosis = request()->boolean('request_diagnosis');
+        $this->estado = $requestDiagnosis ? Workshop::STATUS_PENDING : Workshop::STATUS_DISPATCHED;
+        $this->workflow_kind = $requestDiagnosis ? Workshop::FLOW_HEAVY : Workshop::FLOW_LIGHT;
+        $this->approval_required = $requestDiagnosis;
+        $typeName = (string) ($alert->maintenanceType?->nombre ?? $alert->tipo);
+        $this->pre_entrada_estado = $requestDiagnosis
+            ? "Ingreso para diagnostico desde alerta activa de mantenimiento {$typeName}."
+            : "Ingreso desde alerta activa de mantenimiento {$typeName}.";
+        $this->observaciones = trim((string) $alert->mensaje);
+    }
+
+    private function availableVehicles(): Collection
+    {
+        $query = Vehicle::query()
+            ->where('activo', true)
+            ->operationallyAvailable()
+            ->orderBy('placa');
+
+        $vehicles = $query->get(['id', 'placa', 'operational_status']);
+
+        if ($this->vehicle_id && !$vehicles->contains('id', $this->vehicle_id)) {
+            $selected = Vehicle::query()->find($this->vehicle_id, ['id', 'placa', 'operational_status']);
+            if ($selected) {
+                $vehicles->push($selected);
+            }
+        }
+
+        return $vehicles;
+    }
+
+    private function resolveCurrentAssignmentForVehicle(int $vehicleId): ?VehicleAssignment
+    {
+        if ($vehicleId <= 0) {
+            return null;
+        }
+
+        $assignments = $this->resolveCurrentAssignmentsByVehicleIds([$vehicleId]);
+
+        return $assignments->get($vehicleId);
+    }
+
+    private function resolveCurrentAssignmentDriverId(int $vehicleId): ?int
+    {
+        $assignment = $this->resolveCurrentAssignmentForVehicle($vehicleId);
+        return $assignment?->driver_id ? (int) $assignment->driver_id : null;
+    }
+
+    private function resolveCurrentAssignmentForDriver(int $driverId): ?VehicleAssignment
+    {
+        if ($driverId <= 0) {
+            return null;
+        }
+
+        return VehicleAssignment::query()
+            ->where('driver_id', $driverId)
+            ->where(function ($query) {
+                $query->where('activo', true)->orWhereNull('activo');
+            })
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn (VehicleAssignment $assignment) => $this->isAssignmentCurrent($assignment));
+    }
+
+    private function isAssignmentCurrent(VehicleAssignment $assignment): bool
+    {
+        $today = now()->toDateString();
+        $starts = $assignment->fecha_inicio?->toDateString();
+        $ends = $assignment->fecha_fin?->toDateString();
+
+        if ($starts && $starts > $today) {
+            return false;
+        }
+
+        if ($ends && $ends < $today) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function resolveCurrentAssignmentsByVehicleIds(array $vehicleIds): Collection
+    {
+        $vehicleIds = collect($vehicleIds)
+            ->filter(fn ($id) => (int) $id > 0)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($vehicleIds)) {
+            return collect();
+        }
+
+        $today = now()->toDateString();
+
+        return VehicleAssignment::query()
+            ->with('driver:id,nombre')
+            ->whereIn('vehicle_id', $vehicleIds)
+            ->where(function ($query) {
+                $query->where('activo', true)->orWhereNull('activo');
+            })
+            ->where(function ($query) use ($today) {
+                $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+            })
+            ->where(function ($query) use ($today) {
+                $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+            })
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy(fn (VehicleAssignment $assignment) => (int) $assignment->vehicle_id)
+            ->map(fn (Collection $rows) => $rows->first());
+    }
+
+    private function syncOpenWorkshopsResponsibleDrivers(): void
+    {
+        $openWorkshops = Workshop::query()
+            ->active()
+            ->whereIn('estado', $this->openStatuses())
+            ->get(['id', 'vehicle_id', 'driver_id']);
+
+        if ($openWorkshops->isEmpty()) {
+            return;
+        }
+
+        $assignmentsByVehicle = $this->resolveCurrentAssignmentsByVehicleIds(
+            $openWorkshops->pluck('vehicle_id')->all()
+        );
+
+        foreach ($openWorkshops as $workshop) {
+            $vehicleId = (int) ($workshop->vehicle_id ?? 0);
+            if ($vehicleId <= 0) {
+                continue;
+            }
+
+            $assignedDriverId = $assignmentsByVehicle->get($vehicleId)?->driver_id
+                ? (int) $assignmentsByVehicle->get($vehicleId)->driver_id
+                : null;
+            $currentDriverId = $workshop->driver_id ? (int) $workshop->driver_id : null;
+
+            if ($assignedDriverId !== $currentDriverId) {
+                Workshop::query()
+                    ->whereKey((int) $workshop->id)
+                    ->update(['driver_id' => $assignedDriverId]);
+            }
+        }
+    }
+
+    private function openStatuses(): array
+    {
+        return [
+            Workshop::STATUS_PENDING,
+            Workshop::STATUS_DISPATCHED,
+            Workshop::STATUS_DIAGNOSIS,
+            Workshop::STATUS_APPROVED,
+            Workshop::STATUS_REPAIR,
+            Workshop::STATUS_READY,
+        ];
+    }
+
+    private function isWorkshopUser(): bool
+    {
+        return auth()->user()?->role === 'taller';
+    }
+
+    private function canManageWorkshop(Workshop $workshop): bool
+    {
+        if (!$this->isWorkshopUser()) {
+            return true;
+        }
+
+        return (int) ($workshop->workshopCatalog?->user_id ?? 0) === (int) auth()->id();
+    }
+
+    private function canAcceptIncomingReview(Workshop $workshop): bool
+    {
+        if (!$this->isWorkshopUser()) {
+            return true;
+        }
+
+        if ($workshop->estado !== Workshop::STATUS_PENDING) {
+            return false;
+        }
+
+        if (!$workshop->workshop_catalog_id) {
+            return true;
+        }
+
+        return (int) ($workshop->workshopCatalog?->user_id ?? 0) === (int) auth()->id();
+    }
+
+    private function buildOrderNumber(Workshop $workshop): string
+    {
+        $date = optional($workshop->fecha_ingreso)->format('Ymd') ?? now()->format('Ymd');
+
+        return sprintf('OT-%s-%04d', $date, (int) $workshop->id);
+    }
+
+    private function applyWorkshopStateEffects(Workshop $workshop): void
+    {
+        $updates = [];
+        $userId = auth()->id();
+
+        if (in_array($workshop->estado, [Workshop::STATUS_PENDING, Workshop::STATUS_DIAGNOSIS], true) && !$workshop->diagnosis_requested_at) {
+            $updates['diagnosis_requested_at'] = now();
+        }
+
+        if ($workshop->estado === Workshop::STATUS_DISPATCHED && !$workshop->dispatched_by_user_id) {
+            $updates['dispatched_by_user_id'] = $userId;
+        }
+
+        if ($workshop->estado === Workshop::STATUS_DIAGNOSIS && !$workshop->diagnosed_by_user_id) {
+            $updates['diagnosed_by_user_id'] = $userId;
+        }
+
+        if ($workshop->estado === Workshop::STATUS_APPROVED) {
+            if (!$workshop->approved_by_user_id) {
+                $updates['approved_by_user_id'] = $userId;
+            }
+            if (!$workshop->fecha_aprobacion) {
+                $updates['fecha_aprobacion'] = now();
+            }
+        }
+
+        if ($workshop->estado === Workshop::STATUS_READY && !$workshop->fecha_listo) {
+            $updates['fecha_listo'] = now()->toDateString();
+        }
+
+        if (in_array($workshop->estado, [Workshop::STATUS_DELIVERED, Workshop::STATUS_CLOSED], true)) {
+            if (!$workshop->fecha_listo) {
+                $updates['fecha_listo'] = now()->toDateString();
+            }
+            if (!$workshop->fecha_salida) {
+                $updates['fecha_salida'] = now()->toDateString();
+            }
+            if (!$workshop->closed_by_user_id) {
+                $updates['closed_by_user_id'] = $userId;
+            }
+            if (!$workshop->fecha_cierre) {
+                $updates['fecha_cierre'] = now();
+            }
+        }
+
+        if (in_array($workshop->estado, [Workshop::STATUS_REJECTED, Workshop::STATUS_CANCELLED], true) && !$workshop->fecha_cierre) {
+            $updates['fecha_cierre'] = now();
+        }
+
+        if ($updates !== []) {
+            $workshop->update($updates);
+            $workshop->refresh();
+        }
+
+        if ($workshop->maintenanceAlert && in_array($workshop->maintenanceAlert->status, MaintenanceAlert::openStatuses(), true)) {
+            if ($workshop->isClosedState()) {
+                $workshop->maintenanceAlert->update([
+                    'status' => MaintenanceAlert::STATUS_RESOLVED,
+                    'leida' => true,
+                    'fecha_resolucion' => now(),
+                    'usuario_id' => $userId,
+                ]);
+            } elseif (in_array($workshop->estado, [Workshop::STATUS_REJECTED, Workshop::STATUS_CANCELLED], true)) {
+                $reason = $workshop->estado === Workshop::STATUS_REJECTED
+                    ? trim((string) $workshop->rejection_reason)
+                    : trim((string) $workshop->cancellation_reason);
+
+                $fallbackStatus = $workshop->maintenanceAlert->tipo === 'Solicitud'
+                    ? MaintenanceAlert::STATUS_REQUESTED
+                    : MaintenanceAlert::STATUS_ACTIVE;
+
+                $workshop->maintenanceAlert->update([
+                    'status' => $fallbackStatus,
+                    'leida' => false,
+                    'fecha_resolucion' => null,
+                    'usuario_id' => null,
+                    'mensaje' => trim(sprintf(
+                        '%s. %s en taller %s%s',
+                        $workshop->maintenanceAlert->mensaje,
+                        $workshop->estado,
+                        $workshop->workshopCatalog?->nombre ?? $workshop->nombre_taller,
+                        $reason !== '' ? ': ' . $reason . '. Reasignar a otro taller.' : '. Reasignar a otro taller.'
+                    )),
+                ]);
+            } else {
+                $workshop->maintenanceAlert->update([
+                    'status' => MaintenanceAlert::STATUS_IN_WORKSHOP,
+                    'leida' => true,
+                    'fecha_resolucion' => null,
+                    'usuario_id' => null,
+                ]);
+            }
+        }
+
+        if ($workshop->maintenanceAppointment) {
+            if ($workshop->isClosedState()) {
+                $workshop->maintenanceAppointment->update([
+                    'estado' => MaintenanceAppointment::STATUS_COMPLETED,
+                ]);
+            } elseif ($workshop->estado === Workshop::STATUS_REJECTED) {
+                $workshop->maintenanceAppointment->update([
+                    'estado' => MaintenanceAppointment::STATUS_REJECTED,
+                ]);
+            } elseif ($workshop->estado === Workshop::STATUS_CANCELLED) {
+                $workshop->maintenanceAppointment->update([
+                    'estado' => MaintenanceAppointment::STATUS_CANCELLED,
+                ]);
+            } elseif ($workshop->maintenanceAppointment->estado === MaintenanceAppointment::STATUS_PENDING) {
+                $workshop->maintenanceAppointment->update([
+                    'estado' => MaintenanceAppointment::STATUS_APPROVED,
+                ]);
+            }
+        }
+
+        $this->syncVehicleOperationalStatus((int) $workshop->vehicle_id);
+
+        if ($workshop->isClosedState()) {
+            MaintenanceAlertService::evaluateVehicleByKilometraje((int) $workshop->vehicle_id);
+        }
+    }
+
+    private function syncVehicleOperationalStatus(int $vehicleId): void
+    {
+        $vehicle = Vehicle::query()->find($vehicleId);
+        if (!$vehicle) {
+            return;
+        }
+
+        $hasOpenWorkshop = Workshop::query()
+            ->where('vehicle_id', $vehicleId)
+            ->whereIn('estado', $this->openStatuses())
+            ->exists();
+
+        $vehicle->update([
+            'operational_status' => $hasOpenWorkshop
+                ? Vehicle::OPERATIONAL_STATUS_IN_MAINTENANCE
+                : Vehicle::OPERATIONAL_STATUS_AVAILABLE,
+        ]);
+    }
+
+    private function storeWorkshopFile($file, string $folder): ?string
+    {
+        if (!$file) {
+            return null;
+        }
+
+        return (string) $file->store($folder, 'public');
+    }
+
+}

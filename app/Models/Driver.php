@@ -8,8 +8,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 // 💡 ESTA ES LA LÍNEA QUE FALTA:
-use App\Models\VehicleLog; 
+use App\Models\VehicleLog;
 use App\Models\FuelLog;
+use App\Models\DriverIncentiveReport;
+use App\Models\Workshop;
 
 class Driver extends Model
 {
@@ -59,14 +61,33 @@ class Driver extends Model
     public function currentVehicle()
     {
         $assignment = $this->assignments()
-            ->where('activo', true)
-            ->where(function ($q) {
-                $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', now());
-            })
             ->latest('fecha_inicio')
+            ->latest('updated_at')
+            ->latest('id')
             ->first();
-        
-        return $assignment ? $assignment->vehicle : null;
+
+        if (!$assignment) {
+            return null;
+        }
+
+        $isActive = (bool) ($assignment->activo ?? false);
+        $endDate = $assignment->fecha_fin;
+        $startsAt = $assignment->fecha_inicio;
+        $today = now()->startOfDay();
+
+        if (!$isActive) {
+            return null;
+        }
+
+        if ($startsAt && $startsAt->copy()->startOfDay()->gt($today)) {
+            return null;
+        }
+
+        if ($endDate && $endDate->copy()->startOfDay()->lt($today)) {
+            return null;
+        }
+
+        return $assignment->vehicle;
     }
 
     /**
@@ -77,12 +98,22 @@ class Driver extends Model
         return $this->hasMany(MaintenanceAppointment::class, 'driver_id');
     }
 
+    public function incentiveReports(): HasMany
+    {
+        return $this->hasMany(DriverIncentiveReport::class, 'driver_id');
+    }
+
+    public function workshops(): HasMany
+    {
+        return $this->hasMany(Workshop::class, 'driver_id');
+    }
+
     /**
      * Relación con los registros de bitácora del vehículo
      */
     public function vehicleLogs(): HasMany
     {
-        return $this->hasMany(VehicleLog::class, 'drivers_id');
+        return $this->hasMany(VehicleLog::class, 'drivers_id')->active();
     }
 
     /**

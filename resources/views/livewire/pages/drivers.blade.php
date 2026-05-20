@@ -2,6 +2,6 @@
 
 @section('content')
 <div class="container-fluid bp-gestiones-module">
-    @livewire('driver-manager')
+    <livewire:driver-manager />
 </div>
 @endsection

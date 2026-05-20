@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MaintenanceAlert extends Model
 {
     public const STATUS_ACTIVE = 'Activa';
+    public const STATUS_REQUESTED = 'Solicitada';
+    public const STATUS_IN_WORKSHOP = 'En taller';
     public const STATUS_RESOLVED = 'Resuelta';
     public const STATUS_OMITTED = 'Omitida';
 
@@ -22,6 +25,8 @@ class MaintenanceAlert extends Model
         'leida',
         'status',
         'fecha_resolucion',
+        'postponed_until',
+        'postponed_once',
         'usuario_id',
         'kilometraje_actual',
         'kilometraje_objetivo',
@@ -31,6 +36,8 @@ class MaintenanceAlert extends Model
     protected $casts = [
         'leida' => 'boolean',
         'fecha_resolucion' => 'datetime',
+        'postponed_until' => 'datetime',
+        'postponed_once' => 'boolean',
         'kilometraje_actual' => 'decimal:2',
         'kilometraje_objetivo' => 'decimal:2',
         'faltante_km' => 'decimal:2',
@@ -56,5 +63,47 @@ class MaintenanceAlert extends Model
     public function resolvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    public function workshops(): HasMany
+    {
+        return $this->hasMany(Workshop::class, 'maintenance_alert_id');
+    }
+
+    public function userReads(): HasMany
+    {
+        return $this->hasMany(MaintenanceAlertUserRead::class, 'maintenance_alert_id');
+    }
+
+    public function isReadByUser(?int $userId): bool
+    {
+        if (($userId ?? 0) <= 0) {
+            return (bool) $this->leida;
+        }
+
+        if ($this->relationLoaded('userReads')) {
+            return $this->userReads->contains(fn (MaintenanceAlertUserRead $read) => (int) $read->user_id === (int) $userId);
+        }
+
+        return $this->userReads()
+            ->where('user_id', (int) $userId)
+            ->exists();
+    }
+
+    public static function openStatuses(): array
+    {
+        return [
+            self::STATUS_ACTIVE,
+            self::STATUS_REQUESTED,
+            self::STATUS_IN_WORKSHOP,
+        ];
+    }
+
+    public static function blockingStatuses(): array
+    {
+        return [
+            self::STATUS_ACTIVE,
+            self::STATUS_IN_WORKSHOP,
+        ];
     }
 }

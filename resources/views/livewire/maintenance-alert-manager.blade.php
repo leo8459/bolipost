@@ -1,4 +1,43 @@
-<div>
+<div class="bp-livewire-skin">
+    @include('livewire.partials.button-theme')
+    <style>
+        .bp-select-like-vehicle {
+            border-radius: 10px;
+            min-height: calc(2.35rem + 2px);
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+
+        .bp-select-like-vehicle:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+        }
+
+        select.bp-select-like-vehicle {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 2.2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath fill='%236c757d' d='M2.646 5.646a.5.5 0 0 1 .708 0L8 10.293l4.646-4.647a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 14px;
+        }
+
+        .maintenance-filter-row .form-label {
+            display: block !important;
+            width: 100% !important;
+            margin-bottom: .35rem !important;
+        }
+
+        .maintenance-filter-row .form-select,
+        .maintenance-filter-row .form-control {
+            display: block;
+            width: 100%;
+        }
+
+    </style>
+
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
         <h1 class="h3 mb-0">
             <i class="fas fa-bell me-2 text-danger"></i>Alertas de Mantenimiento
@@ -24,7 +63,7 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <div class="row g-3 align-items-end">
+            <div class="row g-3 align-items-end maintenance-filter-row">
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold">Buscar</label>
                     <input
@@ -35,7 +74,7 @@
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold">Tipo</label>
-                    <select wire:model.live="filterTipo" class="form-select">
+                    <select wire:model.live="filterTipo" class="form-select bp-select-like-vehicle">
                         <option value="">Todos</option>
                         <option value="Preventivo">Preventivo</option>
                         <option value="Programado">Programado</option>
@@ -44,12 +83,28 @@
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold">Estado</label>
-                    <select wire:model.live="filterEstado" class="form-select">
-                        <option value="activa">Activas</option>
-                        <option value="resuelta">Resueltas</option>
-                        <option value="omitida">Omitidas</option>
+                    <select wire:model.live="filterEstado" class="form-select bp-select-like-vehicle">
+                        <option value="abiertas">Abiertas</option>
                         <option value="todas">Todas</option>
+                        <option value="resueltas">Resueltas</option>
+                        <option value="solicitado">Solicitadas</option>
+                        <option value="en_taller">En taller</option>
+                        <option value="pospuestas">Pospuestas</option>
+                        <option value="vencidas">Vencidas</option>
                     </select>
+                </div>
+                <div class="col-12 col-md-2">
+                    <label class="form-label fw-bold">Desde</label>
+                    <input type="date" wire:model.live="dateFrom" class="form-control bp-select-like-vehicle">
+                </div>
+                <div class="col-12 col-md-2">
+                    <label class="form-label fw-bold">Hasta</label>
+                    <input type="date" wire:model.live="dateTo" class="form-control bp-select-like-vehicle">
+                </div>
+                <div class="col-12 col-md-1 d-grid">
+                    <button type="button" class="btn btn-outline-secondary" wire:click="$set('dateFrom', null); $set('dateTo', null)">
+                        Limpiar
+                    </button>
                 </div>
                 <div class="col-12 col-md-3">
                     <div class="alert alert-warning mb-0 py-2">
@@ -94,35 +149,61 @@
                                     <td>{{ $alert->mensaje }}</td>
                                     <td>{{ $alert->kilometraje_actual ?? '-' }}</td>
                                     <td>{{ $alert->kilometraje_objetivo ?? '-' }}</td>
-                                    <td>{{ $alert->faltante_km ?? '-' }}</td>
                                     <td>
-                                        <span class="badge {{ $alert->status === 'Activa' ? 'bg-danger' : ($alert->status === 'Resuelta' ? 'bg-success' : 'bg-secondary') }}">
-                                            {{ $alert->status ?? 'Activa' }}
+                                        @if($alert->faltante_km !== null)
+                                            <span class="{{ (float) $alert->faltante_km < 0 ? 'text-danger fw-bold' : '' }}">
+                                                {{ $alert->faltante_km }}
+                                            </span>
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @php
+                                            $isOpen = in_array($alert->status, \App\Models\MaintenanceAlert::openStatuses(), true);
+                                            $isOverdue = $alert->status === \App\Models\MaintenanceAlert::STATUS_ACTIVE && $alert->faltante_km !== null && (float) $alert->faltante_km < 0;
+                                            $isPostponed = in_array($alert->status, [\App\Models\MaintenanceAlert::STATUS_ACTIVE, \App\Models\MaintenanceAlert::STATUS_REQUESTED], true) && $alert->postponed_until && $alert->postponed_until->isFuture();
+                                            $badgeClass = match ($alert->status) {
+                                                \App\Models\MaintenanceAlert::STATUS_IN_WORKSHOP => 'bg-info text-dark',
+                                                \App\Models\MaintenanceAlert::STATUS_REQUESTED => 'bg-warning text-dark',
+                                                \App\Models\MaintenanceAlert::STATUS_RESOLVED => 'bg-success',
+                                                \App\Models\MaintenanceAlert::STATUS_OMITTED => 'bg-secondary',
+                                                default => ($isPostponed ? 'bg-warning text-dark' : 'bg-danger'),
+                                            };
+                                            $statusLabel = match ($alert->status) {
+                                                \App\Models\MaintenanceAlert::STATUS_REQUESTED => 'En revision',
+                                                default => ($alert->status ?? 'Activa'),
+                                            };
+                                        @endphp
+                                        <span class="badge {{ $badgeClass }}">
+                                            {{ $isPostponed ? ('Pospuesta hasta ' . $alert->postponed_until->format('d/m/Y')) : ($isOverdue ? 'Vencida' : $statusLabel) }}
                                         </span>
                                     </td>
                                     <td>{{ optional($alert->created_at)->format('d/m/Y H:i') }}</td>
                                     <td class="text-center">
-                                        @if(auth()->user()?->role !== 'conductor' && $alert->status === 'Activa')
+                                        @if(auth()->user()?->role !== 'conductor' && in_array($alert->status, [\App\Models\MaintenanceAlert::STATUS_ACTIVE, \App\Models\MaintenanceAlert::STATUS_REQUESTED], true))
                                             @if(!$alert->leida)
                                                 <button type="button" wire:click="markAsRead({{ $alert->id }})" class="btn btn-sm btn-outline-success">
                                                     <i class="fas fa-check me-1"></i>Leida
                                                 </button>
                                             @else
-                                                <button type="button" wire:click="registerMaintenance({{ $alert->id }})" class="btn btn-sm btn-outline-primary ms-1">
-                                                    <i class="fas fa-tools me-1"></i>Registrar mantenimiento
+                                                <button type="button" wire:click="requestDiagnosis({{ $alert->id }})" class="btn btn-sm btn-outline-secondary ms-1">
+                                                    <i class="fas fa-stethoscope me-1"></i>Solicitar diagnostico
+                                                </button>
+                                                <button type="button" wire:click="dispatchToWorkshop({{ $alert->id }})" class="btn btn-sm btn-outline-warning ms-1">
+                                                    <i class="fas fa-truck-moving me-1"></i>Despachar a taller
                                                 </button>
                                             @endif
-                                            <button type="button" wire:click="resolveAlert({{ $alert->id }})" class="btn btn-sm btn-outline-success ms-1">
-                                                <i class="fas fa-check-circle me-1"></i>Resolver
-                                            </button>
-                                            <button type="button" wire:click="omitAlert({{ $alert->id }})" class="btn btn-sm btn-outline-secondary ms-1">
-                                                <i class="fas fa-ban me-1"></i>Omitir
-                                            </button>
-                                        @elseif($alert->status === 'Activa' && $alert->leida)
+                                            @if(!($alert->postponed_once ?? false))
+                                                <button type="button" wire:click="postponeAlert({{ $alert->id }})" class="btn btn-sm btn-outline-secondary ms-1">
+                                                    <i class="fas fa-clock me-1"></i>Posponer 3 dias
+                                                </button>
+                                            @endif
+                                        @elseif($isOpen && $alert->leida && $alert->status !== \App\Models\MaintenanceAlert::STATUS_IN_WORKSHOP)
                                             <button type="button" wire:click="markAsUnread({{ $alert->id }})" class="btn btn-sm btn-outline-warning">
                                                 <i class="fas fa-undo me-1"></i>Pendiente
                                             </button>
-                                        @elseif($alert->status === 'Activa')
+                                        @elseif($isOpen && $alert->status !== \App\Models\MaintenanceAlert::STATUS_IN_WORKSHOP)
                                             <button type="button" wire:click="markAsRead({{ $alert->id }})" class="btn btn-sm btn-outline-success">
                                                 <i class="fas fa-check me-1"></i>Leida
                                             </button>

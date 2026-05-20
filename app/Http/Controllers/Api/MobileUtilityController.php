@@ -3,11 +3,22 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cartero;
+use App\Models\Driver;
+use App\Models\Estado;
 use App\Models\FuelInvoice;
 use App\Models\ActivityLog;
+use App\Models\Vehicle;
+use App\Models\VehicleAssignment;
+use App\Models\VehicleLogInvestigationTicket;
+use App\Models\VehicleLogSession;
+use App\Models\VehicleLogStageEvent;
+use App\Models\VehicleOperationAlert;
+use App\Services\MaintenanceAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
@@ -18,7 +29,9 @@ class MobileUtilityController extends Controller
 {
     private const HEARTBEAT_TTL_HOURS = 12;
     private const HEARTBEAT_DUPLICATE_WINDOW_SECONDS = 3;
+    private const HEARTBEAT_ROUTE_HISTORY_LIMIT = 180;
     private const BITACORA_SESSION_TTL_HOURS = 24;
+    private const HEARTBEAT_SUSPEND_MINUTES = 5;
 
     public function locationHeartbeat(Request $request)
     {
@@ -35,6 +48,8 @@ class MobileUtilityController extends Controller
             'timestamp' => 'nullable',
             'waiting_stop' => 'nullable|boolean',
             'estado' => 'nullable|string|max:40',
+            'gps_enabled' => 'nullable|boolean',
+            'gps_mocked' => 'nullable|boolean',
             'sent_at' => 'nullable|date',
         ]);
 
@@ -71,9 +86,16 @@ class MobileUtilityController extends Controller
             }
         }
 
+        $resolvedUserId = (int) ($payload['user_id'] ?? ($request->user()?->id ?? 0));
+        $resolvedDriverId = $this->resolveHeartbeatDriverId(
+            (int) ($payload['driver_id'] ?? 0),
+            $resolvedUserId,
+            $vehicleId
+        );
+
         $heartbeatEvent = [
-            'user_id' => (int) ($payload['user_id'] ?? ($request->user()?->id ?? 0)),
-            'driver_id' => (int) ($payload['driver_id'] ?? 0) ?: null,
+            'user_id' => $resolvedUserId > 0 ? $resolvedUserId : null,
+            'driver_id' => $resolvedDriverId > 0 ? $resolvedDriverId : null,
             'vehicle_id' => $vehicleId,
             'latitude' => $lat,
             'longitude' => $lng,
@@ -81,11 +103,18 @@ class MobileUtilityController extends Controller
             'point_timestamp' => $incomingTs,
             'waiting_stop' => $status === 'ESPERA',
             'estado' => $status,
+            'gps_enabled' => array_key_exists('gps_enabled', $payload)
+                ? (bool) $payload['gps_enabled']
+                : true,
+            'gps_mocked' => array_key_exists('gps_mocked', $payload)
+                ? (bool) $payload['gps_mocked']
+                : false,
             'sent_at' => (string) ($payload['sent_at'] ?? $nowIso),
             'received_at' => $nowIso,
         ];
 
         Cache::put($cacheKey, $heartbeatEvent, now()->addHours(self::HEARTBEAT_TTL_HOURS));
+        $this->appendHeartbeatRoutePoint($vehicleId, $heartbeatEvent);
 
         $this->touchHeartbeatIndex($vehicleId);
         $this->publishHeartbeatEvent($heartbeatEvent);
@@ -97,6 +126,52 @@ class MobileUtilityController extends Controller
         ]);
     }
 
+    private function resolveHeartbeatDriverId(int $payloadDriverId, int $resolvedUserId, int $vehicleId): int
+    {
+        if ($payloadDriverId > 0 && Driver::query()->whereKey($payloadDriverId)->exists()) {
+            return $payloadDriverId;
+        }
+
+        if ($resolvedUserId > 0) {
+            $driverByUser = Driver::query()
+                ->where('user_id', $resolvedUserId)
+                ->value('id');
+            if ((int) $driverByUser > 0) {
+                return (int) $driverByUser;
+            }
+        }
+
+        $openSession = VehicleLogSession::query()
+            ->where('vehicle_id', $vehicleId)
+            ->whereNull('ended_at')
+            ->orderByDesc('started_at')
+            ->orderByDesc('id')
+            ->first(['current_driver_id', 'responsible_driver_id']);
+        if ($openSession) {
+            $sessionDriverId = (int) ($openSession->current_driver_id ?? $openSession->responsible_driver_id ?? 0);
+            if ($sessionDriverId > 0) {
+                return $sessionDriverId;
+            }
+        }
+
+        $assignmentDriverId = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where(function ($q) {
+                $q->where('activo', true)->orWhereNull('activo');
+            })
+            ->where(function ($q) {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', now()->toDateString());
+            })
+            ->where(function ($q) {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', now()->toDateString());
+            })
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->value('driver_id');
+
+        return (int) ($assignmentDriverId ?? 0);
+    }
+
     public function bitacoraLoad(Request $request)
     {
         $payload = $request->validate([
@@ -104,7 +179,10 @@ class MobileUtilityController extends Controller
             'driver_id' => 'nullable|integer|min:0',
             'vehicle_id' => 'required|integer|exists:vehicles,id',
             'session_id' => 'nullable|integer|min:0',
+            'session_reference' => 'nullable|string|max:120',
             'event' => 'required|string|in:START,FINALIZE,POINT_TO_POINT,CARGA',
+            'responsible_driver_id' => 'nullable|integer|min:0',
+            'current_driver_id' => 'nullable|integer|min:0',
             'timeline' => 'nullable|array|max:500',
             'points' => 'nullable|array|max:500',
             'point_to_point_segments' => 'nullable|array|max:500',
@@ -122,6 +200,16 @@ class MobileUtilityController extends Controller
         }
 
         $event = strtoupper((string) $payload['event']);
+        if ($event === 'START') {
+            $vehicle = Vehicle::query()->find((int) $payload['vehicle_id']);
+            $blockReason = MaintenanceAlertService::resolveVehicleLogBlockReason($vehicle);
+            if ($blockReason !== null) {
+                return response()->json([
+                    'message' => $blockReason,
+                ], 422);
+            }
+        }
+
         $action = match ($event) {
             'START' => 'BITACORA_LOAD_START',
             'FINALIZE' => 'BITACORA_LOAD_FINALIZE',
@@ -141,6 +229,7 @@ class MobileUtilityController extends Controller
         $segments = is_array($payload['point_to_point_segments'] ?? null) ? array_values($payload['point_to_point_segments']) : [];
         $createdCount = 0;
         $createdIds = [];
+        $fuelRouteContext = $this->resolveFuelRouteContextFromTimeline($timelineSanitized);
         $qrDataPayload = $payload['qr_data'] ?? $payload['qrData'] ?? $payload['qr_urls'] ?? null;
         $qrUrls = $this->extractQrUrls($qrDataPayload);
         $structuredFuelEntries = $this->extractStructuredFuelEntries($qrDataPayload);
@@ -158,6 +247,9 @@ class MobileUtilityController extends Controller
                 'driver_id' => (int) ($payload['driver_id'] ?? 0) ?: null,
                 'vehicle_id' => (int) $payload['vehicle_id'],
                 'session_id' => $sessionId ?: null,
+                'session_reference' => $payload['session_reference'] ?? null,
+                'responsible_driver_id' => (int) ($payload['responsible_driver_id'] ?? 0) ?: null,
+                'current_driver_id' => (int) ($payload['current_driver_id'] ?? 0) ?: null,
                 'sent_at' => (string) ($payload['sent_at'] ?? now()->toIso8601String()),
                 'timeline' => $timelineSanitized,
                 'point_to_point_segments' => $segments,
@@ -166,11 +258,9 @@ class MobileUtilityController extends Controller
 
         $timelineCount = is_array($timeline) ? count($timeline) : 0;
         if (in_array($event, ['POINT_TO_POINT', 'CARGA', 'FINALIZE'], true) && ($timelineCount >= 2 || count($segments) >= 1)) {
-            // En cierre normal de bitacora (START -> FINALIZE) se espera un solo tramo:
-            // del primer punto al ultimo, sin desglosar en n sub-tramos.
-            $timelineForPointToPoint = $event === 'FINALIZE'
-                ? $this->collapseTimelineToFirstLast($timeline)
-                : $timeline;
+            // En cierre normal de bitacora (START -> FINALIZE) se mantiene un solo tramo,
+            // pero conservando todos los puntos intermedios para graficar la trayectoria real.
+            $timelineForPointToPoint = $timeline;
             $segmentsForPointToPoint = $segments;
             if ($event === 'FINALIZE' && is_array($timelineForPointToPoint) && count($timelineForPointToPoint) >= 2) {
                 $fromPoint = $timelineForPointToPoint[0];
@@ -178,7 +268,10 @@ class MobileUtilityController extends Controller
                 $segmentsForPointToPoint = [[
                     'from' => $fromPoint,
                     'to' => $toPoint,
-                    'intermediate_points' => [],
+                    'intermediate_points' => array_values(array_filter(
+                        array_slice($timelineForPointToPoint, 1, -1),
+                        fn ($point) => is_array($point)
+                    )),
                 ]];
             }
 
@@ -187,6 +280,9 @@ class MobileUtilityController extends Controller
                 'driver_id' => (int) ($payload['driver_id'] ?? 0) ?: null,
                 'vehicle_id' => (int) $payload['vehicle_id'],
                 'session_id' => $sessionId ?: null,
+                'session_reference' => $payload['session_reference'] ?? null,
+                'responsible_driver_id' => (int) ($payload['responsible_driver_id'] ?? 0) ?: null,
+                'current_driver_id' => (int) ($payload['current_driver_id'] ?? 0) ?: null,
                 'timeline' => $timelineForPointToPoint,
                 'point_to_point_segments' => $segmentsForPointToPoint,
                 'distance_km' => $distanceKm,
@@ -231,7 +327,8 @@ class MobileUtilityController extends Controller
                     $request,
                     $qrUrls,
                     (int) $payload['vehicle_id'],
-                    (int) ($payload['driver_id'] ?? 0)
+                    (int) ($payload['driver_id'] ?? 0),
+                    $fuelRouteContext
                 );
                 $fuelSync = $this->mergeFuelSyncResults($fuelSync, $urlSync);
             }
@@ -241,7 +338,8 @@ class MobileUtilityController extends Controller
                     $request,
                     $structuredFuelEntries,
                     (int) $payload['vehicle_id'],
-                    (int) ($payload['driver_id'] ?? 0)
+                    (int) ($payload['driver_id'] ?? 0),
+                    $fuelRouteContext
                 );
                 $fuelSync = $this->mergeFuelSyncResults($fuelSync, $entrySync);
             }
@@ -256,10 +354,14 @@ class MobileUtilityController extends Controller
             'action' => $action,
             'model' => 'vehicle_log',
             'record_id' => (int) (($payload['session_id'] ?? 0) ?: $payload['vehicle_id']),
+            'vehicle_log_id' => (int) ($createdIds[0] ?? 0) ?: null,
             'changes_json' => [
                 'driver_id' => (int) ($payload['driver_id'] ?? 0) ?: null,
                 'vehicle_id' => (int) $payload['vehicle_id'],
                 'session_id' => $sessionId ?: null,
+                'session_reference' => $payload['session_reference'] ?? null,
+                'responsible_driver_id' => (int) ($payload['responsible_driver_id'] ?? 0) ?: null,
+                'current_driver_id' => (int) ($payload['current_driver_id'] ?? 0) ?: null,
                 'distance_km' => $distanceKm,
                 'timeline_count' => count($timelineSanitized),
                 'timeline' => $timelineSanitized,
@@ -310,6 +412,86 @@ class MobileUtilityController extends Controller
         return response()->json([
             'message' => 'Alerta de emergencia registrada.',
             'activity_log_id' => $log->id,
+        ], 201);
+    }
+
+    public function reportOperationalIncident(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'vehicle_id' => 'required|integer|exists:vehicles,id',
+            'driver_id' => 'nullable|integer|min:1',
+            'session_reference' => 'nullable|string|max:120',
+            'incident_type' => 'required|string|in:' . implode(',', VehicleOperationAlert::mobileIncidentTypes()),
+            'severity' => 'nullable|string|in:info,warning,danger,secondary,success',
+            'message' => 'nullable|string|max:1000',
+            'current_stage' => 'nullable|string|max:40',
+            'meta_json' => 'nullable|array',
+        ]);
+
+        $vehicleId = (int) $payload['vehicle_id'];
+        $session = $this->resolveOperationalIncidentSession(
+            $payload['session_reference'] ?? null,
+            $vehicleId,
+        );
+
+        $driverId = (int) ($payload['driver_id'] ?? 0);
+        if ($driverId <= 0) {
+            $driverId = (int) ($session?->current_driver_id ?? $session?->responsible_driver_id ?? 0);
+        }
+
+        $vehicle = Vehicle::query()->find($vehicleId);
+        $driver = $driverId > 0 ? Driver::query()->find($driverId) : null;
+        $alertPayload = $this->buildOperationalIncidentAlertPayload(
+            $payload,
+            $vehicle,
+            $driver,
+            $session,
+        );
+
+        $existing = VehicleOperationAlert::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where('alert_type', (string) $payload['incident_type'])
+            ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+            ->orderByDesc('detected_at')
+            ->orderByDesc('id')
+            ->first();
+
+        $detectedAt = $existing?->detected_at ?? $existing?->created_at;
+        $withinHourlyWindow = $detectedAt
+            ? $detectedAt->copy()->gte(now()->subHour())
+            : false;
+
+        if ($existing && $withinHourlyWindow) {
+            $existing->update($alertPayload);
+            $alert = $existing->refresh();
+        } else {
+            $meta = is_array($alertPayload['meta_json'] ?? null) ? $alertPayload['meta_json'] : [];
+            $meta['repeat_every_minutes'] = 60;
+            $meta['repeat_until_resolved'] = true;
+            $meta['next_repeat_at'] = now()->addHour()->toIso8601String();
+            $alertPayload['meta_json'] = $meta;
+            $alert = VehicleOperationAlert::query()->create($alertPayload);
+        }
+
+        ActivityLog::create([
+            'user_id' => (int) ($request->user()?->id ?? 0) ?: null,
+            'action' => 'MOBILE_OPERATIONAL_INCIDENT_REPORTED',
+            'model' => 'vehicle_operation_alert',
+            'record_id' => (int) $alert->id,
+            'changes_json' => [
+                'vehicle_id' => $vehicleId,
+                'driver_id' => $driverId > 0 ? $driverId : null,
+                'incident_type' => (string) $payload['incident_type'],
+                'session_reference' => $payload['session_reference'] ?? null,
+            ],
+        ]);
+
+        $this->dispatchWhatsappOperationalIncidentAlert($alert, $vehicle, $driver, $session);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Incidente operativo registrado.',
+            'alert_id' => (int) $alert->id,
         ], 201);
     }
 
@@ -453,6 +635,9 @@ class MobileUtilityController extends Controller
         if ($this->activityLogsHasColumn('record_id')) {
             $payload['record_id'] = $recordId;
         }
+        if ($this->activityLogsHasColumn('vehicle_log_id') && array_key_exists('vehicle_log_id', $input)) {
+            $payload['vehicle_log_id'] = $input['vehicle_log_id'] ? (int) $input['vehicle_log_id'] : null;
+        }
         if ($this->activityLogsHasColumn('changes_json')) {
             $payload['changes_json'] = $changes;
         }
@@ -507,6 +692,45 @@ class MobileUtilityController extends Controller
             $ids[] = $vehicleId;
             Cache::put($indexKey, array_values(array_unique(array_map('intval', $ids))), now()->addHours(self::HEARTBEAT_TTL_HOURS));
         }
+    }
+
+    private function appendHeartbeatRoutePoint(int $vehicleId, array $heartbeatEvent): void
+    {
+        $routeKey = "mobile:heartbeat:route:{$vehicleId}";
+        $history = Cache::get($routeKey, []);
+        if (!is_array($history)) {
+            $history = [];
+        }
+
+        $point = [
+            'lat' => $this->asFloat($heartbeatEvent['latitude'] ?? null),
+            'lng' => $this->asFloat($heartbeatEvent['longitude'] ?? null),
+            't' => (string) ($heartbeatEvent['point_timestamp'] ?? $heartbeatEvent['sent_at'] ?? $heartbeatEvent['received_at'] ?? now()->toIso8601String()),
+            'is_marked' => false,
+            'address' => '',
+            'point_label' => (string) ($heartbeatEvent['estado'] ?? 'EN_RUTA'),
+            'speed_kmh' => $this->asFloat($heartbeatEvent['speed_kmh'] ?? null),
+        ];
+
+        if (is_null($point['lat']) || is_null($point['lng'])) {
+            return;
+        }
+
+        $last = !empty($history) ? $history[array_key_last($history)] : null;
+        $sameAsLast = is_array($last)
+            && ((float) ($last['lat'] ?? 0) === (float) $point['lat'])
+            && ((float) ($last['lng'] ?? 0) === (float) $point['lng'])
+            && ((string) ($last['t'] ?? '') === (string) $point['t']);
+
+        if (!$sameAsLast) {
+            $history[] = $point;
+        }
+
+        if (count($history) > self::HEARTBEAT_ROUTE_HISTORY_LIMIT) {
+            $history = array_slice($history, -self::HEARTBEAT_ROUTE_HISTORY_LIMIT);
+        }
+
+        Cache::put($routeKey, array_values($history), now()->addHours(self::HEARTBEAT_TTL_HOURS));
     }
 
     /**
@@ -566,6 +790,234 @@ class MobileUtilityController extends Controller
 
         $status = strtoupper(trim((string) ($heartbeat['estado'] ?? '')));
         return $status === 'EN_RUTA';
+    }
+
+    private function resolveTrackedSession(?string $sessionReference, int $vehicleId, int $driverId): ?VehicleLogSession
+    {
+        $query = VehicleLogSession::query()
+            ->with(['vehicle:id,placa', 'responsibleDriver:id,nombre,user_id', 'currentDriver:id,nombre,user_id'])
+            ->whereNull('ended_at')
+            ->orderByDesc('id');
+
+        $sessionReference = trim((string) $sessionReference);
+        if ($sessionReference !== '') {
+            return $query->where('session_reference', $sessionReference)->first();
+        }
+
+        if ($vehicleId > 0) {
+            $session = (clone $query)->where('vehicle_id', $vehicleId)->first();
+            // Si la app consulta por vehiculo, no debemos mezclar con sesiones
+            // abiertas de otro vehiculo del mismo conductor.
+            return $session;
+        }
+
+        if ($driverId > 0) {
+            return $query
+                ->where(function ($q) use ($driverId) {
+                    $q->where('current_driver_id', $driverId)
+                        ->orWhere('responsible_driver_id', $driverId);
+                })
+                ->first();
+        }
+
+        return null;
+    }
+
+    private function evaluateSessionSuspension(VehicleLogSession $session, ?int $relatedUserId): array
+    {
+        $heartbeat = Cache::get("mobile:heartbeat:vehicle:{$session->vehicle_id}");
+        $receivedAt = is_array($heartbeat) ? $this->parseHeartbeatTime($heartbeat['received_at'] ?? null) : null;
+        $lastSeenAt = $receivedAt ?? $session->updated_at ?? $session->started_at;
+        $minutesWithoutHeartbeat = $lastSeenAt ? $lastSeenAt->diffInMinutes(now()) : null;
+        $isSuspended = $minutesWithoutHeartbeat !== null && $minutesWithoutHeartbeat >= self::HEARTBEAT_SUSPEND_MINUTES;
+
+        $ticket = null;
+        $requiresForcedClose = $isSuspended;
+        if ($isSuspended) {
+            if ($session->status !== 'En Suspenso') {
+                $session->update([
+                    'status' => 'En Suspenso',
+                    'meta_json' => array_merge((array) ($session->meta_json ?? []), [
+                        'heartbeat_missing_since' => optional($lastSeenAt)->toIso8601String(),
+                        'heartbeat_missing_minutes' => $minutesWithoutHeartbeat,
+                    ]),
+                ]);
+
+                VehicleLogStageEvent::query()->create([
+                    'vehicle_log_session_id' => $session->id,
+                    'session_reference' => $session->session_reference,
+                    'vehicle_id' => $session->vehicle_id,
+                    'responsible_driver_id' => $session->responsible_driver_id,
+                    'acting_driver_id' => $session->current_driver_id,
+                    'stage_name' => 'SUSPENSION',
+                    'event_kind' => 'forced_shutdown_detected',
+                    'event_at' => now(),
+                    'notes' => 'Bitacora marcada en suspenso por ausencia de heartbeat.',
+                    'payload_json' => [
+                        'minutes_without_heartbeat' => $minutesWithoutHeartbeat,
+                        'last_heartbeat_at' => optional($lastSeenAt)->toIso8601String(),
+                    ],
+                ]);
+            }
+
+            $ticket = $this->openInvestigationTicket($session, $relatedUserId, $minutesWithoutHeartbeat, $lastSeenAt);
+            if ($ticket && $relatedUserId) {
+                $acknowledgedBy = collect((array) (($ticket->meta_json ?? [])['mobile_acknowledged_by_users'] ?? []))
+                    ->map(fn ($id) => (int) $id)
+                    ->filter(fn ($id) => $id > 0)
+                    ->values()
+                    ->all();
+
+                if (in_array((int) $relatedUserId, $acknowledgedBy, true)) {
+                    $requiresForcedClose = false;
+                }
+            }
+        }
+
+        return [
+            'id' => $session->id,
+            'session_reference' => $session->session_reference,
+            'status' => $isSuspended ? 'En Suspenso' : ((string) ($session->status ?: 'Activa')),
+            'vehicle_id' => (int) $session->vehicle_id,
+            'plate' => (string) ($session->vehicle?->placa ?? ''),
+            'responsible_driver_id' => $session->responsible_driver_id ? (int) $session->responsible_driver_id : null,
+            'current_driver_id' => $session->current_driver_id ? (int) $session->current_driver_id : null,
+            'last_heartbeat_at' => optional($lastSeenAt)->toIso8601String(),
+            'minutes_without_heartbeat' => $minutesWithoutHeartbeat,
+            'requires_forced_close' => $requiresForcedClose,
+            'ticket' => $ticket ? [
+                'id' => (int) $ticket->id,
+                'ticket_code' => (string) $ticket->ticket_code,
+                'status' => (string) $ticket->status,
+                'message' => (string) ($ticket->message ?? ''),
+                'packages_total' => (int) ($ticket->packages_total ?? 0),
+                'packages_open' => (int) ($ticket->packages_open ?? 0),
+                'packages_delivered' => (int) ($ticket->packages_delivered ?? 0),
+            ] : null,
+        ];
+    }
+
+    private function openInvestigationTicket(
+        VehicleLogSession $session,
+        ?int $relatedUserId,
+        ?int $minutesWithoutHeartbeat,
+        ?\Illuminate\Support\Carbon $lastSeenAt
+    ): VehicleLogInvestigationTicket {
+        $existing = VehicleLogInvestigationTicket::query()
+            ->where('session_reference', $session->session_reference)
+            ->where('reason_type', 'CIERRE_FORZADO')
+            ->where('status', '!=', VehicleLogInvestigationTicket::STATUS_CLOSED)
+            ->latest('id')
+            ->first();
+
+        $packageStats = $this->resolvePackageStatsForSession($session);
+        $message = sprintf(
+            'Se detecto cierre forzado o abandono de bitacora. Ultimo heartbeat: %s. Tiempo sin latido: %s minuto(s). Revisar paquetes transportados y estado de entrega.',
+            optional($lastSeenAt)->format('d/m/Y H:i') ?: 'Sin dato',
+            $minutesWithoutHeartbeat ?? 0
+        );
+
+        if ($existing) {
+            $existing->update([
+                'message' => $message,
+                'packages_total' => $packageStats['total'],
+                'packages_open' => $packageStats['open'],
+                'packages_delivered' => $packageStats['delivered'],
+                'meta_json' => $packageStats['meta'],
+            ]);
+
+            return $existing->fresh();
+        }
+
+        $ticket = VehicleLogInvestigationTicket::query()->create([
+            'ticket_code' => 'BIT-' . now()->format('YmdHis') . '-' . str_pad((string) random_int(1, 999), 3, '0', STR_PAD_LEFT),
+            'session_reference' => (string) $session->session_reference,
+            'vehicle_id' => $session->vehicle_id,
+            'responsible_driver_id' => $session->responsible_driver_id,
+            'current_driver_id' => $session->current_driver_id,
+            'related_user_id' => $relatedUserId,
+            'reason_type' => 'CIERRE_FORZADO',
+            'status' => VehicleLogInvestigationTicket::STATUS_OPEN,
+            'message' => $message,
+            'packages_total' => $packageStats['total'],
+            'packages_open' => $packageStats['open'],
+            'packages_delivered' => $packageStats['delivered'],
+            'meta_json' => $packageStats['meta'],
+            'opened_at' => now(),
+        ]);
+
+        ActivityLog::create([
+            'user_id' => $relatedUserId,
+            'action' => 'BITACORA_INVESTIGATION_TICKET_OPENED',
+            'model' => 'vehicle_log_session',
+            'record_id' => $session->id,
+            'changes_json' => [
+                'ticket_code' => $ticket->ticket_code,
+                'session_reference' => $session->session_reference,
+                'vehicle_id' => $session->vehicle_id,
+                'packages_total' => $packageStats['total'],
+                'packages_open' => $packageStats['open'],
+                'packages_delivered' => $packageStats['delivered'],
+            ],
+        ]);
+
+        return $ticket;
+    }
+
+    private function resolvePackageStatsForSession(VehicleLogSession $session): array
+    {
+        $driverUserIds = Driver::query()
+            ->whereIn('id', array_values(array_filter([
+                (int) ($session->responsible_driver_id ?? 0),
+                (int) ($session->current_driver_id ?? 0),
+            ])))
+            ->pluck('user_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($driverUserIds)) {
+            return [
+                'total' => 0,
+                'open' => 0,
+                'delivered' => 0,
+                'meta' => [],
+            ];
+        }
+
+        $deliveredStateIds = Estado::query()
+            ->whereRaw('UPPER(nombre_estado) LIKE ?', ['%ENTREGADO%'])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $total = Cartero::query()
+            ->whereIn('id_user', $driverUserIds)
+            ->count();
+
+        $delivered = empty($deliveredStateIds)
+            ? 0
+            : Cartero::query()->whereIn('id_user', $driverUserIds)->whereIn('id_estados', $deliveredStateIds)->count();
+
+        return [
+            'total' => (int) $total,
+            'open' => max((int) $total - (int) $delivered, 0),
+            'delivered' => (int) $delivered,
+            'meta' => [
+                'driver_user_ids' => $driverUserIds,
+            ],
+        ];
+    }
+
+    private function parseHeartbeatTime(mixed $value): ?\Illuminate\Support\Carbon
+    {
+        try {
+            return filled($value) ? now()->parse((string) $value) : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function extractQrUrls(mixed $raw): array
@@ -753,7 +1205,7 @@ class MobileUtilityController extends Controller
         return $entries;
     }
 
-    private function syncMobileStructuredFuelEntries(Request $request, array $entries, int $vehicleId, int $driverId): array
+    private function syncMobileStructuredFuelEntries(Request $request, array $entries, int $vehicleId, int $driverId, array $fuelRouteContext = []): array
     {
         $result = [
             'requested' => count($entries),
@@ -798,7 +1250,7 @@ class MobileUtilityController extends Controller
                     'qr_payload' => $qrPayload !== '' ? $qrPayload : null,
                     'vehicle_id' => $vehicleId > 0 ? $vehicleId : null,
                     'driver_id' => $driverId > 0 ? $driverId : null,
-                ]);
+                ] + $fuelRouteContext);
                 $storeRequest->setUserResolver(fn () => $request->user());
 
                 $storeResponse = app(FuelLogApiController::class)->store($storeRequest);
@@ -849,7 +1301,458 @@ class MobileUtilityController extends Controller
         ];
     }
 
-    private function syncMobileQrDataAsFuel(Request $request, array $urls, int $vehicleId, int $driverId): array
+    public function sessionHealth(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'session_reference' => 'nullable|string|max:120',
+            'vehicle_id' => 'nullable|integer|min:1',
+        ]);
+
+        $authUser = $request->user();
+        $driver = $authUser?->resolvedDriver();
+        $session = $this->resolveTrackedSession(
+            $payload['session_reference'] ?? null,
+            (int) ($payload['vehicle_id'] ?? 0),
+            (int) ($driver?->id ?? 0)
+        );
+        $operationalAlerts = $this->resolveOperationalAlertsForMobile(
+            $authUser?->id ? (int) $authUser->id : null,
+            $driver?->id ? (int) $driver->id : null,
+            $session,
+            (int) ($payload['vehicle_id'] ?? 0)
+        );
+
+        if (!$session) {
+            return response()->json([
+                'ok' => true,
+                'has_issue' => $operationalAlerts->isNotEmpty(),
+                'session' => null,
+                'ticket' => null,
+                'operational_alerts' => $operationalAlerts->values()->all(),
+            ]);
+        }
+
+        $suspension = $this->evaluateSessionSuspension($session, $authUser?->id);
+
+        return response()->json([
+            'ok' => true,
+            'has_issue' => $suspension['status'] === 'En Suspenso' || $operationalAlerts->isNotEmpty(),
+            'session' => $suspension,
+            'ticket' => $suspension['ticket'] ?? null,
+            'operational_alerts' => $operationalAlerts->values()->all(),
+        ]);
+    }
+
+    public function confirmInvestigationTicket(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'ticket_id' => 'required|integer|min:1',
+        ]);
+
+        $authUser = $request->user();
+        $ticket = VehicleLogInvestigationTicket::query()->findOrFail((int) $payload['ticket_id']);
+        $meta = (array) ($ticket->meta_json ?? []);
+        $acknowledgedBy = (array) ($meta['mobile_acknowledged_by_users'] ?? []);
+        $userId = (int) ($authUser?->id ?? 0);
+
+        if ($userId > 0 && !in_array($userId, $acknowledgedBy, true)) {
+            $acknowledgedBy[] = $userId;
+        }
+
+        $meta['mobile_acknowledged_by_users'] = array_values(array_unique(array_filter(array_map('intval', $acknowledgedBy))));
+        $meta['mobile_acknowledged_at'] = now()->toIso8601String();
+
+        $ticket->update([
+            'status' => VehicleLogInvestigationTicket::STATUS_REVIEWING,
+            'meta_json' => $meta,
+        ]);
+
+        ActivityLog::create([
+            'user_id' => $userId > 0 ? $userId : null,
+            'action' => 'BITACORA_INVESTIGATION_TICKET_CONFIRMED_MOBILE',
+            'model' => 'vehicle_log_investigation_ticket',
+            'record_id' => $ticket->id,
+            'changes_json' => [
+                'ticket_code' => $ticket->ticket_code,
+                'status' => $ticket->status,
+            ],
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Ticket confirmado correctamente.',
+            'ticket_id' => (int) $ticket->id,
+            'ticket_code' => (string) $ticket->ticket_code,
+            'status' => (string) $ticket->status,
+        ]);
+    }
+
+    private function resolveFuelRouteContextFromTimeline(array $timeline): array
+    {
+        if (empty($timeline)) {
+            return [];
+        }
+
+        $first = is_array($timeline[0] ?? null) ? $timeline[0] : null;
+        $last = is_array($timeline[array_key_last($timeline)] ?? null) ? $timeline[array_key_last($timeline)] : null;
+
+        if (!$first && !$last) {
+            return [];
+        }
+
+        $startLabel = $this->resolveTimelinePointLabel($first, 'Punto de inicio');
+        $endLabel = $this->resolveTimelinePointLabel($last, 'Punto final');
+        $startLat = $this->asFloat($first['latitude'] ?? $first['lat'] ?? null);
+        $startLng = $this->asFloat($first['longitude'] ?? $first['lng'] ?? null);
+        $endLat = $this->asFloat($last['latitude'] ?? $last['lat'] ?? null);
+        $endLng = $this->asFloat($last['longitude'] ?? $last['lng'] ?? null);
+
+        return array_filter([
+            'location_label' => $endLabel,
+            'route_start_label' => $startLabel,
+            'route_end_label' => $endLabel,
+            'route_start_latitude' => $startLat,
+            'route_start_longitude' => $startLng,
+            'route_end_latitude' => $endLat,
+            'route_end_longitude' => $endLng,
+            'latitude' => $endLat,
+            'longitude' => $endLng,
+        ], fn ($value) => !is_null($value) && $value !== '');
+    }
+
+    private function resolveOperationalIncidentSession(?string $sessionReference, int $vehicleId): ?VehicleLogSession
+    {
+        $query = VehicleLogSession::query()->orderByDesc('started_at')->orderByDesc('id');
+
+        if (is_string($sessionReference) && trim($sessionReference) !== '') {
+            $session = (clone $query)
+                ->where('session_reference', trim($sessionReference))
+                ->first();
+            if ($session) {
+                return $session;
+            }
+        }
+
+        return $query
+            ->where('vehicle_id', $vehicleId)
+            ->whereNull('ended_at')
+            ->first();
+    }
+
+    private function resolveOperationalAlertsForMobile(?int $userId, ?int $driverId, ?VehicleLogSession $session, int $vehicleId): \Illuminate\Support\Collection
+    {
+        if (!Schema::hasTable('vehicle_operation_alerts')) {
+            return collect();
+        }
+
+        $vehicleIds = collect([
+            $vehicleId > 0 ? $vehicleId : null,
+            $session?->vehicle_id ? (int) $session->vehicle_id : null,
+        ])->filter()->map(fn ($id) => (int) $id)->unique()->values();
+
+        if ($driverId && $driverId > 0) {
+            $assignedVehicleIds = VehicleAssignment::query()
+                ->where('driver_id', $driverId)
+                ->where(function ($query) {
+                    $query->where('activo', true)->orWhereNull('activo');
+                })
+                ->where(function ($query) {
+                    $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', now()->toDateString());
+                })
+                ->where(function ($query) {
+                    $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', now()->toDateString());
+                })
+                ->pluck('vehicle_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+            $vehicleIds = $vehicleIds->merge($assignedVehicleIds)->unique()->values();
+        }
+
+        $query = VehicleOperationAlert::query()
+            ->with(['vehicle:id,placa'])
+            ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+            ->where(function ($alertQuery) use ($driverId, $vehicleIds) {
+                if ($driverId && $driverId > 0) {
+                    $alertQuery->where('meta_json->driver_id', $driverId);
+                }
+                if ($vehicleIds->isNotEmpty()) {
+                    $alertQuery->orWhereIn('vehicle_id', $vehicleIds->all());
+                }
+            })
+            ->orderByDesc('detected_at')
+            ->orderByDesc('id')
+            ->limit(20);
+
+        return $query->get()->map(function (VehicleOperationAlert $alert) use ($userId) {
+            $meta = is_array($alert->meta_json) ? $alert->meta_json : [];
+
+            return [
+                'id' => (int) $alert->id,
+                'type' => (string) $alert->alert_type,
+                'title' => (string) ($alert->title ?? 'Alerta operativa'),
+                'message' => (string) ($alert->message ?? ''),
+                'status' => (string) ($alert->status ?? VehicleOperationAlert::STATUS_ACTIVE),
+                'severity' => (string) ($alert->severity ?? 'warning'),
+                'vehicle_id' => $alert->vehicle_id ? (int) $alert->vehicle_id : null,
+                'vehicle_plate' => (string) ($alert->vehicle?->placa ?? ''),
+                'detected_at' => optional($alert->detected_at ?? $alert->created_at)?->toIso8601String(),
+                'next_repeat_at' => (string) ($meta['next_repeat_at'] ?? ''),
+                'repeat_every_minutes' => (int) ($meta['repeat_every_minutes'] ?? 0),
+                'repeat_until_resolved' => (bool) ($meta['repeat_until_resolved'] ?? false),
+                'invoice_number' => (string) ($meta['invoice_number'] ?? ''),
+                'should_popup' => true,
+                'requires_web_resolution' => true,
+                'requested_by_user_id' => $userId,
+            ];
+        });
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function buildOperationalIncidentAlertPayload(
+        array $payload,
+        ?Vehicle $vehicle,
+        ?Driver $driver,
+        ?VehicleLogSession $session
+    ): array {
+        $incidentType = (string) $payload['incident_type'];
+        $plate = trim((string) ($vehicle?->placa ?? 'SIN PLACA'));
+        $driverName = trim((string) ($driver?->nombre ?? 'Sin conductor'));
+        $currentStage = trim((string) ($payload['current_stage'] ?? ($session?->status ?? 'INICIO')));
+        $severity = (string) ($payload['severity'] ?? 'danger');
+        $customMessage = trim((string) ($payload['message'] ?? ''));
+        $title = 'Incidente operativo movil';
+        $defaultMessage = sprintf('%s con el vehiculo %s reporto un incidente operativo en el movil.', $driverName, $plate);
+
+        switch ($incidentType) {
+            case VehicleOperationAlert::TYPE_MOBILE_LOCATION_PERMISSION:
+                $title = 'Permiso de ubicacion denegado';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s denego el permiso de ubicacion en primer plano.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_BACKGROUND_PERMISSION:
+                $title = 'Permiso de ubicacion en segundo plano denegado';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s denego el permiso de ubicacion en segundo plano.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_LIVE_TRACKING_FAILED:
+                $title = 'Fallo de ubicacion en vivo';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s no pudo activar la ubicacion en vivo del movil.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_BACKGROUND_TRACKING_FAILED:
+                $title = 'Fallo de rastreo en segundo plano';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s no pudo iniciar el rastreo en segundo plano del movil.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_GPS_DISABLED_ATTEMPT:
+                $title = 'Intento de ruta sin GPS';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s intento operar con el GPS apagado o sin servicios de ubicacion.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_GPS_MOCKED_ATTEMPT:
+                $title = 'Intento de ubicacion falsificada';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s intento falsificar su ubicacion antes de operar.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_BACKGROUND_SYNC_FAILED:
+                $title = 'Fallo de sincronizacion en segundo plano';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s reporto errores al sincronizar procesos en segundo plano.',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_BACKGROUND_SYNC_TIMEOUT:
+                $title = 'Timeout de sincronizacion en segundo plano';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s reporto que la sincronizacion de segundo plano se quedo colgada (timeout).',
+                    $driverName,
+                    $plate
+                );
+                break;
+            case VehicleOperationAlert::TYPE_MOBILE_RUNTIME_ERROR:
+                $title = 'Error interno de Packgo';
+                $defaultMessage = sprintf(
+                    '%s con el vehiculo %s reporto un error interno en la aplicacion movil.',
+                    $driverName,
+                    $plate
+                );
+                break;
+        }
+
+        $meta = is_array($payload['meta_json'] ?? null) ? $payload['meta_json'] : [];
+        $meta['driver_name'] = $driverName;
+        $meta['plate'] = $plate;
+        $meta['reported_from'] = 'mobile';
+        $meta['session_reference'] = $payload['session_reference'] ?? ($session?->session_reference);
+
+        return [
+            'vehicle_id' => (int) ($vehicle?->id ?? $payload['vehicle_id']),
+            'vehicle_log_session_id' => $session?->id,
+            'alert_type' => $incidentType,
+            'severity' => $severity,
+            'status' => VehicleOperationAlert::STATUS_ACTIVE,
+            'title' => $title,
+            'message' => $customMessage !== '' ? $customMessage : $defaultMessage,
+            'current_stage' => $currentStage !== '' ? $currentStage : 'INICIO',
+            'last_heartbeat_at' => now(),
+            'detected_at' => now(),
+            'resolved_at' => null,
+            'meta_json' => $meta,
+        ];
+    }
+
+    private function resolveTimelinePointLabel(?array $point, string $fallback): string
+    {
+        if (!$point) {
+            return $fallback;
+        }
+
+        $address = trim((string) ($point['address'] ?? ''));
+        if ($address !== '') {
+            return $address;
+        }
+
+        $label = trim((string) ($point['label'] ?? ''));
+        if ($label !== '') {
+            return $label;
+        }
+
+        $lat = $this->asFloat($point['latitude'] ?? $point['lat'] ?? null);
+        $lng = $this->asFloat($point['longitude'] ?? $point['lng'] ?? null);
+        if (!is_null($lat) && !is_null($lng)) {
+            return sprintf('%.6f, %.6f', $lat, $lng);
+        }
+
+        return $fallback;
+    }
+
+    private function dispatchWhatsappOperationalIncidentAlert(
+        VehicleOperationAlert $alert,
+        ?Vehicle $vehicle,
+        ?Driver $driver,
+        ?VehicleLogSession $session
+    ): void {
+        $enabled = (bool) config('services.whatsapp_alerts.enabled', false);
+        $webhookUrl = trim((string) config('services.whatsapp_alerts.webhook_url', ''));
+        $recipients = array_values(array_filter(array_map(
+            static fn ($item) => trim((string) $item),
+            (array) config('services.whatsapp_alerts.recipients', [])
+        )));
+        $timeoutSeconds = max(3, (int) config('services.whatsapp_alerts.timeout_seconds', 12));
+        $minIntervalMinutes = max(1, (int) config('services.whatsapp_alerts.min_interval_minutes', 10));
+
+        if (!$enabled || $webhookUrl === '' || empty($recipients)) {
+            return;
+        }
+
+        $meta = is_array($alert->meta_json) ? $alert->meta_json : [];
+        $lastSentAtRaw = is_string($meta['whatsapp_last_sent_at'] ?? null)
+            ? (string) $meta['whatsapp_last_sent_at']
+            : '';
+        $lastSentAtTs = $lastSentAtRaw !== '' ? strtotime($lastSentAtRaw) : false;
+        if (is_int($lastSentAtTs) && $lastSentAtTs > 0) {
+            $secondsSinceLast = time() - $lastSentAtTs;
+            if ($secondsSinceLast < ($minIntervalMinutes * 60)) {
+                return;
+            }
+        }
+
+        $plate = trim((string) ($vehicle?->placa ?? $meta['plate'] ?? 'SIN PLACA'));
+        $driverName = trim((string) ($driver?->nombre ?? $meta['driver_name'] ?? 'Sin conductor'));
+        $sessionReference = trim((string) ($session?->session_reference ?? $meta['session_reference'] ?? 'N/A'));
+        $title = trim((string) ($alert->title ?? 'Incidente operativo movil'));
+        $message = trim((string) ($alert->message ?? 'Sin detalle'));
+        $severity = trim((string) ($alert->severity ?? 'warning'));
+        $stage = trim((string) ($alert->current_stage ?? 'INICIO'));
+        $detectedAt = optional($alert->detected_at ?? $alert->created_at)?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
+
+        $text = implode("\n", [
+            'ALERTA PACKGO - INCIDENTE MOVIL',
+            "Placa: {$plate}",
+            "Conductor: {$driverName}",
+            "Tipo: {$alert->alert_type}",
+            "Severidad: {$severity}",
+            "Etapa: {$stage}",
+            "Titulo: {$title}",
+            "Detalle: {$message}",
+            "Sesion: {$sessionReference}",
+            "Detectado: {$detectedAt}",
+            "Alerta ID: {$alert->id}",
+        ]);
+
+        $payload = [
+            'channel' => 'whatsapp',
+            'recipients' => $recipients,
+            'message' => $text,
+            'alert' => [
+                'id' => (int) $alert->id,
+                'type' => (string) $alert->alert_type,
+                'title' => $title,
+                'message' => $message,
+                'severity' => $severity,
+                'stage' => $stage,
+                'vehicle_id' => (int) ($alert->vehicle_id ?? 0),
+                'vehicle_plate' => $plate,
+                'driver_name' => $driverName,
+                'session_reference' => $sessionReference,
+                'detected_at' => optional($alert->detected_at ?? $alert->created_at)?->toIso8601String(),
+            ],
+        ];
+
+        try {
+            $request = Http::timeout($timeoutSeconds)->acceptJson();
+            $token = trim((string) config('services.whatsapp_alerts.webhook_token', ''));
+            if ($token !== '') {
+                $request = $request->withToken($token);
+            }
+
+            $response = $request->post($webhookUrl, $payload);
+            if ($response->successful()) {
+                $meta['whatsapp_last_sent_at'] = now()->toIso8601String();
+                $meta['whatsapp_last_status'] = 'sent';
+                $meta['whatsapp_last_http_status'] = $response->status();
+                $alert->forceFill(['meta_json' => $meta])->save();
+                return;
+            }
+
+            Log::warning('WHATSAPP_ALERT_WEBHOOK_FAILED', [
+                'alert_id' => (int) $alert->id,
+                'status' => $response->status(),
+                'body' => Str::limit((string) $response->body(), 500),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('WHATSAPP_ALERT_WEBHOOK_EXCEPTION', [
+                'alert_id' => (int) $alert->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function syncMobileQrDataAsFuel(Request $request, array $urls, int $vehicleId, int $driverId, array $fuelRouteContext = []): array
     {
         $result = [
             'requested' => count($urls),
@@ -908,7 +1811,7 @@ class MobileUtilityController extends Controller
                     'qr_payload' => $url,
                     'vehicle_id' => $vehicleId > 0 ? $vehicleId : null,
                     'driver_id' => $driverId > 0 ? $driverId : null,
-                ]);
+                ] + $fuelRouteContext);
                 $storeRequest->setUserResolver(fn () => $request->user());
 
                 $storeResponse = app(FuelLogApiController::class)->store($storeRequest);

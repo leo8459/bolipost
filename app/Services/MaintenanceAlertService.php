@@ -10,6 +10,59 @@ use Illuminate\Support\Facades\Schema;
 
 class MaintenanceAlertService
 {
+    public static function resolveVehicleLogBlockReason(?Vehicle $vehicle): ?string
+    {
+        if (!$vehicle) {
+            return 'No se pudo resolver el vehiculo para registrar la bitacora.';
+        }
+
+        if ($vehicle->isInMaintenance()) {
+            return sprintf(
+                'El vehiculo %s esta en mantenimiento y no puede generar ni continuar bitacoras.',
+                (string) ($vehicle->placa ?: 'sin placa')
+            );
+        }
+
+        if (!Schema::hasTable('maintenance_alerts')) {
+            return null;
+        }
+
+        $blockingAlert = MaintenanceAlert::query()
+            ->with('maintenanceType:id,nombre')
+            ->where('vehicle_id', (int) $vehicle->id)
+            ->whereIn('status', MaintenanceAlert::blockingStatuses())
+            ->where(function ($query) {
+                $query->whereNull('postponed_until')
+                    ->orWhere('postponed_until', '<=', now());
+            })
+            ->where(function ($query) {
+                $query->where(function ($subQuery) {
+                    $subQuery->whereNotNull('faltante_km')
+                        ->where('faltante_km', '<=', 0);
+                })->orWhere(function ($subQuery) {
+                    $subQuery->whereNotNull('kilometraje_actual')
+                        ->whereNotNull('kilometraje_objetivo')
+                        ->whereColumn('kilometraje_actual', '>=', 'kilometraje_objetivo');
+                });
+            })
+            ->orderBy('kilometraje_objetivo')
+            ->orderBy('id')
+            ->first();
+
+        if (!$blockingAlert) {
+            return null;
+        }
+
+        $typeName = trim((string) ($blockingAlert->maintenanceType?->nombre ?? 'mantenimiento programado'));
+        $plate = trim((string) ($vehicle->placa ?: 'sin placa'));
+
+        return sprintf(
+            'El vehiculo %s tiene que ser llevado a mantenimiento (%s) y no puede generar ni continuar bitacoras.',
+            $plate,
+            $typeName
+        );
+    }
+
     public static function evaluateVehicleByKilometraje(int $vehicleId): void
     {
         if (!Schema::hasTable('maintenance_alerts') || !Schema::hasTable('maintenance_types')) {
@@ -41,6 +94,7 @@ class MaintenanceAlertService
         }
 
         $latestByType = MaintenanceLog::query()
+            ->active()
             ->where('vehicle_id', (int) $vehicle->id)
             ->whereNotNull('maintenance_type_id')
             ->whereNotNull('proximo_kilometraje')
@@ -112,7 +166,6 @@ class MaintenanceAlertService
         }
 
         $select = ['id', 'nombre'];
-        $hasVehicleClass = Schema::hasColumn('maintenance_types', 'vehicle_class_id');
         if ($hasCadaKm) {
             $select[] = 'cada_km';
         }
@@ -128,22 +181,11 @@ class MaintenanceAlertService
         if ($hasAlert) {
             $select[] = 'km_alerta_previa';
         }
-        if ($hasVehicleClass) {
+        if (Schema::hasColumn('maintenance_types', 'vehicle_class_id')) {
             $select[] = 'vehicle_class_id';
         }
 
-        $query = MaintenanceType::query();
-        if ($hasVehicleClass) {
-            $vehicleClassId = $vehicle->vehicle_class_id ?? null;
-            if ($vehicleClassId) {
-                $query->where(function ($q) use ($vehicleClassId) {
-                    $q->whereNull('vehicle_class_id')
-                        ->orWhere('vehicle_class_id', (int) $vehicleClassId);
-                });
-            } else {
-                $query->whereNull('vehicle_class_id');
-            }
-        }
+        $query = MaintenanceType::query()->applicableToVehicle($vehicle);
 
         $types = $query->orderBy('id')->get($select);
         if ($types->isEmpty()) {
@@ -156,6 +198,7 @@ class MaintenanceAlertService
                 Schema::hasTable('maintenance_logs') &&
                 Schema::hasColumn('maintenance_logs', 'maintenance_type_id') &&
                 MaintenanceLog::query()
+                    ->active()
                     ->where('vehicle_id', (int) $vehicle->id)
                     ->where('maintenance_type_id', (int) $type->id)
                     ->exists()

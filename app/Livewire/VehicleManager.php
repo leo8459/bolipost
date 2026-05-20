@@ -11,6 +11,7 @@ use App\Models\MaintenanceAppointment;
 use App\Models\MaintenanceType;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -20,7 +21,10 @@ class VehicleManager extends Component
 {
     use WithPagination;
 
+    protected string $paginationTheme = 'bootstrap';
+
     public string $search = '';
+    public string $statusFilter = 'activos';
 
     private const FUEL_TYPES = [
         'gasolina',
@@ -28,6 +32,24 @@ class VehicleManager extends Component
         'gas',
         'hibrido',
         'electrico',
+    ];
+
+    private const MAINTENANCE_FORM_TYPES = [
+        'vehiculo',
+        'moto',
+    ];
+
+    private const VEHICLE_COLORS = [
+        'Blanco',
+        'Negro',
+        'Plata',
+        'Gris',
+        'Rojo',
+        'Azul',
+        'Verde',
+        'Amarillo',
+        'Naranja',
+        'Cafe',
     ];
 
     #[Validate('required|string|max:20|unique:vehicles,placa')]
@@ -40,28 +62,50 @@ class VehicleManager extends Component
     public string $modelo = '';
 
     public string $tipo_combustible = '';
+    public string $maintenance_form_type = 'vehiculo';
     public string $color = '';
     public ?int $anio = null;
     public ?float $capacidad_tanque = null;
     public ?float $kilometraje = null;
     public bool $activo = true;
+    public bool $tacometro_danado = false;
 
     public bool $isEdit = false;
     public ?int $editingVehicleId = null;
     public bool $showForm = false;
+    public bool $showMaintenanceBackfillConfirm = false;
+    public bool $showInitialKilometrajeConfirm = false;
+    public array $maintenanceBackfillPreview = [];
+    public array $maintenanceBackfillSelections = [];
+    public array $pendingVehiclePayload = [];
 
     public function mount(): void
     {
-        abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        abort_unless($this->canAccessVehicleModule(), 403);
     }
 
     public function render()
     {
-        $query = Vehicle::with(['brand', 'vehicleClass'])
+        $query = Vehicle::query()
+            ->with(['brand', 'vehicleClass'])
             ->withCount([
                 'maintenanceAlerts as pending_maintenance_alerts_count' => fn ($q) => $q->where('status', MaintenanceAlert::STATUS_ACTIVE),
             ])
             ->orderBy('placa');
+
+        if ($this->currentUser()?->role !== 'conductor') {
+            if ($this->statusFilter === 'activos') {
+                $query->where('activo', true)
+                    ->whereDoesntHave('maintenanceAlerts', fn ($q) => $q->where('status', MaintenanceAlert::STATUS_ACTIVE));
+            } elseif ($this->statusFilter === 'inactivos') {
+                $query->where('activo', false);
+            } elseif ($this->statusFilter === 'mantenimiento') {
+                $query->where('activo', true)
+                    ->whereHas('maintenanceAlerts', fn ($q) => $q->where('status', MaintenanceAlert::STATUS_ACTIVE));
+            }
+        } else {
+            $query->where('activo', true);
+        }
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -73,6 +117,7 @@ class VehicleManager extends Component
                     ->orWhereRaw('CAST(anio AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereRaw('CAST(activo AS TEXT) ILIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('CAST(tacometro_danado AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereHas('brand', fn ($brandQuery) => $brandQuery->where('nombre', 'like', "%{$search}%"))
                     ->orWhereHas('vehicleClass', fn ($classQuery) => $classQuery->where('nombre', 'like', "%{$search}%"));
             });
@@ -117,12 +162,15 @@ class VehicleManager extends Component
         }
 
         $vehicles = $query->paginate(10);
-        $brands = VehicleBrand::orderBy('nombre')->get(['id', 'nombre']);
+        $brands = VehicleBrand::query()->active()->orderBy('nombre')->get(['id', 'nombre']);
 
         return view('livewire.vehicle-manager', [
             'vehicles' => $vehicles,
             'brands' => $brands,
             'fuelTypes' => self::FUEL_TYPES,
+            'maintenanceFormTypes' => self::MAINTENANCE_FORM_TYPES,
+            'vehicleColors' => $this->availableVehicleColors(),
+            'kilometrajeLocked' => $this->isKilometrajeEditLocked(),
             'currentAssignment' => $currentAssignment,
             'assignedVehicle' => $assignedVehicle,
             'scheduledMaintenances' => $scheduledMaintenances,
@@ -131,7 +179,32 @@ class VehicleManager extends Component
 
     public function updatedSearch(): void
     {
+        $this->search = $this->sanitizeText($this->search, true);
         $this->resetPage();
+    }
+
+    public function updatedStatusFilter(string $value): void
+    {
+        if (!in_array($value, ['activos', 'inactivos', 'mantenimiento', 'todos'], true)) {
+            $this->statusFilter = 'activos';
+        }
+
+        $this->resetPage();
+    }
+
+    public function updatedPlaca(string $value): void
+    {
+        $this->placa = mb_strtoupper($this->sanitizePlate($value));
+    }
+
+    public function updatedModelo(string $value): void
+    {
+        $this->modelo = $this->sanitizeText($value);
+    }
+
+    public function updatedColor(string $value): void
+    {
+        $this->color = $this->sanitizeText($value);
     }
 
     public function requestMaintenance(int $maintenanceTypeId): void
@@ -151,6 +224,11 @@ class VehicleManager extends Component
         $vehicleId = (int) ($assignment?->vehicle_id ?? 0);
         if ($vehicleId <= 0) {
             session()->flash('error', 'No tiene vehiculo asignado.');
+            return;
+        }
+
+        if ($assignment?->vehicle?->isInMaintenance()) {
+            session()->flash('error', 'El vehiculo asignado esta en mantenimiento y no puede generar nuevas operaciones hasta volver a disponible.');
             return;
         }
 
@@ -178,7 +256,8 @@ class VehicleManager extends Component
             return;
         }
 
-        $kmActual = $vehicle?->kilometraje_actual ?? $vehicle?->kilometraje_inicial ?? $vehicle?->kilometraje;
+        $kmActual = $this->resolveVehicleCurrentKilometraje($vehicle);
+        $requestedSnapshot = $this->buildRequestedAlertKilometrageSnapshot($vehicle, $type);
 
         MaintenanceAlert::create([
             'vehicle_id' => $vehicleId,
@@ -192,12 +271,12 @@ class VehicleManager extends Component
                 (string) ($vehicle?->placa ?? 'N/A')
             ),
             'leida' => false,
-            'status' => MaintenanceAlert::STATUS_ACTIVE,
+            'status' => MaintenanceAlert::STATUS_REQUESTED,
             'fecha_resolucion' => null,
             'usuario_id' => null,
-            'kilometraje_actual' => $kmActual !== null ? (float) $kmActual : null,
-            'kilometraje_objetivo' => null,
-            'faltante_km' => null,
+            'kilometraje_actual' => $kmActual,
+            'kilometraje_objetivo' => $requestedSnapshot['target_km'],
+            'faltante_km' => $requestedSnapshot['remaining_km'],
         ]);
 
         session()->flash('message', 'Solicitud de mantenimiento enviada correctamente.');
@@ -205,8 +284,7 @@ class VehicleManager extends Component
 
     private function resolveAssignmentForDriver(int $driverId): ?VehicleAssignment
     {
-        $today = now()->toDateString();
-        $base = VehicleAssignment::query()
+        $latest = VehicleAssignment::query()
             ->with([
                 'vehicle' => fn ($q) => $q
                     ->with(['brand', 'vehicleClass'])
@@ -216,28 +294,21 @@ class VehicleManager extends Component
             ])
             ->where('driver_id', $driverId)
             ->orderByDesc('fecha_inicio')
-            ->orderByDesc('id');
-
-        $activeByDate = (clone $base)
-            ->where('activo', true)
-            ->where(function ($q) use ($today) {
-                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
-            })
-            ->where(function ($q) use ($today) {
-                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
-            })
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
             ->first();
 
-        if ($activeByDate) {
-            return $activeByDate;
+        if (!$latest) {
+            return null;
         }
 
-        $active = (clone $base)->where('activo', true)->first();
-        if ($active) {
-            return $active;
-        }
+        $today = now()->toDateString();
+        $isCurrent = (bool) ($latest->activo ?? false)
+            && (!$latest->fecha_inicio || $latest->fecha_inicio->toDateString() <= $today)
+            && (!$latest->fecha_fin || $latest->fecha_fin->toDateString() >= $today)
+            && (int) ($latest->vehicle_id ?? 0) > 0;
 
-        return (clone $base)->first();
+        return $isCurrent ? $latest : null;
     }
 
     public function save()
@@ -247,24 +318,65 @@ class VehicleManager extends Component
             return;
         }
 
-        $this->placa = mb_strtoupper(trim($this->placa));
-        $this->modelo = trim($this->modelo);
-        $this->color = trim($this->color);
+        $this->placa = mb_strtoupper($this->sanitizePlate($this->placa));
+        $this->modelo = $this->sanitizeText($this->modelo);
+        $this->color = $this->sanitizeText($this->color);
 
-        $this->validate([
-            'placa' => [
-                'required',
-                'string',
-                'max:20',
-                Rule::unique('vehicles', 'placa')->ignore($this->editingVehicleId),
+        $this->validate(
+            [
+                'placa' => [
+                    'required',
+                    'string',
+                    'max:20',
+                    'regex:/^[\pL\pN\s\-\/\.]+$/u',
+                    Rule::unique('vehicles', 'placa')->ignore($this->editingVehicleId),
+                ],
+                'marca_id' => 'required|integer|min:1|exists:vehicle_brands,id',
+                'modelo' => ['required', 'string', 'max:50', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
+                'tipo_combustible' => ['required', 'string', Rule::in(self::FUEL_TYPES)],
+                'maintenance_form_type' => ['required', 'string', Rule::in(self::MAINTENANCE_FORM_TYPES)],
+                'color' => ['required', 'string', 'max:50', Rule::in($this->availableVehicleColors())],
+                'anio' => 'required|integer|min:1900|max:' . date('Y'),
+                'capacidad_tanque' => 'required|numeric|min:3|max:150',
+                'kilometraje' => 'required|numeric|min:5',
             ],
-            'marca_id' => 'required|integer|min:1|exists:vehicle_brands,id',
-            'modelo' => 'required|string|max:50',
-            'tipo_combustible' => ['required', 'string', Rule::in(self::FUEL_TYPES)],
-            'anio' => 'nullable|integer|min:1900|max:' . (date('Y') + 1),
-            'capacidad_tanque' => 'nullable|numeric|min:0',
-            'kilometraje' => 'nullable|numeric|min:0',
-        ]);
+            [
+                'placa.required' => 'La placa es obligatoria.',
+                'placa.string' => 'La placa debe ser texto.',
+                'placa.max' => 'La placa no debe superar :max caracteres.',
+                'placa.regex' => 'La placa contiene caracteres no permitidos.',
+                'placa.unique' => 'La placa ya esta registrada.',
+                'marca_id.required' => 'La marca es obligatoria.',
+                'marca_id.integer' => 'La marca seleccionada no es valida.',
+                'marca_id.min' => 'Debe seleccionar una marca valida.',
+                'marca_id.exists' => 'La marca seleccionada no existe.',
+                'modelo.required' => 'El modelo es obligatorio.',
+                'modelo.string' => 'El modelo debe ser texto.',
+                'modelo.max' => 'El modelo no debe superar :max caracteres.',
+                'modelo.regex' => 'El modelo contiene caracteres no permitidos.',
+                'tipo_combustible.required' => 'El tipo de combustible es obligatorio.',
+                'tipo_combustible.string' => 'El tipo de combustible debe ser texto.',
+                'tipo_combustible.in' => 'El tipo de combustible seleccionado no es valido.',
+                'maintenance_form_type.required' => 'El tipo de formulario es obligatorio.',
+                'maintenance_form_type.string' => 'El tipo de formulario debe ser texto.',
+                'maintenance_form_type.in' => 'El tipo de formulario seleccionado no es valido.',
+                'color.required' => 'El color es obligatorio.',
+                'color.string' => 'El color debe ser texto.',
+                'color.max' => 'El color no debe superar :max caracteres.',
+                'color.in' => 'Seleccione un color valido de la lista.',
+                'anio.required' => 'El anio es obligatorio.',
+                'anio.integer' => 'El anio debe ser un numero entero.',
+                'anio.min' => 'El anio debe ser mayor o igual a :min.',
+                'anio.max' => 'El anio no puede ser mayor al anio actual (:max).',
+                'capacidad_tanque.required' => 'La capacidad del tanque es obligatoria.',
+                'capacidad_tanque.numeric' => 'La capacidad del tanque debe ser un numero.',
+                'capacidad_tanque.min' => 'La capacidad del tanque no puede ser menor a :min.',
+                'capacidad_tanque.max' => 'La capacidad del tanque no puede ser mayor a :max.',
+                'kilometraje.required' => 'El kilometraje es obligatorio.',
+                'kilometraje.numeric' => 'El kilometraje debe ser un numero.',
+                'kilometraje.min' => 'El kilometraje no puede ser menor a :min.',
+            ]
+        );
 
         if (!$this->validateKilometrajeIntegrity()) {
             return;
@@ -274,6 +386,7 @@ class VehicleManager extends Component
             'placa' => $this->placa,
             'marca_id' => $this->marca_id,
             'vehicle_class_id' => $this->resolveVehicleClassId(),
+            'maintenance_form_type' => $this->maintenance_form_type,
             'modelo' => $this->modelo,
             'tipo_combustible' => $this->tipo_combustible,
             'color' => $this->color,
@@ -282,23 +395,97 @@ class VehicleManager extends Component
             'kilometraje_actual' => $this->kilometraje,
             'kilometraje' => $this->kilometraje,
             'activo' => $this->activo,
+            'tacometro_danado' => $this->tacometro_danado,
         ];
+
+        if (!$this->isEdit && $this->shouldPromptInitialKilometrajeConfirm($payload)) {
+            return;
+        }
+
+        if (!$this->isEdit && $this->shouldPromptMaintenanceBackfill($payload)) {
+            return;
+        }
+
+        $this->persistVehicle($payload, false);
+    }
+
+    public function confirmInitialKilometraje(): void
+    {
+        if (empty($this->pendingVehiclePayload)) {
+            $this->showInitialKilometrajeConfirm = false;
+            return;
+        }
+
+        $payload = $this->pendingVehiclePayload;
+        $this->showInitialKilometrajeConfirm = false;
+        $this->pendingVehiclePayload = [];
+
+        if ($this->shouldPromptMaintenanceBackfill($payload)) {
+            return;
+        }
+
+        $this->persistVehicle($payload, false);
+    }
+
+    public function cancelInitialKilometrajeConfirm(): void
+    {
+        $this->showInitialKilometrajeConfirm = false;
+        $this->pendingVehiclePayload = [];
+        session()->flash('message', 'Puedes seguir editando el kilometraje antes de guardar el vehiculo.');
+    }
+
+    public function confirmMaintenanceBackfill(): void
+    {
+        if (empty($this->pendingVehiclePayload)) {
+            $this->showMaintenanceBackfillConfirm = false;
+            return;
+        }
+
+        $payload = $this->pendingVehiclePayload;
+        $this->showMaintenanceBackfillConfirm = false;
+        $this->pendingVehiclePayload = [];
+        $this->persistVehicle($payload, true);
+    }
+
+    public function cancelMaintenanceBackfill(): void
+    {
+        $this->showMaintenanceBackfillConfirm = false;
+        $this->pendingVehiclePayload = [];
+        $this->maintenanceBackfillPreview = [];
+        $this->maintenanceBackfillSelections = [];
+        session()->flash('message', 'Se cancelo la asignacion automatica de mantenimientos. No se guardaron cambios.');
+    }
+
+    private function persistVehicle(array $payload, bool $withMaintenanceBackfill): void
+    {
+        $createdVehicle = null;
 
         if ($this->isEdit && $this->editingVehicleId) {
             $vehicle = Vehicle::find($this->editingVehicleId);
             if ($vehicle) {
-                if ($vehicle->kilometraje_inicial === null && $this->kilometraje !== null) {
-                    $payload['kilometraje_inicial'] = $this->kilometraje;
-                }
+                unset($payload['kilometraje_actual'], $payload['kilometraje'], $payload['kilometraje_inicial']);
                 $vehicle->update($payload);
                 session()->flash('message', 'Vehiculo actualizado correctamente.');
             }
         } else {
-            $payload['kilometraje_inicial'] = $this->kilometraje;
-            Vehicle::create($payload);
-            session()->flash('message', 'Vehiculo creado correctamente.');
+            $lastKnownKm = (float) ($this->kilometraje ?? 0);
+            $payload['kilometraje_inicial'] = $lastKnownKm;
+            $payload['kilometraje_actual'] = $lastKnownKm;
+            $payload['kilometraje'] = $lastKnownKm;
+            $createdVehicle = Vehicle::create($payload);
+            if ($withMaintenanceBackfill && $createdVehicle) {
+                $this->createMaintenanceBackfillForVehicle($createdVehicle);
+            }
+            session()->flash(
+                'message',
+                $withMaintenanceBackfill && $createdVehicle
+                    ? 'Vehiculo creado correctamente con mantenimientos pendientes generados segun su kilometraje.'
+                    : 'Vehiculo creado correctamente.'
+            );
         }
 
+        $this->maintenanceBackfillPreview = [];
+        $this->maintenanceBackfillSelections = [];
         $this->resetForm();
     }
 
@@ -316,6 +503,7 @@ class VehicleManager extends Component
         $this->marca_id = (int) ($vehicle->marca_id ?? 0);
         $this->modelo = $vehicle->modelo;
         $this->tipo_combustible = (string) ($vehicle->tipo_combustible ?? '');
+        $this->maintenance_form_type = (string) ($vehicle->maintenance_form_type ?: 'vehiculo');
         $this->color = (string) ($vehicle->color ?? '');
         $this->anio = $vehicle->anio;
         $this->capacidad_tanque = $vehicle->capacidad_tanque !== null ? (float) $vehicle->capacidad_tanque : null;
@@ -323,6 +511,12 @@ class VehicleManager extends Component
             ? (float) $vehicle->kilometraje_actual
             : ($vehicle->kilometraje_inicial !== null ? (float) $vehicle->kilometraje_inicial : ($vehicle->kilometraje !== null ? (float) $vehicle->kilometraje : null));
         $this->activo = (bool) $vehicle->activo;
+        $this->tacometro_danado = (bool) ($vehicle->tacometro_danado ?? false);
+        $this->showInitialKilometrajeConfirm = false;
+        $this->showMaintenanceBackfillConfirm = false;
+        $this->maintenanceBackfillPreview = [];
+        $this->maintenanceBackfillSelections = [];
+        $this->pendingVehiclePayload = [];
     }
 
     public function delete(Vehicle $vehicle)
@@ -332,8 +526,27 @@ class VehicleManager extends Component
             return;
         }
 
-        $vehicle->delete();
-        session()->flash('message', 'Vehiculo eliminado correctamente.');
+        $vehicle->update(['activo' => false]);
+
+        $visibleCount = Vehicle::query()->where('activo', true)->count();
+        $currentPage = $this->getPage();
+        $lastPage = max(1, (int) ceil($visibleCount / 10));
+        if ($currentPage > $lastPage) {
+            $this->setPage($lastPage);
+        }
+
+        session()->flash('message', 'Vehiculo inhabilitado correctamente.');
+    }
+
+    public function reactivate(Vehicle $vehicle): void
+    {
+        if ($this->currentUser()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para reactivar vehiculos.');
+            return;
+        }
+
+        $vehicle->update(['activo' => true]);
+        session()->flash('message', 'Vehiculo habilitado nuevamente correctamente.');
     }
 
     public function resetForm()
@@ -342,14 +555,21 @@ class VehicleManager extends Component
         $this->marca_id = 0;
         $this->modelo = '';
         $this->tipo_combustible = '';
+        $this->maintenance_form_type = 'vehiculo';
         $this->color = '';
         $this->anio = null;
         $this->capacidad_tanque = null;
         $this->kilometraje = null;
         $this->activo = true;
+        $this->tacometro_danado = false;
         $this->isEdit = false;
         $this->editingVehicleId = null;
         $this->showForm = false;
+        $this->showInitialKilometrajeConfirm = false;
+        $this->showMaintenanceBackfillConfirm = false;
+        $this->maintenanceBackfillPreview = [];
+        $this->maintenanceBackfillSelections = [];
+        $this->pendingVehiclePayload = [];
         $this->resetPage();
     }
 
@@ -386,6 +606,11 @@ class VehicleManager extends Component
             ->first();
 
         if ($existing) {
+            if (($existing->maintenance_form_type ?? null) !== $this->maintenance_form_type) {
+                $existing->update([
+                    'maintenance_form_type' => $this->maintenance_form_type,
+                ]);
+            }
             return (int) $existing->id;
         }
 
@@ -394,10 +619,28 @@ class VehicleManager extends Component
             'modelo' => $modelo,
             'anio' => (int) $this->anio,
             'nombre' => $nombreClase !== '' ? $nombreClase : ($modelo . ' ' . $this->anio),
+            'maintenance_form_type' => $this->maintenance_form_type,
             'activo' => true,
         ]);
 
         return (int) $class->id;
+    }
+
+    private function findMatchingVehicleClassId(): ?int
+    {
+        if ($this->marca_id <= 0 || trim($this->modelo) === '' || $this->anio === null) {
+            return null;
+        }
+
+        $modelo = trim(preg_replace('/\s+/', ' ', $this->modelo) ?? $this->modelo);
+
+        $existing = VehicleClass::query()
+            ->where('marca_id', $this->marca_id)
+            ->whereRaw('trim(upper(modelo)) = ?', [mb_strtoupper($modelo)])
+            ->where('anio', (int) $this->anio)
+            ->first();
+
+        return $existing ? (int) $existing->id : null;
     }
 
     private function resolveMaintenancesForDriverVehicle(?Vehicle $vehicle)
@@ -419,7 +662,7 @@ class VehicleManager extends Component
         $scheduled = MaintenanceAppointment::query()
             ->with(['tipoMantenimiento:id,nombre,cada_km,vehicle_class_id'])
             ->where('vehicle_id', (int) $vehicle->id)
-            ->whereNotIn('estado', ['Realizado', 'Cancelado'])
+            ->whereNotIn('estado', ['Realizado', 'Cancelado', 'Rechazado'])
             ->orderBy('fecha_programada')
             ->get()
             ->map(function ($appointment) {
@@ -440,16 +683,9 @@ class VehicleManager extends Component
             })
             ->filter();
 
-        $classTypeQuery = MaintenanceType::query()->select(['id', 'nombre', 'cada_km', 'vehicle_class_id']);
-        $vehicleClassId = $vehicle->vehicle_class_id ? (int) $vehicle->vehicle_class_id : null;
-        if ($vehicleClassId) {
-            $classTypeQuery->where(function ($q) use ($vehicleClassId) {
-                $q->whereNull('vehicle_class_id')
-                    ->orWhere('vehicle_class_id', $vehicleClassId);
-            });
-        } else {
-            $classTypeQuery->whereNull('vehicle_class_id');
-        }
+        $classTypeQuery = MaintenanceType::query()
+            ->select(['id', 'nombre', 'cada_km', 'vehicle_class_id'])
+            ->applicableToVehicle($vehicle);
 
         $baseTypes = $classTypeQuery
             ->orderBy('nombre')
@@ -470,32 +706,286 @@ class VehicleManager extends Component
             ->values();
     }
 
+    private function resolveVehicleCurrentKilometraje(?Vehicle $vehicle): ?float
+    {
+        if (!$vehicle) {
+            return null;
+        }
+
+        $current = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
+        return is_numeric($current) ? (float) $current : null;
+    }
+
+    /**
+     * @return array{target_km: ?float, remaining_km: ?float}
+     */
+    private function buildRequestedAlertKilometrageSnapshot(?Vehicle $vehicle, MaintenanceType $type): array
+    {
+        $currentKm = $this->resolveVehicleCurrentKilometraje($vehicle);
+        if ($currentKm === null) {
+            return ['target_km' => null, 'remaining_km' => null];
+        }
+
+        $interval = null;
+        if ($type->cada_km !== null) {
+            $interval = (float) $type->cada_km;
+        } elseif ($type->intervalo_km_init !== null) {
+            $interval = (float) $type->intervalo_km_init;
+        } elseif ($type->intervalo_km !== null) {
+            $interval = (float) $type->intervalo_km;
+        } elseif ($type->intervalo_km_fh !== null) {
+            $interval = (float) $type->intervalo_km_fh;
+        }
+
+        if ($interval !== null && $interval > 0) {
+            return [
+                'target_km' => $currentKm + $interval,
+                'remaining_km' => $interval,
+            ];
+        }
+
+        return [
+            'target_km' => $currentKm,
+            'remaining_km' => 0.0,
+        ];
+    }
+
     private function validateKilometrajeIntegrity(): bool
     {
-        if ($this->kilometraje === null || !$this->isEdit || !$this->editingVehicleId) {
-            return true;
-        }
+        return true;
+    }
 
-        $vehicle = Vehicle::query()->find($this->editingVehicleId);
-        if (!$vehicle) {
-            return true;
-        }
-
-        $currentKm = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
-        if ($currentKm === null) {
-            return true;
-        }
-
-        if ((float) $this->kilometraje < (float) $currentKm) {
-            $this->addError(
-                'kilometraje',
-                'El kilometraje no puede ser menor al kilometraje actual registrado del vehiculo ('
-                . number_format((float) $currentKm, 2) . ').'
-            );
+    private function shouldPromptInitialKilometrajeConfirm(array $payload): bool
+    {
+        if ($this->isEdit || $this->kilometraje === null || empty($payload)) {
             return false;
         }
 
+        $this->pendingVehiclePayload = $payload;
+        $this->showInitialKilometrajeConfirm = true;
+
         return true;
+    }
+
+    private function shouldPromptMaintenanceBackfill(array $payload): bool
+    {
+        if ($this->tacometro_danado || $this->kilometraje === null || (float) $this->kilometraje <= 0) {
+            return false;
+        }
+
+        $vehicle = new Vehicle();
+        $vehicle->forceFill([
+            'placa' => $payload['placa'] ?? '',
+            'marca_id' => $payload['marca_id'] ?? null,
+            'vehicle_class_id' => $this->findMatchingVehicleClassId(),
+            'maintenance_form_type' => $payload['maintenance_form_type'] ?? $this->maintenance_form_type,
+            'kilometraje_actual' => (float) $this->kilometraje,
+            'kilometraje_inicial' => (float) $this->kilometraje,
+            'kilometraje' => (float) $this->kilometraje,
+        ]);
+
+        $preview = $this->buildMaintenanceBackfillPreview($vehicle);
+        if (empty($preview)) {
+            return false;
+        }
+
+        $this->maintenanceBackfillPreview = $preview;
+        $this->maintenanceBackfillSelections = collect($preview)
+            ->mapWithKeys(fn (array $item) => [(string) ($item['key'] ?? '') => true])
+            ->all();
+        $this->pendingVehiclePayload = $payload;
+        $this->showMaintenanceBackfillConfirm = true;
+
+        return true;
+    }
+
+    private function buildMaintenanceBackfillPreview(Vehicle $vehicle): array
+    {
+        $currentKm = $this->resolveVehicleCurrentKilometraje($vehicle);
+        if ($currentKm === null || $currentKm <= 0) {
+            return [];
+        }
+
+        $classId = $vehicle->vehicle_class_id ? (int) $vehicle->vehicle_class_id : null;
+        $formType = trim((string) ($vehicle->maintenance_form_type ?: $this->maintenance_form_type));
+
+        return MaintenanceType::query()
+            ->when($formType !== '', function ($query) use ($formType) {
+                $query->where(function ($typeQuery) use ($formType) {
+                    $typeQuery->whereNull('maintenance_form_type')
+                        ->orWhere('maintenance_form_type', $formType);
+                });
+            })
+            ->when($classId, function ($query) use ($classId) {
+                $query->where(function ($typeQuery) use ($classId) {
+                    $typeQuery->whereNull('vehicle_class_id')
+                        ->orWhere('vehicle_class_id', $classId);
+                });
+            })
+            ->orderBy('nombre')
+            ->get()
+            ->map(function (MaintenanceType $type) use ($currentKm) {
+                $interval = $this->resolveMaintenanceIntervalKm($type);
+                if ($interval === null || $interval <= 0 || $currentKm <= $interval) {
+                    return null;
+                }
+
+                $cycles = (int) floor($currentKm / $interval);
+                $cycles = min($cycles, 50);
+                if ($cycles <= 0) {
+                    return null;
+                }
+
+                $targetKm = $interval * $cycles;
+                if ($targetKm >= $currentKm && $cycles > 1) {
+                    $targetKm = $interval * ($cycles - 1);
+                }
+
+                if ($targetKm <= 0 || $targetKm >= $currentKm) {
+                    return null;
+                }
+
+                return [
+                    'key' => (string) $type->id,
+                    'maintenance_type_id' => (int) $type->id,
+                    'nombre' => (string) $type->nombre,
+                    'interval_km' => $interval,
+                    'target_km' => $targetKm,
+                    'overdue_km' => max(0, round($currentKm - $targetKm, 2)),
+                ];
+            })
+            ->filter()
+            ->groupBy(function (array $item) {
+                return mb_strtolower(trim((string) ($item['nombre'] ?? '')));
+            })
+            ->map(function ($items) {
+                return collect($items)
+                    ->sortByDesc(fn (array $item) => (float) ($item['target_km'] ?? 0))
+                    ->first();
+            })
+            ->values()
+            ->all();
+    }
+
+    private function createMaintenanceBackfillForVehicle(Vehicle $vehicle): void
+    {
+        $preview = $this->buildMaintenanceBackfillPreview($vehicle);
+        if (empty($preview)) {
+            return;
+        }
+
+        $requestedByUserId = (int) ($this->currentUser()?->id ?? 0) ?: null;
+        $driverId = VehicleAssignment::query()
+            ->where('vehicle_id', (int) $vehicle->id)
+            ->where('activo', true)
+            ->latest('id')
+            ->value('driver_id');
+
+        foreach ($preview as $item) {
+            $previewKey = (string) ($item['key'] ?? '');
+            if ($previewKey === '' || empty($this->maintenanceBackfillSelections[$previewKey])) {
+                continue;
+            }
+
+            $targetKm = (float) ($item['target_km'] ?? 0);
+            $typeId = (int) ($item['maintenance_type_id'] ?? 0);
+            if ($typeId <= 0 || $targetKm <= 0) {
+                continue;
+            }
+
+            MaintenanceAppointment::query()->firstOrCreate(
+                [
+                    'vehicle_id' => (int) $vehicle->id,
+                    'tipo_mantenimiento_id' => $typeId,
+                    'fecha_programada' => Carbon::now()->startOfMinute(),
+                    'origen_solicitud' => 'alta_vehiculo_km',
+                ],
+                [
+                    'driver_id' => $driverId ? (int) $driverId : null,
+                    'requested_by_user_id' => $requestedByUserId,
+                    'solicitud_fecha' => Carbon::now(),
+                    'es_accidente' => false,
+                    'estado' => MaintenanceAppointment::STATUS_PENDING,
+                ]
+            );
+
+            MaintenanceAlert::query()->firstOrCreate(
+                [
+                    'vehicle_id' => (int) $vehicle->id,
+                    'maintenance_type_id' => $typeId,
+                    'tipo' => 'Preventivo',
+                    'kilometraje_objetivo' => $targetKm,
+                    'status' => MaintenanceAlert::STATUS_ACTIVE,
+                ],
+                [
+                    'mensaje' => sprintf(
+                        'El vehiculo %s ingreso con kilometraje %.2f y ya tenia pendiente el mantenimiento "%s" programado para %.0f km.',
+                        (string) ($vehicle->placa ?? 'N/A'),
+                        (float) ($vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje ?? 0),
+                        (string) ($item['nombre'] ?? 'Mantenimiento'),
+                        $targetKm
+                    ),
+                    'leida' => false,
+                    'fecha_resolucion' => null,
+                    'usuario_id' => $requestedByUserId,
+                    'kilometraje_actual' => $this->resolveVehicleCurrentKilometraje($vehicle),
+                    'faltante_km' => -max(0, (float) ($item['overdue_km'] ?? 0)),
+                ]
+            );
+        }
+    }
+
+    private function resolveMaintenanceIntervalKm(MaintenanceType $type): ?float
+    {
+        if ($type->cada_km !== null) {
+            return (float) $type->cada_km;
+        }
+        if ($type->intervalo_km_init !== null) {
+            return (float) $type->intervalo_km_init;
+        }
+        if ($type->intervalo_km !== null) {
+            return (float) $type->intervalo_km;
+        }
+        if ($type->intervalo_km_fh !== null) {
+            return (float) $type->intervalo_km_fh;
+        }
+
+        return null;
+    }
+
+    private function sanitizeText(?string $value, bool $allowSearchSymbols = false): string
+    {
+        $clean = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{200D}]/u', '', (string) $value) ?? '';
+        if (!$allowSearchSymbols) {
+            $clean = preg_replace('/[^\pL\pN\s\-\/\.\(\)]/u', '', $clean) ?? $clean;
+        }
+        $clean = preg_replace('/\s+/', ' ', trim($clean)) ?? $clean;
+        return $clean;
+    }
+
+    private function sanitizePlate(?string $value): string
+    {
+        $clean = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{200D}]/u', '', (string) $value) ?? '';
+        $clean = preg_replace('/[^\pL\pN\s\-\/\.]/u', '', $clean) ?? $clean;
+        $clean = preg_replace('/\s+/', ' ', trim($clean)) ?? $clean;
+        return $clean;
+    }
+
+    private function isKilometrajeEditLocked(): bool
+    {
+        return $this->isEdit;
+    }
+
+    private function availableVehicleColors(): array
+    {
+        $colors = self::VEHICLE_COLORS;
+        $currentColor = trim((string) $this->color);
+
+        if ($currentColor !== '' && !in_array($currentColor, $colors, true)) {
+            $colors[] = $currentColor;
+        }
+
+        return array_values(array_unique($colors));
     }
 
     private function currentUser(): ?User
@@ -503,5 +993,41 @@ class VehicleManager extends Component
         $user = Auth::user();
 
         return $user instanceof User ? $user : null;
+    }
+
+    private function canAccessVehicleModule(): bool
+    {
+        $user = $this->currentUser();
+        if (!$user) {
+            return false;
+        }
+
+        if (method_exists($user, 'hasRole') && ($user->hasRole('administrador') || $user->hasRole('admin'))) {
+            return true;
+        }
+
+        if (method_exists($user, 'can') && $user->can('livewire.vehicles')) {
+            return true;
+        }
+
+        $primaryRole = mb_strtolower(trim((string) ($user->role ?? '')));
+        if ($primaryRole !== '' && (in_array($primaryRole, ['admin', 'recepcion', 'conductor'], true) || str_contains($primaryRole, 'admin'))) {
+            return true;
+        }
+
+        if (method_exists($user, 'getRoleNames')) {
+            foreach ((array) $user->getRoleNames()->toArray() as $roleName) {
+                $normalizedRole = mb_strtolower(trim((string) $roleName));
+                if ($normalizedRole === '') {
+                    continue;
+                }
+
+                if (in_array($normalizedRole, ['administrador', 'admin', 'recepcion', 'conductor'], true) || str_contains($normalizedRole, 'admin')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

@@ -8,14 +8,20 @@ use App\Models\MobileDbSnapshot;
 use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
 use App\Models\VehicleLog;
+use App\Models\VehicleLogSession;
+use App\Models\VehicleOperationAlert;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class MapController extends Controller
 {
     private const LIVE_STALE_SECONDS = 20;
+    private const FUTURE_POINT_TOLERANCE_SECONDS = 120;
 
     public function index(Request $request)
     {
@@ -41,6 +47,9 @@ class MapController extends Controller
 
         $selectedDate = $this->resolveSelectedDate((string) $request->query('date', ''));
 
+        $onlineVehicles = $this->annotateStaleness($this->mergeHeartbeatVehicles([], $user));
+        $alerts = $this->syncAndBuildOperationalAlerts($onlineVehicles);
+
         if ($mode === 'offline') {
             $vehicles = $this->annotateStaleness($this->buildOfflineVehicles($user, $selectedDate));
 
@@ -49,16 +58,18 @@ class MapController extends Controller
                 'selected_date' => $selectedDate->toDateString(),
                 'updated_at' => now()->toIso8601String(),
                 'vehicles' => $vehicles,
+                'alerts' => $alerts,
             ]);
         }
 
-        $vehicles = $this->annotateStaleness($this->mergeHeartbeatVehicles([], $user));
+        $vehicles = $onlineVehicles;
 
         return response()->json([
             'mode' => 'online',
             'selected_date' => null,
             'updated_at' => now()->toIso8601String(),
             'vehicles' => $vehicles,
+            'alerts' => $alerts,
         ]);
     }
 
@@ -103,15 +114,29 @@ class MapController extends Controller
      */
     private function buildOfflineVehiclesFromSnapshots($user, Carbon $selectedDate): array
     {
-        $snapshotsQuery = MobileDbSnapshot::query()
-            ->orderByDesc('id')
-            ->limit(500);
-
-        if ($user->role === 'conductor') {
-            $snapshotsQuery->where('user_id', (int) $user->id);
+        $table = (new MobileDbSnapshot())->getTable();
+        if (!Schema::hasTable($table)) {
+            return [];
         }
 
-        $snapshots = $snapshotsQuery->get();
+        try {
+            $snapshotsQuery = MobileDbSnapshot::query()
+                ->orderByDesc('id')
+                ->limit(500);
+
+            if ($user->role === 'conductor') {
+                $snapshotsQuery->where('user_id', (int) $user->id);
+            }
+
+            $snapshots = $snapshotsQuery->get();
+        } catch (Throwable $e) {
+            Log::warning('Map offline snapshot fallback unavailable.', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
         if ($snapshots->isEmpty()) {
             return [];
         }
@@ -594,13 +619,43 @@ class MapController extends Controller
         $value = trim($raw);
         if ($value !== '') {
             try {
-                return Carbon::parse($value, config('app.timezone'))->startOfDay();
+                $selected = Carbon::parse($value, config('app.timezone'))->startOfDay();
+                $today = now(config('app.timezone'))->startOfDay();
+
+                return $selected->greaterThan($today) ? $today : $selected;
             } catch (\Throwable) {
                 // Fallback a hoy si el formato no es valido.
             }
         }
 
         return now(config('app.timezone'))->startOfDay();
+    }
+
+    private function normalizeRealtimeTimestamp(mixed $raw): ?string
+    {
+        if ($raw === null || $raw === '') {
+            return now(config('app.timezone'))->toIso8601String();
+        }
+
+        try {
+            if (is_numeric($raw)) {
+                $numeric = (float) $raw;
+                $time = $numeric > 1000000000000
+                    ? Carbon::createFromTimestampMs((int) $numeric)
+                    : Carbon::createFromTimestamp((int) $numeric);
+            } else {
+                $time = Carbon::parse((string) $raw);
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $time = $time->setTimezone(config('app.timezone'));
+        if ($time->greaterThan(now(config('app.timezone'))->addSeconds(self::FUTURE_POINT_TOLERANCE_SECONDS))) {
+            return null;
+        }
+
+        return $time->toIso8601String();
     }
 
     /**
@@ -659,11 +714,27 @@ class MapController extends Controller
     private function mergeHeartbeatVehicles(array $vehicles, $user): array
     {
         $index = Cache::get('mobile:heartbeat:index', []);
-        if (!is_array($index) || empty($index)) {
+        $vehicleIds = is_array($index)
+            ? array_values(array_unique(array_filter(array_map('intval', $index), fn ($id) => $id > 0)))
+            : [];
+
+        if (Schema::hasTable('vehicle_log_sessions')) {
+            $openSessionVehicleIds = VehicleLogSession::query()
+                ->whereNull('ended_at')
+                ->pluck('vehicle_id')
+                ->filter(fn ($id) => (int) $id > 0)
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            $vehicleIds = array_values(array_unique(array_merge($vehicleIds, $openSessionVehicleIds)));
+        }
+
+        if (empty($vehicleIds)) {
             return $vehicles;
         }
 
-        $vehicleIds = array_values(array_unique(array_map('intval', $index)));
         $vehiclesById = collect($vehicles)->keyBy(fn ($v) => (int) ($v['vehicle_id'] ?? 0));
         $vehicleModels = Vehicle::query()->whereIn('id', $vehicleIds)->get()->keyBy('id');
         $driverByVehicle = VehicleAssignment::query()
@@ -735,29 +806,73 @@ class MapController extends Controller
                 $driver = Driver::query()->find($driverId);
             }
             $vehicle = $vehicleModels->get($vehicleId);
+            $lastPointTime = $this->normalizeRealtimeTimestamp($hb['point_timestamp'] ?? $hb['sent_at'] ?? $hb['received_at'] ?? null);
+            if ($lastPointTime === null) {
+                continue;
+            }
+
             $lastPoint = [
                 'lat' => $lat,
                 'lng' => $lng,
-                't' => (string) ($hb['point_timestamp'] ?? $hb['sent_at'] ?? $hb['received_at'] ?? now()->toIso8601String()),
+                't' => $lastPointTime,
                 'is_marked' => false,
                 'address' => '',
                 'point_label' => (string) ($hb['estado'] ?? ($hb['waiting_stop'] ?? false ? 'ESPERA' : 'EN_RUTA')),
                 'speed_kmh' => $this->asFloat($hb['speed_kmh'] ?? null),
             ];
+            $currentStatus = strtoupper(trim((string) ($lastPoint['point_label'] ?? 'EN_RUTA')));
+            $gpsEnabled = array_key_exists('gps_enabled', $hb) ? (bool) $hb['gps_enabled'] : true;
+            $gpsMocked = array_key_exists('gps_mocked', $hb) ? (bool) $hb['gps_mocked'] : false;
+            $heartbeatRoute = Cache::get("mobile:heartbeat:route:{$vehicleId}", []);
+            $heartbeatPoints = collect(is_array($heartbeatRoute) ? $heartbeatRoute : [])
+                ->map(function ($point) {
+                    if (!is_array($point)) {
+                        return null;
+                    }
+
+                    $lat = $this->asFloat($point['lat'] ?? $point['latitude'] ?? null);
+                    $lng = $this->asFloat($point['lng'] ?? $point['longitude'] ?? null);
+                    if (is_null($lat) || is_null($lng)) {
+                        return null;
+                    }
+
+                    $timestamp = $this->normalizeRealtimeTimestamp($point['t'] ?? $point['timestamp'] ?? null);
+                    if ($timestamp === null) {
+                        return null;
+                    }
+
+                    return [
+                        'lat' => $lat,
+                        'lng' => $lng,
+                        't' => $timestamp,
+                        'is_marked' => false,
+                        'address' => (string) ($point['address'] ?? ''),
+                        'point_label' => (string) ($point['point_label'] ?? $point['label'] ?? ''),
+                        'speed_kmh' => $this->asFloat($point['speed_kmh'] ?? null),
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all();
 
             $existing = $vehiclesById->get($vehicleId);
             if (is_array($existing)) {
                 $existing['last_point'] = $lastPoint;
                 $existing['current_address'] = $lastPoint['point_label'];
+                $existing['current_status'] = $currentStatus;
                 $existing['heartbeat_received_at'] = (string) ($hb['received_at'] ?? '');
                 $existing['current_speed_kmh'] = $this->asFloat($hb['speed_kmh'] ?? null);
+                $existing['gps_enabled'] = $gpsEnabled;
+                $existing['gps_mocked'] = $gpsMocked;
                 if (($existing['driver_id'] ?? 0) <= 0 && $driverId > 0) {
                     $existing['driver_id'] = $driverId;
                 }
                 if (($existing['driver_name'] ?? '') === 'SIN CONDUCTOR' && $driver) {
                     $existing['driver_name'] = (string) ($driver->nombre ?? 'SIN CONDUCTOR');
                 }
-                $existingPoints = is_array($existing['points'] ?? null) ? $existing['points'] : [];
+                $existingPoints = !empty($heartbeatPoints)
+                    ? $heartbeatPoints
+                    : (is_array($existing['points'] ?? null) ? $existing['points'] : []);
                 $lastExistingPoint = !empty($existingPoints) ? $existingPoints[array_key_last($existingPoints)] : null;
                 $sameAsLast = is_array($lastExistingPoint)
                     && ((float) ($lastExistingPoint['lat'] ?? 0) === (float) $lastPoint['lat'])
@@ -772,7 +887,7 @@ class MapController extends Controller
                 continue;
             }
 
-            $vehiclesById->put($vehicleId, [
+                $vehiclesById->put($vehicleId, [
                 'vehicle_id' => $vehicleId,
                 'placa' => (string) ($vehicle->placa ?? 'SIN PLACA'),
                 'marca' => (string) ($vehicle->marca ?? ''),
@@ -784,16 +899,314 @@ class MapController extends Controller
                 'recorrido_inicio' => 'Heartbeat',
                 'recorrido_destino' => 'Heartbeat',
                 'current_address' => $lastPoint['point_label'],
+                'current_status' => $currentStatus,
                 'last_point' => $lastPoint,
-                'points' => [$lastPoint],
-                'points_count' => 1,
+                'points' => !empty($heartbeatPoints) ? $heartbeatPoints : [$lastPoint],
+                'points_count' => !empty($heartbeatPoints) ? count($heartbeatPoints) : 1,
                 'marked_points' => [],
                 'heartbeat_received_at' => (string) ($hb['received_at'] ?? ''),
                 'current_speed_kmh' => $this->asFloat($hb['speed_kmh'] ?? null),
+                'gps_enabled' => $gpsEnabled,
+                'gps_mocked' => $gpsMocked,
             ]);
         }
 
         return $vehiclesById->values()->all();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $vehicles
+     * @return array<int, array<string, mixed>>
+     */
+    private function syncAndBuildOperationalAlerts(array $vehicles): array
+    {
+        $vehicleIds = collect($vehicles)
+            ->pluck('vehicle_id')
+            ->filter(fn ($id) => (int) $id > 0)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($vehicleIds)) {
+            if (Schema::hasTable('vehicle_operation_alerts')) {
+                VehicleOperationAlert::query()
+                    ->whereIn('alert_type', VehicleOperationAlert::mapManagedTypes())
+                    ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+                    ->update([
+                        'status' => VehicleOperationAlert::STATUS_RESOLVED,
+                        'resolved_at' => now(),
+                    ]);
+            }
+
+            return $this->loadManualOperationalAlerts();
+        }
+
+        $openSessions = Schema::hasTable('vehicle_log_sessions')
+            ? VehicleLogSession::query()
+                ->with(['currentDriver:id,nombre', 'responsibleDriver:id,nombre'])
+                ->whereIn('vehicle_id', $vehicleIds)
+                ->whereNull('ended_at')
+                ->orderByDesc('started_at')
+                ->orderByDesc('id')
+                ->get()
+                ->groupBy('vehicle_id')
+                ->map(fn (Collection $rows) => $rows->first())
+            : collect();
+
+        $desiredAlerts = [];
+        foreach ($vehicles as $vehicle) {
+            $vehicleId = (int) ($vehicle['vehicle_id'] ?? 0);
+            if ($vehicleId <= 0) {
+                continue;
+            }
+
+            $plate = trim((string) ($vehicle['placa'] ?? 'SIN PLACA'));
+            $driverName = trim((string) ($vehicle['driver_name'] ?? 'Sin conductor'));
+            $currentStatus = strtoupper(trim((string) ($vehicle['current_status'] ?? $vehicle['last_point']['point_label'] ?? 'EN_RUTA')));
+            $secondsSince = (int) ($vehicle['seconds_since_update'] ?? 0);
+            $isStale = (bool) ($vehicle['is_stale'] ?? false);
+            $session = $openSessions->get($vehicleId);
+            $sessionStatus = trim((string) ($session?->status ?? ''));
+            $driverName = $this->resolveOperationalDriverName($vehicle, $session);
+            $gpsEnabled = array_key_exists('gps_enabled', $vehicle) ? (bool) $vehicle['gps_enabled'] : true;
+            $gpsMocked = array_key_exists('gps_mocked', $vehicle) ? (bool) $vehicle['gps_mocked'] : false;
+            $heartbeatAt = null;
+            $heartbeatRaw = $vehicle['heartbeat_received_at'] ?? null;
+            if (is_string($heartbeatRaw) && $heartbeatRaw !== '') {
+                try {
+                    $heartbeatAt = Carbon::parse($heartbeatRaw);
+                } catch (\Throwable) {
+                    $heartbeatAt = null;
+                }
+            }
+
+            $statusTitle = match ($currentStatus) {
+                'CARGA' => 'Vehiculo cargando',
+                'ENTREGA' => 'Vehiculo entregando',
+                'ESPERA' => 'Vehiculo en espera',
+                default => 'Vehiculo en ruta',
+            };
+            $statusSeverity = match ($currentStatus) {
+                'CARGA' => 'info',
+                'ENTREGA' => 'warning',
+                'ESPERA' => 'secondary',
+                default => 'success',
+            };
+
+            $desiredAlerts[] = [
+                'vehicle_id' => $vehicleId,
+                'vehicle_log_session_id' => $session?->id,
+                'alert_type' => VehicleOperationAlert::TYPE_ROUTE_STATUS,
+                'severity' => $statusSeverity,
+                'status' => VehicleOperationAlert::STATUS_ACTIVE,
+                'title' => $statusTitle,
+                'message' => sprintf('%s se encuentra en estado %s.', $plate, $currentStatus),
+                'current_stage' => $currentStatus,
+                'last_heartbeat_at' => $heartbeatAt,
+                'detected_at' => now(),
+                'resolved_at' => null,
+                'meta_json' => [
+                    'seconds_since_update' => $secondsSince,
+                    'driver_name' => $driverName,
+                ],
+            ];
+
+            if (!$gpsEnabled) {
+                $desiredAlerts[] = [
+                    'vehicle_id' => $vehicleId,
+                    'vehicle_log_session_id' => $session?->id,
+                    'alert_type' => VehicleOperationAlert::TYPE_GPS_OFF,
+                    'severity' => 'danger',
+                    'status' => VehicleOperationAlert::STATUS_ACTIVE,
+                    'title' => 'GPS apagado',
+                    'message' => sprintf(
+                        '%s con el vehiculo %s apago el GPS o deshabilito los servicios de ubicacion.',
+                        $driverName,
+                        $plate
+                    ),
+                    'current_stage' => $currentStatus,
+                    'last_heartbeat_at' => $heartbeatAt,
+                    'detected_at' => now(),
+                    'resolved_at' => null,
+                    'meta_json' => [
+                        'driver_name' => $driverName,
+                        'seconds_since_update' => $secondsSince,
+                    ],
+                ];
+            }
+
+            if ($gpsMocked) {
+                $desiredAlerts[] = [
+                    'vehicle_id' => $vehicleId,
+                    'vehicle_log_session_id' => $session?->id,
+                    'alert_type' => VehicleOperationAlert::TYPE_GPS_MOCKED,
+                    'severity' => 'danger',
+                    'status' => VehicleOperationAlert::STATUS_ACTIVE,
+                    'title' => 'GPS manipulado',
+                    'message' => sprintf(
+                        '%s con el vehiculo %s intento falsificar su ubicacion usando GPS manipulado o ubicacion simulada.',
+                        $driverName,
+                        $plate
+                    ),
+                    'current_stage' => $currentStatus,
+                    'last_heartbeat_at' => $heartbeatAt,
+                    'detected_at' => now(),
+                    'resolved_at' => null,
+                    'meta_json' => [
+                        'driver_name' => $driverName,
+                        'seconds_since_update' => $secondsSince,
+                    ],
+                ];
+            }
+
+            if ($session && $sessionStatus === 'En Suspenso') {
+                $desiredAlerts[] = [
+                    'vehicle_id' => $vehicleId,
+                    'vehicle_log_session_id' => $session->id,
+                    'alert_type' => VehicleOperationAlert::TYPE_ROUTE_INCOMPLETE,
+                    'severity' => 'danger',
+                    'status' => VehicleOperationAlert::STATUS_ACTIVE,
+                    'title' => 'Ruta no completada',
+                    'message' => sprintf('%s tiene una bitacora abierta sin completar. Estado de sesion: %s.', $plate, $sessionStatus !== '' ? $sessionStatus : 'Activa'),
+                    'current_stage' => $currentStatus,
+                    'last_heartbeat_at' => $heartbeatAt,
+                    'detected_at' => now(),
+                    'resolved_at' => null,
+                    'meta_json' => [
+                        'session_reference' => $session->session_reference,
+                        'seconds_since_update' => $secondsSince,
+                    ],
+                ];
+            }
+        }
+
+        if (Schema::hasTable('vehicle_operation_alerts')) {
+            $existingAlerts = VehicleOperationAlert::query()
+                ->whereIn('vehicle_id', $vehicleIds)
+                ->whereIn('alert_type', VehicleOperationAlert::mapManagedTypes())
+                ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+                ->get()
+                ->keyBy(fn (VehicleOperationAlert $alert) => $alert->vehicle_id . ':' . $alert->alert_type);
+
+            $activeKeys = [];
+            foreach ($desiredAlerts as $payload) {
+                $key = $payload['vehicle_id'] . ':' . $payload['alert_type'];
+                $activeKeys[] = $key;
+                $existing = $existingAlerts->get($key);
+
+                if (!$existing) {
+                    VehicleOperationAlert::query()->create($payload);
+                    continue;
+                }
+
+                $shouldUpdate =
+                    $existing->vehicle_log_session_id !== ($payload['vehicle_log_session_id'] ?? null) ||
+                    $existing->severity !== $payload['severity'] ||
+                    $existing->title !== $payload['title'] ||
+                    $existing->message !== $payload['message'] ||
+                    $existing->current_stage !== $payload['current_stage'] ||
+                    json_encode($existing->meta_json) !== json_encode($payload['meta_json']);
+
+                if ($shouldUpdate) {
+                    $existing->update($payload);
+                }
+            }
+
+            $keysFlipped = collect($activeKeys)->flip();
+            $existingAlerts
+                ->filter(fn (VehicleOperationAlert $alert, string $key) => !$keysFlipped->has($key))
+                ->each(function (VehicleOperationAlert $alert) {
+                    $alert->update([
+                        'status' => VehicleOperationAlert::STATUS_RESOLVED,
+                        'resolved_at' => now(),
+                    ]);
+                });
+        }
+
+        $allAlerts = array_merge($desiredAlerts, $this->loadManualOperationalAlerts());
+
+        usort($allAlerts, function (array $a, array $b) {
+            $priority = ['danger' => 0, 'warning' => 1, 'info' => 2, 'success' => 3, 'secondary' => 4];
+            $aScore = $priority[$a['severity'] ?? 'secondary'] ?? 99;
+            $bScore = $priority[$b['severity'] ?? 'secondary'] ?? 99;
+            if ($aScore === $bScore) {
+                return strcmp((string) ($a['title'] ?? ''), (string) ($b['title'] ?? ''));
+            }
+            return $aScore <=> $bScore;
+        });
+
+        return $allAlerts;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function loadManualOperationalAlerts(): array
+    {
+        if (!Schema::hasTable('vehicle_operation_alerts')) {
+            return [];
+        }
+
+        return VehicleOperationAlert::query()
+            ->with(['vehicle', 'session.driver'])
+            ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+            ->whereNotIn('alert_type', VehicleOperationAlert::mapManagedTypes())
+            ->orderByDesc('detected_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (VehicleOperationAlert $alert) {
+                $plate = trim((string) ($alert->vehicle?->placa ?? 'SIN PLACA'));
+                $driverName = trim((string) ($alert->session?->driver?->nombre ?? ($alert->meta_json['driver_name'] ?? 'Sin conductor')));
+
+                return [
+                    'vehicle_id' => (int) ($alert->vehicle_id ?? 0),
+                    'vehicle_log_session_id' => $alert->vehicle_log_session_id,
+                    'alert_type' => (string) $alert->alert_type,
+                    'severity' => (string) ($alert->severity ?? 'danger'),
+                    'status' => (string) ($alert->status ?? VehicleOperationAlert::STATUS_ACTIVE),
+                    'title' => (string) ($alert->title ?? 'Alerta operativa'),
+                    'message' => (string) ($alert->message ?? ''),
+                    'current_stage' => (string) ($alert->current_stage ?? ''),
+                    'last_heartbeat_at' => optional($alert->last_heartbeat_at)?->toIso8601String(),
+                    'detected_at' => optional($alert->detected_at)?->toIso8601String(),
+                    'resolved_at' => optional($alert->resolved_at)?->toIso8601String(),
+                    'meta_json' => is_array($alert->meta_json) ? $alert->meta_json : [],
+                    'placa' => $plate,
+                    'driver_name' => $driverName,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function formatSecondsAsHuman(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return $seconds . ' segundo(s)';
+        }
+
+        $minutes = (int) floor($seconds / 60);
+        $remaining = $seconds % 60;
+        return $minutes . ' minuto(s) ' . $remaining . ' segundo(s)';
+    }
+
+    /**
+     * @param array<string, mixed> $vehicle
+     */
+    private function resolveOperationalDriverName(array $vehicle, ?VehicleLogSession $session): string
+    {
+        $sessionDriverName = trim((string) ($session?->currentDriver?->nombre ?? $session?->responsibleDriver?->nombre ?? ''));
+        if ($sessionDriverName !== '') {
+            return $sessionDriverName;
+        }
+
+        $vehicleDriverName = trim((string) ($vehicle['driver_name'] ?? ''));
+        if ($vehicleDriverName !== '' && strtoupper($vehicleDriverName) !== 'SIN CONDUCTOR') {
+            return $vehicleDriverName;
+        }
+
+        return 'Sin conductor';
     }
 
     /**
