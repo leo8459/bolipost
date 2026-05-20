@@ -264,12 +264,20 @@
         .fuel-toolbar__filters .form-label {
             color: #eef4ff;
             font-weight: 700;
+            display: block;
+            width: 100%;
         }
 
         .fuel-toolbar__filters .form-control,
         .fuel-toolbar__filters .form-select {
             border-radius: 14px;
             border: 1px solid rgba(255, 255, 255, 0.65);
+        }
+
+        .fuel-toolbar__filters .filter-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
         }
 
         .fraud-review-overlay {
@@ -290,6 +298,13 @@
             border-radius: 14px;
         }
 
+        .fraud-invoice-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 1rem;
+        }
+
         @media (max-width: 992px) {
             .fuel-tables-shell {
                 margin-left: 0;
@@ -304,56 +319,58 @@
                 transform: none;
                 width: auto;
             }
+
+            .fraud-invoice-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 
     <div class="page-title mb-4 fuel-toolbar">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <h1 class="fuel-toolbar__title">
-                Gestiones en gasolina
-            </h1>
-            @if (!$showForm)
-            <div class="fuel-toolbar__actions">
-                <input
-                    type="text"
-                    wire:model.live.debounce.350ms="search"
-                    class="form-control fuel-toolbar__search"
-                    placeholder="Buscar por cualquier campo">
-                <button type="button" wire:click="searchLogs" class="btn btn-outline-light">
-                    Buscar
-                </button>
-                @if(auth()->user()?->role !== 'conductor')
-                <button
-                    type="button"
-                    id="fuel-document-trigger"
-                    class="btn btn-outline-light">
-                    <i class="fas fa-file-lines me-2"></i>Documento
-                </button>
-                <button
-                    type="button"
-                    wire:click="toggleAntiFraudTable"
-                    class="btn btn-outline-light">
-                    <i class="fas fa-shield-halved me-2"></i>{{ $showAntiFraudTable ? 'Ocultar casos fraude' : 'Casos fraude' }}
-                </button>
-                @endif
-                <button type="button" wire:click="openFuelForm" class="btn btn-warning">
-                    Nuevo
-                </button>
-            </div>
+        <h1 class="fuel-toolbar__title mb-3">
+            Gestiones en gasolina
+        </h1>
+        @if (!$showForm)
+        <div class="fuel-toolbar__actions">
+            <input
+                type="text"
+                wire:model.live.debounce.350ms="search"
+                class="form-control fuel-toolbar__search"
+                placeholder="Buscar por cualquier campo">
+            <button type="button" wire:click="searchLogs" class="btn btn-outline-light">
+                Buscar
+            </button>
+            @if(auth()->user()?->role !== 'conductor')
+            <button
+                type="button"
+                id="fuel-document-trigger"
+                class="btn btn-outline-light">
+                <i class="fas fa-file-lines me-2"></i>Documento
+            </button>
+            <button
+                type="button"
+                wire:click="toggleAntiFraudTable"
+                class="btn btn-outline-light">
+                <i class="fas fa-shield-halved me-2"></i>{{ $showAntiFraudTable ? 'Ocultar casos fraude' : 'Casos fraude' }}
+            </button>
             @endif
+            <button type="button" wire:click="openFuelForm" class="btn btn-warning">
+                Nuevo
+            </button>
         </div>
+        @endif
         @if (!$showForm)
         <div class="fuel-toolbar__filters">
-            <div class="row g-2 align-items-end">
-                <div class="col-12 col-md-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-lg-4">
                     <label class="form-label mb-1">Fecha desde</label>
                     <input type="date" wire:model.live="fecha_desde" class="form-control">
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-lg-4">
                     <label class="form-label mb-1">Fecha hasta</label>
                     <input type="date" wire:model.live="fecha_hasta" class="form-control">
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-lg-4">
                     <label class="form-label mb-1">Vehiculo</label>
                     <select wire:model.live="vehicle_filter_id" class="form-select bp-select-like-vehicle">
                         <option value="">Todos los vehiculos</option>
@@ -362,7 +379,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-lg-4 filter-stack">
                     <label class="form-label mb-1">Conductor</label>
                     <select wire:model.live="driver_filter_id" class="form-select bp-select-like-vehicle">
                         <option value="">Todos los conductores</option>
@@ -371,10 +388,11 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-12 col-md-4 d-grid">
+                <div class="col-12 col-lg-4 d-grid">
                     <button type="button" wire:click="limpiarFiltrosFecha" class="btn btn-outline-light">Limpiar filtro de fechas</button>
                 </div>
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-lg-4"></div>
+                <div class="col-12 col-lg-4 filter-stack">
                     <label class="form-label mb-1">Filtrar por placa</label>
                     <select wire:model.live="placa_filtro" class="form-select bp-select-like-vehicle">
                         <option value="">Todas las placas</option>
@@ -383,14 +401,12 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-12 col-md-3 d-grid">
-                    <button type="button" wire:click="aplicarFiltroPlaca" class="btn btn-warning">Filtrar placa</button>
-                </div>
-                <div class="col-12 col-md-3 d-grid">
-                    <button type="button" wire:click="limpiarFiltroPlaca" class="btn btn-outline-light">Limpiar placa</button>
-                </div>
-                <div class="col-12 col-md-3 d-grid">
-                    <button type="button" wire:click="limpiarFiltrosListado" class="btn btn-warning">Restaurar hoy</button>
+                <div class="col-12 col-lg-8">
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" wire:click="aplicarFiltroPlaca" class="btn btn-warning">Filtrar placa</button>
+                        <button type="button" wire:click="limpiarFiltroPlaca" class="btn btn-outline-light">Limpiar placa</button>
+                        <button type="button" wire:click="limpiarFiltrosListado" class="btn btn-warning">Restaurar hoy</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -456,6 +472,15 @@
                             }
 
                             $tableCaseRows = $tableCaseRows->sortByDesc(fn ($row) => optional($row['date'])->timestamp ?? 0)->values();
+                            $tableCaseRows = $tableCaseRows
+                                ->unique(fn ($row) => mb_strtolower(trim(implode('|', [
+                                    (string) ($row['type'] ?? ''),
+                                    (string) ($row['invoice'] ?? ''),
+                                    (string) ($row['vehicle'] ?? ''),
+                                    (string) ($row['driver'] ?? ''),
+                                    (string) ($row['date_text'] ?? ''),
+                                ]))))
+                                ->values();
                         @endphp
 
                         @forelse($tableCaseRows as $row)
@@ -482,13 +507,6 @@
                                             Revisar
                                         </button>
                                     @endif
-                                    @if($row['invoice'] !== '-')
-                                        <button type="button" wire:click='filterByInvoiceNumber(@json($row["invoice"]))' class="btn btn-sm btn-outline-primary">
-                                            Ver factura
-                                        </button>
-                                    @else
-                                        <span class="text-muted small">Sin accion</span>
-                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -504,8 +522,8 @@
     @endif
 
     @if(!$showForm && $showFraudReviewModal)
-    <div class="fraud-review-overlay" wire:click="closeFraudReviewModal">
-        <div class="card fraud-review-card shadow-lg" wire:click.stop>
+    <div class="fraud-review-overlay" wire:click.self="closeFraudReviewModal">
+        <div class="card fraud-review-card shadow-lg">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
                     <div class="fw-bold">
@@ -525,16 +543,31 @@
                     <div class="small">{{ $fraudReview['summary'] ?? 'Sin resumen.' }}</div>
                 </div>
 
-                <div class="row g-3 mb-3">
+                <div class="fraud-invoice-grid">
                     @foreach([($fraudReview['invoice_a'] ?? []), ($fraudReview['invoice_b'] ?? [])] as $invoiceData)
-                        <div class="col-12 col-lg-6">
-                            <div class="border rounded-3 p-3 h-100">
+                        <div class="border rounded-3 p-3 h-100">
                                 <div class="fw-bold mb-2">{{ $invoiceData['label'] ?? 'Factura' }}</div>
                                 @if(!empty($invoiceData['exists']))
                                     <div class="small"><strong>Nro:</strong> {{ $invoiceData['number'] ?? '-' }}</div>
                                     <div class="small"><strong>Fecha:</strong> {{ $invoiceData['date'] ?? '-' }}</div>
                                     <div class="small"><strong>Cliente:</strong> {{ $invoiceData['client'] ?? '-' }}</div>
+                                    @if(!empty($invoiceData['vehicle']) && $invoiceData['vehicle'] !== '-')
+                                        <div class="small"><strong>Vehiculo:</strong> {{ $invoiceData['vehicle'] }}</div>
+                                    @endif
+                                    @if(!empty($invoiceData['driver']) && $invoiceData['driver'] !== '-')
+                                        <div class="small"><strong>Conductor:</strong> {{ $invoiceData['driver'] }}</div>
+                                    @endif
                                     <div class="small mb-3"><strong>Total:</strong> {{ $invoiceData['total'] ?? '-' }}</div>
+                                    @if(!empty($invoiceData['note']))
+                                        <div class="small text-muted mb-2">{{ $invoiceData['note'] }}</div>
+                                    @endif
+                                    @if(!empty($invoiceData['id']))
+                                        <div class="mb-2">
+                                            <button type="button" class="btn btn-sm btn-outline-warning" wire:click="editFraudInvoice({{ (int) $invoiceData['id'] }})">
+                                                Modificar factura
+                                            </button>
+                                        </div>
+                                    @endif
                                     <div class="d-flex flex-wrap gap-2">
                                         @if(!empty($invoiceData['document_url']))
                                             <button type="button" class="btn btn-sm btn-outline-primary fuel-view-file-btn" data-url="{{ $invoiceData['document_url'] }}" data-kind="pdf" data-title="Factura SIAT {{ $invoiceData['number'] ?? '' }}">
@@ -560,7 +593,6 @@
                                 @else
                                     <div class="text-muted small">No se encontro esta factura en la base de datos.</div>
                                 @endif
-                            </div>
                         </div>
                     @endforeach
                 </div>
@@ -576,8 +608,34 @@
                     </ul>
                 </div>
             </div>
-            <div class="card-footer d-flex justify-content-end">
-                <button type="button" class="btn btn-secondary" wire:click="closeFraudReviewModal">Cerrar</button>
+            <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="small text-muted">
+                    @if(!empty($fraudReview['operational_alert_sent_at']))
+                        Alerta operativa enviada: {{ $fraudReview['operational_alert_sent_at'] }} (ID {{ $fraudReview['operational_alert_id'] ?? '-' }})
+                    @else
+                        Esta revision puede escalarse al movil como alerta operativa activa cada hora.
+                    @endif
+                    @if(!empty($fraudReview['operational_alert_resolved_at']))
+                        <br>Alerta operativa cancelada en web: {{ $fraudReview['operational_alert_resolved_at'] }}
+                    @endif
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-warning" wire:click="sendFraudOperationalAlert">
+                        Alertar operativa al movil
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" wire:click="markFraudAsNoSend">
+                        No enviar al movil
+                    </button>
+                    @if(!empty($fraudReview['operational_alert_id']))
+                        <button type="button" class="btn btn-outline-danger" wire:click="resolveFraudOperationalAlert">
+                            Cancelar alerta (solo web)
+                        </button>
+                    @endif
+                    <button type="button" class="btn btn-success" wire:click="finishFraudReviewCase">
+                        Terminar caso
+                    </button>
+                    <button type="button" class="btn btn-secondary" wire:click="closeFraudReviewModal">Cerrar</button>
+                </div>
             </div>
         </div>
     </div>

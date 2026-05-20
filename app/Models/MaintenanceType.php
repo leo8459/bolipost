@@ -114,4 +114,46 @@ class MaintenanceType extends Model
 
         return $query;
     }
+
+    public function scopeApplicableToVehicleForMobile(Builder $query, ?Vehicle $vehicle): Builder
+    {
+        if (!$vehicle) {
+            return $query;
+        }
+
+        $vehicleFormType = trim((string) ($vehicle->maintenance_form_type ?: $vehicle->vehicleClass?->maintenance_form_type ?: ''));
+        if ($vehicleFormType !== '' && Schema::hasColumn('maintenance_types', 'maintenance_form_type')) {
+            $query->where(function ($typeQuery) use ($vehicleFormType) {
+                $typeQuery->whereNull('maintenance_form_type')
+                    ->orWhere('maintenance_form_type', $vehicleFormType)
+                    ->orWhere('maintenance_form_type', 'mobile_driver');
+            });
+        }
+
+        if (Schema::hasColumn('maintenance_types', 'vehicle_class_id')) {
+            $vehicleClassId = $vehicle->vehicle_class_id ? (int) $vehicle->vehicle_class_id : null;
+            if ($vehicleClassId) {
+                $query->where(function ($typeQuery) use ($vehicleClassId) {
+                    $typeQuery->whereNull('vehicle_class_id')
+                        ->orWhere('vehicle_class_id', $vehicleClassId);
+                });
+            } else {
+                $query->whereNull('vehicle_class_id');
+            }
+        }
+
+        $vehicleScopedMatches = (clone $query)->where(function ($typeQuery) use ($vehicle) {
+            $typeQuery->whereDoesntHave('vehicles')
+                ->orWhereHas('vehicles', fn ($vehicleQuery) => $vehicleQuery->where('vehicles.id', (int) $vehicle->id));
+        })->exists();
+
+        if ($vehicleScopedMatches) {
+            $query->where(function ($typeQuery) use ($vehicle) {
+                $typeQuery->whereDoesntHave('vehicles')
+                    ->orWhereHas('vehicles', fn ($vehicleQuery) => $vehicleQuery->where('vehicles.id', (int) $vehicle->id));
+            });
+        }
+
+        return $query;
+    }
 }

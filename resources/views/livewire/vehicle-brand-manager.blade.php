@@ -117,9 +117,9 @@
                                             <div class="btn-group">
                                                 <button wire:click="edit({{ $brand->id }})" class="btn btn-sm btn-outline-warning"><i class="fas fa-edit"></i></button>
                                                 @if($brand->activo)
-                                                    <button wire:click="delete({{ $brand->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                                    <button type="button" wire:click="delete({{ $brand->id }})" wire:confirm="Confirmar eliminacion?" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
                                                 @else
-                                                    <button wire:click="reactivate({{ $brand->id }})" onclick="return confirm('Confirmar reactivacion?')" class="btn btn-sm btn-outline-success"><i class="fas fa-power-off"></i></button>
+                                                    <button type="button" wire:click="reactivate({{ $brand->id }})" wire:confirm="Confirmar reactivacion?" class="btn btn-sm btn-outline-success"><i class="fas fa-power-off"></i></button>
                                                 @endif
                                             </div>
                                         </td>

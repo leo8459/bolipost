@@ -7,10 +7,12 @@ use App\Models\FuelInvoice;
 use App\Models\FuelAntifraudCase;
 use App\Models\GasStation;
 use App\Models\ActivityLog;
+use App\Models\Driver;
 use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
 use App\Models\VehicleLog;
 use App\Models\VehicleLogStageEvent;
+use App\Models\VehicleOperationAlert;
 use App\Services\FuelInvoiceDocumentService;
 use App\Services\MaintenanceAlertService;
 use Carbon\Carbon;
@@ -685,6 +687,8 @@ class FuelLogManager extends Component
             throw $e;
         }
 
+        $this->ensureDuplicateInvoiceAlertForNumber($this->numero_factura);
+
         session()->flash('message', $this->isEdit ? 'Registro de combustible actualizado correctamente.' : 'Registro de combustible creado correctamente.');
         $this->resetForm();
     }
@@ -960,13 +964,35 @@ class FuelLogManager extends Component
             $invoiceB = FuelInvoice::query()->find((int) $case->conflicting_fuel_invoice_id);
         }
 
+        $caseEvidence = is_array($case->evidence_json) ? $case->evidence_json : [];
+        $invoiceBData = $invoiceB
+            ? $this->buildFraudInvoiceData($invoiceB, 'Factura B')
+            : $this->buildFraudAttemptInvoiceData(
+                'Factura B (intentada)',
+                (string) ($case->invoice_number ?? ''),
+                array_merge($caseEvidence, [
+                    'incoming_vehicle_id' => (int) ($case->conflicting_vehicle_id ?? 0) ?: null,
+                    'incoming_driver_id' => (int) ($case->conflicting_driver_id ?? 0) ?: null,
+                    'incoming_fecha_emision' => (string) ($caseEvidence['incoming_fecha_emision'] ?? ''),
+                    'incoming_total' => $caseEvidence['incoming_total'] ?? null,
+                ])
+            );
+
         $this->fraudReview = [
             'type' => 'Factura duplicada',
             'summary' => (string) ($case->summary ?? 'Se detecto posible colision entre facturas.'),
             'invoice_number' => (string) ($case->invoice_number ?? ''),
             'detected_at' => optional($case->created_at)->format('d/m/Y H:i') ?: '-',
+            'review_context' => [
+                'source' => 'case',
+                'source_id' => (int) $case->id,
+                'vehicle_id' => (int) ($case->vehicle_id ?? $case->conflicting_vehicle_id ?? 0),
+                'driver_id' => (int) ($case->driver_id ?? $case->conflicting_driver_id ?? 0),
+                'invoice_id' => (int) ($invoiceA?->id ?? $case->fuel_invoice_id ?? 0),
+                'conflicting_invoice_id' => (int) ($invoiceB?->id ?? $case->conflicting_fuel_invoice_id ?? 0),
+            ],
             'invoice_a' => $this->buildFraudInvoiceData($invoiceA, 'Factura A'),
-            'invoice_b' => $this->buildFraudInvoiceData($invoiceB, 'Factura B'),
+            'invoice_b' => $invoiceBData,
             'actions' => [
                 'Comparar fecha, monto, vehiculo y conductor para confirmar si es duplicidad real.',
                 'Revisar evidencia de ambas facturas (foto, PDF SIAT, PDF rollo, foto de medidor) antes de aprobar cualquier cambio.',
@@ -1000,6 +1026,14 @@ class FuelLogManager extends Component
                 ->get();
         }
 
+        $invoiceBData = $invoiceMatches->get(1)
+            ? $this->buildFraudInvoiceData($invoiceMatches->get(1), 'Factura B')
+            : $this->buildFraudAttemptInvoiceData(
+                'Factura B (intentada)',
+                $invoiceNumber,
+                $changes
+            );
+
         $this->fraudReview = [
             'type' => $isDuplicate ? 'Factura duplicada' : 'Supuesto fraude',
             'summary' => $isDuplicate
@@ -1007,8 +1041,16 @@ class FuelLogManager extends Component
                 : 'Alerta por posible exceso de capacidad o inconsistencia en carga.',
             'invoice_number' => $invoiceNumber,
             'detected_at' => optional($alert->fecha ?? $alert->created_at)->format('d/m/Y H:i') ?: '-',
+            'review_context' => [
+                'source' => 'activity_log',
+                'source_id' => (int) $alert->id,
+                'vehicle_id' => (int) ($changes['existing_vehicle_id'] ?? $changes['vehicle_id'] ?? 0),
+                'driver_id' => (int) ($changes['existing_driver_id'] ?? $changes['driver_id'] ?? 0),
+                'invoice_id' => (int) ($invoiceMatches->get(0)?->id ?? 0),
+                'conflicting_invoice_id' => (int) ($invoiceMatches->get(1)?->id ?? 0),
+            ],
             'invoice_a' => $this->buildFraudInvoiceData($invoiceMatches->get(0), 'Factura A'),
-            'invoice_b' => $this->buildFraudInvoiceData($invoiceMatches->get(1), 'Factura B'),
+            'invoice_b' => $invoiceBData,
             'actions' => $isDuplicate
                 ? [
                     'Verificar si existen dos facturas con el mismo numero y confirmar cual corresponde a la operacion real.',
@@ -1029,6 +1071,308 @@ class FuelLogManager extends Component
     {
         $this->showFraudReviewModal = false;
         $this->fraudReview = [];
+    }
+
+    public function sendFraudOperationalAlert(): void
+    {
+        if (!Schema::hasTable('vehicle_operation_alerts')) {
+            session()->flash('error', 'La tabla de alertas operativas no existe en la base de datos.');
+            return;
+        }
+
+        $context = is_array($this->fraudReview['review_context'] ?? null)
+            ? $this->fraudReview['review_context']
+            : [];
+
+        $vehicleId = (int) ($context['vehicle_id'] ?? 0);
+        if ($vehicleId <= 0) {
+            session()->flash('error', 'No se pudo resolver el vehiculo para enviar la alerta operativa.');
+            return;
+        }
+
+        $driverId = (int) ($context['driver_id'] ?? 0);
+        $invoiceNumber = trim((string) ($this->fraudReview['invoice_number'] ?? ''));
+        $typeLabel = (string) ($this->fraudReview['type'] ?? 'Supuesto fraude');
+        $source = (string) ($context['source'] ?? 'manual_review');
+        $sourceId = (int) ($context['source_id'] ?? 0);
+
+        $vehicle = Vehicle::query()->find($vehicleId);
+        $plate = trim((string) ($vehicle?->placa ?? 'SIN PLACA'));
+
+        $meta = [
+            'source' => $source,
+            'source_id' => $sourceId > 0 ? $sourceId : null,
+            'driver_id' => $driverId > 0 ? $driverId : null,
+            'invoice_number' => $invoiceNumber !== '' ? $invoiceNumber : null,
+            'fuel_invoice_id' => (int) ($context['invoice_id'] ?? 0) > 0 ? (int) $context['invoice_id'] : null,
+            'conflicting_fuel_invoice_id' => (int) ($context['conflicting_invoice_id'] ?? 0) > 0 ? (int) $context['conflicting_invoice_id'] : null,
+            'repeat_every_minutes' => 60,
+            'repeat_until_resolved' => true,
+            'next_repeat_at' => now()->addHour()->toIso8601String(),
+            'reported_from' => 'web_fuel_fraud_review',
+        ];
+
+        $recentAlert = VehicleOperationAlert::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where('alert_type', VehicleOperationAlert::TYPE_FUEL_ANTIFRAUD_REVIEW_REQUIRED)
+            ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+            ->where('created_at', '>=', now()->subHour())
+            ->orderByDesc('id')
+            ->first();
+
+        $title = 'Alerta operativa por posible fraude de combustible';
+        $message = $invoiceNumber !== ''
+            ? sprintf('Revisar %s en factura %s del vehiculo %s. Se mantiene alerta operativa activa cada hora hasta revision web.', mb_strtolower($typeLabel), $invoiceNumber, $plate)
+            : sprintf('Revisar %s en el vehiculo %s. Se mantiene alerta operativa activa cada hora hasta revision web.', mb_strtolower($typeLabel), $plate);
+
+        if ($recentAlert) {
+            $existingMeta = is_array($recentAlert->meta_json) ? $recentAlert->meta_json : [];
+            $recentAlert->update([
+                'severity' => 'warning',
+                'title' => $title,
+                'message' => $message,
+                'current_stage' => 'CARGA',
+                'last_heartbeat_at' => now(),
+                'detected_at' => now(),
+                'meta_json' => array_filter(array_merge($existingMeta, $meta), fn ($value) => $value !== null && $value !== ''),
+            ]);
+            $alert = $recentAlert->refresh();
+        } else {
+            $alert = VehicleOperationAlert::query()->create([
+                'vehicle_id' => $vehicleId,
+                'vehicle_log_session_id' => null,
+                'alert_type' => VehicleOperationAlert::TYPE_FUEL_ANTIFRAUD_REVIEW_REQUIRED,
+                'severity' => 'warning',
+                'status' => VehicleOperationAlert::STATUS_ACTIVE,
+                'title' => $title,
+                'message' => $message,
+                'current_stage' => 'CARGA',
+                'last_heartbeat_at' => now(),
+                'detected_at' => now(),
+                'resolved_at' => null,
+                'meta_json' => array_filter($meta, fn ($value) => $value !== null && $value !== ''),
+            ]);
+        }
+
+        ActivityLog::create(ActivityLog::prepareAttributes([
+            'user_id' => (int) (auth()->id() ?? 0) ?: null,
+            'action' => 'FUEL_ANTIFRAUD_OPERATIONAL_ALERT_SENT',
+            'model' => 'VehicleOperationAlert',
+            'module' => 'combustible',
+            'record_id' => (int) $alert->id,
+            'changes_json' => [
+                'vehicle_id' => $vehicleId,
+                'driver_id' => $driverId > 0 ? $driverId : null,
+                'invoice_number' => $invoiceNumber !== '' ? $invoiceNumber : null,
+                'alert_type' => VehicleOperationAlert::TYPE_FUEL_ANTIFRAUD_REVIEW_REQUIRED,
+                'source' => $source,
+                'source_id' => $sourceId > 0 ? $sourceId : null,
+            ],
+            'details' => 'Se envio alerta operativa al movil desde revision de fraude en combustible.',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'fecha' => now(),
+        ]));
+
+        if ($source === 'case' && $sourceId > 0) {
+            $this->appendOperationalAlertTraceToCase($sourceId, (int) $alert->id);
+        }
+
+        $this->fraudReview['operational_alert_sent_at'] = now()->format('d/m/Y H:i');
+        $this->fraudReview['operational_alert_id'] = (int) $alert->id;
+        session()->flash('message', 'Alerta operativa enviada al movil y registrada para seguimiento web.');
+    }
+
+    public function resolveFraudOperationalAlert(): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'Solo personal web autorizado puede cancelar esta alerta operativa.');
+            return;
+        }
+
+        if (!Schema::hasTable('vehicle_operation_alerts')) {
+            session()->flash('error', 'La tabla de alertas operativas no existe en la base de datos.');
+            return;
+        }
+
+        $context = is_array($this->fraudReview['review_context'] ?? null)
+            ? $this->fraudReview['review_context']
+            : [];
+        $source = (string) ($context['source'] ?? 'manual_review');
+        $sourceId = (int) ($context['source_id'] ?? 0);
+
+        $alertId = (int) ($this->fraudReview['operational_alert_id'] ?? 0);
+        if ($alertId <= 0 && $source === 'case' && $sourceId > 0) {
+            $case = FuelAntifraudCase::query()->find($sourceId);
+            $evidence = is_array($case?->evidence_json) ? $case->evidence_json : [];
+            $alertId = (int) ($evidence['operational_alert_id'] ?? 0);
+        }
+
+        if ($alertId <= 0) {
+            session()->flash('error', 'No se encontro una alerta operativa de fraude para cancelar.');
+            return;
+        }
+
+        $alert = VehicleOperationAlert::query()->find($alertId);
+        if (!$alert || $alert->alert_type !== VehicleOperationAlert::TYPE_FUEL_ANTIFRAUD_REVIEW_REQUIRED) {
+            session()->flash('error', 'La alerta seleccionada no corresponde a fraude de combustible.');
+            return;
+        }
+
+        if ($alert->status !== VehicleOperationAlert::STATUS_RESOLVED) {
+            $meta = is_array($alert->meta_json) ? $alert->meta_json : [];
+            $meta['resolved_from'] = 'web_fuel_fraud_review';
+            $meta['resolved_by_user_id'] = (int) (auth()->id() ?? 0) ?: null;
+            $meta['resolved_at'] = now()->toIso8601String();
+
+            $alert->update([
+                'status' => VehicleOperationAlert::STATUS_RESOLVED,
+                'resolved_at' => now(),
+                'meta_json' => array_filter($meta, fn ($value) => $value !== null && $value !== ''),
+            ]);
+        }
+
+        ActivityLog::create(ActivityLog::prepareAttributes([
+            'user_id' => (int) (auth()->id() ?? 0) ?: null,
+            'action' => 'FUEL_ANTIFRAUD_OPERATIONAL_ALERT_RESOLVED_WEB',
+            'model' => 'VehicleOperationAlert',
+            'module' => 'combustible',
+            'record_id' => (int) $alert->id,
+            'changes_json' => [
+                'alert_type' => VehicleOperationAlert::TYPE_FUEL_ANTIFRAUD_REVIEW_REQUIRED,
+                'source' => $source,
+                'source_id' => $sourceId > 0 ? $sourceId : null,
+            ],
+            'details' => 'Alerta operativa de fraude de combustible cancelada desde la web.',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'fecha' => now(),
+        ]));
+
+        $this->fraudReview['operational_alert_id'] = (int) $alert->id;
+        $this->fraudReview['operational_alert_resolved_at'] = now()->format('d/m/Y H:i');
+        session()->flash('message', 'Alerta operativa cancelada desde web. En movil ya no deberia figurar como activa.');
+    }
+
+    public function editFraudInvoice(int $invoiceId): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para modificar facturas de fraude.');
+            return;
+        }
+
+        if ($invoiceId <= 0) {
+            session()->flash('error', 'No se pudo identificar la factura a modificar.');
+            return;
+        }
+
+        $fuelLog = FuelLog::query()
+            ->active()
+            ->where('fuel_invoice_id', $invoiceId)
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$fuelLog) {
+            session()->flash('error', 'La factura existe, pero no se encontro un vale de combustible editable asociado.');
+            return;
+        }
+
+        $this->showFraudReviewModal = false;
+        $this->fraudReview = [];
+        $this->edit($fuelLog);
+        session()->flash('message', 'Factura abierta en modo edicion desde revision de fraude.');
+    }
+
+    public function markFraudAsNoSend(): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para gestionar revision antifraude.');
+            return;
+        }
+
+        $context = is_array($this->fraudReview['review_context'] ?? null)
+            ? $this->fraudReview['review_context']
+            : [];
+        $source = (string) ($context['source'] ?? '');
+        $sourceId = (int) ($context['source_id'] ?? 0);
+
+        if ($source === 'case' && $sourceId > 0) {
+            $case = FuelAntifraudCase::query()->find($sourceId);
+            if ($case) {
+                $evidence = is_array($case->evidence_json) ? $case->evidence_json : [];
+                $evidence['web_no_send_at'] = now()->toIso8601String();
+                $evidence['web_no_send_by_user_id'] = (int) (auth()->id() ?? 0) ?: null;
+
+                $case->update([
+                    'status' => FuelAntifraudCase::STATUS_REVIEWED,
+                    'reviewed_at' => now(),
+                    'reviewed_by_user_id' => (int) (auth()->id() ?? 0) ?: null,
+                    'evidence_json' => $evidence,
+                ]);
+            }
+        }
+
+        $this->showFraudReviewModal = false;
+        $this->fraudReview = [];
+        session()->flash('message', 'Caso marcado como revisado sin envio al movil.');
+    }
+
+    public function finishFraudReviewCase(): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            session()->flash('error', 'No tiene permiso para finalizar revision antifraude.');
+            return;
+        }
+
+        $context = is_array($this->fraudReview['review_context'] ?? null)
+            ? $this->fraudReview['review_context']
+            : [];
+        $source = (string) ($context['source'] ?? '');
+        $sourceId = (int) ($context['source_id'] ?? 0);
+
+        $alertId = (int) ($this->fraudReview['operational_alert_id'] ?? 0);
+        if ($alertId <= 0 && $source === 'case' && $sourceId > 0) {
+            $case = FuelAntifraudCase::query()->find($sourceId);
+            $evidence = is_array($case?->evidence_json) ? $case->evidence_json : [];
+            $alertId = (int) ($evidence['operational_alert_id'] ?? 0);
+        }
+
+        if ($source === 'case' && $sourceId > 0) {
+            $case = FuelAntifraudCase::query()->find($sourceId);
+            if ($case) {
+                $evidence = is_array($case->evidence_json) ? $case->evidence_json : [];
+                $evidence['web_closed_at'] = now()->toIso8601String();
+                $evidence['web_closed_by_user_id'] = (int) (auth()->id() ?? 0) ?: null;
+
+                $case->update([
+                    'status' => FuelAntifraudCase::STATUS_RESOLVED,
+                    'reviewed_at' => now(),
+                    'reviewed_by_user_id' => (int) (auth()->id() ?? 0) ?: null,
+                    'evidence_json' => $evidence,
+                ]);
+            }
+        }
+
+        if ($alertId > 0 && Schema::hasTable('vehicle_operation_alerts')) {
+            $alert = VehicleOperationAlert::query()->find($alertId);
+            if ($alert && $alert->alert_type === VehicleOperationAlert::TYPE_FUEL_ANTIFRAUD_REVIEW_REQUIRED) {
+                $meta = is_array($alert->meta_json) ? $alert->meta_json : [];
+                $meta['resolved_from'] = 'web_fraud_finish';
+                $meta['resolved_by_user_id'] = (int) (auth()->id() ?? 0) ?: null;
+                $meta['resolved_at'] = now()->toIso8601String();
+
+                $alert->update([
+                    'status' => VehicleOperationAlert::STATUS_RESOLVED,
+                    'resolved_at' => now(),
+                    'meta_json' => array_filter($meta, fn ($value) => $value !== null && $value !== ''),
+                ]);
+            }
+        }
+
+        $this->fraudReview['operational_alert_resolved_at'] = now()->format('d/m/Y H:i');
+        $this->showFraudReviewModal = false;
+        $this->fraudReview = [];
+        session()->flash('message', 'Caso antifraude finalizado en web y alerta operativa cerrada.');
     }
 
     public function exportBitacoraPdf()
@@ -1920,6 +2264,88 @@ class FuelLogManager extends Component
         }
     }
 
+    private function ensureDuplicateInvoiceAlertForNumber(string $invoiceNumber): void
+    {
+        $invoiceNumber = trim($invoiceNumber);
+        if ($invoiceNumber === '') {
+            return;
+        }
+
+        try {
+            $duplicateInvoices = FuelInvoice::query()
+                ->active()
+                ->where('numero_factura', $invoiceNumber)
+                ->orderBy('id')
+                ->limit(2)
+                ->get(['id']);
+
+            if ($duplicateInvoices->count() < 2) {
+                return;
+            }
+
+            $firstInvoiceId = (int) ($duplicateInvoices[0]->id ?? 0);
+            $secondInvoiceId = (int) ($duplicateInvoices[1]->id ?? 0);
+            if ($firstInvoiceId <= 0 || $secondInvoiceId <= 0) {
+                return;
+            }
+
+            $firstLog = FuelLog::query()
+                ->with(['vehicleLog.vehicle', 'vehicleLog.driver'])
+                ->where('fuel_invoice_id', $firstInvoiceId)
+                ->oldest('id')
+                ->first();
+            $secondLog = FuelLog::query()
+                ->with(['vehicleLog.vehicle', 'vehicleLog.driver'])
+                ->where('fuel_invoice_id', $secondInvoiceId)
+                ->oldest('id')
+                ->first();
+
+            $this->registerDuplicateInvoiceCase(
+                $invoiceNumber,
+                $firstInvoiceId,
+                $secondInvoiceId,
+                $firstLog,
+                $secondLog,
+                'web_postsave_scan',
+                [
+                    'trigger' => 'post_save_duplicate_scan',
+                    'first_invoice_id' => $firstInvoiceId,
+                    'second_invoice_id' => $secondInvoiceId,
+                ]
+            );
+
+            $recentSameAlert = ActivityLog::query()
+                ->where('module', 'combustible')
+                ->where('action', 'FUEL_INVOICE_DUPLICATE_ALERT')
+                ->where('changes_json->invoice_number', $invoiceNumber)
+                ->where('changes_json->source', 'web_postsave_scan')
+                ->where('created_at', '>=', now()->subMinutes(10))
+                ->exists();
+
+            if (!$recentSameAlert) {
+                ActivityLog::create(ActivityLog::prepareAttributes([
+                    'user_id' => (int) (auth()->id() ?? 0) ?: null,
+                    'action' => 'FUEL_INVOICE_DUPLICATE_ALERT',
+                    'model' => 'FuelInvoice',
+                    'module' => 'combustible',
+                    'record_id' => $firstInvoiceId,
+                    'changes_json' => [
+                        'invoice_number' => $invoiceNumber,
+                        'first_invoice_id' => $firstInvoiceId,
+                        'second_invoice_id' => $secondInvoiceId,
+                        'source' => 'web_postsave_scan',
+                    ],
+                    'details' => 'Se detectaron dos facturas iguales registradas en el sistema.',
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                    'fecha' => now(),
+                ]));
+            }
+        } catch (\Throwable) {
+            // No bloquear guardado por errores de auditoria antifraude.
+        }
+    }
+
     private function registerDuplicateInvoiceCase(
         string $invoiceNumber,
         ?int $invoiceId,
@@ -1964,6 +2390,38 @@ class FuelLogManager extends Component
                 'activo' => true,
             ]
         );
+    }
+
+    private function appendOperationalAlertTraceToCase(int $caseId, int $alertId): void
+    {
+        if ($caseId <= 0 || $alertId <= 0) {
+            return;
+        }
+
+        $case = FuelAntifraudCase::query()->find($caseId);
+        if (!$case) {
+            return;
+        }
+
+        $evidence = is_array($case->evidence_json) ? $case->evidence_json : [];
+        $history = is_array($evidence['operational_alert_history'] ?? null)
+            ? $evidence['operational_alert_history']
+            : [];
+
+        $history[] = [
+            'alert_id' => $alertId,
+            'created_at' => now()->toIso8601String(),
+            'created_by_user_id' => (int) (auth()->id() ?? 0) ?: null,
+        ];
+
+        $evidence['operational_alert_history'] = $history;
+        $evidence['operational_alert_id'] = $alertId;
+        $evidence['operational_alert_last_sent_at'] = now()->toIso8601String();
+        $evidence['operational_alert_repeat_every_minutes'] = 60;
+
+        $case->update([
+            'evidence_json' => $evidence,
+        ]);
     }
 
     private function syncExistingDuplicateInvoiceCases(): void
@@ -2243,12 +2701,61 @@ class FuelLogManager extends Component
             'date' => optional($invoice->fecha_emision)->format('d/m/Y H:i') ?: '-',
             'client' => (string) ($invoice->nombre_cliente ?? '-'),
             'total' => $invoice->monto_total !== null ? number_format((float) $invoice->monto_total, 2) : '-',
+            'vehicle' => '-',
+            'driver' => '-',
+            'note' => null,
             'document_url' => !empty($invoice->siat_document_path) ? route('fuel-invoices.document', ['fuelInvoice' => $invoice->id]) : null,
             'rollo_url' => !empty($invoice->siat_rollo_document_path) ? route('fuel-invoices.rollo', ['fuelInvoice' => $invoice->id]) : null,
             'photo_url' => !empty($invoice->invoice_photo_path) ? route('fuel-invoices.photo', ['fuelInvoice' => $invoice->id]) : null,
             'meter_photo_url' => !empty(data_get($invoice->antifraud_payload_json, 'evidence.fuel_meter_photo_path'))
                 ? route('fuel-invoices.meter-photo', ['fuelInvoice' => $invoice->id])
                 : null,
+        ];
+    }
+
+    private function buildFraudAttemptInvoiceData(string $label, string $invoiceNumber, array $context): array
+    {
+        $vehicleId = (int) ($context['incoming_vehicle_id'] ?? $context['vehicle_id'] ?? $context['conflicting_vehicle_id'] ?? 0);
+        $driverId = (int) ($context['incoming_driver_id'] ?? $context['driver_id'] ?? $context['conflicting_driver_id'] ?? 0);
+
+        $vehiclePlate = trim((string) ($context['incoming_vehicle_plate'] ?? ''));
+        if ($vehiclePlate === '' && $vehicleId > 0) {
+            $vehiclePlate = (string) (Vehicle::query()->whereKey($vehicleId)->value('placa') ?? '');
+        }
+
+        $driverName = trim((string) ($context['incoming_driver_name'] ?? ''));
+        if ($driverName === '' && $driverId > 0) {
+            $driverName = (string) (Driver::query()->whereKey($driverId)->value('nombre') ?? '');
+        }
+
+        $incomingDateRaw = trim((string) ($context['incoming_fecha_emision'] ?? $context['fecha_emision'] ?? ''));
+        $incomingDate = '-';
+        if ($incomingDateRaw !== '') {
+            try {
+                $incomingDate = Carbon::parse($incomingDateRaw)->format('d/m/Y H:i');
+            } catch (\Throwable) {
+                $incomingDate = $incomingDateRaw;
+            }
+        }
+
+        $incomingTotal = $context['incoming_total'] ?? $context['monto_total'] ?? null;
+        $totalText = is_numeric($incomingTotal) ? number_format((float) $incomingTotal, 2) : '-';
+
+        return [
+            'label' => $label,
+            'exists' => true,
+            'id' => null,
+            'number' => trim($invoiceNumber) !== '' ? trim($invoiceNumber) : '-',
+            'date' => $incomingDate,
+            'client' => (string) ($context['incoming_client_name'] ?? 'Intento movil pendiente de confirmacion'),
+            'total' => $totalText,
+            'vehicle' => $vehiclePlate !== '' ? $vehiclePlate : '-',
+            'driver' => $driverName !== '' ? $driverName : '-',
+            'note' => 'Registro intentado desde movil y bloqueado por posible duplicidad.',
+            'document_url' => null,
+            'rollo_url' => null,
+            'photo_url' => null,
+            'meter_photo_url' => null,
         ];
     }
 

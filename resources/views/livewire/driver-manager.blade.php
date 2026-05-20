@@ -293,10 +293,6 @@
                             @error('memorandum_file') <div class="invalid-feedback">{{ $message }}</div> @enderror
                             <div class="form-text">Se aceptan PDF o imagenes. El limite final depende de la configuracion del servidor.</div>
                             @if($memorandum_path)
-                                <div class="mt-2">
-                                    <label class="form-label fw-bold mb-1">Ruta almacenada (BD)</label>
-                                    <input type="text" class="form-control form-control-sm bg-light" value="{{ $memorandum_path }}" readonly>
-                                </div>
                                 <div class="form-text mt-1">
                                     Archivo actual:
                                     @if($editingDriverId)
@@ -415,15 +411,25 @@
                                         @if(auth()->user()?->role !== 'conductor')
                                             <td class="text-center">
                                                 <div class="btn-group">
-                                                    <button wire:click="edit({{ $driver->id }})" class="btn btn-sm btn-outline-warning">
+                                                    <button type="button" wire:click="edit({{ $driver->id }})" class="btn btn-sm btn-outline-warning">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                     @if($driver->activo)
-                                                        <button wire:click="delete({{ $driver->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger">
+                                                        <button
+                                                            type="button"
+                                                            wire:click="delete({{ $driver->id }})"
+                                                            onclick="if (!confirm('Confirmar eliminacion?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
+                                                            class="btn btn-sm btn-outline-danger"
+                                                        >
                                                             <i class="fas fa-trash"></i>
                                                         </button>
                                                     @else
-                                                        <button wire:click="reactivate({{ $driver->id }})" onclick="return confirm('Confirmar reactivacion?')" class="btn btn-sm btn-outline-success">
+                                                        <button
+                                                            type="button"
+                                                            wire:click="reactivate({{ $driver->id }})"
+                                                            onclick="if (!confirm('Confirmar reactivacion?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
+                                                            class="btn btn-sm btn-outline-success"
+                                                        >
                                                             <i class="fas fa-power-off"></i>
                                                         </button>
                                                     @endif

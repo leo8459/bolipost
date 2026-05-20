@@ -111,7 +111,7 @@ class MobileCrudApiController extends Controller
                 }
 
                 if ($vehicle) {
-                    $query->applicableToVehicle($vehicle)->with('vehicles');
+                    $query->active()->applicableToVehicleForMobile($vehicle)->with('vehicles');
                 }
             }
         }

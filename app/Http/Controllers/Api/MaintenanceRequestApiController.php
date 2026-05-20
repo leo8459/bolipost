@@ -21,6 +21,16 @@ class MaintenanceRequestApiController extends Controller
 {
     public function index(Request $request)
     {
+        return $this->indexInternal($request, false);
+    }
+
+    public function indexMobile(Request $request)
+    {
+        return $this->indexInternal($request, true);
+    }
+
+    private function indexInternal(Request $request, bool $mobileScoped = false)
+    {
         $authUser = $request->user();
         $vehicleId = (int) $request->query('vehicle_id', 0);
 
@@ -51,7 +61,7 @@ class MaintenanceRequestApiController extends Controller
             $query->where('estado', (string) $request->query('status'));
         }
 
-        $appointments = $query->get()->map(fn (MaintenanceAppointment $appointment) => $this->mapAppointment($appointment));
+        $appointments = $query->get()->map(fn (MaintenanceAppointment $appointment) => $this->mapAppointment($appointment, $mobileScoped));
 
         return response()->json([
             'data' => $appointments->values(),
@@ -59,6 +69,16 @@ class MaintenanceRequestApiController extends Controller
     }
 
     public function store(Request $request)
+    {
+        return $this->storeInternal($request, false);
+    }
+
+    public function storeMobile(Request $request)
+    {
+        return $this->storeInternal($request, true);
+    }
+
+    private function storeInternal(Request $request, bool $mobileScoped = false)
     {
         $payload = $request->validate([
             'vehicle_id' => 'nullable|integer|exists:vehicles,id',
@@ -94,7 +114,8 @@ class MaintenanceRequestApiController extends Controller
         $type = $this->resolveMaintenanceType(
             $vehicle,
             $payload['maintenance_type_id'] ?? null,
-            $payload['maintenance_type_name'] ?? null
+            $payload['maintenance_type_name'] ?? null,
+            $mobileScoped,
         );
 
         if (!$type) {
@@ -117,9 +138,7 @@ class MaintenanceRequestApiController extends Controller
         $existingPendingAppointment = MaintenanceAppointment::query()
             ->where('vehicle_id', (int) $vehicle->id)
             ->where('tipo_mantenimiento_id', (int) $type->id)
-            ->where('estado', 'Pendiente')
-            ->when($driver?->id, fn ($query) => $query->where('driver_id', (int) $driver->id))
-            ->when($authUser?->id, fn ($query) => $query->where('requested_by_user_id', (int) $authUser->id))
+            ->where('estado', MaintenanceAppointment::STATUS_PENDING)
             ->orderByDesc('id')
             ->first();
 
@@ -127,6 +146,9 @@ class MaintenanceRequestApiController extends Controller
             $existingPendingAppointment->fecha_programada = $scheduledAt;
             $existingPendingAppointment->solicitud_fecha = now();
             $existingPendingAppointment->es_accidente = (bool) ($payload['es_accidente'] ?? false);
+            if (Schema::hasColumn('maintenance_appointments', 'activo')) {
+                $existingPendingAppointment->activo = true;
+            }
             if (!empty($evidencePath)) {
                 $existingPendingAppointment->evidencia_path = $evidencePath;
             }
@@ -142,7 +164,7 @@ class MaintenanceRequestApiController extends Controller
 
             return response()->json([
                 'message' => 'Ya existia una solicitud pendiente. Se actualizo con la nueva informacion enviada desde el movil.',
-                'data' => $this->mapAppointment($existingPendingAppointment),
+                'data' => $this->mapAppointment($existingPendingAppointment, $mobileScoped),
                 'deduplicated' => true,
             ], 200);
         }
@@ -158,7 +180,8 @@ class MaintenanceRequestApiController extends Controller
                 'origen_solicitud' => 'mobile_driver',
                 'es_accidente' => (bool) ($payload['es_accidente'] ?? false),
                 'evidencia_path' => $evidencePath,
-                'estado' => 'Pendiente',
+                'estado' => MaintenanceAppointment::STATUS_PENDING,
+                'activo' => true,
             ]);
 
             if (Schema::hasTable('maintenance_alerts')) {
@@ -199,11 +222,11 @@ class MaintenanceRequestApiController extends Controller
 
         return response()->json([
             'message' => 'Solicitud de mantenimiento registrada correctamente.',
-            'data' => $this->mapAppointment($appointment),
+            'data' => $this->mapAppointment($appointment, $mobileScoped),
         ], 201);
     }
 
-    private function mapAppointment(MaintenanceAppointment $appointment): array
+    private function mapAppointment(MaintenanceAppointment $appointment, bool $mobileScoped = false): array
     {
         return [
             'id' => (int) $appointment->id,
@@ -220,7 +243,7 @@ class MaintenanceRequestApiController extends Controller
             'request_document_url' => $appointment->evidencia_path ? route('maintenance-appointments.evidence', $appointment) : null,
             'formulario_documento_path' => $appointment->formulario_documento_path ? route('maintenance-appointments.form', $appointment) : null,
             'form_document_url' => $appointment->formulario_documento_path ? route('maintenance-appointments.form', $appointment) : null,
-            'origen_solicitud' => (string) ($appointment->origen_solicitud ?? 'mobile_driver'),
+            'origen_solicitud' => (string) ($appointment->origen_solicitud ?? ($mobileScoped ? 'mobile_driver' : 'web')),
         ];
     }
 
@@ -278,13 +301,23 @@ class MaintenanceRequestApiController extends Controller
         return $assignment ? Driver::query()->find((int) $assignment->driver_id) : null;
     }
 
-    private function resolveMaintenanceType(Vehicle $vehicle, mixed $typeId, mixed $typeName): ?MaintenanceType
+    private function resolveMaintenanceType(
+        Vehicle $vehicle,
+        mixed $typeId,
+        mixed $typeName,
+        bool $mobileScoped = false
+    ): ?MaintenanceType
     {
-        $query = MaintenanceType::query()->applicableToVehicle($vehicle);
+        $query = $mobileScoped
+            ? MaintenanceType::query()->active()->applicableToVehicleForMobile($vehicle)
+            : MaintenanceType::query()->applicableToVehicle($vehicle);
 
         $candidateId = (int) ($typeId ?? 0);
         if ($candidateId > 0) {
-            return (clone $query)->whereKey($candidateId)->first();
+            $byId = (clone $query)->whereKey($candidateId)->first();
+            if ($byId) {
+                return $byId;
+            }
         }
 
         $candidateName = trim((string) ($typeName ?? ''));
@@ -292,7 +325,7 @@ class MaintenanceRequestApiController extends Controller
             return null;
         }
 
-        return (clone $query)
+        $matched = (clone $query)
             ->where(function ($q) use ($candidateName) {
                 $lowered = Str::lower($candidateName);
                 $q->whereRaw('LOWER(nombre) = ?', [$lowered])
@@ -300,6 +333,63 @@ class MaintenanceRequestApiController extends Controller
             })
             ->orderBy('nombre')
             ->first();
+
+        if ($matched) {
+            return $matched;
+        }
+
+        if (!$mobileScoped) {
+            return null;
+        }
+
+        // En modo movil, si no existe una coincidencia valida, creamos/reciclamos un tipo
+        // exclusivo del canal movil para no contaminar el catalogo web.
+        $normalizedCandidate = $this->normalizeMaintenanceTypeName($candidateName);
+        if ($normalizedCandidate === '') {
+            return null;
+        }
+
+        $mobileType = MaintenanceType::query()
+            ->when(
+                Schema::hasColumn('maintenance_types', 'maintenance_form_type'),
+                fn ($mobileQuery) => $mobileQuery->where('maintenance_form_type', 'mobile_driver'),
+            )
+            ->whereRaw('LOWER(nombre) = ?', [Str::lower($normalizedCandidate)])
+            ->first();
+
+        if (!$mobileType) {
+            $attributes = [
+                'nombre' => $normalizedCandidate,
+            ];
+            if (Schema::hasColumn('maintenance_types', 'maintenance_form_type')) {
+                $attributes['maintenance_form_type'] = 'mobile_driver';
+            }
+            if (Schema::hasColumn('maintenance_types', 'activo')) {
+                $attributes['activo'] = true;
+            }
+            if (Schema::hasColumn('maintenance_types', 'descripcion')) {
+                $attributes['descripcion'] = 'Tipo generado automaticamente para solicitudes del canal movil.';
+            }
+
+            $mobileType = MaintenanceType::query()->create($attributes);
+        }
+
+        if (Schema::hasTable('maintenance_type_vehicle')) {
+            $mobileType->vehicles()->syncWithoutDetaching([(int) $vehicle->id]);
+        }
+
+        return $mobileType;
+    }
+
+    private function normalizeMaintenanceTypeName(string $candidateName): string
+    {
+        $name = trim($candidateName);
+        if ($name === '') {
+            return '';
+        }
+
+        $name = preg_replace('/\s+/', ' ', $name) ?? $name;
+        return Str::title(Str::lower($name));
     }
 
     private function storeEvidenceImage(?string $photoBase64, int $vehicleId): ?string

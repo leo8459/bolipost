@@ -98,4 +98,12 @@ class MaintenanceAlert extends Model
             self::STATUS_IN_WORKSHOP,
         ];
     }
+
+    public static function blockingStatuses(): array
+    {
+        return [
+            self::STATUS_ACTIVE,
+            self::STATUS_IN_WORKSHOP,
+        ];
+    }
 }

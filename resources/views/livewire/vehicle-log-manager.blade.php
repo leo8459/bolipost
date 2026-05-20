@@ -558,7 +558,9 @@
 
         <div class="bitacora-shell__body">
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                <div class="bitacora-shell__count">Total en pagina: {{ $logs->count() }}</div>
+                <div class="bitacora-shell__count">
+                    Total en pagina: {{ $table_view === 'alerts' ? $operationAlerts->count() : $logs->count() }}
+                </div>
             </div>
 
             <div class="row g-2 mb-3 align-items-end">
@@ -609,6 +611,14 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label fw-bold mb-1">Estado alerta</label>
+                    <select wire:model.live="operational_alert_status_filter" class="form-control vehicle-log-select" @if($table_view !== 'alerts') disabled @endif>
+                        <option value="all">Todas</option>
+                        <option value="active">Activas</option>
+                        <option value="resolved">Resueltas (historial)</option>
+                    </select>
+                </div>
             </div>
 
             <div class="row g-3">
@@ -623,7 +633,9 @@
                                         <th>Conductor</th>
                                         <th>Alerta</th>
                                         <th>Estado en ruta</th>
+                                        <th>Estado alerta</th>
                                         <th>Detectada</th>
+                                        <th>Resuelta</th>
                                         <th class="text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -631,14 +643,23 @@
                                     @forelse ($operationAlerts as $alert)
                                     <tr>
                                         <td>{{ $alert->vehicle?->placa ?? 'N/A' }}</td>
-                                        <td>{{ $alert->session?->driver?->nombre ?? 'N/A' }}</td>
+                                        <td>{{ $alert->session?->currentDriver?->nombre ?? $alert->session?->responsibleDriver?->nombre ?? data_get($alert->meta_json, 'driver_name') ?? 'N/A' }}</td>
                                         <td>
                                             <div class="fw-semibold">{{ $alert->title ?: 'Alerta operativa' }}</div>
                                             <div class="text-muted small">{{ $alert->message ?: '-' }}</div>
                                         </td>
                                         <td>{{ $alert->current_stage ?: '-' }}</td>
+                                        <td>
+                                            @if($alert->status === \App\Models\VehicleOperationAlert::STATUS_RESOLVED)
+                                            <span class="badge bg-secondary">Resuelta</span>
+                                            @else
+                                            <span class="badge bg-danger">Activa</span>
+                                            @endif
+                                        </td>
                                         <td>{{ optional($alert->detected_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                        <td>{{ optional($alert->resolved_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                         <td class="text-center">
+                                            @if($alert->status === \App\Models\VehicleOperationAlert::STATUS_ACTIVE)
                                             <button
                                                 type="button"
                                                 wire:click="markOperationalAlertReviewed({{ $alert->id }})"
@@ -646,12 +667,15 @@
                                                 title="Marcar como revisado">
                                                 <i class="fas fa-check"></i>
                                             </button>
+                                            @else
+                                            <span class="text-muted small">En historial</span>
+                                            @endif
                                         </td>
                                     </tr>
                                     @empty
                                     <tr>
-                                        <td colspan="6" class="text-center text-muted py-5 bitacora-shell__empty">
-                                            No hay alertas operativas activas.
+                                        <td colspan="8" class="text-center text-muted py-5 bitacora-shell__empty">
+                                            No hay alertas operativas para este filtro.
                                         </td>
                                     </tr>
                                     @endforelse
@@ -731,9 +755,9 @@
                 <div class="col-12">
                     <div class="mt-3">
                         @if($table_view === 'alerts')
-                        {{ $operationAlerts->links('pagination::bootstrap-4') }}
+                        {{ $operationAlerts->links() }}
                         @else
-                        {{ $logs->links('pagination::bootstrap-4') }}
+                        {{ $logs->links() }}
                         @endif
                     </div>
                 </div>

@@ -175,7 +175,7 @@
                             <input type="number" step="0.01" id="kilometraje" wire:model="kilometraje" class="form-control @error('kilometraje') is-invalid @enderror" required>
                             <div class="form-text">
                                 @if($tacometro_danado_vehiculo)
-                                    Si el tacometro esta danado, puede conservar el ultimo kilometraje valido.
+                                    Si el tacometro esta dañado, puede conservar el ultimo kilometraje valido.
                                 @elseif((int) ($from_alert_id ?? 0) > 0)
                                     Debe ser igual o mayor al KM actual del vehiculo.
                                 @else
@@ -313,11 +313,24 @@
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="p-3 border-bottom">
-                    <input
-                        type="text"
-                        class="form-control"
-                        wire:model.live.debounce.350ms="search"
-                        placeholder="Buscar por cualquier campo">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold mb-1">Busqueda</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                wire:model.live.debounce.350ms="search"
+                                placeholder="Buscar por cualquier campo">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label fw-bold mb-1">Fecha desde</label>
+                            <input type="date" class="form-control" wire:model.live="date_from">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label fw-bold mb-1">Fecha hasta</label>
+                            <input type="date" class="form-control" wire:model.live="date_to">
+                        </div>
+                    </div>
                 </div>
                 @if($maintenanceLogs->count())
                     <div class="table-responsive">

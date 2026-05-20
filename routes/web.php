@@ -350,6 +350,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/vehicle-assignments/report/pdf', [VehicleAssignmentReportController::class, 'exportPdf'])
         ->name('vehicle-assignments.report.pdf');
     Route::view('/livewire/vehicle-logs', 'livewire.pages.vehicle-logs')->name('livewire.vehicle-logs');
+    Route::redirect('/livewire/livewire/vehicle-logs', '/livewire/vehicle-logs', 301);
     Route::view('/map', 'livewire.pages.map')->name('map.index');
     Route::view('/livewire/map', 'livewire.pages.map')->name('livewire.map');
     Route::get('/map/data', [MapController::class, 'data'])->name('map.data');

@@ -47,6 +47,8 @@ Route::middleware('web')->group(function () {
         Route::get('/mobile/me', [AuthTokenController::class, 'me']);
         Route::get('/mobile/bootstrap', [AuthTokenController::class, 'bootstrap']);
         Route::post('/mobile/logout', [AuthTokenController::class, 'logout']);
+        Route::post('/mobile/maintenance-requests', [MaintenanceRequestApiController::class, 'storeMobile']);
+        Route::get('/mobile/maintenance-requests', [MaintenanceRequestApiController::class, 'indexMobile']);
         Route::post('/mobile/snapshot', [MobileSnapshotController::class, 'store']);
         Route::patch('/alerts/{alert}/read', [AlertReadApiController::class, 'markRead']);
 

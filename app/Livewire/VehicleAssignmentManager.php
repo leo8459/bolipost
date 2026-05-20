@@ -6,6 +6,7 @@ use App\Models\Driver;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
+use App\Models\Workshop;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -331,10 +332,19 @@ class VehicleAssignmentManager extends Component
 
     public function delete(VehicleAssignment $assignment): void
     {
+        $vehicleId = $assignment->vehicle_id ? (int) $assignment->vehicle_id : null;
+        if ($vehicleId && $this->hasOpenWorkshopForVehicle($vehicleId)) {
+            session()->flash('error', 'No se puede inactivar la asignacion mientras el vehiculo tenga una orden de taller abierta.');
+            return;
+        }
+
         $assignment->update([
             'activo' => false,
             'fecha_fin' => $assignment->fecha_fin?->toDateString() ?: now()->toDateString(),
         ]);
+        if ($vehicleId) {
+            $this->syncOpenWorkshopsResponsibleDriverForVehicle($vehicleId);
+        }
 
         session()->flash('message', 'Asignacion inactivada correctamente.');
     }
@@ -377,11 +387,19 @@ class VehicleAssignmentManager extends Component
     {
         $driverName = (string) ($assignment->driver?->nombre ?? 'El conductor');
         $vehiclePlate = (string) ($assignment->vehicle?->placa ?? 'el vehiculo');
+        $vehicleId = $assignment->vehicle_id ? (int) $assignment->vehicle_id : null;
+        if ($vehicleId && $this->hasOpenWorkshopForVehicle($vehicleId)) {
+            session()->flash('error', "No se puede desasignar {$vehiclePlate} mientras tenga una orden de taller abierta.");
+            return;
+        }
 
         $assignment->update([
             'activo' => false,
             'fecha_fin' => now()->toDateString(),
         ]);
+        if ($vehicleId) {
+            $this->syncOpenWorkshopsResponsibleDriverForVehicle($vehicleId);
+        }
 
         session()->flash('message', "{$driverName} quedo sin vehiculo asignado. Se cerro logicamente la asignacion de {$vehiclePlate}.");
     }
@@ -426,10 +444,16 @@ class VehicleAssignmentManager extends Component
             $assignment = VehicleAssignment::find($this->editingId);
             if ($assignment) {
                 $assignment->update($payload);
+                if ($assignment->vehicle_id) {
+                    $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
+                }
                 session()->flash('message', $successMessage ?: 'Asignacion actualizada correctamente.');
             }
         } else {
-            VehicleAssignment::create($payload);
+            $assignment = VehicleAssignment::create($payload);
+            if ($assignment->vehicle_id) {
+                $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
+            }
             session()->flash('message', $successMessage ?: 'Asignacion creada correctamente.');
         }
 
@@ -453,16 +477,24 @@ class VehicleAssignmentManager extends Component
 
         $effectiveEndDate = $this->resolveAssignmentDate();
 
-        VehicleAssignment::query()
+        $affectedVehicleIds = VehicleAssignment::query()
             ->whereIn('id', $assignmentIds->all())
             ->get()
-            ->each(function (VehicleAssignment $assignment) use ($effectiveEndDate) {
+            ->map(function (VehicleAssignment $assignment) use ($effectiveEndDate) {
                 $assignment->update([
                     // QUITAMOS la linea de vehicle_id => null para mantener el historial
                     'activo' => false,
                     'fecha_fin' => $effectiveEndDate,
                 ]);
-            });
+                return $assignment->vehicle_id ? (int) $assignment->vehicle_id : null;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        foreach ($affectedVehicleIds as $vehicleId) {
+            $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $vehicleId);
+        }
     }
 
     private function ensureValidAssignmentSelection(): bool
@@ -703,12 +735,117 @@ class VehicleAssignmentManager extends Component
 
     private function syncExpiredAssignments(): void
     {
-        VehicleAssignment::query()
+        $expired = VehicleAssignment::query()
             ->where('activo', true)
             ->where('tipo_asignacion', 'Temporal')
             ->whereNotNull('fecha_fin')
             ->whereDate('fecha_fin', '<', now()->toDateString())
+            ->get();
+
+        if ($expired->isEmpty()) {
+            return;
+        }
+
+        $expiredWithoutOpenWorkshop = $expired
+            ->reject(function (VehicleAssignment $assignment) {
+                $vehicleId = $assignment->vehicle_id ? (int) $assignment->vehicle_id : 0;
+                return $vehicleId > 0 && $this->hasOpenWorkshopForVehicle($vehicleId);
+            })
+            ->values();
+
+        if ($expiredWithoutOpenWorkshop->isEmpty()) {
+            return;
+        }
+
+        $vehicleIds = $expiredWithoutOpenWorkshop
+            ->map(fn (VehicleAssignment $assignment) => $assignment->vehicle_id ? (int) $assignment->vehicle_id : null)
+            ->filter()
+            ->unique()
+            ->values();
+
+        VehicleAssignment::query()
+            ->whereIn('id', $expiredWithoutOpenWorkshop->pluck('id')->all())
             ->update(['activo' => false]);
+
+        foreach ($vehicleIds as $vehicleId) {
+            $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $vehicleId);
+        }
+    }
+
+    private function hasOpenWorkshopForVehicle(int $vehicleId): bool
+    {
+        if ($vehicleId <= 0) {
+            return false;
+        }
+
+        return Workshop::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where('activo', true)
+            ->whereIn('estado', [
+                Workshop::STATUS_PENDING,
+                Workshop::STATUS_DISPATCHED,
+                Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_APPROVED,
+                Workshop::STATUS_REPAIR,
+                Workshop::STATUS_READY,
+            ])
+            ->exists();
+    }
+
+    private function resolveCurrentAssignmentForVehicle(int $vehicleId): ?VehicleAssignment
+    {
+        if ($vehicleId <= 0) {
+            return null;
+        }
+
+        return VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where(function ($query) {
+                $query->where('activo', true)->orWhereNull('activo');
+            })
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->get()
+            ->first(function (VehicleAssignment $assignment) {
+                $today = now()->toDateString();
+                $starts = $assignment->fecha_inicio?->toDateString();
+                $ends = $assignment->fecha_fin?->toDateString();
+
+                if ($starts && $starts > $today) {
+                    return false;
+                }
+
+                if ($ends && $ends < $today) {
+                    return false;
+                }
+
+                return true;
+            });
+    }
+
+    private function syncOpenWorkshopsResponsibleDriverForVehicle(int $vehicleId): void
+    {
+        if ($vehicleId <= 0) {
+            return;
+        }
+
+        $currentAssignment = $this->resolveCurrentAssignmentForVehicle($vehicleId);
+        $driverId = $currentAssignment?->driver_id ? (int) $currentAssignment->driver_id : null;
+
+        Workshop::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where('activo', true)
+            ->whereIn('estado', [
+                Workshop::STATUS_PENDING,
+                Workshop::STATUS_DISPATCHED,
+                Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_APPROVED,
+                Workshop::STATUS_REPAIR,
+                Workshop::STATUS_READY,
+            ])
+            ->update([
+                'driver_id' => $driverId,
+            ]);
     }
 
     private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')

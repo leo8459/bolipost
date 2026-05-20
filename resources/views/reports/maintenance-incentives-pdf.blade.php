@@ -38,6 +38,21 @@
     </div>
 
     <div class="card">
+        <div class="section-title">Mejor Conductor del Periodo</div>
+        <div class="box blue" style="margin-bottom:18px;">
+            <div style="font-size:18px; font-weight:700;">
+                {{ $bestDriver?->driver?->nombre ?? 'Sin datos' }}
+            </div>
+            <div class="muted" style="margin-top:4px;">
+                @if($bestDriver)
+                    Puntaje: {{ (int) $bestDriver->stars_end }} / {{ $maxStars }} estrellas |
+                    Preventivos cumplidos: {{ (int) $bestDriver->preventive_requests }}
+                @else
+                    No existen registros suficientes para definir mejor conductor.
+                @endif
+            </div>
+        </div>
+
         <div class="section-title">Cuadro de Honor</div>
         <table class="rank-grid">
             <tr>
@@ -46,7 +61,7 @@
                         <div class="rank-card {{ $index === 0 ? 'primary' : '' }}">
                             <div>#{{ $index + 1 }}</div>
                             <div style="font-size:18px; font-weight:700; margin:8px 0;">{{ $report->driver?->nombre ?? 'Sin conductor' }}</div>
-                            <div>{{ str_repeat('★', (int) $report->stars_end) }}{{ str_repeat('☆', max($maxStars - (int) $report->stars_end, 0)) }}</div>
+                            <div>{!! str_repeat('&#9733;', (int) $report->stars_end) !!}{!! str_repeat('&#9734;', max($maxStars - (int) $report->stars_end, 0)) !!}</div>
                             <div style="margin-top:8px;">{{ (int) $report->preventive_requests }} preventivos OK</div>
                         </div>
                     </td>
@@ -113,3 +128,5 @@
     </div>
 </body>
 </html>
+
+

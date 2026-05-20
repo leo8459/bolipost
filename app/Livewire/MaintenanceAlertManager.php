@@ -4,9 +4,12 @@ namespace App\Livewire;
 
 use App\Models\MaintenanceAlert;
 use App\Models\MaintenanceAlertUserRead;
+use App\Models\MaintenanceAppointment;
 use App\Models\VehicleAssignment;
 use App\Models\Workshop;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\WithoutUrlPagination;
@@ -21,10 +24,14 @@ class MaintenanceAlertManager extends Component
     public string $search = '';
     public string $filterTipo = '';
     public string $filterEstado = 'abiertas';
+    public ?string $dateFrom = null;
+    public ?string $dateTo = null;
 
     public function mount(): void
     {
         abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        $this->syncApprovedRequestsIntoAlerts();
+        $this->reconcileInWorkshopAlertsWithoutOpenWorkshop();
     }
 
     public function render()
@@ -57,7 +64,7 @@ class MaintenanceAlertManager extends Component
 
         if ($this->filterEstado === 'abiertas') {
             $query->whereIn('status', MaintenanceAlert::openStatuses());
-        } elseif ($this->filterEstado === 'resueltas') {
+        } elseif (in_array($this->filterEstado, ['resueltas', 'resuelta'], true)) {
             $query->where('status', MaintenanceAlert::STATUS_RESOLVED);
         } elseif ($this->filterEstado === 'solicitado') {
             $query->where('status', MaintenanceAlert::STATUS_REQUESTED);
@@ -73,6 +80,14 @@ class MaintenanceAlertManager extends Component
                 ->where('status', MaintenanceAlert::STATUS_ACTIVE)
                 ->whereNotNull('faltante_km')
                 ->where('faltante_km', '<', 0);
+        }
+
+        if ($this->dateFrom) {
+            $query->whereDate('created_at', '>=', $this->dateFrom);
+        }
+
+        if ($this->dateTo) {
+            $query->whereDate('created_at', '<=', $this->dateTo);
         }
 
         $pendingCountQuery = MaintenanceAlert::query();
@@ -104,6 +119,16 @@ class MaintenanceAlertManager extends Component
     }
 
     public function updatedFilterEstado(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedDateFrom(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedDateTo(): void
     {
         $this->resetPage();
     }
@@ -226,12 +251,12 @@ class MaintenanceAlertManager extends Component
             ])
             ->first();
 
-        $alert->update([
-            'status' => MaintenanceAlert::STATUS_IN_WORKSHOP,
-            'leida' => true,
-        ]);
-
         if ($existingWorkshop) {
+            $alert->update([
+                'status' => MaintenanceAlert::STATUS_IN_WORKSHOP,
+                'leida' => true,
+            ]);
+
             return redirect()->route('livewire.workshops', [
                 'edit_workshop_id' => $existingWorkshop->id,
             ]);
@@ -263,33 +288,107 @@ class MaintenanceAlertManager extends Component
             return;
         }
 
-        $existingWorkshop = Workshop::query()
-            ->where('maintenance_alert_id', $alert->id)
-            ->whereIn('estado', [
-                Workshop::STATUS_PENDING,
-                Workshop::STATUS_DISPATCHED,
-                Workshop::STATUS_DIAGNOSIS,
-                Workshop::STATUS_APPROVED,
-                Workshop::STATUS_REPAIR,
-                Workshop::STATUS_READY,
-            ])
-            ->first();
+        $missingActiveAssignment = false;
 
-        $alert->update([
-            'status' => MaintenanceAlert::STATUS_IN_WORKSHOP,
-            'leida' => true,
-        ]);
+        $workshop = DB::transaction(function () use ($alert, &$missingActiveAssignment) {
+            $lockedAlert = MaintenanceAlert::query()
+                ->with(['maintenanceType', 'maintenanceAppointment'])
+                ->lockForUpdate()
+                ->find($alert->id);
 
-        if ($existingWorkshop) {
-            return redirect()->route('livewire.workshops', [
-                'edit_workshop_id' => $existingWorkshop->id,
+            if (!$lockedAlert) {
+                return null;
+            }
+
+            $existingWorkshop = Workshop::query()
+                ->where('maintenance_alert_id', $lockedAlert->id)
+                ->whereIn('estado', [
+                    Workshop::STATUS_PENDING,
+                    Workshop::STATUS_DISPATCHED,
+                    Workshop::STATUS_DIAGNOSIS,
+                    Workshop::STATUS_APPROVED,
+                    Workshop::STATUS_REPAIR,
+                    Workshop::STATUS_READY,
+                ])
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingWorkshop) {
+                $lockedAlert->update([
+                    'status' => MaintenanceAlert::STATUS_REQUESTED,
+                    'leida' => true,
+                ]);
+                return $existingWorkshop;
+            }
+
+            $assignedDriverId = $this->resolveCurrentAssignmentDriverId((int) $lockedAlert->vehicle_id);
+            if (!$assignedDriverId) {
+                $missingActiveAssignment = true;
+                return null;
+            }
+
+            $typeName = (string) ($lockedAlert->maintenanceType?->nombre ?? $lockedAlert->tipo);
+            $createdWorkshop = Workshop::query()->create([
+                'vehicle_id' => (int) $lockedAlert->vehicle_id,
+                'driver_id' => (int) $assignedDriverId,
+                'maintenance_appointment_id' => $lockedAlert->maintenance_appointment_id ? (int) $lockedAlert->maintenance_appointment_id : null,
+                'maintenance_log_id' => null,
+                'maintenance_alert_id' => (int) $lockedAlert->id,
+                'workshop_catalog_id' => null,
+                'nombre_taller' => 'Pendiente de asignacion',
+                'fecha_ingreso' => now()->toDateString(),
+                'attention_started_at' => null,
+                'service_location' => null,
+                'fecha_prometida_entrega' => null,
+                'fecha_listo' => null,
+                'fecha_salida' => null,
+                'estado' => Workshop::STATUS_PENDING,
+                'workflow_kind' => Workshop::FLOW_HEAVY,
+                'approval_required' => true,
+                'diagnosis_requested_at' => now(),
+                'fixed_catalog_cost' => null,
+                'labor_cost' => null,
+                'additional_cost' => null,
+                'total_cost' => null,
+                'reassigned_from_workshop_catalog_id' => null,
+                'rejection_reason' => '',
+                'cancellation_reason' => '',
+                'reception_photo_path' => null,
+                'damage_photo_path' => null,
+                'invoice_file_path' => null,
+                'receipt_file_path' => null,
+                'pre_entrada_estado' => "Solicitud abierta para diagnostico desde alerta activa de mantenimiento {$typeName}.",
+                'observaciones_tecnicas' => '',
+                'diagnostico' => '',
+                'observaciones' => trim((string) $lockedAlert->mensaje),
+                'activo' => true,
             ]);
+
+            $lockedAlert->update([
+                'status' => MaintenanceAlert::STATUS_REQUESTED,
+                'leida' => true,
+            ]);
+
+            if (!$createdWorkshop->order_number) {
+                $createdWorkshop->update([
+                    'order_number' => sprintf('OT-%s-%04d', now()->format('Ymd'), (int) $createdWorkshop->id),
+                ]);
+            }
+
+            return $createdWorkshop;
+        });
+
+        if ($missingActiveAssignment) {
+            session()->flash('error', 'No se puede enviar a taller: el vehiculo no tiene una asignacion activa en vehicle-assignments.');
+            return;
         }
 
-        return redirect()->route('livewire.workshops', [
-            'from_alert_id' => $alert->id,
-            'request_diagnosis' => 1,
-        ]);
+        if (!$workshop) {
+            session()->flash('error', 'No se pudo registrar la solicitud de diagnostico.');
+            return;
+        }
+
+        session()->flash('message', 'Solicitud de diagnostico enviada. Quedo publicada para que cualquier taller la acepte, programe fecha y registre el costo.');
     }
 
     public function resolveAlert(int $alertId): void
@@ -373,15 +472,7 @@ class MaintenanceAlertManager extends Component
             return true;
         }
 
-        $driverId = (int) (auth()->user()?->resolvedDriver()?->id ?? 0);
-        if (!$driverId) {
-            return false;
-        }
-
-        return VehicleAssignment::query()
-            ->where('driver_id', $driverId)
-            ->where('vehicle_id', $alert->vehicle_id)
-            ->exists();
+        return in_array((int) $alert->vehicle_id, $this->resolveCurrentDriverVehicleIds(), true);
     }
 
     private function applyVisibilityScope($query)
@@ -395,12 +486,7 @@ class MaintenanceAlertManager extends Component
             return $query->whereRaw('1=0');
         }
 
-        $vehicleIds = VehicleAssignment::query()
-            ->where('driver_id', $driverId)
-            ->pluck('vehicle_id')
-            ->unique()
-            ->map(fn ($id) => (int) $id)
-            ->toArray();
+        $vehicleIds = $this->resolveCurrentDriverVehicleIds();
 
         if (empty($vehicleIds)) {
             return $query->whereRaw('1=0');
@@ -483,6 +569,134 @@ class MaintenanceAlertManager extends Component
         }
 
         return $query->paginate($perPage, ['*'], $pageName);
+    }
+
+    private function resolveCurrentDriverVehicleIds(): array
+    {
+        $driverId = (int) (auth()->user()?->resolvedDriver()?->id ?? 0);
+        if ($driverId <= 0) {
+            return [];
+        }
+
+        $today = now()->toDateString();
+
+        return VehicleAssignment::query()
+            ->where('driver_id', $driverId)
+            ->where(function ($query) {
+                $query->where('activo', true)->orWhereNull('activo');
+            })
+            ->where(function ($query) use ($today) {
+                $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+            })
+            ->where(function ($query) use ($today) {
+                $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+            })
+            ->pluck('vehicle_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function resolveCurrentAssignmentDriverId(int $vehicleId): ?int
+    {
+        if ($vehicleId <= 0) {
+            return null;
+        }
+
+        $today = now()->toDateString();
+
+        $assignment = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where(function ($query) {
+                $query->where('activo', true)->orWhereNull('activo');
+            })
+            ->where(function ($query) use ($today) {
+                $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+            })
+            ->where(function ($query) use ($today) {
+                $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+            })
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('id')
+            ->first();
+
+        return $assignment?->driver_id ? (int) $assignment->driver_id : null;
+    }
+
+    private function syncApprovedRequestsIntoAlerts(): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            return;
+        }
+
+        if (!Schema::hasTable('maintenance_appointments') || !Schema::hasTable('maintenance_alerts')) {
+            return;
+        }
+
+        $approvedAppointments = MaintenanceAppointment::query()
+            ->active()
+            ->with(['vehicle:id,placa', 'tipoMantenimiento:id,nombre'])
+            ->where('estado', MaintenanceAppointment::STATUS_APPROVED)
+            ->get();
+
+        foreach ($approvedAppointments as $appointment) {
+            $typeName = (string) ($appointment->tipoMantenimiento?->nombre ?? 'mantenimiento');
+            $plate = (string) ($appointment->vehicle?->placa ?? 'N/A');
+
+            MaintenanceAlert::query()->updateOrCreate(
+                [
+                    'maintenance_appointment_id' => (int) $appointment->id,
+                    'tipo' => 'Solicitud',
+                ],
+                [
+                    'vehicle_id' => (int) $appointment->vehicle_id,
+                    'maintenance_type_id' => $appointment->tipo_mantenimiento_id,
+                    'mensaje' => "Solicitud aprobada: {$typeName} para vehiculo {$plate}. Pendiente de acciones en taller.",
+                    'leida' => false,
+                    'status' => MaintenanceAlert::STATUS_ACTIVE,
+                    'fecha_resolucion' => null,
+                    'usuario_id' => null,
+                ]
+            );
+        }
+    }
+
+    private function reconcileInWorkshopAlertsWithoutOpenWorkshop(): void
+    {
+        if (auth()->user()?->role === 'conductor') {
+            return;
+        }
+
+        $openWorkshopStates = [
+            Workshop::STATUS_PENDING,
+            Workshop::STATUS_DISPATCHED,
+            Workshop::STATUS_DIAGNOSIS,
+            Workshop::STATUS_APPROVED,
+            Workshop::STATUS_REPAIR,
+            Workshop::STATUS_READY,
+        ];
+
+        $orphanInWorkshopAlerts = MaintenanceAlert::query()
+            ->where('status', MaintenanceAlert::STATUS_IN_WORKSHOP)
+            ->whereDoesntHave('workshops', function ($query) use ($openWorkshopStates) {
+                $query->where('activo', true)->whereIn('estado', $openWorkshopStates);
+            })
+            ->get(['id', 'tipo']);
+
+        foreach ($orphanInWorkshopAlerts as $alert) {
+            $fallbackStatus = (string) $alert->tipo === 'Solicitud'
+                ? MaintenanceAlert::STATUS_REQUESTED
+                : MaintenanceAlert::STATUS_ACTIVE;
+
+            $alert->update([
+                'status' => $fallbackStatus,
+                'leida' => false,
+                'fecha_resolucion' => null,
+                'usuario_id' => null,
+            ]);
+        }
     }
 
 }

@@ -27,9 +27,18 @@ class VehicleMaintenanceReportController extends Controller
             'generatedBy' => $request->user(),
         ])->setPaper('letter', 'portrait');
 
-        return $pdf->download(sprintf(
+        $filename = sprintf(
             'mantenimientos-%s.pdf',
             strtolower(str_replace(' ', '-', (string) $vehicle->placa))
-        ));
+        );
+
+        if ($request->boolean('download')) {
+            return $pdf->download($filename);
+        }
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
     }
 }

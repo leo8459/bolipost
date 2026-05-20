@@ -48,6 +48,7 @@ class MaintenanceIncentiveReportController extends Controller
             ? round($reports->avg(fn ($report) => (float) $report->stars_end), 1)
             : 0.0;
         $rankingTop = $reports->take(3)->values();
+        $bestDriver = $rankingTop->first();
         $estimatedSavings = $reports->sum(fn ($report) => (int) $report->preventive_requests) * 250;
         $pendingBonuses = $reports
             ->where('stars_end', DriverIncentiveService::MAX_STARS)
@@ -59,6 +60,7 @@ class MaintenanceIncentiveReportController extends Controller
             'to' => $to,
             'scoreGlobal' => $scoreGlobal,
             'rankingTop' => $rankingTop,
+            'bestDriver' => $bestDriver,
             'estimatedSavings' => $estimatedSavings,
             'pendingBonuses' => $pendingBonuses,
             'maxStars' => DriverIncentiveService::MAX_STARS,

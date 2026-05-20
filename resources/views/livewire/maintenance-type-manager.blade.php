@@ -351,7 +351,7 @@
 
     @if($showVehicleInfoModal)
         <div class="maintenance-vehicle-modal-backdrop" wire:click="closeVehicleInfoModal">
-            <div class="maintenance-vehicle-modal-card card shadow-sm" wire:click.stop>
+            <div class="maintenance-vehicle-modal-card card shadow-sm" x-on:click.stop>
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span class="fw-bold">
                         <i class="fas fa-car me-2 text-primary"></i>Informacion del vehiculo

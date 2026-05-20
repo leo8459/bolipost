@@ -18,6 +18,10 @@ class VehicleOperationAlert extends Model
     public const TYPE_MOBILE_BACKGROUND_TRACKING_FAILED = 'mobile_background_tracking_failed';
     public const TYPE_MOBILE_GPS_DISABLED_ATTEMPT = 'mobile_gps_disabled_attempt';
     public const TYPE_MOBILE_GPS_MOCKED_ATTEMPT = 'mobile_gps_mocked_attempt';
+    public const TYPE_MOBILE_BACKGROUND_SYNC_FAILED = 'mobile_background_sync_failed';
+    public const TYPE_MOBILE_BACKGROUND_SYNC_TIMEOUT = 'mobile_background_sync_timeout';
+    public const TYPE_MOBILE_RUNTIME_ERROR = 'mobile_runtime_error';
+    public const TYPE_FUEL_ANTIFRAUD_REVIEW_REQUIRED = 'fuel_antifraud_review_required';
 
     public const STATUS_ACTIVE = 'Activa';
     public const STATUS_RESOLVED = 'Resuelta';
@@ -76,6 +80,9 @@ class VehicleOperationAlert extends Model
             self::TYPE_MOBILE_BACKGROUND_TRACKING_FAILED,
             self::TYPE_MOBILE_GPS_DISABLED_ATTEMPT,
             self::TYPE_MOBILE_GPS_MOCKED_ATTEMPT,
+            self::TYPE_MOBILE_BACKGROUND_SYNC_FAILED,
+            self::TYPE_MOBILE_BACKGROUND_SYNC_TIMEOUT,
+            self::TYPE_MOBILE_RUNTIME_ERROR,
         ];
     }
 }

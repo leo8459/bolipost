@@ -314,7 +314,7 @@
                             @error('color') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">A�o</label>
+                            <label class="form-label fw-bold">Año</label>
                             <input type="number" wire:model="anio" class="form-control vehicle-form-field @error('anio') is-invalid @enderror" required max="{{ date('Y') }}">
                             @error('anio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
@@ -329,7 +329,7 @@
                                 min="5"
                                 @disabled($kilometrajeLocked)
                             >
-                            <div class="form-text">Si el tacometro esta da�ado, se conservara este ultimo kilometraje como referencia del vehiculo.</div>
+                            <div class="form-text">Si el tacometro esta danado, se conservara este ultimo kilometraje como referencia del vehiculo.</div>
                             @if($kilometrajeLocked)
                                 <div class="form-text text-warning fw-semibold">No se puede editar el kilometraje desde esta pantalla.</div>
                             @endif
@@ -361,6 +361,28 @@
                     </div>
                 </form>
             </div>
+            @if($showInitialKilometrajeConfirm)
+                <div class="vehicle-confirm-overlay">
+                    <div class="vehicle-confirm-card">
+                        <div class="card-header bg-primary text-white fw-bold">
+                            <i class="fas fa-gauge-high me-2"></i>Confirmar kilometraje inicial
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">
+                                Estas registrando el vehiculo con kilometraje inicial
+                                <strong>{{ number_format((float) ($kilometraje ?? 0), 2) }} km</strong>.
+                            </p>
+                            <p class="mb-0 text-muted">
+                                Verifica que este valor sea correcto antes de guardar.
+                            </p>
+                        </div>
+                        <div class="card-footer d-flex justify-content-end gap-2">
+                            <button type="button" wire:click="cancelInitialKilometrajeConfirm" class="btn btn-outline-secondary">Revisar kilometraje</button>
+                            <button type="button" wire:click="confirmInitialKilometraje" class="btn btn-primary">Continuar y guardar</button>
+                        </div>
+                    </div>
+                </div>
+            @endif
             @if($showMaintenanceBackfillConfirm)
                 <div class="vehicle-confirm-overlay">
                     <div class="vehicle-confirm-card">
@@ -488,13 +510,16 @@
                                         @if(auth()->user()?->role !== 'conductor')
                                             <td class="text-center">
                                                 <div class="bp-action-row">
-                                                    <a
-                                                        href="{{ route('vehicles.maintenance-report', $vehicle) }}"
-                                                        class="btn btn-sm btn-outline-primary bp-icon-btn"
-                                                        title="Descargar PDF de mantenimientos"
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-outline-primary bp-icon-btn vehicle-maintenance-preview-btn"
+                                                        data-url="{{ route('vehicles.maintenance-report', ['vehicle' => $vehicle, 'download' => 0]) }}"
+                                                        data-download-url="{{ route('vehicles.maintenance-report', ['vehicle' => $vehicle, 'download' => 1]) }}"
+                                                        data-title="Historial de mantenimientos {{ $vehicle->placa }}"
+                                                        title="Ver PDF de mantenimientos"
                                                     >
                                                         <i class="fas fa-file-pdf"></i>
-                                                    </a>
+                                                    </button>
                                                     <button
                                                         wire:click="edit({{ $vehicle->id }})"
                                                         class="btn btn-sm btn-outline-warning bp-icon-btn"
@@ -545,4 +570,98 @@
             </div>
         </div>
     @endif
+
+    <div class="modal fade" id="vehicleMaintenancePdfModal" tabindex="-1" aria-labelledby="vehicleMaintenancePdfModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="vehicleMaintenancePdfModalLabel">Historial de mantenimientos</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <iframe id="vehicleMaintenancePdfFrame" style="width:100%;min-height:72vh;border:1px solid #e9ecef;border-radius:10px;background:#fff;" title="PDF mantenimientos"></iframe>
+                </div>
+                <div class="modal-footer">
+                    <a id="vehicleMaintenancePdfDownloadBtn" href="#" class="btn btn-primary" target="_blank" rel="noopener">
+                        <i class="fas fa-download me-1"></i>Descargar
+                    </a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            if (window.__vehicleMaintenancePdfModalInitialized) {
+                return;
+            }
+            window.__vehicleMaintenancePdfModalInitialized = true;
+
+            function getModalInstance(el) {
+                if (!el) return null;
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+                        return window.bootstrap.Modal.getOrCreateInstance(el);
+                    }
+                    if (typeof window.bootstrap.Modal.getInstance === 'function') {
+                        return window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+                    }
+                    return new window.bootstrap.Modal(el);
+                }
+                if (window.jQuery) {
+                    return {
+                        show: function () { window.jQuery(el).modal('show'); },
+                        hide: function () { window.jQuery(el).modal('hide'); }
+                    };
+                }
+                return null;
+            }
+
+            var modalEl = document.getElementById('vehicleMaintenancePdfModal');
+            var titleEl = document.getElementById('vehicleMaintenancePdfModalLabel');
+            var frameEl = document.getElementById('vehicleMaintenancePdfFrame');
+            var downloadEl = document.getElementById('vehicleMaintenancePdfDownloadBtn');
+            if (!modalEl || !frameEl || !downloadEl) return;
+
+            if (modalEl.parentElement !== document.body) {
+                document.body.appendChild(modalEl);
+            }
+
+            document.addEventListener('click', function (event) {
+                var btn = event.target.closest('.vehicle-maintenance-preview-btn');
+                if (!btn) return;
+
+                var previewUrl = btn.getAttribute('data-url') || '';
+                var downloadUrl = btn.getAttribute('data-download-url') || previewUrl;
+                var title = btn.getAttribute('data-title') || 'Historial de mantenimientos';
+
+                if (titleEl) titleEl.textContent = title;
+                frameEl.src = previewUrl;
+                downloadEl.href = downloadUrl;
+
+                var modal = getModalInstance(modalEl);
+                if (modal) modal.show();
+            });
+
+            modalEl.addEventListener('click', function (event) {
+                var closeBtn = event.target.closest('[data-bs-dismiss="modal"], [data-dismiss="modal"]');
+                if (!closeBtn) return;
+                var modal = getModalInstance(modalEl);
+                if (modal && typeof modal.hide === 'function') {
+                    modal.hide();
+                }
+            });
+
+            modalEl.addEventListener('hidden.bs.modal', function () {
+                frameEl.src = '';
+            });
+
+            if (window.jQuery) {
+                window.jQuery(modalEl).on('hidden.bs.modal hidden', function () {
+                    frameEl.src = '';
+                });
+            }
+        })();
+    </script>
 </div>

@@ -37,6 +37,12 @@ class EnsureLivewireActionPermission extends ComponentHook
             return;
         }
 
+        // Mantener la misma compatibilidad del middleware de rutas:
+        // usuarios con variantes de rol "admin" deben poder operar.
+        if ($this->isPrivilegedAdminUser($user)) {
+            return;
+        }
+
         $permissionsToCheck = AclPermissionRegistry::authorizationPermissionsForLivewireAction(
             $componentClass,
             $methodName,
@@ -64,5 +70,15 @@ class EnsureLivewireActionPermission extends ComponentHook
         }
 
         abort(403, 'No tienes permiso para ejecutar esta funcionalidad.');
+    }
+
+    private function isPrivilegedAdminUser(mixed $user): bool
+    {
+        $role = mb_strtolower(trim((string) ($user->role ?? '')));
+        if ($role === '') {
+            return false;
+        }
+
+        return $role === 'admin' || str_contains($role, 'admin');
     }
 }

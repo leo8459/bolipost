@@ -67,6 +67,7 @@ class VehicleLogManager extends Component
     public bool $showForm = false;
     public string $search = '';
     public string $table_view = 'logs';
+    public string $operational_alert_status_filter = 'all';
     public ?string $fecha_desde = null;
     public ?string $fecha_hasta = null;
     public ?int $vehicle_filter_id = null;
@@ -88,10 +89,15 @@ class VehicleLogManager extends Component
             ->orderByDesc('fecha')
             ->orderByDesc('id');
         $operationAlertsQuery = VehicleOperationAlert::query()
-            ->with(['vehicle', 'session.driver'])
-            ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+            ->with(['vehicle', 'session.driver', 'session.currentDriver', 'session.responsibleDriver'])
             ->orderByDesc('detected_at')
             ->orderByDesc('id');
+
+        if ($this->operational_alert_status_filter === 'active') {
+            $operationAlertsQuery->where('status', VehicleOperationAlert::STATUS_ACTIVE);
+        } elseif ($this->operational_alert_status_filter === 'resolved') {
+            $operationAlertsQuery->where('status', VehicleOperationAlert::STATUS_RESOLVED);
+        }
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -528,6 +534,15 @@ class VehicleLogManager extends Component
         $this->resetListPages();
     }
 
+    public function updatedOperationalAlertStatusFilter(): void
+    {
+        if (!in_array($this->operational_alert_status_filter, ['all', 'active', 'resolved'], true)) {
+            $this->operational_alert_status_filter = 'all';
+        }
+
+        $this->resetListPages();
+    }
+
     public function searchLogs(): void
     {
         $this->search = trim((string) $this->search);
@@ -544,6 +559,7 @@ class VehicleLogManager extends Component
         $this->driver_filter_id = $this->currentUser()?->role === 'conductor'
             ? (int) ($this->currentUser()?->resolvedDriver()?->id ?? 0) ?: null
             : null;
+        $this->operational_alert_status_filter = 'all';
         $this->resetListPages();
     }
 
@@ -1096,6 +1112,9 @@ class VehicleLogManager extends Component
             $this->setPage($lastPage, $pageName);
         }
 
-        return $query->paginate($perPage, ['*'], $pageName);
+        $paginator = $query->paginate($perPage, ['*'], $pageName);
+        $paginator->withPath(route('livewire.vehicle-logs'));
+
+        return $paginator;
     }
 }

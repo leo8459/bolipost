@@ -14,7 +14,9 @@ use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class MapController extends Controller
 {
@@ -112,15 +114,29 @@ class MapController extends Controller
      */
     private function buildOfflineVehiclesFromSnapshots($user, Carbon $selectedDate): array
     {
-        $snapshotsQuery = MobileDbSnapshot::query()
-            ->orderByDesc('id')
-            ->limit(500);
-
-        if ($user->role === 'conductor') {
-            $snapshotsQuery->where('user_id', (int) $user->id);
+        $table = (new MobileDbSnapshot())->getTable();
+        if (!Schema::hasTable($table)) {
+            return [];
         }
 
-        $snapshots = $snapshotsQuery->get();
+        try {
+            $snapshotsQuery = MobileDbSnapshot::query()
+                ->orderByDesc('id')
+                ->limit(500);
+
+            if ($user->role === 'conductor') {
+                $snapshotsQuery->where('user_id', (int) $user->id);
+            }
+
+            $snapshots = $snapshotsQuery->get();
+        } catch (Throwable $e) {
+            Log::warning('Map offline snapshot fallback unavailable.', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
         if ($snapshots->isEmpty()) {
             return [];
         }
@@ -928,6 +944,7 @@ class MapController extends Controller
 
         $openSessions = Schema::hasTable('vehicle_log_sessions')
             ? VehicleLogSession::query()
+                ->with(['currentDriver:id,nombre', 'responsibleDriver:id,nombre'])
                 ->whereIn('vehicle_id', $vehicleIds)
                 ->whereNull('ended_at')
                 ->orderByDesc('started_at')
@@ -951,6 +968,7 @@ class MapController extends Controller
             $isStale = (bool) ($vehicle['is_stale'] ?? false);
             $session = $openSessions->get($vehicleId);
             $sessionStatus = trim((string) ($session?->status ?? ''));
+            $driverName = $this->resolveOperationalDriverName($vehicle, $session);
             $gpsEnabled = array_key_exists('gps_enabled', $vehicle) ? (bool) $vehicle['gps_enabled'] : true;
             $gpsMocked = array_key_exists('gps_mocked', $vehicle) ? (bool) $vehicle['gps_mocked'] : false;
             $heartbeatAt = null;
@@ -990,29 +1008,9 @@ class MapController extends Controller
                 'resolved_at' => null,
                 'meta_json' => [
                     'seconds_since_update' => $secondsSince,
-                    'driver_name' => $vehicle['driver_name'] ?? null,
+                    'driver_name' => $driverName,
                 ],
             ];
-
-            if ($isStale) {
-                $desiredAlerts[] = [
-                    'vehicle_id' => $vehicleId,
-                    'vehicle_log_session_id' => $session?->id,
-                    'alert_type' => VehicleOperationAlert::TYPE_PHONE_OFF,
-                    'severity' => 'danger',
-                    'status' => VehicleOperationAlert::STATUS_ACTIVE,
-                    'title' => 'Celular apagado o sin señal',
-                    'message' => sprintf('%s no reporta ubicacion reciente. Ultima señal hace %s.', $plate, $this->formatSecondsAsHuman($secondsSince)),
-                    'current_stage' => $currentStatus,
-                    'last_heartbeat_at' => $heartbeatAt,
-                    'detected_at' => now(),
-                    'resolved_at' => null,
-                    'meta_json' => [
-                        'seconds_since_update' => $secondsSince,
-                        'driver_name' => $vehicle['driver_name'] ?? null,
-                    ],
-                ];
-            }
 
             if (!$gpsEnabled) {
                 $desiredAlerts[] = [
@@ -1062,7 +1060,7 @@ class MapController extends Controller
                 ];
             }
 
-            if ($session && ($sessionStatus === 'En Suspenso' || $isStale)) {
+            if ($session && $sessionStatus === 'En Suspenso') {
                 $desiredAlerts[] = [
                     'vehicle_id' => $vehicleId,
                     'vehicle_log_session_id' => $session->id,
@@ -1191,6 +1189,24 @@ class MapController extends Controller
         $minutes = (int) floor($seconds / 60);
         $remaining = $seconds % 60;
         return $minutes . ' minuto(s) ' . $remaining . ' segundo(s)';
+    }
+
+    /**
+     * @param array<string, mixed> $vehicle
+     */
+    private function resolveOperationalDriverName(array $vehicle, ?VehicleLogSession $session): string
+    {
+        $sessionDriverName = trim((string) ($session?->currentDriver?->nombre ?? $session?->responsibleDriver?->nombre ?? ''));
+        if ($sessionDriverName !== '') {
+            return $sessionDriverName;
+        }
+
+        $vehicleDriverName = trim((string) ($vehicle['driver_name'] ?? ''));
+        if ($vehicleDriverName !== '' && strtoupper($vehicleDriverName) !== 'SIN CONDUCTOR') {
+            return $vehicleDriverName;
+        }
+
+        return 'Sin conductor';
     }
 
     /**

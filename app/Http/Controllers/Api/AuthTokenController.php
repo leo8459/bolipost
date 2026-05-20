@@ -11,6 +11,7 @@ use App\Models\MaintenanceLog;
 use App\Models\MaintenanceType;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\VehicleOperationAlert;
 use App\Services\DriverIncentiveService;
 use App\Services\MaintenanceAlertService;
 use Illuminate\Http\Request;
@@ -191,6 +192,7 @@ class AuthTokenController extends Controller
         $maintenanceAlerts = collect();
         $maintenanceCalendar = collect();
         $maintenancePlan = collect();
+        $operationalAlerts = collect();
         $resolvedDriverId = $driver ? (int) $driver->id : null;
         $resolvedVehicleId = $vehicle ? (int) $vehicle->id : null;
         $incentive = $this->resolveDriverIncentivePayload($driver);
@@ -374,7 +376,7 @@ class AuthTokenController extends Controller
 
             $maintenanceAlertsCollection = MaintenanceAlert::query()
                 ->with(['maintenanceType:id,nombre', 'vehicle:id,placa'])
-                ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+                ->whereIn('status', MaintenanceAlert::blockingStatuses())
                 ->when($resolvedVehicleId, fn ($query) => $query->where('vehicle_id', $resolvedVehicleId))
                 ->orderByDesc('created_at')
                 ->limit(50)
@@ -452,6 +454,73 @@ class AuthTokenController extends Controller
                     })
                     ->values();
             }
+
+            $operationalAlertsQuery = VehicleOperationAlert::query()
+                ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+                ->orderByDesc('detected_at')
+                ->orderByDesc('id')
+                ->limit(30);
+
+            if ($resolvedVehicleId) {
+                $operationalAlertsQuery->where('vehicle_id', $resolvedVehicleId);
+            } elseif ($resolvedDriverId) {
+                $assignedVehicleIds = \App\Models\VehicleAssignment::query()
+                    ->where('driver_id', $resolvedDriverId)
+                    ->where(function ($query) {
+                        $query->where('activo', true)->orWhereNull('activo');
+                    })
+                    ->where(function ($query) {
+                        $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', now()->toDateString());
+                    })
+                    ->where(function ($query) {
+                        $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', now()->toDateString());
+                    })
+                    ->pluck('vehicle_id')
+                    ->filter()
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $operationalAlertsQuery->where(function ($query) use ($resolvedDriverId, $assignedVehicleIds) {
+                    $query->whereHas('session', fn ($sessionQuery) => $sessionQuery
+                        ->where('current_driver_id', $resolvedDriverId)
+                        ->orWhere('responsible_driver_id', $resolvedDriverId))
+                        ->orWhere('meta_json->driver_id', $resolvedDriverId);
+
+                    if (!empty($assignedVehicleIds)) {
+                        $query->orWhereIn('vehicle_id', $assignedVehicleIds);
+                    }
+                });
+            } else {
+                $operationalAlertsQuery->whereRaw('1=0');
+            }
+
+            $operationalAlerts = $operationalAlertsQuery
+                ->with(['vehicle:id,placa'])
+                ->get()
+                ->map(function (VehicleOperationAlert $alert) {
+                    $meta = is_array($alert->meta_json) ? $alert->meta_json : [];
+                    $nextRepeatAt = $meta['next_repeat_at'] ?? null;
+
+                    return [
+                        'id' => (int) $alert->id,
+                        'type' => (string) $alert->alert_type,
+                        'status' => (string) $alert->status,
+                        'severity' => (string) ($alert->severity ?? 'warning'),
+                        'title' => (string) ($alert->title ?? 'Alerta operativa'),
+                        'message' => (string) ($alert->message ?? ''),
+                        'vehicle_id' => $alert->vehicle_id ? (int) $alert->vehicle_id : null,
+                        'vehicle_plate' => (string) ($alert->vehicle?->placa ?? ''),
+                        'current_stage' => (string) ($alert->current_stage ?? ''),
+                        'detected_at' => optional($alert->detected_at ?? $alert->created_at)?->toIso8601String(),
+                        'next_repeat_at' => is_string($nextRepeatAt) ? $nextRepeatAt : null,
+                        'repeat_every_minutes' => (int) ($meta['repeat_every_minutes'] ?? 0),
+                        'repeat_until_resolved' => (bool) ($meta['repeat_until_resolved'] ?? false),
+                        'invoice_number' => (string) ($meta['invoice_number'] ?? ''),
+                    ];
+                })
+                ->values();
         }
 
         $usersPayload = $user ? [[
@@ -539,6 +608,7 @@ class AuthTokenController extends Controller
             'gas_stations' => $gasStations->values()->all(),
             'vales' => $vales->values()->all(),
             'maintenance_alerts' => $maintenanceAlerts->values()->all(),
+            'operational_alerts' => $operationalAlerts->values()->all(),
             'maintenance_calendar' => $maintenanceCalendar->values()->all(),
             'maintenance_plan' => $maintenancePlan->values()->all(),
             'incentive' => $incentive,
@@ -757,6 +827,11 @@ class AuthTokenController extends Controller
 
         $resolvedActiveDeviceId = trim((string) ($activeSession['device_id'] ?? ''));
         $resolvedCurrentDeviceId = trim((string) ($currentDeviceId ?? ''));
+
+        if ($resolvedCurrentDeviceId === '') {
+            return false;
+        }
+
         if (
             $resolvedCurrentDeviceId !== ''
             && $resolvedActiveDeviceId !== ''

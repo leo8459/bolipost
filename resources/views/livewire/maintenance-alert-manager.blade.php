@@ -23,6 +23,19 @@
             background-position: right .75rem center;
             background-size: 14px;
         }
+
+        .maintenance-filter-row .form-label {
+            display: block !important;
+            width: 100% !important;
+            margin-bottom: .35rem !important;
+        }
+
+        .maintenance-filter-row .form-select,
+        .maintenance-filter-row .form-control {
+            display: block;
+            width: 100%;
+        }
+
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
@@ -50,7 +63,7 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <div class="row g-3 align-items-end">
+            <div class="row g-3 align-items-end maintenance-filter-row">
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold">Buscar</label>
                     <input
@@ -73,8 +86,25 @@
                     <select wire:model.live="filterEstado" class="form-select bp-select-like-vehicle">
                         <option value="abiertas">Abiertas</option>
                         <option value="todas">Todas</option>
-                        <option value="resuelta">Resueltas</option>
+                        <option value="resueltas">Resueltas</option>
+                        <option value="solicitado">Solicitadas</option>
+                        <option value="en_taller">En taller</option>
+                        <option value="pospuestas">Pospuestas</option>
+                        <option value="vencidas">Vencidas</option>
                     </select>
+                </div>
+                <div class="col-12 col-md-2">
+                    <label class="form-label fw-bold">Desde</label>
+                    <input type="date" wire:model.live="dateFrom" class="form-control bp-select-like-vehicle">
+                </div>
+                <div class="col-12 col-md-2">
+                    <label class="form-label fw-bold">Hasta</label>
+                    <input type="date" wire:model.live="dateTo" class="form-control bp-select-like-vehicle">
+                </div>
+                <div class="col-12 col-md-1 d-grid">
+                    <button type="button" class="btn btn-outline-secondary" wire:click="$set('dateFrom', null); $set('dateTo', null)">
+                        Limpiar
+                    </button>
                 </div>
                 <div class="col-12 col-md-3">
                     <div class="alert alert-warning mb-0 py-2">
@@ -140,9 +170,13 @@
                                                 \App\Models\MaintenanceAlert::STATUS_OMITTED => 'bg-secondary',
                                                 default => ($isPostponed ? 'bg-warning text-dark' : 'bg-danger'),
                                             };
+                                            $statusLabel = match ($alert->status) {
+                                                \App\Models\MaintenanceAlert::STATUS_REQUESTED => 'En revision',
+                                                default => ($alert->status ?? 'Activa'),
+                                            };
                                         @endphp
                                         <span class="badge {{ $badgeClass }}">
-                                            {{ $isPostponed ? ('Pospuesta hasta ' . $alert->postponed_until->format('d/m/Y')) : ($isOverdue ? 'Vencida' : ($alert->status ?? 'Activa')) }}
+                                            {{ $isPostponed ? ('Pospuesta hasta ' . $alert->postponed_until->format('d/m/Y')) : ($isOverdue ? 'Vencida' : $statusLabel) }}
                                         </span>
                                     </td>
                                     <td>{{ optional($alert->created_at)->format('d/m/Y H:i') }}</td>

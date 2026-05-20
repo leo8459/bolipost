@@ -15,6 +15,7 @@ class WorkshopCatalog extends Model
     protected $fillable = [
         'nombre',
         'tipo',
+        'celular',
         'attention_hours',
         'location_label',
         'user_id',

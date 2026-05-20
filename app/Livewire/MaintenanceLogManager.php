@@ -68,8 +68,9 @@ class MaintenanceLogManager extends Component
     public function mount(): void
     {
         abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion']), 403);
-        $this->date_from = now()->startOfMonth()->toDateString();
-        $this->date_to = now()->toDateString();
+        // Mostrar historial completo por defecto (sin recorte de fechas).
+        $this->date_from = null;
+        $this->date_to = null;
 
         $fromAlertId = request()->integer('from_alert_id');
         if ($fromAlertId > 0) {

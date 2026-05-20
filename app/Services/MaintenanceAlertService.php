@@ -30,7 +30,7 @@ class MaintenanceAlertService
         $blockingAlert = MaintenanceAlert::query()
             ->with('maintenanceType:id,nombre')
             ->where('vehicle_id', (int) $vehicle->id)
-            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+            ->whereIn('status', MaintenanceAlert::blockingStatuses())
             ->where(function ($query) {
                 $query->whereNull('postponed_until')
                     ->orWhere('postponed_until', '<=', now());

@@ -125,6 +125,26 @@ class Workshop extends Model
         return $this->belongsTo(WorkshopCatalog::class);
     }
 
+    public function dispatchedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'dispatched_by_user_id');
+    }
+
+    public function diagnosedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'diagnosed_by_user_id');
+    }
+
+    public function approvedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by_user_id');
+    }
+
+    public function closedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by_user_id');
+    }
+
     public function reassignedFromWorkshopCatalog(): BelongsTo
     {
         return $this->belongsTo(WorkshopCatalog::class, 'reassigned_from_workshop_catalog_id');

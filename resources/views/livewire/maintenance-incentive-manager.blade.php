@@ -264,20 +264,21 @@
                 <div class="incentive-title">Incentivos y Metas</div>
             </div>
             <div class="incentive-tabs">
-                <button type="button" wire:click="setViewMode('panel')" class="incentive-tab-btn {{ $viewMode === 'panel' ? 'is-active' : '' }}">PANEL</button>
-                <button type="button" wire:click="setViewMode('reporte')" class="incentive-tab-btn {{ $viewMode === 'reporte' ? 'is-active' : '' }}">REPORTE</button>
+                <a href="{{ route('livewire.maintenance-incentives', array_merge(request()->query(), ['view' => 'panel'])) }}" class="incentive-tab-btn {{ $viewMode === 'panel' ? 'is-active' : '' }}" style="text-decoration:none;">PANEL</a>
+                <a href="{{ route('livewire.maintenance-incentives', array_merge(request()->query(), ['view' => 'reporte'])) }}" class="incentive-tab-btn {{ $viewMode === 'reporte' ? 'is-active' : '' }}" style="text-decoration:none;">REPORTE</a>
             </div>
         </div>
 
         <div class="incentive-filter-row">
-            <div class="row g-2 align-items-center">
+            <form method="GET" action="{{ route('livewire.maintenance-incentives') }}" class="row g-2 align-items-center">
+                <input type="hidden" name="view" value="{{ $viewMode }}">
                 <div class="col-12 col-lg-5">
-                    <input type="text" wire:model.live.debounce.350ms="search" class="form-control incentive-search" placeholder="Buscar conductor de elite...">
+                    <input type="text" name="search" value="{{ $search }}" class="form-control incentive-search" placeholder="Buscar conductor de elite...">
                 </div>
                 <div class="col-12 col-lg-4 d-flex flex-wrap gap-2">
-                    <button type="button" wire:click="$set('statusFilter','todos')" class="incentive-chip {{ $statusFilter === 'todos' ? 'is-active' : '' }}">Todos</button>
-                    <button type="button" wire:click="$set('statusFilter','excelente')" class="incentive-chip {{ $statusFilter === 'excelente' ? 'is-active' : '' }}">Excelente</button>
-                    <button type="button" wire:click="$set('statusFilter','regular')" class="incentive-chip {{ $statusFilter === 'regular' ? 'is-active' : '' }}">Regular</button>
+                    <a href="{{ route('livewire.maintenance-incentives', array_merge(request()->query(), ['status' => 'todos'])) }}" class="incentive-chip {{ $statusFilter === 'todos' ? 'is-active' : '' }}" style="text-decoration:none;">Todos</a>
+                    <a href="{{ route('livewire.maintenance-incentives', array_merge(request()->query(), ['status' => 'excelente'])) }}" class="incentive-chip {{ $statusFilter === 'excelente' ? 'is-active' : '' }}" style="text-decoration:none;">Excelente</a>
+                    <a href="{{ route('livewire.maintenance-incentives', array_merge(request()->query(), ['status' => 'regular'])) }}" class="incentive-chip {{ $statusFilter === 'regular' ? 'is-active' : '' }}" style="text-decoration:none;">Regular</a>
                 </div>
                 <div class="col-12 col-lg-3 d-flex align-items-center justify-content-lg-end">
                     <div>
@@ -292,8 +293,25 @@
                     </div>
                     <span class="small text-muted fw-bold ms-2">Activos ahora</span>
                 </div>
-            </div>
-            <div class="row g-2 align-items-end mt-1">
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-bold mb-1">Fecha desde</label>
+                    <input type="date" name="date_from" value="{{ $date_from }}" class="form-control">
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-bold mb-1">Fecha hasta</label>
+                    <input type="date" name="date_to" value="{{ $date_to }}" class="form-control">
+                </div>
+                <div class="col-12 col-md-4 d-flex align-items-center gap-2 pt-3">
+                    <a
+                        href="{{ route('livewire.maintenance-incentives', array_merge(request()->query(), ['perfect' => $onlyPerfect ? 0 : 1])) }}"
+                        class="btn btn-outline-primary btn-sm"
+                    >
+                        {{ $onlyPerfect ? 'Ver todos' : 'Solo 5 estrellas' }}
+                    </a>
+                    <button type="submit" class="btn btn-primary btn-sm">Aplicar filtros</button>
+                </div>
+            </form>
+            <div class="row g-2 align-items-end mt-1 d-none">
                 <div class="col-12 col-md-4">
                     <label class="form-label fw-bold mb-1">Fecha desde</label>
                     <input type="date" wire:model.live="date_from" class="form-control">
@@ -348,7 +366,13 @@
                                     @endfor
                                 </div>
                             </div>
-                            <button type="button" class="incentive-detail-btn" wire:click="showDetail({{ $report->driver_id }})">Ver Detalles</button>
+                            <a
+                                href="{{ route('livewire.maintenance-incentives', array_merge(request()->query(), ['detail_driver_id' => $report->driver_id])) }}"
+                                class="incentive-detail-btn"
+                                style="text-decoration:none;"
+                            >
+                                Ver Detalles
+                            </a>
                         </div>
                     </div>
                 @empty
@@ -372,9 +396,43 @@
                     </div>
                 </div>
                 <div class="col-12 col-md-4 d-flex align-items-end">
-                    <button type="button" class="btn btn-outline-primary w-100" wire:click="exportReportPdf">
+                    <a
+                        class="btn btn-outline-primary w-100"
+                        href="{{ route('maintenance-incentives.export.pdf', ['date_from' => $date_from, 'date_to' => $date_to, 'search' => $search, 'status' => $statusFilter, 'perfect' => $onlyPerfect ? 1 : 0]) }}"
+                        target="_blank"
+                    >
                         <i class="fas fa-file-pdf me-2"></i>Descargar reporte PDF
-                    </button>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div>
+                        <div class="text-muted small">Mejor conductor del periodo</div>
+                        <div class="fs-5 fw-bold">
+                            {{ $bestDriver?->driver?->nombre ?? 'Sin datos para ranking' }}
+                        </div>
+                        <div class="small text-muted">
+                            Periodo evaluado: {{ $periodLabel }}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="text-warning fw-bold fs-5">
+                            @if($bestDriver)
+                                {{ str_repeat('★', (int) $bestDriver->stars_end) }}{{ str_repeat('☆', max($maxStars - (int) $bestDriver->stars_end, 0)) }}
+                            @else
+                                -
+                            @endif
+                        </div>
+                        <div class="small text-muted">
+                            @if($bestDriver)
+                                {{ (int) $bestDriver->preventive_requests }} preventivos cumplidos
+                            @else
+                                Sin registros
+                            @endif
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -435,7 +493,10 @@
                                             <div class="small text-muted">Total revisado en el periodo: {{ $report->total_requests }}.</div>
                                         </td>
                                         <td class="text-end">
-                                            <button type="button" class="btn btn-outline-primary btn-sm" wire:click="showDetail({{ $report->driver_id }})"><i class="fas fa-eye"></i></button>
+                                            <a
+                                                href="{{ route('livewire.maintenance-incentives', array_merge(request()->query(), ['detail_driver_id' => $report->driver_id])) }}"
+                                                class="btn btn-outline-primary btn-sm"
+                                            ><i class="fas fa-eye"></i></a>
                                         </td>
                                     </tr>
                                 @empty
@@ -464,7 +525,7 @@
                         </div>
                         <div class="small text-muted">Periodo: {{ $periodLabel }}</div>
                     </div>
-                    <button type="button" class="btn-close" aria-label="Cerrar" wire:click="closeDetail"></button>
+                    <a href="{{ route('livewire.maintenance-incentives', request()->except('detail_driver_id')) }}" class="btn-close" aria-label="Cerrar"></a>
                 </div>
                 <div class="card-body incentive-detail-body">
                     <div class="row g-3 mb-3">
@@ -484,6 +545,24 @@
                             <div class="border rounded-3 p-3 h-100 bg-light">
                                 <div class="text-muted small">Mantenimientos que no descontaron</div>
                                 <div class="fw-bold fs-4 text-success">{{ count($selectedReport->non_discounted_appointments) }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="border rounded-3 p-3 h-100 bg-light">
+                                <div class="text-muted small">Historial total conductor</div>
+                                <div class="fw-bold fs-4 text-primary">{{ (int) ($detailHistoryStats['total'] ?? 0) }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="border rounded-3 p-3 h-100 bg-light">
+                                <div class="text-muted small">Historial con descuento</div>
+                                <div class="fw-bold fs-4 text-danger">{{ (int) ($detailHistoryStats['discounts'] ?? 0) }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="border rounded-3 p-3 h-100 bg-light">
+                                <div class="text-muted small">Historial sin descuento</div>
+                                <div class="fw-bold fs-4 text-success">{{ (int) ($detailHistoryStats['ok'] ?? 0) }}</div>
                             </div>
                         </div>
                     </div>
@@ -523,9 +602,71 @@
                             <div class="text-muted small">No hubo mantenimientos preventivos aprobados o realizados en este periodo.</div>
                         @endforelse
                     </div>
+
+                    <div class="border rounded-3 p-3 bg-light mt-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="fw-bold text-primary">Historial completo de mantenimientos del conductor</div>
+                            <span class="badge bg-primary">{{ count($detailFullHistory) }} registro(s)</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Tipo</th>
+                                        <th>Vehiculo</th>
+                                        <th>Estado</th>
+                                        <th>Solicitud</th>
+                                        <th>Cita</th>
+                                        <th>Impacto</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($detailFullHistory as $item)
+                                        <tr>
+                                            <td>{{ $item['id'] }}</td>
+                                            <td>
+                                                <div class="fw-semibold">{{ $item['maintenance_type'] }}</div>
+                                                <div class="small text-muted">{{ $item['origin'] }}</div>
+                                            </td>
+                                            <td>
+                                                <div>{{ $item['vehicle_label'] }}</div>
+                                                <div class="small text-muted">Placa: {{ $item['vehicle_plate'] }}</div>
+                                            </td>
+                                            <td>{{ $item['status'] }}</td>
+                                            <td>{{ $item['request_date'] }}</td>
+                                            <td>{{ $item['scheduled_date'] }}</td>
+                                            <td>
+                                                <span class="badge bg-{{ $item['impact_class'] }}">{{ $item['impact'] }}</span>
+                                                <div class="small text-muted mt-1">{{ $item['impact_reason'] }}</div>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    @if(!empty($item['evidence_url']))
+                                                        <a href="{{ $item['evidence_url'] }}" target="_blank" class="btn btn-outline-primary btn-sm">Evidencia</a>
+                                                    @endif
+                                                    @if(!empty($item['form_url']))
+                                                        <a href="{{ $item['form_url'] }}" target="_blank" class="btn btn-outline-secondary btn-sm">Documento</a>
+                                                    @endif
+                                                    @if(empty($item['evidence_url']) && empty($item['form_url']))
+                                                        <span class="small text-muted">Sin archivos</span>
+                                                    @endif
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="8" class="text-center text-muted py-3">No hay historial de mantenimientos para este conductor.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-footer d-flex justify-content-end">
-                    <button type="button" class="btn btn-secondary" wire:click="closeDetail">Cerrar</button>
+                    <a href="{{ route('livewire.maintenance-incentives', request()->except('detail_driver_id')) }}" class="btn btn-secondary">Cerrar</a>
                 </div>
             </div>
         </div>
