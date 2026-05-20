@@ -100,6 +100,7 @@ return [
         'feature.carteros.cartero.guide',
         'feature.carteros.cartero.province',
         'feature.carteros.cartero.deliver',
+        'feature.carteros.cartero.returnwindow',
         'feature.carteros.devolucion.restore',
         'feature.carteros.entrega.deliver',
         'feature.carteros.entrega.attempt',

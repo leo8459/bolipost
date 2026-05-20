@@ -147,6 +147,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');
     Route::put('/configuracion/aplicacion', [AppConfigController::class, 'update'])->name('configuracion.aplicacion.update');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
+    Route::get('users/pdf', [UserController::class, 'pdf'])->name('users.pdf');
+    Route::get('users/plantilla-excel', [UserController::class, 'templateExcel'])->name('users.template-excel');
+    Route::post('users/import', [UserController::class, 'import'])->name('users.import');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
@@ -156,8 +160,6 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('users/{id}/delete', [UserController::class, 'delete'])->name('users.delete');
     Route::post('users/{id}/restore', [UserController::class, 'restore'])->name('users.restore');
     Route::put('utest/{id}/restoring', [UserController::class, 'restoring'])->name('users.restoring');
-    Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
-    Route::get('users/pdf', [UserController::class, 'pdf'])->name('users.pdf');
     Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');
 
     //Roles

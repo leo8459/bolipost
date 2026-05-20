@@ -5,7 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Empresa;
 use App\Models\Sucursal;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -136,6 +147,275 @@ class UserController extends Controller
 
         return redirect()->route('users.index')
             ->with('success', 'Usuario reactivado correctamente');
+    }
+
+    public function excel()
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Usuarios');
+
+        $headers = ['#', 'Nombre', 'Alias', 'Email', 'Regional', 'CI', 'Empresa', 'Sucursal', 'Roles', 'Estado'];
+        $sheet->fromArray($headers, null, 'A1');
+
+        $users = $this->usersReportQuery()->get();
+        $row = 2;
+
+        foreach ($users as $index => $user) {
+            $sheet->fromArray([
+                $index + 1,
+                $user->name,
+                $user->alias,
+                $user->email,
+                $user->ciudad,
+                $user->ci,
+                $user->empresa ? trim($user->empresa->codigo_cliente . ' - ' . $user->empresa->nombre) : '',
+                $user->sucursal ? 'Suc. ' . $user->sucursal->codigoSucursal . ' / PV ' . $user->sucursal->puntoVenta . ' - ' . $user->sucursal->municipio : '',
+                $user->roles->pluck('name')->implode(', '),
+                $user->trashed() ? 'Inactivo' : 'Activo',
+            ], null, 'A' . $row);
+            $row++;
+        }
+
+        $this->styleWorksheet($sheet, 'A1:J' . max(1, $row - 1));
+
+        return $this->downloadSpreadsheet($spreadsheet, 'usuarios-' . now()->format('Ymd-His') . '.xlsx');
+    }
+
+    public function pdf()
+    {
+        $users = $this->usersReportQuery()->get();
+        $generatedAt = now();
+
+        $pdf = Pdf::loadView('user.pdf', [
+            'users' => $users,
+            'generatedAt' => $generatedAt,
+        ])->setPaper('A4', 'landscape');
+
+        return $pdf->stream('usuarios-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
+    public function templateExcel()
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Usuarios');
+
+        $headers = ['name *', 'alias *', 'email *', 'password *', 'ciudad *', 'ci', 'rol *', 'empresa_codigo', 'sucursal_id'];
+        $sheet->fromArray($headers, null, 'A1');
+        $sheet->fromArray([
+            'Juan Perez',
+            'juan_perez',
+            'juan.perez@correo.com',
+            '12345678',
+            'LA PAZ',
+            '1234567',
+            Role::query()->orderBy('name')->value('name') ?: 'admin',
+            '',
+            '',
+        ], null, 'A2');
+
+        $roles = Role::query()->orderBy('name')->pluck('name')->values();
+        $rolesSheet = $spreadsheet->createSheet();
+        $rolesSheet->setTitle('Roles');
+        $rolesSheet->setCellValue('A1', 'roles_disponibles');
+        foreach ($roles as $index => $roleName) {
+            $rolesSheet->setCellValue('A' . ($index + 2), $roleName);
+        }
+        $rolesSheet->getColumnDimension('A')->setWidth(32);
+
+        $empresas = Empresa::query()->orderBy('codigo_cliente')->get(['codigo_cliente', 'nombre', 'sigla']);
+        $empresasSheet = $spreadsheet->createSheet();
+        $empresasSheet->setTitle('Empresas');
+        $empresasSheet->setCellValue('A1', 'codigo_empresa');
+        $empresasSheet->setCellValue('B1', 'nombre');
+        foreach ($empresas as $index => $empresa) {
+            $excelRow = $index + 2;
+            $empresasSheet->setCellValue('A' . $excelRow, $empresa->codigo_cliente);
+            $empresasSheet->setCellValue('B' . $excelRow, trim($empresa->nombre . ' ' . ($empresa->sigla ? '(' . $empresa->sigla . ')' : '')));
+        }
+        $empresasSheet->getColumnDimension('A')->setWidth(24);
+        $empresasSheet->getColumnDimension('B')->setWidth(56);
+
+        $roleCount = max(1, $roles->count());
+        $roleRange = "'Roles'!\$A\$2:\$A\$" . ($roleCount + 1);
+        for ($row = 2; $row <= 501; $row++) {
+            $validation = $sheet->getCell('G' . $row)->getDataValidation();
+            $validation->setType(DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(false);
+            $validation->setShowDropDown(true);
+            $validation->setShowErrorMessage(true);
+            $validation->setErrorTitle('Rol invalido');
+            $validation->setError('Selecciona un rol de la lista.');
+            $validation->setFormula1($roleRange);
+        }
+
+        $cityOptions = '"LA PAZ,COCHABAMBA,SANTA CRUZ,ORURO,POTOSI,TARIJA,SUCRE,TRINIDAD,COBIJA"';
+        for ($row = 2; $row <= 501; $row++) {
+            $validation = $sheet->getCell('E' . $row)->getDataValidation();
+            $validation->setType(DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(false);
+            $validation->setShowDropDown(true);
+            $validation->setFormula1($cityOptions);
+        }
+
+        if ($empresas->isNotEmpty()) {
+            $empresaRange = "'Empresas'!\$A\$2:\$A\$" . ($empresas->count() + 1);
+            for ($row = 2; $row <= 501; $row++) {
+                $validation = $sheet->getCell('H' . $row)->getDataValidation();
+                $validation->setType(DataValidation::TYPE_LIST);
+                $validation->setErrorStyle(DataValidation::STYLE_STOP);
+                $validation->setAllowBlank(true);
+                $validation->setShowDropDown(true);
+                $validation->setShowErrorMessage(true);
+                $validation->setErrorTitle('Empresa invalida');
+                $validation->setError('Selecciona un codigo de empresa de la lista o deja el campo vacio.');
+                $validation->setFormula1($empresaRange);
+            }
+        }
+
+        $instructions = $spreadsheet->createSheet();
+        $instructions->setTitle('Instrucciones');
+        $instructions->fromArray([
+            ['Instrucciones'],
+            ['1) Completa una fila por usuario en la hoja Usuarios.'],
+            ['2) Los campos con * son obligatorios: name, alias, email, password, ciudad y rol.'],
+            ['3) Los campos rol, ciudad y empresa_codigo tienen combo box.'],
+            ['4) password debe tener al menos 8 caracteres.'],
+            ['5) alias y email no deben repetirse. Si el email existe, se actualiza el usuario.'],
+            ['6) empresa_codigo es opcional y usa el codigo_cliente de empresa.'],
+            ['7) sucursal_id es opcional y usa el ID de la tabla sucursales.'],
+        ], null, 'A1');
+        $instructions->getColumnDimension('A')->setWidth(96);
+
+        $spreadsheet->setActiveSheetIndex(0);
+        $this->styleWorksheet($sheet, 'A1:I2');
+
+        return $this->downloadSpreadsheet($spreadsheet, 'plantilla-importacion-usuarios.xlsx');
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'archivo' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+        ]);
+
+        $spreadsheet = IOFactory::load($request->file('archivo')->getRealPath());
+        $sheet = $spreadsheet->getSheetByName('Usuarios') ?: $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray(null, true, true, true);
+        $errors = [];
+        $created = 0;
+        $updated = 0;
+
+        foreach ($rows as $rowNumber => $row) {
+            if ($rowNumber === 1) {
+                continue;
+            }
+
+            $payload = [
+                'name' => trim((string) ($row['A'] ?? '')),
+                'alias' => strtolower(trim((string) ($row['B'] ?? ''))),
+                'email' => strtolower(trim((string) ($row['C'] ?? ''))),
+                'password' => trim((string) ($row['D'] ?? '')),
+                'ciudad' => trim((string) ($row['E'] ?? '')),
+                'ci' => trim((string) ($row['F'] ?? '')),
+                'rol' => trim((string) ($row['G'] ?? '')),
+                'empresa_codigo' => trim((string) ($row['H'] ?? '')),
+                'sucursal_id' => trim((string) ($row['I'] ?? '')),
+            ];
+
+            if (collect($payload)->filter(fn ($value) => $value !== '')->isEmpty()) {
+                continue;
+            }
+
+            $existingUser = User::withTrashed()->whereRaw('LOWER(email) = ?', [$payload['email']])->first();
+            $validator = Validator::make($payload, [
+                'name' => ['required', 'string', 'max:255'],
+                'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')->ignore(optional($existingUser)->id)],
+                'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore(optional($existingUser)->id)],
+                'password' => ['required', 'string', 'min:8'],
+                'ciudad' => ['required', 'string', 'max:255'],
+                'ci' => ['nullable', 'string', 'max:255'],
+                'rol' => ['required', 'string', 'exists:roles,name'],
+                'empresa_codigo' => ['nullable', 'string', 'exists:empresa,codigo_cliente'],
+                'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
+            ]);
+
+            if ($validator->fails()) {
+                $errors[] = 'Fila ' . $rowNumber . ': ' . $validator->errors()->first();
+                continue;
+            }
+
+            $empresaId = null;
+            if ($payload['empresa_codigo'] !== '') {
+                $empresaId = Empresa::query()
+                    ->where('codigo_cliente', $payload['empresa_codigo'])
+                    ->value('id');
+            }
+
+            $user = $existingUser ?: new User();
+            $user->name = $payload['name'];
+            $user->alias = $payload['alias'];
+            $user->email = $payload['email'];
+            $user->ciudad = strtoupper($payload['ciudad']);
+            $user->ci = $payload['ci'] !== '' ? $payload['ci'] : null;
+            $user->empresa_id = $empresaId;
+            $user->sucursal_id = $payload['sucursal_id'] !== '' ? (int) $payload['sucursal_id'] : null;
+            if ($payload['password'] !== '') {
+                $user->password = Hash::make($payload['password']);
+            }
+            $user->save();
+            $user->syncRoles([$payload['rol']]);
+
+            $existingUser ? $updated++ : $created++;
+        }
+
+        $redirect = redirect()
+            ->route('users.index')
+            ->with('success', "Importacion finalizada. Creados: {$created}. Actualizados: {$updated}.");
+
+        if ($errors !== []) {
+            $redirect->with('warning', 'Algunas filas no se importaron.')
+                ->with('import_errors', array_slice($errors, 0, 20));
+        }
+
+        return $redirect;
+    }
+
+    private function usersReportQuery()
+    {
+        return User::withTrashed()
+            ->with(['empresa', 'sucursal', 'roles'])
+            ->orderBy('name');
+    }
+
+    private function styleWorksheet($sheet, string $range): void
+    {
+        $sheet->getStyle('1:1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF20539A']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+        $sheet->getStyle($range)->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FFD9E2EF']]],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+
+        foreach (range('A', $sheet->getHighestColumn()) as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+        $sheet->freezePane('A2');
+    }
+
+    private function downloadSpreadsheet(Spreadsheet $spreadsheet, string $filename)
+    {
+        return response()->streamDownload(function () use ($spreadsheet) {
+            (new Xlsx($spreadsheet))->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 }
 

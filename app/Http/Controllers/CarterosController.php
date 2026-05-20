@@ -754,7 +754,7 @@ class CarterosController extends Controller
     public function returnSelectedToVentanilla(Request $request): JsonResponse
     {
         $this->authorizeRoutePermission('carteros.cartero');
-        $this->authorizeFeaturePermission('feature.carteros.cartero.deliver');
+        $this->authorizeFeaturePermission('feature.carteros.cartero.returnwindow');
 
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],

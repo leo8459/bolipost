@@ -9,6 +9,7 @@
         $canCarteroGuide = auth()->user()?->can('feature.carteros.cartero.guide') ?? false;
         $canCarteroProvince = auth()->user()?->can('feature.carteros.cartero.province') ?? false;
         $canCarteroDeliver = auth()->user()?->can('feature.carteros.cartero.deliver') ?? false;
+        $canCarteroReturnWindow = auth()->user()?->can('feature.carteros.cartero.returnwindow') ?? false;
     @endphp
     <div class="carteros-wrap">
         <div class="card card-carteros">
@@ -24,6 +25,8 @@
                         @endif
                         @if ($canCarteroDeliver)
                             <button id="btn-dar-baja" type="button" class="btn btn-sm btn-carteros-warning">Dar de baja</button>
+                        @endif
+                        @if ($canCarteroReturnWindow)
                             <button id="btn-devolver-ventanilla" type="button" class="btn btn-sm btn-carteros-warning">Devolver a ventanilla</button>
                         @endif
                         @if ($canCarteroProvince)
@@ -420,6 +423,7 @@
             const canCarteroGuide = @json($canCarteroGuide);
             const canCarteroProvince = @json($canCarteroProvince);
             const canCarteroDeliver = @json($canCarteroDeliver);
+            const canCarteroReturnWindow = @json($canCarteroReturnWindow);
             let currentCodigoFilter = '';
 
             function showMessage(text, type) {
@@ -728,7 +732,7 @@
                 });
             }
 
-            if (canCarteroDeliver && btnDevolverVentanilla) {
+            if (canCarteroReturnWindow && btnDevolverVentanilla) {
                 btnDevolverVentanilla.addEventListener('click', async function() {
                     if (currentModeLabel !== 'CARTERO') {
                         showMessage('Para devolver a ventanilla, vuelve a la bandeja CARTERO.', 'danger');
@@ -758,7 +762,7 @@
                 });
             }
 
-            if (canCarteroDeliver && devolverVentanillaForm) {
+            if (canCarteroReturnWindow && devolverVentanillaForm) {
                 devolverVentanillaForm.addEventListener('submit', async function(event) {
                     event.preventDefault();
 

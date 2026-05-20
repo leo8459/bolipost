@@ -64,6 +64,7 @@ class AclPermissionRegistry
         'confirm' => 'Botones de confirmacion',
         'deliver' => 'Botones de entrega',
         'attempt' => 'Botones de intento',
+        'returnwindow' => 'Botones de devolucion a ventanilla',
         'guide' => 'Botones de guia/provincia',
         'province' => 'Botones de vista provincia',
         'opensacas' => 'Botones de apertura de sacas',
@@ -483,6 +484,28 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'users.excel' => [
+            'users.excel',
+            'users.index',
+            'feature.users.export',
+        ],
+        'users.pdf' => [
+            'users.pdf',
+            'users.index',
+            'feature.users.export',
+        ],
+        'users.template-excel' => [
+            'users.template-excel',
+            'users.index',
+            'feature.users.import',
+            'feature.users.export',
+        ],
+        'users.import' => [
+            'users.import',
+            'users.index',
+            'feature.users.import',
+            'users.store',
+        ],
         'paquetes-ems.create' => [
             'paquetes-ems.create',
             'feature.paquetes-ems.index.create',
@@ -593,6 +616,10 @@ class AclPermissionRegistry
         'carteros.entrega.intento' => [
             'carteros.entrega.intento',
             'feature.carteros.entrega.attempt',
+        ],
+        'api.carteros.devolver-ventanilla' => [
+            'api.carteros.devolver-ventanilla',
+            'feature.carteros.cartero.returnwindow',
         ],
         'api.carteros.desasignar' => [
             'api.carteros.desasignar',
@@ -1584,6 +1611,7 @@ class AclPermissionRegistry
             'feature.carteros.cartero.guide' => 'Boton: Mandar provincia',
             'feature.carteros.cartero.province' => 'Boton: Mostrar provincias',
             'feature.carteros.cartero.deliver' => 'Boton: Abrir entrega',
+            'feature.carteros.cartero.returnwindow' => 'Boton: Devolver a ventanilla',
             'feature.carteros.devolucion.restore' => 'Boton: Recuperar',
             'feature.carteros.entrega.deliver' => 'Boton: Confirmar entrega',
             'feature.carteros.entrega.attempt' => 'Boton: Agregar intento',
@@ -1855,6 +1883,7 @@ class AclPermissionRegistry
             'feature.carteros.cartero.guide' => 'Controla Mandar provincia y Guardar guia dentro de la ventana Cartero.',
             'feature.carteros.cartero.province' => 'Controla el boton Mostrar provincias dentro de la ventana Cartero.',
             'feature.carteros.cartero.deliver' => 'Controla el boton Entregar correspondencia dentro de la ventana Cartero.',
+            'feature.carteros.cartero.returnwindow' => 'Controla el boton Devolver a ventanilla dentro de la ventana Cartero.',
             'feature.carteros.devolucion.restore' => 'Controla el boton Recuperar dentro de la ventana Devolucion.',
             'feature.carteros.entrega.deliver' => 'Controla el boton Confirmar entrega dentro de la ventana Entrega.',
             'feature.carteros.entrega.attempt' => 'Controla el boton Agregar intento dentro de la ventana Entrega.',

@@ -120,6 +120,13 @@
         .users-user-modal .modal-body {
             overflow-y: visible;
         }
+
+        .users-import-box {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px;
+            background: #fff;
+        }
     </style>
 
     <div class="users-wrap">
@@ -141,6 +148,7 @@
                     <button wire:click="searchUsers" class="btn btn-outline-light2" type="button">Buscar</button>
                     <a href="{{ route('users.excel') }}" class="btn btn-success">Excel</a>
                     <a href="{{ route('users.pdf') }}" class="btn btn-danger">PDF</a>
+                    <a href="{{ route('users.template-excel') }}" class="btn btn-info">Plantilla</a>
                     @can('users.create')
                         <button type="button" class="btn btn-dorado" wire:click="openCreateModal">Nuevo Usuario</button>
                     @endcan
@@ -153,8 +161,32 @@
             @if (session()->has('warning'))
                 <div class="alert alert-warning m-3 mb-0">{{ session('warning') }}</div>
             @endif
+            @if (session()->has('import_errors'))
+                <div class="alert alert-warning m-3 mb-0">
+                    <strong>Errores de importacion:</strong>
+                    <ul class="mb-0 mt-2">
+                        @foreach(session('import_errors', []) as $importError)
+                            <li>{{ $importError }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             <div class="card-body">
+                <div class="users-import-box mb-3">
+                    <form method="POST" action="{{ route('users.import') }}" enctype="multipart/form-data" class="d-flex flex-column flex-md-row align-items-md-center" style="gap: 10px;">
+                        @csrf
+                        <div class="flex-grow-1">
+                            <label class="mb-1 font-weight-bold">Importar usuarios masivamente</label>
+                            <input type="file" name="archivo" class="form-control" accept=".xlsx,.xls,.csv" required>
+                            <small class="text-muted">Usa la plantilla para cargar usuarios. El campo rol viene con combo box.</small>
+                        </div>
+                        <button type="submit" class="btn btn-primary mt-2 mt-md-4">
+                            Importar Excel
+                        </button>
+                    </form>
+                </div>
+
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="users-muted">
                         @if($searchQuery !== '')
