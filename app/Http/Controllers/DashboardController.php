@@ -111,8 +111,9 @@ class DashboardController extends Controller
     {
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
+        $departamentoCartero = $this->resolveDepartamentoFiltroPorCampo($request, 'cartero_departamento');
 
-        $entregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null)
+        $entregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null, '', $departamentoCartero)
             ->map(function ($row) {
                 $ems = (int) ($row->ems ?? 0);
                 $contrato = (int) ($row->contrato ?? 0);
@@ -150,6 +151,8 @@ class DashboardController extends Controller
             'rangoHasta' => $hasta ? $hasta->toDateString() : null,
             'rangoLabel' => $rangoLabel,
             'rangoKey' => $rangoKey,
+            'departamentoCartero' => $departamentoCartero,
+            'departamentosDisponibles' => self::DESTINOS_BASE,
         ]);
     }
 
@@ -407,7 +410,12 @@ class DashboardController extends Controller
 
     private function resolveDepartamentoFiltro(Request $request): string
     {
-        $value = strtoupper(trim((string) $request->query('departamento', '')));
+        return $this->resolveDepartamentoFiltroPorCampo($request, 'departamento');
+    }
+
+    private function resolveDepartamentoFiltroPorCampo(Request $request, string $field): string
+    {
+        $value = strtoupper(trim((string) $request->query($field, '')));
         $value = preg_replace('/\s+/', ' ', $value) ?? $value;
 
         return in_array($value, self::DESTINOS_BASE, true) ? $value : '';
@@ -940,7 +948,7 @@ class DashboardController extends Controller
         return [$labels, "to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"];
     }
 
-    private function buildRankingEntregadores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, ?int $limit = 10, string $departamento = '')
+    private function buildRankingEntregadores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, ?int $limit = 10, string $departamento = '', string $departamentoCartero = '')
     {
         $queries = [];
 
@@ -960,7 +968,7 @@ class DashboardController extends Controller
             $queries[] = $query;
         }
 
-        return $this->resolveRankingUsuarios($queries, 'total_entregados', $limit);
+        return $this->resolveRankingUsuarios($queries, 'total_entregados', $limit, $departamentoCartero);
     }
 
     private function buildRankingDepartamentos(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to)
@@ -1206,7 +1214,7 @@ class DashboardController extends Controller
         return $this->resolveRankingUsuarios($queries, 'total_registrados');
     }
 
-    private function resolveRankingUsuarios(array $queries, string $totalAlias, ?int $limit = 10)
+    private function resolveRankingUsuarios(array $queries, string $totalAlias, ?int $limit = 10, string $departamentoCartero = '')
     {
         if (empty($queries)) {
             return collect();
@@ -1223,14 +1231,19 @@ class DashboardController extends Controller
             ->select([
                 'users.id',
                 'users.name',
+                'users.ciudad',
                 DB::raw('SUM(r.total) as ' . $totalAlias),
                 DB::raw("SUM(CASE WHEN r.modulo = 'EMS' THEN r.total ELSE 0 END) as ems"),
                 DB::raw("SUM(CASE WHEN r.modulo = 'CONTRATOS' THEN r.total ELSE 0 END) as contrato"),
                 DB::raw("SUM(CASE WHEN r.modulo = 'CERTIFICADOS' THEN r.total ELSE 0 END) as certi"),
                 DB::raw("SUM(CASE WHEN r.modulo = 'ORDINARIOS' THEN r.total ELSE 0 END) as ordi"),
             ])
-            ->groupBy('users.id', 'users.name')
+            ->groupBy('users.id', 'users.name', 'users.ciudad')
             ->orderByDesc($totalAlias);
+
+        if ($departamentoCartero !== '') {
+            $query->whereRaw('trim(upper(users.ciudad)) = ?', [$departamentoCartero]);
+        }
 
         if ($limit !== null) {
             $query->limit($limit);

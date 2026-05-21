@@ -8,6 +8,7 @@ use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
@@ -298,90 +299,103 @@ class UserController extends Controller
 
     public function import(Request $request)
     {
+        @set_time_limit(300);
+
         $request->validate([
             'archivo' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
         ]);
 
-        $spreadsheet = IOFactory::load($request->file('archivo')->getRealPath());
-        $sheet = $spreadsheet->getSheetByName('Usuarios') ?: $spreadsheet->getActiveSheet();
-        $rows = $sheet->toArray(null, true, true, true);
-        $errors = [];
-        $created = 0;
-        $updated = 0;
+        try {
+            $spreadsheet = IOFactory::load($request->file('archivo')->getRealPath());
+            $sheet = $spreadsheet->getSheetByName('Usuarios') ?: $spreadsheet->getActiveSheet();
+            $rows = $sheet->toArray(null, true, true, true);
+            $errors = [];
+            $created = 0;
+            $updated = 0;
 
-        foreach ($rows as $rowNumber => $row) {
-            if ($rowNumber === 1) {
-                continue;
+            foreach ($rows as $rowNumber => $row) {
+                if ($rowNumber === 1) {
+                    continue;
+                }
+
+                $payload = [
+                    'name' => trim((string) ($row['A'] ?? '')),
+                    'alias' => strtolower(trim((string) ($row['B'] ?? ''))),
+                    'email' => strtolower(trim((string) ($row['C'] ?? ''))),
+                    'password' => trim((string) ($row['D'] ?? '')),
+                    'ciudad' => trim((string) ($row['E'] ?? '')),
+                    'ci' => trim((string) ($row['F'] ?? '')),
+                    'rol' => trim((string) ($row['G'] ?? '')),
+                    'empresa_codigo' => trim((string) ($row['H'] ?? '')),
+                    'sucursal_id' => trim((string) ($row['I'] ?? '')),
+                ];
+
+                if (collect($payload)->filter(fn ($value) => $value !== '')->isEmpty()) {
+                    continue;
+                }
+
+                $existingUser = User::withTrashed()->whereRaw('LOWER(email) = ?', [$payload['email']])->first();
+                $validator = Validator::make($payload, [
+                    'name' => ['required', 'string', 'max:255'],
+                    'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')->ignore(optional($existingUser)->id)],
+                    'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore(optional($existingUser)->id)],
+                    'password' => ['required', 'string', 'min:8'],
+                    'ciudad' => ['required', 'string', 'max:255'],
+                    'ci' => ['nullable', 'string', 'max:255'],
+                    'rol' => ['required', 'string', 'exists:roles,name'],
+                    'empresa_codigo' => ['nullable', 'string', 'exists:empresa,codigo_cliente'],
+                    'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
+                ]);
+
+                if ($validator->fails()) {
+                    $errors[] = 'Fila ' . $rowNumber . ': ' . $validator->errors()->first();
+                    continue;
+                }
+
+                $empresaId = null;
+                if ($payload['empresa_codigo'] !== '') {
+                    $empresaId = Empresa::query()
+                        ->where('codigo_cliente', $payload['empresa_codigo'])
+                        ->value('id');
+                }
+
+                $user = $existingUser ?: new User();
+                $user->name = $payload['name'];
+                $user->alias = $payload['alias'];
+                $user->email = $payload['email'];
+                $user->ciudad = strtoupper($payload['ciudad']);
+                $user->ci = $payload['ci'] !== '' ? $payload['ci'] : null;
+                $user->empresa_id = $empresaId;
+                $user->sucursal_id = $payload['sucursal_id'] !== '' ? (int) $payload['sucursal_id'] : null;
+                if ($payload['password'] !== '') {
+                    $user->password = Hash::make($payload['password']);
+                }
+                $user->save();
+                $user->syncRoles([$payload['rol']]);
+
+                $existingUser ? $updated++ : $created++;
             }
 
-            $payload = [
-                'name' => trim((string) ($row['A'] ?? '')),
-                'alias' => strtolower(trim((string) ($row['B'] ?? ''))),
-                'email' => strtolower(trim((string) ($row['C'] ?? ''))),
-                'password' => trim((string) ($row['D'] ?? '')),
-                'ciudad' => trim((string) ($row['E'] ?? '')),
-                'ci' => trim((string) ($row['F'] ?? '')),
-                'rol' => trim((string) ($row['G'] ?? '')),
-                'empresa_codigo' => trim((string) ($row['H'] ?? '')),
-                'sucursal_id' => trim((string) ($row['I'] ?? '')),
-            ];
+            $redirect = redirect()
+                ->route('users.index')
+                ->with('success', "Importacion finalizada. Creados: {$created}. Actualizados: {$updated}.");
 
-            if (collect($payload)->filter(fn ($value) => $value !== '')->isEmpty()) {
-                continue;
+            if ($errors !== []) {
+                $redirect->with('warning', 'Algunas filas no se importaron.')
+                    ->with('import_errors', array_slice($errors, 0, 20));
             }
 
-            $existingUser = User::withTrashed()->whereRaw('LOWER(email) = ?', [$payload['email']])->first();
-            $validator = Validator::make($payload, [
-                'name' => ['required', 'string', 'max:255'],
-                'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')->ignore(optional($existingUser)->id)],
-                'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore(optional($existingUser)->id)],
-                'password' => ['required', 'string', 'min:8'],
-                'ciudad' => ['required', 'string', 'max:255'],
-                'ci' => ['nullable', 'string', 'max:255'],
-                'rol' => ['required', 'string', 'exists:roles,name'],
-                'empresa_codigo' => ['nullable', 'string', 'exists:empresa,codigo_cliente'],
-                'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
+            return $redirect;
+        } catch (\Throwable $exception) {
+            Log::error('Error al importar usuarios desde Excel.', [
+                'error' => $exception->getMessage(),
             ]);
 
-            if ($validator->fails()) {
-                $errors[] = 'Fila ' . $rowNumber . ': ' . $validator->errors()->first();
-                continue;
-            }
-
-            $empresaId = null;
-            if ($payload['empresa_codigo'] !== '') {
-                $empresaId = Empresa::query()
-                    ->where('codigo_cliente', $payload['empresa_codigo'])
-                    ->value('id');
-            }
-
-            $user = $existingUser ?: new User();
-            $user->name = $payload['name'];
-            $user->alias = $payload['alias'];
-            $user->email = $payload['email'];
-            $user->ciudad = strtoupper($payload['ciudad']);
-            $user->ci = $payload['ci'] !== '' ? $payload['ci'] : null;
-            $user->empresa_id = $empresaId;
-            $user->sucursal_id = $payload['sucursal_id'] !== '' ? (int) $payload['sucursal_id'] : null;
-            if ($payload['password'] !== '') {
-                $user->password = Hash::make($payload['password']);
-            }
-            $user->save();
-            $user->syncRoles([$payload['rol']]);
-
-            $existingUser ? $updated++ : $created++;
+            return redirect()
+                ->route('users.index')
+                ->with('warning', 'No se pudo importar el Excel. Revisa el formato o intenta con menos filas.')
+                ->with('import_errors', [$exception->getMessage()]);
         }
-
-        $redirect = redirect()
-            ->route('users.index')
-            ->with('success', "Importacion finalizada. Creados: {$created}. Actualizados: {$updated}.");
-
-        if ($errors !== []) {
-            $redirect->with('warning', 'Algunas filas no se importaron.')
-                ->with('import_errors', array_slice($errors, 0, 20));
-        }
-
-        return $redirect;
     }
 
     private function usersReportQuery()

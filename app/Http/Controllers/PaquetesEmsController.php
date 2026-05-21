@@ -27,6 +27,7 @@ class PaquetesEmsController extends Controller
     private const EVENTO_ID_CONTRATO_CREADO = 318;
     private const EVENTO_ID_CONTRATO_RECIBIDO = 295;
     private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
+    private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
     private const EVENTO_ID_TIKTOKER_SOLICITUD_CREADA = 295;
 
     private const CIUDADES_BOLIVIA = [
@@ -519,16 +520,31 @@ class PaquetesEmsController extends Controller
         $printPermissions = [
             'feature.paquetes-ems.entregados.print',
         ];
+        $deliverNotRegisteredPermissions = [
+            'feature.paquetes-ems.entregados.deliver',
+            'feature.paquetes-ems.almacen.registercontract',
+            'feature.paquetes-ems.contrato-rapido.create.create',
+            'feature.paquetes-ems.contrato-rapido.create.save',
+        ];
 
         $canEmsEntregadosPrint = false;
+        $canEntregaNoRegistrada = false;
         $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
 
         if ($user && $superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
             $canEmsEntregadosPrint = true;
+            $canEntregaNoRegistrada = true;
         } elseif ($user) {
             foreach ($printPermissions as $permission) {
                 if ($user->can($permission)) {
                     $canEmsEntregadosPrint = true;
+                    break;
+                }
+            }
+
+            foreach ($deliverNotRegisteredPermissions as $permission) {
+                if ($user->can($permission)) {
+                    $canEntregaNoRegistrada = true;
                     break;
                 }
             }
@@ -653,6 +669,7 @@ class PaquetesEmsController extends Controller
             'search' => $search,
             'estadoEntregadoDisponible' => (bool) $estadoEntregadoId,
             'canEmsEntregadosPrint' => $canEmsEntregadosPrint,
+            'canEntregaNoRegistrada' => $canEntregaNoRegistrada,
         ]);
     }
 
@@ -991,6 +1008,208 @@ class PaquetesEmsController extends Controller
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'boleta-recibido-' . $contrato->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
+    public function createEntregaNoRegistrada(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.entregados.deliver',
+            'feature.paquetes-ems.almacen.registercontract',
+            'feature.paquetes-ems.contrato-rapido.create.create',
+            'feature.paquetes-ems.contrato-rapido.create.save',
+        ]);
+
+        $user = $request->user();
+        $origen = strtoupper(trim((string) optional($user)->ciudad));
+        if ($origen === '') {
+            $origen = strtoupper(trim((string) optional($user)->name));
+        }
+
+        $empresas = Empresa::query()
+            ->orderBy('nombre')
+            ->orderBy('id')
+            ->get(['id', 'nombre', 'sigla', 'codigo_cliente']);
+
+        return view('paquetes_ems.entrega-no-registrada', [
+            'origen' => $origen,
+            'ciudades' => self::CIUDADES_BOLIVIA,
+            'empresas' => $empresas,
+            'provinciasPorDestino' => $this->buildProvinciasPorDestino(),
+        ]);
+    }
+
+    public function storeEntregaNoRegistrada(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.entregados.deliver',
+            'feature.paquetes-ems.almacen.registercontract',
+            'feature.paquetes-ems.contrato-rapido.create.save',
+            'feature.paquetes-ems.contrato-rapido.create.create',
+        ]);
+
+        $data = $request->validate([
+            'codigo' => ['required', 'string', 'max:50'],
+            'origen' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
+            'destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
+            'provincia' => ['nullable', 'string', 'max:255'],
+            'peso' => ['required', 'numeric', 'min:0.001'],
+            'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
+        ], [], [
+            'codigo' => 'codigo',
+            'origen' => 'origen',
+            'destino' => 'destino',
+            'provincia' => 'provincia',
+            'peso' => 'peso',
+            'empresa_id' => 'empresa',
+        ]);
+
+        $user = $request->user();
+        if (! $user) {
+            abort(403, 'No autenticado.');
+        }
+
+        $codigo = strtoupper(trim((string) $data['codigo']));
+        $codigo = preg_replace('/\s+/', '', $codigo) ?: '';
+
+        if ($codigo === '') {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'El codigo ingresado no es valido.');
+        }
+
+        $estadoEntregadoId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
+            ->value('id') ?? 0);
+
+        if ($estadoEntregadoId <= 0) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'No existe el estado ENTREGADO en la tabla estados.');
+        }
+
+        $eventoExiste = DB::table('eventos')
+            ->where('id', self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE)
+            ->exists();
+
+        if (! $eventoExiste) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'No existe el evento con ID ' . self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE . ' (Paquete entregado exitosamente).');
+        }
+
+        $existeEms = PaqueteEms::query()
+            ->whereRaw('trim(upper(codigo)) = ?', [$codigo])
+            ->exists();
+
+        if ($existeEms) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'No puedes registrar este codigo porque ya existe en paquetes EMS.');
+        }
+
+        $existeContrato = RecojoContrato::query()
+            ->whereRaw('trim(upper(codigo)) = ?', [$codigo])
+            ->exists();
+
+        if ($existeContrato) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'No puedes registrar este codigo porque ya existe en contratos.');
+        }
+
+        $empresaIdDetectada = $this->resolveEmpresaIdByCodigoContrato($codigo);
+        $empresaIdManual = !empty($data['empresa_id']) ? (int) $data['empresa_id'] : null;
+
+        if ($empresaIdDetectada && $empresaIdManual && $empresaIdDetectada !== $empresaIdManual) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'El codigo ' . $codigo . ' ya esta asociado a otra empresa.');
+        }
+
+        $contrato = null;
+        $empresaId = $empresaIdDetectada ?: $empresaIdManual;
+        $provincia = strtoupper(trim((string) ($data['provincia'] ?? '')));
+        $origen = strtoupper(trim((string) $data['origen']));
+
+        DB::transaction(function () use (
+            $codigo,
+            $data,
+            $user,
+            $estadoEntregadoId,
+            $origen,
+            $empresaId,
+            $empresaIdDetectada,
+            $empresaIdManual,
+            $provincia,
+            &$contrato
+        ) {
+            $contrato = RecojoContrato::query()->create([
+                'user_id' => (int) $user->id,
+                'empresa_id' => $empresaId,
+                'codigo' => $codigo,
+                'cod_especial' => null,
+                'estados_id' => $estadoEntregadoId,
+                'origen' => $origen,
+                'destino' => strtoupper(trim((string) $data['destino'])),
+                'nombre_r' => 'SIN REMITENTE',
+                'telefono_r' => '-',
+                'contenido' => 'CONTRATO',
+                'cantidad' => '1',
+                'direccion_r' => 'SIN DIRECCION',
+                'nombre_d' => 'SIN DESTINATARIO',
+                'telefono_d' => null,
+                'direccion_d' => 'SIN DIRECCION',
+                'mapa' => null,
+                'provincia' => $provincia !== '' ? $provincia : null,
+                'peso' => (float) $data['peso'],
+                'fecha_recojo' => now(),
+                'observacion' => 'ENVIO NO REGISTRADO ENTREGADO DESDE EMS ENTREGADOS',
+                'justificacion' => null,
+                'imagen' => null,
+            ]);
+
+            if (! $empresaIdDetectada && ! empty($empresaIdManual)) {
+                $registroCodigoEmpresa = CodigoEmpresa::query()
+                    ->whereRaw('trim(upper(codigo)) = ?', [$codigo])
+                    ->first();
+
+                if (! $registroCodigoEmpresa) {
+                    CodigoEmpresa::query()->create([
+                        'codigo' => $codigo,
+                        'barcode' => $codigo,
+                        'empresa_id' => (int) $empresaIdManual,
+                    ]);
+                }
+            }
+
+            DB::table('eventos_contrato')->insert([
+                'codigo' => $codigo,
+                'evento_id' => self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE,
+                'user_id' => (int) $user->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::table('cartero')->insert([
+                'id_paquetes_contrato' => (int) $contrato->id,
+                'id_user' => (int) $user->id,
+                'id_estados' => $estadoEntregadoId,
+                'recibido_por' => 'ENTREGA DIRECTA',
+                'descripcion' => 'PAQUETE ENTREGADO EXITOSAMENTE',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        return redirect()
+            ->route('paquetes-ems.entregados', ['q' => $codigo])
+            ->with('success', 'Envio no registrado entregado correctamente. Se creo el contrato ' . $codigo . ' y el evento Paquete entregado exitosamente.');
     }
 
     public function createRegistroRapidoContrato()

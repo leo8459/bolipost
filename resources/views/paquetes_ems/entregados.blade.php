@@ -35,19 +35,27 @@
                 @endif
 
                 <form method="GET" action="{{ route('paquetes-ems.entregados') }}" class="row ems-toolbar">
-                    <div class="col-lg-8 col-md-12 mb-2 mb-lg-0">
+                    <div class="col-lg-6 col-md-12 mb-2 mb-lg-0">
                         <input type="text" name="q" value="{{ $search }}" class="form-control"
                             placeholder="Buscar EMS/Contrato/Solicitud por codigo, CN-33, destinatario, telefono, ciudad, recibido por o descripcion...">
                     </div>
                     <div class="col-lg-2 col-md-6 mb-2 mb-md-0">
                         <button type="submit" class="btn ems-btn-primary btn-block">Buscar</button>
                     </div>
-                    <div class="col-lg-2 col-md-6">
+                    <div class="col-lg-2 col-md-6 mb-2 mb-lg-0">
                         <a href="{{ route('paquetes-ems.entregados.solicitud.create', ['q' => $search]) }}"
                            class="btn ems-btn-secondary btn-block">
                             Generar Planilla de Entrega
                         </a>
                     </div>
+                    @if ($canEntregaNoRegistrada ?? false)
+                        <!-- <div class="col-lg-2 col-md-6">
+                            <a href="{{ route('paquetes-ems.entregados.no-registrado.create') }}"
+                               class="btn ems-btn-accent btn-block">
+                                Entregar envio no registrado
+                            </a>
+                        </div> -->
+                    @endif
                 </form>
 
                 <div class="table-responsive">
@@ -175,7 +183,8 @@
         }
 
         .ems-btn-primary,
-        .ems-btn-secondary {
+        .ems-btn-secondary,
+        .ems-btn-accent {
             min-height: 44px;
             border-radius: 12px;
             font-weight: 800;
@@ -201,6 +210,17 @@
         .ems-btn-secondary:hover {
             background: rgba(32, 83, 154, 0.05);
             color: #20539A;
+        }
+
+        .ems-btn-accent {
+            background: #16a34a;
+            border: 0;
+            color: #fff;
+        }
+
+        .ems-btn-accent:hover {
+            background: #15803d;
+            color: #fff;
         }
 
         .ems-entregados-card .table thead th {

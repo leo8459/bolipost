@@ -126,6 +126,7 @@ return [
         'feature.paquetes-ems.almacen.sendventanilla',
         'feature.paquetes-ems.almacen.sendregional',
         'feature.paquetes-ems.almacen.reprintcn33',
+        'feature.paquetes-ems.entregados.deliver',
         'feature.paquetes-ems.devolucion.deliver',
         'feature.paquetes-ems.devolucion.print',
         'feature.empresas.export',

@@ -127,6 +127,24 @@
             padding: 12px;
             background: #fff;
         }
+
+        .users-import-progress {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .users-import-progress .progress {
+            height: 18px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: #e5e7eb;
+        }
+
+        .users-import-progress .progress-bar {
+            font-size: 0.75rem;
+            font-weight: 800;
+            transition: width 0.35s ease;
+        }
     </style>
 
     <div class="users-wrap">
@@ -174,14 +192,32 @@
 
             <div class="card-body">
                 <div class="users-import-box mb-3">
-                    <form method="POST" action="{{ route('users.import') }}" enctype="multipart/form-data" class="d-flex flex-column flex-md-row align-items-md-center" style="gap: 10px;">
+                    <form method="POST" action="{{ route('users.import') }}" enctype="multipart/form-data" id="users-import-form" class="d-flex flex-column flex-md-row align-items-md-center" style="gap: 10px;">
                         @csrf
                         <div class="flex-grow-1">
                             <label class="mb-1 font-weight-bold">Importar usuarios masivamente</label>
                             <input type="file" name="archivo" class="form-control" accept=".xlsx,.xls,.csv" required>
                             <small class="text-muted">Usa la plantilla para cargar usuarios. El campo rol viene con combo box.</small>
+                            <div class="users-import-progress" id="users-import-progress">
+                                <div class="d-flex justify-content-between small text-muted mb-1">
+                                    <span id="users-import-progress-text">Preparando importacion...</span>
+                                    <span id="users-import-progress-time">0s</span>
+                                </div>
+                                <div class="progress">
+                                    <div
+                                        class="progress-bar bg-success"
+                                        id="users-import-progress-bar"
+                                        role="progressbar"
+                                        style="width: 0%;"
+                                        aria-valuenow="0"
+                                        aria-valuemin="0"
+                                        aria-valuemax="100"
+                                    >0%</div>
+                                </div>
+                                <small class="text-muted d-block mt-1">No cierres esta ventana hasta que termine la importacion.</small>
+                            </div>
                         </div>
-                        <button type="submit" class="btn btn-primary mt-2 mt-md-4">
+                        <button type="submit" class="btn btn-primary mt-2 mt-md-4" id="users-import-submit">
                             Importar Excel
                         </button>
                     </form>
@@ -524,6 +560,57 @@
 
         window.addEventListener('closeStatusModal', () => {
             $('#statusModal').modal('hide');
+        });
+    }
+
+    const usersImportForm = document.getElementById('users-import-form');
+    if (usersImportForm && !window.__usersImportProgressBound) {
+        window.__usersImportProgressBound = true;
+
+        usersImportForm.addEventListener('submit', function () {
+            const progressWrap = document.getElementById('users-import-progress');
+            const progressBar = document.getElementById('users-import-progress-bar');
+            const progressText = document.getElementById('users-import-progress-text');
+            const progressTime = document.getElementById('users-import-progress-time');
+            const submitButton = document.getElementById('users-import-submit');
+            const startedAt = Date.now();
+
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = 'Importando...';
+            }
+
+            if (progressWrap) {
+                progressWrap.style.display = 'block';
+            }
+
+            function updateProgress() {
+                const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+                const percent = Math.min(95, 8 + Math.floor(elapsedSeconds * 1.4));
+
+                if (progressBar) {
+                    progressBar.style.width = percent + '%';
+                    progressBar.setAttribute('aria-valuenow', String(percent));
+                    progressBar.textContent = percent + '%';
+                }
+
+                if (progressTime) {
+                    progressTime.textContent = elapsedSeconds + 's';
+                }
+
+                if (progressText) {
+                    if (percent < 35) {
+                        progressText.textContent = 'Leyendo archivo Excel...';
+                    } else if (percent < 75) {
+                        progressText.textContent = 'Validando y guardando usuarios...';
+                    } else {
+                        progressText.textContent = 'Finalizando importacion...';
+                    }
+                }
+            }
+
+            updateProgress();
+            window.setInterval(updateProgress, 1000);
         });
     }
 </script>
