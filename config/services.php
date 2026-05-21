@@ -71,6 +71,8 @@ return [
         'image_method' => env('QHANTUY_CHECKOUT_IMAGE_METHOD', 'URL'),
         'currency_code' => env('QHANTUY_CHECKOUT_CURRENCY_CODE', 'BOB'),
         'timeout' => env('QHANTUY_CHECKOUT_TIMEOUT', 30),
+    ],
+
     'whatsapp_alerts' => [
         'enabled' => (bool) env('WHATSAPP_ALERTS_ENABLED', false),
         'webhook_url' => env('WHATSAPP_ALERTS_WEBHOOK_URL'),

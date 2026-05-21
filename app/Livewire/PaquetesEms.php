@@ -6177,20 +6177,25 @@ class PaquetesEms extends Component
         }
         $suffix = $this->getCodigoSuffix();
 
-        $last = PaqueteEms::query()
-            ->where('codigo', 'like', $prefix . '%')
-            ->orderByDesc('id')
-            ->value('codigo');
+        $codigos = PaqueteEms::query()
+            ->where('codigo', 'like', $prefix . '%' . $suffix)
+            ->pluck('codigo');
 
-        $nextNumber = 1;
-        if ($last) {
-            $num = (int) substr($last, strlen($prefix), 9);
-            if ($num > 0) {
-                $nextNumber = $num + 1;
+        $maxNumber = 0;
+        foreach ($codigos as $codigo) {
+            $codigo = strtoupper(trim((string) $codigo));
+            if (preg_match('/^' . preg_quote($prefix, '/') . '(\d{9})' . preg_quote($suffix, '/') . '$/', $codigo, $matches)) {
+                $maxNumber = max($maxNumber, (int) $matches[1]);
             }
         }
 
-        return $prefix . str_pad((string) $nextNumber, 9, '0', STR_PAD_LEFT) . $suffix;
+        $nextNumber = $maxNumber + 1;
+        do {
+            $codigo = $prefix . str_pad((string) $nextNumber, 9, '0', STR_PAD_LEFT) . $suffix;
+            $nextNumber++;
+        } while (PaqueteEms::query()->whereRaw('trim(upper(codigo)) = ?', [$codigo])->exists());
+
+        return $codigo;
     }
 
     protected function getCodigoPrefix()
