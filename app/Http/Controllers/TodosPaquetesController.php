@@ -11,6 +11,7 @@ use App\Models\SolicitudCliente;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -216,6 +217,9 @@ class TodosPaquetesController extends Controller
         $pdf = Pdf::loadView('paquetes_contrato.reporte', [
             'contrato' => $contrato,
             'generatedAt' => $generatedAt,
+            'verificationUrl' => route('paquetes-contrato.verificar-guia', [
+                't' => Crypt::encryptString((string) $contrato->getKey()),
+            ]),
         ])->setPaper('letter', 'portrait');
 
         return response()->streamDownload(function () use ($pdf) {

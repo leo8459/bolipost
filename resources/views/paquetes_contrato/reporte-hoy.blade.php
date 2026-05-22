@@ -14,8 +14,13 @@
         .guide-header { width: 100%; border-collapse: collapse; table-layout: fixed; background: #fff; border-bottom: 1px solid #000; }
         .guide-header td { border: 0; padding: 2px 7px; vertical-align: middle; }
         .brand-logo { display: block; width: 28mm; max-height: 9mm; object-fit: contain; }
+        .brand-layout { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .brand-layout td { border: 0; padding: 0; vertical-align: middle; }
+        .brand-qr-slot { width: 18mm; text-align: left; }
         .copy-badge { display: inline-block; min-width: 86px; padding: 4px 8px; border-radius: 12px; background: #fff; color: #000; border: 1px solid #000; font-size: 10px; font-weight: 800; text-align: center; text-transform: uppercase; }
         .barcode-cell { text-align: right; }
+        .verification-qr { display: inline-block; width: 15mm; height: 15mm; }
+        .verification-label { display: block; margin-top: 1px; font-size: 5.4px; font-weight: 800; line-height: 1; text-transform: uppercase; }
         .barcode-code { margin-top: 2px; font-size: 12px; font-weight: 800; letter-spacing: .4px; color: #000; }
         .content { padding: 4px 7px 3px; }
         .info-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -47,9 +52,18 @@
             $barcodePngB64 = null;
             if ($codigo !== '' && class_exists('\DNS1D')) {
                 try {
-                    $barcodePngB64 = DNS1D::getBarcodePNG($codigo, 'C128', 1.45, 36);
+                    $barcodePngB64 = @DNS1D::getBarcodePNG($codigo, 'C128', 1.45, 36);
                 } catch (\Throwable $e) {
                     $barcodePngB64 = null;
+                }
+            }
+            $verificationUrl = ($verificationUrls ?? [])[$contrato->id] ?? null;
+            $verificationQrB64 = null;
+            if (!empty($verificationUrl) && class_exists('\DNS2D')) {
+                try {
+                    $verificationQrB64 = @DNS2D::getBarcodePNG($verificationUrl, 'QRCODE', 4, 4);
+                } catch (\Throwable $e) {
+                    $verificationQrB64 = null;
                 }
             }
 
@@ -70,18 +84,30 @@
                     <table class="guide-header">
                         <tr>
                             <td style="width: 36%;">
-                                @if($logoB64)
-                                    <img class="brand-logo" src="data:image/png;base64,{{ $logoB64 }}" alt="Correos de Bolivia">
-                                @else
-                                    <strong>Correos de Bolivia</strong>
-                                @endif
+                                <table class="brand-layout">
+                                    <tr>
+                                        <td class="brand-qr-slot">
+                                            @if($verificationQrB64)
+                                                <img class="verification-qr" src="data:image/png;base64,{{ $verificationQrB64 }}" alt="QR verificacion">
+                                                <span class="verification-label">QR verificacion</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($logoB64)
+                                                <img class="brand-logo" src="data:image/png;base64,{{ $logoB64 }}" alt="Correos de Bolivia">
+                                            @else
+                                                <strong>Correos de Bolivia</strong>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                </table>
                             </td>
                             <td style="width: 22%; text-align:center;">
                                 <span class="copy-badge">{{ $copia }}</span>
                             </td>
                             <td class="barcode-cell" style="width: 42%;">
                                 @if($barcodePngB64)
-                                    <img src="data:image/png;base64,{{ $barcodePngB64 }}" alt="Barcode" width="235" height="36">
+                                    <img src="data:image/png;base64,{{ $barcodePngB64 }}" alt="Barcode" width="235" height="34">
                                 @elseif($codigo !== '' && class_exists('\DNS1D'))
                                     {!! DNS1D::getBarcodeHTML($codigo, 'C128', 1.05, 34) !!}
                                 @endif

@@ -11,7 +11,9 @@ use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -442,6 +444,7 @@ class RecojoController extends Controller
         $pdf = Pdf::loadView('paquetes_contrato.reporte', [
             'contrato' => $contrato,
             'generatedAt' => $generatedAt,
+            'verificationUrl' => $this->verificationUrlFor($contrato),
         ])->setPaper('letter', 'portrait');
 
         return response()->streamDownload(function () use ($pdf) {
@@ -474,11 +477,83 @@ class RecojoController extends Controller
             'contratos' => $contratos,
             'generatedAt' => $generatedAt,
             'fechaHoy' => $hoy,
+            'verificationUrls' => $this->verificationUrlsFor($contratos),
         ])->setPaper('letter', 'portrait');
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'contratos-generados-hoy-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
+    public function verificarGuia(Request $request)
+    {
+        $contrato = $this->contratoFromVerificationRequest($request);
+        $contrato->loadMissing(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla']);
+
+        return view('paquetes_contrato.verificacion', [
+            'contrato' => $contrato,
+            'reimprimirUrl' => $this->verificationPdfUrlFor($contrato),
+            'rastrearUrl' => URL::signedRoute('tracking.demo.signed', [
+                'codigo' => $contrato->codigo,
+            ]),
+        ]);
+    }
+
+    public function verificarGuiaPdf(Request $request)
+    {
+        $contrato = $this->contratoFromVerificationRequest($request);
+        $generatedAt = now();
+        $contrato->loadMissing(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla']);
+
+        $pdf = Pdf::loadView('paquetes_contrato.reporte', [
+            'contrato' => $contrato,
+            'generatedAt' => $generatedAt,
+            'verificationUrl' => $this->verificationUrlFor($contrato),
+        ])->setPaper('letter', 'portrait');
+
+        return $pdf->stream('guia-verificacion-' . $contrato->codigo . '.pdf');
+    }
+
+    private function verificationUrlFor(Recojo $contrato): string
+    {
+        return route('paquetes-contrato.verificar-guia', [
+            't' => $this->verificationTokenFor($contrato),
+        ]);
+    }
+
+    private function verificationPdfUrlFor(Recojo $contrato): string
+    {
+        return route('paquetes-contrato.verificar-guia.pdf', [
+            't' => $this->verificationTokenFor($contrato),
+        ]);
+    }
+
+    private function verificationUrlsFor($contratos): array
+    {
+        return $contratos
+            ->mapWithKeys(fn (Recojo $contrato) => [$contrato->getKey() => $this->verificationUrlFor($contrato)])
+            ->all();
+    }
+
+    private function verificationTokenFor(Recojo $contrato): string
+    {
+        return Crypt::encryptString((string) $contrato->getKey());
+    }
+
+    private function contratoFromVerificationRequest(Request $request): Recojo
+    {
+        $token = trim((string) $request->query('t', ''));
+        abort_if($token === '', 404);
+
+        try {
+            $id = Crypt::decryptString($token);
+        } catch (\Throwable $e) {
+            abort(404);
+        }
+
+        abort_unless(ctype_digit((string) $id), 404);
+
+        return Recojo::query()->findOrFail((int) $id);
     }
 
     protected function nextCorrelativo(int $empresaId, string $codigoCliente): int

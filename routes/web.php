@@ -106,6 +106,10 @@ Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
 Route::get('/hacer-envio-desde-casa', [PreregistroController::class, 'publicCreate'])->name('preregistros.public.create');
 Route::post('/hacer-envio-desde-casa', [PreregistroController::class, 'publicStore'])->name('preregistros.public.store');
 Route::get('/hacer-envio-desde-casa/{preregistro}/ticket', [PreregistroController::class, 'ticket'])->name('preregistros.public.ticket');
+Route::get('/vgc', [RecojoController::class, 'verificarGuia'])
+    ->name('paquetes-contrato.verificar-guia');
+Route::get('/vgc/pdf', [RecojoController::class, 'verificarGuiaPdf'])
+    ->name('paquetes-contrato.verificar-guia.pdf');
 Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
   Route::middleware(['auth', 'internal.only'])->group(function () {
