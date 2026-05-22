@@ -54,9 +54,14 @@
             padding: 0;
             vertical-align: middle;
         }
-        .brand-qr-slot {
-            width: 18mm;
+        .brand-logo-slot {
+            width: 30mm;
             text-align: left;
+        }
+        .brand-qr-slot {
+            width: 23mm;
+            text-align: left;
+            padding-left: 5mm !important;
         }
         .copy-badge {
             display: inline-block;
@@ -72,7 +77,7 @@
             text-transform: uppercase;
         }
         .barcode-cell {
-            text-align: right;
+            text-align: center;
         }
         .verification-qr {
             display: inline-block;
@@ -86,9 +91,6 @@
             font-weight: 800;
             line-height: 1;
             text-transform: uppercase;
-        }
-        .barcode-slot {
-            text-align: right;
         }
         .barcode-code {
             margin-top: 2px;
@@ -244,29 +246,30 @@
             <div class="guide-copy">
                 <table class="guide-header">
                     <tr>
-                        <td style="width: 36%;">
+                        <td style="width: 40%;">
                             <table class="brand-layout">
                                 <tr>
-                                    <td class="brand-qr-slot">
-                                        @if($verificationQrB64)
-                                            <img class="verification-qr" src="data:image/png;base64,{{ $verificationQrB64 }}" alt="QR verificacion">
-                                            <span class="verification-label">QR verificacion</span>
-                                        @endif
-                                    </td>
-                                    <td>
+                                    <td class="brand-logo-slot">
                                         @if($logoB64)
                                             <img class="brand-logo" src="data:image/png;base64,{{ $logoB64 }}" alt="Correos de Bolivia">
                                         @else
                                             <strong>Correos de Bolivia</strong>
                                         @endif
                                     </td>
+                                    <td class="brand-qr-slot">
+                                        @if($verificationQrB64)
+                                            <img class="verification-qr" src="data:image/png;base64,{{ $verificationQrB64 }}" alt="QR verificacion">
+                                            <span class="verification-label">QR verificacion</span>
+                                        @endif
+                                    </td>
+                                    <td></td>
                                 </tr>
                             </table>
                         </td>
-                        <td style="width: 22%; text-align:center;">
+                        <td style="width: 20%; text-align:center;">
                             <span class="copy-badge">{{ $copia }}</span>
                         </td>
-                        <td class="barcode-cell" style="width: 42%;">
+                        <td class="barcode-cell" style="width: 40%;">
                             @if($barcodePngB64)
                                 <img src="data:image/png;base64,{{ $barcodePngB64 }}" alt="Barcode" width="235" height="34">
                             @elseif($codigo !== '' && class_exists('\DNS1D'))
