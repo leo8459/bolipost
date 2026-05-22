@@ -49,12 +49,12 @@
                         </a>
                     </div>
                     @if ($canEntregaNoRegistrada ?? false)
-                        <!-- <div class="col-lg-2 col-md-6">
+                        <div class="col-lg-2 col-md-6">
                             <a href="{{ route('paquetes-ems.entregados.no-registrado.create') }}"
                                class="btn ems-btn-accent btn-block">
                                 Entregar envio no registrado
                             </a>
-                        </div> -->
+                        </div>
                     @endif
                 </form>
 

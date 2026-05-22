@@ -202,7 +202,7 @@ class RecojoController extends Controller
             'contenido' => 'required|string',
             'direccion_r' => 'required|string|max:255',
             'nombre_d' => 'required|string|max:255',
-            'telefono_d' => 'nullable|string|max:50',
+            'telefono_d' => 'required|string|max:50',
             'servicio' => 'required|string|max:255',
             'destino' => 'required|string|in:' . implode(',', self::DEPARTAMENTOS),
             'direccion' => 'required|string|max:255',
@@ -313,7 +313,7 @@ class RecojoController extends Controller
                 'cantidad' => '1',
                 'direccion_r' => strtoupper(trim((string) $data['direccion_r'])),
                 'nombre_d' => strtoupper(trim((string) $data['nombre_d'])),
-                'telefono_d' => !empty($data['telefono_d']) ? trim((string) $data['telefono_d']) : null,
+                'telefono_d' => trim((string) $data['telefono_d']),
                 'direccion_d' => strtoupper(trim((string) $data['direccion'])),
                 'mapa' => !empty($data['mapa']) ? trim((string) $data['mapa']) : null,
                 'provincia' => $provincia,
@@ -442,7 +442,7 @@ class RecojoController extends Controller
         $pdf = Pdf::loadView('paquetes_contrato.reporte', [
             'contrato' => $contrato,
             'generatedAt' => $generatedAt,
-        ])->setPaper('a4', 'portrait');
+        ])->setPaper('letter', 'portrait');
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -474,7 +474,7 @@ class RecojoController extends Controller
             'contratos' => $contratos,
             'generatedAt' => $generatedAt,
             'fechaHoy' => $hoy,
-        ])->setPaper('a4', 'portrait');
+        ])->setPaper('letter', 'portrait');
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -644,7 +644,7 @@ class RecojoController extends Controller
             'contenido' => 'required|string',
             'direccion_r' => 'required|string|max:255',
             'nombre_d' => 'required|string|max:255',
-            'telefono_d' => 'nullable|string|max:50',
+            'telefono_d' => 'required|string|max:50',
             'destino' => 'required|string|in:' . implode(',', self::DEPARTAMENTOS),
             'direccion' => 'required|string|max:255',
             'mapa' => 'nullable|string|max:500',
@@ -711,7 +711,7 @@ class RecojoController extends Controller
                 'cantidad' => '1',
                 'direccion_r' => strtoupper(trim((string) $data['direccion_r'])),
                 'nombre_d' => strtoupper(trim((string) $data['nombre_d'])),
-                'telefono_d' => !empty($data['telefono_d']) ? trim((string) $data['telefono_d']) : null,
+                'telefono_d' => trim((string) $data['telefono_d']),
                 'direccion_d' => strtoupper(trim((string) $data['direccion'])),
                 'mapa' => !empty($data['mapa']) ? trim((string) $data['mapa']) : null,
                 'provincia' => !empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null,

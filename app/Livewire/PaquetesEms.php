@@ -69,6 +69,8 @@ class PaquetesEms extends Component
         'TRINIDAD_COBIJA',
         'CIUDADES_INTERMEDIAS_TRINIDAD_COBIJA',
     ];
+    private const EMS_CODE_RESET_START = 5000;
+    private const EMS_CODE_RESET_MAX_VALID = 999999;
     private const TELEFONO_DESTINATARIO_RECARGO = 1.00;
     private const MODE_ROUTE_PERMISSIONS = [
         'admision' => 'paquetes-ems.index',
@@ -6181,11 +6183,15 @@ class PaquetesEms extends Component
             ->where('codigo', 'like', $prefix . '%' . $suffix)
             ->pluck('codigo');
 
-        $maxNumber = 0;
+        $startNumber = $this->getCodigoResetStart($prefix);
+        $maxNumber = $startNumber - 1;
         foreach ($codigos as $codigo) {
             $codigo = strtoupper(trim((string) $codigo));
             if (preg_match('/^' . preg_quote($prefix, '/') . '(\d{9})' . preg_quote($suffix, '/') . '$/', $codigo, $matches)) {
-                $maxNumber = max($maxNumber, (int) $matches[1]);
+                $number = (int) $matches[1];
+                if ($this->isCodigoNumberInActiveRange($prefix, $number)) {
+                    $maxNumber = max($maxNumber, $number);
+                }
             }
         }
 
@@ -6196,6 +6202,23 @@ class PaquetesEms extends Component
         } while (PaqueteEms::query()->whereRaw('trim(upper(codigo)) = ?', [$codigo])->exists());
 
         return $codigo;
+    }
+
+    protected function getCodigoResetStart(string $prefix): int
+    {
+        return in_array($prefix, ['EN', 'CP', 'EC', 'AG', 'OFICIAL'], true)
+            ? self::EMS_CODE_RESET_START
+            : 1;
+    }
+
+    protected function isCodigoNumberInActiveRange(string $prefix, int $number): bool
+    {
+        if (!in_array($prefix, ['EN', 'CP', 'EC', 'AG', 'OFICIAL'], true)) {
+            return true;
+        }
+
+        return $number >= self::EMS_CODE_RESET_START
+            && $number <= self::EMS_CODE_RESET_MAX_VALID;
     }
 
     protected function getCodigoPrefix()

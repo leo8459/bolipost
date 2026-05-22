@@ -209,8 +209,8 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Telefono destinatario (opcional)</label>
-                                    <input type="text" name="telefono_d" class="form-control" value="{{ old('telefono_d') }}">
+                                    <label>Telefono destinatario<span class="required-star">*</span></label>
+                                    <input type="text" name="telefono_d" class="form-control" value="{{ old('telefono_d') }}" required>
                                 </div>
                             </div>
                         </div>

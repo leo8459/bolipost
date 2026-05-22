@@ -216,7 +216,7 @@ class TodosPaquetesController extends Controller
         $pdf = Pdf::loadView('paquetes_contrato.reporte', [
             'contrato' => $contrato,
             'generatedAt' => $generatedAt,
-        ])->setPaper('a4', 'portrait');
+        ])->setPaper('letter', 'portrait');
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();

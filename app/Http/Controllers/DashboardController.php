@@ -143,6 +143,51 @@ class DashboardController extends Controller
                 return $row;
             });
 
+        $asignados = $this->buildRankingAsignadosCartero($modulosSeleccionados, $desde, $hasta, null, '', $departamentoCartero)
+            ->keyBy('id');
+
+        $entregadores = $entregadores
+            ->keyBy('id')
+            ->union($asignados)
+            ->map(function ($row, $userId) use ($entregadores, $asignados) {
+                $entregadoRow = $entregadores->firstWhere('id', $userId);
+                $asignadoRow = $asignados->get($userId);
+
+                $row->name = $entregadoRow->name ?? $asignadoRow->name ?? $row->name;
+                $row->ciudad = $entregadoRow->ciudad ?? $asignadoRow->ciudad ?? $row->ciudad;
+                $row->total_entregados = (int) ($entregadoRow->total_entregados ?? 0);
+                $row->ems = (int) ($entregadoRow->ems ?? 0);
+                $row->contrato = (int) ($entregadoRow->contrato ?? 0);
+                $row->certi = (int) ($entregadoRow->certi ?? 0);
+                $row->ordi = (int) ($entregadoRow->ordi ?? 0);
+                $row->total_asignados = (int) ($asignadoRow->total_asignados ?? 0);
+                $row->asignado_ems = (int) ($asignadoRow->ems ?? 0);
+                $row->asignado_contrato = (int) ($asignadoRow->contrato ?? 0);
+                $row->asignado_certi = (int) ($asignadoRow->certi ?? 0);
+                $row->asignado_ordi = (int) ($asignadoRow->ordi ?? 0);
+                $row->pendientes_asignados = max(0, $row->total_asignados - $row->total_entregados);
+                $row->cumplimiento_asignados = $row->total_asignados > 0
+                    ? round(($row->total_entregados * 100) / $row->total_asignados, 1)
+                    : 0.0;
+
+                $porServicio = [
+                    'EMS' => $row->ems,
+                    'CONTRATOS' => $row->contrato,
+                    'CERTIFICADOS' => $row->certi,
+                    'ORDINARIOS' => $row->ordi,
+                ];
+                $maximo = max($porServicio);
+                $masEntregados = $maximo > 0
+                    ? collect($porServicio)->filter(fn ($total) => (int) $total === (int) $maximo)->keys()->values()->all()
+                    : [];
+                $row->servicio_mas_entregado = empty($masEntregados) ? 'SIN DATOS' : implode(' / ', $masEntregados);
+                $row->servicio_mas_entregado_total = (int) $maximo;
+
+                return $row;
+            })
+            ->sortByDesc(fn ($row) => ((int) $row->total_asignados * 1000000) + (int) $row->total_entregados)
+            ->values();
+
         return view('entregas', [
             'entregadores' => $entregadores,
             'modulosDisponibles' => self::MODULOS,
@@ -969,6 +1014,36 @@ class DashboardController extends Controller
         }
 
         return $this->resolveRankingUsuarios($queries, 'total_entregados', $limit, $departamentoCartero);
+    }
+
+    private function buildRankingAsignadosCartero(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, ?int $limit = 10, string $departamento = '', string $departamentoCartero = '')
+    {
+        $queries = [];
+
+        foreach ($modulosSeleccionados as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
+            $eventTable = $config['event_table'];
+
+            $query = DB::table($eventTable)
+                ->join('eventos', 'eventos.id', '=', $eventTable . '.evento_id')
+                ->select([
+                    $eventTable . '.user_id as user_id',
+                    DB::raw("'" . $config['label'] . "' as modulo"),
+                    DB::raw('COUNT(DISTINCT ' . $eventTable . '.codigo) as total'),
+                ])
+                ->where(function ($q) {
+                    $q->whereRaw('LOWER(eventos.nombre_evento) LIKE ?', ['%asignado a cartero%'])
+                        ->orWhereRaw('LOWER(eventos.nombre_evento) LIKE ?', ['%camino para entrega fisica%'])
+                        ->orWhereRaw('LOWER(eventos.nombre_evento) LIKE ?', ['%transferido al agente de entrega%']);
+                })
+                ->groupBy($eventTable . '.user_id');
+
+            $this->applyDateFilter($query, $eventTable . '.created_at', $from, $to);
+            $this->applyEventDepartamentoFilter($query, $config, $departamento);
+            $queries[] = $query;
+        }
+
+        return $this->resolveRankingUsuarios($queries, 'total_asignados', $limit, $departamentoCartero);
     }
 
     private function buildRankingDepartamentos(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to)

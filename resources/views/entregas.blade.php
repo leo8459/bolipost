@@ -34,7 +34,7 @@
 
         .entregas-summary {
             display: grid;
-            grid-template-columns: repeat(4, minmax(140px, 1fr));
+            grid-template-columns: repeat(5, minmax(140px, 1fr));
             gap: 10px;
         }
 
@@ -161,7 +161,10 @@
     </style>
 
     @php
+        $totalAsignados = (int) $entregadores->sum('total_asignados');
         $totalGeneral = (int) $entregadores->sum('total_entregados');
+        $totalPendientesAsignados = (int) $entregadores->sum('pendientes_asignados');
+        $cumplimientoGeneral = $totalAsignados > 0 ? round(($totalGeneral * 100) / $totalAsignados, 1) : 0;
         $totalEms = (int) $entregadores->sum('ems');
         $totalContratos = (int) $entregadores->sum('contrato');
         $totalCarteros = (int) $entregadores->count();
@@ -228,16 +231,17 @@
     </div>
 
     <div class="entregas-summary mb-3">
-        <div class="entregas-kpi"><span>Total entregas</span><strong>{{ number_format($totalGeneral) }}</strong></div>
+        <div class="entregas-kpi"><span>Total asignados</span><strong>{{ number_format($totalAsignados) }}</strong></div>
+        <div class="entregas-kpi"><span>Total entregados</span><strong>{{ number_format($totalGeneral) }}</strong></div>
+        <div class="entregas-kpi"><span>Pendientes asignados</span><strong>{{ number_format($totalPendientesAsignados) }}</strong></div>
+        <div class="entregas-kpi"><span>Cumplimiento</span><strong>{{ number_format($cumplimientoGeneral, 1) }}%</strong></div>
         <div class="entregas-kpi"><span>Carteros</span><strong>{{ number_format($totalCarteros) }}</strong></div>
-        <div class="entregas-kpi"><span>EMS</span><strong>{{ number_format($totalEms) }}</strong></div>
-        <div class="entregas-kpi"><span>Contratos</span><strong>{{ number_format($totalContratos) }}</strong></div>
     </div>
 
     <div class="card entregas-card">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
             <div>
-                <strong>Todos los entregadores</strong>
+                <strong>Asignados vs entregados por cartero</strong>
                 <span class="text-muted ml-2">({{ $rangoLabel ?? 'Todo el historial' }})</span>
             </div>
             <span class="text-muted small">Vista tipo Excel con separacion por columnas</span>
@@ -249,7 +253,10 @@
                         <tr>
                             <th style="width: 54px;">#</th>
                             <th>Usuario / Regional</th>
-                            <th class="text-right">Total entregas</th>
+                            <th class="text-right">Asignados</th>
+                            <th class="text-right">Entregados</th>
+                            <th class="text-right">Pendientes</th>
+                            <th class="text-right">Cumplimiento</th>
                             <th class="text-right">EMS</th>
                             <th class="text-right">Contratos</th>
                             <th class="text-right">Certificados</th>
@@ -265,7 +272,10 @@
                                     <div class="excel-user">{{ $item->name }}</div>
                                     <span class="excel-city">{{ $item->ciudad ?: 'SIN DEPARTAMENTO' }}</span>
                                 </td>
+                                <td class="metric-cell total">{{ number_format((int) $item->total_asignados) }}</td>
                                 <td class="metric-cell total">{{ number_format((int) $item->total_entregados) }}</td>
+                                <td class="metric-cell">{{ number_format((int) $item->pendientes_asignados) }}</td>
+                                <td class="metric-cell">{{ number_format((float) $item->cumplimiento_asignados, 1) }}%</td>
                                 <td class="metric-cell">{{ number_format((int) $item->ems) }}</td>
                                 <td class="metric-cell">{{ number_format((int) $item->contrato) }}</td>
                                 <td class="metric-cell">{{ number_format((int) $item->certi) }}</td>
@@ -277,7 +287,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No hay entregas para el filtro seleccionado.</td>
+                                <td colspan="11" class="text-center text-muted py-4">No hay asignaciones ni entregas para el filtro seleccionado.</td>
                             </tr>
                         @endforelse
                     </tbody>
