@@ -21,6 +21,10 @@
             overflow: hidden;
         }
 
+        .entregas-page {
+            padding-bottom: 90px;
+        }
+
         .entregas-filter {
             border: 1px solid #dbe3ef;
             border-radius: 12px;
@@ -34,15 +38,16 @@
 
         .entregas-summary {
             display: grid;
-            grid-template-columns: repeat(5, minmax(140px, 1fr));
+            grid-template-columns: repeat(6, minmax(140px, 1fr));
             gap: 10px;
         }
 
         .entregas-kpi {
             border: 1px solid #dbe3ef;
             border-radius: 8px;
-            padding: 10px 12px;
+            padding: 9px 12px;
             background: #fff;
+            border-top: 3px solid #1f5fae;
         }
 
         .entregas-kpi span {
@@ -61,15 +66,17 @@
         .excel-wrap {
             border: 1px solid #cbd5e1;
             border-radius: 10px;
-            overflow: auto;
+            overflow: hidden;
             background: #fff;
         }
 
         .excel-table {
-            min-width: 1040px;
+            width: 100%;
+            min-width: 0;
             margin: 0;
             border-collapse: separate;
             border-spacing: 0;
+            table-layout: fixed;
         }
 
         .excel-table thead th {
@@ -80,10 +87,13 @@
             border-bottom: 2px solid #8fa4bf;
             background: #e8f0fb;
             color: #123b70;
-            font-size: .78rem;
+            font-size: .68rem;
             font-weight: 900;
             text-transform: uppercase;
-            white-space: nowrap;
+            line-height: 1.05;
+            padding: .48rem .28rem;
+            text-align: center;
+            white-space: normal;
         }
 
         .excel-table tbody td {
@@ -91,6 +101,8 @@
             border-bottom: 1px solid #d7e0ec;
             background: #fff;
             vertical-align: middle;
+            padding: .4rem .34rem;
+            font-size: .84rem;
         }
 
         .excel-table tbody tr:nth-child(even) td {
@@ -108,8 +120,8 @@
 
         .excel-rank {
             display: inline-flex;
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             align-items: center;
             justify-content: center;
             border-radius: 6px;
@@ -121,13 +133,16 @@
         .excel-user {
             color: #0f172a;
             font-weight: 900;
+            font-size: .86rem;
+            line-height: 1.18;
+            word-break: break-word;
         }
 
         .excel-city {
             display: inline-block;
             margin-top: 3px;
             color: #64748b;
-            font-size: .8rem;
+            font-size: .7rem;
         }
 
         .metric-cell {
@@ -135,27 +150,78 @@
             font-variant-numeric: tabular-nums;
             font-weight: 900;
             text-align: right;
+            white-space: nowrap;
         }
 
         .metric-cell.total {
             background: #eef6ff !important;
             color: #0b4c8c;
-            font-size: 1rem;
+            font-size: .9rem;
         }
 
         .service-pill {
             display: inline-block;
             border: 1px solid #cbd5e1;
             border-radius: 999px;
-            padding: 5px 10px;
+            max-width: 100%;
+            padding: 4px 8px;
             background: #f8fafc;
             color: #123b70;
             font-weight: 900;
+            font-size: .74rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        .service-total {
+            display: block;
+            margin-top: 2px;
+            color: #64748b;
+            font-size: .72rem;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .fulfillment {
+            min-width: 0;
+        }
+
+        .fulfillment-value {
+            display: block;
+            color: #0f2851;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+
+        .fulfillment-track {
+            height: 5px;
+            margin-top: 4px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+
+        .fulfillment-bar {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: #1f5fae;
         }
 
         @media (max-width: 991.98px) {
             .entregas-summary {
                 grid-template-columns: repeat(2, minmax(140px, 1fr));
+            }
+
+            .excel-wrap {
+                overflow-x: auto;
+            }
+
+            .excel-table {
+                min-width: 980px;
             }
         }
     </style>
@@ -163,13 +229,16 @@
     @php
         $totalAsignados = (int) $entregadores->sum('total_asignados');
         $totalGeneral = (int) $entregadores->sum('total_entregados');
+        $totalVentanilla = (int) $entregadores->sum('total_ventanilla');
+        $totalCarteroEntregados = (int) $entregadores->sum('total_cartero_entregados');
         $totalPendientesAsignados = (int) $entregadores->sum('pendientes_asignados');
-        $cumplimientoGeneral = $totalAsignados > 0 ? round(($totalGeneral * 100) / $totalAsignados, 1) : 0;
+        $cumplimientoGeneral = $totalAsignados > 0 ? round(($totalCarteroEntregados * 100) / $totalAsignados, 1) : 0;
         $totalEms = (int) $entregadores->sum('ems');
         $totalContratos = (int) $entregadores->sum('contrato');
         $totalCarteros = (int) $entregadores->count();
     @endphp
 
+    <div class="entregas-page">
     <div class="card entregas-card mb-3">
         <div class="card-body entregas-filter">
             <form method="GET" action="{{ route('entregas.index') }}" class="row">
@@ -232,10 +301,11 @@
 
     <div class="entregas-summary mb-3">
         <div class="entregas-kpi"><span>Total asignados</span><strong>{{ number_format($totalAsignados) }}</strong></div>
+        <div class="entregas-kpi"><span>Entregados cartero</span><strong>{{ number_format($totalCarteroEntregados) }}</strong></div>
+        <div class="entregas-kpi"><span>Entregados ventanilla</span><strong>{{ number_format($totalVentanilla) }}</strong></div>
         <div class="entregas-kpi"><span>Total entregados</span><strong>{{ number_format($totalGeneral) }}</strong></div>
         <div class="entregas-kpi"><span>Pendientes asignados</span><strong>{{ number_format($totalPendientesAsignados) }}</strong></div>
         <div class="entregas-kpi"><span>Cumplimiento</span><strong>{{ number_format($cumplimientoGeneral, 1) }}%</strong></div>
-        <div class="entregas-kpi"><span>Carteros</span><strong>{{ number_format($totalCarteros) }}</strong></div>
     </div>
 
     <div class="card entregas-card">
@@ -249,23 +319,44 @@
         <div class="card-body p-3">
             <div class="excel-wrap">
                 <table class="table table-sm excel-table">
+                    <colgroup>
+                        <col style="width:3%;">
+                        <col style="width:13%;">
+                        <col style="width:7%;">
+                        <col style="width:8%;">
+                        <col style="width:8%;">
+                        <col style="width:8%;">
+                        <col style="width:7%;">
+                        <col style="width:9%;">
+                        <col style="width:4.5%;">
+                        <col style="width:6%;">
+                        <col style="width:6%;">
+                        <col style="width:6%;">
+                        <col style="width:14.5%;">
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th style="width: 54px;">#</th>
-                            <th>Usuario / Regional</th>
-                            <th class="text-right">Asignados</th>
-                            <th class="text-right">Entregados</th>
-                            <th class="text-right">Pendientes</th>
-                            <th class="text-right">Cumplimiento</th>
+                            <th>#</th>
+                            <th>Usuario<br>Regional</th>
+                            <th title="Asignados">Asig.</th>
+                            <th title="Entregados por cartero">Cart.</th>
+                            <th title="Entregados por ventanilla">Vent.</th>
+                            <th title="Total entregados">Total</th>
+                            <th title="Pendientes asignados">Pend.</th>
+                            <th title="Cumplimiento">Cumpl.</th>
                             <th class="text-right">EMS</th>
-                            <th class="text-right">Contratos</th>
-                            <th class="text-right">Certificados</th>
-                            <th class="text-right">Ordinarios</th>
-                            <th>Servicio mas entregado</th>
+                            <th class="text-right">Contr.</th>
+                            <th class="text-right">Cert.</th>
+                            <th class="text-right">Ord.</th>
+                            <th>Servicio top</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($entregadores as $item)
+                            @php
+                                $cumplimiento = (float) $item->cumplimiento_asignados;
+                                $cumplimientoBar = min(100, max(0, $cumplimiento));
+                            @endphp
                             <tr>
                                 <td><span class="excel-rank">{{ $loop->iteration }}</span></td>
                                 <td>
@@ -273,26 +364,36 @@
                                     <span class="excel-city">{{ $item->ciudad ?: 'SIN DEPARTAMENTO' }}</span>
                                 </td>
                                 <td class="metric-cell total">{{ number_format((int) $item->total_asignados) }}</td>
+                                <td class="metric-cell total">{{ number_format((int) $item->total_cartero_entregados) }}</td>
+                                <td class="metric-cell total">{{ number_format((int) $item->total_ventanilla) }}</td>
                                 <td class="metric-cell total">{{ number_format((int) $item->total_entregados) }}</td>
                                 <td class="metric-cell">{{ number_format((int) $item->pendientes_asignados) }}</td>
-                                <td class="metric-cell">{{ number_format((float) $item->cumplimiento_asignados, 1) }}%</td>
+                                <td>
+                                    <div class="fulfillment">
+                                        <span class="fulfillment-value">{{ number_format($cumplimiento, 1) }}%</span>
+                                        <span class="fulfillment-track">
+                                            <span class="fulfillment-bar" style="width: {{ $cumplimientoBar }}%;"></span>
+                                        </span>
+                                    </div>
+                                </td>
                                 <td class="metric-cell">{{ number_format((int) $item->ems) }}</td>
                                 <td class="metric-cell">{{ number_format((int) $item->contrato) }}</td>
                                 <td class="metric-cell">{{ number_format((int) $item->certi) }}</td>
                                 <td class="metric-cell">{{ number_format((int) $item->ordi) }}</td>
                                 <td>
-                                    <span class="service-pill">{{ $item->servicio_mas_entregado }}</span>
-                                    <span class="text-muted ml-1">({{ number_format((int) $item->servicio_mas_entregado_total) }})</span>
+                                    <span class="service-pill" title="{{ $item->servicio_mas_entregado }}">{{ $item->servicio_mas_entregado }}</span>
+                                    <span class="service-total">{{ number_format((int) $item->servicio_mas_entregado_total) }}</span>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="text-center text-muted py-4">No hay asignaciones ni entregas para el filtro seleccionado.</td>
+                                <td colspan="13" class="text-center text-muted py-4">No hay asignaciones ni entregas para el filtro seleccionado.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
         </div>
+    </div>
     </div>
 @stop

@@ -16,6 +16,7 @@ use Maatwebsite\Excel\Facades\Excel;
 class DashboardController extends Controller
 {
     private const EVENTO_ENTREGADO_ID = 316;
+    private const EVENTO_ENVIADO_VENTANILLA_ID = 312;
     private const EVENTO_EMS_SOLICITUD_ID = 295;
     private const CERTI_ORDI_GREEN_DAYS = 7;
     private const CERTI_ORDI_YELLOW_DAYS = 15;
@@ -145,29 +146,39 @@ class DashboardController extends Controller
 
         $asignados = $this->buildRankingAsignadosCartero($modulosSeleccionados, $desde, $hasta, null, '', $departamentoCartero)
             ->keyBy('id');
+        $ventanilla = $this->buildRankingEntregasVentanilla($modulosSeleccionados, $desde, $hasta, null, '', $departamentoCartero)
+            ->keyBy('id');
 
         $entregadores = $entregadores
             ->keyBy('id')
             ->union($asignados)
-            ->map(function ($row, $userId) use ($entregadores, $asignados) {
+            ->union($ventanilla)
+            ->map(function ($row, $userId) use ($entregadores, $asignados, $ventanilla) {
                 $entregadoRow = $entregadores->firstWhere('id', $userId);
                 $asignadoRow = $asignados->get($userId);
+                $ventanillaRow = $ventanilla->get($userId);
 
-                $row->name = $entregadoRow->name ?? $asignadoRow->name ?? $row->name;
-                $row->ciudad = $entregadoRow->ciudad ?? $asignadoRow->ciudad ?? $row->ciudad;
+                $row->name = $entregadoRow->name ?? $asignadoRow->name ?? $ventanillaRow->name ?? $row->name;
+                $row->ciudad = $entregadoRow->ciudad ?? $asignadoRow->ciudad ?? $ventanillaRow->ciudad ?? $row->ciudad;
                 $row->total_entregados = (int) ($entregadoRow->total_entregados ?? 0);
+                $row->total_ventanilla = (int) ($ventanillaRow->total_ventanilla ?? 0);
+                $row->total_cartero_entregados = max(0, $row->total_entregados - $row->total_ventanilla);
                 $row->ems = (int) ($entregadoRow->ems ?? 0);
                 $row->contrato = (int) ($entregadoRow->contrato ?? 0);
                 $row->certi = (int) ($entregadoRow->certi ?? 0);
                 $row->ordi = (int) ($entregadoRow->ordi ?? 0);
+                $row->ventanilla_ems = (int) ($ventanillaRow->ems ?? 0);
+                $row->ventanilla_contrato = (int) ($ventanillaRow->contrato ?? 0);
+                $row->ventanilla_certi = (int) ($ventanillaRow->certi ?? 0);
+                $row->ventanilla_ordi = (int) ($ventanillaRow->ordi ?? 0);
                 $row->total_asignados = (int) ($asignadoRow->total_asignados ?? 0);
                 $row->asignado_ems = (int) ($asignadoRow->ems ?? 0);
                 $row->asignado_contrato = (int) ($asignadoRow->contrato ?? 0);
                 $row->asignado_certi = (int) ($asignadoRow->certi ?? 0);
                 $row->asignado_ordi = (int) ($asignadoRow->ordi ?? 0);
-                $row->pendientes_asignados = max(0, $row->total_asignados - $row->total_entregados);
+                $row->pendientes_asignados = max(0, $row->total_asignados - $row->total_cartero_entregados);
                 $row->cumplimiento_asignados = $row->total_asignados > 0
-                    ? round(($row->total_entregados * 100) / $row->total_asignados, 1)
+                    ? round(($row->total_cartero_entregados * 100) / $row->total_asignados, 1)
                     : 0.0;
 
                 $porServicio = [
@@ -185,7 +196,7 @@ class DashboardController extends Controller
 
                 return $row;
             })
-            ->sortByDesc(fn ($row) => ((int) $row->total_asignados * 1000000) + (int) $row->total_entregados)
+            ->sortByDesc(fn ($row) => ((int) $row->total_asignados * 1000000) + (int) $row->total_entregados + (int) $row->total_ventanilla)
             ->values();
 
         return view('entregas', [
@@ -1044,6 +1055,38 @@ class DashboardController extends Controller
         }
 
         return $this->resolveRankingUsuarios($queries, 'total_asignados', $limit, $departamentoCartero);
+    }
+
+    private function buildRankingEntregasVentanilla(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, ?int $limit = 10, string $departamento = '', string $departamentoCartero = '')
+    {
+        $queries = [];
+
+        foreach ($modulosSeleccionados as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
+            $eventTable = $config['event_table'];
+
+            $query = DB::table($eventTable . ' as delivered')
+                ->select([
+                    'delivered.user_id as user_id',
+                    DB::raw("'" . $config['label'] . "' as modulo"),
+                    DB::raw('COUNT(DISTINCT delivered.codigo) as total'),
+                ])
+                ->where('delivered.evento_id', self::EVENTO_ENTREGADO_ID)
+                ->whereExists(function ($sub) use ($eventTable) {
+                    $sub->selectRaw('1')
+                        ->from($eventTable . ' as ventanilla_event')
+                        ->whereColumn('ventanilla_event.codigo', 'delivered.codigo')
+                        ->where('ventanilla_event.evento_id', self::EVENTO_ENVIADO_VENTANILLA_ID)
+                        ->whereColumn('ventanilla_event.created_at', '<=', 'delivered.created_at');
+                })
+                ->groupBy('delivered.user_id');
+
+            $this->applyDateFilter($query, 'delivered.created_at', $from, $to);
+            $this->applyEventDepartamentoFilter($query, $config, $departamento, 'delivered');
+            $queries[] = $query;
+        }
+
+        return $this->resolveRankingUsuarios($queries, 'total_ventanilla', $limit, $departamentoCartero);
     }
 
     private function buildRankingDepartamentos(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to)
