@@ -77,7 +77,7 @@ class PaquetesEmsController extends Controller
         ],
         'TARIJA' => [
             'CERCADO', 'ANICETO ARCE', 'BURDETT OCONNOR', 'GRAN CHACO',
-            'JOSE MARIA AVILES', 'MENDEZ',
+            'JOSE MARIA AVILES', 'MENDEZ', 'YACUIBA',
         ],
         'SUCRE' => [
             'OROPEZA', 'AZURDUY', 'ZUDANEZ', 'TOMINA', 'HERNANDO SILES',
