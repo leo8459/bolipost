@@ -73,6 +73,7 @@ class PaquetesEmsController extends Controller
             'CHARCAS', 'NOR CHICHAS', 'ALONSO DE IBANEZ', 'SUD CHICHAS',
             'NOR LIPEZ', 'SUD LIPEZ', 'JOSE MARIA LINARES', 'ANTONIO QUIJARRO',
             'DANIEL CAMPOS', 'MODESTO OMISTE', 'BILBAO RIOJA', 'ENRIQUE BALDIVIESO',
+            'TUPIZA', 'VILLAZON', 'UYUNI', 'LLALLAGUA',
         ],
         'TARIJA' => [
             'CERCADO', 'ANICETO ARCE', 'BURDETT OCONNOR', 'GRAN CHACO',

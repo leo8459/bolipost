@@ -107,12 +107,12 @@
                         @if (!$this->isAlmacenMode)
                             @if ($canCreateContratoTarifa)
                             <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.create-con-tarifa', [], false) }}">
-                                Crear con tarifa
+                                Crear solicitud
                             </a>
                             @endif
                             @if ($canCreateContrato)
                             <a class="btn btn-dorado" href="{{ route('paquetes-contrato.create', [], false) }}">
-                                Crear sin tarifa
+                                Crear solicitud
                             </a>
                             @endif
                         @endif
