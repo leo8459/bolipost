@@ -6181,6 +6181,10 @@ class PaquetesEms extends Component
 
         $codigos = PaqueteEms::query()
             ->where('codigo', 'like', $prefix . '%' . $suffix)
+            ->where(function ($query) {
+                $query->whereNull('observacion')
+                    ->orWhere('observacion', 'not like', 'ENVIO EMS NO REGISTRADO ENTREGADO DESDE EMS ENTREGADOS%');
+            })
             ->pluck('codigo');
 
         $startNumber = $this->getCodigoResetStart($prefix);

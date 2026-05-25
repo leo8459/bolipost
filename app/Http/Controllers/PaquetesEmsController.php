@@ -1050,6 +1050,7 @@ class PaquetesEmsController extends Controller
 
         $data = $request->validate([
             'codigo' => ['required', 'string', 'max:50'],
+            'es_ems' => ['nullable', 'boolean'],
             'origen' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
             'destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
             'provincia' => ['nullable', 'string', 'max:255'],
@@ -1057,6 +1058,7 @@ class PaquetesEmsController extends Controller
             'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
         ], [], [
             'codigo' => 'codigo',
+            'es_ems' => 'envio EMS',
             'origen' => 'origen',
             'destino' => 'destino',
             'provincia' => 'provincia',
@@ -1123,14 +1125,77 @@ class PaquetesEmsController extends Controller
                 ->with('error', 'No puedes registrar este codigo porque ya existe en contratos.');
         }
 
+        $esEms = (bool) ($data['es_ems'] ?? false);
         $empresaIdDetectada = $this->resolveEmpresaIdByCodigoContrato($codigo);
         $empresaIdManual = !empty($data['empresa_id']) ? (int) $data['empresa_id'] : null;
 
-        if ($empresaIdDetectada && $empresaIdManual && $empresaIdDetectada !== $empresaIdManual) {
+        if (! $esEms && $empresaIdDetectada && $empresaIdManual && $empresaIdDetectada !== $empresaIdManual) {
             return redirect()
                 ->back()
                 ->withInput()
                 ->with('error', 'El codigo ' . $codigo . ' ya esta asociado a otra empresa.');
+        }
+
+        if ($esEms) {
+            $paqueteEms = null;
+            $origen = strtoupper(trim((string) $data['origen']));
+
+            DB::transaction(function () use (
+                $codigo,
+                $data,
+                $user,
+                $estadoEntregadoId,
+                $origen,
+                &$paqueteEms
+            ) {
+                $paqueteEms = PaqueteEms::query()->create([
+                    'origen' => $origen,
+                    'tipo_correspondencia' => 'EMS',
+                    'servicio_especial' => null,
+                    'contenido' => 'EMS',
+                    'cantidad' => 1,
+                    'peso' => (float) $data['peso'],
+                    'codigo' => $codigo,
+                    'cod_especial' => null,
+                    'precio' => 0,
+                    'nombre_remitente' => 'SIN REMITENTE',
+                    'nombre_envia' => 'SIN REMITENTE',
+                    'carnet' => 'SIN CARNET',
+                    'telefono_remitente' => '-',
+                    'nombre_destinatario' => 'SIN DESTINATARIO',
+                    'telefono_destinatario' => '-',
+                    'direccion' => 'SIN DIRECCION',
+                    'referencia' => null,
+                    'ciudad' => strtoupper(trim((string) $data['destino'])),
+                    'tarifario_id' => null,
+                    'estado_id' => $estadoEntregadoId,
+                    'user_id' => (int) $user->id,
+                    'imagen' => null,
+                    'observacion' => 'ENVIO EMS NO REGISTRADO ENTREGADO DESDE EMS ENTREGADOS',
+                ]);
+
+                DB::table('eventos_ems')->insert([
+                    'codigo' => $codigo,
+                    'evento_id' => self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE,
+                    'user_id' => (int) $user->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                DB::table('cartero')->insert([
+                    'id_paquetes_ems' => (int) $paqueteEms->id,
+                    'id_user' => (int) $user->id,
+                    'id_estados' => $estadoEntregadoId,
+                    'recibido_por' => 'ENTREGA DIRECTA',
+                    'descripcion' => 'PAQUETE ENTREGADO EXITOSAMENTE',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            });
+
+            return redirect()
+                ->route('paquetes-ems.entregados', ['q' => $codigo])
+                ->with('success', 'Envio EMS no registrado entregado correctamente. Se creo el paquete EMS ' . $codigo . ' y el evento Paquete entregado exitosamente.');
         }
 
         $contrato = null;

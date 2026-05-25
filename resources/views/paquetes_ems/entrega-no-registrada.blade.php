@@ -34,6 +34,13 @@
                 <div class="ems-section">
                     <h4>Datos del envio</h4>
                     <div class="row">
+                        <div class="col-12">
+                            <div class="custom-control custom-checkbox mb-3">
+                                <input type="checkbox" class="custom-control-input" id="es_ems" name="es_ems" value="1"
+                                    @checked(old('es_ems'))>
+                                <label class="custom-control-label" for="es_ems">Envio EMS</label>
+                            </div>
+                        </div>
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
                                 <label for="codigo">Codigo</label>
@@ -85,7 +92,7 @@
                             </div>
                         </div>
                         <div class="col-lg-12">
-                            <div class="form-group">
+                            <div class="form-group" id="empresa-field">
                                 <label for="empresa_id">Empresa</label>
                                 <select id="empresa_id" name="empresa_id" class="form-control">
                                     <option value="">Sin empresa</option>
@@ -218,6 +225,8 @@
             const provinciasPorDestino = @json($provinciasPorDestino);
             const destino = document.getElementById('destino');
             const provincia = document.getElementById('provincia');
+            const esEms = document.getElementById('es_ems');
+            const empresaField = document.getElementById('empresa-field');
             const selectedProvincia = (provincia.dataset.selected || '').toUpperCase();
 
             function renderProvincias() {
@@ -238,6 +247,19 @@
 
             destino.addEventListener('change', renderProvincias);
             renderProvincias();
+
+            function toggleEmpresa() {
+                if (!esEms || !empresaField) {
+                    return;
+                }
+
+                empresaField.style.display = esEms.checked ? 'none' : '';
+            }
+
+            if (esEms) {
+                esEms.addEventListener('change', toggleEmpresa);
+                toggleEmpresa();
+            }
         });
     </script>
 @endsection
