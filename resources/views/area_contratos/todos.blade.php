@@ -98,6 +98,11 @@
                                     </td>
                                     <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') }}</td>
                                     <td class="text-center area-action-col">
+                                        @include('partials.rastreo-eventos-button', [
+                                            'tipo' => 'contrato',
+                                            'codigo' => $contrato->codigo,
+                                            'class' => 'btn btn-sm btn-outline-primary rastreo-action-btn',
+                                        ])
                                         <a href="{{ route('paquetes-contrato.reporte', $contrato->id) }}"
                                             target="_blank"
                                             class="area-action-btn"
@@ -193,8 +198,8 @@
         }
 
         .area-action-col {
-            width: 120px;
-            min-width: 120px;
+            width: 150px;
+            min-width: 150px;
         }
 
         .area-action-btn {

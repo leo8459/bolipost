@@ -174,6 +174,7 @@ class PaquetesEms extends Component
     public $precio = '';
     public $precio_confirm = null;
     public $showPaqueteConfirmModal = false;
+    public $mostrar_empresa = false;
     public $nombre_remitente = '';
     public $nombre_envia = '';
     public $carnet = '';
@@ -1971,6 +1972,7 @@ class PaquetesEms extends Component
             $this->codigo = $this->generateCodigo();
         }
 
+        $this->normalizeCreateFormFields();
         $this->ciudad = $this->normalizeDestinoNombre((string) $this->ciudad);
         $this->validate($this->rules());
 
@@ -4280,6 +4282,7 @@ class PaquetesEms extends Component
             'auto_codigo',
             'precio',
             'precio_confirm',
+            'mostrar_empresa',
             'nombre_remitente',
             'nombre_envia',
             'carnet',
@@ -4304,6 +4307,13 @@ class PaquetesEms extends Component
     protected function rules()
     {
         $requiresTarifario = !$this->isCertificadoShipment();
+        $telefonoRemitenteRules = ['required', 'string', 'max:50'];
+        $telefonoDestinatarioRules = ['nullable', 'string', 'max:50'];
+
+        if ($this->isCreateEms) {
+            $telefonoRemitenteRules[] = 'regex:/^[0-9]+$/';
+            $telefonoDestinatarioRules[] = 'regex:/^[0-9]*$/';
+        }
 
         return [
             'origen' => 'nullable|string|max:255',
@@ -4322,15 +4332,29 @@ class PaquetesEms extends Component
             'nombre_remitente' => 'required|string|max:255',
             'nombre_envia' => 'nullable|string|max:255',
             'carnet' => 'required|string|max:255',
-            'telefono_remitente' => 'required|string|max:50',
+            'telefono_remitente' => $telefonoRemitenteRules,
             'nombre_destinatario' => 'required|string|max:255',
-            'telefono_destinatario' => 'nullable|string|max:50',
+            'telefono_destinatario' => $telefonoDestinatarioRules,
             'direccion' => 'required|string|max:255',
             'referencia' => 'nullable|string|max:255',
             'ciudad' => ['nullable', 'string', 'max:255'],
             'servicio_id' => ['required', 'integer', Rule::exists('servicio', 'id')],
             'destino_id' => ['required', 'integer', Rule::exists('destino', 'id')],
         ];
+    }
+
+    protected function normalizeCreateFormFields(): void
+    {
+        if (!$this->isCreateEms) {
+            return;
+        }
+
+        $this->telefono_remitente = preg_replace('/\D+/', '', (string) $this->telefono_remitente) ?? '';
+        $this->telefono_destinatario = preg_replace('/\D+/', '', (string) $this->telefono_destinatario) ?? '';
+
+        if (!$this->mostrar_empresa) {
+            $this->nombre_envia = '';
+        }
     }
 
     protected function payload($userId = null)
@@ -6029,7 +6053,18 @@ class PaquetesEms extends Component
         }
 
         if ($name === 'telefono_destinatario') {
+            if ($this->isCreateEms) {
+                $this->telefono_destinatario = preg_replace('/\D+/', '', (string) $value) ?? '';
+            }
             $this->applyTarifarioMatch();
+        }
+
+        if ($name === 'telefono_remitente' && $this->isCreateEms) {
+            $this->telefono_remitente = preg_replace('/\D+/', '', (string) $value) ?? '';
+        }
+
+        if ($name === 'mostrar_empresa' && !$this->mostrar_empresa) {
+            $this->nombre_envia = '';
         }
 
         if ($name === 'auto_codigo') {
@@ -6599,10 +6634,11 @@ class PaquetesEms extends Component
         $this->peso = (string) $preregistro->peso;
         $this->nombre_remitente = (string) $preregistro->nombre_remitente;
         $this->nombre_envia = (string) ($preregistro->nombre_envia ?? '');
+        $this->mostrar_empresa = trim((string) $this->nombre_envia) !== '';
         $this->carnet = (string) $preregistro->carnet;
-        $this->telefono_remitente = (string) ($preregistro->telefono_remitente ?? '');
+        $this->telefono_remitente = preg_replace('/\D+/', '', (string) ($preregistro->telefono_remitente ?? '')) ?? '';
         $this->nombre_destinatario = (string) $preregistro->nombre_destinatario;
-        $this->telefono_destinatario = (string) ($preregistro->telefono_destinatario ?? '');
+        $this->telefono_destinatario = preg_replace('/\D+/', '', (string) ($preregistro->telefono_destinatario ?? '')) ?? '';
         $this->direccion = (string) $preregistro->direccion;
         $this->ciudad = $this->normalizeDestinoNombre((string) $preregistro->ciudad);
         $this->servicio_id = (string) $preregistro->servicio_id;

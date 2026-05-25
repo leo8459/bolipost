@@ -151,8 +151,8 @@
 
         .table td{ vertical-align: middle; }
         .action-cell{
-            width:72px;
-            min-width:72px;
+            width:128px;
+            min-width:128px;
             text-align:center;
         }
         .action-stack{
@@ -297,6 +297,9 @@
                         @else
                             Mostrando todos los registros
                         @endif
+                        @if ($this->isAlmacen)
+                            <span class="ml-2">Estados visibles: <strong>VENTANILLA</strong> y <strong>RECIBIDO</strong></span>
+                        @endif
                     </div>
                     <div class="muted small">
                         Total en pagina: <strong>{{ $paquetes->count() }}</strong>
@@ -348,6 +351,10 @@
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
                                     <td class="action-cell">
                                         <div class="action-stack">
+                                        @include('partials.rastreo-eventos-button', [
+                                            'tipo' => 'certi',
+                                            'codigo' => $paquete->codigo,
+                                        ])
                                         @if ($canCertiEdit)
                                         <button wire:click="openEditModal({{ $paquete->id }})"
                                             class="btn btn-sm btn-azul action-btn"

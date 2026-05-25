@@ -128,6 +128,11 @@
                                     <td>{{ $paquete->updated_at ? \Illuminate\Support\Carbon::parse($paquete->updated_at)->format('d/m/Y H:i') : '-' }}</td>
                                     <td class="text-right">
                                         <div class="tp-row-actions">
+                                            @include('partials.rastreo-eventos-button', [
+                                                'tipo' => $paquete->type_key,
+                                                'codigo' => $paquete->codigo,
+                                                'class' => 'btn btn-sm btn-outline-info',
+                                            ])
                                             @if($paquete->type_key === 'contrato')
                                                 <a
                                                     href="{{ route('todos-paquetes.guia', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"

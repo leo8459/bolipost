@@ -34,7 +34,7 @@
         .pill-id{ background: rgba(52,68,124,.12); color: var(--azul); font-weight: 900; padding: 4px 10px; border-radius: 999px; display:inline-block; }
         .muted{ color:var(--muted); }
         .table td{ vertical-align: middle; }
-        .action-cell{ width:72px; min-width:72px; text-align:center; }
+        .action-cell{ width:128px; min-width:128px; text-align:center; }
         .action-stack{ display:flex; flex-direction:column; align-items:center; gap:8px; }
         .action-btn{ width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:11px; box-shadow:0 6px 16px rgba(32, 83, 154, .10); }
         .action-btn i{ font-size:14px; }
@@ -248,6 +248,10 @@
                                     <td class="muted small">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</td>
                                     <td class="action-cell">
                                         <div class="action-stack">
+                                        @include('partials.rastreo-eventos-button', [
+                                            'tipo' => 'ordi',
+                                            'codigo' => $paquete->codigo,
+                                        ])
                                         @if ($canOrdiEdit)
                                         <button wire:click="openEditModal({{ $paquete->id }})" class="btn btn-sm btn-azul action-btn" title="Editar">
                                             <i class="fas fa-pen"></i>

@@ -21,7 +21,7 @@
         .btn-outline-light2:hover{ background: rgba(255,255,255,.12); color:#fff; }
         .btn-outline-azul{ border:1px solid rgba(52,68,124,.35); color: var(--azul); font-weight: 800; border-radius: 12px; padding: 8px 12px; background:#fff; }
         .btn-outline-azul:hover{ background: rgba(52,68,124,.06); color: var(--azul); }
-        .action-col{ width: 92px; min-width: 92px; text-align:center; }
+        .action-col{ width: 128px; min-width: 128px; text-align:center; }
         .action-stack{ display:flex; flex-direction:column; align-items:center; gap:8px; }
         .action-btn{
             width:48px;
@@ -164,6 +164,10 @@
                                     <td>{{ optional($recojo->created_at)->format('d/m/Y H:i') }}</td>
                                     <td class="action-col">
                                         <div class="action-stack">
+                                        @include('partials.rastreo-eventos-button', [
+                                            'tipo' => 'contrato',
+                                            'codigo' => $recojo->codigo,
+                                        ])
                                         @if ($canContratoRecogerPrint)
                                         <a href="{{ route('paquetes-contrato.reporte', $recojo->id, false) }}"
                                            target="_blank"

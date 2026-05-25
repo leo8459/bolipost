@@ -25,7 +25,7 @@
         .btn-outline-light2:hover{ background: rgba(255,255,255,.12); color:#fff; }
         .btn-azul{ background: var(--azul); color:#fff; font-weight:800; border:none; border-radius:12px; padding:10px 14px; }
         .btn-outline-azul{ border:1px solid rgba(52,68,124,.35); color: var(--azul); font-weight:800; border-radius:12px; padding:10px 14px; background:#fff; }
-        .action-col{ width: 92px; min-width: 92px; text-align:center; }
+        .action-col{ width: 128px; min-width: 128px; text-align:center; }
         .action-stack{ display:flex; flex-direction:column; align-items:center; gap:8px; }
         .action-btn{
             width:48px;
@@ -185,6 +185,10 @@
                                     <td>{{ optional($recojo->user)->name ?? '-' }}</td>
                                     <td class="action-col">
                                         <div class="action-stack">
+                                        @include('partials.rastreo-eventos-button', [
+                                            'tipo' => 'contrato',
+                                            'codigo' => $recojo->codigo,
+                                        ])
                                         @if ($canRecojoPrint)
                                         <a href="{{ route('paquetes-contrato.reporte', $recojo->id, false) }}"
                                             target="_blank"

@@ -477,8 +477,8 @@
             margin-left: 4px;
         }
         .action-cell{
-            width: 78px;
-            min-width: 78px;
+            width: 128px;
+            min-width: 128px;
             text-align: center;
         }
         .action-stack{
@@ -1281,7 +1281,15 @@
                                 </div>
                                 <div class="form-group col-md-6">
                                     <label>Telefono remitente<span class="required-star">*</span></label>
-                                    <input type="text" wire:model.defer="telefono_remitente" class="form-control" required>
+                                    <input
+                                        type="text"
+                                        inputmode="numeric"
+                                        pattern="[0-9]*"
+                                        wire:model.live.debounce.300ms="telefono_remitente"
+                                        class="form-control"
+                                        oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                        required
+                                    >
                                     @error('telefono_remitente') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -1298,9 +1306,19 @@
                                     @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-6">
-                                    <label>Empresa</label>
-                                    <input type="text" wire:model.defer="nombre_envia" class="form-control">
-                                    @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
+                                    <div class="form-check mt-4">
+                                        <input class="form-check-input" type="checkbox" id="mostrarEmpresaCreate" wire:model.live="mostrar_empresa">
+                                        <label class="form-check-label font-weight-bold" for="mostrarEmpresaCreate">
+                                            Empresa
+                                        </label>
+                                    </div>
+
+                                    @if ($mostrar_empresa)
+                                        <div class="mt-2">
+                                            <input type="text" wire:model.defer="nombre_envia" class="form-control" placeholder="Nombre de la empresa">
+                                            @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
 
@@ -1317,7 +1335,14 @@
                                 </div>
                                 <div class="form-group col-md-6">
                                     <label>Telefono destinatario</label>
-                                    <input type="text" wire:model.defer="telefono_destinatario" class="form-control">
+                                    <input
+                                        type="text"
+                                        inputmode="numeric"
+                                        pattern="[0-9]*"
+                                        wire:model.live.debounce.300ms="telefono_destinatario"
+                                        class="form-control"
+                                        oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                    >
                                     @error('telefono_destinatario') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -1720,6 +1745,10 @@
                                         @endif
                                         <td class="action-cell">
                                             <div class="action-stack">
+                                            @include('partials.rastreo-eventos-button', [
+                                                'tipo' => strtolower((string) ($row->record_type ?? 'EMS')),
+                                                'codigo' => $row->codigo,
+                                            ])
                                             @if (($row->record_type ?? '') === 'EMS')
                                                 @if ($this->isAlmacenEms || $this->isTransitoEms)
                                                     @if ($canEmsEdit)
@@ -1805,6 +1834,10 @@
                                         <td>{{ optional($paquete->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                         <td class="action-cell">
                                             <div class="action-stack">
+                                            @include('partials.rastreo-eventos-button', [
+                                                'tipo' => 'ems',
+                                                'codigo' => $paquete->codigo,
+                                            ])
                                             @if ($canEmsEdit)
                                             <button wire:click="openEditModal({{ $paquete->id }})"
                                                 class="btn btn-sm btn-azul action-btn"
@@ -1941,6 +1974,10 @@
                                             <td>{{ $contrato->telefono_d ?: '-' }}</td>
                                             <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') }}</td>
                                             <td>
+                                                @include('partials.rastreo-eventos-button', [
+                                                    'tipo' => 'contrato',
+                                                    'codigo' => $contrato->codigo,
+                                                ])
                                                 @if ($canContratoAlmacenPrint)
                                                 <a href="{{ route('paquetes-contrato.reporte', $contrato->id, false) }}"
                                                    target="_blank"

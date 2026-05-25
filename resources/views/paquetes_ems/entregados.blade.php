@@ -105,6 +105,11 @@
                                         {{ !empty($paquete->fecha_entrega) ? \Illuminate\Support\Carbon::parse($paquete->fecha_entrega)->format('d/m/Y H:i') : '-' }}
                                     </td>
                                     <td class="ems-action-col">
+                                        @include('partials.rastreo-eventos-button', [
+                                            'tipo' => strtolower((string) ($paquete->tipo_paquete ?? 'ems')),
+                                            'codigo' => $paquete->codigo,
+                                            'class' => 'btn btn-sm btn-outline-primary rastreo-action-btn',
+                                        ])
                                         @if (($paquete->tipo_paquete ?? '') === 'EMS' && ($canEmsEntregadosPrint ?? false))
                                             <a href="{{ route('paquetes-ems.boleta', $paquete->id, false) }}"
                                                class="btn btn-sm btn-outline-primary ems-action-btn"
@@ -239,8 +244,8 @@
         }
 
         .ems-action-col {
-            width: 92px;
-            min-width: 92px;
+            width: 128px;
+            min-width: 128px;
             text-align: center;
             white-space: nowrap;
         }

@@ -33,6 +33,7 @@ class PaqueteCerti extends Component
     private const EVENTO_ID_PAQUETE_RECIBIDO_OFICINA_ENTREGA = 172;
     private const EVENTO_ID_PAQUETE_MARCADO_ELIMINADO = 278;
     private const ESTADO_VENTANILLA = 'VENTANILLA';
+    private const ESTADO_RECIBIDO = 'RECIBIDO';
     private const ESTADO_ENTREGADO = 'ENTREGADO';
     private const ESTADO_REZAGO = 'REZAGO';
     private const MODE_ROUTE_PERMISSIONS = [
@@ -796,6 +797,7 @@ class PaqueteCerti extends Component
         $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
         $estadoRezagoId = $this->getEstadoIdByNombre(self::ESTADO_REZAGO);
         $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
+        $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
 
         $paquetes = $this->authorizedPaquetesQuery()
             ->with(['estado', 'ventanillaRef', 'servicio'])
@@ -819,28 +821,37 @@ class PaqueteCerti extends Component
                     $query->whereRaw('1 = 0');
                 }
             })
-            ->when($this->isAlmacen, function ($query) use ($estadoVentanillaId) {
-                if ($estadoVentanillaId) {
-                    $query->where('fk_estado', $estadoVentanillaId);
+            ->when($this->isAlmacen, function ($query) use ($estadoVentanillaId, $estadoRecibidoId) {
+                $estadoIds = collect([$estadoVentanillaId, $estadoRecibidoId])
+                    ->filter()
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (!empty($estadoIds)) {
+                    $query->whereIn('fk_estado', $estadoIds);
                 } else {
                     $query->whereRaw('1 = 0');
                 }
             })
             ->when($q !== '', function ($query) use ($q) {
-                $query->where('codigo', 'ILIKE', "%{$q}%")
-                    ->orWhere('destinatario', 'ILIKE', "%{$q}%")
-                    ->orWhere('telefono', 'ILIKE', "%{$q}%")
-                    ->orWhere('cuidad', 'ILIKE', "%{$q}%")
-                    ->orWhere('zona', 'ILIKE', "%{$q}%")
-                    ->orWhere('peso', 'ILIKE', "%{$q}%")
-                    ->orWhere('tipo', 'ILIKE', "%{$q}%")
-                    ->orWhere('aduana', 'ILIKE', "%{$q}%")
-                    ->orWhereHas('estado', function ($estadoQuery) use ($q) {
-                        $estadoQuery->where('nombre_estado', 'ILIKE', "%{$q}%");
-                    })
-                    ->orWhereHas('ventanillaRef', function ($ventanillaQuery) use ($q) {
-                        $ventanillaQuery->where('nombre_ventanilla', 'ILIKE', "%{$q}%");
-                    });
+                $query->where(function ($searchQuery) use ($q) {
+                    $searchQuery->where('codigo', 'ILIKE', "%{$q}%")
+                        ->orWhere('destinatario', 'ILIKE', "%{$q}%")
+                        ->orWhere('telefono', 'ILIKE', "%{$q}%")
+                        ->orWhere('cuidad', 'ILIKE', "%{$q}%")
+                        ->orWhere('zona', 'ILIKE', "%{$q}%")
+                        ->orWhere('peso', 'ILIKE', "%{$q}%")
+                        ->orWhere('tipo', 'ILIKE', "%{$q}%")
+                        ->orWhere('aduana', 'ILIKE', "%{$q}%")
+                        ->orWhereHas('estado', function ($estadoQuery) use ($q) {
+                            $estadoQuery->where('nombre_estado', 'ILIKE', "%{$q}%");
+                        })
+                        ->orWhereHas('ventanillaRef', function ($ventanillaQuery) use ($q) {
+                            $ventanillaQuery->where('nombre_ventanilla', 'ILIKE', "%{$q}%");
+                        });
+                });
             })
             ->orderByDesc('id')
             ->paginate(10);

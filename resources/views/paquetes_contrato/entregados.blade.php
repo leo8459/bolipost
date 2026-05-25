@@ -53,6 +53,10 @@
                                         @endif
                                     </td>
                                     <td class="action-col">
+                                        @include('partials.rastreo-eventos-button', [
+                                            'tipo' => 'contrato',
+                                            'codigo' => $c->codigo,
+                                        ])
                                         @if ($canContratoEntregadoPrint ?? false)
                                         <a href="{{ route('paquetes-contrato.reporte', $c->id, false) }}"
                                            class="btn btn-sm btn-outline-azul action-btn"
@@ -152,8 +156,8 @@
         }
 
         .action-col {
-            width: 92px;
-            min-width: 92px;
+            width: 128px;
+            min-width: 128px;
             text-align: center;
         }
 

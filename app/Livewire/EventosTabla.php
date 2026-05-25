@@ -38,6 +38,12 @@ class EventosTabla extends Component
     public function mount(string $tipo = 'ems'): void
     {
         $this->tipo = $this->normalizeTipo($tipo);
+        $query = trim((string) request()->query('q', ''));
+
+        if ($query !== '') {
+            $this->search = $query;
+            $this->searchQuery = $query;
+        }
     }
 
     public function searchRegistros(): void
