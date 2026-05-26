@@ -422,11 +422,6 @@ return [
                     'submenu' => [
 
                         [
-                            'text' => 'Gestor',
-                            'url' => 'paquetes-contrato/gestor',
-                            'icon' => 'fas fa-briefcase',
-                        ],
-                        [
                             'text' => 'Todos los contratos',
                             'url' => 'area-contratos/todos',
                             'icon' => 'fas fa-list',
@@ -440,6 +435,17 @@ return [
                             'text' => 'Reportes',
                             'url' => 'area-contratos/reportes',
                             'icon' => 'fas fa-file-excel',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Gestor',
+                    'icon' => 'fas fa-briefcase',
+                    'submenu' => [
+                        [
+                            'text' => 'Gestor',
+                            'url' => 'paquetes-contrato/gestor',
+                            'icon' => 'fas fa-list-check',
                         ],
                     ],
                 ],

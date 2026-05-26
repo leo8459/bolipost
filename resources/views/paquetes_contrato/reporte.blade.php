@@ -4,22 +4,22 @@
     <meta charset="utf-8">
     <title>Guia Contrato</title>
     <style>
-        @page { size: letter; margin: 7mm; }
+        @page { size: letter; margin: 5mm 6mm; }
         * { box-sizing: border-box; }
         body {
             margin: 0;
             font-family: Verdana, DejaVu Sans, sans-serif;
-            font-size: 10px;
+            font-size: 9px;
             color: #000;
         }
         .sheet {
             width: 100%;
         }
         .guide-copy {
-            height: 85mm;
+            height: 81mm;
             border: 1.4px solid #000;
-            border-radius: 6px;
-            margin-bottom: 3mm;
+            border-radius: 5px;
+            margin-bottom: 2.2mm;
             overflow: hidden;
             page-break-inside: avoid;
         }
@@ -35,13 +35,13 @@
         }
         .guide-header td {
             border: 0;
-            padding: 2px 7px;
+            padding: 1.5px 6px;
             vertical-align: middle;
         }
         .brand-logo {
             display: block;
-            width: 28mm;
-            max-height: 9mm;
+            width: 25mm;
+            max-height: 8mm;
             object-fit: contain;
         }
         .brand-layout {
@@ -55,23 +55,23 @@
             vertical-align: middle;
         }
         .brand-logo-slot {
-            width: 30mm;
+            width: 27mm;
             text-align: left;
         }
         .brand-qr-slot {
-            width: 23mm;
+            width: 20mm;
             text-align: left;
-            padding-left: 5mm !important;
+            padding-left: 3mm !important;
         }
         .copy-badge {
             display: inline-block;
             min-width: 86px;
-            padding: 4px 8px;
+            padding: 3px 7px;
             border-radius: 12px;
             background: #fff;
             color: #000;
             border: 1px solid #000;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 800;
             text-align: center;
             text-transform: uppercase;
@@ -81,26 +81,26 @@
         }
         .verification-qr {
             display: inline-block;
-            width: 15mm;
-            height: 15mm;
+            width: 13mm;
+            height: 13mm;
         }
         .verification-label {
             display: block;
             margin-top: 1px;
-            font-size: 5.4px;
+            font-size: 5px;
             font-weight: 800;
             line-height: 1;
             text-transform: uppercase;
         }
         .barcode-code {
-            margin-top: 2px;
-            font-size: 12px;
+            margin-top: 1px;
+            font-size: 10.5px;
             font-weight: 800;
             letter-spacing: .4px;
             color: #000;
         }
         .content {
-            padding: 4px 7px 3px;
+            padding: 3px 6px 2px;
         }
         .info-table {
             width: 100%;
@@ -109,55 +109,55 @@
         }
         .info-table td {
             border: 1px solid #000;
-            padding: 2px 5px;
+            padding: 1.5px 4px;
             vertical-align: top;
-            line-height: 1.08;
+            line-height: 1.02;
             white-space: normal;
             word-wrap: break-word;
             overflow-wrap: break-word;
         }
         .section-label {
             display: block;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
             color: #000;
-            font-size: 8px;
+            font-size: 7.2px;
             font-weight: 800;
             letter-spacing: .35px;
             text-transform: uppercase;
         }
         .value {
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 700;
             color: #000;
         }
         .small-value {
-            font-size: 9px;
+            font-size: 8.1px;
             font-weight: 600;
         }
         .long-cell {
-            height: 13mm;
+            height: 11mm;
             overflow: hidden;
         }
         .long-value {
             display: block;
-            max-height: 9.5mm;
+            max-height: 8mm;
             overflow: hidden;
-            font-size: 8.2px;
+            font-size: 7.3px;
             font-weight: 700;
-            line-height: 1.05;
+            line-height: 1.0;
             word-break: break-word;
         }
         .content-value {
             display: block;
-            max-height: 11mm;
+            max-height: 9mm;
             overflow: hidden;
-            font-size: 7.8px;
+            font-size: 7px;
             font-weight: 700;
-            line-height: 1.03;
+            line-height: 1.0;
             word-break: break-word;
         }
         .return-title {
-            font-size: 9px;
+            font-size: 7.8px;
             font-weight: 800;
             color: #000;
             text-transform: uppercase;
@@ -170,40 +170,40 @@
         }
         .return-grid td {
             border: 1px solid #000;
-            padding: 2px 4px;
-            font-size: 8.2px;
-            line-height: 1.1;
+            padding: 1.5px 3px;
+            font-size: 7.1px;
+            line-height: 1.0;
         }
         .box {
             display: inline-block;
-            width: 9px;
-            height: 9px;
+            width: 7px;
+            height: 7px;
             border: 1px solid #000;
             float: right;
         }
         .note {
-            margin-top: 4px;
-            padding: 3px 6px;
+            margin-top: 2px;
+            padding: 2px 5px;
             border: 1px solid #000;
             background: #fff;
-            font-size: 7.6px;
-            line-height: 1.08;
+            font-size: 6.5px;
+            line-height: 1.0;
             text-align: justify;
         }
         .signatures {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            margin-top: 1px;
+            margin-top: 0;
         }
         .signatures td {
             border: 0;
-            padding: 1mm 10px 0;
+            padding: .5mm 10px 0;
             text-align: center;
-            font-size: 8px;
+            font-size: 7px;
             font-weight: 700;
             color: #000;
-            height: 8mm;
+            height: 6mm;
             vertical-align: middle;
         }
     </style>
