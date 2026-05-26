@@ -588,12 +588,31 @@ class AclPermissionRegistry
             'feature.tarifa-contrato.report',
             'feature.tarifa-contrato.export',
         ],
+        'paquetes-contrato.index' => [
+            'paquetes-contrato.index',
+            'feature.paquetes-contrato.index.create',
+            'feature.paquetes-contrato.create.create',
+            'feature.paquetes-contrato.index.manage',
+            'feature.paquetes-contrato.create-con-tarifa.create',
+        ],
         'paquetes-contrato.create' => [
             'paquetes-contrato.create',
             'feature.paquetes-contrato.index.create',
+            'feature.paquetes-contrato.create.create',
         ],
         'paquetes-contrato.create-con-tarifa' => [
             'paquetes-contrato.create-con-tarifa',
+            'feature.paquetes-contrato.index.manage',
+            'feature.paquetes-contrato.create-con-tarifa.create',
+        ],
+        'paquetes-contrato.store' => [
+            'paquetes-contrato.store',
+            'feature.paquetes-contrato.create.create',
+            'feature.paquetes-contrato.index.create',
+        ],
+        'paquetes-contrato.store-con-tarifa' => [
+            'paquetes-contrato.store-con-tarifa',
+            'feature.paquetes-contrato.create-con-tarifa.create',
             'feature.paquetes-contrato.index.manage',
         ],
         'paquetes-contrato.gestor' => [
