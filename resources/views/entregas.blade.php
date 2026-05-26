@@ -288,6 +288,9 @@
                 <div class="col-12 d-flex flex-wrap align-items-center" style="gap: 8px;">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
                     <a href="{{ route('entregas.index') }}" class="btn btn-outline-secondary">Limpiar</a>
+                    <a href="{{ route('entregas.export.excel', request()->query()) }}" class="btn btn-success">
+                        <i class="fas fa-file-excel mr-1"></i> Reporte rendimiento Excel
+                    </a>
                     <span class="text-muted ml-md-2">
                         {{ $rangoLabel ?? 'Todo el historial' }}
                         @if(($departamentoCartero ?? '') !== '')

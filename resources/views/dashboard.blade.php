@@ -596,6 +596,14 @@
                         >
                             <i class="fas fa-file-pdf mr-1"></i> Reporte competencia PDF
                         </a>
+                        <a
+                            href="{{ route('dashboard.export.excel', array_merge(request()->query(), ['ranking_departamentos' => 1])) }}"
+                            class="btn btn-sm btn-success"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            <i class="fas fa-file-excel mr-1"></i> Reporte rendimiento Excel
+                        </a>
                         <span class="badge badge-success">
                             #1 {{ $topDepartamento->departamento }} - puntaje {{ number_format((float) ($topDepartamento->puntaje_ranking ?? 0), 1) }}%
                         </span>

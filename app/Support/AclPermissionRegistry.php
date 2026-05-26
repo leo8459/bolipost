@@ -506,6 +506,12 @@ class AclPermissionRegistry
             'feature.users.import',
             'users.store',
         ],
+        'entregas.export.excel' => [
+            'entregas.export.excel',
+            'entregas.index',
+            'dashboard',
+            'dashboard.export.excel',
+        ],
         'paquetes-ems.create' => [
             'paquetes-ems.create',
             'feature.paquetes-ems.index.create',

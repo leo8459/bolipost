@@ -137,6 +137,9 @@ Route::get('/dashboard/export/pdf', [DashboardController::class, 'exportPdf'])
 Route::get('/entregas', [DashboardController::class, 'entregas'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('entregas.index');
+Route::get('/entregas/export/excel', [DashboardController::class, 'exportEntregasExcel'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('entregas.export.excel');
 Route::get('/reportes', [ReportesController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('reportes.index');

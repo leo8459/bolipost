@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Exports\DashboardReportExport;
+use App\Exports\DashboardEntregasRendimientoExport;
+use App\Exports\DashboardRankingDepartamentosExport;
 use App\Models\Estado;
 use App\Models\Recojo;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -110,6 +112,19 @@ class DashboardController extends Controller
 
     public function entregas(Request $request)
     {
+        return view('entregas', $this->buildEntregasData($request));
+    }
+
+    public function exportEntregasExcel(Request $request)
+    {
+        $data = $this->buildEntregasData($request);
+        $filename = 'entregas-rendimiento-' . now()->format('Ymd-His') . '.xlsx';
+
+        return Excel::download(new DashboardEntregasRendimientoExport($data), $filename);
+    }
+
+    private function buildEntregasData(Request $request): array
+    {
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
         $departamentoCartero = $this->resolveDepartamentoFiltroPorCampo($request, 'cartero_departamento');
@@ -199,7 +214,7 @@ class DashboardController extends Controller
             ->sortByDesc(fn ($row) => ((int) $row->total_asignados * 1000000) + (int) $row->total_entregados + (int) $row->total_ventanilla)
             ->values();
 
-        return view('entregas', [
+        return [
             'entregadores' => $entregadores,
             'modulosDisponibles' => self::MODULOS,
             'modulosSeleccionados' => $modulosSeleccionados,
@@ -209,7 +224,7 @@ class DashboardController extends Controller
             'rangoKey' => $rangoKey,
             'departamentoCartero' => $departamentoCartero,
             'departamentosDisponibles' => self::DESTINOS_BASE,
-        ]);
+        ];
     }
 
     public function reportes(Request $request)
@@ -222,6 +237,13 @@ class DashboardController extends Controller
     public function exportExcel(Request $request)
     {
         $data = $this->buildDashboardData($request);
+
+        if ($request->boolean('ranking_departamentos')) {
+            $filename = 'dashboard-competencia-departamentos-' . now()->format('Ymd-His') . '.xlsx';
+
+            return Excel::download(new DashboardRankingDepartamentosExport($data), $filename);
+        }
+
         $filename = 'dashboard-reporte-' . now()->format('Ymd-His') . '.xlsx';
 
         return Excel::download(new DashboardReportExport($data), $filename);
