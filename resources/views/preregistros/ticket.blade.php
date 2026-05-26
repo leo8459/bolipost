@@ -6,7 +6,7 @@
     <style>
         @page { size: A6 portrait; margin: 10mm; }
         body {
-            font-family: Arial, sans-serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             color: #17375f;
             font-size: 11px;
         }

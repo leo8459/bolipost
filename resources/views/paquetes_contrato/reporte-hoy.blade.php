@@ -6,7 +6,7 @@
     <style>
         @page { size: letter; margin: 7mm; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #000; }
+        body { margin: 0; font-family: Verdana, DejaVu Sans, sans-serif; font-size: 10px; color: #000; }
         .sheet { width: 100%; page-break-after: always; }
         .sheet:last-child { page-break-after: auto; }
         .guide-copy { height: 85mm; border: 1.4px solid #000; border-radius: 6px; margin-bottom: 3mm; overflow: hidden; page-break-inside: avoid; }

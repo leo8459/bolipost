@@ -15,7 +15,7 @@
     <title>Factura Rollo</title>
     <style>
         body {
-            font-family: DejaVu Sans, sans-serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             font-size: 11px;
             color: #111827;
             margin: 0;

@@ -11,7 +11,7 @@
 
         body {
             margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             color: #000;
             background: #fff;
         }

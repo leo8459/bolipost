@@ -5,7 +5,7 @@
     <title>Reporte departamento</title>
     <style>
         @page { margin: 18px; }
-        body { font-family: DejaVu Sans, sans-serif; font-size: 9px; color: #172033; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 9px; color: #172033; }
         .header { background: #20539A; color: #fff; padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; }
         .header h1 { margin: 0; font-size: 18px; }
         .meta { margin-top: 4px; font-size: 9px; opacity: .95; }

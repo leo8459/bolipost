@@ -72,7 +72,7 @@
 }
 
 .preregistro-head h3 {
-  font-family: "Sora", sans-serif;
+  font-family: Verdana, DejaVu Sans, sans-serif;
   font-size: clamp(1.5rem, 2.4vw, 2.2rem);
   line-height: 1.1;
   margin-bottom: .4rem;
@@ -162,7 +162,7 @@
 }
 
 .preregistro-code-value {
-  font-family: "Sora", sans-serif;
+  font-family: Verdana, DejaVu Sans, sans-serif;
   font-size: clamp(1.25rem, 2.4vw, 1.8rem);
   letter-spacing: .06em;
   color: #0f4b24;
@@ -377,7 +377,7 @@
 
 .preregistro-success-card h3 {
   margin: 0 0 .75rem;
-  font-family: "Sora", sans-serif;
+  font-family: Verdana, DejaVu Sans, sans-serif;
   font-size: 1.35rem;
   color: #12325f;
 }
@@ -387,7 +387,7 @@
   border: 1px dashed rgba(32,83,154,.32);
   background: linear-gradient(180deg, #fffdf7, #fff4c8);
   padding: .95rem 1rem;
-  font-family: "Sora", sans-serif;
+  font-family: Verdana, DejaVu Sans, sans-serif;
   font-size: clamp(1.35rem, 4vw, 2rem);
   letter-spacing: .08em;
   color: #20539A;

@@ -9,7 +9,7 @@
         }
 
         body {
-            font-family: DejaVu Serif, serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             font-size: 11px;
             color: #111;
         }

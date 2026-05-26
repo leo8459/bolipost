@@ -111,12 +111,13 @@
                                             'class' => 'btn btn-sm btn-outline-primary rastreo-action-btn',
                                         ])
                                         @if (($paquete->tipo_paquete ?? '') === 'EMS' && ($canEmsEntregadosPrint ?? false))
-                                            <a href="{{ route('paquetes-ems.boleta', $paquete->id, false) }}"
-                                               class="btn btn-sm btn-outline-primary ems-action-btn"
-                                               target="_blank"
+                                            <button type="button"
+                                               class="btn btn-sm btn-outline-primary ems-action-btn js-ems-print-options"
+                                               data-termica="{{ route('paquetes-ems.boleta', $paquete->id, false) }}"
+                                               data-carta="{{ route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'formato' => 'carta'], false) }}"
                                                title="Reimprimir boleta">
                                                 <i class="fas fa-print"></i>
-                                            </a>
+                                            </button>
                                         @else
                                             -
                                         @endif
@@ -139,6 +140,62 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="emsPrintOptionsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-bottom border-dark" style="background: #fff; color: #000;">
+                    <h5 class="modal-title">Elegir formato de impresion</h5>
+                    <button type="button" class="close text-dark" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">Elige el formato para reimprimir la boleta EMS.</p>
+                    <div class="d-flex flex-column flex-sm-row" style="gap: 10px;">
+                        <a href="#" target="_blank" class="btn btn-outline-dark flex-fill" id="emsPrintTermicaLink">
+                            <i class="fas fa-receipt mr-1"></i> Factura termica
+                        </a>
+                        <a href="#" target="_blank" class="btn btn-outline-dark flex-fill" id="emsPrintCartaLink">
+                            <i class="fas fa-file-alt mr-1"></i> Diseno carta
+                        </a>
+                    </div>
+                </div>
+                <div class="modal-footer bg-white border-top">
+                    <button type="button" class="btn btn-dark" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endsection
+
+@section('js')
+    <script>
+        document.addEventListener('click', function (event) {
+            const button = event.target.closest('.js-ems-print-options');
+
+            if (!button) {
+                return;
+            }
+
+            event.preventDefault();
+
+            const termicaLink = document.getElementById('emsPrintTermicaLink');
+            const cartaLink = document.getElementById('emsPrintCartaLink');
+
+            if (termicaLink) {
+                termicaLink.href = button.dataset.termica || '#';
+            }
+
+            if (cartaLink) {
+                cartaLink.href = button.dataset.carta || '#';
+            }
+
+            if (window.jQuery) {
+                $('#emsPrintOptionsModal').modal('show');
+            }
+        });
+    </script>
 @endsection
 
 @section('css')

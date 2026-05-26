@@ -5,7 +5,7 @@
     <title>Historial de mantenimiento</title>
     <style>
         body {
-            font-family: DejaVu Sans, sans-serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             color: #1f2937;
             font-size: 12px;
         }

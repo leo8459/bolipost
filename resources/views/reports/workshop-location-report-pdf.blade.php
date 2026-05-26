@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Vehiculos en taller por ubicacion</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #1f2937; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 11px; color: #1f2937; }
         h1, h2 { margin: 0; }
         h1 { font-size: 22px; color: #123c69; }
         h2 { font-size: 14px; margin-top: 16px; color: #0f172a; }

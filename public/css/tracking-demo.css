@@ -21,7 +21,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: "Plus Jakarta Sans", sans-serif;
+  font-family: Verdana, DejaVu Sans, sans-serif;
   color: var(--text);
   background:
     radial-gradient(900px 320px at 50% -12%, rgba(26, 84, 154, 0.2), transparent 68%),
@@ -169,7 +169,7 @@ body {
 }
 
 .status-banner h1 {
-  font-family: "Sora", sans-serif;
+  font-family: Verdana, DejaVu Sans, sans-serif;
   font-size: clamp(1.34rem, 2.1vw, 1.76rem);
   line-height: 1.08;
   position: relative;
@@ -303,7 +303,7 @@ body {
 }
 
 .card-head h2 {
-  font-family: "Sora", sans-serif;
+  font-family: Verdana, DejaVu Sans, sans-serif;
   font-size: clamp(1.03rem, 1.6vw, 1.24rem);
   color: #122f54;
 }

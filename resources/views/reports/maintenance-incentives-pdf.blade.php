@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Reporte de incentivos</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; margin: 24px; color: #163053; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; margin: 24px; color: #163053; }
         .hero { background: #234887; color: #fff; border-radius: 20px 20px 0 0; padding: 24px; }
         .hero h1 { margin: 0 0 8px; font-size: 28px; }
         .badge { display: inline-block; padding: 10px 14px; border-radius: 14px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); }

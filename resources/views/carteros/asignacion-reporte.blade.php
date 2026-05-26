@@ -5,7 +5,7 @@
     <title>Registro de entregas de correspondencia a domicilio</title>
     <style>
         @page { size: A4; margin: 10mm; }
-        body { font-family: Arial, sans-serif; font-size: 11px; color: #111; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 11px; color: #111; }
         .header-title { text-align: center; font-size: 19px; font-weight: 700; margin: 8px 0 14px; }
         .meta-table, .detail-table, .summary-table { width: 100%; border-collapse: collapse; }
         .meta-table td { padding: 4px 2px; vertical-align: top; }

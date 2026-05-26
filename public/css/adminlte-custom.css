@@ -8,6 +8,25 @@
     --agbc-gold-soft:#FECC36;
 }
 
+html,
+body,
+.wrapper,
+.main-header,
+.main-sidebar,
+.content-wrapper,
+.main-footer,
+.card,
+.modal,
+.table,
+.form-control,
+.btn,
+.dropdown-menu,
+.select2-container,
+.navbar,
+.sidebar {
+    font-family: Verdana, DejaVu Sans, sans-serif !important;
+}
+
 /* Primary (Dorado) */
 .bg-primary{ background-color: var(--agbc-dorado) !important; }
 .text-primary{ color: var(--agbc-dorado) !important; }

@@ -5,7 +5,7 @@
     <title>Planilla de Entrega</title>
     <style>
         @page { size: A4; margin: 10mm; }
-        body { font-family: Arial, sans-serif; font-size: 12px; color: #000; margin: 0; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 12px; color: #000; margin: 0; }
         .sheet {
             page-break-after: always;
         }

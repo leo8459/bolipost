@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Reporte de Reencaminado Certificados</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 12px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         th, td { border: 1px solid #000; padding: 4px; vertical-align: middle; }
         th { font-weight: 800; }

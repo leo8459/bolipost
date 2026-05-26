@@ -6,7 +6,7 @@
     <title>Guia de Entrega EMS</title>
     <style>
         * { margin: 0; padding: 0; }
-        body { font-family: DejaVu Sans, sans-serif; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; }
         .container { margin-top: 22px; }
         .center-text { text-align: center; }
         .small-text { font-size: 12px; line-height: 1.35; }

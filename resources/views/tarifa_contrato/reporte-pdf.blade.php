@@ -6,7 +6,7 @@
     <style>
         @page { margin: 24px 28px; }
         body {
-            font-family: DejaVu Sans, sans-serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             color: #172033;
             font-size: 11px;
             line-height: 1.35;

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Reporte de asignaciones vehiculares</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #1f2937; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 11px; color: #1f2937; }
         h1, h2, h3 { margin: 0; }
         h1 { font-size: 22px; color: #123c69; }
         h2 { font-size: 15px; margin-top: 18px; color: #0f172a; }

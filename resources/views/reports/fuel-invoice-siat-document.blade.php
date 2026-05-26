@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Factura SIAT</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; color: #1f2937; font-size: 12px; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; color: #1f2937; font-size: 12px; }
         .header { margin-bottom: 18px; }
         .title { font-size: 20px; font-weight: bold; color: #0f4c81; }
         .subtitle { color: #6b7280; margin-top: 4px; }

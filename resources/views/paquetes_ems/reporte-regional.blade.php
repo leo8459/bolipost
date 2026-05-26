@@ -5,7 +5,7 @@
     <title>Manifiesto CN-33</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             font-size: 12px;
             margin: 0;
             padding: 0;

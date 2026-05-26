@@ -7,7 +7,7 @@
         @page { margin: 18px 18px 22px; }
         * { box-sizing: border-box; }
         body {
-            font-family: DejaVu Sans, sans-serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             font-size: 9px;
             color: #12263d;
             line-height: 1.35;

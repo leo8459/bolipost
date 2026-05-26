@@ -5,7 +5,7 @@
     <title>Reporte de Codigos</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: DejaVu Sans, sans-serif; padding: 18px; font-size: 11px; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; padding: 18px; font-size: 11px; }
         .title {
             text-align: center;
             margin-bottom: 10px;

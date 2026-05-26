@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Solicitud registrada</title>
 </head>
-<body style="margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;background:#eef2f7;color:#172033;">
+<body style="margin:0;padding:24px;font-family: Verdana, DejaVu Sans, sans-serif;background:#eef2f7;color:#172033;">
     @php
         $codigo = (string) $solicitud->codigo_solicitud;
         $origen = trim((string) ($solicitud->origen ?? ''));

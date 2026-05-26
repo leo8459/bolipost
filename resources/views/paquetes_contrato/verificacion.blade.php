@@ -9,7 +9,7 @@
         body {
             margin: 0;
             min-height: 100vh;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             color: #101010;
             background: #f2f4f7;
             display: flex;

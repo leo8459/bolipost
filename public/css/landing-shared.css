@@ -48,7 +48,7 @@
     align-items: center;
     gap: .55rem;
     color: var(--brand-blue);
-    font-family: "Sora", sans-serif;
+    font-family: Verdana, DejaVu Sans, sans-serif;
     font-weight: 700;
     letter-spacing: .2px;
     text-decoration: none;
@@ -276,7 +276,7 @@
 }
 
 .footer-callout h3 {
-    font-family: "Sora", sans-serif;
+    font-family: Verdana, DejaVu Sans, sans-serif;
     font-size: clamp(1.3rem, 2.4vw, 2rem);
     margin-bottom: .45rem;
     color: var(--brand-blue);

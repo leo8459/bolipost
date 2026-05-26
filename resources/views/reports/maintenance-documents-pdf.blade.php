@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Reporte de documentos de mantenimiento</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #1f2937; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 12px; color: #1f2937; }
         h1, h2 { margin: 0 0 8px; }
         .meta { margin-bottom: 18px; }
         .section { margin-top: 18px; }

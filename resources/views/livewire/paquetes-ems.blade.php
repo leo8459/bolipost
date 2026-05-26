@@ -1760,12 +1760,12 @@
                                                     @endif
                                                 @endif
                                                 @if ($canEmsPrint)
-                                                <a href="{{ route('paquetes-ems.boleta', $row->record_id, false) }}"
+                                                <button type="button"
+                                                   wire:click="abrirOpcionesReimpresion({{ $row->record_id }})"
                                                    class="btn btn-sm btn-outline-azul action-btn"
-                                                   target="_blank"
                                                    title="Reimprimir boleta">
                                                     <i class="fas fa-print"></i>
-                                                </a>
+                                                </button>
                                                 @endif
                                                 @if ($this->isAlmacenEms)
                                                     @if ($canEmsRestore)
@@ -1846,12 +1846,12 @@
                                             </button>
                                             @endif
                                             @if ($canEmsPrint)
-                                            <a href="{{ route('paquetes-ems.boleta', $paquete->id, false) }}"
+                                            <button type="button"
+                                               wire:click="abrirOpcionesReimpresion({{ $paquete->id }})"
                                                class="btn btn-sm btn-outline-azul action-btn"
-                                               target="_blank"
                                                title="Reimprimir boleta">
                                                 <i class="fas fa-print"></i>
-                                            </a>
+                                            </button>
                                             @endif
                                             @if ($this->isAdmision)
                                                 @if ($canEmsDelete)
@@ -2345,6 +2345,59 @@
                         </span>
                     </button>
                     @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div
+        class="modal fade @if($showPrintOptionsModal) show d-block @endif"
+        id="printOptionsModal"
+        tabindex="-1"
+        aria-hidden="{{ $showPrintOptionsModal ? 'false' : 'true' }}"
+        wire:ignore.self
+        @if($showPrintOptionsModal)
+            style="background: rgba(0, 0, 0, 0.5);"
+        @endif
+    >
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-bottom border-dark" style="background: #fff; color: #000;">
+                    <h5 class="modal-title">Elegir formato de impresion</h5>
+                    <button
+                        type="button"
+                        class="close text-dark"
+                        wire:click="{{ $printOptionsShouldRedirect ? 'volverDespuesDeImprimir' : 'cerrarOpcionesImpresion' }}"
+                        aria-label="Close"
+                    >
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">
+                        {{ $printOptionsMessage }}
+                    </p>
+                    <div class="d-flex flex-column flex-sm-row" style="gap: 10px;">
+                        @if($printTermicaUrl)
+                            <a href="{{ $printTermicaUrl }}" target="_blank" class="btn btn-outline-dark flex-fill">
+                                <i class="fas fa-receipt mr-1"></i> Factura termica
+                            </a>
+                        @endif
+                        @if($printCartaUrl)
+                            <a href="{{ $printCartaUrl }}" target="_blank" class="btn btn-outline-dark flex-fill">
+                                <i class="fas fa-file-alt mr-1"></i> Diseno carta
+                            </a>
+                        @endif
+                    </div>
+                </div>
+                <div class="modal-footer bg-white border-top">
+                    <button
+                        type="button"
+                        class="btn btn-dark"
+                        wire:click="{{ $printOptionsShouldRedirect ? 'volverDespuesDeImprimir' : 'cerrarOpcionesImpresion' }}"
+                    >
+                        {{ $printOptionsShouldRedirect ? 'Volver a paquetes EMS' : 'Cerrar' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -3020,6 +3073,8 @@
             closePaqueteModal: '#paqueteModal',
             openPaqueteConfirm: '#paqueteConfirmModal',
             closePaqueteConfirm: '#paqueteConfirmModal',
+            openPrintOptionsModal: '#printOptionsModal',
+            closePrintOptionsModal: '#printOptionsModal',
             openGeneradosHoyModal: '#generadosHoyModal',
             closeGeneradosHoyModal: '#generadosHoyModal',
             openRegionalModal: '#regionalModal',

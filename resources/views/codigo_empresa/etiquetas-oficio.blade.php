@@ -5,7 +5,7 @@
     <title>Etiquetas de Codigos</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: DejaVu Sans, sans-serif; padding: 14px; font-size: 11px; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; padding: 14px; font-size: 11px; }
         .meta {
             margin-bottom: 8px;
             font-size: 10px;

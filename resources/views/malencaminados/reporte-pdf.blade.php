@@ -5,7 +5,7 @@
     <title>Reporte de Malencaminados</title>
     <style>
         @page { margin: 16px; }
-        body { font-family: DejaVu Sans, sans-serif; font-size: 10px; color: #1f2937; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 10px; color: #1f2937; }
         .header { margin-bottom: 12px; }
         .title { font-size: 18px; font-weight: 700; color: #1d4d92; }
         .meta { font-size: 10px; color: #4b5563; margin-top: 4px; }

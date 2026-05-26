@@ -5,7 +5,7 @@
     <title>Planilla de uso de combustibles</title>
     <style>
         @page { margin: 8mm; }
-        body { font-family: Arial, sans-serif; font-size: 10px; color: #111; margin: 0; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 10px; color: #111; margin: 0; }
         .title-top { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 2px; }
         .title-main { text-align: center; font-size: 16px; font-weight: 800; margin-bottom: 4px; text-transform: uppercase; }
         .filters { font-size: 10px; margin-bottom: 8px; color: #333; }

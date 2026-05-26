@@ -8,7 +8,7 @@
         * { box-sizing: border-box; }
         body {
             margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: Verdana, DejaVu Sans, sans-serif;
             font-size: 10px;
             color: #000;
         }

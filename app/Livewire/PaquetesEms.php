@@ -174,6 +174,11 @@ class PaquetesEms extends Component
     public $precio = '';
     public $precio_confirm = null;
     public $showPaqueteConfirmModal = false;
+    public $showPrintOptionsModal = false;
+    public $printTermicaUrl = '';
+    public $printCartaUrl = '';
+    public $printOptionsMessage = 'Elige el formato para descargar o imprimir.';
+    public $printOptionsShouldRedirect = false;
     public $mostrar_empresa = false;
     public $nombre_remitente = '';
     public $nombre_envia = '';
@@ -2043,16 +2048,24 @@ class PaquetesEms extends Component
             $this->showPaqueteConfirmModal = false;
             $this->dispatch('closePaqueteConfirm');
             $this->dispatch('closePaqueteModal');
-            $this->resetForm();
             if ($this->isCreateEms) {
+                $termicaUrl = route('paquetes-ems.boleta', $paquete->id, false);
+                $cartaUrl = route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'formato' => 'carta'], false);
+
+                $this->resetForm();
                 $this->setOrigenFromUser();
                 $this->setUserOrigenId();
                 $this->auto_codigo = true;
                 $this->servicio_especial = 'IDA';
-                return redirect()
-                    ->route('paquetes-ems.index')
-                    ->with('download_boleta_url', route('paquetes-ems.boleta', $paquete->id, false));
+                $this->printTermicaUrl = $termicaUrl;
+                $this->printCartaUrl = $cartaUrl;
+                $this->printOptionsMessage = 'El paquete EMS fue registrado correctamente. Descarga o imprime el formato que necesites.';
+                $this->printOptionsShouldRedirect = true;
+                $this->showPrintOptionsModal = true;
+                $this->dispatch('openPrintOptionsModal');
+                return;
             }
+            $this->resetForm();
             return $this->redirect(route('paquetes-ems.boleta', $paquete->id, false), navigate: false);
         }
 
@@ -2060,6 +2073,37 @@ class PaquetesEms extends Component
         $this->dispatch('closePaqueteConfirm');
         $this->dispatch('closePaqueteModal');
         $this->resetForm();
+    }
+
+    public function abrirOpcionesReimpresion(int $paqueteId)
+    {
+        $this->authorizePermission($this->modeFeaturePermission('print'));
+
+        $paquete = PaqueteEms::findOrFail($paqueteId);
+
+        $this->printTermicaUrl = route('paquetes-ems.boleta', $paquete->id, false);
+        $this->printCartaUrl = route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'formato' => 'carta'], false);
+        $this->printOptionsMessage = 'Elige el formato para reimprimir la boleta EMS.';
+        $this->printOptionsShouldRedirect = false;
+        $this->showPrintOptionsModal = true;
+        $this->dispatch('openPrintOptionsModal');
+    }
+
+    public function cerrarOpcionesImpresion()
+    {
+        $this->showPrintOptionsModal = false;
+        $this->printTermicaUrl = '';
+        $this->printCartaUrl = '';
+        $this->printOptionsMessage = 'Elige el formato para descargar o imprimir.';
+        $this->printOptionsShouldRedirect = false;
+        $this->dispatch('closePrintOptionsModal');
+    }
+
+    public function volverDespuesDeImprimir()
+    {
+        $this->cerrarOpcionesImpresion();
+
+        return redirect()->route('paquetes-ems.index');
     }
 
     public function mandarSeleccionadosGeneradosHoy()

@@ -1,11 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CN-35, CN-31 y CN-38</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; }
+        body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 12px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         th, td { border: 1px solid #000; padding: 4px; }
         .text-center { text-align: center; }
@@ -71,7 +71,7 @@
             <th>Destino OE</th>
             <th>Categoria</th>
             <th>Sub-Clase</th>
-            <th>Año</th>
+            <th>A�o</th>
             <th>Nro. de Despacho</th>
             <th>Fecha</th>
         </tr>
