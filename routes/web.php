@@ -350,6 +350,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-contrato/almacen', [RecojoController::class, 'almacen'])->name('paquetes-contrato.almacen');
     Route::get('/paquetes-contrato/entregados', [RecojoController::class, 'entregados'])->name('paquetes-contrato.entregados');
     Route::get('/paquetes-contrato/cartero', [RecojoController::class, 'cartero'])->name('paquetes-contrato.cartero');
+    Route::get('/paquetes-contrato/gestor', [RecojoController::class, 'gestor'])->name('paquetes-contrato.gestor');
     Route::get('/paquetes-contrato/create', [RecojoController::class, 'create'])->name('paquetes-contrato.create');
     Route::get('/paquetes-contrato/create-con-tarifa', [RecojoController::class, 'createConTarifa'])->name('paquetes-contrato.create-con-tarifa');
     Route::post('/paquetes-contrato', [RecojoController::class, 'store'])->name('paquetes-contrato.store');

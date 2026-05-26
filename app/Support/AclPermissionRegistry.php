@@ -596,6 +596,13 @@ class AclPermissionRegistry
             'paquetes-contrato.create-con-tarifa',
             'feature.paquetes-contrato.index.manage',
         ],
+        'paquetes-contrato.gestor' => [
+            'paquetes-contrato.gestor',
+            'paquetes-contrato.index',
+            'feature.paquetes-contrato.index.create',
+            'feature.paquetes-contrato.index.manage',
+            'feature.paquetes-contrato.index.print',
+        ],
         'empresas.import-form' => [
             'empresas.import-form',
             'feature.empresas.import',

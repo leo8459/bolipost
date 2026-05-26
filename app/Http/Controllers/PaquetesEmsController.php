@@ -28,6 +28,7 @@ class PaquetesEmsController extends Controller
     private const EVENTO_ID_CONTRATO_RECIBIDO = 295;
     private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
+    private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
     private const EVENTO_ID_TIKTOKER_SOLICITUD_CREADA = 295;
 
     private const CIUDADES_BOLIVIA = [
@@ -1048,9 +1049,17 @@ class PaquetesEmsController extends Controller
             'feature.paquetes-ems.contrato-rapido.create.create',
         ]);
 
+        $esEmsInput = $request->boolean('es_ems');
+        $origenInput = strtoupper(trim((string) $request->input('origen')));
+        $fotoOpcional = ! $esEmsInput && $origenInput === 'LA PAZ';
+
         $data = $request->validate([
             'codigo' => ['required', 'string', 'max:50'],
             'es_ems' => ['nullable', 'boolean'],
+            'resultado_entrega' => ['required', Rule::in(['entrega', 'intento', 'ida_vuelta'])],
+            'recibido_por' => ['required', 'string', 'max:255'],
+            'descripcion' => ['nullable', 'string'],
+            'foto' => [$fotoOpcional ? 'nullable' : 'required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
             'origen' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
             'destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
             'provincia' => ['nullable', 'string', 'max:255'],
@@ -1059,6 +1068,10 @@ class PaquetesEmsController extends Controller
         ], [], [
             'codigo' => 'codigo',
             'es_ems' => 'envio EMS',
+            'resultado_entrega' => 'resultado',
+            'recibido_por' => 'recibido por',
+            'descripcion' => 'descripcion',
+            'foto' => 'foto',
             'origen' => 'origen',
             'destino' => 'destino',
             'provincia' => 'provincia',
@@ -1081,26 +1094,35 @@ class PaquetesEmsController extends Controller
                 ->with('error', 'El codigo ingresado no es valido.');
         }
 
-        $estadoEntregadoId = (int) (Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
+        $resultadoEntrega = (string) $data['resultado_entrega'];
+        $estadoObjetivoNombre = match ($resultadoEntrega) {
+            'intento' => 'DEVOLUCION',
+            'ida_vuelta' => 'RECIBIDO',
+            default => 'ENTREGADO',
+        };
+        $eventoObjetivoId = $resultadoEntrega === 'intento'
+            ? self::EVENTO_ID_INTENTO_FALLIDO_ENTREGA
+            : self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE;
+        $estadoObjetivoId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [$estadoObjetivoNombre])
             ->value('id') ?? 0);
 
-        if ($estadoEntregadoId <= 0) {
+        if ($estadoObjetivoId <= 0) {
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'No existe el estado ENTREGADO en la tabla estados.');
+                ->with('error', 'No existe el estado ' . $estadoObjetivoNombre . ' en la tabla estados.');
         }
 
         $eventoExiste = DB::table('eventos')
-            ->where('id', self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE)
+            ->where('id', $eventoObjetivoId)
             ->exists();
 
         if (! $eventoExiste) {
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'No existe el evento con ID ' . self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE . ' (Paquete entregado exitosamente).');
+                ->with('error', 'No existe el evento con ID ' . $eventoObjetivoId . '.');
         }
 
         $existeEms = PaqueteEms::query()
@@ -1126,6 +1148,16 @@ class PaquetesEmsController extends Controller
         }
 
         $esEms = (bool) ($data['es_ems'] ?? false);
+        $imagenPath = $this->storeEntregaNoRegistradaPhoto($request);
+        $recibidoPor = trim((string) $data['recibido_por']);
+        $descripcionEntrega = trim((string) ($data['descripcion'] ?? ''));
+        if ($descripcionEntrega === '') {
+            $descripcionEntrega = match ($resultadoEntrega) {
+                'intento' => 'INTENTO FALLIDO DE ENTREGA',
+                'ida_vuelta' => 'PAQUETE IDA Y VUELTA RECIBIDO',
+                default => 'PAQUETE ENTREGADO EXITOSAMENTE',
+            };
+        }
         $empresaIdDetectada = $this->resolveEmpresaIdByCodigoContrato($codigo);
         $empresaIdManual = !empty($data['empresa_id']) ? (int) $data['empresa_id'] : null;
 
@@ -1144,8 +1176,13 @@ class PaquetesEmsController extends Controller
                 $codigo,
                 $data,
                 $user,
-                $estadoEntregadoId,
+                $estadoObjetivoId,
+                $eventoObjetivoId,
                 $origen,
+                $resultadoEntrega,
+                $recibidoPor,
+                $descripcionEntrega,
+                $imagenPath,
                 &$paqueteEms
             ) {
                 $paqueteEms = PaqueteEms::query()->create([
@@ -1168,15 +1205,15 @@ class PaquetesEmsController extends Controller
                     'referencia' => null,
                     'ciudad' => strtoupper(trim((string) $data['destino'])),
                     'tarifario_id' => null,
-                    'estado_id' => $estadoEntregadoId,
+                    'estado_id' => $estadoObjetivoId,
                     'user_id' => (int) $user->id,
-                    'imagen' => null,
+                    'imagen' => $resultadoEntrega === 'intento' ? null : $imagenPath,
                     'observacion' => 'ENVIO EMS NO REGISTRADO ENTREGADO DESDE EMS ENTREGADOS',
                 ]);
 
                 DB::table('eventos_ems')->insert([
                     'codigo' => $codigo,
-                    'evento_id' => self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE,
+                    'evento_id' => $eventoObjetivoId,
                     'user_id' => (int) $user->id,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -1185,17 +1222,20 @@ class PaquetesEmsController extends Controller
                 DB::table('cartero')->insert([
                     'id_paquetes_ems' => (int) $paqueteEms->id,
                     'id_user' => (int) $user->id,
-                    'id_estados' => $estadoEntregadoId,
-                    'recibido_por' => 'ENTREGA DIRECTA',
-                    'descripcion' => 'PAQUETE ENTREGADO EXITOSAMENTE',
+                    'id_estados' => $estadoObjetivoId,
+                    'intento' => $resultadoEntrega === 'intento' ? 1 : 0,
+                    'recibido_por' => $recibidoPor,
+                    'descripcion' => $descripcionEntrega,
+                    'imagen' => $resultadoEntrega === 'intento' ? null : $imagenPath,
+                    'imagen_devolucion' => $resultadoEntrega === 'intento' ? $imagenPath : null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
             });
 
             return redirect()
-                ->route('paquetes-ems.entregados', ['q' => $codigo])
-                ->with('success', 'Envio EMS no registrado entregado correctamente. Se creo el paquete EMS ' . $codigo . ' y el evento Paquete entregado exitosamente.');
+                ->route($this->routeForEntregaNoRegistradaResultado($resultadoEntrega), ['q' => $codigo])
+                ->with('success', 'Envio EMS no registrado guardado correctamente. Codigo: ' . $codigo . '.');
         }
 
         $contrato = null;
@@ -1207,12 +1247,17 @@ class PaquetesEmsController extends Controller
             $codigo,
             $data,
             $user,
-            $estadoEntregadoId,
+            $estadoObjetivoId,
+            $eventoObjetivoId,
             $origen,
             $empresaId,
             $empresaIdDetectada,
             $empresaIdManual,
             $provincia,
+            $resultadoEntrega,
+            $recibidoPor,
+            $descripcionEntrega,
+            $imagenPath,
             &$contrato
         ) {
             $contrato = RecojoContrato::query()->create([
@@ -1220,7 +1265,7 @@ class PaquetesEmsController extends Controller
                 'empresa_id' => $empresaId,
                 'codigo' => $codigo,
                 'cod_especial' => null,
-                'estados_id' => $estadoEntregadoId,
+                'estados_id' => $estadoObjetivoId,
                 'origen' => $origen,
                 'destino' => strtoupper(trim((string) $data['destino'])),
                 'nombre_r' => 'SIN REMITENTE',
@@ -1237,7 +1282,7 @@ class PaquetesEmsController extends Controller
                 'fecha_recojo' => now(),
                 'observacion' => 'ENVIO NO REGISTRADO ENTREGADO DESDE EMS ENTREGADOS',
                 'justificacion' => null,
-                'imagen' => null,
+                'imagen' => $resultadoEntrega === 'intento' ? null : $imagenPath,
             ]);
 
             if (! $empresaIdDetectada && ! empty($empresaIdManual)) {
@@ -1256,7 +1301,7 @@ class PaquetesEmsController extends Controller
 
             DB::table('eventos_contrato')->insert([
                 'codigo' => $codigo,
-                'evento_id' => self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE,
+                'evento_id' => $eventoObjetivoId,
                 'user_id' => (int) $user->id,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -1265,17 +1310,29 @@ class PaquetesEmsController extends Controller
             DB::table('cartero')->insert([
                 'id_paquetes_contrato' => (int) $contrato->id,
                 'id_user' => (int) $user->id,
-                'id_estados' => $estadoEntregadoId,
-                'recibido_por' => 'ENTREGA DIRECTA',
-                'descripcion' => 'PAQUETE ENTREGADO EXITOSAMENTE',
+                'id_estados' => $estadoObjetivoId,
+                'intento' => $resultadoEntrega === 'intento' ? 1 : 0,
+                'recibido_por' => $recibidoPor,
+                'descripcion' => $descripcionEntrega,
+                'imagen' => $resultadoEntrega === 'intento' ? null : $imagenPath,
+                'imagen_devolucion' => $resultadoEntrega === 'intento' ? $imagenPath : null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
         });
 
         return redirect()
-            ->route('paquetes-ems.entregados', ['q' => $codigo])
-            ->with('success', 'Envio no registrado entregado correctamente. Se creo el contrato ' . $codigo . ' y el evento Paquete entregado exitosamente.');
+            ->route($this->routeForEntregaNoRegistradaResultado($resultadoEntrega), ['q' => $codigo])
+            ->with('success', 'Envio no registrado guardado correctamente. Codigo: ' . $codigo . '.');
+    }
+
+    private function routeForEntregaNoRegistradaResultado(string $resultadoEntrega): string
+    {
+        return match ($resultadoEntrega) {
+            'intento' => 'paquetes-ems.devueltos',
+            'ida_vuelta' => 'paquetes-ems.almacen',
+            default => 'paquetes-ems.entregados',
+        };
     }
 
     public function createRegistroRapidoContrato()
@@ -1309,6 +1366,15 @@ class PaquetesEmsController extends Controller
             'canQuickContractDelete' => $canRegisterQuickContractFromAlmacen
                 || $user->can('feature.paquetes-ems.contrato-rapido.create.delete'),
         ]);
+    }
+
+    private function storeEntregaNoRegistradaPhoto(Request $request): ?string
+    {
+        if (! $request->hasFile('foto')) {
+            return null;
+        }
+
+        return $request->file('foto')->store('carteros/entregas', 'public');
     }
 
     public function storeRegistroRapidoContrato(Request $request)

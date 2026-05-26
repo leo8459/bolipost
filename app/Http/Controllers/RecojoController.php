@@ -52,6 +52,71 @@ class RecojoController extends Controller
         return view('paquetes_contrato.cartero');
     }
 
+    public function gestor(Request $request)
+    {
+        $user = Auth::user();
+        $empresaId = (int) ($user?->empresa_id ?? 0);
+        $search = trim((string) $request->query('q', ''));
+        $estadoId = (int) $request->query('estado_id', 0);
+        $empresa = $empresaId > 0
+            ? Empresa::query()->find($empresaId, ['id', 'nombre', 'sigla', 'codigo_cliente'])
+            : null;
+
+        $baseQuery = Recojo::query()
+            ->with([
+                'empresa:id,nombre,sigla,codigo_cliente',
+                'estadoRegistro:id,nombre_estado',
+            ])
+            ->where('empresa_id', $empresaId > 0 ? $empresaId : -1);
+
+        $contratos = (clone $baseQuery)
+            ->when($estadoId > 0, function ($query) use ($estadoId) {
+                $query->where('estados_id', $estadoId);
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('codigo', 'like', '%' . $search . '%')
+                        ->orWhere('cod_especial', 'like', '%' . $search . '%')
+                        ->orWhere('nombre_r', 'like', '%' . $search . '%')
+                        ->orWhere('telefono_r', 'like', '%' . $search . '%')
+                        ->orWhere('direccion_r', 'like', '%' . $search . '%')
+                        ->orWhere('nombre_d', 'like', '%' . $search . '%')
+                        ->orWhere('telefono_d', 'like', '%' . $search . '%')
+                        ->orWhere('direccion_d', 'like', '%' . $search . '%')
+                        ->orWhere('origen', 'like', '%' . $search . '%')
+                        ->orWhere('destino', 'like', '%' . $search . '%')
+                        ->orWhere('provincia', 'like', '%' . $search . '%')
+                        ->orWhere('contenido', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderByDesc('id')
+            ->paginate(20)
+            ->withQueryString();
+
+        $estadoCounts = (clone $baseQuery)
+            ->select('estados_id', DB::raw('count(*) as total'))
+            ->groupBy('estados_id')
+            ->pluck('total', 'estados_id');
+
+        $totalContratos = (clone $baseQuery)->count();
+        $totalPeso = (float) ((clone $baseQuery)->sum('peso') ?? 0);
+        $estados = Estado::query()
+            ->orderBy('nombre_estado')
+            ->get(['id', 'nombre_estado']);
+
+        return view('paquetes_contrato.gestor', [
+            'contratos' => $contratos,
+            'empresa' => $empresa,
+            'search' => $search,
+            'estadoId' => $estadoId,
+            'estados' => $estados,
+            'estadoCounts' => $estadoCounts,
+            'totalContratos' => $totalContratos,
+            'totalPeso' => $totalPeso,
+            'canContratoGestorPrint' => (bool) optional($user)->can('feature.paquetes-contrato.index.print'),
+        ]);
+    }
+
     public function entregados()
 {
     $empresaId = (int) (Auth::user()->empresa_id ?? 0);
