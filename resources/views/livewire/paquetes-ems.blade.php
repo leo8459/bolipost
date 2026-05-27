@@ -1251,6 +1251,15 @@
                                     <input type="number" wire:model.defer="precio" class="form-control" step="0.01" min="0" readonly>
                                     @error('precio') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
+                                <div class="form-group col-md-8 d-flex align-items-center" style="padding-top:28px;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="anadirRecargo30Create" wire:model.live="anadir_recargo_30">
+                                        <label class="form-check-label font-weight-bold" for="anadirRecargo30Create">
+                                            Añadir 30%
+                                        </label>
+                                        <small class="form-text text-muted">Suma 30% al precio calculado antes de guardar.</small>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="form-row">
@@ -2304,6 +2313,7 @@
                                 <div class="col-md-6 mb-2"><strong>Origen:</strong> {{ $origen }}</div>
                                 <div class="col-md-6 mb-2"><strong>Tipo:</strong> {{ $tipo_correspondencia }}</div>
                                 <div class="col-md-4 mb-2"><strong>Precio:</strong> {{ $precio_confirm ?? $precio }}</div>
+                                <div class="col-md-4 mb-2"><strong>Añadir 30%:</strong> {{ $anadir_recargo_30 ? 'SI' : 'NO' }}</div>
                                 <div class="col-md-6 mb-2"><strong>Codigo:</strong> {{ $codigo }}</div>
                                 <div class="col-md-6 mb-2"><strong>Ciudad:</strong> {{ $ciudad }}</div>
                                 <div class="col-md-6 mb-2"><strong>Telefono remitente:</strong> {{ $telefono_remitente }}</div>

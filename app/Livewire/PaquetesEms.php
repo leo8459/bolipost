@@ -173,6 +173,7 @@ class PaquetesEms extends Component
     public $auto_codigo = true;
     public $precio = '';
     public $precio_confirm = null;
+    public $anadir_recargo_30 = false;
     public $showPaqueteConfirmModal = false;
     public $showPrintOptionsModal = false;
     public $printTermicaUrl = '';
@@ -4326,6 +4327,7 @@ class PaquetesEms extends Component
             'auto_codigo',
             'precio',
             'precio_confirm',
+            'anadir_recargo_30',
             'mostrar_empresa',
             'nombre_remitente',
             'nombre_envia',
@@ -6096,6 +6098,11 @@ class PaquetesEms extends Component
             $this->applyTarifarioMatch();
         }
 
+        if ($name === 'anadir_recargo_30') {
+            $this->anadir_recargo_30 = (bool) $value;
+            $this->applyTarifarioMatch();
+        }
+
         if ($name === 'telefono_destinatario') {
             if ($this->isCreateEms) {
                 $this->telefono_destinatario = preg_replace('/\D+/', '', (string) $value) ?? '';
@@ -6355,11 +6362,15 @@ class PaquetesEms extends Component
             $price = round($price * 2, 2);
         }
 
-        if (! $this->hasTelefonoDestinatarioRecargo()) {
-            return $price;
+        if ($this->hasTelefonoDestinatarioRecargo()) {
+            $price = round($price + self::TELEFONO_DESTINATARIO_RECARGO, 2);
         }
 
-        return round($price + self::TELEFONO_DESTINATARIO_RECARGO, 2);
+        if ($this->anadir_recargo_30) {
+            $price = round($price * 1.30, 2);
+        }
+
+        return $price;
     }
 
     protected function getCodigoSuffix(): string
