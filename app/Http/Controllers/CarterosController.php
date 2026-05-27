@@ -1546,7 +1546,7 @@ class CarterosController extends Controller
 
         $emsRows = PaqueteEms::query()
             ->whereIn('id', $emsIds ?: [0])
-            ->get(['id', 'codigo', 'nombre_destinatario', 'direccion', 'ciudad', 'peso'])
+            ->get(['id', 'codigo', 'cod_especial', 'nombre_destinatario', 'direccion', 'ciudad', 'peso', 'created_at'])
             ->keyBy('id');
 
         $certiRows = PaqueteCerti::query()
@@ -1561,7 +1561,7 @@ class CarterosController extends Controller
 
         $contratoRows = RecojoContrato::query()
             ->whereIn('id', $contratoIds ?: [0])
-            ->get(['id', 'codigo', 'nombre_d', 'direccion_d', 'destino', 'peso'])
+            ->get(['id', 'codigo', 'cod_especial', 'nombre_d', 'direccion_d', 'destino', 'peso', 'created_at'])
             ->keyBy('id');
         $solicitudRows = SolicitudCliente::query()
             ->whereIn('id', $solicitudIds ?: [0])
@@ -1579,6 +1579,8 @@ class CarterosController extends Controller
                     'no' => $index + 1,
                     'tipo_paquete' => $tipo,
                     'codigo' => (string) $pkg->codigo,
+                    'codigo_regional' => (string) ($pkg->cod_especial ?? ''),
+                    'fecha_registro' => optional($pkg->created_at)->format('d/m/Y H:i'),
                     'destinatario' => (string) $pkg->nombre_destinatario,
                     'direccion' => (string) ($pkg->direccion ?? ''),
                     'ciudad' => (string) ($pkg->ciudad ?? ''),
@@ -1621,6 +1623,8 @@ class CarterosController extends Controller
                     'no' => $index + 1,
                     'tipo_paquete' => $tipo,
                     'codigo' => (string) $pkg->codigo,
+                    'codigo_regional' => (string) ($pkg->cod_especial ?? ''),
+                    'fecha_registro' => optional($pkg->created_at)->format('d/m/Y H:i'),
                     'destinatario' => (string) $pkg->nombre_d,
                     'direccion' => (string) ($pkg->direccion_d ?? ''),
                     'ciudad' => (string) ($pkg->destino ?? ''),

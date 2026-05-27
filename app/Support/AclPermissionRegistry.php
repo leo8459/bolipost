@@ -512,6 +512,21 @@ class AclPermissionRegistry
             'dashboard',
             'dashboard.export.excel',
         ],
+        'malencaminados.reporte' => [
+            'malencaminados.reporte',
+            'malencaminados.index',
+            'feature.malencaminados.report',
+        ],
+        'malencaminados.reporte.pdf' => [
+            'malencaminados.reporte.pdf',
+            'malencaminados.reporte',
+            'feature.malencaminados.export',
+        ],
+        'malencaminados.reporte.excel' => [
+            'malencaminados.reporte.excel',
+            'malencaminados.reporte',
+            'feature.malencaminados.export',
+        ],
         'paquetes-ems.create' => [
             'paquetes-ems.create',
             'feature.paquetes-ems.index.create',

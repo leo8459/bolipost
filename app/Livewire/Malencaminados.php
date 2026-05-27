@@ -11,6 +11,7 @@ use App\Models\Recojo;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -223,6 +224,9 @@ class Malencaminados extends Component
         }
 
         DB::transaction(function () use ($tipo, $nuevoDestino, $departamentoActor) {
+            $actorUserId = (int) (Auth::id() ?? 0) ?: null;
+            $actorPayload = Schema::hasColumn('malencaminados', 'user_id') ? ['user_id' => $actorUserId] : [];
+
             if ($tipo === 'EMS') {
                 $paquete = PaqueteEms::query()->lockForUpdate()->findOrFail((int) $this->selectedEmsId);
                 $destinoAnterior = strtoupper(trim((string) ($paquete->ciudad ?? '')));
@@ -238,7 +242,7 @@ class Malencaminados extends Component
 
                 $contador = (int) Malencaminado::query()->where('paquetes_ems_id', (int) $paquete->id)->count() + 1;
 
-                Malencaminado::query()->create([
+                Malencaminado::query()->create(array_merge([
                     'codigo' => (string) $paquete->codigo,
                     'departamento_origen' => $departamentoOrigen !== '' ? $departamentoOrigen : $departamentoActor,
                     'observacion' => trim((string) $this->observacion),
@@ -249,7 +253,7 @@ class Malencaminados extends Component
                     'paquetes_ordi_id' => null,
                     'destino_anterior' => $destinoAnterior,
                     'destino_nuevo' => $nuevoDestino,
-                ]);
+                ], $actorPayload));
 
                 return;
             }
@@ -265,7 +269,7 @@ class Malencaminados extends Component
 
                 $contador = (int) Malencaminado::query()->where('paquetes_contrato_id', (int) $contrato->id)->count() + 1;
 
-                Malencaminado::query()->create([
+                Malencaminado::query()->create(array_merge([
                     'codigo' => (string) $contrato->codigo,
                     'departamento_origen' => $departamentoOrigen !== '' ? $departamentoOrigen : $departamentoActor,
                     'observacion' => trim((string) $this->observacion),
@@ -276,7 +280,7 @@ class Malencaminados extends Component
                     'paquetes_ordi_id' => null,
                     'destino_anterior' => $destinoAnterior,
                     'destino_nuevo' => $nuevoDestino,
-                ]);
+                ], $actorPayload));
 
                 return;
             }
@@ -291,7 +295,7 @@ class Malencaminados extends Component
 
                 $contador = (int) Malencaminado::query()->where('paquetes_certi_id', (int) $certi->id)->count() + 1;
 
-                Malencaminado::query()->create([
+                Malencaminado::query()->create(array_merge([
                     'codigo' => (string) $certi->codigo,
                     'departamento_origen' => $departamentoActor,
                     'observacion' => trim((string) $this->observacion),
@@ -302,7 +306,7 @@ class Malencaminados extends Component
                     'paquetes_ordi_id' => null,
                     'destino_anterior' => $destinoAnterior,
                     'destino_nuevo' => $nuevoDestino,
-                ]);
+                ], $actorPayload));
 
                 return;
             }
@@ -316,7 +320,7 @@ class Malencaminados extends Component
 
             $contador = (int) Malencaminado::query()->where('paquetes_ordi_id', (int) $ordi->id)->count() + 1;
 
-            Malencaminado::query()->create([
+            Malencaminado::query()->create(array_merge([
                 'codigo' => (string) $ordi->codigo,
                 'departamento_origen' => $departamentoActor,
                 'observacion' => trim((string) $this->observacion),
@@ -327,7 +331,7 @@ class Malencaminados extends Component
                 'paquetes_ordi_id' => (int) $ordi->id,
                 'destino_anterior' => $destinoAnterior,
                 'destino_nuevo' => $nuevoDestino,
-            ]);
+            ], $actorPayload));
         });
 
         session()->flash('success', 'Registro de malencaminado guardado. Se actualizo el destino y estado a 10.');
@@ -377,12 +381,14 @@ class Malencaminados extends Component
             ->paginate(15, ['*'], 'paquetesPage');
 
         $records = Malencaminado::query()
+            ->with('user:id,name,ciudad')
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('codigo', 'ILIKE', "%{$q}%")
                         ->orWhere('observacion', 'ILIKE', "%{$q}%")
                         ->orWhere('destino_anterior', 'ILIKE', "%{$q}%")
-                        ->orWhere('destino_nuevo', 'ILIKE', "%{$q}%");
+                        ->orWhere('destino_nuevo', 'ILIKE', "%{$q}%")
+                        ->orWhereHas('user', fn ($userQuery) => $userQuery->where('name', 'ILIKE', "%{$q}%"));
                 });
             })
             ->orderByDesc('id')

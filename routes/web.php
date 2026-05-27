@@ -278,6 +278,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/origenes', [OrigenController::class, 'index'])->name('origenes.index');
     Route::get('/malencaminados', [MalencaminadoController::class, 'index'])->name('malencaminados.index');
     Route::get('/malencaminados/reporte', [MalencaminadoController::class, 'reporte'])->name('malencaminados.reporte');
+    Route::get('/malencaminados/reporte/excel', [MalencaminadoController::class, 'reporteExcel'])->name('malencaminados.reporte.excel');
     Route::get('/malencaminados/reporte/pdf', [MalencaminadoController::class, 'reportePdf'])->name('malencaminados.reporte.pdf');
     Route::get('/tarifario', [TarifarioController::class, 'index'])->name('tarifario.index');
     Route::get('/tarifario/pdf', [TarifarioController::class, 'exportPdf'])->name('tarifario.pdf');

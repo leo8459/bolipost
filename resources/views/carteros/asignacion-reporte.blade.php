@@ -34,11 +34,29 @@
         .w-peso { width: 7%; }
         .w-firma { width: 14%; }
         .w-cobro { width: 7%; }
+        .simple-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .simple-table th,
+        .simple-table td {
+            border: 0.45px solid #777;
+            padding: 2px 4px;
+            vertical-align: middle;
+        }
+        .simple-table th {
+            background: #fff;
+            text-align: center;
+            font-weight: 700;
+        }
+        .simple-table td { font-size: 9.2px; line-height: 1.15; }
+        .simple-table th { font-size: 9.5px; line-height: 1.15; }
+        .simple-observacion { height: 16px; }
     </style>
 </head>
 <body>
     @php
         $assignedAtText = optional($assigned_at ?? null)->format('Y-m-d H:i') ?? now()->format('Y-m-d H:i');
+        $rowsCollection = collect($rows ?? []);
+        $isSimpleEmsContratoReport = $rowsCollection->isNotEmpty()
+            && $rowsCollection->every(fn ($row) => in_array((string) ($row['tipo_paquete'] ?? ''), ['EMS', 'CONTRATO'], true));
         $summary = [
             'EMS' => (int) ($summary_by_type['EMS'] ?? 0),
             'CERTI' => (int) ($summary_by_type['CERTI'] ?? 0),
@@ -60,6 +78,38 @@
         </tr>
     </table>
 
+    @if($isSimpleEmsContratoReport)
+    <table class="simple-table">
+        <thead>
+            <tr>
+                <th style="width:5%;">No</th>
+                <th style="width:17%;">Codigo</th>
+                <th style="width:14%;">Regional</th>
+                <th style="width:14%;">Fecha registro</th>
+                <th style="width:24%;">Contrato / Destinatario</th>
+                <th style="width:6%;">Peso</th>
+                <th style="width:20%;">Observacion</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($rows as $row)
+                <tr>
+                    <td class="center">{{ $row['no'] ?? '' }}</td>
+                    <td>{{ $row['codigo'] ?? '' }}</td>
+                    <td>{{ ($row['codigo_regional'] ?? '') !== '' ? $row['codigo_regional'] : ($regional ?? '') }}</td>
+                    <td>{{ $row['fecha_registro'] ?? '' }}</td>
+                    <td>{{ $row['destinatario'] ?? '' }}</td>
+                    <td class="center">{{ is_numeric($row['peso'] ?? null) ? number_format((float) $row['peso'], 3, '.', '') : '' }}</td>
+                    <td class="simple-observacion"></td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="7" class="center">No hay paquetes asignados para este reporte.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </table>
+    @else
     <table class="detail-table" style="margin-top:10px;">
         <thead>
             <tr>
@@ -98,6 +148,7 @@
             @endforelse
         </tbody>
     </table>
+    @endif
 
     <table class="summary-table" style="margin-top:16px; width:72%; margin-left:auto; margin-right:auto;">
         <thead>

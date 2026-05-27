@@ -33,16 +33,16 @@
 
     <div class="kpi-wrap">
         <div class="kpi">
-            <div class="label">Total departamentos</div>
-            <div class="value">{{ $resumen->count() }}</div>
+            <div class="label">Total envios</div>
+            <div class="value">{{ number_format($totalEnvios) }}</div>
         </div>
         <div class="kpi">
-            <div class="label">Total registros</div>
-            <div class="value">{{ (int) $resumen->sum('total_registros') }}</div>
+            <div class="label">Total malencaminados</div>
+            <div class="value">{{ number_format($totalMalencaminados) }}</div>
         </div>
         <div class="kpi">
-            <div class="label">Total malencaminamientos</div>
-            <div class="value">{{ (int) $resumen->sum('total_malencaminamientos') }}</div>
+            <div class="label">% error general</div>
+            <div class="value">{{ number_format($porcentajeErrorGeneral, 2) }}%</div>
         </div>
     </div>
 
@@ -51,20 +51,68 @@
         <thead>
             <tr>
                 <th>Departamento</th>
+                <th>Total envios</th>
+                <th>Malencaminados</th>
+                <th>% error</th>
                 <th>Total registros</th>
                 <th>Total malencaminamientos</th>
+                <th>EMS</th>
+                <th>Contratos</th>
+                <th>Certi.</th>
+                <th>Ordi.</th>
             </tr>
         </thead>
         <tbody>
             @forelse($resumen as $row)
                 <tr>
                     <td>{{ $row->departamento }}</td>
-                    <td>{{ (int) $row->total_registros }}</td>
-                    <td>{{ (int) $row->total_malencaminamientos }}</td>
+                    <td>{{ number_format((int) $row->total_envios) }}</td>
+                    <td>{{ number_format((int) $row->total_registros) }}</td>
+                    <td>{{ number_format((float) $row->porcentaje_error, 2) }}%</td>
+                    <td>{{ number_format((int) $row->total_registros) }}</td>
+                    <td>{{ number_format((int) $row->total_malencaminamientos) }}</td>
+                    <td>{{ number_format((int) $row->ems) }}</td>
+                    <td>{{ number_format((int) $row->contratos) }}</td>
+                    <td>{{ number_format((int) $row->certificados) }}</td>
+                    <td>{{ number_format((int) $row->ordinarios) }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="3">Sin datos para este filtro.</td>
+                    <td colspan="10">Sin datos para este filtro.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </table>
+
+    <div class="section-title">Detalle de casos y personal</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Codigo</th>
+                <th>Tipo</th>
+                <th>Origen</th>
+                <th>Anterior</th>
+                <th>Nuevo</th>
+                <th>Creo guia</th>
+                <th>Reporto / mando</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($detalle as $row)
+                <tr>
+                    <td>{{ \Carbon\Carbon::parse($row->created_at)->format('d/m/Y H:i') }}</td>
+                    <td>{{ $row->codigo }}</td>
+                    <td>{{ $row->tipo }}</td>
+                    <td>{{ $row->departamento_origen }}</td>
+                    <td>{{ $row->destino_anterior }}</td>
+                    <td>{{ $row->destino_nuevo }}</td>
+                    <td>{{ $row->usuario_creador_guia }}</td>
+                    <td>{{ $row->usuario_reporto_malencaminado }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="8">Sin detalle para este filtro.</td>
                 </tr>
             @endforelse
         </tbody>

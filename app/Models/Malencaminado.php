@@ -16,6 +16,7 @@ class Malencaminado extends Model
         'departamento_origen',
         'observacion',
         'malencaminamiento',
+        'user_id',
         'paquetes_ems_id',
         'paquetes_contrato_id',
         'paquetes_certi_id',
@@ -42,5 +43,10 @@ class Malencaminado extends Model
     public function paqueteOrdi()
     {
         return $this->belongsTo(PaqueteOrdi::class, 'paquetes_ordi_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

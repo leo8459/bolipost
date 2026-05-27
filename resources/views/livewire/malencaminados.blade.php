@@ -297,6 +297,7 @@
                                 <th>Tipo</th>
                                 <th>Destino anterior</th>
                                 <th>Destino nuevo</th>
+                                <th>Quien reporto</th>
                                 <th>Fecha</th>
                                 <th>Acciones</th>
                             </tr>
@@ -322,6 +323,12 @@
                                     </td>
                                     <td>{{ $row->destino_anterior ?: '-' }}</td>
                                     <td>{{ $row->destino_nuevo ?: '-' }}</td>
+                                    <td>
+                                        {{ optional($row->user)->name ?: 'SIN DATO' }}
+                                        @if(optional($row->user)->ciudad)
+                                            <div class="muted small">{{ $row->user->ciudad }}</div>
+                                        @endif
+                                    </td>
                                     <td class="muted small">{{ optional($row->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         @aclcan('edit', $this)
@@ -342,7 +349,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center py-4">No hay registros.</td>
+                                    <td colspan="9" class="text-center py-4">No hay registros.</td>
                                 </tr>
                             @endforelse
                         </tbody>
