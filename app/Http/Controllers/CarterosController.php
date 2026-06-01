@@ -1706,7 +1706,6 @@ class CarterosController extends Controller
         $fechaFin = trim((string) $request->query('fecha_fin', ''));
         if ($search !== '') {
             $codigo = '';
-            $cartero = '';
         }
 
         $emsFilterIds = null;
@@ -2094,13 +2093,29 @@ class CarterosController extends Controller
             $needle = mb_strtolower($search);
             $all = $this->attachCarteroData($all)
                 ->filter(function ($row) use ($needle) {
-                    $codigoValue = mb_strtolower((string) ($row['codigo'] ?? ''));
-                    $codigoAuxValue = mb_strtolower((string) ($row['codigo_aux'] ?? ''));
-                    $asignadoValue = mb_strtolower((string) ($row['asignado_a'] ?? ''));
+                    $fields = [
+                        $row['tipo_paquete'] ?? '',
+                        $row['codigo'] ?? '',
+                        $row['codigo_aux'] ?? '',
+                        $row['destinatario'] ?? '',
+                        $row['telefono'] ?? '',
+                        $row['ciudad'] ?? '',
+                        $row['zona'] ?? '',
+                        $row['peso'] ?? '',
+                        $row['estado'] ?? '',
+                        $row['asignado_a'] ?? '',
+                        $row['recibido_por'] ?? '',
+                        $row['descripcion'] ?? '',
+                        $row['created_at'] ?? '',
+                    ];
 
-                    return str_contains($codigoValue, $needle)
-                        || str_contains($codigoAuxValue, $needle)
-                        || str_contains($asignadoValue, $needle);
+                    foreach ($fields as $value) {
+                        if (str_contains(mb_strtolower((string) $value), $needle)) {
+                            return true;
+                        }
+                    }
+
+                    return false;
                 })
                 ->values();
         }

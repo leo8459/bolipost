@@ -22,13 +22,23 @@
             <div class="card-body">
                 <div class="devolucion-shell">
                     <div class="devolucion-toolbar">
-                        <div>
-                            <div class="devolucion-toolbar-title">Seguimiento de incidencias</div>
-                            <div class="devolucion-toolbar-subtitle">Revisa observaciones, evidencia y recupera paquetes cuando corresponda.</div>
+                        <div class="devolucion-toolbar-copy">
+                            <div class="devolucion-toolbar-icon">
+                                <i class="fas fa-undo-alt"></i>
+                            </div>
+                            <div>
+                                <div class="devolucion-toolbar-title">Seguimiento de incidencias</div>
+                                <div class="devolucion-toolbar-subtitle">Revisa observaciones, evidencia y recupera paquetes cuando corresponda.</div>
+                            </div>
                         </div>
                         <div class="devolucion-filter">
-                            <label for="cartero-filter" class="devolucion-filter-label">Filtrar por cartero</label>
-                            <div class="devolucion-filter-row">
+                            <div class="devolucion-filter-group devolucion-filter-search">
+                                <label for="search-filter" class="devolucion-filter-label">Buscar paquetes</label>
+                                <input type="search" id="search-filter" class="form-control devolucion-filter-input"
+                                    placeholder="Nombre, codigo, telefono, ciudad, descripcion...">
+                            </div>
+                            <div class="devolucion-filter-group devolucion-filter-cartero">
+                                <label for="cartero-filter" class="devolucion-filter-label">Cartero</label>
                                 <select id="cartero-filter" class="form-control devolucion-filter-select">
                                     <option value="">Todos los carteros del departamento</option>
                                     @foreach(($carterosDepartamento ?? collect()) as $cartero)
@@ -37,6 +47,8 @@
                                         </option>
                                     @endforeach
                                 </select>
+                            </div>
+                            <div class="devolucion-filter-actions">
                                 <button type="button" id="btn-filtrar-cartero" class="btn btn-carteros-primary">Buscar</button>
                                 <button type="button" id="btn-limpiar-cartero" class="btn btn-outline-secondary">Limpiar</button>
                             </div>
@@ -131,11 +143,34 @@
             border-bottom: 1px solid #e4e8f2;
             background: linear-gradient(180deg, #fbfcff 0%, #f7faff 100%);
             flex-wrap: wrap;
+            align-items: stretch;
+        }
+
+        .devolucion-toolbar-copy {
+            flex: 1 1 340px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: min(100%, 300px);
+            padding: 12px 0;
+        }
+
+        .devolucion-toolbar-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: #20539A;
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 22px rgba(32, 83, 154, 0.18);
+            flex: 0 0 auto;
         }
 
         .devolucion-toolbar-title {
             color: var(--carteros-primary);
-            font-size: 1rem;
+            font-size: 1.08rem;
             font-weight: 800;
         }
 
@@ -147,7 +182,7 @@
 
         .devolucion-status {
             min-height: 42px;
-            min-width: min(100%, 380px);
+            flex: 1 1 100%;
             border: 1px dashed #cfd9ee;
             border-radius: 12px;
             background: #f8faff;
@@ -159,16 +194,29 @@
             justify-content: flex-start;
         }
 
+        .devolucion-status:empty {
+            display: none;
+        }
+
         .devolucion-filter {
-            flex: 1 1 440px;
-            max-width: 640px;
+            flex: 1 1 880px;
+            max-width: none;
+            padding: 16px;
+            border: 1px solid #dce5f4;
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 12px 28px rgba(32, 83, 154, 0.08);
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            flex-wrap: nowrap;
         }
 
         .devolucion-filter-label {
             display: block;
             margin-bottom: 6px;
             color: var(--carteros-primary);
-            font-size: 0.78rem;
+            font-size: 0.8rem;
             font-weight: 800;
             letter-spacing: 0;
         }
@@ -180,13 +228,52 @@
             flex-wrap: wrap;
         }
 
-        .devolucion-filter-select {
-            flex: 1 1 260px;
-            min-width: min(100%, 260px);
+        .devolucion-filter-group {
+            min-width: 0;
+        }
+
+        .devolucion-filter-search {
+            flex: 1.15 1 360px;
+        }
+
+        .devolucion-filter-cartero {
+            flex: 0.95 1 300px;
+        }
+
+        .devolucion-filter-actions {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            flex: 0 0 auto;
+        }
+
+        .devolucion-filter-select,
+        .devolucion-filter-input {
+            width: 100%;
+            min-width: 0;
             height: 42px;
             border-radius: 10px;
             border-color: #cfd9ee;
             font-weight: 700;
+            box-shadow: none;
+        }
+
+        .devolucion-filter-input {
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .devolucion-filter-input::placeholder {
+            color: #8a94a6;
+            font-weight: 700;
+        }
+
+        .devolucion-filter-actions .btn {
+            height: 42px;
+            border-radius: 10px;
+            padding-left: 16px;
+            padding-right: 16px;
+            font-weight: 800;
         }
 
         .devolucion-status.is-info {
@@ -229,6 +316,16 @@
             .devolucion-filter {
                 max-width: none;
                 flex-basis: 100%;
+                flex-wrap: wrap;
+            }
+
+            .devolucion-toolbar-copy {
+                padding-bottom: 0;
+            }
+
+            .devolucion-filter-group,
+            .devolucion-filter-actions {
+                flex: 1 1 100%;
             }
         }
     </style>
@@ -247,6 +344,7 @@
             const prevLink = document.getElementById('prev-page-link');
             const nextLink = document.getElementById('next-page-link');
             const msg = document.getElementById('devolucion-msg');
+            const searchFilter = document.getElementById('search-filter');
             const carteroFilter = document.getElementById('cartero-filter');
             const btnFiltrarCartero = document.getElementById('btn-filtrar-cartero');
             const btnLimpiarCartero = document.getElementById('btn-limpiar-cartero');
@@ -331,6 +429,11 @@
                         params.set('cartero', cartero);
                     }
 
+                    const search = searchFilter ? searchFilter.value.trim() : '';
+                    if (search !== '') {
+                        params.set('search', search);
+                    }
+
                     const url = '{{ route('api.carteros.devolucion') }}?' + params.toString();
                     const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) throw new Error('Request failed');
@@ -355,6 +458,9 @@
                     if (carteroFilter) {
                         carteroFilter.value = '';
                     }
+                    if (searchFilter) {
+                        searchFilter.value = '';
+                    }
                     loadPage(1);
                 });
             }
@@ -362,6 +468,15 @@
             if (carteroFilter) {
                 carteroFilter.addEventListener('change', function() {
                     loadPage(1);
+                });
+            }
+
+            if (searchFilter) {
+                searchFilter.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        loadPage(1);
+                    }
                 });
             }
 
