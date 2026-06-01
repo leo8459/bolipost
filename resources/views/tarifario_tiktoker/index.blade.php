@@ -5,6 +5,10 @@
 @endsection
 
 @section('content')
+    @php
+        $regionalNameMap = $regionalNameMap ?? [];
+        $regionalLabel = fn ($name) => $regionalNameMap[strtoupper(trim((string) $name))] ?? strtoupper(trim((string) $name));
+    @endphp
     <section class="content container-fluid">
         <div class="row">
             <div class="col-sm-12">
@@ -54,7 +58,7 @@
                                             <option value="">Todos</option>
                                             @foreach($origenes as $origen)
                                                 <option value="{{ $origen->id }}" {{ (int) $origenId === (int) $origen->id ? 'selected' : '' }}>
-                                                    {{ $origen->nombre_origen }}
+                                                    {{ $regionalLabel($origen->nombre_origen) }}
                                                 </option>
                                             @endforeach
                                         </select>
@@ -67,7 +71,7 @@
                                             <option value="">Todos</option>
                                             @foreach($destinos as $destino)
                                                 <option value="{{ $destino->id }}" {{ (int) $destinoId === (int) $destino->id ? 'selected' : '' }}>
-                                                    {{ $destino->nombre_destino }}
+                                                    {{ $regionalLabel($destino->nombre_destino) }}
                                                 </option>
                                             @endforeach
                                         </select>
@@ -102,10 +106,9 @@
                                         <th>Origen</th>
                                         <th>Destino</th>
                                         <th>Servicio Extra</th>
-                                        <th>Peso 1</th>
-                                        <th>Peso 2</th>
-                                        <th>Peso 3</th>
-                                        <th>Peso Extra</th>
+                                        <th>Peso 1<br><small>hasta 2 kg</small></th>
+                                        <th>Peso 2<br><small>hasta 5 kg</small></th>
+                                        <th>Peso Extra<br><small>+ de 5 kg</small></th>
                                         <th>Tiempo Entrega</th>
                                         <th></th>
                                     </tr>
@@ -114,12 +117,11 @@
                                     @forelse ($tarifas as $tarifa)
                                         <tr>
                                             <td>{{ $tarifa->id }}</td>
-                                            <td>{{ $tarifa->origen?->nombre_origen }}</td>
-                                            <td>{{ $tarifa->destino?->nombre_destino }}</td>
+                                            <td>{{ $regionalLabel($tarifa->origen?->nombre_origen) }}</td>
+                                            <td>{{ $regionalLabel($tarifa->destino?->nombre_destino) }}</td>
                                             <td>{{ $tarifa->servicioExtra?->nombre ?? '-' }}</td>
                                             <td>{{ number_format((float) $tarifa->peso1, 2) }}</td>
                                             <td>{{ number_format((float) $tarifa->peso2, 2) }}</td>
-                                            <td>{{ number_format((float) $tarifa->peso3, 2) }}</td>
                                             <td>{{ number_format((float) $tarifa->peso_extra, 2) }}</td>
                                             <td>{{ $tarifa->tiempo_entrega }} h</td>
                                             <td>
@@ -142,7 +144,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="10" class="text-center py-4">No hay registros</td>
+                                            <td colspan="9" class="text-center py-4">No hay registros</td>
                                         </tr>
                                     @endforelse
                                 </tbody>

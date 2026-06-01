@@ -8,6 +8,7 @@ use App\Models\ServicioExtra;
 use App\Models\TarifarioTiktoker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
@@ -21,13 +22,18 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class TarifarioTiktokerController extends Controller
 {
+    private const REGIONAL_DISPLAY_NAMES = [
+        'PANDO' => 'COBIJA',
+        'BENI' => 'TRINIDAD',
+        'CHUQUISACA' => 'SUCRE',
+    ];
+
     private const IMPORT_COLUMNS = [
         'origen',
         'destino',
         'servicio_extra',
         'peso1',
         'peso2',
-        'peso3',
         'peso_extra',
         'tiempo_entrega',
     ];
@@ -50,7 +56,6 @@ class TarifarioTiktokerController extends Controller
                 $query->where(function ($search) use ($q) {
                     $search->whereRaw('CAST(peso1 AS TEXT) ILIKE ?', ["%{$q}%"])
                         ->orWhereRaw('CAST(peso2 AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereRaw('CAST(peso3 AS TEXT) ILIKE ?', ["%{$q}%"])
                         ->orWhereRaw('CAST(peso_extra AS TEXT) ILIKE ?', ["%{$q}%"])
                         ->orWhereRaw('CAST(tiempo_entrega AS TEXT) ILIKE ?', ["%{$q}%"])
                         ->orWhereHas('origen', fn ($sub) => $sub->where('nombre_origen', 'ILIKE', "%{$q}%"))
@@ -70,6 +75,7 @@ class TarifarioTiktokerController extends Controller
             'origenes' => Origen::query()->orderBy('nombre_origen')->get(['id', 'nombre_origen']),
             'destinos' => Destino::query()->orderBy('nombre_destino')->get(['id', 'nombre_destino']),
             'servicioExtras' => ServicioExtra::query()->orderBy('nombre')->get(['id', 'nombre']),
+            'regionalNameMap' => self::REGIONAL_DISPLAY_NAMES,
         ]);
     }
 
@@ -80,6 +86,7 @@ class TarifarioTiktokerController extends Controller
             'origenes' => Origen::query()->orderBy('nombre_origen')->get(['id', 'nombre_origen']),
             'destinos' => Destino::query()->orderBy('nombre_destino')->get(['id', 'nombre_destino']),
             'servicioExtras' => ServicioExtra::query()->orderBy('nombre')->get(['id', 'nombre']),
+            'regionalNameMap' => self::REGIONAL_DISPLAY_NAMES,
         ]);
     }
 
@@ -99,6 +106,7 @@ class TarifarioTiktokerController extends Controller
             'origenes' => Origen::query()->orderBy('nombre_origen')->get(['id', 'nombre_origen']),
             'destinos' => Destino::query()->orderBy('nombre_destino')->get(['id', 'nombre_destino']),
             'servicioExtras' => ServicioExtra::query()->orderBy('nombre')->get(['id', 'nombre']),
+            'regionalNameMap' => self::REGIONAL_DISPLAY_NAMES,
         ]);
     }
 
@@ -135,11 +143,27 @@ class TarifarioTiktokerController extends Controller
 
         $origenMap = Origen::query()
             ->get(['id', 'nombre_origen'])
-            ->mapWithKeys(fn ($origen) => [strtoupper(trim((string) $origen->nombre_origen)) => (int) $origen->id]);
+            ->flatMap(function ($origen) {
+                $original = strtoupper(trim((string) $origen->nombre_origen));
+                $display = $this->regionalDisplayName($original);
+
+                return [
+                    $original => (int) $origen->id,
+                    $display => (int) $origen->id,
+                ];
+            });
 
         $destinoMap = Destino::query()
             ->get(['id', 'nombre_destino'])
-            ->mapWithKeys(fn ($destino) => [strtoupper(trim((string) $destino->nombre_destino)) => (int) $destino->id]);
+            ->flatMap(function ($destino) {
+                $original = strtoupper(trim((string) $destino->nombre_destino));
+                $display = $this->regionalDisplayName($original);
+
+                return [
+                    $original => (int) $destino->id,
+                    $display => (int) $destino->id,
+                ];
+            });
 
         $servicioExtraMap = ServicioExtra::query()
             ->get(['id', 'nombre'])
@@ -170,6 +194,7 @@ class TarifarioTiktokerController extends Controller
         $created = 0;
         $updated = 0;
         $errors = [];
+        $validRows = [];
         $line = 1;
 
         foreach ($rows as $row) {
@@ -194,7 +219,6 @@ class TarifarioTiktokerController extends Controller
                 'servicio_extra_id' => $servicioExtraNombre === '' ? null : ($servicioExtraMap[$servicioExtraNombre] ?? null),
                 'peso1' => $this->parseDecimal($data['peso1'] ?? null),
                 'peso2' => $this->parseDecimal($data['peso2'] ?? null),
-                'peso3' => $this->parseDecimal($data['peso3'] ?? null),
                 'peso_extra' => $this->parseDecimal($data['peso_extra'] ?? null),
                 'tiempo_entrega' => $this->parseInteger($data['tiempo_entrega'] ?? null),
             ];
@@ -207,37 +231,50 @@ class TarifarioTiktokerController extends Controller
             }
 
             $validated = $validator->validated();
-            $existing = TarifarioTiktoker::query()
-                ->where('origen_id', (int) $validated['origen_id'])
-                ->where('destino_id', (int) $validated['destino_id'])
-                ->where(function ($query) use ($validated) {
-                    if (($validated['servicio_extra_id'] ?? null) === null) {
-                        $query->whereNull('servicio_extra_id');
-                    } else {
-                        $query->where('servicio_extra_id', (int) $validated['servicio_extra_id']);
-                    }
-                })
-                ->first();
-
-            if ($existing) {
-                $existing->update(Arr::only($validated, ['servicio_extra_id', 'peso1', 'peso2', 'peso3', 'peso_extra', 'tiempo_entrega']));
-                $updated++;
-                continue;
-            }
-
-            TarifarioTiktoker::query()->create($validated);
-            $created++;
+            $validated['peso3'] = $validated['peso2'];
+            $validRows[] = $validated;
         }
-
-        $message = "Importacion completada. Creadas: {$created}, actualizadas: {$updated}.";
-        $redirect = redirect()->route('tarifario-tiktoker.index')->with('success', $message);
 
         if ($errors !== []) {
-            $redirect->with('warning', 'Se encontraron ' . count($errors) . ' fila(s) con error.');
-            $redirect->with('import_errors', array_slice($errors, 0, 20));
+            return back()
+                ->withInput()
+                ->with('warning', 'No se guardo ninguna fila porque el archivo tiene ' . count($errors) . ' error(es). Corrige el Excel y vuelve a importarlo.')
+                ->with('import_errors', $errors);
         }
 
-        return $redirect;
+        if ($validRows === []) {
+            return back()
+                ->with('warning', 'No se guardo ninguna fila. Revisa que el archivo tenga datos desde la fila 2.');
+        }
+
+        DB::transaction(function () use ($validRows, &$created, &$updated) {
+            foreach ($validRows as $validated) {
+                $existing = TarifarioTiktoker::query()
+                    ->where('origen_id', (int) $validated['origen_id'])
+                    ->where('destino_id', (int) $validated['destino_id'])
+                    ->where(function ($query) use ($validated) {
+                        if (($validated['servicio_extra_id'] ?? null) === null) {
+                            $query->whereNull('servicio_extra_id');
+                        } else {
+                            $query->where('servicio_extra_id', (int) $validated['servicio_extra_id']);
+                        }
+                    })
+                    ->first();
+
+                if ($existing) {
+                    $existing->update(Arr::only($validated, ['servicio_extra_id', 'peso1', 'peso2', 'peso3', 'peso_extra', 'tiempo_entrega']));
+                    $updated++;
+                    continue;
+                }
+
+                TarifarioTiktoker::query()->create($validated);
+                $created++;
+            }
+        });
+
+        $message = "Importacion completada. Creadas: {$created}, actualizadas: {$updated}.";
+
+        return redirect()->route('tarifario-tiktoker.index')->with('success', $message);
     }
 
     public function downloadTemplateExcel()
@@ -252,7 +289,7 @@ class TarifarioTiktokerController extends Controller
             $sheet->setTitle('TarifarioTiktoker');
             $sheet->fromArray(self::IMPORT_COLUMNS, null, 'A1');
 
-            $sheet->getStyle('A1:H1')->applyFromArray([
+            $sheet->getStyle('A1:G1')->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF20539A']],
                 'alignment' => [
@@ -268,21 +305,21 @@ class TarifarioTiktokerController extends Controller
             ]);
 
             $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:H1');
+            $sheet->setAutoFilter('A1:G1');
 
-            foreach (['A' => 24, 'B' => 24, 'C' => 22, 'D' => 12, 'E' => 12, 'F' => 12, 'G' => 14, 'H' => 16] as $column => $width) {
+            foreach (['A' => 24, 'B' => 24, 'C' => 22, 'D' => 16, 'E' => 16, 'F' => 18, 'G' => 16] as $column => $width) {
                 $sheet->getColumnDimension($column)->setWidth($width);
             }
 
-            $sheet->getStyle('D2:G5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('H2:H5000')->getNumberFormat()->setFormatCode('0');
+            $sheet->getStyle('D2:F5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('G2:G5000')->getNumberFormat()->setFormatCode('0');
 
             $sheetOrigenes = $spreadsheet->createSheet();
             $sheetOrigenes->setTitle('Origenes');
             $sheetOrigenes->fromArray(['nombre_origen'], null, 'A1');
             $row = 2;
             foreach ($origenes as $origen) {
-                $sheetOrigenes->setCellValue("A{$row}", (string) $origen->nombre_origen);
+                $sheetOrigenes->setCellValue("A{$row}", $this->regionalDisplayName((string) $origen->nombre_origen));
                 $row++;
             }
             $sheetOrigenes->getColumnDimension('A')->setWidth(30);
@@ -292,7 +329,7 @@ class TarifarioTiktokerController extends Controller
             $sheetDestinos->fromArray(['nombre_destino'], null, 'A1');
             $row = 2;
             foreach ($destinos as $destino) {
-                $sheetDestinos->setCellValue("A{$row}", (string) $destino->nombre_destino);
+                $sheetDestinos->setCellValue("A{$row}", $this->regionalDisplayName((string) $destino->nombre_destino));
                 $row++;
             }
             $sheetDestinos->getColumnDimension('A')->setWidth(30);
@@ -314,7 +351,7 @@ class TarifarioTiktokerController extends Controller
             $sheetInstrucciones->setCellValue('A4', '2) Usa los nombres de departamento de las hojas Origenes y Destinos.');
             $sheetInstrucciones->setCellValue('A5', '3) servicio_extra puede quedar vacio o usar un nombre de la hoja ServiciosExtras.');
             $sheetInstrucciones->setCellValue('A6', '4) origen y destino deben escribirse exactamente como en las listas.');
-            $sheetInstrucciones->setCellValue('A7', '5) peso1, peso2, peso3 y peso_extra son montos numericos.');
+            $sheetInstrucciones->setCellValue('A7', '5) peso1 es el precio hasta 2 kg, peso2 hasta 5 kg y peso_extra se suma por cada kg o fraccion adicional despues de 5 kg.');
             $sheetInstrucciones->setCellValue('A8', '6) tiempo_entrega se registra en horas.');
             $sheetInstrucciones->getStyle('A1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 14],
@@ -337,7 +374,10 @@ class TarifarioTiktokerController extends Controller
 
     private function validateData(Request $request): array
     {
-        return $request->validate($this->validationRules());
+        $validated = $request->validate($this->validationRules());
+        $validated['peso3'] = $validated['peso2'];
+
+        return $validated;
     }
 
     private function validationRules(): array
@@ -348,7 +388,6 @@ class TarifarioTiktokerController extends Controller
             'servicio_extra_id' => ['nullable', 'integer', Rule::exists('servicio_extras', 'id')],
             'peso1' => ['required', 'numeric', 'min:0'],
             'peso2' => ['required', 'numeric', 'min:0'],
-            'peso3' => ['required', 'numeric', 'min:0'],
             'peso_extra' => ['required', 'numeric', 'min:0'],
             'tiempo_entrega' => ['required', 'integer', 'min:0'],
         ];
@@ -357,6 +396,13 @@ class TarifarioTiktokerController extends Controller
     private function normalizeHeader($value): string
     {
         return strtolower(trim((string) $value));
+    }
+
+    private function regionalDisplayName(string $name): string
+    {
+        $normalized = strtoupper(trim($name));
+
+        return self::REGIONAL_DISPLAY_NAMES[$normalized] ?? $normalized;
     }
 
     private function parseDecimal($value): ?float

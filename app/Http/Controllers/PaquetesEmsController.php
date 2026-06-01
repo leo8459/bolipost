@@ -1675,15 +1675,13 @@ class PaquetesEmsController extends Controller
 
     private function calculatePrecioTiktoker(TarifarioTiktoker $tarifario, float $peso, bool $pagoDestinatario = false): float
     {
-        if ($peso <= 0.500) {
+        if ($peso <= 2.000) {
             $precioBase = (float) $tarifario->peso1;
-        } elseif ($peso <= 2.000) {
-            $precioBase = (float) $tarifario->peso2;
         } elseif ($peso <= 5.000) {
-            $precioBase = (float) $tarifario->peso3;
+            $precioBase = (float) $tarifario->peso2;
         } else {
             $bloquesExtra = (int) ceil($peso - 5);
-            $precioBase = (float) $tarifario->peso3 + ($bloquesExtra * (float) $tarifario->peso_extra);
+            $precioBase = (float) $tarifario->peso2 + ($bloquesExtra * (float) $tarifario->peso_extra);
         }
 
         if ($pagoDestinatario) {

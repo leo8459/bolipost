@@ -55,7 +55,7 @@ class ClienteSolicitudController extends Controller
                 'estadoRegistro:id,nombre_estado',
                 'servicioExtra:id,nombre,descripcion',
                 'destino:id,nombre_destino',
-                'tarifarioTiktoker:id,origen_id,destino_id,servicio_extra_id,peso1,peso2,peso3,peso_extra,tiempo_entrega',
+                'tarifarioTiktoker:id,origen_id,destino_id,servicio_extra_id,peso1,peso2,peso_extra,tiempo_entrega',
                 'tarifarioTiktoker.origen:id,nombre_origen',
                 'tarifarioTiktoker.destino:id,nombre_destino',
                 'tarifarioTiktoker.servicioExtra:id,nombre',

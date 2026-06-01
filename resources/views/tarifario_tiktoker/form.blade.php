@@ -2,6 +2,8 @@
     $selectedOrigen = (string) old('origen_id', $tarifa->origen_id ?? '');
     $selectedDestino = (string) old('destino_id', $tarifa->destino_id ?? '');
     $selectedServicioExtra = (string) old('servicio_extra_id', $tarifa->servicio_extra_id ?? '');
+    $regionalNameMap = $regionalNameMap ?? [];
+    $regionalLabel = fn ($name) => $regionalNameMap[strtoupper(trim((string) $name))] ?? strtoupper(trim((string) $name));
 @endphp
 
 <div class="box box-info padding-1">
@@ -14,7 +16,7 @@
                         <option value="">Seleccione...</option>
                         @foreach($origenes as $origen)
                             <option value="{{ $origen->id }}" {{ $selectedOrigen === (string) $origen->id ? 'selected' : '' }}>
-                                {{ $origen->nombre_origen }}
+                                {{ $regionalLabel($origen->nombre_origen) }}
                             </option>
                         @endforeach
                     </select>
@@ -31,7 +33,7 @@
                         <option value="">Seleccione...</option>
                         @foreach($destinos as $destino)
                             <option value="{{ $destino->id }}" {{ $selectedDestino === (string) $destino->id ? 'selected' : '' }}>
-                                {{ $destino->nombre_destino }}
+                                {{ $regionalLabel($destino->nombre_destino) }}
                             </option>
                         @endforeach
                     </select>
@@ -60,37 +62,29 @@
         </div>
 
         <div class="row">
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="peso1">Peso 1</label>
+                    <label for="peso1">Peso 1 (hasta 2 kg)</label>
                     <input type="number" step="0.01" min="0" id="peso1" name="peso1" value="{{ old('peso1', $tarifa->peso1 ?? '') }}" class="form-control @error('peso1') is-invalid @enderror" required>
                     @error('peso1')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="peso2">Peso 2</label>
+                    <label for="peso2">Peso 2 (hasta 5 kg)</label>
                     <input type="number" step="0.01" min="0" id="peso2" name="peso2" value="{{ old('peso2', $tarifa->peso2 ?? '') }}" class="form-control @error('peso2') is-invalid @enderror" required>
                     @error('peso2')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="peso3">Peso 3</label>
-                    <input type="number" step="0.01" min="0" id="peso3" name="peso3" value="{{ old('peso3', $tarifa->peso3 ?? '') }}" class="form-control @error('peso3') is-invalid @enderror" required>
-                    @error('peso3')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="form-group mb-3">
-                    <label for="peso_extra">Peso extra</label>
+                    <label for="peso_extra">Peso extra (+5 kg)</label>
                     <input type="number" step="0.01" min="0" id="peso_extra" name="peso_extra" value="{{ old('peso_extra', $tarifa->peso_extra ?? '') }}" class="form-control @error('peso_extra') is-invalid @enderror" required>
+                    <small class="form-text text-muted">Se suma por cada kg o fraccion adicional despues de 5 kg.</small>
                     @error('peso_extra')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
