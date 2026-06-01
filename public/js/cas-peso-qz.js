@@ -55,7 +55,6 @@
             boot();
             return;
         }
-
         const observer = new MutationObserver(() => {
             if (!hasPesoInputs()) {
                 return;
@@ -64,7 +63,6 @@
             observer.disconnect();
             boot();
         });
-
         observer.observe(document.documentElement, {
             childList: true,
             subtree: true,
@@ -79,7 +77,6 @@
         if (state.booted) {
             return;
         }
-
         state.booted = true;
         bindLifecycleEvents();
         bindInputActivation();
@@ -104,15 +101,13 @@
 
             reconnectBtn.disabled = true;
             try {
-                await reconnect();
+                await hardReconnect();
             } finally {
                 reconnectBtn.disabled = false;
             }
         });
 
-        connectAndRead().catch(() => {
-            // El estado visual ya queda reflejado en los pills
-        });
+        connectAndRead().catch(() => { });
     }
 
     function bindInputActivation() {
@@ -140,6 +135,7 @@
         }
     }
 
+    // --- CORRECCIÓN 1 APLICADA AQUÍ ---
     function bindLifecycleEvents() {
         if (state.lifecycleBound) {
             return;
@@ -147,20 +143,51 @@
 
         state.lifecycleBound = true;
 
-        window.addEventListener('pagehide', () => {
-            releasePortForBackground(true).catch(() => { });
-        });
+        const handleExit = () => {
+            stopPolling();
+            stopDataWatchdog();
 
-        window.addEventListener('beforeunload', () => {
-            releasePortForBackground(true).catch(() => { });
-        });
+            if (state.port) {
+                try { qz.serial.sendData(state.port, serial.stopCommand); } catch(e){}
+                try { qz.serial.closePort(state.port); } catch(e){}
+            }
+            
+            if (window.qz?.websocket?.isActive?.()) {
+                try { qz.websocket.disconnect(); } catch(e){}
+            }
+        };
+
+        window.addEventListener('pagehide', handleExit);
+        window.addEventListener('beforeunload', handleExit);
     }
+    // ----------------------------------
 
     async function reconnect() {
+        await hardReconnect();
+    }
+
+    async function hardReconnect() {
+        if (state.connecting || state.recovering) {
+            return;
+        }
         stopPolling();
         stopDataWatchdog();
-        await closeCurrentPort();
-        await connectAndRead();
+
+        try {
+            await closeCurrentPort();
+
+            if (window.qz?.websocket?.isActive?.()) {
+                try {
+                    await qz.websocket.disconnect();
+                } catch (_e) { }
+            }
+
+            await sleep(1500);
+
+            state.serialCallbacksBound = false;
+
+            await connectAndRead();
+        } catch (_e) { }
     }
 
     async function connectAndRead() {
@@ -177,7 +204,6 @@
             configureSecuritySigned();
             bindWebSocketClose();
             bindSerialCallbacks();
-
             await ensureSocket();
             const port = await openPortAuto();
             state.port = port;
@@ -241,7 +267,7 @@
                     const certificate = text.trim();
 
                     if (!certificate.startsWith('-----BEGIN CERTIFICATE-----')) {
-                        throw new Error('Certificado invalido. Revisa el endpoint /qz/certificate');
+                        throw new Error('Certificado invalido');
                     }
 
                     return certificate;
@@ -276,7 +302,7 @@
                         const signature = text.trim();
 
                         if (!isLikelyBase64(signature)) {
-                            throw new Error('Firma invalida. Revisa sesion/autenticacion y endpoint /qz/sign');
+                            throw new Error('Firma invalida');
                         }
 
                         return signature;
@@ -295,6 +321,9 @@
                 state.port = null;
                 markQzPending('QZ desconectado');
                 markPortError('Sin puerto');
+                setTimeout(() => {
+                    hardReconnect().catch(() => { });
+                }, 2000);
             });
         }
     }
@@ -303,7 +332,7 @@
         if (state.serialCallbacksBound) {
             return;
         }
-
+        qz.serial.setSerialCallbacks(null);
         qz.serial.setSerialCallbacks((event) => {
             if (isSerialErrorEvent(event)) {
                 handlePortFailure('Balanza desconectada');
@@ -355,7 +384,11 @@
         });
     }
 
+    // --- CORRECCIÓN 2 APLICADA AQUÍ ---
     async function openPortAuto() {
+        if (state.port) {
+            return state.port;
+        }
         const ports = await qz.serial.findPorts();
 
         if (!Array.isArray(ports) || ports.length === 0) {
@@ -380,17 +413,21 @@
 
         for (const port of ordered) {
             try {
-                await closeCurrentPort();
+                try {
+                    await qz.serial.closePort(port);
+                } catch (_e) { }
+
+                await closeCurrentPort(); 
+                
                 await qz.serial.openPort(port, openOptions);
                 localStorage.setItem('cas:last_port', port);
                 return port;
-            } catch (_error) {
-                // prueba con el siguiente puerto
-            }
+            } catch (_error) { }
         }
 
         throw new Error('No se pudo abrir un puerto para la CAS PR II');
     }
+    // ----------------------------------
 
     function orderPorts(ports) {
         const remembered = localStorage.getItem('cas:last_port');
@@ -407,13 +444,11 @@
                 ...ordered.filter((port) => port !== remembered),
             ];
         }
-
         return ordered;
     }
 
     function startPolling() {
         stopPolling();
-
         const commands = serial.pollCommands;
         if (commands.length === 0) {
             return;
@@ -443,7 +478,6 @@
 
     function startDataWatchdog() {
         stopDataWatchdog();
-
         const timeoutMs = Number(serial.noDataTimeoutMs);
         if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
             return;
@@ -490,27 +524,38 @@
         Promise.resolve()
             .then(async () => {
                 await closeCurrentPort();
+
+                try {
+                    if (qz.websocket.isActive()) {
+                        await qz.websocket.disconnect();
+                    }
+                } catch (_e) { }
             })
             .finally(() => {
                 state.recovering = false;
+
+                setTimeout(() => {
+                    hardReconnect().catch(() => { });
+                }, 2000);
             });
     }
 
     async function releasePortForBackground(silent = false) {
         stopPolling();
+
         stopDataWatchdog();
+
         await closeCurrentPort();
 
         if (window.qz?.websocket?.isActive?.()) {
             try {
                 await qz.websocket.disconnect();
-            } catch (_error) {
-                // ignore
-            }
+            } catch (_error) { }
         }
 
         if (!silent) {
             markQzPending('Pestana inactiva');
+
             markPortPending('Puerto liberado');
         }
     }
@@ -521,17 +566,22 @@
         }
 
         const port = state.port;
-
         try {
-            await sendStopCommand(port);
-        } catch (_error) {
-            // ignore
-        }
+            stopPolling();
 
-        try {
-            await qz.serial.closePort(port);
-        } catch (_error) {
-            // ignore
+            stopDataWatchdog();
+
+            try {
+                await sendStopCommand(port);
+            } catch (_e) { }
+
+            await sleep(150);
+
+            try {
+                await qz.serial.closePort(port);
+            } catch (_e) { }
+
+            await sleep(400);
         } finally {
             state.port = null;
             state.serialBuffer = '';
@@ -546,6 +596,7 @@
         }
 
         const normalized = frame.toLowerCase();
+
         if (
             normalized === 'k' ||
             normalized === 'g' ||
@@ -557,14 +608,17 @@
         }
 
         const compactCas = frame.match(/^0(\d{4})$/);
+
         if (compactCas) {
             const kgCompact = Number.parseInt(compactCas[1], 10) / 100;
+
             if (!Number.isNaN(kgCompact)) {
                 return { kg: kgCompact, stable: true };
             }
         }
 
         const stable = /\bST\b/i.test(frame) || !/\bUS\b/i.test(frame);
+
         const match = frame.match(/([-+]?\d{1,6}(?:[.,]\d{1,3})?)\s*(kg|g|lb)?/i);
 
         if (!match) {
@@ -572,6 +626,7 @@
         }
 
         const raw = match[1].replace(',', '.');
+
         const value = Number.parseFloat(raw);
 
         if (Number.isNaN(value)) {
@@ -579,6 +634,7 @@
         }
 
         const unit = (match[2] || 'kg').toLowerCase();
+
         let kg = value;
 
         if (unit === 'g') {
@@ -628,6 +684,7 @@
 
     function splitIncomingChunks(text) {
         const source = String(text ?? '');
+
         if (source === '') {
             return [];
         }
@@ -639,9 +696,11 @@
         }
 
         state.serialBufferUpdatedAt = now;
+
         state.serialBuffer += source;
 
         const chunks = [];
+
         let current = '';
 
         for (const ch of state.serialBuffer) {
@@ -650,6 +709,7 @@
                     chunks.push(current);
                     current = '';
                 }
+
                 continue;
             }
 
@@ -672,6 +732,7 @@
         }
 
         const allNumeric = values.every((v) => Number.isFinite(Number(v)));
+
         if (!allNumeric) {
             return values.join(' ');
         }
@@ -689,6 +750,7 @@
         }
 
         const single = decodeEscaped(rawCommands);
+
         if (!single) {
             return [];
         }
@@ -702,9 +764,13 @@
         }
 
         const start = decodeEscaped(serial.rxStart ?? '');
+
         const end = decodeEscaped(serial.rxEnd ?? '');
+
         const untilNewline = Boolean(serial.rxUntilNewline);
+
         const widthNumber = Number.parseInt(String(serial.rxWidth), 10);
+
         const hasWidth = Number.isFinite(widthNumber) && widthNumber > 0;
 
         const rx = {};
@@ -762,14 +828,6 @@
             .replace(/\\t/g, '\t');
     }
 
-    function safeRegex(pattern, fallback) {
-        try {
-            return new RegExp(pattern, 'i');
-        } catch (_error) {
-            return fallback;
-        }
-    }
-
     function isSerialErrorEvent(event) {
         if (!event || typeof event !== 'object') {
             return false;
@@ -792,6 +850,7 @@
 
     function csrfToken() {
         const fromMeta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+
         if (fromMeta !== '') {
             return fromMeta;
         }
@@ -825,10 +884,12 @@
         }
 
         const targetId = triggerButton.getAttribute('data-cas-clear-target') ?? '';
+
         let input = targetId ? document.getElementById(targetId) : null;
 
         if (!input) {
             const inputGroup = triggerButton.closest('.input-group');
+
             if (inputGroup) {
                 input = inputGroup.querySelector('input[type="number"]');
             }
@@ -839,9 +900,13 @@
         }
 
         input.value = '';
+
         input.dispatchEvent(new Event('input', { bubbles: true }));
+
         input.dispatchEvent(new Event('change', { bubbles: true }));
+
         input.focus();
+
         rememberActivePesoInput(input);
     }
 
@@ -851,13 +916,17 @@
         }
 
         const targetId = button.getAttribute('data-cas-target') ?? '';
+
         const panel = targetId ? document.getElementById(targetId) : null;
+
         if (!panel) {
             return;
         }
 
         const showText = button.getAttribute('data-cas-text-show') ?? 'Mostrar estado de balanza';
+
         const hideText = button.getAttribute('data-cas-text-hide') ?? 'Ocultar estado de balanza';
+
         const isHidden = panel.classList.contains('d-none');
 
         if (isHidden) {
@@ -931,6 +1000,7 @@
         }
 
         const visibleInsideOpenModal = visibleInputs.find((input) => input.closest('.modal.show'));
+
         if (visibleInsideOpenModal) {
             return visibleInsideOpenModal;
         }
