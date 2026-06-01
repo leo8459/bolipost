@@ -61,9 +61,24 @@ class CarterosController extends Controller
         return view('carteros.cartero');
     }
 
-    public function devolucion()
+    public function devolucion(Request $request)
     {
-        return view('carteros.devolucion');
+        $userCity = $this->normalizeUserCity((string) optional($request->user())->ciudad);
+        $carterosDepartamento = collect();
+
+        if ($userCity !== '') {
+            $carterosDepartamento = User::query()
+                ->whereHas('roles', function ($query) {
+                    $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
+                })
+                ->whereRaw('TRIM(UPPER(ciudad)) = ?', [$userCity])
+                ->orderBy('name')
+                ->get(['id', 'name', 'ciudad']);
+        }
+
+        return view('carteros.devolucion', [
+            'carterosDepartamento' => $carterosDepartamento,
+        ]);
     }
 
     public function domicilio()
@@ -184,13 +199,16 @@ class CarterosController extends Controller
     {
         $this->authorizeRoutePermission('carteros.devolucion');
 
+        $allowedPackageTypes = $this->devolucionPackageTypesForUser($request->user());
+
         return $this->combinedDataResponse(
             $request,
             $this->resolveEstadoDevolucionId(),
             (int) $request->user()->id,
             false,
             false,
-            true
+            true,
+            $allowedPackageTypes
         );
     }
 
@@ -1676,7 +1694,7 @@ class CarterosController extends Controller
         return strtoupper($regional !== '' ? $regional : 'SIN REGIONAL');
     }
 
-    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false, bool $includePackageStateMatches = false, bool $matchUserCity = false): JsonResponse
+    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false, bool $includePackageStateMatches = false, bool $matchUserCity = false, ?array $allowedPackageTypes = null): JsonResponse
     {
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
@@ -2052,6 +2070,19 @@ class CarterosController extends Controller
             ->concat($solicitudes)
             ->sortByDesc('created_at')
             ->values();
+
+        if (is_array($allowedPackageTypes)) {
+            $allowedPackageTypes = collect($allowedPackageTypes)
+                ->map(fn ($type) => mb_strtoupper(trim((string) $type)))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $all = $all
+                ->filter(fn ($row) => in_array(mb_strtoupper((string) ($row['tipo_paquete'] ?? '')), $allowedPackageTypes, true))
+                ->values();
+        }
 
         if ($includePackageStateMatches) {
             $all = $this->attachDeliveryEventData($all)
@@ -2898,6 +2929,39 @@ class CarterosController extends Controller
             . ' a '
             . ($assigneeName !== '' ? $assigneeName : 'SIN USUARIO')
             . '.';
+    }
+
+    private function devolucionPackageTypesForUser(?User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        $roleNames = $user->getRoleNames()
+            ->push((string) ($user->role ?? ''))
+            ->map(function ($role) {
+                $role = mb_strtolower(trim((string) $role));
+                return str_replace(['-', '_'], ' ', $role);
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        $allowedTypes = [];
+
+        foreach ($roleNames as $role) {
+            if (str_contains($role, 'ems')) {
+                $allowedTypes = array_merge($allowedTypes, ['EMS', 'CONTRATO']);
+            }
+
+            if (str_contains($role, 'urbano')) {
+                $allowedTypes = array_merge($allowedTypes, ['CERTI', 'ORDI']);
+            }
+        }
+
+        $allowedTypes = array_values(array_unique($allowedTypes));
+
+        return $allowedTypes === [] ? null : $allowedTypes;
     }
 
     private function normalizeUserCity(string $city): string

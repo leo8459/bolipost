@@ -26,6 +26,21 @@
                             <div class="devolucion-toolbar-title">Seguimiento de incidencias</div>
                             <div class="devolucion-toolbar-subtitle">Revisa observaciones, evidencia y recupera paquetes cuando corresponda.</div>
                         </div>
+                        <div class="devolucion-filter">
+                            <label for="cartero-filter" class="devolucion-filter-label">Filtrar por cartero</label>
+                            <div class="devolucion-filter-row">
+                                <select id="cartero-filter" class="form-control devolucion-filter-select">
+                                    <option value="">Todos los carteros del departamento</option>
+                                    @foreach(($carterosDepartamento ?? collect()) as $cartero)
+                                        <option value="{{ $cartero->name }}">
+                                            {{ $cartero->name }}{{ $cartero->ciudad ? ' - ' . $cartero->ciudad : '' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <button type="button" id="btn-filtrar-cartero" class="btn btn-carteros-primary">Buscar</button>
+                                <button type="button" id="btn-limpiar-cartero" class="btn btn-outline-secondary">Limpiar</button>
+                            </div>
+                        </div>
                         <div id="devolucion-msg" class="devolucion-status" aria-live="polite"></div>
                     </div>
 
@@ -144,6 +159,36 @@
             justify-content: flex-start;
         }
 
+        .devolucion-filter {
+            flex: 1 1 440px;
+            max-width: 640px;
+        }
+
+        .devolucion-filter-label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--carteros-primary);
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0;
+        }
+
+        .devolucion-filter-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .devolucion-filter-select {
+            flex: 1 1 260px;
+            min-width: min(100%, 260px);
+            height: 42px;
+            border-radius: 10px;
+            border-color: #cfd9ee;
+            font-weight: 700;
+        }
+
         .devolucion-status.is-info {
             color: #20539A;
             border-color: rgba(32, 83, 154, 0.25);
@@ -180,6 +225,11 @@
             .devolucion-status {
                 min-width: 100%;
             }
+
+            .devolucion-filter {
+                max-width: none;
+                flex-basis: 100%;
+            }
         }
     </style>
 @endsection
@@ -197,6 +247,9 @@
             const prevLink = document.getElementById('prev-page-link');
             const nextLink = document.getElementById('next-page-link');
             const msg = document.getElementById('devolucion-msg');
+            const carteroFilter = document.getElementById('cartero-filter');
+            const btnFiltrarCartero = document.getElementById('btn-filtrar-cartero');
+            const btnLimpiarCartero = document.getElementById('btn-limpiar-cartero');
             const csrfToken = '{{ csrf_token() }}';
             const canCarteroRestore = @json($canCarteroRestore);
 
@@ -268,7 +321,17 @@
                 setLoading();
                 showMessage('', 'muted');
                 try {
-                    const url = '{{ route('api.carteros.devolucion') }}?page=' + page + '&per_page=' + perPage;
+                    const params = new URLSearchParams({
+                        page: page,
+                        per_page: perPage
+                    });
+
+                    const cartero = carteroFilter ? carteroFilter.value.trim() : '';
+                    if (cartero !== '') {
+                        params.set('cartero', cartero);
+                    }
+
+                    const url = '{{ route('api.carteros.devolucion') }}?' + params.toString();
                     const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) throw new Error('Request failed');
                     const payload = await response.json();
@@ -279,6 +342,27 @@
                 } catch (e) {
                     setError();
                 }
+            }
+
+            if (btnFiltrarCartero) {
+                btnFiltrarCartero.addEventListener('click', function() {
+                    loadPage(1);
+                });
+            }
+
+            if (btnLimpiarCartero) {
+                btnLimpiarCartero.addEventListener('click', function() {
+                    if (carteroFilter) {
+                        carteroFilter.value = '';
+                    }
+                    loadPage(1);
+                });
+            }
+
+            if (carteroFilter) {
+                carteroFilter.addEventListener('change', function() {
+                    loadPage(1);
+                });
             }
 
             body.addEventListener('click', async function(e) {
