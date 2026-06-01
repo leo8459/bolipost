@@ -48,6 +48,9 @@
             gap:10px;
             align-items:end;
         }
+        .events-filter-grid.has-description{
+            grid-template-columns:minmax(180px, 1fr) minmax(180px, 1fr) 150px 150px auto auto;
+        }
         .events-filter-field label{
             display:block;
             margin-bottom:6px;
@@ -257,7 +260,7 @@
             </div>
 
             <div class="events-filter-panel">
-                <div class="events-filter-grid">
+                <div class="events-filter-grid {{ $config['table'] === 'eventos_contrato' ? 'has-description' : '' }}">
                     <div class="events-filter-field">
                         <label>Busqueda</label>
                         <input
@@ -268,6 +271,18 @@
                             wire:keydown.enter.prevent="searchRegistros"
                         >
                     </div>
+                    @if ($config['table'] === 'eventos_contrato')
+                        <div class="events-filter-field">
+                            <label>Descripcion del evento</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                placeholder="Ej: entregado, devolucion, cartero..."
+                                wire:model="descripcion_evento"
+                                wire:keydown.enter.prevent="searchRegistros"
+                            >
+                        </div>
+                    @endif
                     <div class="events-filter-field">
                         <label>Desde</label>
                         <input type="date" class="form-control" wire:model="fecha_desde">
@@ -376,10 +391,16 @@
 
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="muted">
-                        @if(!empty($searchQuery) || !empty($fechaDesdeQuery) || !empty($fechaHastaQuery))
+                        @if(!empty($searchQuery) || !empty($fechaDesdeQuery) || !empty($fechaHastaQuery) || !empty($descripcionEventoQuery))
                             Resultados
                             @if(!empty($searchQuery))
                                 para: <strong>{{ $searchQuery }}</strong>
+                            @endif
+                            @if(!empty($descripcionEventoQuery))
+                                <span class="ml-1">
+                                    descripcion:
+                                    <strong>{{ $descripcionEventoQuery }}</strong>
+                                </span>
                             @endif
                             @if(!empty($fechaDesdeQuery) || !empty($fechaHastaQuery))
                                 <span class="ml-1">

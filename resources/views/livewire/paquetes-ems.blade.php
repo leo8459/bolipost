@@ -706,11 +706,20 @@
             margin-bottom: 2px;
         }
         .prelist-shell{
-            border: 1px solid #dbe3f1;
-            border-radius: 14px;
-            background: #ffffff;
-            box-shadow: 0 6px 18px rgba(32,83,154,.08);
-            padding: 12px;
+            border: 3px solid #20539A;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #f8fbff 0%, #ffffff 58%);
+            box-shadow: 0 16px 34px rgba(32,83,154,.18);
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .prelist-shell::before{
+            content:'';
+            position:absolute;
+            inset:0 0 auto 0;
+            height:6px;
+            background:#FECC36;
         }
         .prelist-top{
             display:flex;
@@ -718,61 +727,74 @@
             align-items:center;
             gap:10px;
             flex-wrap:wrap;
-            margin-bottom:8px;
+            margin-bottom:14px;
         }
         .prelist-title{
-            font-size:13px;
+            font-size:22px;
             font-weight:900;
-            letter-spacing:.04em;
+            letter-spacing:.03em;
             text-transform:uppercase;
             color:#1f3f78;
+            line-height:1.15;
         }
         .prelist-kpis{
             display:flex;
-            gap:8px;
+            gap:12px;
             flex-wrap:wrap;
-            margin-bottom:10px;
+            margin-bottom:16px;
         }
         .prelist-kpi{
-            border:1px solid #dbe3f1;
-            background:#f7faff;
+            border:2px solid #b9c9e8;
+            background:#fff;
             border-radius:999px;
-            padding:4px 10px;
-            font-size:12px;
+            padding:8px 16px;
+            font-size:16px;
             color:#2d4b85;
-            font-weight:700;
+            font-weight:900;
+            box-shadow:0 6px 12px rgba(32,83,154,.08);
         }
         .prelist-controls{
             display:flex;
-            gap:8px;
+            gap:12px;
             align-items:center;
             flex-wrap:wrap;
-            margin-bottom:10px;
+            margin-bottom:14px;
+        }
+        .prelist-controls .form-control{
+            min-height:48px;
+            font-size:17px;
+            border:2px solid #c9d6ec;
         }
         .prelist-table-wrap{
-            max-height: 340px;
+            max-height: 420px;
             overflow:auto;
-            border:1px solid #e5e7eb;
-            border-radius:10px;
+            border:2px solid #d8e2f3;
+            border-radius:12px;
         }
         .prelist-table{
             margin-bottom:0;
-            font-size: 12px;
+            font-size: 16px;
         }
         .prelist-table thead th{
             position: sticky;
             top: 0;
             z-index: 2;
-            background:#edf3ff;
+            background:#e7efff;
             color:#1f3f78;
-            font-weight:800;
+            font-weight:900;
+            font-size:15px;
+            padding:10px 8px;
+            border-bottom:2px solid #c8d6ef;
+        }
+        .prelist-table tbody td{
+            padding:10px 8px;
         }
         .prelist-table tbody tr:nth-child(odd){
             background:#fcfdff;
         }
         .prelist-table .pill-id{
-            font-size:11px;
-            padding:3px 8px;
+            font-size:14px;
+            padding:5px 11px;
         }
 
         #regionalMismatchModal .modal-content{
@@ -1536,7 +1558,7 @@
                         </div>
                         @if ($showSelectedPreview)
                             <div class="prelist-controls">
-                                <select wire:model.live="selectedPreviewType" class="form-control" style="max-width: 180px;">
+                                <select wire:model.live="selectedPreviewType" class="form-control" style="max-width: 230px;">
                                     <option value="TODOS">Todos</option>
                                     <option value="EMS">EMS</option>
                                     <option value="CONTRATO">Contrato</option>
@@ -1546,7 +1568,7 @@
                                     type="text"
                                     wire:model.live.debounce.300ms="selectedPreviewSearch"
                                     class="form-control"
-                                    style="max-width: 320px;"
+                                    style="max-width: 520px;"
                                     placeholder="Filtrar en prelista (codigo, destinatario, destino)"
                                 >
                             </div>
@@ -1590,42 +1612,6 @@
                                 </table>
                             </div>
                         @endif
-                    </div>
-                @endif
-
-                @if ($this->isAlmacenEms && $seleccionadosTotalGlobal > 0)
-                    @php
-                        $ventanillaResumenBase = collect($ventanillaResumenRows ?? collect());
-                    @endphp
-                    <div class="section-block mb-3">
-                        <div class="section-title">Resumen para enviar a ventanilla</div>
-                        <div class="muted mb-2">Vista rapida de seleccionados: codigo, origen y destino.</div>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-striped mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Tipo</th>
-                                        <th>Codigo</th>
-                                        <th>Origen</th>
-                                        <th>Destino</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse($ventanillaResumenBase as $item)
-                                        <tr>
-                                            <td>{{ $item->tipo ?? '-' }}</td>
-                                            <td><span class="pill-id">{{ $item->codigo ?? '-' }}</span></td>
-                                            <td>{{ $item->origen ?? '-' }}</td>
-                                            <td>{{ $item->destino ?? '-' }}</td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="4" class="text-center text-muted">No hay datos para mostrar.</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
                     </div>
                 @endif
 

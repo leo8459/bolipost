@@ -187,7 +187,10 @@ class CarterosController extends Controller
         return $this->combinedDataResponse(
             $request,
             $this->resolveEstadoDevolucionId(),
-            (int) $request->user()->id
+            (int) $request->user()->id,
+            false,
+            false,
+            true
         );
     }
 
@@ -1673,7 +1676,7 @@ class CarterosController extends Controller
         return strtoupper($regional !== '' ? $regional : 'SIN REGIONAL');
     }
 
-    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false, bool $includePackageStateMatches = false): JsonResponse
+    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false, bool $includePackageStateMatches = false, bool $matchUserCity = false): JsonResponse
     {
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
@@ -1705,7 +1708,20 @@ class CarterosController extends Controller
             }
 
             if ($userId !== null) {
-                $base->where('id_user', $userId);
+                if ($matchUserCity) {
+                    $userCity = $this->normalizeUserCity((string) optional($request->user())->ciudad);
+                    $base->where(function ($query) use ($userId, $userCity) {
+                        $query->where('id_user', $userId);
+
+                        if ($userCity !== '') {
+                            $query->orWhereHas('user', function ($userQuery) use ($userCity) {
+                                $userQuery->whereRaw('TRIM(UPPER(ciudad)) = ?', [$userCity]);
+                            });
+                        }
+                    });
+                } else {
+                    $base->where('id_user', $userId);
+                }
             }
 
             $emsFilterIds = (clone $base)
