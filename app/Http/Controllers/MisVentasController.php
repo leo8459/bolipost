@@ -18,7 +18,6 @@ class MisVentasController extends Controller
     {
         [$user, $filters] = $this->resolveRequestContext($request);
         $cajaContext = $this->resolveCajaContext($service, $user);
-        $arqueosContext = $this->resolveArqueosContext($service, $user, $filters['arqueo_mes']);
 
         if ($filters['estado'] === 'borrador') {
             $empty = collect();
@@ -35,7 +34,6 @@ class MisVentasController extends Controller
                 'summary' => $this->emptySummary(),
                 'filters' => $filters,
                 'cajaContext' => $cajaContext,
-                'arqueosContext' => $arqueosContext,
             ]);
         }
 
@@ -44,17 +42,41 @@ class MisVentasController extends Controller
             ->map(fn ($row) => is_array($row) ? (object) $row : $row)
             ->filter(fn ($row) => is_object($row))
             ->values();
+        $ventasFallback = $service->fetchVentas($user, $filters);
+        $fallbackRows = collect($ventasFallback['carts'] ?? [])
+            ->map(fn ($row) => is_array($row) ? (object) $row : $row)
+            ->filter(fn ($row) => is_object($row))
+            ->values();
 
-        $pageRows = $rawRows
+        // Fallback: algunas integraciones no poblan kardex-usuarios, pero si /cart/ventas.
+        if ($rawRows->isEmpty()) {
+            $carts = new LengthAwarePaginator(
+                $fallbackRows->forPage((int) $filters['page'], (int) $filters['per_page'])->values(),
+                (int) ($ventasFallback['pagination']['total'] ?? $fallbackRows->count()),
+                (int) $filters['per_page'],
+                (int) $filters['page'],
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+
+            return view('facturacion.mis-ventas', [
+                'carts' => $carts,
+                'summary' => $this->summaryFromRows($fallbackRows),
+                'filters' => $filters,
+                'cajaContext' => $cajaContext,
+            ]);
+        }
+
+        $rows = $this->normalizeKardexRows($rawRows, $service, $user);
+        $rows = $this->mergeFallbackVentas($rows, $fallbackRows);
+        $summary = $this->summaryFromRows($rows);
+
+        $pageRows = $rows
             ->forPage((int) $filters['page'], (int) $filters['per_page'])
             ->values();
 
-        $rows = $this->normalizeKardexRows($pageRows, $service, $user);
-        $summary = $this->summaryFromKardex($remote['resumen'] ?? []);
-
         $carts = new LengthAwarePaginator(
-            $rows,
-            $rawRows->count(),
+            $pageRows,
+            $rows->count(),
             (int) $filters['per_page'],
             (int) $filters['page'],
             ['path' => $request->url(), 'query' => $request->query()]
@@ -65,7 +87,6 @@ class MisVentasController extends Controller
             'summary' => $summary,
             'filters' => $filters,
             'cajaContext' => $cajaContext,
-            'arqueosContext' => $arqueosContext,
         ]);
     }
 
@@ -78,26 +99,6 @@ class MisVentasController extends Controller
                 'estado' => 'SIN_APERTURA',
                 'mensaje' => 'No se pudo consultar el estado de caja.',
                 'caja' => [],
-            ];
-        }
-    }
-
-    private function resolveArqueosContext(FacturacionCartService $service, $user, string $mes): array
-    {
-        try {
-            $data = $service->fetchCajaArqueos($user, $mes);
-            return [
-                'mes' => (string) ($data['mes'] ?? $mes),
-                'resumen' => (array) ($data['resumen'] ?? []),
-                'dias' => $data['dias'] ?? collect(),
-                'error' => null,
-            ];
-        } catch (\Throwable) {
-            return [
-                'mes' => $mes,
-                'resumen' => [],
-                'dias' => collect(),
-                'error' => 'No se pudo cargar el arqueo mensual.',
             ];
         }
     }
@@ -176,7 +177,6 @@ class MisVentasController extends Controller
             'q' => ['nullable', 'string', 'max:120'],
             'per_page' => ['nullable', 'integer', 'min:10', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
-            'arqueo_mes' => ['nullable', 'regex:/^\d{4}\-\d{2}$/'],
         ]);
 
         return [$user, [
@@ -187,7 +187,6 @@ class MisVentasController extends Controller
             'q' => trim((string) ($validated['q'] ?? '')),
             'per_page' => (int) ($validated['per_page'] ?? 20),
             'page' => (int) ($validated['page'] ?? 1),
-            'arqueo_mes' => (string) ($validated['arqueo_mes'] ?? now()->format('Y-m')),
         ]];
     }
 
@@ -200,6 +199,22 @@ class MisVentasController extends Controller
             'pendientes' => (int) ($resumen['pendientes'] ?? 0),
             'rechazadas' => (int) ($resumen['observadas'] ?? 0),
             'montoTotal' => (float) ($resumen['totalVendido'] ?? 0),
+        ];
+    }
+
+    private function summaryFromRows(Collection $rows): array
+    {
+        $paidStatuses = ['FACTURADA', 'PAGADO'];
+
+        return [
+            'totalVentas' => $rows->count(),
+            'totalBorradores' => 0,
+            'facturadas' => $rows->filter(fn ($row) => in_array(strtoupper((string) data_get($row, 'estado_emision', '')), $paidStatuses, true))->count(),
+            'pendientes' => $rows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'PENDIENTE')->count(),
+            'rechazadas' => $rows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'RECHAZADA')->count(),
+            'montoTotal' => round((float) $rows
+                ->filter(fn ($row) => in_array(strtoupper((string) data_get($row, 'estado_emision', '')), $paidStatuses, true))
+                ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
         ];
     }
 
@@ -287,6 +302,44 @@ class MisVentasController extends Controller
                 ],
             ];
         })->values();
+    }
+
+    private function mergeFallbackVentas(Collection $kardexRows, Collection $fallbackRows): Collection
+    {
+        $indexed = $kardexRows->keyBy(fn ($row) => 'cart:' . (int) data_get($row, 'id', 0));
+
+        foreach ($fallbackRows as $row) {
+            $row = is_array($row) ? (object) $row : $row;
+            if (!is_object($row)) {
+                continue;
+            }
+
+            $cartId = (int) data_get($row, 'id', 0);
+            $codigoOrden = trim((string) data_get($row, 'codigo_orden', ''));
+            $key = 'cart:' . $cartId;
+            if ($cartId > 0 && !$indexed->has($key)) {
+                $indexed->put($key, $row);
+                continue;
+            }
+
+            if ($codigoOrden !== '') {
+                $existsByCode = $indexed->contains(function ($existing) use ($codigoOrden) {
+                    return trim((string) data_get($existing, 'codigo_orden', '')) === $codigoOrden;
+                });
+
+                if (!$existsByCode) {
+                    $indexed->put('code:' . $codigoOrden, $row);
+                }
+            }
+        }
+
+        return $indexed
+            ->values()
+            ->sortByDesc(function ($row) {
+                $date = data_get($row, 'emitido_en') ?: data_get($row, 'created_at');
+                return $date ? strtotime((string) $date) : 0;
+            })
+            ->values();
     }
 
     private function mapVentaDetailToCart(object $venta): object

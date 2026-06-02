@@ -250,7 +250,11 @@
                     <div class="solicitud-panel-head">
                         <h3>Formulario de solicitud</h3>
                     </div>
-        <form method="POST" action="{{ route('paquetes-ems.solicitudes.store') }}" target="_blank">
+        <form
+            method="POST"
+            action="{{ route('paquetes-ems.solicitudes.store') }}"
+            @unless($canUseFacturacionShortcut ?? false) target="_blank" @endunless
+        >
             @csrf
             <input type="hidden" name="solicitud_id" id="solicitud_id" value="{{ old('solicitud_id') }}">
                     <div class="solicitud-panel-body">

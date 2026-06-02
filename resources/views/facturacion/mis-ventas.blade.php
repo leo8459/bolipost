@@ -1,20 +1,6 @@
-﻿@extends('adminlte::page')
+@extends('adminlte::page')
 
 @section('title', 'Mis ventas')
-
-@section('content_header')
-    <div class="ventas-header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
-        <div>
-            <h1 class="mb-1">Mis ventas</h1>
-            <p class="text-muted mb-0">Consulta tu historial de emisiones, revisa estados y accede a los comprobantes sin salir del flujo operativo.</p>
-        </div>
-        <div class="ventas-header-badges mt-3 mt-lg-0">
-            <span class="ventas-mini-badge">Ventas: {{ number_format($summary['totalVentas']) }}</span>
-            <span class="ventas-mini-badge ventas-mini-badge--success">Facturadas: {{ number_format($summary['facturadas']) }}</span>
-            <span class="ventas-mini-badge ventas-mini-badge--warning">Pendientes: {{ number_format($summary['pendientes']) }}</span>
-        </div>
-    </div>
-@stop
 
 @section('content')
     @php
@@ -22,19 +8,11 @@
         $cajaEstado = strtoupper(trim((string) data_get($cajaContext ?? [], 'estado', 'SIN_APERTURA')));
         $isCajaAbierta = in_array($cajaEstado, ['ABIERTA', 'ABIERTO'], true);
         $cajaMensaje = trim((string) data_get($cajaContext ?? [], 'mensaje', ''));
-        $arqueosMes = (string) data_get($arqueosContext ?? [], 'mes', ($filters['arqueo_mes'] ?? now()->format('Y-m')));
-        $arqueosError = trim((string) data_get($arqueosContext ?? [], 'error', ''));
-        $arqueosResumen = (array) data_get($arqueosContext ?? [], 'resumen', []);
-        $arqueosDias = data_get($arqueosContext ?? [], 'dias', collect());
-        $arqueosDias = $arqueosDias instanceof \Illuminate\Support\Collection
-            ? $arqueosDias
-            : collect(is_array($arqueosDias) ? $arqueosDias : []);
         $baseFilterParams = [
             'q' => $filters['q'],
             'from' => $filters['from'],
             'to' => $filters['to'],
             'per_page' => $filters['per_page'],
-            'arqueo_mes' => $filters['arqueo_mes'] ?? now()->format('Y-m'),
         ];
 
         $summaryCards = [
@@ -81,7 +59,7 @@
             [
                 'label' => 'Total vendido',
                 'value' => 'Bs ' . number_format($summary['montoTotal'], 2),
-                'meta' => 'Monto acumulado de las ventas emitidas',
+                'meta' => 'Monto acumulado de las ventas ya cobradas',
                 'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'all']),
                 'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'all',
                 'accent' => true,
@@ -89,6 +67,7 @@
         ];
     @endphp
 
+    <div class="ventas-page">
     @if (is_array($facturacionFeedback) && in_array((string) ($facturacionFeedback['action'] ?? ''), ['caja_abrir', 'caja_cerrar'], true))
         <div class="alert ventas-feedback-alert ventas-feedback-alert--{{ $facturacionFeedback['type'] ?? 'info' }}">
             <strong>{{ $facturacionFeedback['title'] ?? 'Caja diaria' }}</strong>
@@ -98,6 +77,39 @@
             @endif
         </div>
     @endif
+
+
+    <div class="ventas-caja-card">
+        <div class="ventas-caja-card__left">
+            <div class="ventas-caja-card__label">Caja diaria</div>
+            <div class="ventas-caja-card__state">
+                Estado:
+                <span class="ventas-caja-badge {{ $isCajaAbierta ? 'is-open' : 'is-closed' }}">
+                    {{ $isCajaAbierta ? 'Caja abierta' : 'Sin apertura' }}
+                </span>
+            </div>
+            <div class="ventas-caja-card__hint">
+                {{ $cajaMensaje !== '' ? $cajaMensaje : ($isCajaAbierta ? 'Cierra caja al finalizar tu jornada.' : 'Abre caja para habilitar emisión en facturación.') }}
+            </div>
+        </div>
+        <div class="ventas-caja-card__right">
+            @if($isCajaAbierta)
+                <form method="POST" action="{{ route('facturacion.cart.caja.cerrar') }}" onsubmit="return confirm('Se cerrará la caja diaria. ¿Deseas continuar?');">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-danger">
+                        <i class="fas fa-door-closed mr-1"></i> Cerrar caja
+                    </button>
+                </form>
+            @else
+                <form method="POST" action="{{ route('facturacion.cart.caja.abrir') }}" onsubmit="return confirm('Se abrirá una nueva caja diaria. ¿Deseas continuar?');">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="fas fa-lock-open mr-1"></i> Abrir caja
+                    </button>
+                </form>
+            @endif
+        </div>
+    </div>
 
     <div class="card ventas-panel mb-4">
         <div class="card-header ventas-panel__header">
@@ -162,137 +174,6 @@
         </div>
     </div>
 
-    <div class="ventas-caja-card">
-        <div class="ventas-caja-card__left">
-            <div class="ventas-caja-card__label">Caja diaria</div>
-            <div class="ventas-caja-card__state">
-                Estado:
-                <span class="ventas-caja-badge {{ $isCajaAbierta ? 'is-open' : 'is-closed' }}">
-                    {{ $isCajaAbierta ? 'Caja abierta' : 'Sin apertura' }}
-                </span>
-            </div>
-            <div class="ventas-caja-card__hint">
-                {{ $cajaMensaje !== '' ? $cajaMensaje : ($isCajaAbierta ? 'Cierra caja al finalizar tu jornada.' : 'Abre caja para habilitar emisión en facturación.') }}
-            </div>
-        </div>
-        <div class="ventas-caja-card__right">
-            @if($isCajaAbierta)
-                <form method="POST" action="{{ route('facturacion.cart.caja.cerrar') }}" onsubmit="return confirm('Se cerrará la caja diaria. ¿Deseas continuar?');">
-                    @csrf
-                    <button type="submit" class="btn btn-outline-danger">
-                        <i class="fas fa-door-closed mr-1"></i> Cerrar caja
-                    </button>
-                </form>
-            @else
-                <form method="POST" action="{{ route('facturacion.cart.caja.abrir') }}" onsubmit="return confirm('Se abrirá una nueva caja diaria. ¿Deseas continuar?');">
-                    @csrf
-                    <button type="submit" class="btn btn-outline-primary">
-                        <i class="fas fa-lock-open mr-1"></i> Abrir caja
-                    </button>
-                </form>
-            @endif
-        </div>
-    </div>
-
-    <div class="card ventas-panel ventas-arqueo-card mb-4">
-        <div class="card-header ventas-panel__header d-flex justify-content-between align-items-center flex-wrap">
-            <div>
-                <strong>Arqueos del mes</strong>
-                <div class="text-muted small">Control diario de cierres de caja y conciliación de ventas.</div>
-            </div>
-            <form method="GET" action="{{ route('mis-ventas.index') }}" class="ventas-arqueo-filter">
-                <input type="hidden" name="q" value="{{ $filters['q'] }}">
-                <input type="hidden" name="estado" value="{{ $filters['estado'] }}">
-                <input type="hidden" name="estado_emision" value="{{ $filters['estado_emision'] }}">
-                <input type="hidden" name="from" value="{{ $filters['from'] }}">
-                <input type="hidden" name="to" value="{{ $filters['to'] }}">
-                <input type="hidden" name="per_page" value="{{ $filters['per_page'] }}">
-                <input type="month" name="arqueo_mes" class="form-control ventas-control" value="{{ $arqueosMes }}" onchange="this.form.submit()">
-            </form>
-        </div>
-        <div class="card-body">
-            @if ($arqueosError !== '')
-                <div class="alert ventas-feedback-alert ventas-feedback-alert--warning mb-3">
-                    {{ $arqueosError }}
-                </div>
-            @endif
-
-            <div class="ventas-arqueo-resumen">
-                <div class="ventas-arqueo-pill">
-                    <span>Días arqueados</span>
-                    <strong>{{ number_format((int) ($arqueosResumen['dias'] ?? 0)) }}</strong>
-                </div>
-                <div class="ventas-arqueo-pill">
-                    <span>Ventas conciliadas</span>
-                    <strong>{{ number_format((int) ($arqueosResumen['cantidadVentas'] ?? 0)) }}</strong>
-                </div>
-                <div class="ventas-arqueo-pill">
-                    <span>Total arqueado</span>
-                    <strong>Bs {{ number_format((float) ($arqueosResumen['montoTotal'] ?? 0), 2) }}</strong>
-                </div>
-                <div class="ventas-arqueo-pill {{ ((float) ($arqueosResumen['diferencia'] ?? 0)) == 0.0 ? 'is-ok' : 'is-alert' }}">
-                    <span>Diferencia</span>
-                    <strong>Bs {{ number_format((float) ($arqueosResumen['diferencia'] ?? 0), 2) }}</strong>
-                </div>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table ventas-table ventas-arqueo-table mb-0">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th class="text-center">Arqueos</th>
-                            <th class="text-center">Ventas</th>
-                            <th class="text-right">Total</th>
-                            <th class="text-right">Declarado</th>
-                            <th class="text-right">Diferencia</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($arqueosDias as $dia)
-                            @php
-                                $dia = is_array($dia) ? (object) $dia : $dia;
-                                $fechaDia = trim((string) data_get($dia, 'fecha', ''));
-                                $fechaDiaLabel = '-';
-                                if ($fechaDia !== '') {
-                                    try {
-                                        $fechaDiaLabel = \Carbon\Carbon::parse($fechaDia)->format('d/m/Y');
-                                    } catch (\Throwable $e) {
-                                        $fechaDiaLabel = $fechaDia;
-                                    }
-                                }
-                                $cantidadArqueos = is_countable(data_get($dia, 'arqueos', [])) ? count(data_get($dia, 'arqueos', [])) : 0;
-                                $cantidadVentasDia = (int) data_get($dia, 'cantidadVentas', 0);
-                                $montoTotalDia = (float) data_get($dia, 'montoTotal', 0);
-                                $montoDeclaradoDia = (float) data_get($dia, 'montoDeclarado', 0);
-                                $diferenciaDia = (float) data_get($dia, 'diferencia', 0);
-                            @endphp
-                            <tr>
-                                <td>
-                                    <div class="ventas-table__primary">{{ $fechaDiaLabel }}</div>
-                                    <div class="ventas-table__secondary">{{ $fechaDia !== '' ? $fechaDia : 'Sin fecha' }}</div>
-                                </td>
-                                <td class="text-center">{{ $cantidadArqueos }}</td>
-                                <td class="text-center">{{ $cantidadVentasDia }}</td>
-                                <td class="text-right">Bs {{ number_format($montoTotalDia, 2) }}</td>
-                                <td class="text-right">Bs {{ number_format($montoDeclaradoDia, 2) }}</td>
-                                <td class="text-right">
-                                    <span class="ventas-status-chip {{ $diferenciaDia == 0.0 ? 'ventas-status-chip--success' : 'ventas-status-chip--danger' }}">
-                                        Bs {{ number_format($diferenciaDia, 2) }}
-                                    </span>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No hay cierres arqueados para este mes.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
     <div class="ventas-summary-grid">
         @foreach($summaryCards as $card)
             <a
@@ -354,6 +235,18 @@
                                 $mensajeEmision = trim((string) data_get($cart, 'mensaje_emision', ''));
                                 $cartId = (int) data_get($cart, 'id', 0);
                                 $codigoOrden = trim((string) data_get($cart, 'codigo_orden', ''));
+                                $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', '')));
+                                if ($canalEmision === '') {
+                                    if (str_starts_with($codigoOrden, 'VQ-')) {
+                                        $canalEmision = 'qr';
+                                    } elseif (str_starts_with($codigoOrden, 'VF-')) {
+                                        $canalEmision = 'factura_electronica';
+                                    }
+                                }
+                                $canalBadgeLabel = $canalEmision === 'qr' ? 'QR' : 'Factura electronica';
+                                $canalBadgeClass = $canalEmision === 'qr'
+                                    ? 'ventas-channel-chip--qr'
+                                    : 'ventas-channel-chip--factura';
                                 $numeroDocumento = trim((string) data_get($cart, 'numero_documento', ''));
                                 $razonSocial = trim((string) data_get($cart, 'razon_social', ''));
                                 $modalidadFacturacion = (string) data_get($cart, 'modalidad_facturacion', 'con_datos');
@@ -386,6 +279,9 @@
                                 <td>
                                     <div class="ventas-table__primary">{{ $razonSocial !== '' ? $razonSocial : 'SIN NOMBRE' }}</div>
                                     <div class="ventas-table__secondary">{{ ucfirst(str_replace('_', ' ', $modalidadFacturacion)) }}</div>
+                                    <div class="ventas-table__secondary">
+                                        <span class="ventas-channel-chip {{ $canalBadgeClass }}">{{ $canalBadgeLabel }}</span>
+                                    </div>
                                 </td>
                                 <td>
                                     @if($facturaEstado === 'FACTURADA')
@@ -402,7 +298,7 @@
                                     <div class="ventas-table__secondary mt-1">
                                         {{ $mensajeEmision !== '' ? \Illuminate\Support\Str::limit($mensajeEmision, 65) : 'Sin observaciones registradas.' }}
                                     </div>
-                                    @if($facturaEstado === 'PENDIENTE')
+                                    @if($facturaEstado === 'PENDIENTE' && $canalEmision !== 'qr')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Si fue por contingencia, usa actualizar estado hasta que llegue la factura.
                                         </div>
@@ -563,44 +459,13 @@
             </div>
         @endif
     @endforeach
+    </div>
 @stop
 
 @section('css')
     <style>
-        .ventas-header {
-            gap: 1rem;
-        }
-
-        .ventas-header h1 {
-            font-weight: 700;
-            color: #173b73;
-        }
-
-        .ventas-header-badges {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .5rem;
-        }
-
-        .ventas-mini-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: .45rem .8rem;
-            border-radius: 999px;
-            background: rgba(254, 204, 54, 0.18);
-            color: #173b73;
-            font-size: .82rem;
-            font-weight: 700;
-        }
-
-        .ventas-mini-badge--success {
-            background: rgba(40, 167, 69, 0.14);
-            color: #1f7a35;
-        }
-
-        .ventas-mini-badge--warning {
-            background: rgba(255, 193, 7, 0.18);
-            color: #9a6b00;
+        .ventas-page {
+            padding-top: 1rem;
         }
 
         .ventas-feedback-alert {
@@ -683,54 +548,6 @@
         .ventas-caja-badge.is-closed {
             background: rgba(255, 193, 7, 0.22);
             color: #9a6b00;
-        }
-
-        .ventas-arqueo-card .card-body {
-            padding: 1rem 1.25rem 1.25rem;
-        }
-
-        .ventas-arqueo-filter {
-            min-width: 170px;
-        }
-
-        .ventas-arqueo-resumen {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: .75rem;
-            margin-bottom: 1rem;
-        }
-
-        .ventas-arqueo-pill {
-            border: 1px solid rgba(32, 83, 154, 0.15);
-            border-radius: 10px;
-            background: #f9fbff;
-            padding: .65rem .75rem;
-            display: flex;
-            align-items: baseline;
-            justify-content: space-between;
-            gap: .6rem;
-            color: #466084;
-            font-size: .82rem;
-        }
-
-        .ventas-arqueo-pill strong {
-            color: #173b73;
-            font-size: .95rem;
-        }
-
-        .ventas-arqueo-pill.is-ok {
-            border-color: rgba(40, 167, 69, 0.25);
-            background: #eff9f2;
-        }
-
-        .ventas-arqueo-pill.is-alert {
-            border-color: rgba(220, 53, 69, 0.25);
-            background: #fff3f2;
-        }
-
-        .ventas-arqueo-table td,
-        .ventas-arqueo-table th {
-            vertical-align: middle;
         }
 
         .ventas-summary-grid {
@@ -869,6 +686,27 @@
         }
         .ventas-table__secondary--hint {
             color: #9a6b00;
+        }
+        .ventas-channel-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: .24rem .52rem;
+            border-radius: 999px;
+            font-size: .68rem;
+            font-weight: 800;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+        }
+        .ventas-channel-chip--factura {
+            background: #eaf2ff;
+            border-color: #cfe0ff;
+            color: #1f4f96;
+        }
+        .ventas-channel-chip--qr {
+            background: #fff4dd;
+            border-color: #f4d694;
+            color: #9a6400;
         }
 
         .ventas-table__amount {
@@ -1014,18 +852,10 @@
             .ventas-summary-grid {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
-
-            .ventas-arqueo-resumen {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
         }
 
         @media (max-width: 767.98px) {
             .ventas-summary-grid {
-                grid-template-columns: repeat(1, minmax(0, 1fr));
-            }
-
-            .ventas-arqueo-resumen {
                 grid-template-columns: repeat(1, minmax(0, 1fr));
             }
 
@@ -1036,10 +866,6 @@
 
             .ventas-stat-card {
                 min-height: auto;
-            }
-
-            .ventas-header-badges {
-                width: 100%;
             }
 
             .ventas-items-modal__footer {
@@ -1091,40 +917,6 @@
                 });
             });
 
-            if (pendingConsultForms.length > 0) {
-                let pendingConsultInFlight = false;
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
-                const refreshPendingStatuses = async function () {
-                    if (pendingConsultInFlight) {
-                        return;
-                    }
-
-                    pendingConsultInFlight = true;
-
-                    try {
-                        for (const pendingForm of pendingConsultForms) {
-                            const formData = new FormData(pendingForm);
-                            await fetch(pendingForm.action, {
-                                method: 'POST',
-                                headers: {
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                    'X-CSRF-TOKEN': csrfToken,
-                                    'Accept': 'text/html,application/xhtml+xml',
-                                },
-                                body: formData,
-                                credentials: 'same-origin',
-                            });
-                        }
-
-                        window.location.reload();
-                    } catch (error) {
-                        pendingConsultInFlight = false;
-                    }
-                };
-
-                window.setInterval(refreshPendingStatuses, 30000);
-            }
         });
     </script>
 @stop

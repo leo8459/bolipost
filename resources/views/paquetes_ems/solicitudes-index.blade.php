@@ -219,6 +219,10 @@
                 </div>
     @endif
 
+    @php
+        $solicitudTicketUrl = session('solicitud_ticket_url');
+    @endphp
+
     @if (session('error'))
                 <div class="alert alert-danger mx-3 mt-3 mb-0">
                     {{ session('error') }}
@@ -303,4 +307,19 @@
             </div>
         </div>
     </div>
+@endsection
+
+@section('js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const ticketUrl = @json($solicitudTicketUrl);
+    if (!ticketUrl) {
+        return;
+    }
+
+    window.setTimeout(function () {
+        window.open(ticketUrl, '_blank', 'noopener');
+    }, 150);
+});
+</script>
 @endsection

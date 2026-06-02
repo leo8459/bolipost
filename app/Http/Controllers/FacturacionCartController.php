@@ -6,6 +6,9 @@ use App\Services\FacturacionCartService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class FacturacionCartController extends Controller
@@ -17,11 +20,12 @@ class FacturacionCartController extends Controller
 
         $validated = $request->validate([
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
-            'canal_emision' => ['nullable', 'in:qr,factura_electronica'],
+            'canal_emision' => ['nullable', 'in:factura_electronica,qr'],
             'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
             'numero_documento' => ['nullable', 'string', 'max:80'],
             'complemento_documento' => ['nullable', 'string', 'max:30'],
             'razon_social' => ['nullable', 'string', 'max:255'],
+            'correo_facturacion' => ['nullable', 'email', 'max:50'],
         ]);
 
         $cart = $service->updateDraftBillingData($user, $validated);
@@ -108,30 +112,75 @@ class FacturacionCartController extends Controller
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
 
+        $billingSnapshot = $request->validate([
+            'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
+            'canal_emision' => ['nullable', 'in:factura_electronica,qr'],
+            'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
+            'numero_documento' => ['nullable', 'string', 'max:80'],
+            'complemento_documento' => ['nullable', 'string', 'max:30'],
+            'razon_social' => ['nullable', 'string', 'max:255'],
+            'correo_facturacion' => ['nullable', 'email', 'max:50'],
+        ]);
+
+        $billingSnapshot = array_filter($billingSnapshot, static fn ($value) => $value !== null);
+        if ($billingSnapshot !== []) {
+            try {
+                $service->updateDraftBillingData($user, $billingSnapshot);
+                Log::info('Snapshot de facturacion sincronizado antes de emitir.', [
+                    'user_id' => $user?->id,
+                    'canal_emision' => $billingSnapshot['canal_emision'] ?? null,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo sincronizar snapshot de facturacion antes de emitir.', [
+                    'user_id' => $user?->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
         try {
             $ctx = $service->getRemoteContextForUser($user);
             $draft = $ctx['draft'] ?? null;
+            Log::info('Inicio de emision de facturacion.', [
+                'user_id' => $user?->id,
+                'cart_id' => data_get($draft, 'id'),
+                'canal_emision' => data_get($draft, 'canal_emision'),
+                'items_count' => is_countable(data_get($draft, 'items', [])) ? count(data_get($draft, 'items', [])) : 0,
+            ]);
             $draftItems = collect($draft?->items ?? []);
             if ($draftItems->isEmpty()) {
                 return back()->with('facturacion_feedback', [
                     'type' => 'warning',
                     'title' => 'Carrito vacío',
-                    'message' => 'Agrega al menos un ítem antes de emitir la factura.',
-                    'detail' => 'No se envió ninguna solicitud de emisión porque el borrador no tiene ítems.',
+                    'message' => 'Agrega al menos un Ítem antes de emitir la factura.',
+                    'detail' => 'No se envió ninguna solicitud de emisión porque el borrador no tiene Ã­tems.',
                     'action' => 'emitir',
                 ]);
             }
         } catch (\Throwable) {
-            // Si falla la consulta previa, continúa con el flujo existente.
+            // Si falla la consulta previa, continÃºa con el flujo existente.
         }
 
         try {
-            $resultado = $service->emitirBorrador($user);
+            $resultado = $service->emitirBorrador($user, $billingSnapshot);
             $respuesta = (array) ($resultado['respuesta'] ?? []);
             $redirect = back()->with('facturacion_feedback', $this->buildBridgeFeedback($respuesta, 'emitir'));
-            $qrData = $this->extractQrData($respuesta);
-            if ($qrData !== null) {
-                $redirect->with('facturacion_qr_data', $qrData);
+
+            $qrPayload = $this->extractQrSessionData(
+                $respuesta,
+                (string) data_get($resultado, 'carrito.codigo_orden', ''),
+                strtolower(trim((string) data_get($resultado, 'carrito.canal_emision', ''))) === 'qr'
+            );
+            if ($qrPayload !== null) {
+                Log::info('Facturacion QR detectado en respuesta de emision.', [
+                    'user_id' => $user->id,
+                    'cart_id' => data_get($resultado, 'carrito.id'),
+                    'transaction_id' => $qrPayload['transaction_id'] ?? '',
+                    'payment_status' => $qrPayload['payment_status'] ?? '',
+                    'has_image_data' => !empty($qrPayload['image_data']),
+                ]);
+
+                $redirect->with('facturacion_qr_data', $qrPayload);
             }
 
             $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
@@ -155,19 +204,36 @@ class FacturacionCartController extends Controller
 
         try {
             $codigoSeguimiento = trim((string) $request->input('codigo_seguimiento', ''));
-
-            if ($codigoSeguimiento !== '') {
+            $cartId = $request->integer('cart_id') ?: null;
+            if ($cartId !== null) {
+                $resultado = $service->consultarEstadoEmision($user, $cartId);
+                $respuesta = (array) ($resultado['respuesta'] ?? []);
+            } elseif ($codigoSeguimiento !== '') {
                 $respuesta = (array) $service->consultarVentaSeguimiento($user, $codigoSeguimiento);
                 $resultado = ['carrito' => null, 'respuesta' => $respuesta];
             } else {
-                $resultado = $service->consultarEstadoEmision($user, $request->integer('cart_id') ?: null);
+                $resultado = $service->consultarEstadoEmision($user, null);
                 $respuesta = (array) ($resultado['respuesta'] ?? []);
             }
 
             $redirect = back()->with('facturacion_feedback', $this->buildBridgeFeedback($respuesta, 'consultar'));
-            $qrData = $this->extractQrData($respuesta);
-            if ($qrData !== null) {
-                $redirect->with('facturacion_qr_data', $qrData);
+
+            $qrPayload = $this->extractQrSessionData(
+                $respuesta,
+                (string) data_get($resultado, 'carrito.codigo_orden', $codigoSeguimiento),
+                strtolower(trim((string) data_get($resultado, 'carrito.canal_emision', ''))) === 'qr'
+            );
+            if ($qrPayload !== null) {
+                Log::info('Facturacion QR detectado en consulta de estado.', [
+                    'user_id' => $user->id,
+                    'cart_id' => data_get($resultado, 'carrito.id'),
+                    'codigo_seguimiento' => $codigoSeguimiento,
+                    'transaction_id' => $qrPayload['transaction_id'] ?? '',
+                    'payment_status' => $qrPayload['payment_status'] ?? '',
+                    'has_image_data' => !empty($qrPayload['image_data']),
+                ]);
+
+                $redirect->with('facturacion_qr_data', $qrPayload);
             }
 
             $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
@@ -241,6 +307,32 @@ class FacturacionCartController extends Controller
         $estado = strtoupper(trim((string) ($respuesta['estado'] ?? '')));
         $mensaje = trim((string) ($respuesta['mensaje'] ?? ''));
         $razon = trim((string) ($respuesta['razon'] ?? ''));
+        $numeroFactura = trim((string) (
+            data_get($respuesta, 'factura.nroFactura')
+            ?? data_get($respuesta, 'factura.numeroFactura')
+            ?? data_get($respuesta, 'nroFactura')
+            ?? data_get($respuesta, 'numeroFactura')
+            ?? data_get($respuesta, 'consultaSefe.nroFactura')
+            ?? ''
+        ));
+        $codigoOrden = trim((string) (
+            data_get($respuesta, 'codigoOrden')
+            ?? data_get($respuesta, 'internal_code')
+            ?? data_get($respuesta, 'codigo_orden')
+            ?? ''
+        ));
+        $codigoSeguimiento = trim((string) (
+            data_get($respuesta, 'codigoSeguimiento')
+            ?? data_get($respuesta, 'transaction_id')
+            ?? data_get($respuesta, 'id')
+            ?? ''
+        ));
+        $pdfUrl = trim((string) (
+            data_get($respuesta, 'factura.pdfUrl')
+            ?? data_get($respuesta, 'urlPdf')
+            ?? ''
+        ));
+        $feedbackMeta = $this->buildFeedbackMeta($estado, $numeroFactura, $codigoOrden, $codigoSeguimiento, $pdfUrl);
 
         if ($estado === 'FACTURADA') {
             return [
@@ -249,6 +341,7 @@ class FacturacionCartController extends Controller
                 'message' => 'La factura ya fue procesada. Puedes entregar el comprobante al cliente.',
                 'detail' => $mensaje !== '' ? $mensaje : 'El sistema genero la factura sin observaciones.',
                 'action' => $action,
+                'meta' => $feedbackMeta,
             ];
         }
 
@@ -259,6 +352,7 @@ class FacturacionCartController extends Controller
                 'message' => 'La venta fue recibida por facturacion. Consulta el estado en unos segundos.',
                 'detail' => $mensaje !== '' ? $mensaje : 'La API confirmo la recepcion y aun esta procesando.',
                 'action' => $action,
+                'meta' => $feedbackMeta,
             ];
         }
 
@@ -269,6 +363,7 @@ class FacturacionCartController extends Controller
                 'message' => 'Revisa los datos de la venta antes de reenviarla.',
                 'detail' => $razon !== '' ? $razon : ($mensaje !== '' ? $mensaje : 'La API rechazo la venta por validacion.'),
                 'action' => $action,
+                'meta' => $feedbackMeta,
             ];
         }
 
@@ -278,6 +373,7 @@ class FacturacionCartController extends Controller
             'message' => $mensaje !== '' ? $mensaje : 'Se recibio respuesta del sistema de facturacion.',
             'detail' => $razon,
             'action' => $action,
+            'meta' => $feedbackMeta,
         ];
     }
 
@@ -292,25 +388,184 @@ class FacturacionCartController extends Controller
         ];
     }
 
+    private function buildFeedbackMeta(string $estado, string $numeroFactura, string $codigoOrden, string $codigoSeguimiento, string $pdfUrl): array
+    {
+        $meta = [];
+
+        if ($estado !== '') {
+            $meta[] = ['label' => 'Estado', 'value' => $estado];
+        }
+        if ($numeroFactura !== '') {
+            $meta[] = ['label' => 'Factura', 'value' => $numeroFactura];
+        }
+        if ($codigoOrden !== '') {
+            $meta[] = ['label' => 'Orden', 'value' => $codigoOrden];
+        }
+        if ($codigoSeguimiento !== '') {
+            $meta[] = ['label' => 'Seguimiento', 'value' => $codigoSeguimiento];
+        }
+        if ($pdfUrl !== '') {
+            $meta[] = ['label' => 'PDF', 'value' => $pdfUrl, 'type' => 'link'];
+        }
+
+        return $meta;
+    }
+
+    private function extractQrSessionData(array $respuesta, string $defaultInternalCode = '', bool $forceQr = false): ?array
+    {
+        $imageKeys = [
+            'image_data',
+            'qr_url',
+            'qrUrl',
+            'image_url',
+            'imageUrl',
+            'payment_image',
+            'paymentImage',
+            'qr_image',
+            'qrImage',
+            'embed_image',
+            'embedImage',
+        ];
+        $transactionKeys = [
+            'transaction_id',
+            'transactionId',
+            'payment_id',
+            'paymentId',
+            'items.0.id',
+        ];
+        $paymentStatusKeys = [
+            'payment_status',
+            'paymentStatus',
+            'payment_state',
+            'paymentState',
+            'estado_pago',
+            'estadoPago',
+            'items.0.payment_status',
+            'items.0.payment_status ',
+        ];
+
+        $imageData = $this->findFirstResponseValue($respuesta, $imageKeys);
+        $hasQrMarkers = $forceQr
+            || $this->hasAnyResponseValue($respuesta, $imageKeys)
+            || $this->hasAnyResponseValue($respuesta, $transactionKeys)
+            || $this->hasAnyResponseValue($respuesta, $paymentStatusKeys);
+
+        if (!$hasQrMarkers) {
+            return null;
+        }
+
+        $transactionId = $this->findFirstResponseValue($respuesta, $transactionKeys);
+
+        $paymentStatus = strtoupper(trim($this->findFirstResponseValue($respuesta, $paymentStatusKeys)));
+
+        $internalCode = trim($this->findFirstResponseValue($respuesta, [
+            'internal_code',
+            'internalCode',
+            'codigoOrden',
+            'codigo_orden',
+        ]));
+
+        $message = trim($this->findFirstResponseValue($respuesta, [
+            'message',
+            'mensaje',
+            'detail',
+            'descripcion',
+        ]));
+
+        $imageData = $this->normalizeQrImageData($imageData);
+
+        if ($imageData === '' && $transactionId === '') {
+            return null;
+        }
+
+        return [
+            'image_data' => $imageData,
+            'payment_status' => $paymentStatus !== '' ? $paymentStatus : 'HOLDING',
+            'transaction_id' => $transactionId,
+            'internal_code' => $internalCode !== '' ? $internalCode : $defaultInternalCode,
+            'message' => $message !== '' ? $message : 'QR generado.',
+        ];
+    }
+
+    private function findFirstResponseValue(array $payload, array $keys): string
+    {
+        foreach ($keys as $key) {
+            $direct = trim((string) data_get($payload, $key, ''));
+            if ($direct !== '') {
+                return $direct;
+            }
+        }
+
+        $flattened = Arr::dot($payload);
+        foreach ($flattened as $path => $value) {
+            if (!is_scalar($value) && $value !== null) {
+                continue;
+            }
+
+            foreach ($keys as $key) {
+                if ($path === $key || str_ends_with($path, '.' . $key)) {
+                    $text = trim((string) $value);
+                    if ($text !== '') {
+                        return $text;
+                    }
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private function hasAnyResponseValue(array $payload, array $keys): bool
+    {
+        return $this->findFirstResponseValue($payload, $keys) !== '';
+    }
+
+    private function normalizeQrImageData(string $imageData): string
+    {
+        $imageData = trim($imageData);
+        if ($imageData === '') {
+            return '';
+        }
+
+        if (str_starts_with($imageData, 'data:image')) {
+            return $imageData;
+        }
+
+        if (!preg_match('/^https?:\/\//i', $imageData)) {
+            return $imageData;
+        }
+
+        try {
+            $response = Http::timeout(20)->get($imageData);
+            if (!$response->successful()) {
+                Log::warning('No se pudo descargar la imagen QR remota.', [
+                    'url' => $imageData,
+                    'status' => $response->status(),
+                ]);
+
+                return $imageData;
+            }
+
+            $contentType = trim((string) ($response->header('Content-Type') ?? 'image/png'));
+            $body = $response->body();
+            if ($body === '') {
+                return $imageData;
+            }
+
+            return 'data:' . $contentType . ';base64,' . base64_encode($body);
+        } catch (\Throwable $e) {
+            Log::warning('Fallo al normalizar imagen QR remota.', [
+                'url' => $imageData,
+                'message' => $e->getMessage(),
+            ]);
+
+            return $imageData;
+        }
+    }
+
     private function authorizeFacturacionAccess($user): void
     {
         abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para gestionar facturacion.');
     }
 
-    private function extractQrData(array $respuesta): ?array
-    {
-        $qrImage = trim((string) data_get($respuesta, 'factura.qrImage', ''));
-        $paymentUrl = trim((string) data_get($respuesta, 'factura.paymentUrl', ''));
-        $paymentStatus = trim((string) data_get($respuesta, 'factura.paymentStatus', ''));
-
-        if ($qrImage === '' && $paymentUrl === '') {
-            return null;
-        }
-
-        return [
-            'qr_image' => $qrImage,
-            'payment_url' => $paymentUrl,
-            'payment_status' => $paymentStatus,
-        ];
-    }
 }

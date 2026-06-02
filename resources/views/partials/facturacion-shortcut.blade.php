@@ -1,4 +1,5 @@
-﻿@php
+@once('facturacion-shortcut-global')
+@php
     $canOpenFacturacionShortcut = auth()->check() && (auth()->user()?->can('feature.dashboard.facturacion') ?? false);
     try {
         $facturacionContext = $canOpenFacturacionShortcut
@@ -21,21 +22,27 @@
     $facturacionCartTotal = (float) ($activeFacturacionCart?->total ?? 0);
     $billingDocumentTypes = \App\Models\Cliente::tiposDocumentoIdentidad();
     $activeBillingMode = (string) ($activeFacturacionCart?->modalidad_facturacion ?? 'con_datos');
-    $isQrTemporarilyDisabled = false;
-    $activeInvoiceChannelRaw = (string) ($activeFacturacionCart?->canal_emision ?? 'qr');
-    $activeInvoiceChannel = $isQrTemporarilyDisabled && $activeInvoiceChannelRaw === 'qr'
-        ? 'factura_electronica'
-        : $activeInvoiceChannelRaw;
+    $activeInvoiceChannel = (string) ($activeFacturacionCart?->canal_emision ?? 'factura_electronica');
+    if (!in_array($activeInvoiceChannel, ['factura_electronica', 'qr'], true)) {
+        $activeInvoiceChannel = 'factura_electronica';
+    }
     $activeDocumentType = (string) ($activeFacturacionCart?->tipo_documento ?? '');
+    $defaultBillingEmail = 'safe@correos.gob.bo';
+    $storedBillingEmail = trim((string) ($activeFacturacionCart?->correo_facturacion ?? ''));
+    $loggedUserEmail = strtolower(trim((string) (auth()->user()?->email ?? '')));
+    $hasCustomBillingEmail = $storedBillingEmail !== ''
+        && strtolower($storedBillingEmail) !== $defaultBillingEmail
+        && strtolower($storedBillingEmail) !== $loggedUserEmail;
+    $activeBillingEmail = $hasCustomBillingEmail ? $storedBillingEmail : $defaultBillingEmail;
     $resultadoEmision = (array) ($ultimaFacturacionEmitida?->respuesta_emision ?? []);
     $draftEmissionResponse = (array) ($activeFacturacionCart?->respuesta_emision ?? []);
     $draftEmissionErrors = (array) data_get($draftEmissionResponse, 'errors', []);
     $facturacionItemsForValidation = $facturacionItems->values();
     $validationFieldLabels = [
-        'actividadEconomica' => 'Actividad económica',
-        'codigoSin' => 'Código SIN',
-        'codigo' => 'Código de producto',
-        'descripcion' => 'Descripción del servicio',
+        'actividadEconomica' => 'Actividad econÃ³mica',
+        'codigoSin' => 'CÃ³digo SIN',
+        'codigo' => 'CÃ³digo de producto',
+        'descripcion' => 'DescripciÃ³n del servicio',
         'unidadMedida' => 'Unidad de medida',
     ];
     $draftEmissionIssues = collect(\Illuminate\Support\Arr::dot($draftEmissionErrors))
@@ -59,7 +66,7 @@
                 'item_index' => $itemIndex,
                 'field' => $field,
                 'field_label' => $validationFieldLabels[$field] ?? $field,
-                'message' => $message !== '' ? $message : 'El valor enviado no fue aceptado por facturación.',
+                'message' => $message !== '' ? $message : 'El valor enviado no fue aceptado por Facturación.',
             ];
         })
         ->filter()
@@ -68,6 +75,9 @@
     $facturacionFeedback = session('facturacion_feedback');
     $facturacionDownloadPdf = session('facturacion_download_pdf');
     $facturacionQrData = session('facturacion_qr_data');
+    $facturacionFeedbackAction = is_array($facturacionFeedback) ? (string) ($facturacionFeedback['action'] ?? '') : '';
+    $shouldOpenShortcutWithFeedback = is_array($facturacionFeedback) && $facturacionFeedbackAction !== 'consultar';
+    $shouldOpenConsultFeedbackModal = is_array($facturacionFeedback) && $facturacionFeedbackAction === 'consultar';
     $isRejectedDraft = $activeFacturacionCart && ($activeFacturacionCart->estado_emision ?? null) === 'RECHAZADA';
     $lastEmissionReason = (string) ($resultadoEmision['razon'] ?? '');
     $lastEmissionAttempts = (int) ($resultadoEmision['_meta']['intentos'] ?? 0);
@@ -83,11 +93,11 @@
     $emitActionLabel = $isRejectedDraft ? 'Reintentar emisión' : 'Emitir factura';
     $emitConfirmTitle = $isRejectedDraft ? 'Reintentar emisión' : 'Emitir factura';
     $emitConfirmMessage = $isRejectedDraft
-        ? 'Se reenviará el borrador rechazado con los datos actualizados a la API externa de facturación.'
-        : 'Se enviará el borrador actual a la API externa de facturación para su emisión.';
+        ? 'Se reenviarÃ¡ el borrador rechazado con los datos actualizados a la API externa de Facturación.'
+        : 'Se enviarÃ¡ el borrador actual a la API externa de Facturación para su emisión.';
     $emitConfirmNote = $isRejectedDraft
-        ? 'Antes de reenviar, corrige cliente, emisión o ítems del borrador. No se creará una venta nueva; se reintentará el mismo borrador con tus cambios.'
-        : 'Si la API acepta la venta, este borrador quedará cerrado y marcado como emitido.';
+        ? 'Antes de reenviar, corrige cliente, emisión o Ítemsdel borrador. No se crearÃ¡ una venta nueva; se reintentarÃ¡ el mismo borrador con tus cambios.'
+        : 'Si la API acepta la venta, este borrador quedarÃ¡ cerrado y marcado como emitido.';
     $emitConfirmCta = $isRejectedDraft ? 'Si, reenviar' : 'Si, emitir';
     $estadoCaja = strtoupper(trim((string) ($facturacionCajaContext['estado'] ?? 'SIN_APERTURA')));
     $isCajaAbierta = in_array($estadoCaja, ['ABIERTA', 'ABIERTO'], true);
@@ -101,7 +111,7 @@
         id="openFacturacionShortcut"
         aria-controls="facturacionShortcutModal"
         aria-expanded="false"
-        aria-label="Abrir accesos de facturación"
+        aria-label="Abrir accesos de Facturación"
     >
         <span class="global-facturacion-fab__icon">
             <i class="fas fa-file-invoice-dollar"></i>
@@ -127,7 +137,7 @@
                 <div>
                     <h3 id="facturacionShortcutTitle" class="global-shortcut-modal__title">Facturación</h3>
                 </div>
-                <button type="button" class="global-shortcut-modal__close" id="closeFacturacionShortcut" aria-label="Cerrar modal de facturación">
+                <button type="button" class="global-shortcut-modal__close" id="closeFacturacionShortcut" aria-label="Cerrar modal de Facturación">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -138,34 +148,10 @@
                         <i class="fas @if(($facturacionFeedback['type'] ?? '') === 'success') fa-check-circle @elseif(($facturacionFeedback['type'] ?? '') === 'warning') fa-exclamation-triangle @elseif(($facturacionFeedback['type'] ?? '') === 'error') fa-times-circle @else fa-info-circle @endif"></i>
                     </div>
                     <div class="global-shortcut-feedback__body">
-                        <strong>{{ $facturacionFeedback['title'] ?? 'Resultado de facturación' }}</strong>
+                        <strong>{{ $facturacionFeedback['title'] ?? 'Resultado de Facturación' }}</strong>
                         <p>{{ $facturacionFeedback['message'] ?? '' }}</p>
                         @if (!empty($facturacionFeedback['detail']))
                             <span>{{ $facturacionFeedback['detail'] }}</span>
-                        @endif
-                    </div>
-                </div>
-            @endif
-
-            @if (is_array($facturacionQrData) && (!empty($facturacionQrData['qr_image']) || !empty($facturacionQrData['payment_url'])))
-                <div class="global-shortcut-feedback global-shortcut-feedback--info">
-                    <div class="global-shortcut-feedback__icon">
-                        <i class="fas fa-qrcode"></i>
-                    </div>
-                    <div class="global-shortcut-feedback__body">
-                        <strong>QR generado</strong>
-                        @if (!empty($facturacionQrData['payment_status']))
-                            <p>Estado: {{ $facturacionQrData['payment_status'] }}</p>
-                        @endif
-                        @if (!empty($facturacionQrData['qr_image']))
-                            <img
-                                src="{{ \Illuminate\Support\Str::startsWith((string) $facturacionQrData['qr_image'], 'http') ? $facturacionQrData['qr_image'] : 'data:image/png;base64,' . $facturacionQrData['qr_image'] }}"
-                                alt="QR de pago"
-                                style="width: 180px; max-width: 100%; border: 1px solid #d6e2f5; border-radius: 10px; background:#fff; padding:8px;"
-                            >
-                        @endif
-                        @if (!empty($facturacionQrData['payment_url']))
-                            <span><a href="{{ $facturacionQrData['payment_url'] }}" target="_blank" rel="noopener noreferrer">Abrir enlace de pago</a></span>
                         @endif
                     </div>
                 </div>
@@ -177,21 +163,21 @@
                         <i class="fas fa-lock"></i>
                     </div>
                     <h4>Caja cerrada</h4>
-                    <p>La interfaz de facturación está deshabilitada. Para continuar, abre caja diaria.</p>
+                    <p>La interfaz de Facturación estÃ¡ deshabilitada. Para continuar, abre caja diaria.</p>
                 </section>
             @endif
 
             @if ($isCajaAbierta && $isRejectedDraft)
                 <div class="global-shortcut-edit-hint">
                     <strong>Corrige antes de reenviar</strong>
-                    <p>Puedes editar cliente, emisión y los ítems del borrador antes de volver a intentar.</p>
+                    <p>Puedes editar cliente, emisión y los Ítemsdel borrador antes de volver a intentar.</p>
                     <span>Cuando aparezca el mensaje de cambios guardados, ya puedes usar <b>Reintentar emisión</b>.</span>
                 </div>
             @endif
 
             @if ($isCajaAbierta && $draftEmissionIssues->isNotEmpty())
                 <div class="global-shortcut-issue-box">
-                    <strong>Campos observados por facturación</strong>
+                    <strong>Campos observados por Facturación</strong>
                     <p>Corrige solo los datos marcados abajo. Cada boton abre el item exacto y enfoca el campo rechazado.</p>
                     <div class="global-shortcut-issue-list">
                         @foreach ($draftEmissionIssues as $issue)
@@ -201,7 +187,7 @@
                             <div class="global-shortcut-issue-card">
                                 <div class="global-shortcut-issue-card__body">
                                     <span class="global-shortcut-issue-card__label">Item {{ $issue['item_index'] + 1 }} | {{ $issue['field_label'] }}</span>
-                                    <strong>{{ $issueItem->codigo ?: ($issueItem->titulo ?: 'Ítem sin código') }}</strong>
+                                    <strong>{{ $issueItem->codigo ?: ($issueItem->titulo ?: 'Ãtem sin cÃ³digo') }}</strong>
                                     <p>{{ $issue['message'] }}</p>
                                 </div>
                                 <button
@@ -239,8 +225,6 @@
                 class="global-shortcut-billing-inline"
                 id="facturacionBillingInlineForm"
                 data-autosave="true"
-                data-qr-disabled="{{ $isQrTemporarilyDisabled ? 'true' : 'false' }}"
-                data-qr-forced="{{ ($isQrTemporarilyDisabled && $activeInvoiceChannelRaw === 'qr') ? 'true' : 'false' }}"
             >
                 @csrf
                 @method('PUT')
@@ -251,7 +235,7 @@
                 <div class="global-shortcut-selector-block">
                     <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Facturación</span>
-                        <div class="global-shortcut-choice-row" role="tablist" aria-label="Flujo de facturación">
+                        <div class="global-shortcut-choice-row" role="tablist" aria-label="Flujo de Facturación">
                             <button type="button" class="global-shortcut-choice-btn is-active" disabled aria-disabled="true">
                                 Con documento
                             </button>
@@ -261,17 +245,11 @@
                     <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Emisión</span>
                         <div class="global-shortcut-choice-row" role="tablist" aria-label="Tipo de salida de factura">
-                            <button
-                                type="button"
-                                class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'qr') is-active @endif"
-                                data-invoice-channel-choice="qr"
-                                @disabled(!$isCajaAbierta || $isQrTemporarilyDisabled)
-                                @if($isQrTemporarilyDisabled) title="QR temporalmente deshabilitado" @endif
-                            >
-                                QR
-                            </button>
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
                                 Factura electrónica
+                            </button>
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'qr') is-active @endif" data-invoice-channel-choice="qr" @disabled(!$isCajaAbierta)>
+                                QR
                             </button>
                         </div>
                     </div>
@@ -296,7 +274,6 @@
                             id="facturacionBillingDocumentComplement"
                             name="complemento_documento"
                             value="{{ $activeFacturacionCart?->complemento_documento }}"
-                            placeholder="Ej. LP"
                             @disabled(!$isCajaAbierta)
                         >
                     </div>
@@ -307,8 +284,35 @@
                             id="facturacionBillingName"
                             name="razon_social"
                             value="{{ $activeFacturacionCart?->razon_social }}"
-                            placeholder="Nombre o razón social"
+                            placeholder="NOMBRE O RAZON SOCIAL"
+                            style="text-transform: uppercase;"
                             @readonly(trim((string) ($activeFacturacionCart?->numero_documento ?? '')) === '99002')
+                            @disabled(!$isCajaAbierta)
+                        >
+                    </div>
+                    <div class="global-shortcut-field global-shortcut-field--full">
+                        <div class="global-shortcut-field-head">
+                            <label for="facturacionBillingEmail">Correo factura</label>
+                            <label class="global-shortcut-email-toggle" for="facturacionBillingEmailToggle">
+                                <input
+                                    type="checkbox"
+                                    id="facturacionBillingEmailToggle"
+                                    data-billing-email-toggle="true"
+                                    @checked($hasCustomBillingEmail)
+                                    @disabled(!$isCajaAbierta)
+                                >
+                                <span>Editar correo cliente</span>
+                            </label>
+                        </div>
+                        <input
+                            type="email"
+                            id="facturacionBillingEmail"
+                            name="correo_facturacion"
+                            value="{{ $activeBillingEmail }}"
+                            placeholder="correo@dominio.com"
+                            autocomplete="email"
+                            data-default-email="{{ $defaultBillingEmail }}"
+                            @readonly(!$hasCustomBillingEmail)
                             @disabled(!$isCajaAbierta)
                         >
                     </div>
@@ -347,8 +351,8 @@
                                 action="{{ route('facturacion.cart.clear') }}"
                                 class="global-shortcut-confirm-form"
                                 data-confirm-title="Vaciar carrito"
-                                data-confirm-message="Se eliminarán todos los ítems del borrador de facturación. Puedes volver a agregarlos después si hace falta."
-                                data-confirm-note="Se conservarán intactos los registros operativos. Solo se limpiará el borrador actual del carrito."
+                                data-confirm-message="Se eliminarÃ¡n todos los Ítemsdel borrador de Facturación. Puedes volver a agregarlos despuÃ©s si hace falta."
+                                data-confirm-note="Se conservarÃ¡n intactos los registros operativos. Solo se limpiarÃ¡ el borrador actual del carrito."
                                 data-confirm-cta="Si, vaciar"
                             >
                                 @csrf
@@ -366,7 +370,7 @@
                             <i class="fas fa-shopping-basket"></i>
                         </div>
                         <strong>Carrito vacío</strong>
-                        <p>Aún no agregaste ítems para facturación.</p>
+                        <p>No agregaste Ítemspara Facturación.</p>
                     </div>
                 @else
                     <div class="global-shortcut-cart-list">
@@ -377,7 +381,7 @@
                                     <span class="global-shortcut-cart-item__amount">Bs {{ number_format((float) $item->total_linea, 2) }}</span>
                                 </div>
                                 <div class="global-shortcut-cart-item__meta">
-                                    <span>{{ $item->codigo ?: 'Sin código' }}</span>
+                                    <span>{{ $item->codigo ?: 'Sin cÃ³digo' }}</span>
                                     <span>{{ $item->nombre_servicio ?: 'Servicio no identificado' }}</span>
                                 </div>
                                 @if (!empty($item->nombre_destinatario))
@@ -425,8 +429,8 @@
                                         action="{{ route('facturacion.cart.items.destroy', $item->id) }}"
                                         class="global-shortcut-confirm-form"
                                         data-confirm-title="Quitar item"
-                                        data-confirm-message="Este ítem se quitará del borrador de facturación. No afectará ninguna factura final."
-                                        data-confirm-note="Si fue un error, luego puedes volver a agregarlo desde la operación correspondiente."
+                                        data-confirm-message="Este Ã­tem se quitarÃ¡ del borrador de Facturación. No afectarÃ¡ ninguna factura final."
+                                        data-confirm-note="Si fue un error, luego puedes volver a agregarlo desde la operaciÃ³n correspondiente."
                                         data-confirm-cta="Si, quitar"
                                     >
                                         @csrf
@@ -442,32 +446,6 @@
                 @endif
             </div>
 
-            @if ($hasLastEmissionData)
-                <details class="global-shortcut-last-emission">
-                    <summary class="global-shortcut-last-emission__summary">
-                        <span class="global-shortcut-last-emission__label">Última factura</span>
-                        <span class="global-shortcut-last-emission__state @if(in_array(($ultimaFacturacionEmitida->estado_emision ?? ''), ['FACTURADA', 'PENDIENTE', 'PROCESADA'])) is-ok @else is-warn @endif">
-                            {{ $ultimaFacturacionEmitida->estado_emision ?: 'SIN RESPUESTA' }}
-                            @if (!empty($facturaEmitida['nroFactura']))
-                                | #{{ $facturaEmitida['nroFactura'] }}
-                            @endif
-                        </span>
-                    </summary>
-                    <div class="global-shortcut-last-emission__content">
-                        @if (!empty($ultimaFacturacionEmitida->mensaje_emision))
-                            <p>{{ $ultimaFacturacionEmitida->mensaje_emision }}</p>
-                        @endif
-                        <div class="global-shortcut-last-emission__links">
-                            @if (!empty($facturaEmitida['pdfUrl']))
-                                <a href="{{ $facturaEmitida['pdfUrl'] }}" target="_blank" rel="noopener noreferrer">PDF</a>
-                            @endif
-                            @if (!empty($facturaEmitida['xmlUrl']))
-                                <a href="{{ $facturaEmitida['xmlUrl'] }}" target="_blank" rel="noopener noreferrer">XML</a>
-                            @endif
-                        </div>
-                    </div>
-                </details>
-            @endif
             </div>
 
             </div>
@@ -497,17 +475,6 @@
                     </div>
                 @else
                     @if ($ultimaFacturacionEmitida && !empty($ultimaFacturacionEmitida->codigo_seguimiento))
-                        @if (($ultimaFacturacionEmitida->estado_emision ?? '') !== 'FACTURADA')
-                            <div class="global-shortcut-footer-action__row">
-                                <form method="POST" action="{{ route('facturacion.cart.consultar') }}">
-                                    @csrf
-                                    <input type="hidden" name="cart_id" value="{{ $ultimaFacturacionEmitida->id }}">
-                                    <button type="submit" class="global-shortcut-secondary-btn">
-                                        Consultar estado
-                                    </button>
-                                </form>
-                            </div>
-                        @endif
                         @if ($facturacionItems->isNotEmpty())
                             <form
                                 method="POST"
@@ -519,6 +486,13 @@
                                 data-confirm-cta="{{ $emitConfirmCta }}"
                             >
                                 @csrf
+                                <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
+                                <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
+                                <input type="hidden" name="tipo_documento" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}" data-emit-sync-field="tipo_documento">
+                                <input type="hidden" name="numero_documento" value="{{ (string) ($activeFacturacionCart?->numero_documento ?? '') }}" data-emit-sync-field="numero_documento">
+                                <input type="hidden" name="complemento_documento" value="{{ (string) ($activeFacturacionCart?->complemento_documento ?? '') }}" data-emit-sync-field="complemento_documento">
+                                <input type="hidden" name="razon_social" value="{{ (string) ($activeFacturacionCart?->razon_social ?? '') }}" data-emit-sync-field="razon_social">
+                                <input type="hidden" name="correo_facturacion" value="{{ (string) $activeBillingEmail }}" data-emit-sync-field="correo_facturacion">
                                 <button
                                     type="submit"
                                     class="global-shortcut-emit-btn"
@@ -540,6 +514,13 @@
                                 data-confirm-cta="{{ $emitConfirmCta }}"
                             >
                                 @csrf
+                                <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
+                                <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
+                                <input type="hidden" name="tipo_documento" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}" data-emit-sync-field="tipo_documento">
+                                <input type="hidden" name="numero_documento" value="{{ (string) ($activeFacturacionCart?->numero_documento ?? '') }}" data-emit-sync-field="numero_documento">
+                                <input type="hidden" name="complemento_documento" value="{{ (string) ($activeFacturacionCart?->complemento_documento ?? '') }}" data-emit-sync-field="complemento_documento">
+                                <input type="hidden" name="razon_social" value="{{ (string) ($activeFacturacionCart?->razon_social ?? '') }}" data-emit-sync-field="razon_social">
+                                <input type="hidden" name="correo_facturacion" value="{{ (string) $activeBillingEmail }}" data-emit-sync-field="correo_facturacion">
                                 <button
                                     type="submit"
                                     class="global-shortcut-emit-btn"
@@ -553,7 +534,7 @@
                                 class="global-shortcut-emit-btn"
                                 disabled
                                 aria-disabled="true"
-                                title="Agrega al menos un ítem al carrito para emitir."
+                                title="Agrega al menos un Ã­tem al carrito para emitir."
                             >
                                 {{ $emitActionLabel }}
                             </button>
@@ -579,11 +560,11 @@
                 <div class="global-shortcut-confirm__icon">
                     <i class="fas fa-pen"></i>
                 </div>
-                <div class="global-shortcut-confirm__eyebrow">Corrección de ítem</div>
+                <div class="global-shortcut-confirm__eyebrow">CorrecciÃ³n de Ã­tem</div>
             </div>
             <h4 id="facturacionItemEditTitle" class="global-shortcut-confirm__title">Corregir item antes de reenviar</h4>
             <p class="global-shortcut-confirm__message">
-                Ajusta los datos observados y guarda el ítem para volver a intentar la emisión.
+                Ajusta los datos observados y guarda el ítems para volver a intentar la emisión.
             </p>
             <form method="POST" action="" id="facturacionItemEditForm" class="global-shortcut-item-edit-form">
                 @csrf
@@ -591,7 +572,7 @@
                 <div class="global-shortcut-item-edit-alert is-hidden" id="facturacionItemEditAlert" aria-live="polite"></div>
                 <div class="global-shortcut-item-edit-grid">
                     <div class="global-shortcut-field" data-edit-field-key="codigo_item">
-                        <label for="facturacionEditItemCodigo">Código de ítem</label>
+                        <label for="facturacionEditItemCodigo">CÃ³digo de Ã­tem</label>
                         <input type="text" id="facturacionEditItemCodigo" name="codigo" required>
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="peso">
@@ -599,7 +580,7 @@
                         <input type="number" id="facturacionEditItemPeso" name="peso" min="0" step="0.001" placeholder="Ej. 0.100">
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="titulo">
-                        <label for="facturacionEditItemTitulo">Título</label>
+                        <label for="facturacionEditItemTitulo">TÃ­tulo</label>
                         <input type="text" id="facturacionEditItemTitulo" name="titulo" required>
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="nombre_servicio">
@@ -615,7 +596,7 @@
                         <input type="text" id="facturacionEditItemContenido" name="contenido">
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="direccion">
-                        <label for="facturacionEditItemDireccion">Dirección</label>
+                        <label for="facturacionEditItemDireccion">DirecciÃ³n</label>
                         <input type="text" id="facturacionEditItemDireccion" name="direccion">
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="ciudad">
@@ -623,15 +604,15 @@
                         <input type="text" id="facturacionEditItemCiudad" name="ciudad">
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="actividadEconomica">
-                        <label for="facturacionEditItemActividadEconomica">Actividad económica</label>
+                        <label for="facturacionEditItemActividadEconomica">Actividad econÃ³mica</label>
                         <input type="text" id="facturacionEditItemActividadEconomica" name="actividad_economica" maxlength="6" placeholder="6 caracteres">
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="codigoSin">
-                        <label for="facturacionEditItemCodigoSin">Código SIN</label>
+                        <label for="facturacionEditItemCodigoSin">CÃ³digo SIN</label>
                         <input type="text" id="facturacionEditItemCodigoSin" name="codigo_sin">
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="codigo">
-                        <label for="facturacionEditItemCodigoProducto">Código de producto</label>
+                        <label for="facturacionEditItemCodigoProducto">CÃ³digo de producto</label>
                         <input type="text" id="facturacionEditItemCodigoProducto" name="codigo_producto">
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="unidadMedida">
@@ -639,7 +620,7 @@
                         <input type="number" id="facturacionEditItemUnidadMedida" name="unidad_medida" min="1" step="1">
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="descripcion">
-                        <label for="facturacionEditItemDescripcionServicio">Descripción del servicio</label>
+                        <label for="facturacionEditItemDescripcionServicio">DescripciÃ³n del servicio</label>
                         <input type="text" id="facturacionEditItemDescripcionServicio" name="descripcion_servicio">
                     </div>
                 </div>
@@ -669,11 +650,11 @@
                     <div class="global-shortcut-confirm__icon">
                         <i class="fas fa-circle-check" id="facturacionActionConfirmIcon"></i>
                     </div>
-                    <div class="global-shortcut-confirm__eyebrow">Confirmación de carrito</div>
+                    <div class="global-shortcut-confirm__eyebrow">ConfirmaciÃ³n de carrito</div>
                 </div>
-            <h4 id="facturacionActionConfirmTitle" class="global-shortcut-confirm__title">Confirmar acción</h4>
+            <h4 id="facturacionActionConfirmTitle" class="global-shortcut-confirm__title">Confirmar acciÃ³n</h4>
             <p class="global-shortcut-confirm__message" id="facturacionActionConfirmMessage">
-                Esta acción actualizará tu borrador de facturación.
+                Esta acciÃ³n actualizarÃ¡ tu borrador de Facturación.
             </p>
             <div class="global-shortcut-confirm__note" id="facturacionActionConfirmNoteBox">
                 <span class="global-shortcut-confirm__note-label">Importante</span>
@@ -691,6 +672,90 @@
             </div>
         </div>
     </div>
+
+    @if ($shouldOpenConsultFeedbackModal)
+        <div class="facturacion-result-modal" id="facturacionResultModal" aria-hidden="true" role="dialog" aria-modal="true">
+            <div class="facturacion-result-modal__backdrop" data-close-facturacion-result="true"></div>
+            <div class="facturacion-result-modal__panel" role="document">
+                <button type="button" class="facturacion-result-modal__close" id="facturacionResultModalClose" aria-label="Cerrar resultado">x</button>
+                <div class="facturacion-result-modal__icon facturacion-result-modal__icon--{{ $facturacionFeedback['type'] ?? 'info' }}">
+                    <i class="fas @if(($facturacionFeedback['type'] ?? '') === 'success') fa-check-circle @elseif(($facturacionFeedback['type'] ?? '') === 'warning') fa-exclamation-triangle @elseif(($facturacionFeedback['type'] ?? '') === 'error') fa-times-circle @else fa-info-circle @endif"></i>
+                </div>
+                <h4 class="facturacion-result-modal__title">{{ $facturacionFeedback['title'] ?? 'Resultado de consulta' }}</h4>
+                <p class="facturacion-result-modal__message">{{ $facturacionFeedback['message'] ?? '' }}</p>
+                @if (!empty($facturacionFeedback['meta']) && is_array($facturacionFeedback['meta']))
+                    <div class="facturacion-result-modal__meta-grid">
+                        @foreach ($facturacionFeedback['meta'] as $metaItem)
+                            @php
+                                $metaLabel = trim((string) ($metaItem['label'] ?? 'Dato'));
+                                $metaValue = trim((string) ($metaItem['value'] ?? ''));
+                                $metaType = trim((string) ($metaItem['type'] ?? 'text'));
+                            @endphp
+                            @if ($metaValue !== '')
+                                <div class="facturacion-result-modal__meta-card">
+                                    <span class="facturacion-result-modal__meta-label">{{ $metaLabel }}</span>
+                                    @if ($metaType === 'link')
+                                        <a href="{{ $metaValue }}" target="_blank" rel="noopener" class="facturacion-result-modal__meta-link">Abrir documento</a>
+                                    @else
+                                        <strong class="facturacion-result-modal__meta-value">{{ $metaValue }}</strong>
+                                    @endif
+                                </div>
+                            @endif
+                        @endforeach
+                    </div>
+                @endif
+                @if (!empty($facturacionFeedback['detail']))
+                    <div class="facturacion-result-modal__detail">{{ $facturacionFeedback['detail'] }}</div>
+                @endif
+                <div class="facturacion-result-modal__actions">
+                    <button type="button" class="global-shortcut-primary-btn" id="facturacionResultModalAccept">Entendido</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if (is_array($facturacionQrData) && (!empty($facturacionQrData['image_data']) || !empty($facturacionQrData['transaction_id'])))
+        <div class="facturacion-qr-viewer" id="facturacionQrViewer" aria-hidden="true" role="dialog" aria-modal="true">
+            <div class="facturacion-qr-viewer__backdrop" data-close-facturacion-qr="true"></div>
+            <div class="facturacion-qr-viewer__panel" role="document">
+                <button type="button" class="facturacion-qr-viewer__close" id="facturacionQrViewerClose" aria-label="Cerrar QR">x</button>
+                <h4 class="facturacion-qr-viewer__title">QR de pago</h4>
+                <p class="facturacion-qr-viewer__subtitle">
+                    {{ (string) ($facturacionQrData['message'] ?? 'Escanee este QR para completar el pago.') }}
+                </p>
+                <div class="facturacion-qr-viewer__status">
+                    Estado:
+                    <strong>{{ strtoupper((string) ($facturacionQrData['payment_status'] ?? 'holding')) }}</strong>
+                    @if (!empty($facturacionQrData['transaction_id']))
+                        <span class="facturacion-qr-viewer__meta">| Tx: {{ $facturacionQrData['transaction_id'] }}</span>
+                    @endif
+                    @if (!empty($facturacionQrData['internal_code']))
+                        <span class="facturacion-qr-viewer__meta">| Orden: {{ $facturacionQrData['internal_code'] }}</span>
+                    @endif
+                </div>
+                @php
+                    $rawQrImage = trim((string) ($facturacionQrData['image_data'] ?? ''));
+                    $qrSrc = $rawQrImage;
+                    if ($rawQrImage !== '' && !str_starts_with($rawQrImage, 'data:image') && !preg_match('/^https?:\/\//i', $rawQrImage)) {
+                        $qrSrc = 'data:image/png;base64,' . $rawQrImage;
+                    }
+                @endphp
+                @if ($rawQrImage !== '')
+                    <div class="facturacion-qr-viewer__image-wrap">
+                        <img src="{{ $qrSrc }}" alt="QR de pago" class="facturacion-qr-viewer__image">
+                    </div>
+                @else
+                    <div class="facturacion-qr-viewer__empty">
+                        El proveedor recibio la venta, pero todavia no devolvio una imagen QR. Usa "Consultar estado" para refrescar la respuesta.
+                    </div>
+                @endif
+                <form method="POST" action="{{ route('facturacion.cart.consultar') }}" class="facturacion-qr-viewer__actions">
+                    @csrf
+                    <button type="submit" class="global-shortcut-primary-btn">Consultar estado</button>
+                </form>
+            </div>
+        </div>
+    @endif
 
     <style>
         .global-facturacion-fab {
@@ -785,6 +850,226 @@
         }
         .global-shortcut-modal.is-open .global-shortcut-modal__panel {
             transform: translateY(0) scale(1);
+        }
+        .facturacion-qr-viewer {
+            position: fixed;
+            inset: 0;
+            z-index: 1400;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .facturacion-qr-viewer.is-open {
+            display: flex;
+        }
+        .facturacion-qr-viewer__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(9, 22, 44, .6);
+            backdrop-filter: blur(3px);
+        }
+        .facturacion-qr-viewer__panel {
+            position: relative;
+            width: min(520px, calc(100vw - 34px));
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid #d6e4f4;
+            box-shadow: 0 20px 40px rgba(6, 20, 40, .35);
+            padding: 18px 18px 16px;
+            text-align: center;
+        }
+        .facturacion-qr-viewer__close {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            background: #eef4fd;
+            color: #1d467a;
+            font-weight: 800;
+        }
+        .facturacion-qr-viewer__title {
+            margin: 4px 0 4px;
+            font-size: 1.3rem;
+            color: #133b6e;
+            font-weight: 800;
+        }
+        .facturacion-qr-viewer__subtitle {
+            margin: 0 0 10px;
+            color: #496386;
+            font-size: .92rem;
+        }
+        .facturacion-qr-viewer__status {
+            margin-bottom: 12px;
+            color: #2e4f79;
+            font-size: .87rem;
+        }
+        .facturacion-qr-viewer__meta {
+            color: #6f83a3;
+            font-weight: 600;
+        }
+        .facturacion-qr-viewer__image-wrap {
+            border: 1px solid #d9e7f7;
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 280px;
+            margin-bottom: 14px;
+        }
+        .facturacion-qr-viewer__image {
+            max-width: min(360px, 80vw);
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .facturacion-qr-viewer__empty {
+            border: 1px dashed #c6d7ec;
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 18px 16px;
+            margin-bottom: 14px;
+            color: #496386;
+            font-size: .92rem;
+            text-align: center;
+        }
+        .facturacion-qr-viewer__actions {
+            display: flex;
+            justify-content: center;
+        }
+        .facturacion-result-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1390;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .facturacion-result-modal.is-open {
+            display: flex;
+        }
+        .facturacion-result-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(9, 22, 44, .56);
+            backdrop-filter: blur(3px);
+        }
+        .facturacion-result-modal__panel {
+            position: relative;
+            width: min(460px, calc(100vw - 32px));
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid #d6e4f4;
+            box-shadow: 0 22px 46px rgba(6, 20, 40, .28);
+            padding: 24px 22px 20px;
+            text-align: center;
+        }
+        .facturacion-result-modal__close {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            background: #eef4fd;
+            color: #1d467a;
+            font-weight: 800;
+        }
+        .facturacion-result-modal__icon {
+            width: 58px;
+            height: 58px;
+            margin: 0 auto 12px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        .facturacion-result-modal__icon--success {
+            background: #e9f8ee;
+            color: #23924d;
+        }
+        .facturacion-result-modal__icon--warning {
+            background: #fff4dd;
+            color: #b7791f;
+        }
+        .facturacion-result-modal__icon--error {
+            background: #fde8e8;
+            color: #c23d3d;
+        }
+        .facturacion-result-modal__icon--info {
+            background: #eaf2ff;
+            color: #2155a3;
+        }
+        .facturacion-result-modal__title {
+            margin: 0 0 8px;
+            font-size: 1.24rem;
+            color: #133b6e;
+            font-weight: 800;
+        }
+        .facturacion-result-modal__message {
+            margin: 0;
+            color: #2e4f79;
+            font-size: .98rem;
+        }
+        .facturacion-result-modal__meta-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 14px;
+            text-align: left;
+        }
+        .facturacion-result-modal__meta-card {
+            border: 1px solid #d9e7f7;
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 12px 13px;
+        }
+        .facturacion-result-modal__meta-label {
+            display: block;
+            margin-bottom: 4px;
+            color: #6d84a5;
+            font-size: .76rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .facturacion-result-modal__meta-value {
+            display: block;
+            color: #133b6e;
+            font-size: .96rem;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+        .facturacion-result-modal__meta-link {
+            color: #20539a;
+            font-size: .92rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .facturacion-result-modal__meta-link:hover,
+        .facturacion-result-modal__meta-link:focus {
+            text-decoration: underline;
+            color: #143d74;
+        }
+        .facturacion-result-modal__detail {
+            margin-top: 12px;
+            border-radius: 12px;
+            padding: 12px 14px;
+            background: #f5f9ff;
+            color: #577097;
+            font-size: .9rem;
+        }
+        .facturacion-result-modal__actions {
+            display: flex;
+            justify-content: center;
+            margin-top: 16px;
         }
         .global-shortcut-modal__body {
             flex: 1 1 auto;
@@ -1412,6 +1697,39 @@
             color: #4f627e;
             font-size: .83rem;
             font-weight: 700;
+        }
+        .global-shortcut-field-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .global-shortcut-field-head label {
+            margin-bottom: 0;
+        }
+        .global-shortcut-email-toggle {
+            display: inline-flex !important;
+            align-items: center;
+            gap: 6px;
+            color: #20539a !important;
+            font-size: .76rem !important;
+            font-weight: 800 !important;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .global-shortcut-email-toggle input {
+            width: 15px !important;
+            min-height: 15px !important;
+            height: 15px;
+            padding: 0 !important;
+            margin: 0;
+            cursor: pointer;
+        }
+        .global-shortcut-field input[readonly] {
+            background: #eef4fb;
+            color: #52657f;
+            cursor: not-allowed;
         }
         .global-shortcut-field input,
         .global-shortcut-field select {
@@ -2056,6 +2374,9 @@
             }
         }
         @media (max-width: 560px) {
+            .facturacion-result-modal__meta-grid {
+                grid-template-columns: 1fr;
+            }
             .global-shortcut-selector-block {
                 grid-template-columns: 1fr;
             }
@@ -2116,15 +2437,22 @@
             const facturacionProcessingState = document.getElementById('facturacionProcessingState');
             const facturacionProcessingText = document.getElementById('facturacionProcessingText');
             const facturacionFeedbackAlert = document.getElementById('facturacionFeedbackAlert');
+            const facturacionQrViewer = document.getElementById('facturacionQrViewer');
+            const facturacionQrViewerClose = document.getElementById('facturacionQrViewerClose');
+            const facturacionResultModal = document.getElementById('facturacionResultModal');
+            const facturacionResultModalClose = document.getElementById('facturacionResultModalClose');
+            const facturacionResultModalAccept = document.getElementById('facturacionResultModalAccept');
+            const invoiceChannelButtons = document.querySelectorAll('[data-invoice-channel-choice]');
             const confirmForms = document.querySelectorAll('.global-shortcut-confirm-form');
             const facturacionFlashFeedback = @json($facturacionFeedback);
             const facturacionDownloadPdf = @json($facturacionDownloadPdf);
+            const facturacionQrData = @json($facturacionQrData);
             const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
             const facturacionFieldNames = {
-                actividadEconomica: 'Actividad económica',
-                codigoSin: 'Código SIN',
-                codigo: 'Código de producto',
-                descripcion: 'Descripción del servicio',
+                actividadEconomica: 'Actividad econÃ³mica',
+                codigoSin: 'CÃ³digo SIN',
+                codigo: 'CÃ³digo de producto',
+                descripcion: 'DescripciÃ³n del servicio',
                 unidadMedida: 'Unidad de medida',
             };
             const facturacionFieldFocusMap = {
@@ -2183,6 +2511,80 @@
                 }
             };
 
+            const resolveScopedBillingForm = (contextElement) => {
+                if (!(contextElement instanceof HTMLElement)) {
+                    return facturacionBillingInlineForm;
+                }
+
+                const panel = contextElement.closest('.global-shortcut-modal__panel');
+                if (!(panel instanceof HTMLElement)) {
+                    return facturacionBillingInlineForm;
+                }
+
+                return panel.querySelector('#facturacionBillingInlineForm') || facturacionBillingInlineForm;
+            };
+
+            const syncEmitFormsWithBillingState = (contextElement = facturacionBillingInlineForm) => {
+                const scopedBillingForm = resolveScopedBillingForm(contextElement);
+                if (!(scopedBillingForm instanceof HTMLFormElement)) {
+                    return;
+                }
+
+                const panel = scopedBillingForm.closest('.global-shortcut-modal__panel');
+                const scopedConfirmForms = panel instanceof HTMLElement
+                    ? panel.querySelectorAll('.global-shortcut-confirm-form')
+                    : confirmForms;
+
+                const billingData = {
+                    modalidad_facturacion: 'con_datos',
+                    canal_emision: 'factura_electronica',
+                    tipo_documento: '',
+                    numero_documento: '',
+                    complemento_documento: '',
+                    razon_social: '',
+                    correo_facturacion: '',
+                };
+
+                const formFieldMap = {
+                    canal_emision: 'input[name="canal_emision"]',
+                    tipo_documento: 'input[name="tipo_documento"]',
+                    numero_documento: 'input[name="numero_documento"]',
+                    complemento_documento: 'input[name="complemento_documento"]',
+                    razon_social: 'input[name="razon_social"]',
+                    correo_facturacion: 'input[name="correo_facturacion"]',
+                };
+
+                Object.entries(formFieldMap).forEach(([key, selector]) => {
+                    const field = scopedBillingForm.querySelector(selector);
+                    if (field instanceof HTMLInputElement) {
+                        billingData[key] = String(field.value || '');
+                    }
+                });
+
+                billingData.canal_emision = String(billingData.canal_emision || 'factura_electronica').toLowerCase() === 'qr'
+                    ? 'qr'
+                    : 'factura_electronica';
+
+                scopedConfirmForms.forEach((form) => {
+                    if (!(form instanceof HTMLFormElement)) {
+                        return;
+                    }
+
+                    form.querySelectorAll('[data-emit-sync-field]').forEach((field) => {
+                        if (!(field instanceof HTMLInputElement)) {
+                            return;
+                        }
+
+                        const syncField = String(field.dataset.emitSyncField || '').trim();
+                        if (syncField === '' || !(syncField in billingData)) {
+                            return;
+                        }
+
+                        field.value = billingData[syncField];
+                    });
+                });
+            };
+
             const openFacturacionShortcutModal = () => {
                 facturacionShortcutLastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
                 facturacionShortcutModal.classList.add('is-open');
@@ -2204,6 +2606,48 @@
                 if (facturacionShortcutLastFocus) {
                     facturacionShortcutLastFocus.focus();
                 }
+            };
+
+            const openFacturacionQrViewer = () => {
+                if (!facturacionQrViewer) {
+                    return;
+                }
+                facturacionQrViewer.classList.add('is-open');
+                facturacionQrViewer.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('global-shortcut-open');
+            };
+
+            const closeFacturacionQrViewer = () => {
+                if (!facturacionQrViewer) {
+                    return;
+                }
+                facturacionQrViewer.classList.remove('is-open');
+                facturacionQrViewer.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('global-shortcut-open');
+            };
+
+            const openFacturacionResultModal = () => {
+                if (!facturacionResultModal) {
+                    return;
+                }
+                facturacionResultModal.classList.add('is-open');
+                facturacionResultModal.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('global-shortcut-open');
+
+                window.setTimeout(() => {
+                    if (facturacionResultModalAccept instanceof HTMLElement) {
+                        facturacionResultModalAccept.focus();
+                    }
+                }, 30);
+            };
+
+            const closeFacturacionResultModal = () => {
+                if (!facturacionResultModal) {
+                    return;
+                }
+                facturacionResultModal.classList.remove('is-open');
+                facturacionResultModal.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('global-shortcut-open');
             };
 
             const openFacturacionItemEditModal = (trigger) => {
@@ -2306,8 +2750,8 @@
                 }
 
                 pendingConfirmForm = form;
-                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || 'Confirmar acción';
-                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || 'Esta acción actualizará tu borrador de facturación.';
+                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || 'Confirmar acciÃ³n';
+                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || 'Esta acciÃ³n actualizarÃ¡ tu borrador de Facturación.';
                 if (facturacionActionConfirmNote && facturacionActionConfirmNoteBox) {
                     const hasCustomNote = form.hasAttribute('data-confirm-note');
                     const noteText = (form.dataset.confirmNote || '').trim();
@@ -2394,7 +2838,7 @@
                 });
             }
 
-            if (facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object') {
+            if (facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object' && facturacionFlashFeedback.action !== 'consultar') {
                 openFacturacionShortcutModal();
 
                 if (facturacionFeedbackAlert instanceof HTMLElement) {
@@ -2409,6 +2853,10 @@
                         }, 260);
                     }, 5200);
                 }
+            }
+
+            if (facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object' && facturacionFlashFeedback.action === 'consultar') {
+                openFacturacionResultModal();
             }
 
             if (facturacionDownloadPdf && typeof facturacionDownloadPdf === 'object' && facturacionDownloadPdf.url) {
@@ -2432,17 +2880,53 @@
                 }
             }
 
+            if (facturacionQrData && typeof facturacionQrData === 'object' && (facturacionQrData.image_data || facturacionQrData.transaction_id)) {
+                openFacturacionQrViewer();
+            }
+
+            if (facturacionQrViewerClose) {
+                facturacionQrViewerClose.addEventListener('click', closeFacturacionQrViewer);
+            }
+            if (facturacionQrViewer) {
+                facturacionQrViewer.addEventListener('click', function (event) {
+                    const target = event.target;
+                    if (!(target instanceof HTMLElement)) {
+                        return;
+                    }
+                    if (target.matches('[data-close-facturacion-qr]')) {
+                        closeFacturacionQrViewer();
+                    }
+                });
+            }
+            if (facturacionResultModalClose) {
+                facturacionResultModalClose.addEventListener('click', closeFacturacionResultModal);
+            }
+            if (facturacionResultModalAccept) {
+                facturacionResultModalAccept.addEventListener('click', closeFacturacionResultModal);
+            }
+            if (facturacionResultModal) {
+                facturacionResultModal.addEventListener('click', function (event) {
+                    const target = event.target;
+                    if (!(target instanceof HTMLElement)) {
+                        return;
+                    }
+                    if (target.matches('[data-close-facturacion-result]')) {
+                        closeFacturacionResultModal();
+                    }
+                });
+            }
+
             if (facturacionBillingInlineForm) {
                 let billingAutosaveTimeout = null;
-                const billingFields = facturacionBillingInlineForm.querySelectorAll('input, select');
-                const qrTemporarilyDisabled = facturacionBillingInlineForm.dataset.qrDisabled === 'true';
-                const qrForcedOnLoad = facturacionBillingInlineForm.dataset.qrForced === 'true';
-                const invoiceChannelChoices = facturacionBillingInlineForm.querySelectorAll('[data-invoice-channel-choice]');
+                let billingAutosavePromise = null;
+                const billingFields = facturacionBillingInlineForm.querySelectorAll('input:not([data-billing-email-toggle]), select');
                 const billingDocumentTypeField = document.getElementById('facturacionBillingDocumentType');
                 const billingDocumentTypeHiddenField = document.getElementById('facturacionBillingDocumentTypeHidden');
                 const billingDocumentNumberField = document.getElementById('facturacionBillingDocumentNumber');
                 const billingDocumentComplementField = document.getElementById('facturacionBillingDocumentComplement');
                 const billingNameField = document.getElementById('facturacionBillingName');
+                const billingEmailField = document.getElementById('facturacionBillingEmail');
+                const billingEmailToggle = document.getElementById('facturacionBillingEmailToggle');
 
                 const setAutosaveState = (state, message) => {
                     if (!facturacionAutosaveState) {
@@ -2456,11 +2940,15 @@
                     facturacionAutosaveState.textContent = message;
                 };
 
-                const submitBillingInlineForm = () => {
-                    const formData = new FormData(facturacionBillingInlineForm);
+                const submitBillingInlineForm = (targetForm = facturacionBillingInlineForm) => {
+                    if (!(targetForm instanceof HTMLFormElement)) {
+                        return Promise.resolve(false);
+                    }
+
+                    const formData = new FormData(targetForm);
                     setAutosaveState('is-saving', 'Guardando cambios...');
 
-                    fetch(facturacionBillingInlineForm.action, {
+                    billingAutosavePromise = fetch(targetForm.action, {
                         method: 'POST',
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest',
@@ -2474,10 +2962,14 @@
                             }
 
                             setAutosaveState('is-saved', 'Cambios guardados. Ya puedes reenviar.');
-                    })
+                            return true;
+                        })
                         .catch(() => {
                             setAutosaveState('is-error', 'No se pudieron guardar los cambios. Revisa los datos e intenta otra vez.');
+                            return false;
                         });
+
+                    return billingAutosavePromise;
                 };
 
                 const syncHiddenDocumentType = () => {
@@ -2508,12 +3000,6 @@
                     }
 
                     return changed;
-                };
-
-                const syncInvoiceChannelUi = (channel) => {
-                    invoiceChannelChoices.forEach((button) => {
-                        button.classList.toggle('is-active', button.dataset.invoiceChannelChoice === channel);
-                    });
                 };
 
                 const inferDocumentTypeFromNumber = (rawValue) => {
@@ -2569,13 +3055,42 @@
                     }
                 };
 
+                const syncBillingEmailMode = (shouldSubmit = false) => {
+                    if (!(billingEmailField instanceof HTMLInputElement)) {
+                        return;
+                    }
+
+                    const defaultEmail = String(billingEmailField.dataset.defaultEmail || 'safe@correos.gob.bo').trim().toLowerCase();
+                    const useClientEmail = billingEmailToggle instanceof HTMLInputElement && billingEmailToggle.checked;
+
+                    if (useClientEmail) {
+                        billingEmailField.readOnly = false;
+                        billingEmailField.setAttribute('aria-readonly', 'false');
+                        if (String(billingEmailField.value || '').trim().toLowerCase() === defaultEmail) {
+                            billingEmailField.value = '';
+                        }
+                        billingEmailField.focus();
+                    } else {
+                        billingEmailField.value = defaultEmail;
+                        billingEmailField.readOnly = true;
+                        billingEmailField.setAttribute('aria-readonly', 'true');
+                    }
+
+                    if (shouldSubmit) {
+                        window.clearTimeout(billingAutosaveTimeout);
+                        submitBillingInlineForm();
+                    }
+                };
+
                 billingFields.forEach((field) => {
                     field.addEventListener('input', function () {
+                        syncEmitFormsWithBillingState();
                         window.clearTimeout(billingAutosaveTimeout);
                         billingAutosaveTimeout = window.setTimeout(submitBillingInlineForm, 450);
                     });
 
                     field.addEventListener('change', function () {
+                        syncEmitFormsWithBillingState();
                         window.clearTimeout(billingAutosaveTimeout);
                         submitBillingInlineForm();
                     });
@@ -2584,6 +3099,7 @@
                 if (billingDocumentTypeField) {
                     billingDocumentTypeField.addEventListener('change', function () {
                         syncComplementVisibility();
+                        syncEmitFormsWithBillingState();
                     });
                 }
 
@@ -2601,11 +3117,17 @@
                         }
 
                         syncControlTributarioRule();
+                        syncEmitFormsWithBillingState();
                     });
                 }
 
                 if (billingNameField) {
                     billingNameField.addEventListener('input', function () {
+                        const upperName = String(billingNameField.value || '').toUpperCase();
+                        if (billingNameField.value !== upperName) {
+                            billingNameField.value = upperName;
+                        }
+
                         if (billingNameField.readOnly) {
                             return;
                         }
@@ -2632,41 +3154,88 @@
                             syncHiddenDocumentType();
                             syncComplementVisibility();
                         }
+
+                        syncEmitFormsWithBillingState();
                     });
                 }
 
-                invoiceChannelChoices.forEach((button) => {
-                    button.addEventListener('click', function () {
-                        if (!facturacionInvoiceChannelInput) {
-                            return;
+                if (billingEmailField) {
+                    billingEmailField.addEventListener('input', function () {
+                        const normalizedEmail = String(billingEmailField.value || '').trim().toLowerCase();
+                        if (billingEmailField.value !== normalizedEmail) {
+                            billingEmailField.value = normalizedEmail;
                         }
 
-                        facturacionInvoiceChannelInput.value = button.dataset.invoiceChannelChoice || 'qr';
-                        syncInvoiceChannelUi(facturacionInvoiceChannelInput.value);
-                        window.clearTimeout(billingAutosaveTimeout);
-                        submitBillingInlineForm();
+                        syncEmitFormsWithBillingState();
                     });
-                });
+                }
+
+                if (billingEmailToggle) {
+                    billingEmailToggle.addEventListener('change', function () {
+                        syncBillingEmailMode(true);
+                    });
+                }
+
                 if (facturacionBillingModeInput) {
                     facturacionBillingModeInput.value = 'con_datos';
                 }
-                if (qrTemporarilyDisabled && facturacionInvoiceChannelInput && facturacionInvoiceChannelInput.value === 'qr') {
-                    facturacionInvoiceChannelInput.value = 'factura_electronica';
+                if (facturacionInvoiceChannelInput) {
+                    const initialChannel = String(facturacionInvoiceChannelInput.value || 'factura_electronica').toLowerCase();
+                    facturacionInvoiceChannelInput.value = initialChannel === 'qr' ? 'qr' : 'factura_electronica';
                 }
-                syncInvoiceChannelUi(facturacionInvoiceChannelInput ? facturacionInvoiceChannelInput.value : 'qr');
+
+                invoiceChannelButtons.forEach((button) => {
+                    if (!(button instanceof HTMLButtonElement)) {
+                        return;
+                    }
+                    button.addEventListener('click', function () {
+                        const channel = String(button.dataset.invoiceChannelChoice || '').toLowerCase();
+                        if (!['factura_electronica', 'qr'].includes(channel)) {
+                            return;
+                        }
+
+                        const panel = button.closest('.global-shortcut-modal__panel');
+                        const scopedInput = panel instanceof HTMLElement
+                            ? panel.querySelector('#facturacionInvoiceChannelInput')
+                            : facturacionInvoiceChannelInput;
+                        const scopedButtons = panel instanceof HTMLElement
+                            ? panel.querySelectorAll('[data-invoice-channel-choice]')
+                            : invoiceChannelButtons;
+                        const scopedForm = panel instanceof HTMLElement
+                            ? panel.querySelector('#facturacionBillingInlineForm')
+                            : facturacionBillingInlineForm;
+
+                        if (scopedInput instanceof HTMLInputElement) {
+                            scopedInput.value = channel;
+                        }
+
+                        scopedButtons.forEach((candidate) => {
+                            if (candidate instanceof HTMLElement) {
+                                candidate.classList.toggle('is-active', candidate === button);
+                            }
+                        });
+
+                        syncEmitFormsWithBillingState(scopedForm instanceof HTMLFormElement ? scopedForm : facturacionBillingInlineForm);
+                        window.clearTimeout(billingAutosaveTimeout);
+                        submitBillingInlineForm(scopedForm instanceof HTMLFormElement ? scopedForm : facturacionBillingInlineForm);
+                    });
+                });
+
                 syncHiddenDocumentType();
                 syncComplementVisibility();
+                syncBillingEmailMode(false);
                 const controlTributarioAdjustedOnLoad = syncControlTributarioRule();
-                if (controlTributarioAdjustedOnLoad || qrForcedOnLoad) {
+                syncEmitFormsWithBillingState();
+                if (controlTributarioAdjustedOnLoad) {
                     window.clearTimeout(billingAutosaveTimeout);
                     submitBillingInlineForm();
                 }
             }
 
-            if (facturacionActionConfirmModal && facturacionActionConfirmCancel && facturacionActionConfirmAccept) {
+                if (facturacionActionConfirmModal && facturacionActionConfirmCancel && facturacionActionConfirmAccept) {
                 facturacionActionConfirmCancel.addEventListener('click', closeFacturacionActionConfirm);
 
-                facturacionActionConfirmAccept.addEventListener('click', function () {
+                facturacionActionConfirmAccept.addEventListener('click', async function () {
                     if (!pendingConfirmForm) {
                         closeFacturacionActionConfirm();
                         return;
@@ -2677,6 +3246,17 @@
                     facturacionActionConfirmModal.classList.remove('is-open');
                     facturacionActionConfirmModal.setAttribute('aria-hidden', 'true');
                     setFacturacionSubmittingState(form, true);
+                    syncEmitFormsWithBillingState(form);
+
+                    if (form.dataset.requiresBillingSync === 'true') {
+                        const scopedBillingForm = resolveScopedBillingForm(form);
+                        const syncOk = await submitBillingInlineForm(scopedBillingForm instanceof HTMLFormElement ? scopedBillingForm : facturacionBillingInlineForm);
+                        if (!syncOk) {
+                            setFacturacionSubmittingState(null, false);
+                            return;
+                        }
+                    }
+
                     form.submit();
                 });
 
@@ -2702,6 +3282,11 @@
                     return;
                 }
 
+                if (event.key === 'Escape' && facturacionQrViewer && facturacionQrViewer.classList.contains('is-open')) {
+                    closeFacturacionQrViewer();
+                    return;
+                }
+
                 if (event.key === 'Escape' && facturacionShortcutModal.classList.contains('is-open')) {
                     if (isFacturacionSubmitting) {
                         return;
@@ -2718,6 +3303,7 @@
 @endif
 
 
+@endonce
 
 
 

@@ -6,6 +6,7 @@ use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Servicio;
+use App\Models\SolicitudCliente;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\RequestException;
@@ -13,6 +14,13 @@ use Illuminate\Support\Facades\Http;
 
 class FacturacionCartService
 {
+    private const EMS_SOLICITUD_FISCAL_DATA = [
+        'actividad_economica' => '841001',
+        'codigo_sin' => '99100',
+        'unidad_medida' => 58,
+        'descripcion_servicio' => 'Envios de paqueteria',
+    ];
+
     public function fetchCajaEstado(User $user): array
     {
         $body = $this->request('GET', '/caja/estado', array_merge(
@@ -214,6 +222,72 @@ class FacturacionCartService
         return $cart;
     }
 
+    public function addSolicitudEms(User $user, SolicitudCliente $solicitud): object
+    {
+        $this->assertFacturacionPermission($user);
+
+        $solicitud->loadMissing(['servicioExtra', 'tarifarioTiktoker.servicioExtra']);
+        $montoBase = round((float) ($solicitud->precio ?? 0), 2);
+        $nombreServicio = trim((string) (
+            $solicitud->servicioExtra->nombre
+            ?? optional($solicitud->tarifarioTiktoker)->servicioExtra->nombre
+            ?? 'EMS'
+        ));
+        $fiscalData = $this->resolveSolicitudEmsFiscalData($nombreServicio);
+
+        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+            $this->originUserPayload($user),
+            $this->originSucursalPayload($user),
+            [
+                'origen_tipo' => SolicitudCliente::class,
+                'origen_id' => (int) $solicitud->id,
+                'codigo' => (string) ($solicitud->codigo_solicitud ?? ''),
+                'titulo' => 'Solicitud EMS',
+                'nombre_servicio' => $nombreServicio,
+                'nombre_destinatario' => (string) ($solicitud->nombre_destinatario ?? ''),
+                'servicios_extra' => [],
+                'resumen_origen' => [
+                    'codigo' => (string) ($solicitud->codigo_solicitud ?? ''),
+                    'contenido' => (string) ($solicitud->contenido ?? ''),
+                    'peso' => (float) ($solicitud->peso ?? 0),
+                    'destinatario' => (string) ($solicitud->nombre_destinatario ?? ''),
+                    'direccion' => (string) ($solicitud->direccion ?? ''),
+                    'ciudad' => (string) ($solicitud->ciudad ?? ''),
+                    'actividad_economica' => $fiscalData['actividad_economica'],
+                    'codigo_sin' => $fiscalData['codigo_sin'],
+                    'codigo_producto' => $fiscalData['codigo_producto'],
+                    'descripcion_servicio' => $fiscalData['descripcion_servicio'],
+                    'unidad_medida' => $fiscalData['unidad_medida'],
+                ],
+                'cantidad' => max(1, (int) ($solicitud->cantidad ?? 1)),
+                'monto_base' => $montoBase,
+                'monto_extras' => 0,
+                'total_linea' => $montoBase,
+            ]
+        ));
+
+        $cart = $this->toCart(data_get($body, 'cart'));
+        if (!$cart) {
+            throw new \RuntimeException('No se pudo guardar la solicitud EMS en facturacion.');
+        }
+
+        return $cart;
+    }
+
+    private function resolveSolicitudEmsFiscalData(?string $nombreServicioExtra): array
+    {
+        $nombre = strtoupper(trim((string) $nombreServicioExtra));
+        $codigoProducto = 'SRVE-01';
+
+        if (str_contains($nombre, 'VENTANILLA A VENTANILLA')) {
+            $codigoProducto = 'SRVE-02';
+        }
+
+        return array_merge(self::EMS_SOLICITUD_FISCAL_DATA, [
+            'codigo_producto' => $codigoProducto,
+        ]);
+    }
+
     public function addPaqueteOrdi(User $user, PaqueteOrdi $paquete): object
     {
         $this->assertFacturacionPermission($user);
@@ -300,13 +374,14 @@ class FacturacionCartService
         return $this->toCart(data_get($body, 'cart'));
     }
 
-    public function emitirBorrador(User $user): array
+    public function emitirBorrador(User $user, array $overrides = []): array
     {
         $ctx = $this->getRemoteContextForUser($user);
         $this->ensureDraftItemsFiscalDataSynced($user, $ctx['draft'] ?? null);
         $this->ensureDraftSucursalSynced($user);
 
         $body = $this->request('POST', '/cart/emitir', array_merge(
+            $overrides,
             $this->originUserPayload($user),
             $this->originSucursalPayload($user)
         ));
@@ -366,7 +441,16 @@ class FacturacionCartService
             'limite' => $limite,
         ], fn ($value) => $value !== null && $value !== '');
 
-        $body = $this->request('GET', '/ventas/reportes/kardex-usuarios', $payload);
+        try {
+            $body = $this->request('GET', '/ventas/reportes/kardex-usuarios', $payload);
+        } catch (\RuntimeException $e) {
+            if (!str_starts_with($e->getMessage(), '404')) {
+                throw $e;
+            }
+
+            // Compatibilidad con APIs que exponen el reporte sin el prefijo /ventas.
+            $body = $this->request('GET', '/reportes/kardex-usuarios', $payload);
+        }
 
         return [
             'detalle' => collect((array) data_get($body, 'detalle', []))
@@ -778,11 +862,11 @@ class FacturacionCartService
             return $payload;
         }
 
-        $payload['motivo'] = match ($canalEmision) {
-            'qr' => 'qr',
-            'factura_electronica' => 'factura electronica',
-            default => (string) ($payload['motivo'] ?? ''),
-        };
+        if (!in_array($canalEmision, ['factura_electronica', 'qr'], true)) {
+            $canalEmision = 'factura_electronica';
+        }
+        $payload['canal_emision'] = $canalEmision;
+        $payload['motivo'] = $canalEmision === 'qr' ? 'qr' : 'factura electronica';
 
         return $payload;
     }
@@ -925,6 +1009,10 @@ class FacturacionCartService
             if ($servicio instanceof Servicio) {
                 return $this->resolveFiscalServicio($servicio);
             }
+        }
+
+        if ($origenTipo === ltrim(SolicitudCliente::class, '\\')) {
+            return $this->resolveFiscalServicio($this->resolveModuloServicio('EMS'));
         }
 
         return null;

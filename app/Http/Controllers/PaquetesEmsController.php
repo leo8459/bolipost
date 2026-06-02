@@ -14,6 +14,7 @@ use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
+use App\Services\FacturacionCartService;
 use App\Support\SolicitudCode;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -122,6 +123,7 @@ class PaquetesEmsController extends Controller
                 ->orderBy('id')
                 ->get(['id', 'nombre', 'descripcion']),
             'ciudades' => self::CIUDADES_BOLIVIA,
+            'canUseFacturacionShortcut' => $this->canUseFacturacionShortcut(Auth::user()),
         ]);
     }
 
@@ -384,28 +386,27 @@ class PaquetesEmsController extends Controller
 
         $solicitudId = (int) ($data['solicitud_id'] ?? 0);
         $solicitud = null;
-
         if ($solicitudId > 0) {
             $solicitud = SolicitudCliente::query()->find($solicitudId);
         }
 
         if ($solicitud) {
             $solicitud->update($payload);
+            $solicitud->refresh();
+        } else {
+            $solicitud = SolicitudCliente::query()->create(array_merge($payload, [
+                'cliente_id' => null,
+            ]));
 
-            return redirect()
-                ->route('paquetes-ems.solicitudes.ticket', $solicitud);
+            $codigoSolicitud = SolicitudCode::make((int) $solicitud->id, $solicitud->origen);
+
+            $solicitud->update([
+                'codigo_solicitud' => $codigoSolicitud,
+                'barcode' => $codigoSolicitud,
+            ]);
+
+            $solicitud->refresh();
         }
-
-        $solicitud = SolicitudCliente::query()->create(array_merge($payload, [
-            'cliente_id' => null,
-        ]));
-
-        $codigoSolicitud = SolicitudCode::make((int) $solicitud->id, $solicitud->origen);
-
-        $solicitud->update([
-            'codigo_solicitud' => $codigoSolicitud,
-            'barcode' => $codigoSolicitud,
-        ]);
 
         $actorUserId = (int) optional(Auth::user())->id;
         if ($actorUserId > 0) {
@@ -416,8 +417,31 @@ class PaquetesEmsController extends Controller
             );
         }
 
+        $user = Auth::user();
+        if ($this->canUseFacturacionShortcut($user)) {
+            try {
+                app(FacturacionCartService::class)->addSolicitudEms($user, $solicitud);
+            } catch (\Throwable $e) {
+                report($e);
+
+                return redirect()
+                    ->route('paquetes-ems.solicitudes.index')
+                    ->with('error', 'La solicitud se guardo, pero no se pudo agregar al carrito de facturacion.');
+            }
+
+            return redirect()
+                ->route('paquetes-ems.solicitudes.index')
+                ->with('success', 'Solicitud guardada y agregada al carrito de facturacion.')
+                ->with('solicitud_ticket_url', route('paquetes-ems.solicitudes.ticket', $solicitud));
+        }
+
         return redirect()
             ->route('paquetes-ems.solicitudes.ticket', $solicitud);
+    }
+
+    private function canUseFacturacionShortcut($user): bool
+    {
+        return (bool) ($user && method_exists($user, 'can') && $user->can('feature.dashboard.facturacion'));
     }
 
     public function ticketSolicitud(Request $request, SolicitudCliente $solicitud)
