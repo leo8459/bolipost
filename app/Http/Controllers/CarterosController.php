@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Cartero;
+use App\Models\CarteroAssignmentReport;
 use App\Models\Estado;
 use App\Models\Evento;
 use App\Models\PaqueteCerti;
@@ -94,14 +95,33 @@ class CarterosController extends Controller
             'feature.carteros.distribucion.selfassign',
         ]);
 
-        $reports = (array) $request->session()->get('carteros.assignment_reports', []);
-        $report = $reports[$token] ?? null;
+        $storedReport = CarteroAssignmentReport::query()
+            ->with(['assignedUser:id,name,ciudad', 'actorUser:id,name,ciudad'])
+            ->where('token', $token)
+            ->orWhere('codigo', $token)
+            ->first();
+
+        $report = $storedReport ? [
+            'rows' => $storedReport->rows ?? [],
+            'assigned_at' => $storedReport->assigned_at,
+            'assigned_user' => $storedReport->assignedUser,
+            'actor_user' => $storedReport->actorUser,
+            'regional' => $storedReport->regional,
+            'summary_by_type' => $storedReport->summary_by_type ?? [],
+            'total_assigned' => (int) $storedReport->total_assigned,
+            'codigo_reporte' => $storedReport->codigo,
+        ] : null;
+
+        if (! $report) {
+            $reports = (array) $request->session()->get('carteros.assignment_reports', []);
+            $report = $reports[$token] ?? null;
+        }
 
         if (!is_array($report) || empty($report['rows'])) {
             abort(404, 'No se encontro el reporte de asignacion solicitado.');
         }
 
-        $filename = 'reporte-asignacion-cartero-' . $token . '.pdf';
+        $filename = 'reporte-asignacion-cartero-' . ($report['codigo_reporte'] ?? $token) . '.pdf';
         $pdf = Pdf::loadView('carteros.asignacion-reporte', $report)->setPaper('A4', 'portrait');
 
         return $pdf->stream($filename);
@@ -1564,6 +1584,7 @@ class CarterosController extends Controller
     {
         $rows = $this->buildAssignmentReportRows($items);
         $token = (string) Str::uuid();
+        $codigo = $this->nextAssignmentReportCode();
         $assignee = User::query()->find($assigneeUserId, ['id', 'name', 'ciudad']);
         $actor = User::query()->find($actorUserId, ['id', 'name', 'ciudad']);
         $assignedAt = now();
@@ -1582,7 +1603,39 @@ class CarterosController extends Controller
             'regional' => $this->resolveAssignmentRegional($rows, $assignee, $actor),
             'summary_by_type' => $summaryByType,
             'total_assigned' => count($rows),
+            'codigo_reporte' => $codigo,
         ];
+
+        DB::transaction(function () use ($codigo, $token, $assigneeUserId, $actorUserId, $assignedAt, $summaryByType, $rows) {
+            $report = CarteroAssignmentReport::query()->create([
+                'codigo' => $codigo,
+                'token' => $token,
+                'assigned_user_id' => $assigneeUserId > 0 ? $assigneeUserId : null,
+                'actor_user_id' => $actorUserId > 0 ? $actorUserId : null,
+                'regional' => $this->resolveAssignmentRegional(
+                    $rows,
+                    User::query()->find($assigneeUserId, ['id', 'name', 'ciudad']),
+                    User::query()->find($actorUserId, ['id', 'name', 'ciudad'])
+                ),
+                'assigned_at' => $assignedAt,
+                'total_assigned' => count($rows),
+                'summary_by_type' => $summaryByType,
+                'rows' => $rows,
+            ]);
+
+            $items = collect($rows)
+                ->map(fn ($row) => [
+                    'tipo_paquete' => strtoupper((string) ($row['tipo_paquete'] ?? '')),
+                    'paquete_id' => (int) ($row['id'] ?? 0),
+                    'codigo' => (string) ($row['codigo'] ?? ''),
+                ])
+                ->filter(fn ($row) => $row['tipo_paquete'] !== '' && $row['paquete_id'] > 0)
+                ->values();
+
+            foreach ($items as $item) {
+                $report->items()->create($item);
+            }
+        });
 
         if (count($reports) > 10) {
             $reports = array_slice($reports, -10, null, true);
@@ -1591,6 +1644,15 @@ class CarterosController extends Controller
         $request->session()->put('carteros.assignment_reports', $reports);
 
         return $token;
+    }
+
+    private function nextAssignmentReportCode(): string
+    {
+        do {
+            $code = 'RS-' . now()->format('Ymd-His') . '-' . strtoupper(Str::random(4));
+        } while (CarteroAssignmentReport::query()->where('codigo', $code)->exists());
+
+        return $code;
     }
 
     private function buildAssignmentReportRows(array $items): array
@@ -1643,6 +1705,7 @@ class CarterosController extends Controller
 
                 return [
                     'no' => $index + 1,
+                    'id' => $id,
                     'tipo_paquete' => $tipo,
                     'codigo' => (string) $pkg->codigo,
                     'codigo_regional' => (string) ($pkg->cod_especial ?? ''),
@@ -1659,6 +1722,7 @@ class CarterosController extends Controller
 
                 return [
                     'no' => $index + 1,
+                    'id' => $id,
                     'tipo_paquete' => $tipo,
                     'codigo' => (string) $pkg->codigo,
                     'destinatario' => (string) $pkg->destinatario,
@@ -1673,6 +1737,7 @@ class CarterosController extends Controller
 
                 return [
                     'no' => $index + 1,
+                    'id' => $id,
                     'tipo_paquete' => $tipo,
                     'codigo' => (string) $pkg->codigo,
                     'destinatario' => (string) $pkg->destinatario,
@@ -1687,6 +1752,7 @@ class CarterosController extends Controller
 
                 return [
                     'no' => $index + 1,
+                    'id' => $id,
                     'tipo_paquete' => $tipo,
                     'codigo' => (string) $pkg->codigo,
                     'codigo_regional' => (string) ($pkg->cod_especial ?? ''),
@@ -1703,6 +1769,7 @@ class CarterosController extends Controller
 
                 return [
                     'no' => $index + 1,
+                    'id' => $id,
                     'tipo_paquete' => $tipo,
                     'codigo' => (string) ($pkg->codigo_solicitud ?: $pkg->barcode ?: 'SIN CODIGO'),
                     'destinatario' => (string) $pkg->nombre_destinatario,

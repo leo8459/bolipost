@@ -90,6 +90,7 @@
                                 <th>Telefono</th>
                                 <th>Peso</th>
                                 <th>Precio</th>
+                                <th>Reporte salida</th>
                                 <th>Estado</th>
                                 <th>Actualizado</th>
                                 <th></th>
@@ -107,6 +108,22 @@
                                     <td>{{ $paquete->telefono ?: '-' }}</td>
                                     <td>{{ $paquete->peso !== '' ? $paquete->peso : '-' }}</td>
                                     <td>{{ $paquete->precio !== '' ? $paquete->precio : '-' }}</td>
+                                    <td>
+                                        @if(!empty($paquete->salida_report_codigo))
+                                            <a
+                                                href="{{ route('todos-paquetes.reporte-salida', ['codigo' => $paquete->salida_report_codigo]) }}"
+                                                class="btn btn-sm btn-warning tp-report-btn"
+                                                title="Reimprimir reporte de salida {{ $paquete->salida_report_codigo }}"
+                                                target="_blank"
+                                            >
+                                                <i class="fas fa-file-pdf"></i>
+                                                <span>Reimprimir reporte</span>
+                                            </a>
+                                            <div class="small text-muted mt-1">{{ $paquete->salida_report_codigo }}</div>
+                                        @else
+                                            <span class="text-muted small">Sin reporte</span>
+                                        @endif
+                                    </td>
                                     <td style="min-width: 190px;">
                                         <form method="POST" action="{{ route('todos-paquetes.estado', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}">
                                             @csrf
@@ -155,7 +172,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center text-muted py-4">No hay paquetes con los filtros seleccionados.</td>
+                                    <td colspan="13" class="text-center text-muted py-4">No hay paquetes con los filtros seleccionados.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -284,6 +301,16 @@
             align-items:center;
             gap:6px;
             white-space:nowrap;
+        }
+        .tp-report-btn {
+            color:#10233f;
+            font-weight:800;
+            display:inline-flex;
+            align-items:center;
+            gap:5px;
+        }
+        .tp-report-btn:hover {
+            color:#10233f;
         }
     </style>
 @endsection

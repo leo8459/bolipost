@@ -566,6 +566,10 @@ class AclPermissionRegistry
             'feature.todos-paquetes.index.print',
             'feature.todos-paquetes.index.edit',
         ],
+        'todos-paquetes.reporte-salida' => [
+            'todos-paquetes.reporte-salida',
+            'feature.todos-paquetes.index.print',
+        ],
         'paquetes-ems.boleta' => [
             'paquetes-ems.boleta',
             'feature.paquetes-ems.index.print',

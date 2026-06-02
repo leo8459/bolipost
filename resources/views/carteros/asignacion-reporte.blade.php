@@ -74,7 +74,7 @@
         </tr>
         <tr>
             <td><strong>Fecha:</strong> {{ $assignedAtText }}</td>
-            <td></td>
+            <td class="center"><strong>Codigo reporte:</strong> {{ $codigo_reporte ?? '-' }}</td>
         </tr>
     </table>
 

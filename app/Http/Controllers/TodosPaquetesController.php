@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Estado;
+use App\Models\CarteroAssignmentReport;
+use App\Models\CarteroAssignmentReportItem;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
@@ -139,6 +141,7 @@ class TodosPaquetesController extends Controller
             ->orderByDesc('record_id');
 
         $paquetes = $query->paginate(25)->withQueryString();
+        $this->attachSalidaReports($paquetes->getCollection());
         $estados = Estado::query()->orderBy('nombre_estado')->get(['id', 'nombre_estado']);
         $editing = $this->resolveEditing($request);
 
@@ -225,6 +228,81 @@ class TodosPaquetesController extends Controller
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'contrato-' . $contrato->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
+    public function reporteSalida(string $codigo)
+    {
+        $report = CarteroAssignmentReport::query()
+            ->with(['assignedUser:id,name,ciudad', 'actorUser:id,name,ciudad'])
+            ->where('codigo', $codigo)
+            ->firstOrFail();
+
+        $pdf = Pdf::loadView('carteros.asignacion-reporte', [
+            'rows' => $report->rows ?? [],
+            'assigned_at' => $report->assigned_at,
+            'assigned_user' => $report->assignedUser,
+            'actor_user' => $report->actorUser,
+            'regional' => $report->regional,
+            'summary_by_type' => $report->summary_by_type ?? [],
+            'total_assigned' => (int) $report->total_assigned,
+            'codigo_reporte' => $report->codigo,
+        ])->setPaper('A4', 'portrait');
+
+        return $pdf->stream('reporte-salida-' . $report->codigo . '.pdf');
+    }
+
+    private function attachSalidaReports($paquetes): void
+    {
+        $typeMap = [
+            'ems' => 'EMS',
+            'contrato' => 'CONTRATO',
+            'certi' => 'CERTI',
+            'ordi' => 'ORDI',
+            'solicitud' => 'SOLICITUD',
+        ];
+
+        $pairs = collect($paquetes)
+            ->map(fn ($paquete) => [
+                'tipo' => $typeMap[$paquete->type_key] ?? '',
+                'id' => (int) $paquete->record_id,
+            ])
+            ->filter(fn ($pair) => $pair['tipo'] !== '' && $pair['id'] > 0)
+            ->unique(fn ($pair) => $pair['tipo'] . ':' . $pair['id'])
+            ->values();
+
+        if ($pairs->isEmpty()) {
+            return;
+        }
+
+        $items = CarteroAssignmentReportItem::query()
+            ->select([
+                'cartero_assignment_report_items.tipo_paquete',
+                'cartero_assignment_report_items.paquete_id',
+                'cartero_assignment_reports.codigo',
+                'cartero_assignment_reports.assigned_at',
+            ])
+            ->join('cartero_assignment_reports', 'cartero_assignment_reports.id', '=', 'cartero_assignment_report_items.cartero_assignment_report_id')
+            ->where(function ($query) use ($pairs) {
+                foreach ($pairs as $pair) {
+                    $query->orWhere(function ($sub) use ($pair) {
+                        $sub->where('cartero_assignment_report_items.tipo_paquete', $pair['tipo'])
+                            ->where('cartero_assignment_report_items.paquete_id', $pair['id']);
+                    });
+                }
+            })
+            ->orderByDesc('cartero_assignment_reports.assigned_at')
+            ->get()
+            ->unique(fn ($item) => $item->tipo_paquete . ':' . $item->paquete_id)
+            ->keyBy(fn ($item) => $item->tipo_paquete . ':' . $item->paquete_id);
+
+        $paquetes->transform(function ($paquete) use ($typeMap, $items) {
+            $key = ($typeMap[$paquete->type_key] ?? '') . ':' . (int) $paquete->record_id;
+            $report = $items->get($key);
+            $paquete->salida_report_codigo = $report?->codigo;
+            $paquete->salida_report_assigned_at = $report?->assigned_at;
+
+            return $paquete;
+        });
     }
 
     private function buildUnionQuery()
