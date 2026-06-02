@@ -160,7 +160,16 @@ class CarterosController extends Controller
     {
         $this->authorizeRoutePermission('carteros.distribucion');
 
-        return $this->combinedDataResponse($request);
+        return $this->combinedDataResponse(
+            $request,
+            null,
+            null,
+            false,
+            false,
+            false,
+            null,
+            $this->normalizeUserCity((string) optional($request->user())->ciudad)
+        );
     }
 
     public function asignadosData(Request $request): JsonResponse
@@ -325,6 +334,20 @@ class CarterosController extends Controller
         $previousOrdiStates = PaqueteOrdi::query()->whereIn('id', $ordiIds)->pluck('fk_estado', 'id')->map(fn ($value) => (int) $value)->all();
         $previousContratoStates = RecojoContrato::query()->whereIn('id', $contratoIds)->pluck('estados_id', 'id')->map(fn ($value) => (int) $value)->all();
         $previousSolicitudStates = SolicitudCliente::query()->whereIn('id', $solicitudIds)->pluck('estado_id', 'id')->map(fn ($value) => (int) $value)->all();
+        $destinationConflicts = $this->packageDestinationConflicts($validated['items'], (string) ($assigneeUser?->ciudad ?? ''));
+        if ($destinationConflicts !== []) {
+            throw ValidationException::withMessages([
+                'items' => 'Solo puedes asignar paquetes con destino igual al departamento del cartero: ' . implode(' ', $destinationConflicts),
+            ]);
+        }
+
+        $assignmentConflicts = $this->assignedToAnotherUserConflicts($validated['items'], $assigneeUserId);
+        if ($assignmentConflicts !== []) {
+            throw ValidationException::withMessages([
+                'items' => 'No se puede asignar: ' . implode(' ', $assignmentConflicts),
+            ]);
+        }
+
         DB::transaction(function () use (
             &$updatedEms,
             &$updatedCerti,
@@ -344,8 +367,16 @@ class CarterosController extends Controller
             $previousCertiStates,
             $previousOrdiStates,
             $previousContratoStates,
-            $previousSolicitudStates
+            $previousSolicitudStates,
+            $validated
         ) {
+            $assignmentConflicts = $this->assignedToAnotherUserConflicts($validated['items'], $assigneeUserId, true);
+            if ($assignmentConflicts !== []) {
+                throw ValidationException::withMessages([
+                    'items' => 'No se puede asignar: ' . implode(' ', $assignmentConflicts),
+                ]);
+            }
+
             if (!empty($emsIds)) {
                 $updatedEms = PaqueteEms::query()
                     ->whereIn('id', $emsIds)
@@ -589,7 +620,21 @@ class CarterosController extends Controller
         $previousOrdiStates = PaqueteOrdi::query()->whereIn('id', $ordiIds)->pluck('fk_estado', 'id')->map(fn ($value) => (int) $value)->all();
         $previousContratoStates = RecojoContrato::query()->whereIn('id', $contratoIds)->pluck('estados_id', 'id')->map(fn ($value) => (int) $value)->all();
         $previousSolicitudStates = SolicitudCliente::query()->whereIn('id', $solicitudIds)->pluck('estado_id', 'id')->map(fn ($value) => (int) $value)->all();
-        DB::transaction(function () use (&$updatedEms, &$updatedCerti, &$updatedOrdi, &$updatedContrato, &$updatedSolicitud, $emsIds, $certiIds, $ordiIds, $contratoIds, $solicitudIds, $estadoCarteroId, $actorUserId) {
+        $assignmentConflicts = $this->assignedToAnotherUserConflicts($validated['items'], $actorUserId);
+        if ($assignmentConflicts !== []) {
+            throw ValidationException::withMessages([
+                'items' => 'No se puede aceptar: ' . implode(' ', $assignmentConflicts),
+            ]);
+        }
+
+        DB::transaction(function () use (&$updatedEms, &$updatedCerti, &$updatedOrdi, &$updatedContrato, &$updatedSolicitud, $emsIds, $certiIds, $ordiIds, $contratoIds, $solicitudIds, $estadoCarteroId, $actorUserId, $validated) {
+            $assignmentConflicts = $this->assignedToAnotherUserConflicts($validated['items'], $actorUserId, true);
+            if ($assignmentConflicts !== []) {
+                throw ValidationException::withMessages([
+                    'items' => 'No se puede aceptar: ' . implode(' ', $assignmentConflicts),
+                ]);
+            }
+
             if (!empty($emsIds)) {
                 $updatedEms = PaqueteEms::query()->whereIn('id', $emsIds)->update(['estado_id' => $estadoCarteroId]);
                 foreach ($emsIds as $id) {
@@ -1694,7 +1739,7 @@ class CarterosController extends Controller
         return strtoupper($regional !== '' ? $regional : 'SIN REGIONAL');
     }
 
-    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false, bool $includePackageStateMatches = false, bool $matchUserCity = false, ?array $allowedPackageTypes = null): JsonResponse
+    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false, bool $includePackageStateMatches = false, bool $matchUserCity = false, ?array $allowedPackageTypes = null, ?string $destinationCity = null): JsonResponse
     {
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
@@ -2069,6 +2114,13 @@ class CarterosController extends Controller
             ->concat($solicitudes)
             ->sortByDesc('created_at')
             ->values();
+
+        $destinationCity = $this->normalizeUserCity((string) $destinationCity);
+        if ($destinationCity !== '') {
+            $all = $all
+                ->filter(fn ($row) => $this->normalizeUserCity((string) ($row['ciudad'] ?? '')) === $destinationCity)
+                ->values();
+        }
 
         if (is_array($allowedPackageTypes)) {
             $allowedPackageTypes = collect($allowedPackageTypes)
@@ -2944,6 +2996,177 @@ class CarterosController extends Controller
             . ' a '
             . ($assigneeName !== '' ? $assigneeName : 'SIN USUARIO')
             . '.';
+    }
+
+    private function assignedToAnotherUserConflicts(array $items, int $assigneeUserId, bool $lockForUpdate = false): array
+    {
+        if ($assigneeUserId <= 0 || $items === []) {
+            return [];
+        }
+
+        $idsByType = collect(['EMS', 'CERTI', 'ORDI', 'CONTRATO', 'SOLICITUD'])
+            ->mapWithKeys(function ($type) use ($items) {
+                return [
+                    $type => collect($items)
+                        ->where('tipo_paquete', $type)
+                        ->pluck('id')
+                        ->map(fn ($id) => (int) $id)
+                        ->filter(fn ($id) => $id > 0)
+                        ->unique()
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->all();
+
+        if (collect($idsByType)->flatten()->isEmpty()) {
+            return [];
+        }
+
+        $assignmentsQuery = Cartero::query()
+            ->with('user:id,name')
+            ->whereNotNull('id_user')
+            ->where('id_user', '<>', $assigneeUserId)
+            ->where('id_estados', $this->resolveEstadoCarteroId())
+            ->where(function ($query) use ($idsByType) {
+                if ($idsByType['EMS'] !== []) {
+                    $query->orWhereIn('id_paquetes_ems', $idsByType['EMS']);
+                }
+                if ($idsByType['CERTI'] !== []) {
+                    $query->orWhereIn('id_paquetes_certi', $idsByType['CERTI']);
+                }
+                if ($idsByType['ORDI'] !== []) {
+                    $query->orWhereIn('id_paquetes_ordi', $idsByType['ORDI']);
+                }
+                if ($idsByType['CONTRATO'] !== []) {
+                    $query->orWhereIn('id_paquetes_contrato', $idsByType['CONTRATO']);
+                }
+                if ($idsByType['SOLICITUD'] !== []) {
+                    $query->orWhereIn('id_solicitud_cliente', $idsByType['SOLICITUD']);
+                }
+            });
+
+        if ($lockForUpdate) {
+            $assignmentsQuery->lockForUpdate();
+        }
+
+        $assignments = $assignmentsQuery->get();
+
+        if ($assignments->isEmpty()) {
+            return [];
+        }
+
+        $codes = [
+            'EMS' => PaqueteEms::query()->whereIn('id', $idsByType['EMS'])->pluck('codigo', 'id')->all(),
+            'CERTI' => PaqueteCerti::query()->whereIn('id', $idsByType['CERTI'])->pluck('codigo', 'id')->all(),
+            'ORDI' => PaqueteOrdi::query()->whereIn('id', $idsByType['ORDI'])->pluck('codigo', 'id')->all(),
+            'CONTRATO' => RecojoContrato::query()->whereIn('id', $idsByType['CONTRATO'])->pluck('codigo', 'id')->all(),
+            'SOLICITUD' => SolicitudCliente::query()
+                ->whereIn('id', $idsByType['SOLICITUD'])
+                ->select(['id', DB::raw("COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO') as codigo")])
+                ->pluck('codigo', 'id')
+                ->all(),
+        ];
+
+        return $assignments
+            ->map(function (Cartero $assignment) use ($codes) {
+                [$type, $id] = $this->assignmentTypeAndPackageId($assignment);
+                $code = $codes[$type][$id] ?? ('ID ' . $id);
+                $assignedTo = trim((string) optional($assignment->user)->name);
+
+                return "{$type} {$code} ya esta asignado a " . ($assignedTo !== '' ? $assignedTo : 'otro usuario') . '.';
+            })
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function packageDestinationConflicts(array $items, string $expectedCity): array
+    {
+        $expectedCity = $this->normalizeUserCity($expectedCity);
+        if ($expectedCity === '' || $items === []) {
+            return [];
+        }
+
+        $idsByType = collect(['EMS', 'CERTI', 'ORDI', 'CONTRATO', 'SOLICITUD'])
+            ->mapWithKeys(function ($type) use ($items) {
+                return [
+                    $type => collect($items)
+                        ->where('tipo_paquete', $type)
+                        ->pluck('id')
+                        ->map(fn ($id) => (int) $id)
+                        ->filter(fn ($id) => $id > 0)
+                        ->unique()
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->all();
+
+        $rows = collect();
+
+        if ($idsByType['EMS'] !== []) {
+            $rows = $rows->concat(PaqueteEms::query()
+                ->whereIn('id', $idsByType['EMS'])
+                ->get(['id', 'codigo', 'ciudad'])
+                ->map(fn ($item) => ['tipo' => 'EMS', 'codigo' => $item->codigo, 'ciudad' => $item->ciudad]));
+        }
+
+        if ($idsByType['CERTI'] !== []) {
+            $rows = $rows->concat(PaqueteCerti::query()
+                ->whereIn('id', $idsByType['CERTI'])
+                ->get(['id', 'codigo', 'cuidad'])
+                ->map(fn ($item) => ['tipo' => 'CERTI', 'codigo' => $item->codigo, 'ciudad' => $item->cuidad]));
+        }
+
+        if ($idsByType['ORDI'] !== []) {
+            $rows = $rows->concat(PaqueteOrdi::query()
+                ->whereIn('id', $idsByType['ORDI'])
+                ->get(['id', 'codigo', 'ciudad'])
+                ->map(fn ($item) => ['tipo' => 'ORDI', 'codigo' => $item->codigo, 'ciudad' => $item->ciudad]));
+        }
+
+        if ($idsByType['CONTRATO'] !== []) {
+            $rows = $rows->concat(RecojoContrato::query()
+                ->whereIn('id', $idsByType['CONTRATO'])
+                ->get(['id', 'codigo', 'destino'])
+                ->map(fn ($item) => ['tipo' => 'CONTRATO', 'codigo' => $item->codigo, 'ciudad' => $item->destino]));
+        }
+
+        if ($idsByType['SOLICITUD'] !== []) {
+            $rows = $rows->concat(SolicitudCliente::query()
+                ->whereIn('id', $idsByType['SOLICITUD'])
+                ->select(['id', DB::raw("COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO') as codigo"), 'ciudad'])
+                ->get()
+                ->map(fn ($item) => ['tipo' => 'SOLICITUD', 'codigo' => $item->codigo, 'ciudad' => $item->ciudad]));
+        }
+
+        return $rows
+            ->filter(fn ($row) => $this->normalizeUserCity((string) ($row['ciudad'] ?? '')) !== $expectedCity)
+            ->map(function ($row) use ($expectedCity) {
+                $destino = trim((string) ($row['ciudad'] ?? 'SIN DESTINO'));
+                return "{$row['tipo']} {$row['codigo']} tiene destino {$destino}, no {$expectedCity}.";
+            })
+            ->values()
+            ->all();
+    }
+
+    private function assignmentTypeAndPackageId(Cartero $assignment): array
+    {
+        if ((int) ($assignment->id_paquetes_ems ?? 0) > 0) {
+            return ['EMS', (int) $assignment->id_paquetes_ems];
+        }
+        if ((int) ($assignment->id_paquetes_certi ?? 0) > 0) {
+            return ['CERTI', (int) $assignment->id_paquetes_certi];
+        }
+        if ((int) ($assignment->id_paquetes_ordi ?? 0) > 0) {
+            return ['ORDI', (int) $assignment->id_paquetes_ordi];
+        }
+        if ((int) ($assignment->id_paquetes_contrato ?? 0) > 0) {
+            return ['CONTRATO', (int) $assignment->id_paquetes_contrato];
+        }
+
+        return ['SOLICITUD', (int) $assignment->id_solicitud_cliente];
     }
 
     private function devolucionPackageTypesForUser(?User $user): ?array

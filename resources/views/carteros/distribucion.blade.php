@@ -10,6 +10,7 @@
         $canSelfAssignDistribucion = $canAssignDistribucion || (auth()->user()?->can('feature.carteros.distribucion.selfassign') ?? false);
     @endphp
     <div class="carteros-wrap">
+        <div id="distribution-toast" class="distribution-toast" role="status" aria-live="polite"></div>
         <div class="card card-carteros">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center flex-wrap">
@@ -209,6 +210,37 @@
             border-radius: 12px;
             font-weight: 800;
         }
+        .distribution-toast {
+            position: fixed;
+            top: 82px;
+            right: 24px;
+            z-index: 1080;
+            max-width: min(420px, calc(100vw - 32px));
+            padding: 14px 16px;
+            border-radius: 12px;
+            color: #fff;
+            background: #20539A;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+            font-weight: 800;
+            line-height: 1.35;
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+        .distribution-toast.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .distribution-toast.is-warning {
+            background: #d97706;
+        }
+        .distribution-toast.is-danger {
+            background: #b42318;
+        }
+        .distribution-toast.is-success {
+            background: #166534;
+        }
     </style>
 @endsection
 
@@ -241,6 +273,7 @@
             const selectedTypeSummary = document.getElementById('selected-type-summary');
             const clearSelectionButton = document.getElementById('btn-clear-selection');
             const openReportButton = document.getElementById('btn-open-report');
+            const distributionToast = document.getElementById('distribution-toast');
             const csrfToken = '{{ csrf_token() }}';
             const canAssignDistribucion = @json($canAssignDistribucion);
             const canSelfAssignDistribucion = @json($canSelfAssignDistribucion);
@@ -345,6 +378,22 @@
             function showMessage(text, type) {
                 assignMsg.className = 'small text-' + type;
                 assignMsg.innerHTML = text;
+            }
+
+            function showToast(text, type) {
+                if (!distributionToast || !text) return;
+
+                distributionToast.className = 'distribution-toast is-' + (type || 'info');
+                distributionToast.textContent = text;
+                window.clearTimeout(distributionToast.dataset.timerId);
+                requestAnimationFrame(function() {
+                    distributionToast.classList.add('is-visible');
+                });
+
+                const timerId = window.setTimeout(function() {
+                    distributionToast.classList.remove('is-visible');
+                }, 5200);
+                distributionToast.dataset.timerId = String(timerId);
             }
 
             function updatePagination(meta) {
@@ -480,7 +529,9 @@
                     const rows = payload.data || [];
 
                     if (!rows.length) {
-                        showMessage('No se encontro ese codigo.', 'warning');
+                        const message = 'No se encontro ese codigo o el paquete no tiene destino igual al departamento del usuario.';
+                        showMessage(message, 'warning');
+                        showToast(message, 'warning');
                         return;
                     }
 
