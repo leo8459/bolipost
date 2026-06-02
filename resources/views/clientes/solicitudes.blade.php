@@ -56,6 +56,7 @@
                                     <option
                                         value="{{ $servicioExtra->id }}"
                                         data-servicio-nombre="{{ strtolower((string) $servicioExtra->nombre) }}"
+                                        data-servicio-descripcion="{{ strtolower((string) $servicioExtra->descripcion) }}"
                                         @selected((int) old('servicio_extra_id') === (int) $servicioExtra->id)
                                     >
                                         {{ $servicioExtra->descripcion ?: $servicioExtra->nombre }}
@@ -163,21 +164,37 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     const defaultDireccion = direccionInput.value;
+    const direccionVentanilla = 'CORREOS DE BOLIVIA';
+
+    function normalizeText(value) {
+        return String(value || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
 
     function syncDireccionEntrega() {
         const selectedOption = servicioSelect.options[servicioSelect.selectedIndex];
-        const servicioNombre = (selectedOption?.dataset?.servicioNombre || '').toLowerCase();
-        const esVentanillaAVentanilla = servicioNombre.includes('ventanilla a ventanilla');
+        const servicioTexto = normalizeText([
+            selectedOption?.dataset?.servicioNombre,
+            selectedOption?.dataset?.servicioDescripcion,
+            selectedOption?.textContent,
+        ].join(' '));
+        const esPuertaAVentanilla = servicioTexto.includes('puerta a ventanilla');
 
-        if (esVentanillaAVentanilla) {
-            direccionInput.value = 'CORREOS DE BOLIVIA';
+        if (esPuertaAVentanilla) {
+            direccionInput.value = direccionVentanilla;
             direccionInput.setAttribute('readonly', 'readonly');
+            direccionInput.classList.add('bg-light');
             return;
         }
 
         direccionInput.removeAttribute('readonly');
+        direccionInput.classList.remove('bg-light');
 
-        if (direccionInput.value === 'CORREOS DE BOLIVIA' && defaultDireccion !== 'CORREOS DE BOLIVIA') {
+        if (direccionInput.value === direccionVentanilla && defaultDireccion !== direccionVentanilla) {
             direccionInput.value = defaultDireccion;
         }
     }

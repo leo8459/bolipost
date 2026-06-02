@@ -19,6 +19,7 @@ use Illuminate\View\View;
 class ClienteSolicitudController extends Controller
 {
     private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 295;
+    private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
 
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
@@ -91,6 +92,7 @@ class ClienteSolicitudController extends Controller
 
         try {
             $destino = Destino::query()->findOrFail((int) $data['destino_id']);
+            $servicioExtra = ServicioExtra::query()->findOrFail((int) $data['servicio_extra_id']);
             $estadoSolicitudId = $this->resolveSolicitudEstadoId();
         } catch (\RuntimeException $exception) {
             return redirect()
@@ -98,6 +100,10 @@ class ClienteSolicitudController extends Controller
                 ->withInput()
                 ->withErrors(['estado' => $exception->getMessage()]);
         }
+
+        $direccionEntrega = $this->isPuertaAVentanillaService($servicioExtra)
+            ? self::DIRECCION_DESTINATARIO_VENTANILLA
+            : trim((string) $data['direccion_entrega']);
 
         $solicitud = SolicitudCliente::query()->create([
             'cliente_id' => (int) $cliente->id,
@@ -117,7 +123,7 @@ class ClienteSolicitudController extends Controller
             'nombre_destinatario' => $this->upper($data['nombre_destinatario']),
             'telefono_destinatario' => $this->nullableTrim($data['telefono_destinatario'] ?? null),
             'direccion_recojo' => trim((string) $data['direccion_recojo']),
-            'direccion' => trim((string) $data['direccion_entrega']),
+            'direccion' => $direccionEntrega,
             'ciudad' => $this->upper((string) $destino->nombre_destino),
             'servicio_id' => null,
             'destino_id' => (int) $data['destino_id'],
@@ -192,6 +198,27 @@ class ClienteSolicitudController extends Controller
         $text = trim((string) $value);
 
         return $text === '' ? null : $text;
+    }
+
+    private function isPuertaAVentanillaService(ServicioExtra $servicioExtra): bool
+    {
+        $text = $this->normalizeServiceText(
+            (string) $servicioExtra->nombre . ' ' . (string) $servicioExtra->descripcion
+        );
+
+        return str_contains($text, 'puerta a ventanilla');
+    }
+
+    private function normalizeServiceText(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = str_replace(
+            ['á', 'é', 'í', 'ó', 'ú', 'ñ'],
+            ['a', 'e', 'i', 'o', 'u', 'n'],
+            $value
+        );
+
+        return preg_replace('/\s+/', ' ', $value) ?: '';
     }
 
     private function registrarEventoTiktokerCreacionCliente(SolicitudCliente $solicitud, int $clienteId): void
