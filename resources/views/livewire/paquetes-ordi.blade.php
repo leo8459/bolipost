@@ -173,6 +173,16 @@
                     <p class="mb-0">{{ session('success') }}</p>
                 </div>
             @endif
+            @if (session()->has('warning'))
+                <div class="alert alert-warning m-3">
+                    <p class="mb-0">{{ session('warning') }}</p>
+                </div>
+            @endif
+            @if (session()->has('error'))
+                <div class="alert alert-danger m-3">
+                    <p class="mb-0">{{ session('error') }}</p>
+                </div>
+            @endif
 
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">

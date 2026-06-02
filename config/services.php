@@ -44,6 +44,13 @@ return [
         'base_url' => env('SOLICITUDES_SYNC_BASE_URL', 'https://gescon.correos.gob.bo:8459/'),
     ],
 
+    'paquetes_ordinarios_api' => [
+        'base_url' => env('PAQUETES_ORDINARIOS_API_BASE_URL', 'https://admin.correos.gob.bo:8101/api'),
+        'token' => env('PAQUETES_ORDINARIOS_API_TOKEN'),
+        'timeout' => (int) env('PAQUETES_ORDINARIOS_API_TIMEOUT', 10),
+        'ssl_verify' => (bool) env('PAQUETES_ORDINARIOS_API_SSL_VERIFY', false),
+    ],
+
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),

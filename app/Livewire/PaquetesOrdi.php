@@ -403,33 +403,51 @@ class PaquetesOrdi extends Component
         try {
             $servicioModulo = $this->resolveOrCreateModuloServicio();
 
-            $response = Http::withToken('eZMlItx6mQMNZjxoijEvf7K3pYvGGXMvEHmQcqvtlAPOEAPgyKDVOpyF7JP0ilbK')
-                ->withoutVerifying()
-                ->timeout(10)
-                ->get('https://admin.correos.gob.bo:8101/api/despacho/' . urlencode($codigo));
+            $baseUrl = rtrim((string) config('services.paquetes_ordinarios_api.base_url'), '/');
+            $token = trim((string) config('services.paquetes_ordinarios_api.token'));
+            $timeout = (int) config('services.paquetes_ordinarios_api.timeout', 10);
+            $verifySsl = (bool) config('services.paquetes_ordinarios_api.ssl_verify', false);
+
+            if ($baseUrl === '' || $token === '') {
+                session()->flash('error', 'API externa: falta configurar PAQUETES_ORDINARIOS_API_BASE_URL o PAQUETES_ORDINARIOS_API_TOKEN en el archivo .env.');
+                return null;
+            }
+
+            $request = Http::withToken($token)->timeout($timeout);
+
+            if (!$verifySsl) {
+                $request = $request->withoutVerifying();
+            }
+
+            $response = $request->get($baseUrl . '/despacho/' . urlencode($codigo));
 
             if (!$response->successful()) {
-                session()->flash('success', 'API externa: error HTTP ' . $response->status() . '.');
+                if ($response->status() === 401) {
+                    session()->flash('error', 'API externa: no autorizado (HTTP 401). El token esta vencido o no corresponde; actualiza PAQUETES_ORDINARIOS_API_TOKEN en .env.');
+                    return null;
+                }
+
+                session()->flash('error', 'API externa: error HTTP ' . $response->status() . '.');
                 return null;
             }
 
             $json = $response->json();
 
             if (!($json['success'] ?? false) || empty($json['data'])) {
-                session()->flash('success', 'API externa: el codigo no fue encontrado.');
+                session()->flash('warning', 'API externa: el codigo no fue encontrado.');
                 return null;
             }
 
             $data = $json['data'];
 
             if (strtoupper(trim($data['ESTADO'] ?? '')) !== 'ENVIADO') {
-                session()->flash('success', 'API externa: el paquete no esta en estado ENVIADO (estado: ' . ($data['ESTADO'] ?? 'desconocido') . ').');
+                session()->flash('warning', 'API externa: el paquete no esta en estado ENVIADO (estado: ' . ($data['ESTADO'] ?? 'desconocido') . ').');
                 return null;
             }
 
             $ventanilla = \App\Models\Ventanilla::whereRaw('trim(upper(nombre_ventanilla)) = ?', ['DD'])->first();
             if (!$ventanilla) {
-                session()->flash('success', 'API externa: ventanilla "DD" no existe en el sistema.');
+                session()->flash('error', 'API externa: ventanilla "DD" no existe en el sistema.');
                 return null;
             }
 
@@ -452,7 +470,7 @@ class PaquetesOrdi extends Component
 
             return $paquete;
         } catch (\Throwable $e) {
-            session()->flash('success', 'API externa: error al procesar (' . $e->getMessage() . ').');
+            session()->flash('error', 'API externa: error al procesar (' . $e->getMessage() . ').');
             return null;
         }
     }
