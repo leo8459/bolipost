@@ -492,14 +492,10 @@ class BusquedaController extends Controller
         $office = trim((string) ($evento['office'] ?? ''));
         $nextOffice = trim((string) ($evento['nextOffice'] ?? ''));
         $detail = trim((string) ($evento['detail'] ?? ''));
-        $rutaTexto = $nextOffice . ' ' . $detail . ' ' . $office;
-        $destinoIso2Ruta = $this->extraerIso2DestinoDesdeRuta($rutaTexto);
-        $origenIso2Ruta = $this->extraerIso2OrigenDesdeRuta($rutaTexto);
         $ciudadOrigen = trim((string) (
             $evento['ciudad_origen']
             ?? $evento['origen']
             ?? data_get($payload, 'origen')
-            ?? ($origenIso2Ruta ? $this->nombrePaisDesdeIso2Simple($origenIso2Ruta) : '')
             ?? ''
         ));
         $ciudadDestino = trim((string) (
@@ -510,7 +506,6 @@ class BusquedaController extends Controller
             ?? data_get($payload, 'country_destino')
             ?? data_get($payload, 'meta.destino')
             ?? data_get($payload, 'meta.pais_destino')
-            ?? ($destinoIso2Ruta ? $this->nombrePaisDesdeIso2Simple($destinoIso2Ruta) : '')
             ?? ''
         ));
         $nombreEvento = (string) (
@@ -543,6 +538,7 @@ class BusquedaController extends Controller
             'tabla_origen' => $evento['tabla_origen'] ?? 'api_sqlserver',
             'office' => $office,
             'next_office' => $nextOffice,
+            'descripcion' => $detail !== '' ? $detail : null,
             'ciudad_origen' => $ciudadOrigen !== '' ? $ciudadOrigen : null,
             'ciudad_destino' => $ciudadDestino !== '' ? $ciudadDestino : null,
             'condition' => trim((string) ($evento['condition'] ?? '')),

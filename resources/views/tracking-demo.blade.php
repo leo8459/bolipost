@@ -190,6 +190,37 @@
 
             return null;
         };
+        $extraerRutaInternacional = function (?string $texto) use ($normalizarIso2, $nombrePaisDesdeIso2): ?array {
+            $raw = strtoupper(trim((string) $texto));
+            if ($raw === '') {
+                return null;
+            }
+
+            if (preg_match('/([A-Z0-9]{12,})/', $raw, $match) !== 1) {
+                return null;
+            }
+
+            $token = (string) ($match[1] ?? '');
+            if (strlen($token) < 12) {
+                return null;
+            }
+
+            $origenIso2 = $normalizarIso2(substr($token, 0, 2));
+            $destinoIso2 = $normalizarIso2(substr($token, 6, 2));
+
+            if ($origenIso2 === null || $destinoIso2 === null) {
+                return null;
+            }
+
+            if ($nombrePaisDesdeIso2($origenIso2) === null || $nombrePaisDesdeIso2($destinoIso2) === null) {
+                return null;
+            }
+
+            return [
+                'origen' => $origenIso2,
+                'destino' => $destinoIso2,
+            ];
+        };
         $extraerPaisDesdeOffice = function (?string $valor) use ($normalizarNombrePais, $iso2DesdeNombrePais, $nombrePaisDesdeIso2): string {
             $textoOriginal = trim((string) $valor);
             if ($textoOriginal === '') {
@@ -279,9 +310,34 @@
             ->first(fn (?string $ciudad) => $ciudad !== null && $ciudad !== '');
         $ciudadDestinoLocal = trim((string) ($eventos->firstWhere('ciudad_destino')?->ciudad_destino ?? ''));
         $destinoIso2DesdeCiudad = $ciudadDestinoLocal !== '' ? $iso2DesdeNombrePais($ciudadDestinoLocal) : null;
+        $rutaInternacionalSaliente = $eventos
+            ->reverse()
+            ->map(function ($item) use ($extraerRutaInternacional) {
+                foreach ([
+                    $item->descripcion ?? null,
+                    $item->office ?? null,
+                    $item->next_office ?? null,
+                ] as $texto) {
+                    $ruta = $extraerRutaInternacional($texto);
+                    if ($ruta !== null) {
+                        return $ruta;
+                    }
+                }
+
+                return null;
+            })
+            ->first(function (?array $ruta) {
+                return is_array($ruta)
+                    && ($ruta['origen'] ?? null) === 'BO'
+                    && ($ruta['destino'] ?? null) !== null
+                    && ($ruta['destino'] ?? null) !== 'BO';
+            });
         $preferirOrigenExterno = $paisOrigenExterno !== '' && $origenExternoIso2 !== 'BO' && !$esCodigoBoliviano;
 
-        if ($preferirOrigenExterno) {
+        if ($esCodigoBoliviano && is_array($rutaInternacionalSaliente)) {
+            $origenLabel = $nombrePaisDesdeIso2('BO') ?? 'Bolivia';
+            $origenIso2 = 'BO';
+        } elseif ($preferirOrigenExterno) {
             $origenLabel = $paisOrigenExterno;
             $origenIso2 = $origenExternoIso2;
         } elseif ($ciudadOrigenLocal !== '') {
@@ -325,16 +381,29 @@
             && str_ends_with($codigoS10, 'BO')
             && $ciudadDestinoLocal === ''
             && $hasEdiInboundSignals;
+        $destinoDeducidoSoloPorOficinaBoliviana = $esCodigoBoliviano
+            && $ciudadDestinoLocal === ''
+            && !is_array($rutaInternacionalSaliente)
+            && $destinoIso2 === 'BO';
         $esDestinoNacional = !$forzarInternacional
+            && !$destinoDeducidoSoloPorOficinaBoliviana
             && (
                 ($ciudadDestinoLocal !== '' && $destinoIso2DesdeCiudad === null)
                 || $destinoIso2 === 'BO'
                 || $servicioActual === 'CONTRATO'
             );
-        $destinoLabel = $ciudadDestinoLocal !== ''
-            ? ucwords(mb_strtolower($ciudadDestinoLocal))
-            : ($esDestinoNacional ? 'Nacional' : ($destinoIso2 ?? 'Internacional'));
-        $destinoBanderaIso2 = $destinoIso2DesdeCiudad ?? ($esDestinoNacional ? 'BO' : $destinoIso2);
+        if ($esCodigoBoliviano && is_array($rutaInternacionalSaliente)) {
+            $destinoBanderaIso2 = $rutaInternacionalSaliente['destino'];
+            $destinoLabel = $nombrePaisDesdeIso2($destinoBanderaIso2) ?? $destinoBanderaIso2;
+        } elseif ($destinoDeducidoSoloPorOficinaBoliviana) {
+            $destinoLabel = 'Internacional';
+            $destinoBanderaIso2 = null;
+        } else {
+            $destinoLabel = $ciudadDestinoLocal !== ''
+                ? ucwords(mb_strtolower($ciudadDestinoLocal))
+                : ($esDestinoNacional ? 'Nacional' : ($destinoIso2 ?? 'Internacional'));
+            $destinoBanderaIso2 = $destinoIso2DesdeCiudad ?? ($esDestinoNacional ? 'BO' : $destinoIso2);
+        }
         $esEventoLocalBolivia = function ($evento) use ($detectarDepartamentoBolivia) {
             $office = trim((string) ($evento->office ?? ''));
             $nextOffice = trim((string) ($evento->next_office ?? ''));
