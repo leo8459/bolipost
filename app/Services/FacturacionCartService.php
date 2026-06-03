@@ -9,6 +9,7 @@ use App\Models\Servicio;
 use App\Models\SolicitudCliente;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
@@ -603,18 +604,26 @@ class FacturacionCartService
 
     private function request(string $method, string $path, array $payload = []): array
     {
+        $timeout = (int) config('services.facturacion_bridge.timeout', 30);
+        $connectTimeout = (int) config('services.facturacion_bridge.connect_timeout', min(10, max(3, $timeout)));
+
         $client = Http::baseUrl($this->resolveBaseUrl())
             ->withToken((string) config('services.facturacion_bridge.token'))
             ->acceptJson()
-            ->timeout((int) config('services.facturacion_bridge.timeout', 30))
+            ->timeout($timeout)
+            ->connectTimeout($connectTimeout)
             ->withOptions(['verify' => config('services.facturacion_bridge.ssl_verify', true)]);
 
-        $response = match (strtoupper($method)) {
-            'GET' => $client->get($path, $payload),
-            'PUT' => $client->put($path, $payload),
-            'DELETE' => $client->send('DELETE', $path, ['json' => $payload]),
-            default => $client->post($path, $payload),
-        };
+        try {
+            $response = match (strtoupper($method)) {
+                'GET' => $client->get($path, $payload),
+                'PUT' => $client->put($path, $payload),
+                'DELETE' => $client->send('DELETE', $path, ['json' => $payload]),
+                default => $client->post($path, $payload),
+            };
+        } catch (ConnectionException $e) {
+            throw new \RuntimeException($this->connectionFailureMessage($e, $path, $timeout), 0, $e);
+        }
 
         try {
             $response->throw();
@@ -646,6 +655,29 @@ class FacturacionCartService
         $contentType = (string) ($response->header('Content-Type') ?? 'desconocido');
         $snippet = mb_substr($rawBody, 0, 240);
         throw new \RuntimeException('Respuesta no valida de API facturacion. status=' . $response->status() . ' content_type=' . $contentType . ' body=' . $snippet);
+    }
+
+    private function connectionFailureMessage(ConnectionException $e, string $path, int $timeout): string
+    {
+        $message = $e->getMessage();
+
+        if (str_contains($message, 'cURL error 28') || str_contains(strtolower($message), 'timed out')) {
+            if ($path === '/cart/emitir') {
+                return 'La API de facturacion no respondio en ' . $timeout . ' segundos. La emision pudo haber quedado en proceso; espera un momento y usa Consultar estado antes de volver a emitir.';
+            }
+
+            return 'La API de facturacion no respondio en ' . $timeout . ' segundos. Intenta nuevamente en unos momentos.';
+        }
+
+        if (str_contains($message, 'cURL error 7')) {
+            return 'No se pudo conectar con la API de facturacion. Verifica que el servicio local este levantado en FACTURACION_BRIDGE_BASE_URL.';
+        }
+
+        if (str_contains($message, 'cURL error 35') || str_contains(strtolower($message), 'connection was reset')) {
+            return 'La conexion con la API de facturacion fue cerrada antes de responder. Intenta consultar el estado de la factura o reintenta cuando el servicio este estable.';
+        }
+
+        return 'No se pudo conectar con la API de facturacion: ' . $message;
     }
 
     private function decodeJsonBody($response): ?array

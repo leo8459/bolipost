@@ -570,6 +570,10 @@ class AclPermissionRegistry
             'todos-paquetes.reporte-salida',
             'feature.todos-paquetes.index.print',
         ],
+        'todos-paquetes.reporte-salida.cambiar-cartero' => [
+            'todos-paquetes.reporte-salida.cambiar-cartero',
+            'feature.todos-paquetes.index.edit',
+        ],
         'paquetes-ems.boleta' => [
             'paquetes-ems.boleta',
             'feature.paquetes-ems.index.print',

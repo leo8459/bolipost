@@ -74,6 +74,11 @@
             gap: 12px;
         }
 
+        .cliente-login-actions form {
+            margin: 0;
+            width: 100%;
+        }
+
         .cliente-login-primary,
         .cliente-login-secondary,
         .cliente-login-hero-cta {
@@ -102,6 +107,7 @@
             color: #3c4043;
             box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
             padding: 0 20px;
+            cursor: pointer;
         }
 
         .cliente-login-primary:hover,
@@ -231,15 +237,18 @@
             </div>
 
             <div class="cliente-login-actions">
-                <a href="{{ route('auth.google.redirect') }}" class="cliente-login-primary">
-                    <svg class="cliente-google-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.5 3.9-5.4 3.9-3.2 0-5.9-2.7-5.9-6s2.7-6 5.9-6c1.8 0 3 .8 3.7 1.5l2.5-2.4C16.7 3.7 14.6 2.8 12 2.8 6.9 2.8 2.8 6.9 2.8 12S6.9 21.2 12 21.2c6.3 0 8.8-4.4 8.8-6.7 0-.5 0-.8-.1-1.2H12Z"/>
-                        <path fill="#4285F4" d="M3.8 7 7 9.3C7.9 7.5 9.8 6.2 12 6.2c1.8 0 3 .8 3.7 1.5l2.5-2.4C16.7 3.7 14.6 2.8 12 2.8 8.4 2.8 5.3 4.8 3.8 7Z"/>
-                        <path fill="#FBBC05" d="M12 21.2c2.5 0 4.6-.8 6.1-2.2l-2.8-2.3c-.8.6-1.8 1-3.3 1-3.8 0-5.2-2.5-5.4-3.8L3.5 16c1.5 3 4.6 5.2 8.5 5.2Z"/>
-                        <path fill="#34A853" d="M6.6 13.9c-.1-.4-.2-.9-.2-1.4s.1-1 .2-1.4L3.5 8.9C3 9.9 2.8 10.9 2.8 12s.3 2.1.7 3.1l3.1-1.2Z"/>
-                    </svg>
-                    <span class="cliente-google-text">Iniciar con Google</span>
-                </a>
+                <form method="POST" action="{{ route('clientes.login.store') }}">
+                    @csrf
+                    <button type="submit" class="cliente-login-primary">
+                        <svg class="cliente-google-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.5 3.9-5.4 3.9-3.2 0-5.9-2.7-5.9-6s2.7-6 5.9-6c1.8 0 3 .8 3.7 1.5l2.5-2.4C16.7 3.7 14.6 2.8 12 2.8 6.9 2.8 2.8 6.9 2.8 12S6.9 21.2 12 21.2c6.3 0 8.8-4.4 8.8-6.7 0-.5 0-.8-.1-1.2H12Z"/>
+                            <path fill="#4285F4" d="M3.8 7 7 9.3C7.9 7.5 9.8 6.2 12 6.2c1.8 0 3 .8 3.7 1.5l2.5-2.4C16.7 3.7 14.6 2.8 12 2.8 8.4 2.8 5.3 4.8 3.8 7Z"/>
+                            <path fill="#FBBC05" d="M12 21.2c2.5 0 4.6-.8 6.1-2.2l-2.8-2.3c-.8.6-1.8 1-3.3 1-3.8 0-5.2-2.5-5.4-3.8L3.5 16c1.5 3 4.6 5.2 8.5 5.2Z"/>
+                            <path fill="#34A853" d="M6.6 13.9c-.1-.4-.2-.9-.2-1.4s.1-1 .2-1.4L3.5 8.9C3 9.9 2.8 10.9 2.8 12s.3 2.1.7 3.1l3.1-1.2Z"/>
+                        </svg>
+                        <span class="cliente-google-text">Iniciar con Google</span>
+                    </button>
+                </form>
                 <a href="{{ route('clientes.register') }}" class="cliente-login-secondary">
                     <svg class="cliente-google-icon" viewBox="0 0 24 24" aria-hidden="true">
                         <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.5 3.9-5.4 3.9-3.2 0-5.9-2.7-5.9-6s2.7-6 5.9-6c1.8 0 3 .8 3.7 1.5l2.5-2.4C16.7 3.7 14.6 2.8 12 2.8 6.9 2.8 2.8 6.9 2.8 12S6.9 21.2 12 21.2c6.3 0 8.8-4.4 8.8-6.7 0-.5 0-.8-.1-1.2H12Z"/>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Estado;
+use App\Models\Cartero;
 use App\Models\CarteroAssignmentReport;
 use App\Models\CarteroAssignmentReportItem;
 use App\Models\PaqueteCerti;
@@ -10,6 +11,7 @@ use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\SolicitudCliente;
+use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -19,6 +21,8 @@ use Illuminate\Validation\Rule;
 
 class TodosPaquetesController extends Controller
 {
+    private const DISTRIBUTION_ASSIGNEE_ROLES = ['cartero'];
+
     private const TYPES = [
         'ems' => [
             'label' => 'EMS',
@@ -149,6 +153,7 @@ class TodosPaquetesController extends Controller
             'paquetes' => $paquetes,
             'estados' => $estados,
             'types' => self::TYPES,
+            'carteros' => $this->carterosDisponibles($request),
             'search' => $search,
             'type' => $type,
             'estadoId' => $estadoId,
@@ -251,6 +256,81 @@ class TodosPaquetesController extends Controller
         return $pdf->stream('reporte-salida-' . $report->codigo . '.pdf');
     }
 
+    public function cambiarCarteroReporte(Request $request, string $codigo)
+    {
+        $data = $request->validate([
+            'user_id' => ['required', 'integer', Rule::exists('users', 'id')],
+        ], [], [
+            'user_id' => 'cartero',
+        ]);
+
+        $report = CarteroAssignmentReport::query()
+            ->with('items')
+            ->where('codigo', $codigo)
+            ->firstOrFail();
+
+        $newUser = User::query()->findOrFail((int) $data['user_id'], ['id', 'name', 'ciudad']);
+
+        if (!$this->isAllowedCartero($newUser)) {
+            return back()->with('error', 'El usuario seleccionado no tiene rol de cartero.');
+        }
+
+        if (!$this->isSameCity($request->user(), $newUser)) {
+            return back()->with('error', 'Solo puedes cambiar a un cartero de tu mismo departamento.');
+        }
+
+        $items = $report->items
+            ->map(fn ($item) => [
+                'tipo' => strtoupper((string) $item->tipo_paquete),
+                'id' => (int) $item->paquete_id,
+            ])
+            ->filter(fn ($item) => $item['id'] > 0 && $this->carteroColumnForType($item['tipo']) !== null)
+            ->unique(fn ($item) => $item['tipo'] . ':' . $item['id'])
+            ->values();
+
+        if ($items->isEmpty()) {
+            return back()->with('error', 'El reporte ' . $report->codigo . ' no tiene paquetes validos para cambiar de cartero.');
+        }
+
+        $updated = 0;
+        $estadoCarteroId = $this->estadoIdByName('CARTERO');
+
+        if ($estadoCarteroId <= 0) {
+            return back()->with('error', 'No existe el estado CARTERO en la tabla estados.');
+        }
+
+        DB::transaction(function () use ($items, $newUser, $report, &$updated, $estadoCarteroId) {
+            foreach ($items as $item) {
+                $column = $this->carteroColumnForType($item['tipo']);
+                if ($column === null) {
+                    continue;
+                }
+
+                $affected = Cartero::query()
+                    ->where($column, $item['id'])
+                    ->where('id_estados', $estadoCarteroId)
+                    ->update([
+                        'id_user' => (int) $newUser->id,
+                        'updated_at' => now(),
+                    ]);
+
+                $updated += $affected;
+            }
+
+            $report->forceFill([
+                'assigned_user_id' => (int) $newUser->id,
+                'actor_user_id' => (int) auth()->id(),
+            ])->save();
+        });
+
+        return back()->with(
+            $updated > 0 ? 'success' : 'error',
+            $updated > 0
+                ? 'Reporte ' . $report->codigo . ': ' . $updated . ' paquete(s) cambiados al cartero ' . $newUser->name . '.'
+                : 'No se encontro ninguna asignacion activa de cartero para el reporte ' . $report->codigo . '.'
+        );
+    }
+
     private function attachSalidaReports($paquetes): void
     {
         $typeMap = [
@@ -303,6 +383,63 @@ class TodosPaquetesController extends Controller
 
             return $paquete;
         });
+    }
+
+    private function carterosDisponibles(Request $request)
+    {
+        $userCity = $this->normalizeCity((string) optional($request->user())->ciudad);
+
+        if ($userCity === '') {
+            return collect();
+        }
+
+        return User::query()
+            ->whereHas('roles', function ($query) {
+                $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
+            })
+            ->whereRaw('TRIM(UPPER(ciudad)) = ?', [$userCity])
+            ->orderBy('name')
+            ->get(['id', 'name', 'ciudad']);
+    }
+
+    private function isAllowedCartero(User $user): bool
+    {
+        return User::query()
+            ->whereKey($user->id)
+            ->whereHas('roles', function ($query) {
+                $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
+            })
+            ->exists();
+    }
+
+    private function isSameCity($a, $b): bool
+    {
+        return $this->normalizeCity((string) optional($a)->ciudad) !== ''
+            && $this->normalizeCity((string) optional($a)->ciudad) === $this->normalizeCity((string) optional($b)->ciudad);
+    }
+
+    private function normalizeCity(string $city): string
+    {
+        return strtoupper(trim($city));
+    }
+
+    private function estadoIdByName(string $name): int
+    {
+        return (int) (Estado::query()
+            ->whereRaw('TRIM(UPPER(nombre_estado)) = ?', [strtoupper(trim($name))])
+            ->value('id') ?? 0);
+    }
+
+    private function carteroColumnForType(string $type): ?string
+    {
+        return match (strtoupper(trim($type))) {
+            'EMS' => 'id_paquetes_ems',
+            'CERTI' => 'id_paquetes_certi',
+            'ORDI' => 'id_paquetes_ordi',
+            'CONTRATO' => 'id_paquetes_contrato',
+            'SOLICITUD' => 'id_solicitud_cliente',
+            default => null,
+        };
     }
 
     private function buildUnionQuery()

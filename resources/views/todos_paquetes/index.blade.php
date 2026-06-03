@@ -119,6 +119,18 @@
                                                 <i class="fas fa-file-pdf"></i>
                                                 <span>Reimprimir reporte</span>
                                             </a>
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-outline-primary tp-report-btn tp-change-cartero-btn mt-1"
+                                                title="Cambiar cartero de toda la lista {{ $paquete->salida_report_codigo }}"
+                                                data-toggle="modal"
+                                                data-target="#changeCarteroReportModal"
+                                                data-report-code="{{ $paquete->salida_report_codigo }}"
+                                                data-report-action="{{ route('todos-paquetes.reporte-salida.cambiar-cartero', ['codigo' => $paquete->salida_report_codigo]) }}"
+                                            >
+                                                <i class="fas fa-user-edit"></i>
+                                                <span>Cambiar cartero</span>
+                                            </button>
                                             <div class="small text-muted mt-1">{{ $paquete->salida_report_codigo }}</div>
                                         @else
                                             <span class="text-muted small">Sin reporte</span>
@@ -239,6 +251,50 @@
         </div>
         <div class="modal-backdrop fade show"></div>
     @endif
+
+    <div class="modal fade" id="changeCarteroReportModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content tp-modal">
+                <form method="POST" id="changeCarteroReportForm" action="#">
+                    @csrf
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title">Cambiar cartero</h5>
+                            <div class="small text-white-50">
+                                Se cambiara el cartero de todos los paquetes del reporte <strong id="changeCarteroReportCode">-</strong>.
+                            </div>
+                        </div>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning small">
+                            Esta accion usa el codigo unico del reporte de salida y cambia toda la lista completa.
+                        </div>
+                        <div class="form-group mb-0">
+                            <label class="small font-weight-bold">Nuevo cartero</label>
+                            <select name="user_id" class="form-control" required @disabled($carteros->isEmpty())>
+                                <option value="">Seleccione cartero...</option>
+                                @foreach($carteros as $cartero)
+                                    <option value="{{ $cartero->id }}">{{ $cartero->name }} - {{ $cartero->ciudad ?: 'SIN CIUDAD' }}</option>
+                                @endforeach
+                            </select>
+                            @if($carteros->isEmpty())
+                                <small class="form-text text-danger">No hay carteros disponibles en tu departamento.</small>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" @disabled($carteros->isEmpty())>
+                            Cambiar cartero
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @section('css')
@@ -312,5 +368,36 @@
         .tp-report-btn:hover {
             color:#10233f;
         }
+        .tp-change-cartero-btn {
+            background:#fff;
+            color:#20539A;
+            border-color:#20539A;
+        }
+        .tp-change-cartero-btn:hover {
+            background:#eef4ff;
+            color:#173f75;
+        }
     </style>
+@endsection
+
+@section('js')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            $('#changeCarteroReportModal').on('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                const reportCode = button ? button.getAttribute('data-report-code') : '';
+                const action = button ? button.getAttribute('data-report-action') : '#';
+
+                const form = document.getElementById('changeCarteroReportForm');
+                const codeLabel = document.getElementById('changeCarteroReportCode');
+
+                if (form) {
+                    form.setAttribute('action', action || '#');
+                }
+                if (codeLabel) {
+                    codeLabel.textContent = reportCode || '-';
+                }
+            });
+        });
+    </script>
 @endsection

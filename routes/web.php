@@ -304,6 +304,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/todos-paquetes', [TodosPaquetesController::class, 'index'])->name('todos-paquetes.index');
     Route::get('/todos-paquetes/{type}/{id}/guia', [TodosPaquetesController::class, 'reimprimirGuia'])->name('todos-paquetes.guia');
     Route::get('/todos-paquetes/reporte-salida/{codigo}', [TodosPaquetesController::class, 'reporteSalida'])->name('todos-paquetes.reporte-salida');
+    Route::post('/todos-paquetes/reporte-salida/{codigo}/cambiar-cartero', [TodosPaquetesController::class, 'cambiarCarteroReporte'])->name('todos-paquetes.reporte-salida.cambiar-cartero');
     Route::patch('/todos-paquetes/{type}/{id}/estado', [TodosPaquetesController::class, 'updateEstado'])->name('todos-paquetes.estado');
     Route::put('/todos-paquetes/{type}/{id}/datos', [TodosPaquetesController::class, 'updateDatos'])->name('todos-paquetes.datos');
     Route::post('/tarifa-contrato', [TarifaContratoController::class, 'store'])->name('tarifa-contrato.store');

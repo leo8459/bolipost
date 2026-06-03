@@ -66,6 +66,7 @@ return [
         'formato_factura' => env('FACTURACION_BRIDGE_FORMATO_FACTURA', 'rollo'),
         'documento_sector' => env('FACTURACION_BRIDGE_DOCUMENTO_SECTOR', 1),
         'timeout' => env('FACTURACION_BRIDGE_TIMEOUT', 30),
+        'connect_timeout' => env('FACTURACION_BRIDGE_CONNECT_TIMEOUT', 5),
         'ssl_verify' => env('FACTURACION_BRIDGE_SSL_VERIFY', true),
     ],
 

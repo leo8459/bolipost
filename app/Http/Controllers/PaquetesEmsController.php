@@ -31,6 +31,7 @@ class PaquetesEmsController extends Controller
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
     private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
     private const EVENTO_ID_TIKTOKER_SOLICITUD_CREADA = 295;
+    private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
 
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
@@ -253,6 +254,10 @@ class PaquetesEmsController extends Controller
             ], 404);
         }
 
+        $direccionEntrega = $this->isPuertaAVentanillaService($solicitud->servicioExtra)
+            ? self::DIRECCION_DESTINATARIO_VENTANILLA
+            : $solicitud->direccion;
+
         return response()->json([
             'id' => (int) $solicitud->id,
             'codigo_solicitud' => $solicitud->codigo_solicitud,
@@ -267,7 +272,7 @@ class PaquetesEmsController extends Controller
             'direccion_recojo' => $solicitud->direccion_recojo,
             'nombre_destinatario' => $solicitud->nombre_destinatario,
             'telefono_destinatario' => $solicitud->telefono_destinatario,
-            'direccion_entrega' => $solicitud->direccion,
+            'direccion_entrega' => $direccionEntrega,
             'pago_destinatario' => (bool) $solicitud->pago_destinatario,
         ]);
     }
@@ -330,7 +335,7 @@ class PaquetesEmsController extends Controller
             'nombre_destinatario' => ['required', 'string', 'max:255'],
             'telefono_destinatario' => ['nullable', 'string', 'max:50'],
             'direccion_recojo' => ['required', 'string', 'max:255'],
-            'direccion_entrega' => ['required', 'string', 'max:255'],
+            'direccion_entrega' => ['nullable', 'string', 'max:255'],
         ]);
 
         try {
@@ -359,6 +364,18 @@ class PaquetesEmsController extends Controller
                 ->withErrors(['estado' => 'No existe el estado SOLICITUD en la tabla estados.']);
         }
 
+        $isPuertaAVentanilla = $this->isPuertaAVentanillaService($tarifarioTiktoker->servicioExtra);
+        $direccionEntrega = $isPuertaAVentanilla
+            ? self::DIRECCION_DESTINATARIO_VENTANILLA
+            : trim((string) ($data['direccion_entrega'] ?? ''));
+
+        if (!$isPuertaAVentanilla && $direccionEntrega === '') {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['direccion_entrega' => 'La direccion de entrega es obligatoria.']);
+        }
+
         $payload = [
             'estado_id' => $estadoSolicitudId,
             'servicio_extra_id' => (int) $data['servicio_extra_id'],
@@ -377,7 +394,7 @@ class PaquetesEmsController extends Controller
             'nombre_destinatario' => strtoupper(trim((string) $data['nombre_destinatario'])),
             'telefono_destinatario' => $this->nullableTrim($data['telefono_destinatario'] ?? null),
             'direccion_recojo' => trim((string) $data['direccion_recojo']),
-            'direccion' => trim((string) $data['direccion_entrega']),
+            'direccion' => $direccionEntrega,
             'ciudad' => strtoupper((string) $destino->nombre_destino),
             'servicio_id' => null,
             'destino_id' => (int) $data['destino_id'],
@@ -1720,6 +1737,31 @@ class PaquetesEmsController extends Controller
         $text = trim((string) $value);
 
         return $text === '' ? null : $text;
+    }
+
+    private function isPuertaAVentanillaService(?ServicioExtra $servicioExtra): bool
+    {
+        if (!$servicioExtra) {
+            return false;
+        }
+
+        $text = $this->normalizeServiceText(
+            (string) $servicioExtra->nombre . ' ' . (string) $servicioExtra->descripcion
+        );
+
+        return str_contains($text, 'puerta a ventanilla');
+    }
+
+    private function normalizeServiceText(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = str_replace(
+            ['á', 'é', 'í', 'ó', 'ú', 'ñ'],
+            ['a', 'e', 'i', 'o', 'u', 'n'],
+            $value
+        );
+
+        return preg_replace('/\s+/', ' ', $value) ?: '';
     }
 
     private function registrarEventosTiktoker(iterable $solicitudes, int $userId, int $eventoId): void
