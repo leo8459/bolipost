@@ -21,7 +21,13 @@ use Illuminate\Validation\Rule;
 
 class TodosPaquetesController extends Controller
 {
-    private const DISTRIBUTION_ASSIGNEE_ROLES = ['cartero'];
+    private const DISTRIBUTION_ASSIGNEE_ROLES = [
+        'auxiliar_urbano',
+        'auxiliar_urbano_dnd',
+        'auxiliar_7',
+        'cartero_ems',
+        'carteros_ems',
+    ];
 
     private const TYPES = [
         'ems' => [
