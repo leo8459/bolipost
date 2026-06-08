@@ -26,6 +26,7 @@
             'certi' => 'CERTIFICADOS',
             'ordi' => 'ORDINARIOS',
         ];
+        $departamentoSeleccionado = $departamento ?? '';
     @endphp
 
     <div class="card card-filtro mb-3">
@@ -151,6 +152,20 @@
                     </div>
                 </div>
 
+                <div class="row">
+                    <div class="col-lg-4 mb-3">
+                        <label class="font-weight-bold">Departamento destino</label>
+                        <select class="form-control" name="departamento">
+                            <option value="">Todos</option>
+                            @foreach(($departamentosDisponibles ?? []) as $departamentoDisponible)
+                                <option value="{{ $departamentoDisponible }}" {{ $departamentoSeleccionado === $departamentoDisponible ? 'selected' : '' }}>
+                                    {{ $departamentoDisponible }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
                 @if($scope === 'general')
                     <div class="row">
                         <div class="col-12 mb-3">
@@ -196,6 +211,9 @@
                 @foreach($moduleLabels as $label)
                     <span class="badge badge-info mr-1">{{ $label }}</span>
                 @endforeach
+                @if($departamentoSeleccionado !== '')
+                    <span class="badge badge-primary mr-1">Departamento: {{ $departamentoSeleccionado }}</span>
+                @endif
             </div>
             <div class="d-flex flex-wrap">
                 <a
@@ -418,7 +436,7 @@
             const presetDeliveredOnlyBtn = document.getElementById('presetDeliveredOnly');
             const autoFields = form
                 ? form.querySelectorAll(
-                    'input[name="q"], input[name="from"], input[name="to"], select[name="limit"], select[name="per_page"], input[name="modules[]"], input[name="statuses[]"]'
+                    'input[name="q"], input[name="from"], input[name="to"], select[name="limit"], select[name="per_page"], select[name="departamento"], input[name="modules[]"], input[name="statuses[]"]'
                 )
                 : [];
             let autoSubmitTimer = null;

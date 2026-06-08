@@ -635,7 +635,17 @@
                                 <td><strong>{{ $item->departamento }}</strong></td>
                                 <td class="text-right">{{ number_format((int) $item->total) }}</td>
                                 <td class="text-right text-success">{{ number_format((int) $item->entregados) }}</td>
-                                <td class="text-right text-warning">{{ number_format((int) $item->pendientes) }}</td>
+                                <td class="text-right">
+                                    <button
+                                        type="button"
+                                        class="btn btn-link btn-sm p-0 text-warning font-weight-bold dashboard-pending-link"
+                                        data-toggle="modal"
+                                        data-target="#departamentoPendientesModal{{ $item->puesto }}"
+                                        title="Ver paquetes pendientes de {{ $item->departamento }}"
+                                    >
+                                        {{ number_format((int) $item->pendientes) }}
+                                    </button>
+                                </td>
                                 <td class="text-right">
                                     <strong>{{ number_format((float) ($item->participacion_nacional ?? 0), 1) }}%</strong>
                                     <div class="small text-muted">del trabajo nacional</div>
@@ -692,6 +702,78 @@
 
     @foreach(($rankingDepartamentos ?? collect()) as $item)
         @php($totalesModulo = $item->entregados_por_modulo ?? [])
+        @php($totalesPendientesModulo = $item->pendientes_por_modulo ?? [])
+        <div class="modal fade" id="departamentoPendientesModal{{ $item->puesto }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title mb-0">
+                            {{ $item->departamento }} - paquetes pendientes
+                        </h5>
+                        <button type="button" class="close text-dark" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                                <div class="col-6 col-md-3 mb-3">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="text-muted small">{{ $moduloDetalle }}</div>
+                                        <div class="h4 mb-0 text-warning">{{ number_format((int) ($totalesPendientesModulo[$moduloDetalle] ?? 0)) }}</div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="alert alert-light border">
+                            <strong>Total pendiente:</strong> {{ number_format((int) $item->pendientes) }}
+                            <span class="mx-2">|</span>
+                            <strong>Cancelados:</strong> no incluidos
+                            <span class="mx-2">|</span>
+                            <strong>Rango:</strong> {{ $rangoLabel }}
+                        </div>
+
+                        <div class="table-responsive" style="max-height: 430px; overflow:auto;">
+                            <table class="table table-sm table-striped table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Modulo</th>
+                                        <th>Codigo</th>
+                                        <th>Origen</th>
+                                        <th>Destino</th>
+                                        <th>Destinatario</th>
+                                        <th>Creado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse(($item->pendientes_detalle ?? []) as $detalle)
+                                        <tr>
+                                            <td>{{ $detalle['modulo'] ?? '-' }}</td>
+                                            <td><span class="badge badge-light">{{ $detalle['codigo'] ?? '-' }}</span></td>
+                                            <td>{{ $detalle['origen'] ?? '-' }}</td>
+                                            <td>{{ $detalle['destino'] ?? '-' }}</td>
+                                            <td>{{ $detalle['destinatario'] ?? '-' }}</td>
+                                            <td>
+                                                {{ !empty($detalle['creado_at'] ?? '') ? \Illuminate\Support\Carbon::parse($detalle['creado_at'])->format('d/m/Y H:i') : '-' }}
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-4">No hay paquetes pendientes para este departamento.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" id="departamentoDetalleModal{{ $item->puesto }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl">
                 <div class="modal-content">

@@ -316,6 +316,7 @@ class DashboardController extends Controller
         $canPlayPickupAlertSound = count(array_intersect($allowedSoundRoles, $userRoles)) > 0;
 
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
+        $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
         $estadoRezagoId = $this->resolveEstadoIdByName('REZAGO');
         $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
 
@@ -331,6 +332,9 @@ class DashboardController extends Controller
             $entregados = $estadoEntregadoId
                 ? (int) (clone $query)->where($config['estado_column'], $estadoEntregadoId)->count()
                 : 0;
+            $cancelados = $estadoCanceladoId
+                ? (int) (clone $query)->where($config['estado_column'], $estadoCanceladoId)->count()
+                : 0;
             $situacionInventario = $this->countSituacionInventarioByIndicadorLogic(
                 $moduloKey,
                 $config,
@@ -343,7 +347,7 @@ class DashboardController extends Controller
             $atrasados = (int) ($situacionInventario['retraso'] ?? 0);
             $rezago = (int) ($situacionInventario['rezago'] ?? 0);
 
-            $pendientes = max(0, $total - $entregados);
+            $pendientes = max(0, $total - $entregados - $cancelados);
 
             $pesoTotal = (float) (clone $query)->sum(
                 DB::raw('coalesce(' . $config['peso_column'] . ', 0)')
@@ -1114,11 +1118,13 @@ class DashboardController extends Controller
     private function buildRankingDepartamentos(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to)
     {
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
+        $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
 
         $rows = collect($this->departamentoAliasMap())
-            ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId) {
+            ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId, $estadoCanceladoId) {
                 $total = 0;
                 $entregados = 0;
+                $cancelados = 0;
 
                 foreach ($modulosSeleccionados as $moduloKey) {
                     $config = self::MODULOS[$moduloKey];
@@ -1131,12 +1137,16 @@ class DashboardController extends Controller
                     $entregados += $estadoEntregadoId
                         ? (int) (clone $query)->where($config['estado_column'], $estadoEntregadoId)->count()
                         : 0;
+                    $cancelados += $estadoCanceladoId
+                        ? (int) (clone $query)->where($config['estado_column'], $estadoCanceladoId)->count()
+                        : 0;
                 }
 
-                $pendientes = max(0, $total - $entregados);
+                $pendientes = max(0, $total - $entregados - $cancelados);
                 $cumplimiento = $total > 0 ? round(($entregados * 100) / $total, 1) : 0.0;
                 $topEntregador = $this->buildTopEntregadorDepartamento($modulosSeleccionados, $from, $to, $aliases);
                 $detalleEntregados = $this->buildDepartamentoDeliveredDetails($modulosSeleccionados, $from, $to, $aliases);
+                $detallePendientes = $this->buildDepartamentoPendingDetails($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId);
 
                 return (object) [
                     'departamento' => $departamento,
@@ -1148,6 +1158,8 @@ class DashboardController extends Controller
                     'top_entregador_total' => (int) ($topEntregador?->total_entregados ?? 0),
                     'entregados_por_modulo' => $detalleEntregados['totales'],
                     'entregados_detalle' => $detalleEntregados['rows'],
+                    'pendientes_por_modulo' => $detallePendientes['totales'],
+                    'pendientes_detalle' => $detallePendientes['rows'],
                 ];
             });
 
@@ -1265,6 +1277,98 @@ class DashboardController extends Controller
                 ])
                 ->all(),
         ];
+    }
+
+    private function buildDepartamentoPendingDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoEntregadoId, ?int $estadoCanceladoId): array
+    {
+        $totales = [
+            'EMS' => 0,
+            'CONTRATOS' => 0,
+            'CERTIFICADOS' => 0,
+            'ORDINARIOS' => 0,
+        ];
+        $rows = collect();
+
+        foreach ($modulosSeleccionados as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
+            $label = $config['label'];
+            $estadoColumn = $config['estado_column'];
+
+            $identityColumns = $this->packageIdentityColumns($moduloKey, $config);
+
+            $query = DB::table($config['table'] . ' as t')
+                ->leftJoin('estados as e', 'e.id', '=', 't.' . $estadoColumn)
+                ->select([
+                    DB::raw("'" . $label . "' as modulo"),
+                    't.codigo as codigo',
+                    DB::raw("coalesce(e.nombre_estado, 'SIN ESTADO') as estado"),
+                    DB::raw($identityColumns['origen'] . ' as origen'),
+                    DB::raw($identityColumns['destino'] . ' as destino'),
+                    DB::raw($identityColumns['destinatario'] . ' as destinatario'),
+                    't.created_at as creado_at',
+                ]);
+
+            $this->applyDateFilter($query, 't.created_at', $from, $to);
+            $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 't');
+
+            if ($estadoEntregadoId) {
+                $query->where(function (Builder $sub) use ($estadoColumn, $estadoEntregadoId) {
+                    $sub->whereNull('t.' . $estadoColumn)
+                        ->orWhere('t.' . $estadoColumn, '<>', $estadoEntregadoId);
+                });
+            }
+
+            if ($estadoCanceladoId) {
+                $query->where(function (Builder $sub) use ($estadoColumn, $estadoCanceladoId) {
+                    $sub->whereNull('t.' . $estadoColumn)
+                        ->orWhere('t.' . $estadoColumn, '<>', $estadoCanceladoId);
+                });
+            }
+
+            $moduleRows = $query->orderByDesc('t.created_at')->get();
+            $totales[$label] = (int) $moduleRows->count();
+            $rows = $rows->concat($moduleRows);
+        }
+
+        return [
+            'totales' => $totales,
+            'rows' => $rows
+                ->sortByDesc(fn ($row) => (string) ($row->creado_at ?? ''))
+                ->values()
+                ->map(fn ($row) => [
+                    'modulo' => (string) ($row->modulo ?? ''),
+                    'codigo' => (string) ($row->codigo ?? ''),
+                    'estado' => (string) ($row->estado ?? ''),
+                    'origen' => (string) ($row->origen ?? ''),
+                    'destino' => (string) ($row->destino ?? ''),
+                    'destinatario' => (string) ($row->destinatario ?? ''),
+                    'creado_at' => (string) ($row->creado_at ?? ''),
+                ])
+                ->all(),
+        ];
+    }
+
+    private function packageIdentityColumns(string $moduloKey, array $config): array
+    {
+        $destinoColumn = "coalesce(t." . $config['departamento_column'] . ", '-')";
+
+        return match ($moduloKey) {
+            'contrato' => [
+                'origen' => "coalesce(t.origen, '-')",
+                'destino' => $destinoColumn,
+                'destinatario' => "coalesce(t.nombre_d, '-')",
+            ],
+            'ems' => [
+                'origen' => "coalesce(t.origen, '-')",
+                'destino' => $destinoColumn,
+                'destinatario' => "coalesce(t.nombre_destinatario, '-')",
+            ],
+            default => [
+                'origen' => "'-'",
+                'destino' => $destinoColumn,
+                'destinatario' => "coalesce(t.destinatario, '-')",
+            ],
+        };
     }
 
     private function applyDepartamentoFilter(Builder $query, array $config, string $departamento, string $tableAlias = ''): void

@@ -25,10 +25,10 @@ class ReportesController extends Controller
     private const SCOPES = ['general', 'contrato', 'ems', 'certi', 'ordi'];
 
     private const MODULES = [
-        'contrato' => ['label' => 'CONTRATOS', 'table' => 'paquetes_contrato', 'state_col' => 'estados_id'],
-        'ems' => ['label' => 'EMS', 'table' => 'paquetes_ems', 'state_col' => 'estado_id'],
-        'certi' => ['label' => 'CERTIFICADOS', 'table' => 'paquetes_certi', 'state_col' => 'fk_estado'],
-        'ordi' => ['label' => 'ORDINARIOS', 'table' => 'paquetes_ordi', 'state_col' => 'fk_estado'],
+        'contrato' => ['label' => 'CONTRATOS', 'table' => 'paquetes_contrato', 'state_col' => 'estados_id', 'departamento_col' => 'destino'],
+        'ems' => ['label' => 'EMS', 'table' => 'paquetes_ems', 'state_col' => 'estado_id', 'departamento_col' => 'ciudad'],
+        'certi' => ['label' => 'CERTIFICADOS', 'table' => 'paquetes_certi', 'state_col' => 'fk_estado', 'departamento_col' => 'cuidad'],
+        'ordi' => ['label' => 'ORDINARIOS', 'table' => 'paquetes_ordi', 'state_col' => 'fk_estado', 'departamento_col' => 'ciudad'],
     ];
 
     public function index(Request $request)
@@ -70,11 +70,13 @@ class ReportesController extends Controller
         $selectedModules = $this->resolveSelectedModules($scope, $request);
         [$from, $to, $range] = $this->resolveDateRange($request);
         $search = trim((string) $request->query('q', ''));
+        $departamento = $this->resolveDepartamentoFiltro($request);
         $statuses = $this->resolveStatusFilters($request);
         $estadoIds = [];
         $limit = $this->resolveLimit($request);
         $perPage = $this->resolvePerPage($request);
         $estadoEntregadoId = $this->resolveEstadoEntregadoId();
+        $estadoCanceladoId = $this->resolveEstadoCanceladoId();
 
         $rows = collect();
         foreach ($selectedModules as $moduleKey) {
@@ -85,8 +87,10 @@ class ReportesController extends Controller
                     'all',
                     [],
                     $estadoEntregadoId,
+                    $estadoCanceladoId,
                     $from,
-                    $to
+                    $to,
+                    $departamento
                 )
             );
         }
@@ -116,6 +120,8 @@ class ReportesController extends Controller
             'selectedEstadoIds' => $estadoIds,
             'search' => $search,
             'statuses' => $statuses,
+            'departamento' => $departamento,
+            'departamentosDisponibles' => array_keys($this->departamentoAliasMap()),
             'from' => $from?->toDateString(),
             'to' => $to?->toDateString(),
             'range' => $range,
@@ -135,8 +141,10 @@ class ReportesController extends Controller
         string $status,
         array $estadoIds,
         ?int $estadoEntregadoId,
+        ?int $estadoCanceladoId,
         ?Carbon $from,
-        ?Carbon $to
+        ?Carbon $to,
+        string $departamento
     ): Collection {
         $config = self::MODULES[$moduleKey];
         $query = match ($moduleKey) {
@@ -152,10 +160,11 @@ class ReportesController extends Controller
             $query->whereIn('t.' . $config['state_col'], $estadoIds);
         }
 
+        $this->applyDepartamentoFilter($query, $moduleKey, $departamento);
         $this->applySearchFilter($query, $moduleKey, $search);
 
-        return $query->get()->map(function ($row) use ($moduleKey, $estadoEntregadoId) {
-            return $this->decorateRow($moduleKey, $row, $estadoEntregadoId);
+        return $query->get()->map(function ($row) use ($moduleKey, $estadoEntregadoId, $estadoCanceladoId) {
+            return $this->decorateRow($moduleKey, $row, $estadoEntregadoId, $estadoCanceladoId);
         });
     }
 
@@ -281,15 +290,20 @@ class ReportesController extends Controller
             ]);
     }
 
-    private function decorateRow(string $moduleKey, object $row, ?int $estadoEntregadoId): array
+    private function decorateRow(string $moduleKey, object $row, ?int $estadoEntregadoId, ?int $estadoCanceladoId): array
     {
-        $isEntregado = $estadoEntregadoId && (int) ($row->estado_id ?? 0) === $estadoEntregadoId;
+        $estadoId = (int) ($row->estado_id ?? 0);
+        $isEntregado = $estadoEntregadoId && $estadoId === $estadoEntregadoId;
+        $isCancelado = $estadoCanceladoId && $estadoId === $estadoCanceladoId;
         $bucket = 'sin_datos';
         $situacion = 'Sin datos';
 
         if ($isEntregado) {
             $bucket = 'entregado';
             $situacion = 'Entregado';
+        } elseif ($isCancelado) {
+            $bucket = 'cancelado';
+            $situacion = 'Cancelado';
         } else {
             $inicio = match ($moduleKey) {
                 'contrato' => $this->safeCarbon($row->fecha_recojo ?? null),
@@ -335,6 +349,7 @@ class ReportesController extends Controller
             'peso' => (float) ($row->peso ?? 0),
             'precio' => (float) ($row->precio ?? 0),
             'is_entregado' => $isEntregado,
+            'is_cancelado' => $isCancelado,
             'situacion_bucket' => $bucket,
             'situacion' => $situacion,
             'created_at' => $createdAt?->format('d/m/Y H:i') ?? '-',
@@ -349,7 +364,10 @@ class ReportesController extends Controller
         return [
             'total' => $rows->count(),
             'entregados' => $rows->where('is_entregado', true)->count(),
-            'no_entregados' => $rows->where('is_entregado', false)->count(),
+            'no_entregados' => $rows
+                ->where('is_entregado', false)
+                ->where('is_cancelado', false)
+                ->count(),
             'correcto' => $rows->where('situacion_bucket', 'correcto')->count(),
             'retraso' => $rows->where('situacion_bucket', 'retraso')->count(),
             'rezago' => $rows->where('situacion_bucket', 'rezago')->count(),
@@ -368,7 +386,10 @@ class ReportesController extends Controller
                 'label' => $label,
                 'total' => $moduleRows->count(),
                 'entregados' => $moduleRows->where('is_entregado', true)->count(),
-                'no_entregados' => $moduleRows->where('is_entregado', false)->count(),
+                'no_entregados' => $moduleRows
+                    ->where('is_entregado', false)
+                    ->where('is_cancelado', false)
+                    ->count(),
                 'correcto' => $moduleRows->where('situacion_bucket', 'correcto')->count(),
                 'retraso' => $moduleRows->where('situacion_bucket', 'retraso')->count(),
                 'rezago' => $moduleRows->where('situacion_bucket', 'rezago')->count(),
@@ -434,7 +455,9 @@ class ReportesController extends Controller
                 return true;
             }
 
-            if (isset($selectedMap['pendiente']) && !$isEntregado) {
+            $isCancelado = (bool) ($row['is_cancelado'] ?? false);
+
+            if (isset($selectedMap['pendiente']) && !$isEntregado && !$isCancelado) {
                 return true;
             }
 
@@ -476,6 +499,9 @@ class ReportesController extends Controller
         }
         if ($range === '7d') {
             return [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay(), '7d'];
+        }
+        if ($range === '30d') {
+            return [$now->copy()->subDays(29)->startOfDay(), $now->copy()->endOfDay(), '30d'];
         }
         if ($range === 'month') {
             return [$now->copy()->startOfMonth(), $now->copy()->endOfDay(), 'month'];
@@ -573,6 +599,32 @@ class ReportesController extends Controller
         }
     }
 
+    private function applyDepartamentoFilter(Builder $query, string $moduleKey, string $departamento): void
+    {
+        if ($departamento === '') {
+            return;
+        }
+
+        $column = self::MODULES[$moduleKey]['departamento_col'] ?? '';
+        if ($column === '') {
+            return;
+        }
+
+        $aliases = $this->departamentoAliasMap()[$departamento] ?? [$departamento];
+        $aliases = collect($aliases)
+            ->map(fn ($value) => strtoupper(trim((string) $value)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($aliases)) {
+            return;
+        }
+
+        $query->whereIn(DB::raw('trim(upper(t.' . $column . '))'), $aliases);
+    }
+
     private function applySearchFilter(Builder $query, string $moduleKey, string $search): void
     {
         $search = trim($search);
@@ -634,6 +686,54 @@ class ReportesController extends Controller
             ->value('id');
 
         return $id ? (int) $id : null;
+    }
+
+    private function resolveEstadoCanceladoId(): ?int
+    {
+        $id = Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['CANCELADO'])
+            ->value('id');
+
+        return $id ? (int) $id : null;
+    }
+
+    private function resolveDepartamentoFiltro(Request $request): string
+    {
+        $value = strtoupper(trim((string) $request->query('departamento', '')));
+        $value = preg_replace('/\s+/', ' ', $value) ?? $value;
+        $aliases = $this->departamentoAliasMap();
+
+        if (isset($aliases[$value])) {
+            return $value;
+        }
+
+        foreach ($aliases as $departamento => $departamentoAliases) {
+            $normalizedAliases = array_map(
+                fn ($alias) => strtoupper(trim((string) $alias)),
+                $departamentoAliases
+            );
+
+            if (in_array($value, $normalizedAliases, true)) {
+                return $departamento;
+            }
+        }
+
+        return '';
+    }
+
+    private function departamentoAliasMap(): array
+    {
+        return [
+            'LA PAZ' => ['LA PAZ'],
+            'COCHABAMBA' => ['COCHABAMBA'],
+            'SANTA CRUZ' => ['SANTA CRUZ'],
+            'ORURO' => ['ORURO'],
+            'POTOSI' => ['POTOSI'],
+            'TARIJA' => ['TARIJA'],
+            'CHUQUISACA' => ['CHUQUISACA', 'SUCRE'],
+            'BENI' => ['BENI', 'TRINIDAD'],
+            'PANDO' => ['PANDO', 'COBIJA'],
+        ];
     }
 
     private function resolveSituacionBucket(?Carbon $inicio, Carbon $fin, int $greenDays, int $yellowDays): string
