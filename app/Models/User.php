@@ -53,6 +53,7 @@ class User extends Authenticatable
         'email',
         'password',
         'ciudad',
+        'regionales',
         'ci',
         'empresa_id',
         'sucursal_id',
@@ -76,7 +77,28 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'regionales' => 'array',
     ];
+
+    public function regionalesLista(): array
+    {
+        $regionales = is_array($this->regionales) ? $this->regionales : [];
+        if ($regionales === [] && trim((string) $this->ciudad) !== '') {
+            $regionales = [(string) $this->ciudad];
+        }
+
+        return collect($regionales)
+            ->map(fn ($regional) => strtoupper(trim((string) $regional)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function regionalesTexto(): string
+    {
+        return implode(', ', $this->regionalesLista());
+    }
 
     public function driver(): HasOne
     {

@@ -34,7 +34,7 @@
                         </div>
                         <div class="form-group">
                             <strong>Regional:</strong>
-                            {{ $user->ciudad }}
+                            {{ $user->regionalesTexto() ?: '-' }}
                         </div>
                         <div class="form-group">
                             <strong>Sucursal:</strong>

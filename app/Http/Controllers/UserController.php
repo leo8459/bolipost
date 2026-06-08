@@ -60,7 +60,8 @@ class UserController extends Controller
         $user->alias = strtolower(trim((string) $request->alias));
         $user->email = $request->email;
         $user->password = bcrypt($request->password);
-        $user->ciudad = $request->ciudad;
+        $user->ciudad = strtoupper(trim((string) $request->ciudad));
+        $user->regionales = [$user->ciudad];
         $user->ci = $request->filled('ci') ? trim((string) $request->ci) : null;
         $user->empresa_id = $request->filled('empresa_id') ? (int) $request->empresa_id : null;
         $user->sucursal_id = $request->filled('sucursal_id') ? (int) $request->sucursal_id : null;
@@ -110,7 +111,8 @@ class UserController extends Controller
         $user->name = $request->name;
         $user->alias = strtolower(trim((string) $request->alias));
         $user->email = $request->email;
-        $user->ciudad = $request->ciudad;
+        $user->ciudad = strtoupper(trim((string) $request->ciudad));
+        $user->regionales = [$user->ciudad];
         if ($request->filled('ci')) {
             $user->ci = trim((string) $request->ci);
         }
@@ -168,7 +170,7 @@ class UserController extends Controller
                 $user->name,
                 $user->alias,
                 $user->email,
-                $user->ciudad,
+                $user->regionalesTexto(),
                 $user->ci,
                 $user->empresa ? trim($user->empresa->codigo_cliente . ' - ' . $user->empresa->nombre) : '',
                 $user->sucursal ? 'Suc. ' . $user->sucursal->codigoSucursal . ' / PV ' . $user->sucursal->puntoVenta . ' - ' . $user->sucursal->municipio : '',
@@ -364,6 +366,7 @@ class UserController extends Controller
                 $user->alias = $payload['alias'];
                 $user->email = $payload['email'];
                 $user->ciudad = strtoupper($payload['ciudad']);
+                $user->regionales = [$user->ciudad];
                 $user->ci = $payload['ci'] !== '' ? $payload['ci'] : null;
                 $user->empresa_id = $empresaId;
                 $user->sucursal_id = $payload['sucursal_id'] !== '' ? (int) $payload['sucursal_id'] : null;

@@ -24,6 +24,7 @@ class Users extends Component
     public $email = '';
     public $password = '';
     public $ciudad = '';
+    public $regionalesSeleccionadas = [];
     public $ci = '';
     public $empresa_id = '';
     public $sucursal_id = '';
@@ -61,7 +62,8 @@ class Users extends Component
         $this->alias = (string) $user->alias;
         $this->email = (string) $user->email;
         $this->password = '';
-        $this->ciudad = (string) $user->ciudad;
+        $this->regionalesSeleccionadas = $user->regionalesLista();
+        $this->ciudad = (string) ($this->regionalesSeleccionadas[0] ?? $user->ciudad);
         $this->ci = (string) $user->ci;
         $this->empresa_id = $user->empresa_id ? (string) $user->empresa_id : '';
         $this->sucursal_id = $user->sucursal_id ? (string) $user->sucursal_id : '';
@@ -79,10 +81,12 @@ class Users extends Component
 
             $user = User::query()->findOrFail((int) $this->editingId);
             $ciValue = trim((string) $this->ci);
+            $regionales = $this->normalizeRegionalesSeleccionadas();
             $user->name = trim($this->name);
             $user->alias = strtolower(trim((string) $this->alias));
             $user->email = trim($this->email);
-            $user->ciudad = trim($this->ciudad);
+            $user->ciudad = $regionales[0] ?? '';
+            $user->regionales = $regionales;
             // If CI is left empty on edit, keep existing value.
             $user->ci = $ciValue !== '' ? $ciValue : $user->ci;
             $user->empresa_id = $this->empresa_id !== '' ? (int) $this->empresa_id : null;
@@ -102,11 +106,13 @@ class Users extends Component
 
             $user = new User();
             $ciValue = trim((string) $this->ci);
+            $regionales = $this->normalizeRegionalesSeleccionadas();
             $user->name = trim($this->name);
             $user->alias = strtolower(trim((string) $this->alias));
             $user->email = trim($this->email);
             $user->password = Hash::make($this->password);
-            $user->ciudad = trim($this->ciudad);
+            $user->ciudad = $regionales[0] ?? '';
+            $user->regionales = $regionales;
             $user->ci = $ciValue !== '' ? $ciValue : null;
             $user->empresa_id = $this->empresa_id !== '' ? (int) $this->empresa_id : null;
             $user->sucursal_id = $this->sucursal_id !== '' ? (int) $this->sucursal_id : null;
@@ -200,12 +206,15 @@ class Users extends Component
 
     protected function createRules(): array
     {
+        $regionales = $this->regionalesDisponibles();
+
         return [
             'name' => ['required', 'string', 'max:255'],
             'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'min:8'],
-            'ciudad' => ['required', 'string', 'max:255'],
+            'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
+            'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
             'ci' => ['nullable', 'string', 'max:255'],
             'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
@@ -216,12 +225,15 @@ class Users extends Component
 
     protected function updateRules(): array
     {
+        $regionales = $this->regionalesDisponibles();
+
         return [
             'name' => ['required', 'string', 'max:255'],
             'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')->ignore((int) $this->editingId)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore((int) $this->editingId)],
             'password' => ['nullable', 'string', 'min:8'],
-            'ciudad' => ['required', 'string', 'max:255'],
+            'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
+            'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
             'ci' => ['nullable', 'string', 'max:255'],
             'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
@@ -252,6 +264,7 @@ class Users extends Component
         $this->email = '';
         $this->password = '';
         $this->ciudad = '';
+        $this->regionalesSeleccionadas = [];
         $this->ci = '';
         $this->empresa_id = '';
         $this->sucursal_id = '';
@@ -266,6 +279,27 @@ class Users extends Component
         if (! $user || ! $user->can($permission)) {
             abort(403, 'No tienes permiso para realizar esta accion.');
         }
+    }
+
+    protected function normalizeRegionalesSeleccionadas(): array
+    {
+        $validas = $this->regionalesDisponibles();
+
+        $regionales = collect($this->regionalesSeleccionadas)
+            ->map(fn ($regional) => strtoupper(trim((string) $regional)))
+            ->filter(fn ($regional) => in_array($regional, $validas, true))
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->ciudad = (string) ($regionales[0] ?? '');
+
+        return $regionales;
+    }
+
+    protected function regionalesDisponibles(): array
+    {
+        return ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
     }
 
     public function render()
@@ -300,7 +334,7 @@ class Users extends Component
             'roles' => Role::query()->orderBy('name')->get(),
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
             'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
-            'regionales' => ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'],
+            'regionales' => $this->regionalesDisponibles(),
         ]);
     }
 }

@@ -77,7 +77,7 @@
                     <td>{{ $user->name }}</td>
                     <td>{{ $user->alias ?: '-' }}</td>
                     <td>{{ $user->email }}</td>
-                    <td>{{ $user->ciudad ?: '-' }}</td>
+                    <td>{{ $user->regionalesTexto() ?: '-' }}</td>
                     <td>{{ $user->ci ?: '-' }}</td>
                     <td>
                         @if ($user->empresa)

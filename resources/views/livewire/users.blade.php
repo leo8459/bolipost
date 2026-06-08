@@ -145,6 +145,91 @@
             font-weight: 800;
             transition: width 0.35s ease;
         }
+
+        .regional-picker {
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+            background: #f8fafc;
+            padding: 10px;
+        }
+
+        .regional-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .regional-option {
+            margin: 0;
+        }
+
+        .regional-option input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .regional-option-label {
+            display: flex;
+            align-items: center;
+            min-height: 38px;
+            border: 1px solid #d8dee9;
+            border-radius: 8px;
+            background: #fff;
+            color: #263238;
+            cursor: pointer;
+            font-weight: 800;
+            line-height: 1.1;
+            padding: 8px 10px;
+            transition: border-color .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
+            user-select: none;
+        }
+
+        .regional-option-label::before {
+            content: "\f00c";
+            font-family: "Font Awesome 5 Free";
+            font-weight: 900;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border: 1px solid #bac6d8;
+            border-radius: 4px;
+            color: transparent;
+            margin-right: 8px;
+            font-size: 11px;
+            flex: 0 0 auto;
+        }
+
+        .regional-option input:checked + .regional-option-label {
+            border-color: var(--azul);
+            background: rgba(32, 83, 154, 0.08);
+            color: var(--azul);
+            box-shadow: 0 0 0 2px rgba(32, 83, 154, 0.08);
+        }
+
+        .regional-option input:checked + .regional-option-label::before {
+            background: var(--azul);
+            border-color: var(--azul);
+            color: #fff;
+        }
+
+        .regional-option input:focus + .regional-option-label {
+            box-shadow: 0 0 0 3px rgba(254, 204, 54, 0.35);
+        }
+
+        @media (max-width: 767.98px) {
+            .regional-picker-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 420px) {
+            .regional-picker-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 
     <div class="users-wrap">
@@ -260,7 +345,7 @@
                                     <td>{{ $user->name }}</td>
                                     <td><span class="badge badge-primary">{{ $user->alias ?? '-' }}</span></td>
                                     <td>{{ $user->email }}</td>
-                                    <td>{{ $user->ciudad }}</td>
+                                    <td>{{ $user->regionalesTexto() ?: '-' }}</td>
                                     <td>
                                         @if ($user->sucursal)
                                             Suc. {{ $user->sucursal->codigoSucursal }} / PV {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}
@@ -402,13 +487,26 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Regional</label>
-                                    <select wire:model.defer="ciudad" class="form-control">
-                                        <option value="">Seleccione la regional</option>
+                                    <div class="regional-picker">
+                                        <div class="regional-picker-grid">
                                         @foreach($regionales as $regional)
-                                            <option value="{{ $regional }}">{{ $regional }}</option>
+                                            <div class="regional-option">
+                                                <input
+                                                    type="checkbox"
+                                                    wire:model.defer="regionalesSeleccionadas"
+                                                    id="regional_{{ \Illuminate\Support\Str::slug($regional) }}"
+                                                    value="{{ $regional }}"
+                                                >
+                                                <label class="regional-option-label" for="regional_{{ \Illuminate\Support\Str::slug($regional) }}">
+                                                    {{ $regional }}
+                                                </label>
+                                            </div>
                                         @endforeach
-                                    </select>
-                                    @error('ciudad') <small class="text-danger">{{ $message }}</small> @enderror
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Puedes seleccionar varias regionales. La primera seleccionada sera la regional principal.</small>
+                                    @error('regionalesSeleccionadas') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                                    @error('regionalesSeleccionadas.*') <small class="text-danger d-block">{{ $message }}</small> @enderror
                                 </div>
                             </div>
                         </div>
@@ -446,7 +544,7 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <small class="text-muted d-block">La regional sigue usando el campo ciudad y no se modifica.</small>
+                                    <small class="text-muted d-block">La sucursal de facturacion no cambia las regionales seleccionadas.</small>
                                     @error('sucursal_id') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
