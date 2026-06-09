@@ -392,7 +392,10 @@
                 || $destinoIso2 === 'BO'
                 || $servicioActual === 'CONTRATO'
             );
-        if ($esCodigoBoliviano && is_array($rutaInternacionalSaliente)) {
+        if ($destinoIso2DesdeCiudad !== null) {
+            $destinoBanderaIso2 = $destinoIso2DesdeCiudad;
+            $destinoLabel = $nombrePaisDesdeIso2($destinoBanderaIso2) ?? $ciudadDestinoLocal;
+        } elseif ($esCodigoBoliviano && is_array($rutaInternacionalSaliente)) {
             $destinoBanderaIso2 = $rutaInternacionalSaliente['destino'];
             $destinoLabel = $nombrePaisDesdeIso2($destinoBanderaIso2) ?? $destinoBanderaIso2;
         } elseif ($destinoDeducidoSoloPorOficinaBoliviana) {
@@ -869,6 +872,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 

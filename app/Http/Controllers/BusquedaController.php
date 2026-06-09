@@ -731,7 +731,7 @@ class BusquedaController extends Controller
             return $nombreEvento;
         }
         $lugarNormalizadoRaw = mb_strtolower(trim($lugar));
-        if (str_starts_with($lugarNormalizadoRaw, 'país origen:')
+        if (str_starts_with($lugarNormalizadoRaw, 'paÃ­s origen:')
             || str_starts_with($lugarNormalizadoRaw, 'pais origen:')) {
             return $nombreEvento;
         }
@@ -950,4 +950,3 @@ public function unsubscribe(Request $request)
 }
 
 }
-
