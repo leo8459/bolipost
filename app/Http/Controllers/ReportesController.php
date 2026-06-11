@@ -344,7 +344,7 @@ class ReportesController extends Controller
                 DB::raw("case when {$empresaUserCondition} then coalesce(up.ciudad, '-') else coalesce(u.ciudad, '-') end as usuario_regional"),
                 DB::raw("case when {$empresaUserCondition} then {$regionalesPickupExpression} else {$regionalesUserExpression} end as usuario_regionales"),
                 DB::raw("case when {$empresaUserCondition} then coalesce(upr.role_names, '') else coalesce(ur.role_names, '') end as usuario_roles"),
-                DB::raw("coalesce(srv.nombre_servicio, 'EMS') as servicio_nombre"),
+                DB::raw("'EMS' as servicio_nombre"),
                 DB::raw("coalesce(ev_d.user_id, 0) as entregado_por_id"),
                 DB::raw("coalesce(ud.name, 'Sin entrega registrada') as entregado_por"),
                 DB::raw("coalesce(udr.role_names, '') as entregado_por_roles"),
