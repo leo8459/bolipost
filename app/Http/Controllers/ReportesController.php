@@ -17,6 +17,7 @@ class ReportesController extends Controller
 {
     private const EVENTO_ENTREGADO_ID = 316;
     private const EVENTO_EMS_SOLICITUD_ID = 295;
+    private const EVENTO_CONTRATO_RECOGIDO_ID = 295;
     private const CERTI_ORDI_GREEN_DAYS = 7;
     private const CERTI_ORDI_YELLOW_DAYS = 15;
     private const DESTINOS_LARGA_DISTANCIA = ['SANTA CRUZ', 'TRINIDAD', 'TARIJA'];
@@ -25,10 +26,10 @@ class ReportesController extends Controller
     private const SCOPES = ['general', 'contrato', 'ems', 'certi', 'ordi'];
 
     private const MODULES = [
-        'contrato' => ['label' => 'CONTRATOS', 'table' => 'paquetes_contrato', 'state_col' => 'estados_id', 'departamento_col' => 'destino'],
-        'ems' => ['label' => 'EMS', 'table' => 'paquetes_ems', 'state_col' => 'estado_id', 'departamento_col' => 'ciudad'],
-        'certi' => ['label' => 'CERTIFICADOS', 'table' => 'paquetes_certi', 'state_col' => 'fk_estado', 'departamento_col' => 'cuidad'],
-        'ordi' => ['label' => 'ORDINARIOS', 'table' => 'paquetes_ordi', 'state_col' => 'fk_estado', 'departamento_col' => 'ciudad'],
+        'contrato' => ['label' => 'CONTRATOS', 'table' => 'paquetes_contrato', 'state_col' => 'estados_id', 'origen_col' => 'origen', 'destino_col' => 'destino'],
+        'ems' => ['label' => 'EMS', 'table' => 'paquetes_ems', 'state_col' => 'estado_id', 'origen_col' => 'origen', 'destino_col' => 'ciudad'],
+        'certi' => ['label' => 'CERTIFICADOS', 'table' => 'paquetes_certi', 'state_col' => 'fk_estado', 'origen_col' => null, 'destino_col' => 'cuidad'],
+        'ordi' => ['label' => 'ORDINARIOS', 'table' => 'paquetes_ordi', 'state_col' => 'fk_estado', 'origen_col' => null, 'destino_col' => 'ciudad'],
     ];
 
     public function index(Request $request)
@@ -65,12 +66,60 @@ class ReportesController extends Controller
         }, $filename);
     }
 
+    public function administrativeSummary(Request $request)
+    {
+        $request->merge(['limit' => 'all']);
+
+        $data = $this->buildReportData($request, 'general', true);
+        $data['scopeLabel'] = 'Resumen Ejecutivo';
+        $data['administrativeSummary'] = $this->buildAdministrativeSummary(collect($data['rows']), $data['departamentoOrigen'] ?? '');
+        $data['administrativeSummary']['malencaminados'] = $this->buildAdministrativeMalencaminadosSummary(
+            $request,
+            $data['departamentoOrigen'] ?? '',
+            $data['departamentoDestino'] ?? ''
+        );
+
+        return view('reportes.resumen-administrativo', $data);
+    }
+
+    public function exportAdministrativePdf(Request $request)
+    {
+        $request->merge(['limit' => 'all']);
+
+        $data = $this->buildReportData($request, 'general', true);
+        $data['scopeLabel'] = 'Resumen Ejecutivo';
+        $data['administrativeSummary'] = $this->buildAdministrativeSummary(collect($data['rows']), $data['departamentoOrigen'] ?? '');
+        $data['administrativeSummary']['malencaminados'] = $this->buildAdministrativeMalencaminadosSummary(
+            $request,
+            $data['departamentoOrigen'] ?? '',
+            $data['departamentoDestino'] ?? ''
+        );
+
+        $pdf = Pdf::loadView('reportes.resumen-administrativo-pdf', $data)->setPaper('A4', 'landscape');
+        $filename = 'resumen-ejecutivo-paquetes-' . now()->format('Ymd-His') . '.pdf';
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $filename);
+    }
+
     private function buildReportData(Request $request, string $scope, bool $forExport): array
     {
         $selectedModules = $this->resolveSelectedModules($scope, $request);
         [$from, $to, $range] = $this->resolveDateRange($request);
+        $selectedMonths = $this->resolveSelectedMonthFilters($request);
+        $monthDateRanges = $this->buildMonthDateRanges($selectedMonths);
+        if (!empty($monthDateRanges)) {
+            $from = null;
+            $to = null;
+            $range = 'months';
+        }
         $search = trim((string) $request->query('q', ''));
-        $departamento = $this->resolveDepartamentoFiltro($request);
+        $departamentoOrigen = $this->resolveDepartamentoFiltro($request, 'departamento_origen');
+        $departamentoDestino = $this->resolveDepartamentoFiltro($request, 'departamento_destino');
+        if ($departamentoDestino === '') {
+            $departamentoDestino = $this->resolveDepartamentoFiltro($request, 'departamento');
+        }
         $statuses = $this->resolveStatusFilters($request);
         $estadoIds = [];
         $limit = $this->resolveLimit($request);
@@ -90,11 +139,14 @@ class ReportesController extends Controller
                     $estadoCanceladoId,
                     $from,
                     $to,
-                    $departamento
+                    $monthDateRanges,
+                    $departamentoDestino
                 )
             );
         }
 
+        $rows = $this->filterRowsWithoutCanceled($rows);
+        $rows = $this->filterRowsByDepartamentoOrigen($rows, $departamentoOrigen);
         $registradosTotal = $rows->count();
         $rows = $this->filterRowsByState($rows, $statuses);
         $filteredTotal = $rows->count();
@@ -120,8 +172,13 @@ class ReportesController extends Controller
             'selectedEstadoIds' => $estadoIds,
             'search' => $search,
             'statuses' => $statuses,
-            'departamento' => $departamento,
+            'departamento' => $departamentoDestino,
+            'departamentoOrigen' => $departamentoOrigen,
+            'departamentoDestino' => $departamentoDestino,
             'departamentosDisponibles' => array_keys($this->departamentoAliasMap()),
+            'monthOptions' => $this->monthFilterOptions(),
+            'selectedMonths' => $selectedMonths,
+            'selectedMonthLabels' => array_map(fn ($month) => $this->monthFilterLabel($month), $selectedMonths),
             'from' => $from?->toDateString(),
             'to' => $to?->toDateString(),
             'range' => $range,
@@ -144,7 +201,8 @@ class ReportesController extends Controller
         ?int $estadoCanceladoId,
         ?Carbon $from,
         ?Carbon $to,
-        string $departamento
+        array $monthDateRanges,
+        string $departamentoDestino
     ): Collection {
         $config = self::MODULES[$moduleKey];
         $query = match ($moduleKey) {
@@ -154,13 +212,13 @@ class ReportesController extends Controller
             'ordi' => $this->buildOrdiQuery(),
         };
 
-        $this->applyDateFilter($query, 't.created_at', $from, $to);
+        $this->applyDateFilter($query, 't.created_at', $from, $to, $monthDateRanges);
         $this->applyStatusFilter($query, 't.' . $config['state_col'], $status, $estadoEntregadoId);
         if (!empty($estadoIds)) {
             $query->whereIn('t.' . $config['state_col'], $estadoIds);
         }
 
-        $this->applyDepartamentoFilter($query, $moduleKey, $departamento);
+        $this->applyDepartamentoFilter($query, $moduleKey, $departamentoDestino, 'destino');
         $this->applySearchFilter($query, $moduleKey, $search);
 
         return $query->get()->map(function ($row) use ($moduleKey, $estadoEntregadoId, $estadoCanceladoId) {
@@ -170,10 +228,35 @@ class ReportesController extends Controller
 
     private function buildContratoQuery(): Builder
     {
+        $deliveredSub = $this->deliveredEventSubquery('eventos_contrato');
+        $pickupSub = $this->eventUserSubquery('eventos_contrato', self::EVENTO_CONTRATO_RECOGIDO_ID);
+        $rolesSub = $this->roleNamesSubquery();
+        $regionalesUserExpression = $this->regionalesValueExpression('u');
+        $regionalesPickupExpression = $this->regionalesValueExpression('up');
+        $empresaUserCondition = "(coalesce(ur.role_names, '') like '%empresa%' or u.empresa_id is not null)";
+
         return DB::table('paquetes_contrato as t')
             ->leftJoin('estados as e', 'e.id', '=', 't.estados_id')
             ->leftJoin('empresa as emp', 'emp.id', '=', 't.empresa_id')
             ->leftJoin('users as u', 'u.id', '=', 't.user_id')
+            ->leftJoinSub($rolesSub, 'ur', function ($join) {
+                $join->on('ur.model_id', '=', 'u.id');
+            })
+            ->leftJoinSub($pickupSub, 'ev_r', function ($join) {
+                $join->on('ev_r.codigo', '=', 't.codigo');
+            })
+            ->leftJoin('users as up', 'up.id', '=', 'ev_r.user_id')
+            ->leftJoinSub($rolesSub, 'upr', function ($join) {
+                $join->on('upr.model_id', '=', 'up.id');
+            })
+            ->leftJoin('tarifa_contrato as tc', 'tc.id', '=', 't.tarifa_contrato_id')
+            ->leftJoinSub($deliveredSub, 'ev_d', function ($join) {
+                $join->on('ev_d.codigo', '=', 't.codigo');
+            })
+            ->leftJoin('users as ud', 'ud.id', '=', 'ev_d.user_id')
+            ->leftJoinSub($rolesSub, 'udr', function ($join) {
+                $join->on('udr.model_id', '=', 'ud.id');
+            })
             ->select([
                 DB::raw("'contrato' as modulo_key"),
                 DB::raw("'CONTRATOS' as modulo_label"),
@@ -185,7 +268,18 @@ class ReportesController extends Controller
                 DB::raw("coalesce(t.nombre_r, '-') as remitente"),
                 DB::raw("coalesce(t.nombre_d, '-') as destinatario"),
                 DB::raw("coalesce(emp.nombre, '-') as empresa"),
-                DB::raw("coalesce(u.name, '-') as usuario"),
+                DB::raw("case when {$empresaUserCondition} then coalesce(up.id, u.id, 0) else coalesce(u.id, 0) end as usuario_id"),
+                DB::raw("case when {$empresaUserCondition} then coalesce(up.name, u.name, '-') else coalesce(u.name, '-') end as usuario"),
+                DB::raw("case when {$empresaUserCondition} then coalesce(upr.role_names, '') else coalesce(ur.role_names, '') end as usuario_roles"),
+                DB::raw("case when {$empresaUserCondition} then coalesce(up.ciudad, u.ciudad, '-') else coalesce(u.ciudad, '-') end as usuario_regional"),
+                DB::raw("case when {$empresaUserCondition} then {$regionalesPickupExpression} else {$regionalesUserExpression} end as usuario_regionales"),
+                DB::raw("coalesce(tc.servicio, 'CONTRATOS') as servicio_nombre"),
+                DB::raw("coalesce(ev_d.user_id, 0) as entregado_por_id"),
+                DB::raw("coalesce(ud.name, 'Sin entrega registrada') as entregado_por"),
+                DB::raw("coalesce(udr.role_names, '') as entregado_por_roles"),
+                'ev_d.delivered_at',
+                DB::raw("case when {$empresaUserCondition} then case when up.deleted_at is null and up.id is not null then 1 else 0 end else case when u.deleted_at is null and u.id is not null then 1 else 0 end end as usuario_activo"),
+                DB::raw("case when {$empresaUserCondition} then 1 else 0 end as usuario_empresa_gestora"),
                 DB::raw('coalesce(t.peso, 0) as peso'),
                 DB::raw('coalesce(t.precio, 0) as precio'),
                 't.created_at',
@@ -201,12 +295,38 @@ class ReportesController extends Controller
             ->select('codigo', DB::raw('MIN(created_at) as solicitud_at'))
             ->where('evento_id', self::EVENTO_EMS_SOLICITUD_ID)
             ->groupBy('codigo');
+        $deliveredSub = $this->deliveredEventSubquery('eventos_ems');
+        $pickupSub = $this->eventUserSubquery('eventos_ems', self::EVENTO_EMS_SOLICITUD_ID);
+
+        $rolesSub = $this->roleNamesSubquery();
+        $regionalesUserExpression = $this->regionalesValueExpression('u');
+        $regionalesPickupExpression = $this->regionalesValueExpression('up');
+        $empresaUserCondition = "(coalesce(ur.role_names, '') like '%empresa%' or u.empresa_id is not null)";
 
         return DB::table('paquetes_ems as t')
             ->leftJoin('estados as e', 'e.id', '=', 't.estado_id')
             ->leftJoin('users as u', 'u.id', '=', 't.user_id')
+            ->leftJoin('tarifario as tar', 'tar.id', '=', 't.tarifario_id')
+            ->leftJoin('servicio as srv', 'srv.id', '=', 'tar.servicio_id')
+            ->leftJoinSub($rolesSub, 'ur', function ($join) {
+                $join->on('ur.model_id', '=', 'u.id');
+            })
+            ->leftJoinSub($pickupSub, 'ev_r', function ($join) {
+                $join->on('ev_r.codigo', '=', 't.codigo');
+            })
+            ->leftJoin('users as up', 'up.id', '=', 'ev_r.user_id')
+            ->leftJoinSub($rolesSub, 'upr', function ($join) {
+                $join->on('upr.model_id', '=', 'up.id');
+            })
             ->leftJoinSub($solicitudSub, 'ev_s', function ($join) {
                 $join->on('ev_s.codigo', '=', 't.codigo');
+            })
+            ->leftJoinSub($deliveredSub, 'ev_d', function ($join) {
+                $join->on('ev_d.codigo', '=', 't.codigo');
+            })
+            ->leftJoin('users as ud', 'ud.id', '=', 'ev_d.user_id')
+            ->leftJoinSub($rolesSub, 'udr', function ($join) {
+                $join->on('udr.model_id', '=', 'ud.id');
             })
             ->select([
                 DB::raw("'ems' as modulo_key"),
@@ -219,7 +339,18 @@ class ReportesController extends Controller
                 DB::raw("coalesce(t.nombre_remitente, '-') as remitente"),
                 DB::raw("coalesce(t.nombre_destinatario, '-') as destinatario"),
                 DB::raw("'-' as empresa"),
-                DB::raw("coalesce(u.name, '-') as usuario"),
+                DB::raw("case when {$empresaUserCondition} then coalesce(up.id, 0) else coalesce(u.id, 0) end as usuario_id"),
+                DB::raw("case when {$empresaUserCondition} then coalesce(up.name, '-') else coalesce(u.name, '-') end as usuario"),
+                DB::raw("case when {$empresaUserCondition} then coalesce(up.ciudad, '-') else coalesce(u.ciudad, '-') end as usuario_regional"),
+                DB::raw("case when {$empresaUserCondition} then {$regionalesPickupExpression} else {$regionalesUserExpression} end as usuario_regionales"),
+                DB::raw("case when {$empresaUserCondition} then coalesce(upr.role_names, '') else coalesce(ur.role_names, '') end as usuario_roles"),
+                DB::raw("coalesce(srv.nombre_servicio, 'EMS') as servicio_nombre"),
+                DB::raw("coalesce(ev_d.user_id, 0) as entregado_por_id"),
+                DB::raw("coalesce(ud.name, 'Sin entrega registrada') as entregado_por"),
+                DB::raw("coalesce(udr.role_names, '') as entregado_por_roles"),
+                'ev_d.delivered_at',
+                DB::raw("case when {$empresaUserCondition} then case when up.deleted_at is null and up.id is not null then 1 else 0 end else case when u.deleted_at is null and u.id is not null then 1 else 0 end end as usuario_activo"),
+                DB::raw("case when {$empresaUserCondition} then 1 else 0 end as usuario_empresa_gestora"),
                 DB::raw('coalesce(t.peso, 0) as peso'),
                 DB::raw('coalesce(t.precio, 0) as precio'),
                 't.created_at',
@@ -231,13 +362,28 @@ class ReportesController extends Controller
     private function buildCertiQuery(): Builder
     {
         $inicioSub = DB::table('eventos_certi')
-            ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
+            ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'), DB::raw('MIN(user_id) as registro_user_id'))
             ->groupBy('codigo');
+        $deliveredSub = $this->deliveredEventSubquery('eventos_certi');
+        $rolesSub = $this->roleNamesSubquery();
+        $regionalesExpression = $this->regionalesValueExpression('u') . ' as usuario_regionales';
 
         return DB::table('paquetes_certi as t')
             ->leftJoin('estados as e', 'e.id', '=', 't.fk_estado')
+            ->leftJoin('servicio as srv', 'srv.id', '=', 't.servicio_id')
             ->leftJoinSub($inicioSub, 'ev_i', function ($join) {
                 $join->on('ev_i.codigo', '=', 't.codigo');
+            })
+            ->leftJoin('users as u', 'u.id', '=', 'ev_i.registro_user_id')
+            ->leftJoinSub($rolesSub, 'ur', function ($join) {
+                $join->on('ur.model_id', '=', 'u.id');
+            })
+            ->leftJoinSub($deliveredSub, 'ev_d', function ($join) {
+                $join->on('ev_d.codigo', '=', 't.codigo');
+            })
+            ->leftJoin('users as ud', 'ud.id', '=', 'ev_d.user_id')
+            ->leftJoinSub($rolesSub, 'udr', function ($join) {
+                $join->on('udr.model_id', '=', 'ud.id');
             })
             ->select([
                 DB::raw("'certi' as modulo_key"),
@@ -250,9 +396,20 @@ class ReportesController extends Controller
                 DB::raw("'-' as remitente"),
                 DB::raw("coalesce(t.destinatario, '-') as destinatario"),
                 DB::raw("'-' as empresa"),
-                DB::raw("'-' as usuario"),
+                DB::raw("coalesce(u.id, 0) as usuario_id"),
+                DB::raw("coalesce(u.name, '-') as usuario"),
+                DB::raw("coalesce(ur.role_names, '') as usuario_roles"),
+                DB::raw("coalesce(u.ciudad, '-') as usuario_regional"),
+                DB::raw($regionalesExpression),
+                DB::raw("coalesce(srv.nombre_servicio, 'CERTIFICADOS') as servicio_nombre"),
+                DB::raw("coalesce(ev_d.user_id, 0) as entregado_por_id"),
+                DB::raw("coalesce(ud.name, 'Sin entrega registrada') as entregado_por"),
+                DB::raw("coalesce(udr.role_names, '') as entregado_por_roles"),
+                'ev_d.delivered_at',
+                DB::raw("case when u.deleted_at is null and u.id is not null then 1 else 0 end as usuario_activo"),
+                DB::raw("0 as usuario_empresa_gestora"),
                 DB::raw('coalesce(t.peso, 0) as peso'),
-                DB::raw('0 as precio'),
+                DB::raw('coalesce(t.precio, 0) as precio'),
                 't.created_at',
                 't.updated_at',
                 'ev_i.primer_evento_at',
@@ -262,13 +419,28 @@ class ReportesController extends Controller
     private function buildOrdiQuery(): Builder
     {
         $inicioSub = DB::table('eventos_ordi')
-            ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
+            ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'), DB::raw('MIN(user_id) as registro_user_id'))
             ->groupBy('codigo');
+        $deliveredSub = $this->deliveredEventSubquery('eventos_ordi');
+        $rolesSub = $this->roleNamesSubquery();
+        $regionalesExpression = $this->regionalesValueExpression('u') . ' as usuario_regionales';
 
         return DB::table('paquetes_ordi as t')
             ->leftJoin('estados as e', 'e.id', '=', 't.fk_estado')
+            ->leftJoin('servicio as srv', 'srv.id', '=', 't.servicio_id')
             ->leftJoinSub($inicioSub, 'ev_i', function ($join) {
                 $join->on('ev_i.codigo', '=', 't.codigo');
+            })
+            ->leftJoin('users as u', 'u.id', '=', 'ev_i.registro_user_id')
+            ->leftJoinSub($rolesSub, 'ur', function ($join) {
+                $join->on('ur.model_id', '=', 'u.id');
+            })
+            ->leftJoinSub($deliveredSub, 'ev_d', function ($join) {
+                $join->on('ev_d.codigo', '=', 't.codigo');
+            })
+            ->leftJoin('users as ud', 'ud.id', '=', 'ev_d.user_id')
+            ->leftJoinSub($rolesSub, 'udr', function ($join) {
+                $join->on('udr.model_id', '=', 'ud.id');
             })
             ->select([
                 DB::raw("'ordi' as modulo_key"),
@@ -281,9 +453,20 @@ class ReportesController extends Controller
                 DB::raw("'-' as remitente"),
                 DB::raw("coalesce(t.destinatario, '-') as destinatario"),
                 DB::raw("'-' as empresa"),
-                DB::raw("'-' as usuario"),
+                DB::raw("coalesce(u.id, 0) as usuario_id"),
+                DB::raw("coalesce(u.name, '-') as usuario"),
+                DB::raw("coalesce(ur.role_names, '') as usuario_roles"),
+                DB::raw("coalesce(u.ciudad, '-') as usuario_regional"),
+                DB::raw($regionalesExpression),
+                DB::raw("coalesce(srv.nombre_servicio, 'ORDINARIOS') as servicio_nombre"),
+                DB::raw("coalesce(ev_d.user_id, 0) as entregado_por_id"),
+                DB::raw("coalesce(ud.name, 'Sin entrega registrada') as entregado_por"),
+                DB::raw("coalesce(udr.role_names, '') as entregado_por_roles"),
+                'ev_d.delivered_at',
+                DB::raw("case when u.deleted_at is null and u.id is not null then 1 else 0 end as usuario_activo"),
+                DB::raw("0 as usuario_empresa_gestora"),
                 DB::raw('coalesce(t.peso, 0) as peso'),
-                DB::raw('0 as precio'),
+                DB::raw('coalesce(t.precio, 0) as precio'),
                 't.created_at',
                 't.updated_at',
                 'ev_i.primer_evento_at',
@@ -334,18 +517,37 @@ class ReportesController extends Controller
 
         $createdAt = $this->safeCarbon($row->created_at ?? null);
         $updatedAt = $this->safeCarbon($row->updated_at ?? null);
+        $deliveredAt = $this->safeCarbon($row->delivered_at ?? null);
+        $deliveryHours = ($createdAt && $deliveredAt && $deliveredAt->greaterThanOrEqualTo($createdAt))
+            ? round($createdAt->diffInMinutes($deliveredAt) / 60, 2)
+            : null;
+        $regional = $this->resolveRegionalText($row->usuario_regional ?? null, $row->usuario_regionales ?? null);
+        $origen = (string) ($row->origen ?? '-');
+        $origenRegistro = in_array($moduleKey, ['certi', 'ordi'], true) || trim($origen) === '' || trim($origen) === '-'
+            ? ($this->firstDepartamentoFromList($regional) ?: $regional)
+            : $origen;
 
         return [
             'modulo_key' => $row->modulo_key,
             'modulo_label' => $row->modulo_label,
             'codigo' => (string) ($row->codigo ?? '-'),
             'estado' => (string) ($row->estado_nombre ?? '-'),
-            'origen' => (string) ($row->origen ?? '-'),
+            'origen' => $origen,
+            'origen_registro' => $origenRegistro,
             'destino' => (string) ($row->destino ?? '-'),
             'remitente' => (string) ($row->remitente ?? '-'),
             'destinatario' => (string) ($row->destinatario ?? '-'),
             'empresa' => (string) ($row->empresa ?? '-'),
+            'usuario_id' => (int) ($row->usuario_id ?? 0),
             'usuario' => (string) ($row->usuario ?? '-'),
+            'usuario_roles' => (string) ($row->usuario_roles ?? ''),
+            'regional' => $regional,
+            'servicio' => (string) ($row->servicio_nombre ?? '-'),
+            'entregado_por_id' => (int) ($row->entregado_por_id ?? 0),
+            'entregado_por' => (string) ($row->entregado_por ?? 'Sin entrega registrada'),
+            'entregado_por_roles' => (string) ($row->entregado_por_roles ?? ''),
+            'usuario_activo' => (bool) ((int) ($row->usuario_activo ?? 0)),
+            'usuario_empresa_gestora' => (bool) ((int) ($row->usuario_empresa_gestora ?? 0)),
             'peso' => (float) ($row->peso ?? 0),
             'precio' => (float) ($row->precio ?? 0),
             'is_entregado' => $isEntregado,
@@ -354,7 +556,10 @@ class ReportesController extends Controller
             'situacion' => $situacion,
             'created_at' => $createdAt?->format('d/m/Y H:i') ?? '-',
             'updated_at' => $updatedAt?->format('d/m/Y H:i') ?? '-',
+            'delivered_at' => $deliveredAt?->format('d/m/Y H:i') ?? '-',
             'created_at_ts' => $createdAt?->timestamp ?? 0,
+            'delivered_at_ts' => $deliveredAt?->timestamp ?? 0,
+            'delivery_hours' => $deliveryHours,
             'estado_id' => (int) ($row->estado_id ?? 0),
         ];
     }
@@ -409,6 +614,672 @@ class ReportesController extends Controller
         ];
     }
 
+    private function buildAdministrativeSummary(Collection $rows, string $departamentoOrigen = ''): array
+    {
+        $rows = $rows
+            ->filter(fn (array $row) => $this->hasValidAdministrativeUser($row))
+            ->filter(fn (array $row) => $this->empresaReplacementMatchesOrigin($row, $departamentoOrigen))
+            ->values();
+        $total = max(0, $rows->count());
+        $pesoTotal = round((float) $rows->sum('peso'), 3);
+        $costoTotal = round((float) $rows->sum('precio'), 2);
+        $ranking = $rows
+            ->groupBy(fn (array $row) => trim((string) ($row['usuario'] ?? '-')) ?: 'Sin usuario')
+            ->map(function (Collection $items, string $usuario) {
+                $firstTs = (int) $items->min('created_at_ts');
+                $lastTs = (int) $items->max('created_at_ts');
+                $regionales = $items
+                    ->pluck('regional')
+                    ->flatMap(fn ($value) => explode(',', (string) $value))
+                    ->map(fn ($value) => strtoupper(trim($value)))
+                    ->filter(fn ($value) => $value !== '' && $value !== '-')
+                    ->unique()
+                    ->values();
+                $servicios = $items
+                    ->map(fn (array $row) => trim((string) ($row['servicio'] ?? '')))
+                    ->filter(fn ($value) => $value !== '' && $value !== '-')
+                    ->countBy()
+                    ->sortDesc();
+                $serviciosDetalle = $servicios
+                    ->map(fn ($cantidad, $servicio) => [
+                        'nombre' => (string) $servicio,
+                        'cantidad' => (int) $cantidad,
+                    ])
+                    ->values()
+                    ->all();
+                $serviciosTexto = $servicios->isNotEmpty()
+                    ? $servicios->map(fn ($cantidad, $servicio) => $servicio . ' ' . number_format((int) $cantidad))->values()->implode(' / ')
+                    : 'EMS 0';
+                $origenes = $items
+                    ->pluck('origen_registro')
+                    ->map(fn ($value) => strtoupper(trim((string) $value)))
+                    ->filter(fn ($value) => $value !== '' && $value !== '-')
+                    ->unique()
+                    ->values();
+                $destinos = $items
+                    ->map(fn (array $row) => strtoupper(trim((string) ($row['destino'] ?? ''))))
+                    ->filter(fn ($value) => $value !== '' && $value !== '-')
+                    ->countBy()
+                    ->sortDesc();
+                $destinosDetalle = $destinos
+                    ->map(fn ($cantidad, $destino) => [
+                        'nombre' => (string) $destino,
+                        'cantidad' => (int) $cantidad,
+                    ])
+                    ->values()
+                    ->all();
+                $destinosTexto = $destinos->isNotEmpty()
+                    ? $destinos->map(fn ($cantidad, $destino) => $destino . ' ' . number_format((int) $cantidad))->values()->implode(' / ')
+                    : 'SIN DESTINO 0';
+                $entregadores = $items
+                    ->map(fn (array $row) => trim((string) ($row['entregado_por'] ?? '')))
+                    ->filter(fn ($value) => $value !== '')
+                    ->countBy()
+                    ->sortDesc();
+                $entregadoresDetalle = $entregadores
+                    ->map(fn ($cantidad, $usuario) => [
+                        'nombre' => (string) $usuario,
+                        'cantidad' => (int) $cantidad,
+                    ])
+                    ->values()
+                    ->all();
+                $entregadoresTexto = $entregadores->isNotEmpty()
+                    ? $entregadores->map(fn ($cantidad, $usuario) => $usuario . ' ' . number_format((int) $cantidad))->values()->implode(' / ')
+                    : 'Sin entrega registrada 0';
+
+                return [
+                    'usuario' => $usuario,
+                    'regional' => $regionales->isNotEmpty() ? $regionales->implode(', ') : 'SIN REGIONAL',
+                    'servicio' => $serviciosTexto,
+                    'servicios' => $serviciosDetalle,
+                    'origen' => $origenes->isNotEmpty() ? $origenes->implode(', ') : 'SIN ORIGEN',
+                    'destino' => $destinosTexto,
+                    'destinos' => $destinosDetalle,
+                    'entregado_por' => $entregadoresTexto,
+                    'entregadores' => $entregadoresDetalle,
+                    'total' => $items->count(),
+                    'peso' => round((float) $items->sum('peso'), 3),
+                    'precio' => round((float) $items->sum('precio'), 2),
+                    'primera_admision' => $firstTs > 0 ? Carbon::createFromTimestamp($firstTs)->format('d/m/Y H:i') : '-',
+                    'ultima_admision' => $lastTs > 0 ? Carbon::createFromTimestamp($lastTs)->format('d/m/Y H:i') : '-',
+                ];
+            })
+            ->sortByDesc('total')
+            ->values();
+
+        $rankingOrigenes = $this->buildAdministrativeLocationRanking($rows, 'origen_registro', 'SIN ORIGEN');
+        $rankingDestinos = $this->buildAdministrativeLocationRanking($rows, 'destino', 'SIN DESTINO');
+        $pesoPorModulo = $this->buildAdministrativeModuleWeightSummary($rows);
+        $ventanillaPorModulo = $this->buildAdministrativeVentanillaSummary($rows);
+        $entregasTop = $this->buildDeliveryTopSummary($rows);
+
+        return [
+            'total_admisiones' => $total,
+            'usuarios_activos' => $ranking->count(),
+            'peso_total' => $pesoTotal,
+            'costo_total' => $costoTotal,
+            'peso_por_modulo' => $pesoPorModulo,
+            'ventanilla_por_modulo' => $ventanillaPorModulo,
+            'top_ventanilla' => $ventanillaPorModulo->sortByDesc('total')->first() ?? ['servicio' => 'SIN DATOS', 'total' => 0, 'peso' => 0],
+            'entregas_ventanilla_top' => $entregasTop['ventanilla'],
+            'entregas_cartero_top' => $entregasTop['cartero'],
+            'top_origen' => $rankingOrigenes->first() ?? ['nombre' => 'SIN ORIGEN', 'total' => 0],
+            'top_destino' => $rankingDestinos->first() ?? ['nombre' => 'SIN DESTINO', 'total' => 0],
+            'ranking_origenes' => $rankingOrigenes,
+            'ranking_destinos' => $rankingDestinos,
+            'eficiencia_servicios' => $this->buildServiceEfficiencySummary($rows),
+            'ranking' => $ranking,
+        ];
+    }
+
+    private function buildAdministrativeModuleWeightSummary(Collection $rows): Collection
+    {
+        return collect(self::MODULES)
+            ->map(function (array $module, string $moduleKey) use ($rows) {
+                $moduleRows = $rows->where('modulo_key', $moduleKey);
+
+                return [
+                    'key' => $moduleKey,
+                    'servicio' => $module['label'],
+                    'total' => $moduleRows->count(),
+                    'peso' => round((float) $moduleRows->sum('peso'), 3),
+                ];
+            })
+            ->values();
+    }
+
+    private function buildAdministrativeVentanillaSummary(Collection $rows): Collection
+    {
+        $ventanillaRows = $rows
+            ->filter(fn (array $row) => $this->isAdministrativeVentanillaRow($row))
+            ->values();
+
+        return collect(self::MODULES)
+            ->map(function (array $module, string $moduleKey) use ($ventanillaRows) {
+                $moduleRows = $ventanillaRows->where('modulo_key', $moduleKey);
+
+                return [
+                    'key' => $moduleKey,
+                    'servicio' => $module['label'],
+                    'total' => $moduleRows->count(),
+                    'peso' => round((float) $moduleRows->sum('peso'), 3),
+                ];
+            })
+            ->values();
+    }
+
+    private function isAdministrativeVentanillaRow(array $row): bool
+    {
+        $estado = $this->normalizeDestino((string) ($row['estado'] ?? ''));
+        $moduleKey = (string) ($row['modulo_key'] ?? '');
+
+        if (str_contains($estado, 'VENTANILLA')) {
+            return true;
+        }
+
+        return $moduleKey === 'ordi' && $estado === 'RECIBIDO';
+    }
+
+    private function buildDeliveryTopSummary(Collection $rows): array
+    {
+        $deliveredRows = $rows
+            ->filter(fn (array $row) => (bool) ($row['is_entregado'] ?? false))
+            ->filter(fn (array $row) => (int) ($row['entregado_por_id'] ?? 0) > 0)
+            ->filter(fn (array $row) => trim((string) ($row['entregado_por'] ?? '')) !== '')
+            ->filter(fn (array $row) => trim((string) ($row['entregado_por'] ?? '')) !== 'Sin entrega registrada')
+            ->values();
+
+        return [
+            'ventanilla' => $this->buildDeliveryTopForChannel(
+                $deliveredRows->reject(fn (array $row) => $this->isCarteroRoleNames((string) ($row['entregado_por_roles'] ?? '')))->values()
+            ),
+            'cartero' => $this->buildDeliveryTopForChannel(
+                $deliveredRows->filter(fn (array $row) => $this->isCarteroRoleNames((string) ($row['entregado_por_roles'] ?? '')))->values()
+            ),
+        ];
+    }
+
+    private function buildDeliveryTopForChannel(Collection $rows): Collection
+    {
+        return $rows
+            ->groupBy(fn (array $row) => trim((string) ($row['entregado_por'] ?? 'SIN DATO')) ?: 'SIN DATO')
+            ->map(function (Collection $items, string $usuario) {
+                $servicios = $items
+                    ->map(fn (array $row) => trim((string) ($row['servicio'] ?? '')))
+                    ->filter(fn ($value) => $value !== '' && $value !== '-')
+                    ->countBy()
+                    ->sortDesc();
+
+                return [
+                    'usuario' => $usuario,
+                    'total' => $items->count(),
+                    'peso' => round((float) $items->sum('peso'), 3),
+                    'servicio' => $servicios->isNotEmpty()
+                        ? $servicios->map(fn ($cantidad, $servicio) => $servicio . ' ' . number_format((int) $cantidad))->values()->implode(' / ')
+                        : 'SIN SERVICIO 0',
+                ];
+            })
+            ->sortByDesc('total')
+            ->values();
+    }
+
+    private function isCarteroRoleNames(string $roleNames): bool
+    {
+        return str_contains(mb_strtolower(trim($roleNames)), 'cartero');
+    }
+
+    private function buildAdministrativeMalencaminadosSummary(Request $request, string $departamentoOrigen = '', string $departamentoDestino = ''): array
+    {
+        [$from, $to] = $this->resolveDateRange($request);
+        $monthDateRanges = $this->buildMonthDateRanges($this->resolveSelectedMonthFilters($request));
+        if (!empty($monthDateRanges)) {
+            $from = null;
+            $to = null;
+        }
+
+        $search = trim((string) $request->query('q', ''));
+        $departamentoExpr = "coalesce(
+            nullif(trim(upper(m.departamento_origen)), ''),
+            nullif(trim(upper(pe.origen)), ''),
+            nullif(trim(upper(pc.origen)), ''),
+            'SIN ORIGEN'
+        )";
+        $tipoExpr = "case
+            when m.paquetes_ems_id is not null then 'ems'
+            when m.paquetes_contrato_id is not null then 'contrato'
+            when m.paquetes_certi_id is not null then 'certi'
+            when m.paquetes_ordi_id is not null then 'ordi'
+            else '-'
+        end";
+
+        $query = DB::table('malencaminados as m')
+            ->leftJoin('paquetes_ems as pe', 'pe.id', '=', 'm.paquetes_ems_id')
+            ->leftJoin('paquetes_contrato as pc', 'pc.id', '=', 'm.paquetes_contrato_id')
+            ->leftJoin('paquetes_certi as pce', 'pce.id', '=', 'm.paquetes_certi_id')
+            ->leftJoin('paquetes_ordi as po', 'po.id', '=', 'm.paquetes_ordi_id')
+            ->selectRaw("
+                m.id,
+                m.codigo,
+                {$departamentoExpr} as departamento_origen,
+                coalesce(nullif(trim(upper(m.destino_anterior)), ''), '-') as destino_anterior,
+                coalesce(nullif(trim(upper(m.destino_nuevo)), ''), '-') as destino_nuevo,
+                coalesce(m.malencaminamiento, 1) as malencaminamiento,
+                coalesce(m.observacion, '') as observacion,
+                m.created_at,
+                {$tipoExpr} as modulo_key
+            ");
+
+        $this->applyDateFilter($query, 'm.created_at', $from, $to, $monthDateRanges);
+
+        if ($search !== '') {
+            $like = '%' . mb_strtolower($search) . '%';
+            $query->where(function (Builder $sub) use ($like) {
+                $sub->whereRaw("LOWER(COALESCE(CAST(m.codigo AS TEXT), '')) LIKE ?", [$like])
+                    ->orWhereRaw("LOWER(COALESCE(CAST(m.destino_anterior AS TEXT), '')) LIKE ?", [$like])
+                    ->orWhereRaw("LOWER(COALESCE(CAST(m.destino_nuevo AS TEXT), '')) LIKE ?", [$like])
+                    ->orWhereRaw("LOWER(COALESCE(CAST(m.observacion AS TEXT), '')) LIKE ?", [$like]);
+            });
+        }
+
+        $rows = $query
+            ->orderByDesc('m.created_at')
+            ->orderByDesc('m.id')
+            ->get()
+            ->map(function (object $row) {
+                $createdAt = $this->safeCarbon($row->created_at ?? null);
+
+                return [
+                    'id' => (int) ($row->id ?? 0),
+                    'codigo' => (string) ($row->codigo ?? '-'),
+                    'modulo_key' => (string) ($row->modulo_key ?? '-'),
+                    'servicio' => self::MODULES[$row->modulo_key ?? '']['label'] ?? strtoupper((string) ($row->modulo_key ?? '-')),
+                    'departamento_origen' => (string) ($row->departamento_origen ?? 'SIN ORIGEN'),
+                    'destino_anterior' => (string) ($row->destino_anterior ?? '-'),
+                    'destino_nuevo' => (string) ($row->destino_nuevo ?? '-'),
+                    'malencaminamiento' => (int) ($row->malencaminamiento ?? 1),
+                    'observacion' => (string) ($row->observacion ?? ''),
+                    'created_at' => $createdAt?->format('d/m/Y H:i') ?? '-',
+                    'created_at_ts' => $createdAt?->timestamp ?? 0,
+                ];
+            })
+            ->filter(fn (array $row) => $this->matchesDepartamentoValue((string) ($row['departamento_origen'] ?? ''), $departamentoOrigen))
+            ->filter(fn (array $row) => $this->matchesDepartamentoValue((string) ($row['destino_nuevo'] ?? ''), $departamentoDestino))
+            ->values();
+
+        $porModulo = collect(self::MODULES)
+            ->map(function (array $module, string $moduleKey) use ($rows) {
+                $moduleRows = $rows->where('modulo_key', $moduleKey);
+
+                return [
+                    'key' => $moduleKey,
+                    'servicio' => $module['label'],
+                    'total' => $moduleRows->count(),
+                    'malencaminamientos' => (int) $moduleRows->sum('malencaminamiento'),
+                ];
+            })
+            ->values();
+
+        return [
+            'total' => $rows->count(),
+            'total_malencaminamientos' => (int) $rows->sum('malencaminamiento'),
+            'por_modulo' => $porModulo,
+            'ultimos' => $rows->take(10)->values(),
+        ];
+    }
+
+    private function matchesDepartamentoValue(string $value, string $departamento): bool
+    {
+        if ($departamento === '') {
+            return true;
+        }
+
+        $canonical = $this->canonicalDepartamentoName($value);
+        if ($canonical === '') {
+            return false;
+        }
+
+        return $canonical === $departamento;
+    }
+
+    private function hasValidAdministrativeUser(array $row): bool
+    {
+        $usuarioId = (int) ($row['usuario_id'] ?? 0);
+        $usuario = trim((string) ($row['usuario'] ?? ''));
+
+        if ($usuarioId <= 0 || $usuario === '' || $usuario === '-') {
+            return false;
+        }
+
+        if (! (bool) ($row['usuario_activo'] ?? false)) {
+            return false;
+        }
+
+        return ! $this->isEmpresaRoleNames((string) ($row['usuario_roles'] ?? ''));
+    }
+
+    private function empresaReplacementMatchesOrigin(array $row, string $departamentoOrigen = ''): bool
+    {
+        if (! (bool) ($row['usuario_empresa_gestora'] ?? false)) {
+            return true;
+        }
+
+        $origen = $departamentoOrigen !== ''
+            ? $departamentoOrigen
+            : (string) ($row['origen_registro'] ?? $row['origen'] ?? '');
+        $origenCanonico = $this->canonicalDepartamentoName($origen);
+
+        if ($origenCanonico === '') {
+            return true;
+        }
+
+        $regionales = collect(explode(',', (string) ($row['regional'] ?? '')))
+            ->map(fn ($regional) => $this->canonicalDepartamentoName($regional))
+            ->filter(fn ($regional) => $regional !== '')
+            ->unique()
+            ->values();
+
+        return $regionales->contains($origenCanonico);
+    }
+
+    private function deliveredEventSubquery(string $eventTable): Builder
+    {
+        return $this->eventUserSubquery($eventTable, self::EVENTO_ENTREGADO_ID);
+    }
+
+    private function eventUserSubquery(string $eventTable, int $eventId): Builder
+    {
+        return DB::table($eventTable)
+            ->select('codigo', DB::raw('MAX(user_id) as user_id'), DB::raw('MIN(created_at) as delivered_at'))
+            ->where('evento_id', $eventId)
+            ->whereNotNull('user_id')
+            ->groupBy('codigo');
+    }
+
+    private function buildServiceEfficiencySummary(Collection $rows): Collection
+    {
+        return $rows
+            ->filter(fn (array $row) => (bool) ($row['is_entregado'] ?? false))
+            ->filter(fn (array $row) => (float) ($row['delivery_hours'] ?? 0) > 0)
+            ->groupBy(fn (array $row) => trim((string) ($row['servicio'] ?? '-')) ?: 'SIN SERVICIO')
+            ->map(function (Collection $items, string $servicio) {
+                $avgHours = round((float) $items->avg('delivery_hours'), 2);
+                $minHours = round((float) $items->min('delivery_hours'), 2);
+                $maxHours = round((float) $items->max('delivery_hours'), 2);
+
+                return [
+                    'servicio' => $servicio,
+                    'total' => $items->count(),
+                    'promedio_horas' => $avgHours,
+                    'promedio' => $this->formatDurationHours($avgHours),
+                    'mejor_tiempo' => $this->formatDurationHours($minHours),
+                    'mayor_tiempo' => $this->formatDurationHours($maxHours),
+                    'peso' => round((float) $items->sum('peso'), 3),
+                    'costo' => round((float) $items->sum('precio'), 2),
+                ];
+            })
+            ->sort(function (array $a, array $b) {
+                $avgCompare = ($a['promedio_horas'] ?? 0) <=> ($b['promedio_horas'] ?? 0);
+                if ($avgCompare !== 0) {
+                    return $avgCompare;
+                }
+
+                return ($b['total'] ?? 0) <=> ($a['total'] ?? 0);
+            })
+            ->values();
+    }
+
+    private function formatDurationHours(float $hours): string
+    {
+        if ($hours <= 0) {
+            return '-';
+        }
+
+        if ($hours < 24) {
+            return number_format($hours, 1) . ' h';
+        }
+
+        $days = floor($hours / 24);
+        $remainingHours = round($hours - ($days * 24), 1);
+
+        return number_format($days, 0) . ' d ' . number_format($remainingHours, 1) . ' h';
+    }
+
+    private function roleNamesSubquery(): Builder
+    {
+        $roleNamesAggregate = DB::connection()->getDriverName() === 'pgsql'
+            ? "STRING_AGG(LOWER(r.name), ',') as role_names"
+            : "GROUP_CONCAT(LOWER(r.name)) as role_names";
+
+        return DB::table('model_has_roles as mhr')
+            ->join('roles as r', 'r.id', '=', 'mhr.role_id')
+            ->select('mhr.model_id', DB::raw($roleNamesAggregate))
+            ->where('mhr.model_type', 'App\\Models\\User')
+            ->groupBy('mhr.model_id');
+    }
+
+    private function regionalesValueExpression(string $alias): string
+    {
+        return DB::connection()->getDriverName() === 'pgsql'
+            ? "coalesce({$alias}.regionales::text, '')"
+            : "coalesce({$alias}.regionales, '')";
+    }
+
+    private function buildAdministrativeLocationSummary(Collection $rows, string $key, string $fallback): ?array
+    {
+        $ranking = $rows
+            ->map(fn (array $row) => strtoupper(trim((string) ($row[$key] ?? ''))))
+            ->filter(fn ($value) => $value !== '' && $value !== '-')
+            ->countBy()
+            ->sortDesc();
+
+        if ($ranking->isEmpty()) {
+            return [
+                'nombre' => $fallback,
+                'total' => 0,
+            ];
+        }
+
+        return [
+            'nombre' => (string) $ranking->keys()->first(),
+            'total' => (int) $ranking->first(),
+        ];
+    }
+
+    private function buildAdministrativeLocationRanking(Collection $rows, string $key, string $fallback, bool $splitComma = false): Collection
+    {
+        $values = $rows->flatMap(function (array $row) use ($key, $splitComma) {
+            $value = (string) ($row[$key] ?? '');
+            $items = $splitComma ? explode(',', $value) : [$value];
+
+            return collect($items)
+                ->map(fn ($item) => $this->canonicalDepartamentoName((string) $item))
+                ->filter(fn ($item) => $item !== '' && $item !== '-');
+        });
+
+        $ranking = $values
+            ->countBy()
+            ->sortDesc()
+            ->map(fn ($cantidad, $nombre) => [
+                'nombre' => (string) $nombre,
+                'total' => (int) $cantidad,
+            ])
+            ->values();
+
+        if ($ranking->isEmpty()) {
+            return collect([[
+                'nombre' => $fallback,
+                'total' => 0,
+            ]]);
+        }
+
+        return $ranking;
+    }
+
+    private function canonicalDepartamentoName(string $value): string
+    {
+        $value = $this->normalizeDestino($value);
+        if ($this->isInvalidLocationValue($value)) {
+            return '';
+        }
+
+        foreach ($this->departamentoAliasMap() as $departamento => $aliases) {
+            $normalizedAliases = collect($aliases)
+                ->push($departamento)
+                ->map(fn ($alias) => $this->normalizeDestino((string) $alias));
+
+            if ($normalizedAliases->contains($value)) {
+                return $departamento;
+            }
+
+            if ($normalizedAliases->contains(fn ($alias) => $alias !== '' && str_contains($value, $alias))) {
+                return $departamento;
+            }
+        }
+
+        foreach ($this->localidadDepartamentoAliasMap() as $departamento => $aliases) {
+            foreach ($aliases as $alias) {
+                $alias = $this->normalizeDestino((string) $alias);
+                if ($alias !== '' && str_contains($value, $alias)) {
+                    return $departamento;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private function isInvalidLocationValue(string $value): bool
+    {
+        return in_array($value, ['', '-', '.', 'SIN DESTINO', 'SIN ORIGEN', 'ENTREGA LOCAL'], true);
+    }
+
+    private function localidadDepartamentoAliasMap(): array
+    {
+        return [
+            'LA PAZ' => [
+                'EL ALTO',
+                'VIACHA',
+                'ACHOCALLA',
+                'CARANAVI',
+                'COPACABANA',
+            ],
+            'COCHABAMBA' => [
+                'QUILLACOLLO',
+                'SACABA',
+                'TIQUIPAYA',
+                'VINTO',
+                'COLCAPIRHUA',
+                'CLIZA',
+            ],
+            'BENI' => [
+                'RIBERALTA',
+                'RURRENABAQUE',
+                'MAGDALENA',
+                'SANTA ANA',
+                'SAN BORJA',
+                'GUAYARAMERIN',
+                'REYES',
+                'SAN IGNACIO DE MOXOS',
+            ],
+            'SANTA CRUZ' => [
+                'MONTERO',
+                'ANDRES IBANEZ',
+                'ANDRÉS IBÁÑEZ',
+                'ANDRÉS IBAÑEZ',
+                'ANDRES IBÁÑEZ',
+                'WARNES',
+                'COTOCA',
+                'LA GUARDIA',
+                'EL TORNO',
+                'YAPACANI',
+                'CAMIRI',
+                'VALLEGRANDE',
+            ],
+            'ORURO' => [
+                'HUANUNI',
+                'CHALLAPATA',
+            ],
+            'POTOSI' => [
+                'POTOSÍ',
+                'UYUNI',
+                'VILLAZON',
+                'VILLAZÓN',
+                'TUPIZA',
+                'LLALLAGUA',
+            ],
+            'TARIJA' => [
+                'YACUIBA',
+                'BERMEJO',
+                'VILLA MONTES',
+                'VILLAMONTES',
+            ],
+            'CHUQUISACA' => [
+                'MONTEAGUDO',
+                'CAMARGO',
+                'VILLA SERRANO',
+            ],
+            'PANDO' => [
+                'PORVENIR',
+                'PUERTO RICO',
+            ],
+        ];
+    }
+
+    private function firstDepartamentoFromList(string $value): string
+    {
+        return collect(explode(',', $value))
+            ->map(fn ($item) => $this->canonicalDepartamentoName((string) $item))
+            ->filter(fn ($item) => $item !== '' && $item !== '-')
+            ->first() ?? '';
+    }
+
+    private function isAdmissionRoleNames(string $roleNames): bool
+    {
+        $normalized = mb_strtolower(trim($roleNames));
+        if ($normalized === '') {
+            return false;
+        }
+
+        foreach (['admision', 'admisiones'] as $admissionRole) {
+            if (str_contains($normalized, $admissionRole)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isEmpresaRoleNames(string $roleNames): bool
+    {
+        return str_contains(mb_strtolower(trim($roleNames)), 'empresa');
+    }
+
+    private function resolveRegionalText(mixed $ciudad, mixed $regionales): string
+    {
+        $items = [];
+
+        if (is_string($regionales) && trim($regionales) !== '') {
+            $decoded = json_decode($regionales, true);
+            if (is_array($decoded)) {
+                $items = array_merge($items, $decoded);
+            }
+        } elseif (is_array($regionales)) {
+            $items = array_merge($items, $regionales);
+        }
+
+        if ($items === [] && trim((string) $ciudad) !== '') {
+            $items[] = (string) $ciudad;
+        }
+
+        $items = collect($items)
+            ->map(fn ($regional) => strtoupper(trim((string) $regional)))
+            ->filter(fn ($regional) => $regional !== '' && $regional !== '-')
+            ->unique()
+            ->values();
+
+        return $items->isNotEmpty() ? $items->implode(', ') : 'SIN REGIONAL';
+    }
+
     private function paginateCollection(Collection $rows, int $perPage, Request $request): LengthAwarePaginator
     {
         $page = max(1, (int) $request->query('page', 1));
@@ -434,6 +1305,13 @@ class ReportesController extends Controller
         $valid = array_values(array_filter(array_map('strtolower', $requested), fn ($k) => isset(self::MODULES[$k])));
 
         return empty($valid) ? array_keys(self::MODULES) : $valid;
+    }
+
+    private function filterRowsWithoutCanceled(Collection $rows): Collection
+    {
+        return $rows
+            ->reject(fn (array $row) => (bool) ($row['is_cancelado'] ?? false))
+            ->values();
     }
 
     private function filterRowsByState(
@@ -466,6 +1344,33 @@ class ReportesController extends Controller
             }
 
             return false;
+        })->values();
+    }
+
+    private function filterRowsByDepartamentoOrigen(Collection $rows, string $departamentoOrigen): Collection
+    {
+        if ($departamentoOrigen === '') {
+            return $rows->values();
+        }
+
+        $aliases = $this->departamentoAliasMap()[$departamentoOrigen] ?? [$departamentoOrigen];
+        $aliases = collect($aliases)
+            ->push($departamentoOrigen)
+            ->map(fn ($value) => $this->normalizeDestino((string) $value))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($aliases->isEmpty()) {
+            return $rows->values();
+        }
+
+        return $rows->filter(function (array $row) use ($aliases) {
+            $origenes = collect(explode(',', (string) ($row['origen_registro'] ?? '')))
+                ->map(fn ($value) => $this->normalizeDestino($value))
+                ->filter(fn ($value) => $value !== '' && $value !== '-');
+
+            return $origenes->contains(fn ($origen) => $aliases->contains($this->canonicalDepartamentoName($origen)));
         })->values();
     }
 
@@ -508,6 +1413,88 @@ class ReportesController extends Controller
         }
 
         return [null, null, 'all'];
+    }
+
+    private function resolveSelectedMonthFilters(Request $request): array
+    {
+        $months = $request->query('months', []);
+        $months = is_array($months) ? $months : [$months];
+        $currentYear = now()->year;
+
+        return collect($months)
+            ->map(function ($value) use ($currentYear) {
+                $value = trim((string) $value);
+                if (preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $value)) {
+                    return $value;
+                }
+
+                if (preg_match('/^(0?[1-9]|1[0-2])$/', $value)) {
+                    return sprintf('%04d-%02d', $currentYear, (int) $value);
+                }
+
+                return null;
+            })
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function buildMonthDateRanges(array $selectedMonths): array
+    {
+        return collect($selectedMonths)
+            ->map(function (string $month) {
+                try {
+                    $start = Carbon::createFromFormat('Y-m-d', $month . '-01')->startOfMonth();
+
+                    return [
+                        'from' => $start->copy()->startOfDay(),
+                        'to' => $start->copy()->endOfMonth()->endOfDay(),
+                    ];
+                } catch (\Throwable $e) {
+                    return null;
+                }
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function monthFilterOptions(): array
+    {
+        $year = now()->year;
+
+        return collect(range(1, 12))
+            ->map(fn (int $month) => [
+                'value' => sprintf('%04d-%02d', $year, $month),
+                'label' => $this->monthFilterLabel(sprintf('%04d-%02d', $year, $month)),
+            ])
+            ->all();
+    }
+
+    private function monthFilterLabel(string $month): string
+    {
+        $labels = [
+            1 => 'Enero',
+            2 => 'Febrero',
+            3 => 'Marzo',
+            4 => 'Abril',
+            5 => 'Mayo',
+            6 => 'Junio',
+            7 => 'Julio',
+            8 => 'Agosto',
+            9 => 'Septiembre',
+            10 => 'Octubre',
+            11 => 'Noviembre',
+            12 => 'Diciembre',
+        ];
+
+        if (!preg_match('/^(\d{4})-(0[1-9]|1[0-2])$/', $month, $matches)) {
+            return $month;
+        }
+
+        return ($labels[(int) $matches[2]] ?? $month) . ' ' . $matches[1];
     }
 
     private function resolveStatusFilters(Request $request): array
@@ -584,8 +1571,19 @@ class ReportesController extends Controller
         });
     }
 
-    private function applyDateFilter(Builder $query, string $column, ?Carbon $from, ?Carbon $to): void
+    private function applyDateFilter(Builder $query, string $column, ?Carbon $from, ?Carbon $to, array $monthDateRanges = []): void
     {
+        if (!empty($monthDateRanges)) {
+            $query->where(function (Builder $sub) use ($column, $monthDateRanges) {
+                foreach ($monthDateRanges as $range) {
+                    if (($range['from'] ?? null) instanceof Carbon && ($range['to'] ?? null) instanceof Carbon) {
+                        $sub->orWhereBetween($column, [$range['from'], $range['to']]);
+                    }
+                }
+            });
+            return;
+        }
+
         if ($from && $to) {
             $query->whereBetween($column, [$from, $to]);
             return;
@@ -599,14 +1597,16 @@ class ReportesController extends Controller
         }
     }
 
-    private function applyDepartamentoFilter(Builder $query, string $moduleKey, string $departamento): void
+    private function applyDepartamentoFilter(Builder $query, string $moduleKey, string $departamento, string $tipo): void
     {
         if ($departamento === '') {
             return;
         }
 
-        $column = self::MODULES[$moduleKey]['departamento_col'] ?? '';
-        if ($column === '') {
+        $columnKey = $tipo === 'origen' ? 'origen_col' : 'destino_col';
+        $column = self::MODULES[$moduleKey][$columnKey] ?? null;
+        if (!$column) {
+            $query->whereRaw('1 = 0');
             return;
         }
 
@@ -697,9 +1697,9 @@ class ReportesController extends Controller
         return $id ? (int) $id : null;
     }
 
-    private function resolveDepartamentoFiltro(Request $request): string
+    private function resolveDepartamentoFiltro(Request $request, string $queryKey = 'departamento'): string
     {
-        $value = strtoupper(trim((string) $request->query('departamento', '')));
+        $value = strtoupper(trim((string) $request->query($queryKey, '')));
         $value = preg_replace('/\s+/', ' ', $value) ?? $value;
         $aliases = $this->departamentoAliasMap();
 

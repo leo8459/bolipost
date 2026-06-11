@@ -189,6 +189,50 @@
             font-weight: 700;
         }
 
+        .bitacora-code-btn {
+            border: 0;
+            background: rgba(32, 83, 154, 0.08);
+            color: var(--bitacora-primary);
+            border-radius: 999px;
+            font-weight: 900;
+            padding: 0.32rem 0.7rem;
+            white-space: nowrap;
+        }
+
+        .bitacora-code-btn:hover {
+            background: rgba(32, 83, 154, 0.16);
+            color: #173d72;
+        }
+
+        .bitacora-detail-modal .modal-header {
+            background: var(--bitacora-primary);
+            color: #fff;
+        }
+
+        .bitacora-detail-modal .modal-title {
+            font-weight: 800;
+        }
+
+        .bitacora-summary-pill {
+            border: 1px solid var(--bitacora-border);
+            border-radius: 10px;
+            background: #fff;
+            padding: 0.65rem 0.8rem;
+        }
+
+        .bitacora-summary-pill .label {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .bitacora-summary-pill .value {
+            color: var(--bitacora-primary);
+            font-size: 1.1rem;
+            font-weight: 900;
+        }
+
         .bitacoras-footer {
             padding: 16px 18px 0;
         }
@@ -231,14 +275,27 @@
                         <div class="bitacoras-panel">
                             <div class="bitacoras-filters">
                                 <div class="bitacoras-filters-title">Busqueda y filtros</div>
-                                <div class="bitacoras-filters-subtitle">Refina la lista por usuario, codigo especial o provincia.</div>
+                                <div class="bitacoras-filters-subtitle">Refina la lista por regional del usuario, usuario, codigo especial, origen CN-33 o provincia.</div>
 
                                 <form method="GET" action="{{ route('bitacoras.index') }}">
                                     <div class="row">
-                                        <div class="col-md-4">
+                                        <div class="col-md-3">
                                             <div class="form-group">
                                                 <label>Busqueda general</label>
                                                 <input type="text" name="q" value="{{ $q }}" class="form-control" placeholder="Cod especial, factura, usuario, codigo...">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="form-group">
+                                                <label>Regional usuario</label>
+                                                <select name="regional" class="form-control" onchange="this.form.submit()">
+                                                    <option value="">Todas</option>
+                                                    @foreach($regionales as $regionalItem)
+                                                        <option value="{{ $regionalItem }}" {{ strtoupper((string) $regional) === strtoupper((string) $regionalItem) ? 'selected' : '' }}>
+                                                            {{ $regionalItem }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
                                             </div>
                                         </div>
                                         <div class="col-md-3">
@@ -260,7 +317,22 @@
                                                 <input type="text" name="cod_especial" value="{{ $codEspecial }}" class="form-control" placeholder="Ej: LPZ00001">
                                             </div>
                                         </div>
-                                        <div class="col-md-2">
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <div class="form-group">
+                                                <label>Origen CN-33</label>
+                                                <select name="origen_cn33" class="form-control">
+                                                    <option value="">Todos</option>
+                                                    @foreach($origenesCn33 as $origenCn33Item)
+                                                        <option value="{{ $origenCn33Item }}" {{ strtoupper((string) $origenCn33) === strtoupper((string) $origenCn33Item) ? 'selected' : '' }}>
+                                                            {{ $origenCn33Item }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
                                             <div class="form-group">
                                                 <label>Provincia</label>
                                                 <select name="provincia" class="form-control">
@@ -305,9 +377,23 @@
                                         </thead>
                                         <tbody>
                                             @forelse ($bitacoras as $bitacora)
+                                                @php
+                                                    $detalleCodigo = strtoupper(trim((string) $bitacora->cod_especial));
+                                                    $detallesCodigo = ($detallesPorCodEspecial ?? collect())->get($detalleCodigo, collect());
+                                                @endphp
                                                 <tr>
                                                     <td>{{ $bitacora->id }}</td>
-                                                    <td>{{ $bitacora->cod_especial }}</td>
+                                                    <td>
+                                                        <button
+                                                            type="button"
+                                                            class="bitacora-code-btn"
+                                                            data-toggle="modal"
+                                                            data-target="#bitacoraDetalleModal{{ $bitacora->id }}"
+                                                            title="Ver todo el detalle de {{ $bitacora->cod_especial }}"
+                                                        >
+                                                            {{ $bitacora->cod_especial }}
+                                                        </button>
+                                                    </td>
                                                     <td>{{ $bitacora->user->name ?? '-' }}</td>
                                                     <td>
                                                         @if($bitacora->paqueteEms)
@@ -377,6 +463,133 @@
                                         </tbody>
                                     </table>
                                 </div>
+
+                                @foreach($bitacoras as $bitacora)
+                                    @php
+                                        $detalleCodigo = strtoupper(trim((string) $bitacora->cod_especial));
+                                        $detallesCodigo = ($detallesPorCodEspecial ?? collect())->get($detalleCodigo, collect());
+                                    @endphp
+                                    <div class="modal fade bitacora-detail-modal" id="bitacoraDetalleModal{{ $bitacora->id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-xl">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title mb-0">Detalle completo - {{ $bitacora->cod_especial }}</h5>
+                                                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                                                        <span aria-hidden="true">&times;</span>
+                                                    </button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="row mb-3">
+                                                        <div class="col-md-3 col-6 mb-2">
+                                                            <div class="bitacora-summary-pill">
+                                                                <div class="label">Registros</div>
+                                                                <div class="value">{{ number_format($detallesCodigo->count()) }}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-3 col-6 mb-2">
+                                                            <div class="bitacora-summary-pill">
+                                                                <div class="label">Precio total</div>
+                                                                <div class="value">Bs {{ $bitacora->precio_total !== null ? number_format((float) $bitacora->precio_total, 2) : '-' }}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-3 col-6 mb-2">
+                                                            <div class="bitacora-summary-pill">
+                                                                <div class="label">Peso total</div>
+                                                                <div class="value">{{ $bitacora->peso !== null ? number_format((float) $bitacora->peso, 3) : '-' }}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-3 col-6 mb-2">
+                                                            <div class="bitacora-summary-pill">
+                                                                <div class="label">Provincia</div>
+                                                                <div class="value">{{ $bitacora->provincia ?: '-' }}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="table-responsive" style="max-height: 460px; overflow:auto;">
+                                                        <table class="table table-sm table-striped table-hover mb-0">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>ID</th>
+                                                                    <th>Usuario</th>
+                                                                    <th>Paquete EMS</th>
+                                                                    <th>Paquete Contrato</th>
+                                                                    <th>Paquete Ordinario</th>
+                                                                    <th>Paquete Certificado</th>
+                                                                    <th>Origen CN-33</th>
+                                                                    <th>Transportadora</th>
+                                                                    <th>Factura</th>
+                                                                    <th>Precio</th>
+                                                                    <th>Peso</th>
+                                                                    <th>Imagen</th>
+                                                                    <th>Creado</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                @forelse($detallesCodigo as $detalle)
+                                                                    <tr>
+                                                                        <td>{{ $detalle->id }}</td>
+                                                                        <td>{{ $detalle->user->name ?? '-' }}</td>
+                                                                        <td>
+                                                                            @if($detalle->paqueteEms)
+                                                                                #{{ $detalle->paqueteEms->id }} - {{ $detalle->paqueteEms->codigo }}
+                                                                            @else
+                                                                                -
+                                                                            @endif
+                                                                        </td>
+                                                                        <td>
+                                                                            @if($detalle->paqueteContrato)
+                                                                                #{{ $detalle->paqueteContrato->id }} - {{ $detalle->paqueteContrato->codigo }}
+                                                                            @else
+                                                                                -
+                                                                            @endif
+                                                                        </td>
+                                                                        <td>
+                                                                            @if($detalle->paqueteOrdi)
+                                                                                #{{ $detalle->paqueteOrdi->id }} - {{ $detalle->paqueteOrdi->codigo }}
+                                                                            @else
+                                                                                -
+                                                                            @endif
+                                                                        </td>
+                                                                        <td>
+                                                                            @if($detalle->paqueteCerti)
+                                                                                #{{ $detalle->paqueteCerti->id }} - {{ $detalle->paqueteCerti->codigo }}
+                                                                            @else
+                                                                                -
+                                                                            @endif
+                                                                        </td>
+                                                                        <td>{{ $detalle->paqueteEms->origen ?? $detalle->paqueteContrato->origen ?? '-' }}</td>
+                                                                        <td>{{ $detalle->transportadora ?: '-' }}</td>
+                                                                        <td>{{ $detalle->factura ?: '-' }}</td>
+                                                                        <td>{{ $detalle->precio_total !== null ? number_format((float) $detalle->precio_total, 2) : '-' }}</td>
+                                                                        <td>{{ $detalle->peso !== null ? number_format((float) $detalle->peso, 3) : '-' }}</td>
+                                                                        <td>
+                                                                            @if($detalle->imagen_factura)
+                                                                                <a href="{{ asset('storage/' . $detalle->imagen_factura) }}" target="_blank" class="btn btn-xs btn-outline-info">
+                                                                                    Ver
+                                                                                </a>
+                                                                            @else
+                                                                                -
+                                                                            @endif
+                                                                        </td>
+                                                                        <td>{{ optional($detalle->created_at)->format('d/m/Y H:i') }}</td>
+                                                                    </tr>
+                                                                @empty
+                                                                    <tr>
+                                                                        <td colspan="13" class="text-center text-muted py-4">No hay registros para este codigo especial.</td>
+                                                                    </tr>
+                                                                @endforelse
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
 
                                 <div class="bitacoras-footer">
                                     {!! $bitacoras->links() !!}

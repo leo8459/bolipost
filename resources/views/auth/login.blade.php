@@ -7,7 +7,9 @@
                 <p class="mt-1 text-sm text-[#20539A]/75">Ingresa con tu cuenta.</p>
             </div>
 
-            <x-auth-session-status class="mb-4 rounded-lg border border-[#FECC36]/40 bg-[#fff7dd] px-3 py-2" :status="session('status')" />
+            @unless (session('session_expired'))
+                <x-auth-session-status class="mb-4 rounded-lg border border-[#FECC36]/40 bg-[#fff7dd] px-3 py-2" :status="session('status')" />
+            @endunless
 
             <form id="loginForm" method="POST" action="{{ route('login') }}" class="space-y-4">
                 @csrf
@@ -151,5 +153,7 @@
             });
         });
     </script>
+
+    <x-session-expired-modal :show="session('session_expired')" :redirect-url="route('login')" />
 </x-guest-layout>
 

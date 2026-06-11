@@ -328,9 +328,12 @@ class DashboardController extends Controller
             $this->applyDateFilter($query, 'created_at', $desde, $hasta);
             $this->applyDepartamentoFilter($query, $config, $departamento);
 
-            $total = (int) (clone $query)->count();
+            $querySinCancelados = clone $query;
+            $this->excludeCanceledState($querySinCancelados, $config['estado_column'], $estadoCanceladoId);
+
+            $total = (int) (clone $querySinCancelados)->count();
             $entregados = $estadoEntregadoId
-                ? (int) (clone $query)->where($config['estado_column'], $estadoEntregadoId)->count()
+                ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoEntregadoId)->count()
                 : 0;
             $cancelados = $estadoCanceladoId
                 ? (int) (clone $query)->where($config['estado_column'], $estadoCanceladoId)->count()
@@ -347,15 +350,15 @@ class DashboardController extends Controller
             $atrasados = (int) ($situacionInventario['retraso'] ?? 0);
             $rezago = (int) ($situacionInventario['rezago'] ?? 0);
 
-            $pendientes = max(0, $total - $entregados - $cancelados);
+            $pendientes = max(0, $total - $entregados);
 
-            $pesoTotal = (float) (clone $query)->sum(
+            $pesoTotal = (float) (clone $querySinCancelados)->sum(
                 DB::raw('coalesce(' . $config['peso_column'] . ', 0)')
             );
 
             $ingresos = 0.0;
             if (!empty($config['precio_column'])) {
-                $ingresos = (float) (clone $query)->sum(
+                $ingresos = (float) (clone $querySinCancelados)->sum(
                     DB::raw('coalesce(' . $config['precio_column'] . ', 0)')
                 );
             }
@@ -588,6 +591,32 @@ class DashboardController extends Controller
         }
     }
 
+    private function excludeCanceledState(Builder $query, string $estadoColumn, ?int $estadoCanceladoId): void
+    {
+        if (!$estadoCanceladoId) {
+            return;
+        }
+
+        $query->where(function (Builder $sub) use ($estadoColumn, $estadoCanceladoId) {
+            $sub->whereNull($estadoColumn)
+                ->orWhere($estadoColumn, '<>', $estadoCanceladoId);
+        });
+    }
+
+    private function excludeCanceledPackageForEvent(Builder $query, array $config, string $eventAlias): void
+    {
+        $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
+        if (!$estadoCanceladoId) {
+            return;
+        }
+
+        $alias = 'pkg_no_cancelado_' . $eventAlias;
+        $alias = str_replace(['.', '-'], '_', $alias);
+
+        $query->join($config['table'] . ' as ' . $alias, $alias . '.codigo', '=', $eventAlias . '.codigo');
+        $this->excludeCanceledState($query, $alias . '.' . $config['estado_column'], $estadoCanceladoId);
+    }
+
     private function resolveEstadoIdByName(string $estadoNombre): ?int
     {
         $id = Estado::query()
@@ -749,13 +778,23 @@ class DashboardController extends Controller
 
     private function applyNoEntregadoScope(Builder $query, string $stateColumn, ?int $estadoEntregadoId): void
     {
+        $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
+
         if (!$estadoEntregadoId) {
+            $this->excludeCanceledState($query, $stateColumn, $estadoCanceladoId);
             return;
         }
 
-        $query->where(function (Builder $sub) use ($stateColumn, $estadoEntregadoId) {
+        $query->where(function (Builder $sub) use ($stateColumn, $estadoEntregadoId, $estadoCanceladoId) {
             $sub->whereNull($stateColumn)
                 ->orWhere($stateColumn, '<>', $estadoEntregadoId);
+
+            if ($estadoCanceladoId) {
+                $sub->where(function (Builder $cancelados) use ($stateColumn, $estadoCanceladoId) {
+                    $cancelados->whereNull($stateColumn)
+                        ->orWhere($stateColumn, '<>', $estadoCanceladoId);
+                });
+            }
         });
     }
 
@@ -877,12 +916,14 @@ class DashboardController extends Controller
                 $registrosQuery = DB::table($config['table'])
                     ->whereBetween('created_at', [$desde, $hasta]);
                 $this->applyDepartamentoFilter($registrosQuery, $config, $departamento);
+                $this->excludeCanceledState($registrosQuery, $config['estado_column'], $this->resolveEstadoIdByName('CANCELADO'));
                 $countRegistros += (int) $registrosQuery->count();
 
                 $entregasQuery = DB::table($config['event_table'])
                     ->where('evento_id', self::EVENTO_ENTREGADO_ID)
                     ->whereBetween($config['event_table'] . '.created_at', [$desde, $hasta]);
                 $this->applyEventDepartamentoFilter($entregasQuery, $config, $departamento);
+                $this->excludeCanceledPackageForEvent($entregasQuery, $config, $config['event_table']);
                 $countEntregas += (int) $entregasQuery->count(DB::raw('distinct ' . $config['event_table'] . '.codigo'));
             }
 
@@ -915,6 +956,7 @@ class DashboardController extends Controller
                 ->selectRaw($bucketExpression . ' as bucket, COUNT(*) as total')
                 ->whereBetween('created_at', [$chartFrom, $chartTo]);
             $this->applyDepartamentoFilter($rowsRegistros, $config, $departamento);
+            $this->excludeCanceledState($rowsRegistros, $config['estado_column'], $this->resolveEstadoIdByName('CANCELADO'));
             $rowsRegistros = $rowsRegistros
                 ->groupBy(DB::raw($bucketExpression))
                 ->pluck('total', 'bucket')
@@ -932,6 +974,7 @@ class DashboardController extends Controller
                 ->where('evento_id', self::EVENTO_ENTREGADO_ID)
                 ->whereBetween($config['event_table'] . '.created_at', [$chartFrom, $chartTo]);
             $this->applyEventDepartamentoFilter($rowsEntregados, $config, $departamento);
+            $this->excludeCanceledPackageForEvent($rowsEntregados, $config, $config['event_table']);
             $rowsEntregados = $rowsEntregados
                 ->groupBy(DB::raw($eventBucketExpression))
                 ->pluck('total', 'bucket')
@@ -1047,6 +1090,7 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, $config['event_table'] . '.created_at', $from, $to);
             $this->applyEventDepartamentoFilter($query, $config, $departamento);
+            $this->excludeCanceledPackageForEvent($query, $config, $config['event_table']);
             $queries[] = $query;
         }
 
@@ -1077,6 +1121,7 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, $eventTable . '.created_at', $from, $to);
             $this->applyEventDepartamentoFilter($query, $config, $departamento);
+            $this->excludeCanceledPackageForEvent($query, $config, $eventTable);
             $queries[] = $query;
         }
 
@@ -1109,6 +1154,7 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, 'delivered.created_at', $from, $to);
             $this->applyEventDepartamentoFilter($query, $config, $departamento, 'delivered');
+            $this->excludeCanceledPackageForEvent($query, $config, 'delivered');
             $queries[] = $query;
         }
 
@@ -1133,16 +1179,19 @@ class DashboardController extends Controller
                     $this->applyDateFilter($query, 'created_at', $from, $to);
                     $this->applyDepartamentoAliasesFilter($query, $config, $aliases);
 
-                    $total += (int) (clone $query)->count();
+                    $querySinCancelados = clone $query;
+                    $this->excludeCanceledState($querySinCancelados, $config['estado_column'], $estadoCanceladoId);
+
+                    $total += (int) (clone $querySinCancelados)->count();
                     $entregados += $estadoEntregadoId
-                        ? (int) (clone $query)->where($config['estado_column'], $estadoEntregadoId)->count()
+                        ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoEntregadoId)->count()
                         : 0;
                     $cancelados += $estadoCanceladoId
                         ? (int) (clone $query)->where($config['estado_column'], $estadoCanceladoId)->count()
                         : 0;
                 }
 
-                $pendientes = max(0, $total - $entregados - $cancelados);
+                $pendientes = max(0, $total - $entregados);
                 $cumplimiento = $total > 0 ? round(($entregados * 100) / $total, 1) : 0.0;
                 $topEntregador = $this->buildTopEntregadorDepartamento($modulosSeleccionados, $from, $to, $aliases);
                 $detalleEntregados = $this->buildDepartamentoDeliveredDetails($modulosSeleccionados, $from, $to, $aliases);
@@ -1223,6 +1272,7 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, $eventTable . '.created_at', $from, $to);
             $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 'pkg_departamento');
+            $this->excludeCanceledState($query, 'pkg_departamento.' . $config['estado_column'], $this->resolveEstadoIdByName('CANCELADO'));
             $queries[] = $query;
         }
 
@@ -1258,6 +1308,7 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, $eventTable . '.created_at', $from, $to);
             $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 'pkg_departamento');
+            $this->excludeCanceledState($query, 'pkg_departamento.' . $config['estado_column'], $this->resolveEstadoIdByName('CANCELADO'));
 
             $moduleRows = $query->orderByDesc(DB::raw('MIN(' . $eventTable . '.created_at)'))->get();
             $totales[$label] = (int) $moduleRows->count();

@@ -339,12 +339,12 @@
                     <table class="return-grid">
                         <tr>
                             <td style="width: 18%;"><span class="return-title">Devolucion CN 15</span></td>
-                            <td>Se mudo <span class="box"></span><br>Demenage</td>
-                            <td>No reclamado <span class="box"></span><br>Non reclame</td>
-                            <td>Desconocido <span class="box"></span><br>Inconnu</td>
-                            <td>Rechazado <span class="box"></span><br>Refuse</td>
-                            <td>Direccion insuficiente <span class="box"></span><br>Adresse insuffisante</td>
-                            <td>Se ausento <span class="box"></span><br>Parti</td>
+                            <td>Se mudo <span class="box"></span><br></td>
+                            <td>No reclamado <span class="box"></span><br></td>
+                            <td>Desconocido <span class="box"></span><br></td>
+                            <td>Rechazado <span class="box"></span><br></td>
+                            <td>Direccion insuficiente <span class="box"></span><br></td>
+                            <td>Se ausento <span class="box"></span><br></td>
                         </tr>
                     </table>
 

@@ -26,7 +26,8 @@
             'certi' => 'CERTIFICADOS',
             'ordi' => 'ORDINARIOS',
         ];
-        $departamentoSeleccionado = $departamento ?? '';
+        $departamentoOrigenSeleccionado = $departamentoOrigen ?? '';
+        $departamentoDestinoSeleccionado = $departamentoDestino ?? ($departamento ?? '');
     @endphp
 
     <div class="card card-filtro mb-3">
@@ -154,11 +155,22 @@
 
                 <div class="row">
                     <div class="col-lg-4 mb-3">
-                        <label class="font-weight-bold">Departamento destino</label>
-                        <select class="form-control" name="departamento">
+                        <label class="font-weight-bold">Departamento origen</label>
+                        <select class="form-control" name="departamento_origen">
                             <option value="">Todos</option>
                             @foreach(($departamentosDisponibles ?? []) as $departamentoDisponible)
-                                <option value="{{ $departamentoDisponible }}" {{ $departamentoSeleccionado === $departamentoDisponible ? 'selected' : '' }}>
+                                <option value="{{ $departamentoDisponible }}" {{ $departamentoOrigenSeleccionado === $departamentoDisponible ? 'selected' : '' }}>
+                                    {{ $departamentoDisponible }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-lg-4 mb-3">
+                        <label class="font-weight-bold">Departamento destino</label>
+                        <select class="form-control" name="departamento_destino">
+                            <option value="">Todos</option>
+                            @foreach(($departamentosDisponibles ?? []) as $departamentoDisponible)
+                                <option value="{{ $departamentoDisponible }}" {{ $departamentoDestinoSeleccionado === $departamentoDisponible ? 'selected' : '' }}>
                                     {{ $departamentoDisponible }}
                                 </option>
                             @endforeach
@@ -211,8 +223,11 @@
                 @foreach($moduleLabels as $label)
                     <span class="badge badge-info mr-1">{{ $label }}</span>
                 @endforeach
-                @if($departamentoSeleccionado !== '')
-                    <span class="badge badge-primary mr-1">Departamento: {{ $departamentoSeleccionado }}</span>
+                @if($departamentoOrigenSeleccionado !== '')
+                    <span class="badge badge-primary mr-1">Origen: {{ $departamentoOrigenSeleccionado }}</span>
+                @endif
+                @if($departamentoDestinoSeleccionado !== '')
+                    <span class="badge badge-primary mr-1">Destino: {{ $departamentoDestinoSeleccionado }}</span>
                 @endif
             </div>
             <div class="d-flex flex-wrap">
@@ -436,7 +451,7 @@
             const presetDeliveredOnlyBtn = document.getElementById('presetDeliveredOnly');
             const autoFields = form
                 ? form.querySelectorAll(
-                    'input[name="q"], input[name="from"], input[name="to"], select[name="limit"], select[name="per_page"], select[name="departamento"], input[name="modules[]"], input[name="statuses[]"]'
+                    'input[name="q"], input[name="from"], input[name="to"], select[name="limit"], select[name="per_page"], select[name="departamento_origen"], select[name="departamento_destino"], input[name="modules[]"], input[name="statuses[]"]'
                 )
                 : [];
             let autoSubmitTimer = null;

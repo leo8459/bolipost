@@ -377,6 +377,11 @@ return [
                     'url' => '/reportes/ordi',
                     'icon' => 'fas fa-box-open',
                 ],
+                [
+                    'text' => 'Resumen Ejecutivo',
+                    'url' => '/reportes/ems/resumen-administrativo',
+                    'icon' => 'fas fa-chart-pie',
+                ],
             ],
         ],
         [

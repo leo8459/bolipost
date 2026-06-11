@@ -227,7 +227,9 @@
             <p class="cliente-login-subtitle">Accede al portal de clientes con tu cuenta autenticada por Google.</p>
 
             <div class="cliente-login-status">
-                <x-auth-session-status class="rounded-xl border border-[#FECC36]/40 bg-[#fff7dd] px-4 py-3 text-sm text-left" :status="session('status')" />
+                @unless (session('session_expired'))
+                    <x-auth-session-status class="rounded-xl border border-[#FECC36]/40 bg-[#fff7dd] px-4 py-3 text-sm text-left" :status="session('status')" />
+                @endunless
 
                 @if ($errors->has('google'))
                     <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -290,4 +292,6 @@
             </div>
         </div>
     </section>
+
+    <x-session-expired-modal :show="session('session_expired')" :redirect-url="route('clientes.login')" />
 </x-guest-layout>

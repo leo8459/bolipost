@@ -381,6 +381,7 @@
                     <div>
                         <div class="metric-value">Bs <span class="js-counter" data-counter-target="{{ $totales['ingresos'] }}" data-counter-format="money">{{ number_format($totales['ingresos'], 2) }}</span></div>
                         <div class="metric-label">Ingresos</div>
+                        <small class="metric-note">Contratos no sumados por tema tarifario.</small>
                     </div>
                     <div class="metric-icon"><i class="fas fa-coins"></i></div>
                 </div>
@@ -869,7 +870,7 @@
                                 <th class="text-right" data-col="rezago">Rezago</th>
                                 <th class="text-right" data-col="tasa_entrega">Tasa entrega</th>
                                 <th class="text-right" data-col="peso_total">Peso</th>
-                                <th class="text-right" data-col="ingresos">Ingresos</th>
+                                <th class="text-right" data-col="ingresos">Ingresos<br><small>Sin contratos por tema tarifario</small></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1067,6 +1068,14 @@
             opacity: .95;
             font-weight: 500;
             font-size: .9rem;
+        }
+        .metric-note {
+            display: block;
+            margin-top: 5px;
+            color: rgba(255, 255, 255, .88);
+            font-size: .74rem;
+            font-weight: 700;
+            line-height: 1.2;
         }
         .metric-icon {
             width: 38px;

@@ -155,6 +155,12 @@ Route::get('/reportes/{scope}/export/pdf', [ReportesController::class, 'exportPd
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->where('scope', 'general|contrato|ems|certi|ordi')
     ->name('reportes.export.pdf');
+Route::get('/reportes/ems/resumen-administrativo', [ReportesController::class, 'administrativeSummary'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('reportes.resumen-administrativo');
+Route::get('/reportes/ems/resumen-administrativo/pdf', [ReportesController::class, 'exportAdministrativePdf'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('reportes.resumen-administrativo.pdf');
 Route::get('/mis-ventas', [MisVentasController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.index');

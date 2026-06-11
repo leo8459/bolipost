@@ -37,7 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (TokenMismatchException $e, Request $request) {
-            $message = 'Por favor vuelva a iniciar sesion, tiempo de espera acabado.';
+            $message = 'Sesion vencida, por favor actualice la pagina.';
 
             if ($request->expectsJson()) {
                 return response()->json([
@@ -51,7 +51,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return redirect()
                 ->route($loginRoute)
-                ->with('status', $message);
+                ->with('status', $message)
+                ->with('session_expired', true);
         });
     })
     ->withSchedule(function (Schedule $schedule): void {

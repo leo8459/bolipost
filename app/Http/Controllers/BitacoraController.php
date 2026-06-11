@@ -24,23 +24,115 @@ class BitacoraController extends Controller
         $userId = (int) $request->query('user_id', 0);
         $codEspecial = strtoupper(trim((string) $request->query('cod_especial', '')));
         $provincia = strtoupper(trim((string) $request->query('provincia', '')));
+        $regional = strtoupper(trim((string) $request->query('regional', '')));
+        $origenCn33 = strtoupper(trim((string) $request->query('origen_cn33', '')));
+
+        $filteredCodEspecialesQuery = Bitacora::query()
+            ->selectRaw('trim(upper(cod_especial)) as cod_especial_normalizado')
+            ->groupBy(DB::raw('trim(upper(cod_especial))'));
+
+        $this->applyBitacoraFilters($filteredCodEspecialesQuery, $q, $userId, $codEspecial, $provincia, $regional, $origenCn33);
+
+        $latestIdsQuery = Bitacora::query()
+            ->selectRaw('max(id) as id')
+            ->whereIn(DB::raw('trim(upper(cod_especial))'), $filteredCodEspecialesQuery)
+            ->whereNotNull('precio_total')
+            ->whereNotNull('peso')
+            ->groupBy(DB::raw('trim(upper(cod_especial))'));
 
         $bitacoras = Bitacora::query()
             ->with([
                 'user:id,name',
-                'paqueteEms:id,codigo,cod_especial',
-                'paqueteContrato:id,codigo,cod_especial',
+                'paqueteEms:id,codigo,cod_especial,origen',
+                'paqueteContrato:id,codigo,cod_especial,origen',
                 'paqueteOrdi:id,codigo,cod_especial',
                 'paqueteCerti:id,codigo,cod_especial',
             ])
+            ->whereIn('id', $latestIdsQuery)
+            ->orderByDesc('id')
+            ->paginate(15)
+            ->withQueryString();
+
+        $codEspecialesPagina = $bitacoras->getCollection()
+            ->pluck('cod_especial')
+            ->map(fn ($codigo) => strtoupper(trim((string) $codigo)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $detallesPorCodEspecial = Bitacora::query()
+            ->with([
+                'user:id,name',
+                'paqueteEms:id,codigo,cod_especial,origen',
+                'paqueteContrato:id,codigo,cod_especial,origen',
+                'paqueteOrdi:id,codigo,cod_especial',
+                'paqueteCerti:id,codigo,cod_especial',
+            ])
+            ->whereIn(DB::raw('trim(upper(cod_especial))'), $codEspecialesPagina)
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (Bitacora $bitacora) => strtoupper(trim((string) $bitacora->cod_especial)));
+
+        $users = User::query()
+            ->when($regional !== '', function ($query) use ($regional) {
+                $this->applyUserRegionalFilter($query, $regional);
+            })
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $regionales = $this->departamentosFiltro();
+        $origenesCn33 = $this->departamentosFiltro();
+
+        $provincias = Bitacora::query()
+            ->select('provincia')
+            ->whereNotNull('provincia')
+            ->whereRaw("trim(provincia) <> ''")
+            ->distinct()
+            ->orderBy('provincia')
+            ->pluck('provincia');
+
+        return view('bitacoras.index', compact(
+            'bitacoras',
+            'detallesPorCodEspecial',
+            'users',
+            'provincias',
+            'regionales',
+            'origenesCn33',
+            'q',
+            'userId',
+            'codEspecial',
+            'provincia',
+            'regional',
+            'origenCn33'
+        ));
+    }
+
+    private function applyBitacoraFilters($query, string $q, int $userId, string $codEspecial, string $provincia, string $regional, string $origenCn33): void
+    {
+        $query
             ->when($userId > 0, function ($query) use ($userId) {
                 $query->where('user_id', $userId);
+            })
+            ->when($regional !== '', function ($query) use ($regional) {
+                $query->whereHas('user', function ($userQuery) use ($regional) {
+                    $this->applyUserRegionalFilter($userQuery, $regional);
+                });
             })
             ->when($codEspecial !== '', function ($query) use ($codEspecial) {
                 $query->whereRaw('trim(upper(cod_especial)) = ?', [$codEspecial]);
             })
             ->when($provincia !== '', function ($query) use ($provincia) {
                 $query->whereRaw('trim(upper(COALESCE(provincia, \'\'))) = ?', [$provincia]);
+            })
+            ->when($origenCn33 !== '', function ($query) use ($origenCn33) {
+                $query->where(function ($sub) use ($origenCn33) {
+                    $sub->whereHas('paqueteEms', function ($emsQuery) use ($origenCn33) {
+                        $emsQuery->whereRaw('trim(upper(COALESCE(origen, \'\'))) = ?', [$origenCn33]);
+                    })
+                        ->orWhereHas('paqueteContrato', function ($contratoQuery) use ($origenCn33) {
+                            $contratoQuery->whereRaw('trim(upper(COALESCE(origen, \'\'))) = ?', [$origenCn33]);
+                        });
+                });
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
@@ -68,24 +160,20 @@ class BitacoraController extends Controller
                                 ->orWhere('cod_especial', 'ILIKE', "%{$q}%");
                         });
                 });
-            })
-            ->orderByDesc('id')
-            ->paginate(15)
-            ->withQueryString();
+            });
+    }
 
-        $users = User::query()
-            ->orderBy('name')
-            ->get(['id', 'name']);
+    private function applyUserRegionalFilter($query, string $regional): void
+    {
+        $query->where(function ($sub) use ($regional) {
+            $sub->whereRaw('trim(upper(COALESCE(ciudad, \'\'))) = ?', [$regional])
+                ->orWhereJsonContains('regionales', $regional);
+        });
+    }
 
-        $provincias = Bitacora::query()
-            ->select('provincia')
-            ->whereNotNull('provincia')
-            ->whereRaw("trim(provincia) <> ''")
-            ->distinct()
-            ->orderBy('provincia')
-            ->pluck('provincia');
-
-        return view('bitacoras.index', compact('bitacoras', 'users', 'provincias', 'q', 'userId', 'codEspecial', 'provincia'));
+    private function departamentosFiltro(): array
+    {
+        return ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
     }
 
     public function create(): View
