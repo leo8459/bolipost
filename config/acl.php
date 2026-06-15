@@ -87,6 +87,9 @@ return [
         'dashboard.reimprimir-cn33.pdf',
         'dashboard.reimprimir-cn33.despacho-excel',
         'dashboard.reimprimir-cn33.excel',
+        'dashboard.global-ingreso',
+        'dashboard.global-ingreso.excel',
+        'dashboard.global-ingreso.pdf',
     ],
 
     /*

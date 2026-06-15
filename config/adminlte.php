@@ -347,6 +347,11 @@ return [
             'icon' => 'fas fa-chart-line',
             'submenu' => [
                 [
+                    'text' => 'Global Nivel Nacional (Ingreso)',
+                    'url' => '/dir-operaciones/global-ingreso',
+                    'icon' => 'fas fa-globe-americas',
+                ],
+                [
                     'text' => 'Reimprimir CN-33',
                     'url' => '/dir-operaciones/reimprimir-cn33',
                     'icon' => 'fas fa-file-excel',

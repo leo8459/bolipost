@@ -66,6 +66,59 @@ class ReportesController extends Controller
         }, $filename);
     }
 
+    public function globalIngreso(Request $request)
+    {
+        $request->query->set('limit', 'all');
+
+        $data = $this->buildReportData($request, 'general', false);
+        $data['scopeLabel'] = 'Global Nivel Nacional (Ingreso)';
+        $data['globalIngresoMode'] = true;
+
+        return view('reportes.global-ingreso', $data);
+    }
+
+    public function exportGlobalIngresoExcel(Request $request)
+    {
+        @set_time_limit(300);
+        $request->query->set('limit', 'all');
+
+        $data = $this->buildReportData($request, 'general', true);
+        $data['scopeLabel'] = 'Global Nivel Nacional (Ingreso)';
+        $data['globalIngresoMode'] = true;
+        $filename = 'global-nivel-nacional-ingreso-' . now()->format('Ymd-His') . '.xlsx';
+
+        return Excel::download(new ReportesExport($data), $filename);
+    }
+
+    public function exportGlobalIngresoPdf(Request $request)
+    {
+        @set_time_limit(300);
+        @ini_set('max_execution_time', '300');
+        @ini_set('memory_limit', '1024M');
+        $request->query->set('limit', 'all');
+
+        $data = $this->buildReportData($request, 'general', true);
+        $data['scopeLabel'] = 'Global Nivel Nacional (Ingreso)';
+        $data['globalIngresoMode'] = true;
+        $allRows = collect($data['rows'] ?? []);
+        $data['pdfTotalRows'] = $allRows->count();
+        $data['pdfRowsLimit'] = 1000;
+        $data['rows'] = $allRows->take($data['pdfRowsLimit'])->values();
+        $pdf = Pdf::loadView('reportes.global-ingreso-pdf', $data)
+            ->setPaper('A4', 'landscape')
+            ->setOptions([
+                'dpi' => 72,
+                'defaultFont' => 'DejaVu Sans',
+                'isRemoteEnabled' => false,
+                'isHtml5ParserEnabled' => false,
+            ]);
+        $filename = 'global-nivel-nacional-ingreso-' . now()->format('Ymd-His') . '.pdf';
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $filename);
+    }
+
     public function administrativeSummary(Request $request)
     {
         $request->merge(['limit' => 'all']);
@@ -121,6 +174,7 @@ class ReportesController extends Controller
             $departamentoDestino = $this->resolveDepartamentoFiltro($request, 'departamento');
         }
         $statuses = $this->resolveStatusFilters($request);
+        $selectedServices = $this->resolveServiceFilters($request);
         $estadoIds = [];
         $limit = $this->resolveLimit($request);
         $perPage = $this->resolvePerPage($request);
@@ -149,6 +203,8 @@ class ReportesController extends Controller
         $rows = $this->filterRowsByDepartamentoOrigen($rows, $departamentoOrigen);
         $registradosTotal = $rows->count();
         $rows = $this->filterRowsByState($rows, $statuses);
+        $serviceOptions = $this->serviceOptionsFromRows($rows);
+        $rows = $this->filterRowsByService($rows, $selectedServices);
         $filteredTotal = $rows->count();
         $summary = $this->buildSummary($rows);
         $summary['registrados'] = $registradosTotal;
@@ -160,6 +216,7 @@ class ReportesController extends Controller
         }
 
         $moduleSummary = $this->buildModuleSummary($rows, $selectedModules);
+        $serviceSummary = $this->buildServiceSummary($rows);
         $totals = $this->buildTotals($rows);
         $rowsView = $forExport ? $rows : $this->paginateCollection($rows, $perPage, $request);
 
@@ -172,6 +229,8 @@ class ReportesController extends Controller
             'selectedEstadoIds' => $estadoIds,
             'search' => $search,
             'statuses' => $statuses,
+            'selectedServices' => $selectedServices,
+            'serviceOptions' => $serviceOptions,
             'departamento' => $departamentoDestino,
             'departamentoOrigen' => $departamentoOrigen,
             'departamentoDestino' => $departamentoDestino,
@@ -187,6 +246,7 @@ class ReportesController extends Controller
             'rows' => $rowsView,
             'summary' => $summary,
             'moduleSummary' => $moduleSummary,
+            'serviceSummary' => $serviceSummary,
             'totals' => $totals,
             'isExport' => $forExport,
         ];
@@ -401,7 +461,7 @@ class ReportesController extends Controller
                 DB::raw("coalesce(ur.role_names, '') as usuario_roles"),
                 DB::raw("coalesce(u.ciudad, '-') as usuario_regional"),
                 DB::raw($regionalesExpression),
-                DB::raw("coalesce(srv.nombre_servicio, 'CERTIFICADOS') as servicio_nombre"),
+                DB::raw("coalesce(nullif(trim(t.tipo), ''), srv.nombre_servicio, 'CERTIFICADOS') as servicio_nombre"),
                 DB::raw("coalesce(ev_d.user_id, 0) as entregado_por_id"),
                 DB::raw("coalesce(ud.name, 'Sin entrega registrada') as entregado_por"),
                 DB::raw("coalesce(udr.role_names, '') as entregado_por_roles"),
@@ -542,7 +602,7 @@ class ReportesController extends Controller
             'usuario' => (string) ($row->usuario ?? '-'),
             'usuario_roles' => (string) ($row->usuario_roles ?? ''),
             'regional' => $regional,
-            'servicio' => (string) ($row->servicio_nombre ?? '-'),
+            'servicio' => $this->normalizeServiceName((string) ($row->servicio_nombre ?? '-')),
             'entregado_por_id' => (int) ($row->entregado_por_id ?? 0),
             'entregado_por' => (string) ($row->entregado_por ?? 'Sin entrega registrada'),
             'entregado_por_roles' => (string) ($row->entregado_por_roles ?? ''),
@@ -553,6 +613,7 @@ class ReportesController extends Controller
             'is_entregado' => $isEntregado,
             'is_cancelado' => $isCancelado,
             'situacion_bucket' => $bucket,
+            'situacion_class' => $this->situacionBadgeClass($bucket),
             'situacion' => $situacion,
             'created_at' => $createdAt?->format('d/m/Y H:i') ?? '-',
             'updated_at' => $updatedAt?->format('d/m/Y H:i') ?? '-',
@@ -562,6 +623,17 @@ class ReportesController extends Controller
             'delivery_hours' => $deliveryHours,
             'estado_id' => (int) ($row->estado_id ?? 0),
         ];
+    }
+
+    private function situacionBadgeClass(string $bucket): string
+    {
+        return match ($bucket) {
+            'correcto' => 'badge-success',
+            'retraso' => 'badge-warning',
+            'rezago' => 'badge-danger',
+            'entregado' => 'badge-primary',
+            default => 'badge-secondary',
+        };
     }
 
     private function buildSummary(Collection $rows): array
@@ -604,6 +676,23 @@ class ReportesController extends Controller
         }
 
         return $result;
+    }
+
+    private function buildServiceSummary(Collection $rows): array
+    {
+        return $rows
+            ->groupBy(fn (array $row) => $this->normalizeServiceName((string) ($row['servicio'] ?? 'SIN SERVICIO')))
+            ->map(function (Collection $items, string $service) {
+                return [
+                    'servicio' => $service,
+                    'cantidad' => $items->count(),
+                    'peso' => round((float) $items->sum('peso'), 3),
+                    'precio' => round((float) $items->sum('precio'), 2),
+                ];
+            })
+            ->sortByDesc('precio')
+            ->values()
+            ->all();
     }
 
     private function buildTotals(Collection $rows): array
@@ -1528,6 +1617,62 @@ class ReportesController extends Controller
         }
 
         return $valid;
+    }
+
+    private function resolveServiceFilters(Request $request): array
+    {
+        $requested = $request->query('servicios', []);
+        $requested = is_array($requested) ? $requested : [$requested];
+
+        return collect($requested)
+            ->map(fn ($value) => $this->normalizeServiceName((string) $value))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function serviceOptionsFromRows(Collection $rows): array
+    {
+        return $rows
+            ->map(fn (array $row) => $this->normalizeServiceName((string) ($row['servicio'] ?? '')))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function filterRowsByService(Collection $rows, array $selectedServices): Collection
+    {
+        if (empty($selectedServices)) {
+            return $rows->values();
+        }
+
+        $selectedMap = array_fill_keys($selectedServices, true);
+
+        return $rows
+            ->filter(fn (array $row) => isset($selectedMap[$this->normalizeServiceName((string) ($row['servicio'] ?? ''))]))
+            ->values();
+    }
+
+    private function normalizeServiceName(string $value): string
+    {
+        $value = strtoupper(preg_replace('/\s+/', ' ', trim($value)) ?: '');
+
+        if ($value === '') {
+            return '';
+        }
+
+        if (str_contains($value, 'ORDINARI')) {
+            return 'ORDINARIOS';
+        }
+
+        if (str_contains($value, 'CERTIFIC')) {
+            return 'CERTIFICADOS';
+        }
+
+        return $value;
     }
 
     private function resolveEstadoIds(Request $request): array

@@ -19,7 +19,10 @@
 @section('content')
     @php
         $baseScopeParams = ['scope' => $scope];
+        $isGlobalIngreso = (bool) ($globalIngresoMode ?? false);
         $selectedStatuses = $statuses ?? ['entregado', 'pendiente', 'rezago'];
+        $selectedServiceFilters = $selectedServices ?? [];
+        $selectedMonthFilters = $selectedMonths ?? [];
         $modulesMap = [
             'contrato' => 'CONTRATOS',
             'ems' => 'EMS',
@@ -28,6 +31,10 @@
         ];
         $departamentoOrigenSeleccionado = $departamentoOrigen ?? '';
         $departamentoDestinoSeleccionado = $departamentoDestino ?? ($departamento ?? '');
+        $formRoute = $isGlobalIngreso ? route('dashboard.global-ingreso') : route('reportes.scope', $baseScopeParams);
+        $resetRoute = $formRoute;
+        $excelRoute = $isGlobalIngreso ? route('dashboard.global-ingreso.excel') : route('reportes.export.excel', $baseScopeParams);
+        $pdfRoute = $isGlobalIngreso ? route('dashboard.global-ingreso.pdf') : route('reportes.export.pdf', $baseScopeParams);
     @endphp
 
     <div class="card card-filtro mb-3">
@@ -38,7 +45,7 @@
             </button>
         </div>
         <div class="card-body" id="reportFiltersBody">
-            <form method="GET" action="{{ route('reportes.scope', $baseScopeParams) }}" id="reportFiltersForm">
+            <form method="GET" action="{{ $formRoute }}" id="reportFiltersForm">
                 <input type="hidden" name="range" id="reportRange" value="{{ $range ?? 'all' }}">
                 <div class="friendly-steps mb-3">
                     <span class="step-pill"><i class="fas fa-lightbulb mr-1"></i> Usa busqueda y fechas; exporta con un clic cuando estes listo.</span>
@@ -143,13 +150,61 @@
                     </div>
                     <div class="col-lg-3 mb-3">
                         <label class="font-weight-bold">Tipo de reporte</label>
-                        <select class="form-control" id="scopeSwitcher">
+                        <select class="form-control" id="scopeSwitcher" {{ $isGlobalIngreso ? 'disabled' : '' }}>
                             <option value="general" {{ $scope === 'general' ? 'selected' : '' }}>General</option>
                             <option value="contrato" {{ $scope === 'contrato' ? 'selected' : '' }}>Contratos</option>
                             <option value="ems" {{ $scope === 'ems' ? 'selected' : '' }}>EMS</option>
                             <option value="certi" {{ $scope === 'certi' ? 'selected' : '' }}>Certificados</option>
                             <option value="ordi" {{ $scope === 'ordi' ? 'selected' : '' }}>Ordinarios</option>
                         </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="font-weight-bold d-block">Meses</label>
+                        <div class="d-flex flex-wrap border rounded p-2">
+                            @foreach(($monthOptions ?? []) as $monthOption)
+                                @php($monthId = 'month_' . str_replace('-', '_', $monthOption['value']))
+                                <div class="custom-control custom-checkbox mr-4 mb-2">
+                                    <input
+                                        type="checkbox"
+                                        class="custom-control-input"
+                                        id="{{ $monthId }}"
+                                        name="months[]"
+                                        value="{{ $monthOption['value'] }}"
+                                        {{ in_array($monthOption['value'], $selectedMonthFilters, true) ? 'checked' : '' }}
+                                    >
+                                    <label class="custom-control-label" for="{{ $monthId }}">{{ $monthOption['label'] }}</label>
+                                </div>
+                            @endforeach
+                        </div>
+                        <small class="text-muted">Si marcas meses, el reporte usa esos meses completos.</small>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="font-weight-bold d-block">Servicios</label>
+                        <div class="d-flex flex-wrap border rounded p-2">
+                            @forelse(($serviceOptions ?? []) as $serviceOption)
+                                @php($serviceId = 'service_' . md5($serviceOption))
+                                <div class="custom-control custom-checkbox mr-4 mb-2">
+                                    <input
+                                        type="checkbox"
+                                        class="custom-control-input"
+                                        id="{{ $serviceId }}"
+                                        name="servicios[]"
+                                        value="{{ $serviceOption }}"
+                                        {{ in_array($serviceOption, $selectedServiceFilters, true) ? 'checked' : '' }}
+                                    >
+                                    <label class="custom-control-label" for="{{ $serviceId }}">{{ $serviceOption }}</label>
+                                </div>
+                            @empty
+                                <span class="text-muted small">No hay servicios disponibles para los filtros actuales.</span>
+                            @endforelse
+                        </div>
+                        <small class="text-muted">Si no marcas servicios, se incluyen todos.</small>
                     </div>
                 </div>
 
@@ -205,7 +260,7 @@
                     <button type="submit" class="btn btn-primary mr-2 mb-2">
                         <i class="fas fa-search mr-1"></i> Actualizar
                     </button>
-                    <a href="{{ route('reportes.scope', $baseScopeParams) }}" class="btn btn-outline-secondary mr-2 mb-2">
+                    <a href="{{ $resetRoute }}" class="btn btn-outline-secondary mr-2 mb-2">
                         <i class="fas fa-undo mr-1"></i> Reiniciar
                     </a>
                     <button type="button" class="btn btn-outline-info quick-range mr-2 mb-2" data-days="1">Hoy</button>
@@ -229,29 +284,101 @@
                 @if($departamentoDestinoSeleccionado !== '')
                     <span class="badge badge-primary mr-1">Destino: {{ $departamentoDestinoSeleccionado }}</span>
                 @endif
+                @foreach($selectedServiceFilters as $serviceFilter)
+                    <span class="badge badge-secondary mr-1">Servicio: {{ $serviceFilter }}</span>
+                @endforeach
+                @foreach(($selectedMonthLabels ?? []) as $monthLabel)
+                    <span class="badge badge-warning mr-1">Mes: {{ $monthLabel }}</span>
+                @endforeach
             </div>
             <div class="d-flex flex-wrap">
                 <a
-                    href="{{ route('reportes.export.excel', $baseScopeParams) }}"
+                    href="{{ $excelRoute }}"
                     class="btn btn-success btn-sm mr-2 mb-2"
                     id="exportExcelBtn"
                     data-export="excel"
-                    data-base-url="{{ route('reportes.export.excel', $baseScopeParams) }}"
+                    data-base-url="{{ $excelRoute }}"
                 >
                     <i class="fas fa-file-excel mr-1"></i> Exportar Excel
                 </a>
                 <a
-                    href="{{ route('reportes.export.pdf', $baseScopeParams) }}"
+                    href="{{ $pdfRoute }}"
                     class="btn btn-danger btn-sm mb-2"
                     id="exportPdfBtn"
                     data-export="pdf"
-                    data-base-url="{{ route('reportes.export.pdf', $baseScopeParams) }}"
+                    data-base-url="{{ $pdfRoute }}"
                 >
                     <i class="fas fa-file-pdf mr-1"></i> Exportar PDF
                 </a>
             </div>
         </div>
     </div>
+
+    @if($isGlobalIngreso)
+        <div class="row">
+            <div class="col-lg-4 col-md-4 mb-3">
+                <div class="info-box bg-white border">
+                    <span class="info-box-icon bg-primary"><i class="fas fa-hashtag"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Cantidad nacional</span>
+                        <span class="info-box-number">{{ number_format($summary['total_filtrado'] ?? ($summary['total'] ?? 0)) }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-4 mb-3">
+                <div class="info-box bg-white border">
+                    <span class="info-box-icon bg-info"><i class="fas fa-weight-hanging"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Peso total</span>
+                        <span class="info-box-number">{{ number_format((float) ($totals['peso_total'] ?? 0), 3) }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-4 mb-3">
+                <div class="info-box bg-white border">
+                    <span class="info-box-icon bg-success"><i class="fas fa-money-bill-wave"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Bs total</span>
+                        <span class="info-box-number">Bs {{ number_format((float) ($totals['precio_total'] ?? 0), 2) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-outline card-success">
+            <div class="card-header">
+                <strong>Resumen por servicio</strong>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Servicio</th>
+                                <th class="text-right">Cantidad</th>
+                                <th class="text-right">Peso</th>
+                                <th class="text-right">Bs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse(($serviceSummary ?? []) as $serviceRow)
+                                <tr>
+                                    <td class="font-weight-bold">{{ $serviceRow['servicio'] }}</td>
+                                    <td class="text-right">{{ number_format((int) $serviceRow['cantidad']) }}</td>
+                                    <td class="text-right">{{ number_format((float) $serviceRow['peso'], 3) }}</td>
+                                    <td class="text-right">Bs {{ number_format((float) $serviceRow['precio'], 2) }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-3">Sin datos por servicio.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <div class="row">
         <div class="col-lg-2 col-md-4 col-6 mb-3">
@@ -335,6 +462,7 @@
                         <tr>
                             <th>#</th>
                             <th>Modulo</th>
+                            <th>Servicio</th>
                             <th>Codigo</th>
                             <th>Estado</th>
                             <th>Situacion</th>
@@ -351,23 +479,15 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($rows as $row)
-                            @php
-                                $situacionClass = match($row['situacion_bucket']) {
-                                    'correcto' => 'badge-success',
-                                    'retraso' => 'badge-warning',
-                                    'rezago' => 'badge-danger',
-                                    'entregado' => 'badge-primary',
-                                    default => 'badge-secondary',
-                                };
-                                $nro = ($rows->currentPage() - 1) * $rows->perPage() + $loop->iteration;
-                            @endphp
+                        @if($rows->count() > 0)
+                            @foreach($rows as $row)
                             <tr>
-                                <td>{{ $nro }}</td>
+                                <td>{{ ($rows->currentPage() - 1) * $rows->perPage() + $loop->iteration }}</td>
                                 <td><span class="badge badge-light border">{{ $row['modulo_label'] }}</span></td>
+                                <td>{{ $row['servicio'] }}</td>
                                 <td class="font-weight-bold">{{ $row['codigo'] }}</td>
                                 <td>{{ $row['estado'] }}</td>
-                                <td><span class="badge {{ $situacionClass }}">{{ $row['situacion'] }}</span></td>
+                                <td><span class="badge {{ $row['situacion_class'] ?? 'badge-secondary' }}">{{ $row['situacion'] }}</span></td>
                                 <td>{{ $row['origen'] }}</td>
                                 <td>{{ $row['destino'] }}</td>
                                 <td>{{ $row['remitente'] }}</td>
@@ -379,11 +499,12 @@
                                 <td>{{ $row['created_at'] }}</td>
                                 <td>{{ $row['updated_at'] }}</td>
                             </tr>
-                        @empty
+                            @endforeach
+                        @else
                             <tr>
-                                <td colspan="15" class="text-center py-4 text-muted">Sin resultados para los filtros seleccionados.</td>
+                                <td colspan="16" class="text-center py-4 text-muted">Sin resultados para los filtros seleccionados.</td>
                             </tr>
-                        @endforelse
+                        @endif
                     </tbody>
                 </table>
             </div>
@@ -451,7 +572,7 @@
             const presetDeliveredOnlyBtn = document.getElementById('presetDeliveredOnly');
             const autoFields = form
                 ? form.querySelectorAll(
-                    'input[name="q"], input[name="from"], input[name="to"], select[name="limit"], select[name="per_page"], select[name="departamento_origen"], select[name="departamento_destino"], input[name="modules[]"], input[name="statuses[]"]'
+                    'input[name="q"], input[name="from"], input[name="to"], select[name="limit"], select[name="per_page"], select[name="departamento_origen"], select[name="departamento_destino"], input[name="modules[]"], input[name="statuses[]"], input[name="servicios[]"], input[name="months[]"]'
                 )
                 : [];
             let autoSubmitTimer = null;

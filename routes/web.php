@@ -134,6 +134,15 @@ Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'
 Route::get('/dashboard/export/pdf', [DashboardController::class, 'exportPdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.export.pdf');
+Route::get('/dir-operaciones/global-ingreso', [ReportesController::class, 'globalIngreso'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.global-ingreso');
+Route::get('/dir-operaciones/global-ingreso/export/excel', [ReportesController::class, 'exportGlobalIngresoExcel'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.global-ingreso.excel');
+Route::get('/dir-operaciones/global-ingreso/export/pdf', [ReportesController::class, 'exportGlobalIngresoPdf'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.global-ingreso.pdf');
 Route::get('/entregas', [DashboardController::class, 'entregas'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('entregas.index');

@@ -192,12 +192,39 @@
     </tbody>
 </table>
 
+<div class="section-title">Resumen por servicio</div>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Servicio</th>
+            <th class="num">Cantidad</th>
+            <th class="num">Peso total</th>
+            <th class="num">Ingreso (Bs)</th>
+        </tr>
+    </thead>
+    <tbody>
+        @forelse(($serviceSummary ?? []) as $serviceRow)
+            <tr>
+                <td>{{ $serviceRow['servicio'] }}</td>
+                <td class="num">{{ number_format((int) $serviceRow['cantidad']) }}</td>
+                <td class="num">{{ number_format((float) $serviceRow['peso'], 3) }}</td>
+                <td class="num">Bs {{ number_format((float) $serviceRow['precio'], 2) }}</td>
+            </tr>
+        @empty
+            <tr>
+                <td colspan="4">Sin datos por servicio.</td>
+            </tr>
+        @endforelse
+    </tbody>
+</table>
+
 <div class="section-title">Detalle de paquetes (lista completa)</div>
 <table class="table">
     <thead>
         <tr>
             <th>#</th>
             <th>Modulo</th>
+            <th>Servicio</th>
             <th>Codigo</th>
             <th>Estado actual</th>
             <th>Situacion</th>
@@ -218,6 +245,7 @@
             <tr>
                 <td>{{ $idx + 1 }}</td>
                 <td>{{ $row['modulo_label'] }}</td>
+                <td>{{ $row['servicio'] }}</td>
                 <td>{{ $row['codigo'] }}</td>
                 <td>{{ $row['estado'] }}</td>
                 <td>{{ $row['situacion'] }}</td>
@@ -234,13 +262,13 @@
             </tr>
         @empty
             <tr>
-                <td colspan="15">Sin resultados para los filtros seleccionados.</td>
+                <td colspan="16">Sin resultados para los filtros seleccionados.</td>
             </tr>
         @endforelse
     </tbody>
     <tfoot class="tfoot">
         <tr>
-            <td colspan="11">Totales generales</td>
+            <td colspan="12">Totales generales</td>
             <td class="num">{{ number_format((float) ($totals['peso_total'] ?? 0), 3) }}</td>
             <td class="num">Bs {{ number_format((float) ($totals['precio_total'] ?? 0), 2) }}</td>
             <td colspan="2"></td>
