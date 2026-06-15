@@ -733,6 +733,39 @@
                             <strong>Cancelados:</strong> no incluidos
                             <span class="mx-2">|</span>
                             <strong>Rango:</strong> {{ $rangoLabel }}
+                            <span class="mx-2">|</span>
+                            <strong>Filtrados:</strong>
+                            <span data-pending-filter-count>{{ number_format((int) $item->pendientes) }}</span>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3" data-pending-filter-panel>
+                            <div class="form-row align-items-end">
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <label class="small text-muted mb-1">Desde</label>
+                                    <input type="date" class="form-control form-control-sm" data-pending-filter-from>
+                                </div>
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <label class="small text-muted mb-1">Hasta</label>
+                                    <input type="date" class="form-control form-control-sm" data-pending-filter-to>
+                                </div>
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <label class="small text-muted mb-1">Servicio o categoria</label>
+                                    <select class="form-control form-control-sm" data-pending-filter-module>
+                                        <option value="">Todos</option>
+                                        @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                                            <option value="{{ $moduloDetalle }}">{{ $moduloDetalle }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <button type="button" class="btn btn-sm btn-primary mr-1" data-pending-filter-search>
+                                        <i class="fas fa-search mr-1"></i> Buscar
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-pending-filter-clear>
+                                        <i class="fas fa-eraser mr-1"></i> Limpiar
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="table-responsive" style="max-height: 430px; overflow:auto;">
@@ -749,14 +782,19 @@
                                 </thead>
                                 <tbody>
                                     @forelse(($item->pendientes_detalle ?? []) as $detalle)
-                                        <tr>
+                                        @php($detalleCreadoAt = !empty($detalle['creado_at'] ?? '') ? \Illuminate\Support\Carbon::parse($detalle['creado_at']) : null)
+                                        <tr
+                                            data-pending-row
+                                            data-pending-module="{{ $detalle['modulo'] ?? '' }}"
+                                            data-pending-date="{{ $detalleCreadoAt ? $detalleCreadoAt->format('Y-m-d') : '' }}"
+                                        >
                                             <td>{{ $detalle['modulo'] ?? '-' }}</td>
                                             <td><span class="badge badge-light">{{ $detalle['codigo'] ?? '-' }}</span></td>
                                             <td>{{ $detalle['origen'] ?? '-' }}</td>
                                             <td>{{ $detalle['destino'] ?? '-' }}</td>
                                             <td>{{ $detalle['destinatario'] ?? '-' }}</td>
                                             <td>
-                                                {{ !empty($detalle['creado_at'] ?? '') ? \Illuminate\Support\Carbon::parse($detalle['creado_at'])->format('d/m/Y H:i') : '-' }}
+                                                {{ $detalleCreadoAt ? $detalleCreadoAt->format('d/m/Y H:i') : '-' }}
                                             </td>
                                         </tr>
                                     @empty
@@ -764,6 +802,9 @@
                                             <td colspan="6" class="text-center text-muted py-4">No hay paquetes pendientes para este departamento.</td>
                                         </tr>
                                     @endforelse
+                                    <tr class="d-none" data-pending-empty-filter>
+                                        <td colspan="6" class="text-center text-muted py-4">No hay paquetes pendientes con los filtros seleccionados.</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1502,6 +1543,77 @@
             });
         };
 
+        const initPendingModalFilters = () => {
+            document.querySelectorAll('[id^="departamentoPendientesModal"]').forEach((modal) => {
+                const fromInput = modal.querySelector('[data-pending-filter-from]');
+                const toInput = modal.querySelector('[data-pending-filter-to]');
+                const moduleSelect = modal.querySelector('[data-pending-filter-module]');
+                const searchButton = modal.querySelector('[data-pending-filter-search]');
+                const clearButton = modal.querySelector('[data-pending-filter-clear]');
+                const countLabel = modal.querySelector('[data-pending-filter-count]');
+                const emptyFilterRow = modal.querySelector('[data-pending-empty-filter]');
+                const rows = Array.from(modal.querySelectorAll('[data-pending-row]'));
+
+                if (!rows.length) {
+                    return;
+                }
+
+                const formatCount = (value) => Number(value).toLocaleString('es-BO');
+
+                const applyFilters = () => {
+                    const from = fromInput?.value || '';
+                    const to = toInput?.value || '';
+                    const module = moduleSelect?.value || '';
+                    let visibleCount = 0;
+
+                    rows.forEach((row) => {
+                        const rowDate = row.getAttribute('data-pending-date') || '';
+                        const rowModule = row.getAttribute('data-pending-module') || '';
+                        const matchesFrom = !from || (rowDate && rowDate >= from);
+                        const matchesTo = !to || (rowDate && rowDate <= to);
+                        const matchesModule = !module || rowModule === module;
+                        const isVisible = matchesFrom && matchesTo && matchesModule;
+
+                        row.classList.toggle('d-none', !isVisible);
+                        if (isVisible) {
+                            visibleCount += 1;
+                        }
+                    });
+
+                    if (countLabel) {
+                        countLabel.textContent = formatCount(visibleCount);
+                    }
+                    if (emptyFilterRow) {
+                        emptyFilterRow.classList.toggle('d-none', visibleCount > 0);
+                    }
+                };
+
+                const clearFilters = () => {
+                    if (fromInput) {
+                        fromInput.value = '';
+                    }
+                    if (toInput) {
+                        toInput.value = '';
+                    }
+                    if (moduleSelect) {
+                        moduleSelect.value = '';
+                    }
+                    applyFilters();
+                };
+
+                searchButton?.addEventListener('click', applyFilters);
+                clearButton?.addEventListener('click', clearFilters);
+                [fromInput, toInput, moduleSelect].forEach((control) => {
+                    control?.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            applyFilters();
+                        }
+                    });
+                });
+            });
+        };
+
         let isFocusMode = localStorage.getItem(DASHBOARD_FOCUS_KEY) === '1';
         let isCompactMode = localStorage.getItem(DASHBOARD_COMPACT_KEY) === '1';
 
@@ -1631,6 +1743,7 @@
         applyTopFiltersState();
         applyVisualModes();
         runCounterAnimation();
+        initPendingModalFilters();
         updateFullscreenButtons();
 
         function renderChartModulos(type) {
