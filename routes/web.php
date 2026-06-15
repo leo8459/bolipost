@@ -363,6 +363,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-contrato/entregados', [RecojoController::class, 'entregados'])->name('paquetes-contrato.entregados');
     Route::get('/paquetes-contrato/cartero', [RecojoController::class, 'cartero'])->name('paquetes-contrato.cartero');
     Route::get('/paquetes-contrato/gestor', [RecojoController::class, 'gestor'])->name('paquetes-contrato.gestor');
+    Route::get('/dir-operaciones/reimprimir-cn33', [RecojoController::class, 'reimprimirCn33'])->name('dashboard.reimprimir-cn33');
+    Route::get('/dir-operaciones/reimprimir-cn33/pdf', [RecojoController::class, 'reimprimirCn33DespachoPdf'])->name('dashboard.reimprimir-cn33.pdf');
+    Route::get('/dir-operaciones/reimprimir-cn33/excel', [RecojoController::class, 'reimprimirCn33DespachoExcel'])->name('dashboard.reimprimir-cn33.despacho-excel');
+    Route::get('/dir-operaciones/reimprimir-cn33/{contrato}/excel', [RecojoController::class, 'reimprimirCn33Excel'])->name('dashboard.reimprimir-cn33.excel');
     Route::get('/paquetes-contrato/create', [RecojoController::class, 'create'])->name('paquetes-contrato.create');
     Route::get('/paquetes-contrato/create-con-tarifa', [RecojoController::class, 'createConTarifa'])->name('paquetes-contrato.create-con-tarifa');
     Route::post('/paquetes-contrato', [RecojoController::class, 'store'])->name('paquetes-contrato.store');

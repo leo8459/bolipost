@@ -343,6 +343,17 @@ return [
             'icon' => 'fas fa-tachometer-alt',
         ],
         [
+            'text' => 'Dir. Operaciones',
+            'icon' => 'fas fa-chart-line',
+            'submenu' => [
+                [
+                    'text' => 'Reimprimir CN-33',
+                    'url' => '/dir-operaciones/reimprimir-cn33',
+                    'icon' => 'fas fa-file-excel',
+                ],
+            ],
+        ],
+        [
             'text' => 'Reportes',
             'icon' => 'fas fa-file-pdf',
             'submenu' => [

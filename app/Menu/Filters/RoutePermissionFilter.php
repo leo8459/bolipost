@@ -29,6 +29,10 @@ class RoutePermissionFilter implements FilterInterface
             return $item;
         }
 
+        if (in_array($routeName, (array) config('acl.excluded_route_permissions', []), true)) {
+            return $item;
+        }
+
         $candidatePermissions = AclPermissionRegistry::authorizationPermissionsForRouteAccess($routeName);
         foreach ($candidatePermissions as $permissionName) {
             if (AclPermissionRegistry::permissionExists($permissionName) && Auth::user()?->can($permissionName)) {

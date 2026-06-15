@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\Cn33DespachoExport;
+use App\Exports\ContratoCn33Export;
 use App\Models\CodigoEmpresa;
 use App\Models\Empresa;
 use App\Models\Estado;
+use App\Models\PaqueteEms;
 use App\Models\Recojo;
+use App\Models\SolicitudCliente;
 use App\Models\TarifaContrato;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -16,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 
 class RecojoController extends Controller
 {
@@ -50,6 +55,114 @@ class RecojoController extends Controller
     public function cartero()
     {
         return view('paquetes_contrato.cartero');
+    }
+
+    public function reimprimirCn33(Request $request)
+    {
+        $this->authorizeAnyPermission($request, $this->cn33PrintPermissions());
+
+        $despacho = strtoupper(trim((string) $request->query('despacho', '')));
+        $origen = strtoupper(trim((string) $request->query('origen', '')));
+        $destino = strtoupper(trim((string) $request->query('destino', '')));
+        $data = $this->cn33DataForDespacho($despacho, $origen, $destino);
+
+        return view('paquetes_contrato.reimprimir-cn33', [
+            'despacho' => $despacho,
+            'origen' => $origen,
+            'destino' => $destino,
+            'origenes' => $this->cn33FilterOptions('origen', $despacho),
+            'destinos' => $this->cn33FilterOptions('destino', $despacho),
+            'paquetes' => $data['rows'],
+            'totalCantidad' => $data['totalCantidad'],
+            'totalPeso' => $data['totalPeso'],
+        ]);
+    }
+
+    public function reimprimirCn33DespachoPdf(Request $request)
+    {
+        $this->authorizeAnyPermission($request, $this->cn33PrintPermissions());
+
+        $despacho = strtoupper(trim((string) $request->query('despacho', '')));
+        if ($despacho === '') {
+            return redirect()
+                ->route('dashboard.reimprimir-cn33')
+                ->with('error', 'Ingresa el codigo de despacho para reimprimir CN-33.');
+        }
+
+        $origen = strtoupper(trim((string) $request->query('origen', '')));
+        $destino = strtoupper(trim((string) $request->query('destino', '')));
+        $data = $this->cn33DataForDespacho($despacho, $origen, $destino);
+        if ($data['rows']->isEmpty()) {
+            return redirect()
+                ->route('dashboard.reimprimir-cn33', ['despacho' => $despacho, 'origen' => $origen, 'destino' => $destino])
+                ->with('error', 'No se encontraron paquetes/contratos/solicitudes para el despacho ' . $despacho . '.');
+        }
+
+        $generatedAt = $data['generatedAt'];
+        $loggedUserName = trim((string) optional(Auth::user())->name);
+
+        $pdf = Pdf::loadView('paquetes_ems.reporte-regional', [
+            'paquetes' => $data['rows'],
+            'generatedAt' => $generatedAt,
+            'currentManifiesto' => $despacho,
+            'loggedInUserCity' => $data['originCity'] !== '' ? $data['originCity'] : 'N/A',
+            'destinationCity' => $data['destinationCity'] !== '' ? $data['destinationCity'] : 'N/A',
+            'selectedTransport' => 'N/A',
+            'numeroVuelo' => '-',
+            'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
+        ])->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'cn33-' . $despacho . '-reimpresion.pdf');
+    }
+
+    public function reimprimirCn33DespachoExcel(Request $request)
+    {
+        $this->authorizeAnyPermission($request, $this->cn33PrintPermissions());
+
+        $despacho = strtoupper(trim((string) $request->query('despacho', '')));
+        if ($despacho === '') {
+            return redirect()
+                ->route('dashboard.reimprimir-cn33')
+                ->with('error', 'Ingresa el codigo de despacho para exportar el CN-33.');
+        }
+
+        $origen = strtoupper(trim((string) $request->query('origen', '')));
+        $destino = strtoupper(trim((string) $request->query('destino', '')));
+        $data = $this->cn33DataForDespacho($despacho, $origen, $destino);
+
+        if ($data['rows']->isEmpty()) {
+            return redirect()
+                ->route('dashboard.reimprimir-cn33', ['despacho' => $despacho, 'origen' => $origen, 'destino' => $destino])
+                ->with('error', 'No hay registros para exportar con esos filtros.');
+        }
+
+        return Excel::download(
+            new Cn33DespachoExport(
+                $data['rows'],
+                $despacho,
+                $data['generatedAt'],
+                $data['originCity'] !== '' ? $data['originCity'] : 'N/A',
+                $data['destinationCity'] !== '' ? $data['destinationCity'] : 'N/A',
+                $origen,
+                $destino
+            ),
+            'cn33-' . $despacho . '-reimpresion.xlsx'
+        );
+    }
+
+    public function reimprimirCn33Excel(Request $request, Recojo $contrato)
+    {
+        $this->authorizeAnyPermission($request, $this->cn33PrintPermissions());
+
+        $generatedAt = now();
+        $contrato->loadMissing(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla']);
+
+        return Excel::download(
+            new ContratoCn33Export($contrato, $generatedAt, $this->verificationUrlFor($contrato)),
+            'cn33-' . $contrato->codigo . '-' . $generatedAt->format('Ymd-His') . '.xlsx'
+        );
     }
 
     public function gestor(Request $request)
@@ -494,15 +607,7 @@ class RecojoController extends Controller
 
     public function reporte(Recojo $contrato)
     {
-        $this->authorizeAnyPermission(request(), [
-            'feature.paquetes-contrato.index.print',
-            'feature.paquetes-contrato.almacen.print',
-            'feature.paquetes-contrato.recoger-envios.print',
-            'feature.paquetes-contrato.cartero.print',
-            'feature.paquetes-contrato.entregados.print',
-            'feature.paquetes-contrato.create.create',
-            'feature.paquetes-contrato.create-con-tarifa.create',
-        ]);
+        $this->authorizeAnyPermission(request(), $this->cn33PrintPermissions());
 
         $generatedAt = now();
         $contrato->loadMissing(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla']);
@@ -603,6 +708,244 @@ class RecojoController extends Controller
     private function verificationTokenFor(Recojo $contrato): string
     {
         return Crypt::encryptString((string) $contrato->getKey());
+    }
+
+    private function cn33PrintPermissions(): array
+    {
+        return [
+            'feature.paquetes-contrato.index.print',
+            'feature.paquetes-contrato.almacen.print',
+            'feature.paquetes-contrato.recoger-envios.print',
+            'feature.paquetes-contrato.cartero.print',
+            'feature.paquetes-contrato.entregados.print',
+            'feature.paquetes-contrato.create.create',
+            'feature.paquetes-contrato.create-con-tarifa.create',
+        ];
+    }
+
+    private function cn33DataForDespacho(string $despacho = '', string $origen = '', string $destino = ''): array
+    {
+        if ($despacho === '') {
+            return $this->emptyCn33Data();
+        }
+
+        $paquetes = PaqueteEms::query()
+            ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
+            ->with(['user:id,empresa_id', 'user.empresa:id,nombre'])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo',
+                'cod_especial',
+                'origen',
+                'ciudad',
+                'cantidad',
+                'peso',
+                'nombre_remitente',
+                'observacion',
+                'user_id',
+                'created_at',
+                'updated_at',
+            ]);
+
+        $contratos = Recojo::query()
+            ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
+            ->with(['empresa:id,nombre'])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo',
+                'cod_especial',
+                'empresa_id',
+                'origen',
+                'destino',
+                'peso',
+                'nombre_r',
+                'observacion',
+                'created_at',
+                'updated_at',
+            ]);
+
+        $solicitudes = SolicitudCliente::query()
+            ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo_solicitud',
+                'barcode',
+                'cod_especial',
+                'origen',
+                'ciudad',
+                'cantidad',
+                'peso',
+                'nombre_remitente',
+                'observacion',
+                'created_at',
+                'updated_at',
+            ]);
+
+        $rows = collect($paquetes->map(function ($paquete) {
+            return (object) [
+                'tipo' => 'EMS',
+                'codigo' => $paquete->codigo,
+                'origen' => $paquete->origen,
+                'destino' => $paquete->ciudad,
+                'cantidad' => (int) ($paquete->cantidad ?? 1),
+                'peso' => (float) ($paquete->peso ?? 0),
+                'nombre_remitente' => $this->composeCn33Remitente(
+                    $paquete->nombre_remitente,
+                    optional(optional($paquete->user)->empresa)->nombre
+                ),
+                'observacion' => (string) ($paquete->observacion ?? ''),
+                'created_at' => $paquete->created_at,
+            ];
+        })->all())
+            ->concat($contratos->map(function ($contrato) {
+                return (object) [
+                    'tipo' => 'CONTRATO',
+                    'codigo' => $contrato->codigo,
+                    'origen' => $contrato->origen,
+                    'destino' => $contrato->destino,
+                    'cantidad' => 1,
+                    'peso' => (float) ($contrato->peso ?? 0),
+                    'nombre_remitente' => $this->composeCn33Remitente(
+                        $contrato->nombre_r,
+                        optional($contrato->empresa)->nombre
+                    ),
+                    'observacion' => (string) ($contrato->observacion ?? ''),
+                    'created_at' => $contrato->created_at,
+                ];
+            })->all())
+            ->concat($solicitudes->map(function ($solicitud) {
+                return (object) [
+                    'tipo' => 'SOLICITUD',
+                    'codigo' => $solicitud->codigo_solicitud ?: ($solicitud->barcode ?: 'SIN CODIGO'),
+                    'origen' => $solicitud->origen,
+                    'destino' => $solicitud->ciudad,
+                    'cantidad' => (int) ($solicitud->cantidad ?? 1),
+                    'peso' => (float) ($solicitud->peso ?? 0),
+                    'nombre_remitente' => (string) ($solicitud->nombre_remitente ?? 'SIN REMITENTE'),
+                    'observacion' => (string) ($solicitud->observacion ?? ''),
+                    'created_at' => $solicitud->created_at,
+                ];
+            })->all())
+            ->values();
+
+        $generatedAt = collect([$paquetes->max('updated_at'), $contratos->max('updated_at'), $solicitudes->max('updated_at')])
+            ->filter()
+            ->sortDesc()
+            ->first() ?: now();
+
+        if ($origen !== '') {
+            $rows = $rows
+                ->filter(fn ($row) => strtoupper(trim((string) ($row->origen ?? ''))) === $origen)
+                ->values();
+        }
+
+        if ($destino !== '') {
+            $rows = $rows
+                ->filter(fn ($row) => strtoupper(trim((string) ($row->destino ?? ''))) === $destino)
+                ->values();
+        }
+
+        return [
+            'rows' => $rows,
+            'totalCantidad' => (int) $rows->sum(fn ($row) => (int) ($row->cantidad ?? 1)),
+            'totalPeso' => (float) $rows->sum(fn ($row) => (float) ($row->peso ?? 0)),
+            'originCity' => trim((string) optional($rows->first())->origen),
+            'destinationCity' => trim((string) optional($rows->first())->destino),
+            'generatedAt' => $generatedAt,
+        ];
+    }
+
+    private function emptyCn33Data(): array
+    {
+        return [
+            'rows' => collect(),
+            'totalCantidad' => 0,
+            'totalPeso' => 0.0,
+            'originCity' => '',
+            'destinationCity' => '',
+            'generatedAt' => now(),
+        ];
+    }
+
+    private function cn33FilterOptions(string $field, string $despacho = ''): array
+    {
+        if (! in_array($field, ['origen', 'destino'], true)) {
+            return [];
+        }
+
+        $despacho = strtoupper(trim($despacho));
+        $data = $despacho !== ''
+            ? $this->cn33DataForDespacho($despacho)
+            : $this->cn33AllFilterRows();
+
+        return $data['rows']
+            ->pluck($field)
+            ->map(fn ($value) => strtoupper(trim((string) $value)))
+            ->filter(fn ($value) => $value !== '' && $value !== '-')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function cn33AllFilterRows(): array
+    {
+        $ems = PaqueteEms::query()
+            ->whereNotNull('cod_especial')
+            ->where('cod_especial', '<>', '')
+            ->limit(5000)
+            ->get(['origen', 'ciudad'])
+            ->map(fn ($row) => (object) [
+                'origen' => $row->origen,
+                'destino' => $row->ciudad,
+            ]);
+
+        $contratos = Recojo::query()
+            ->whereNotNull('cod_especial')
+            ->where('cod_especial', '<>', '')
+            ->limit(5000)
+            ->get(['origen', 'destino'])
+            ->map(fn ($row) => (object) [
+                'origen' => $row->origen,
+                'destino' => $row->destino,
+            ]);
+
+        $solicitudes = SolicitudCliente::query()
+            ->whereNotNull('cod_especial')
+            ->where('cod_especial', '<>', '')
+            ->limit(5000)
+            ->get(['origen', 'ciudad'])
+            ->map(fn ($row) => (object) [
+                'origen' => $row->origen,
+                'destino' => $row->ciudad,
+            ]);
+
+        return [
+            'rows' => $ems->concat($contratos)->concat($solicitudes)->values(),
+        ];
+    }
+
+    private function composeCn33Remitente(?string $nombreRemitente, ?string $empresaNombre): string
+    {
+        $nombre = trim((string) $nombreRemitente);
+        $empresa = trim((string) $empresaNombre);
+
+        if ($empresa === '') {
+            return $nombre !== '' ? $nombre : 'SIN REMITENTE';
+        }
+
+        if ($nombre === '' || in_array(strtoupper($nombre), ['SIN REMITENTE', '-'], true)) {
+            return $empresa;
+        }
+
+        if (stripos($nombre, $empresa) !== false) {
+            return $nombre;
+        }
+
+        return $nombre . ' / ' . $empresa;
     }
 
     private function contratoFromVerificationRequest(Request $request): Recojo

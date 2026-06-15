@@ -83,6 +83,10 @@ return [
         'tarifario.pdf',
         'tarifario.global-excel',
         'despachos.expedicion.pdf',
+        'dashboard.reimprimir-cn33',
+        'dashboard.reimprimir-cn33.pdf',
+        'dashboard.reimprimir-cn33.despacho-excel',
+        'dashboard.reimprimir-cn33.excel',
     ],
 
     /*
