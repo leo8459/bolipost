@@ -6,12 +6,12 @@
         <td colspan="22">Generado: {{ now()->format('d/m/Y H:i') }}</td>
     </tr>
     <tr>
-        <td colspan="22">Modulos: {{ implode(', ', $moduleLabels) }}</td>
+        <td colspan="22">Módulos: {{ implode(', ', $moduleLabels) }}</td>
     </tr>
     <tr>
         <td colspan="22">
             Este archivo contiene todos los registros creados que cumplen los filtros, excluyendo cancelados.
-            Use los filtros de la fila de encabezados para revisar por modulo, servicio, estado, origen o destino.
+            Use los filtros de la fila de encabezados para revisar por módulo, servicio, estado, origen o destino.
         </td>
     </tr>
     @if(!empty($selectedMonthLabels))
@@ -55,13 +55,13 @@
 
 <table>
     <tr><td colspan="22"></td></tr>
-    <tr><td colspan="22"><strong>RESUMEN POR MODULO</strong></td></tr>
+    <tr><td colspan="22"><strong>RESUMEN POR MÓDULO</strong></td></tr>
 </table>
 
 <table>
     <thead>
         <tr>
-            <th>Modulo</th>
+            <th>Módulo</th>
             <th>Total</th>
             <th>Entregados</th>
             <th>No entregados</th>
@@ -81,7 +81,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="6">Sin datos por modulo.</td>
+                <td colspan="6">Sin datos por módulo.</td>
             </tr>
         @endforelse
     </tbody>

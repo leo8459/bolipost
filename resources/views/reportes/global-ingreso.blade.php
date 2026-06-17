@@ -6,7 +6,7 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
         <div>
             <h1 class="mb-0">Global Nivel Nacional (Ingreso)</h1>
-            <small class="text-muted">Reporte rapido: todos los registros menos cancelados.</small>
+            <small class="text-muted">Reporte rápido con todos los registros válidos, excepto cancelados.</small>
         </div>
         <div class="mt-2 mt-md-0">
             <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm">
@@ -28,6 +28,14 @@
         $selectedServiceFilters = $selectedServices ?? [];
     @endphp
 
+    <div class="report-hero mb-3">
+        <div>
+            <h2>Panorama nacional de ingresos</h2>
+            <p>Consulta el volumen, el peso y el ingreso total con filtros simples por fecha, módulo y servicio.</p>
+        </div>
+        <div class="report-hero-badge">Vista optimizada</div>
+    </div>
+
     <div id="exportLoadingOverlay" class="export-loading-overlay" aria-live="polite" aria-hidden="true">
         <div class="export-loading-box">
             <div class="export-spinner"></div>
@@ -43,7 +51,7 @@
 
     <div class="card card-outline card-primary">
         <div class="card-header">
-            <strong><i class="fas fa-filter mr-1"></i> Filtros rapidos</strong>
+            <strong><i class="fas fa-filter mr-1"></i> Filtros rápidos</strong>
         </div>
         <form method="GET" action="{{ route('dashboard.global-ingreso') }}" id="globalIngresoForm">
             <input type="hidden" name="range" id="reportRange" value="{{ $range ?? 'all' }}">
@@ -77,7 +85,7 @@
 
                 <div class="row">
                     <div class="col-md-5 mb-3">
-                        <label>Modulo / EMS</label>
+                        <label>Módulos</label>
                         <div class="filter-box">
                             @foreach($modulesMap as $moduleKey => $moduleLabel)
                                 <label class="filter-check">
@@ -216,7 +224,7 @@
     <div class="card card-outline card-secondary">
         <div class="card-header d-flex justify-content-between align-items-center">
             <strong>Detalle</strong>
-            <span class="text-muted small">Codigo, cantidad, peso y Bs</span>
+            <span class="text-muted small">Código, cantidad, peso e ingreso</span>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -224,8 +232,8 @@
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Codigo</th>
-                            <th>Modulo</th>
+                            <th>Código</th>
+                            <th>Módulo</th>
                             <th>Servicio</th>
                             <th>Origen</th>
                             <th>Destino</th>
@@ -270,6 +278,34 @@
 
 @section('css')
     <style>
+        .report-hero {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 20px;
+            border: 1px solid #dbe5ef;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #f8fbff 0%, #eef6fd 100%);
+        }
+        .report-hero h2 {
+            margin: 0 0 6px;
+            font-size: 1.15rem;
+            font-weight: 700;
+        }
+        .report-hero p {
+            margin: 0;
+            color: #516173;
+        }
+        .report-hero-badge {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #0f4c81;
+            color: #fff;
+            font-size: .8rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
         .filter-box {
             display: flex;
             flex-wrap: wrap;
@@ -367,6 +403,12 @@
             0% { transform: translateX(-105%); }
             50% { transform: translateX(80%); }
             100% { transform: translateX(260%); }
+        }
+        @media (max-width: 767.98px) {
+            .report-hero {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 @stop

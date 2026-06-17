@@ -77,6 +77,38 @@ class ReportesController extends Controller
         return view('reportes.global-ingreso', $data);
     }
 
+    public function globalPorServicio(Request $request)
+    {
+        $data = $this->buildGlobalPorServicioData($request);
+
+        return view('reportes.global-por-servicio', $data);
+    }
+
+    public function exportGlobalPorServicioExcel(Request $request)
+    {
+        @set_time_limit(300);
+
+        $data = $this->buildGlobalPorServicioData($request);
+        $filename = 'global-por-servicio-' . now()->format('Ymd-His') . '.xlsx';
+
+        return Excel::download(new \App\Exports\GlobalPorServicioExport($data), $filename);
+    }
+
+    public function exportGlobalPorServicioPdf(Request $request)
+    {
+        @set_time_limit(300);
+        @ini_set('max_execution_time', '300');
+        @ini_set('memory_limit', '1024M');
+
+        $data = $this->buildGlobalPorServicioData($request);
+        $pdf = Pdf::loadView('reportes.global-por-servicio-pdf', $data)->setPaper('A4', 'landscape');
+        $filename = 'global-por-servicio-' . now()->format('Ymd-His') . '.pdf';
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $filename);
+    }
+
     public function exportGlobalIngresoExcel(Request $request)
     {
         @set_time_limit(300);
@@ -586,6 +618,12 @@ class ReportesController extends Controller
         $origenRegistro = in_array($moduleKey, ['certi', 'ordi'], true) || trim($origen) === '' || trim($origen) === '-'
             ? ($this->firstDepartamentoFromList($regional) ?: $regional)
             : $origen;
+        $usuarioEmpresaGestora = (bool) ((int) ($row->usuario_empresa_gestora ?? 0));
+        $canalRecepcion = match ($moduleKey) {
+            'contrato' => $usuarioEmpresaGestora ? 'Empresa' : 'Registro interno',
+            'ems' => $usuarioEmpresaGestora ? 'Empresa' : 'Admisión',
+            default => 'Registro interno',
+        };
 
         return [
             'modulo_key' => $row->modulo_key,
@@ -607,7 +645,8 @@ class ReportesController extends Controller
             'entregado_por' => (string) ($row->entregado_por ?? 'Sin entrega registrada'),
             'entregado_por_roles' => (string) ($row->entregado_por_roles ?? ''),
             'usuario_activo' => (bool) ((int) ($row->usuario_activo ?? 0)),
-            'usuario_empresa_gestora' => (bool) ((int) ($row->usuario_empresa_gestora ?? 0)),
+            'usuario_empresa_gestora' => $usuarioEmpresaGestora,
+            'canal_recepcion' => $canalRecepcion,
             'peso' => (float) ($row->peso ?? 0),
             'precio' => (float) ($row->precio ?? 0),
             'is_entregado' => $isEntregado,
@@ -819,6 +858,147 @@ class ReportesController extends Controller
             'eficiencia_servicios' => $this->buildServiceEfficiencySummary($rows),
             'ranking' => $ranking,
         ];
+    }
+
+    private function buildGlobalPorServicioData(Request $request): array
+    {
+        @set_time_limit(300);
+        $request->query->set('limit', 'all');
+
+        $baseRequest = $request->duplicate();
+        $baseRequest->query->remove('servicios');
+        $baseRequest->query->remove('canales');
+        $baseRequest->query->set('limit', 'all');
+
+        $data = $this->buildReportData($baseRequest, 'general', true);
+        $selectedServices = $this->resolveServiceFilters($request);
+        $selectedReceptionChannels = collect($request->query('canales', []))
+            ->map(fn ($value) => $this->normalizeReceptionChannel((string) $value))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $rows = collect($data['rows'] ?? []);
+
+        if (!empty($selectedServices)) {
+            $selectedServiceMap = array_fill_keys($selectedServices, true);
+            $rows = $rows
+                ->filter(fn (array $row) => isset($selectedServiceMap[$this->normalizeServiceName((string) ($row['servicio'] ?? ''))]))
+                ->values();
+        }
+
+        if (!empty($selectedReceptionChannels)) {
+            $selectedChannelMap = array_fill_keys($selectedReceptionChannels, true);
+            $rows = $rows
+                ->filter(fn (array $row) => isset($selectedChannelMap[(string) ($row['canal_recepcion'] ?? '')]))
+                ->values();
+        }
+
+        $serviceOptionMatrix = collect($data['serviceOptions'] ?? [])
+            ->map(function (string $service) use ($data) {
+                $modules = collect($data['rows'] ?? [])
+                    ->filter(fn (array $row) => $this->normalizeServiceName((string) ($row['servicio'] ?? '')) === $service)
+                    ->map(fn (array $row) => (string) ($row['modulo_key'] ?? ''))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                return [
+                    'service' => $service,
+                    'modules' => $modules,
+                ];
+            })
+            ->values()
+            ->all();
+
+        $receptionOptionMatrix = collect(['Empresa', 'Admisión', 'Registro interno'])
+            ->map(function (string $channel) use ($data) {
+                $modules = collect($data['rows'] ?? [])
+                    ->filter(fn (array $row) => (string) ($row['canal_recepcion'] ?? '') === $channel)
+                    ->map(fn (array $row) => (string) ($row['modulo_key'] ?? ''))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                return [
+                    'channel' => $channel,
+                    'modules' => $modules,
+                ];
+            })
+            ->filter(fn (array $item) => !empty($item['modules']))
+            ->values()
+            ->all();
+
+        $serviceRows = $rows
+            ->groupBy(fn (array $row) => trim((string) ($row['servicio'] ?? '')) ?: 'SIN SERVICIO')
+            ->map(function (Collection $items, string $service) {
+                $ordered = $items->sortByDesc(fn (array $row) => $row['created_at_ts'] ?? 0)->values();
+                $modules = $items
+                    ->map(fn (array $row) => (string) ($row['modulo_label'] ?? '-'))
+                    ->filter()
+                    ->unique()
+                    ->values();
+                $canales = $items
+                    ->map(fn (array $row) => trim((string) ($row['canal_recepcion'] ?? 'Sin clasificar')) ?: 'Sin clasificar')
+                    ->countBy()
+                    ->sortDesc();
+
+                return [
+                    'servicio' => $service,
+                    'cantidad' => $items->count(),
+                    'entregados' => $items->where('is_entregado', true)->count(),
+                    'no_entregados' => $items->where('is_entregado', false)->where('is_cancelado', false)->count(),
+                    'peso' => round((float) $items->sum('peso'), 3),
+                    'precio' => round((float) $items->sum('precio'), 2),
+                    'modulos' => $modules->all(),
+                    'modulos_texto' => $modules->implode(', '),
+                    'canales' => $canales->all(),
+                    'canales_texto' => $canales->map(fn ($cantidad, $canal) => $canal . ': ' . number_format((int) $cantidad))->values()->implode(' / '),
+                    'empresa_count' => (int) ($canales['Empresa'] ?? 0),
+                    'admision_count' => (int) ($canales['Admisión'] ?? 0),
+                    'interno_count' => (int) ($canales['Registro interno'] ?? 0),
+                    'ultimo_registro' => (string) ($ordered->first()['created_at'] ?? '-'),
+                ];
+            })
+            ->sortByDesc('precio')
+            ->values();
+
+        $data['scopeLabel'] = 'Global por servicio';
+        $data['globalPorServicioMode'] = true;
+        $data['serviceRows'] = $serviceRows;
+        $data['serviceOptions'] = array_column($serviceOptionMatrix, 'service');
+        $data['serviceOptionMatrix'] = $serviceOptionMatrix;
+        $data['selectedServices'] = $selectedServices;
+        $data['receptionChannelOptions'] = array_column($receptionOptionMatrix, 'channel');
+        $data['receptionOptionMatrix'] = $receptionOptionMatrix;
+        $data['selectedReceptionChannels'] = $selectedReceptionChannels;
+        $data['serviceTotals'] = [
+            'servicios' => $serviceRows->count(),
+            'registros' => $rows->count(),
+            'entregados' => $rows->where('is_entregado', true)->count(),
+            'no_entregados' => $rows->where('is_entregado', false)->where('is_cancelado', false)->count(),
+            'empresa_count' => $rows->where('canal_recepcion', 'Empresa')->count(),
+            'admision_count' => $rows->where('canal_recepcion', 'Admisión')->count(),
+            'interno_count' => $rows->where('canal_recepcion', 'Registro interno')->count(),
+            'peso_total' => round((float) $rows->sum('peso'), 3),
+            'precio_total' => round((float) $rows->sum('precio'), 2),
+        ];
+
+        return $data;
+    }
+
+    private function normalizeReceptionChannel(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            'empresa' => 'Empresa',
+            'admision', 'admisión' => 'Admisión',
+            'registro interno' => 'Registro interno',
+            default => '',
+        };
     }
 
     private function buildAdministrativeModuleWeightSummary(Collection $rows): Collection

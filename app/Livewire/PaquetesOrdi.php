@@ -1427,6 +1427,8 @@ class PaquetesOrdi extends Component
 
     protected function ciudadesDisponibles(): array
     {
+        $hasGlobalDepartmentAccess = $this->hasGlobalDepartmentAccess();
+
         if ($this->isDespacho) {
             $estadoModoId = $this->getEstadoIdByNombre(self::ESTADO_TRANSITO);
         } elseif ($this->isAlmacen) {
@@ -1458,18 +1460,26 @@ class PaquetesOrdi extends Component
 
         $userCity = $this->upper((string) optional(auth()->user())->ciudad);
 
-        if (!$estadoModoId || $userCity === '') {
+        if (!$estadoModoId) {
             return [];
         }
 
-        return PaqueteOrdi::query()
+        $query = PaqueteOrdi::query()
             ->where('fk_estado', $estadoModoId)
-            ->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity])
             ->whereNotNull('ciudad')
             ->select('ciudad')
             ->distinct()
-            ->orderBy('ciudad')
-            ->pluck('ciudad')
+            ->orderBy('ciudad');
+
+        if (!$hasGlobalDepartmentAccess) {
+            if ($userCity === '') {
+                return [];
+            }
+
+            $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$userCity]);
+        }
+
+        return $query->pluck('ciudad')
             ->map(fn ($ciudad) => $this->upper($ciudad))
             ->filter()
             ->unique()
@@ -1701,6 +1711,23 @@ class PaquetesOrdi extends Component
 
     private function applyAccessScope(Builder $query): void
     {
+        if ($this->hasGlobalDepartmentAccess()) {
+            if ($this->isClasificacion) {
+                $ventanillas = $this->restrictedVentanillaNames();
+                if ($ventanillas !== null) {
+                    $query->whereHas('ventanillaRef', function (Builder $ventanillaQuery) use ($ventanillas) {
+                        $ventanillaQuery->where(function (Builder $restrictedQuery) use ($ventanillas) {
+                            foreach ($ventanillas as $ventanilla) {
+                                $restrictedQuery->orWhereRaw('trim(upper(nombre_ventanilla)) = ?', [$ventanilla]);
+                            }
+                        });
+                    });
+                }
+            }
+
+            return;
+        }
+
         if ($this->isClasificacion) {
             $ventanillas = $this->restrictedVentanillaNames();
             if ($ventanillas !== null) {
@@ -1767,5 +1794,10 @@ class PaquetesOrdi extends Component
         }
 
         return null;
+    }
+
+    private function hasGlobalDepartmentAccess(): bool
+    {
+        return (bool) optional(auth()->user())->isSuperAdmin();
     }
 }

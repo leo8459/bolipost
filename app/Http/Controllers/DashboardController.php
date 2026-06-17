@@ -305,6 +305,7 @@ class DashboardController extends Controller
         $agrupacion = $this->resolveAgrupacion($request);
         $departamento = $this->resolveDepartamentoFiltro($request);
         $authUser = Auth::user();
+        $hasGlobalDepartmentAccess = (bool) ($authUser?->isSuperAdmin() ?? false);
         $userCity = strtoupper(trim((string) optional($authUser)->ciudad));
         $allowedSoundRoles = ['encargado_ems', 'cartero_ems'];
         $roleNames = ($authUser && method_exists($authUser, 'getRoleNames'))
@@ -418,10 +419,12 @@ class DashboardController extends Controller
         );
 
         $contratosPorRecoger = 0;
-        if ($estadoSolicitudId && $userCity !== '') {
+        if ($estadoSolicitudId && ($hasGlobalDepartmentAccess || $userCity !== '')) {
             $contratosPorRecoger = (int) Recojo::query()
                 ->where('estados_id', $estadoSolicitudId)
-                ->whereRaw('trim(upper(origen)) = ?', [$userCity])
+                ->when(!$hasGlobalDepartmentAccess, function ($query) use ($userCity) {
+                    $query->whereRaw('trim(upper(origen)) = ?', [$userCity]);
+                })
                 ->count();
         }
 

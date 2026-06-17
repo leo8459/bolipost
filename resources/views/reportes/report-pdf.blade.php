@@ -140,7 +140,7 @@
         <td>
             <div class="title">{{ $scopeLabel }}</div>
             <div class="meta"><strong>Reporte de seguimiento de paquetes</strong></div>
-            <div class="meta">Modulos: {{ implode(', ', $moduleLabels) }}</div>
+            <div class="meta">Módulos: {{ implode(', ', $moduleLabels) }}</div>
             <div class="meta">Fecha de emision: {{ now()->format('d/m/Y H:i') }}</div>
         </td>
     </tr>
@@ -159,10 +159,10 @@
 
 <div class="help-box">
     <b>Como leer este reporte:</b> "Total de paquetes" es todo el universo consultado, "Paquetes mostrados" es el resultado con filtros.
-    "Pendientes" son los no entregados. El bloque por modulo te ayuda a ver donde hay mas carga.
+    "Pendientes" son los no entregados. El bloque por módulo te ayuda a ver dónde hay más carga.
 </div>
 
-<div class="section-title">Resumen rapido por modulo</div>
+<div class="section-title">Resumen rápido por módulo</div>
 <table class="table">
     <thead>
         <tr>
@@ -186,7 +186,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="6">Sin datos por modulo.</td>
+                <td colspan="6">Sin datos por módulo.</td>
             </tr>
         @endforelse
     </tbody>
@@ -225,7 +225,7 @@
             <th>#</th>
             <th>Modulo</th>
             <th>Servicio</th>
-            <th>Codigo</th>
+            <th>Código</th>
             <th>Estado actual</th>
             <th>Situacion</th>
             <th>Origen</th>

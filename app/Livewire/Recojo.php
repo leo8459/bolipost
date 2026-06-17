@@ -304,6 +304,7 @@ class Recojo extends Component
     $authUser = Auth::user();
     $authUserId = (int) ($authUser?->id ?? 0);
     $authEmpresaId = (int) ($authUser?->empresa_id ?? 0);
+    $hasGlobalDepartmentAccess = (bool) ($authUser?->isSuperAdmin() ?? false);
 
     $recojos = RecojoModel::query()
         ->with([
@@ -314,26 +315,34 @@ class Recojo extends Component
         ])
 
         // ✅ FILTRO PRINCIPAL: solo registros de mi empresa
-        ->when($authEmpresaId > 0, function ($query) use ($authEmpresaId) {
+        ->when(!$hasGlobalDepartmentAccess && $authEmpresaId > 0, function ($query) use ($authEmpresaId) {
             $query->where('empresa_id', $authEmpresaId);
-        }, function ($query) {
+        }, function ($query) use ($hasGlobalDepartmentAccess) {
+            if ($hasGlobalDepartmentAccess) {
+                return;
+            }
+
             // si el usuario no tiene empresa_id, no mostrar nada
             $query->whereRaw('1 = 0');
         })
 
         // Tu lógica existente de modos
-        ->when(!$this->isAlmacenMode, function ($query) use ($authUserId) {
+        ->when(!$this->isAlmacenMode && !$hasGlobalDepartmentAccess, function ($query) use ($authUserId) {
             if ($authUserId > 0) {
                 $query->where('user_id', $authUserId);
                 return;
             }
             $query->whereRaw('1 = 0');
         })
-        ->when($this->isAlmacenMode, function ($query) {
+        ->when($this->isAlmacenMode, function ($query) use ($hasGlobalDepartmentAccess) {
             $query->where('estados_id', (int) $this->estadoAlmacenId)
-                ->when($this->userCity !== '', function ($sub) {
+                ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($sub) {
                     $sub->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
-                }, function ($sub) {
+                }, function ($sub) use ($hasGlobalDepartmentAccess) {
+                    if ($hasGlobalDepartmentAccess) {
+                        return;
+                    }
+
                     $sub->whereRaw('1 = 0');
                 });
         })

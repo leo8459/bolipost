@@ -121,7 +121,7 @@
         <td>
             <div class="title">{{ $scopeLabel }}</div>
             <div class="meta"><strong>Reporte imprimible de registros creados, excepto cancelados</strong></div>
-            <div class="meta">Modulos: {{ implode(', ', $moduleLabels) }}</div>
+            <div class="meta">Módulos: {{ implode(', ', $moduleLabels) }}</div>
             @if(!empty($selectedMonthLabels))
                 <div class="meta">Meses: {{ implode(', ', $selectedMonthLabels) }}</div>
             @elseif(!empty($from) || !empty($to))
@@ -182,7 +182,7 @@
     <thead>
         <tr>
             <th>#</th>
-            <th>Codigo</th>
+            <th>Código</th>
             <th>Modulo</th>
             <th>Servicio</th>
             <th>Estado</th>

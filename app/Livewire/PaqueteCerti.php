@@ -794,6 +794,7 @@ class PaqueteCerti extends Component
     {
         $q = trim($this->searchQuery);
         $userCity = trim((string) optional(auth()->user())->ciudad);
+        $hasGlobalDepartmentAccess = (bool) optional(auth()->user())->isSuperAdmin();
         $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
         $estadoRezagoId = $this->getEstadoIdByNombre(self::ESTADO_REZAGO);
         $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
@@ -801,10 +802,10 @@ class PaqueteCerti extends Component
 
         $paquetes = $this->authorizedPaquetesQuery()
             ->with(['estado', 'ventanillaRef', 'servicio'])
-            ->when($userCity !== '', function ($query) use ($userCity) {
+            ->when(!$hasGlobalDepartmentAccess && $userCity !== '', function ($query) use ($userCity) {
                 $query->whereRaw('TRIM(UPPER(cuidad)) = TRIM(UPPER(?))', [$userCity]);
             })
-            ->when($userCity === '', function ($query) {
+            ->when(!$hasGlobalDepartmentAccess && $userCity === '', function ($query) {
                 $query->whereRaw('1 = 0');
             })
             ->when($this->isInventory, function ($query) use ($estadoEntregadoId) {

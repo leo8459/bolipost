@@ -39,7 +39,8 @@ class ReportesExport implements FromView, ShouldAutoSize, WithTitle, WithEvents
                 $headerRow = $this->resolveDataHeaderRow($sheet);
                 $dataRows = $this->resolveDataRowsCount();
                 $lastDataRow = $headerRow + max($dataRows, 1);
-                $moduleTitleRow = $this->findRowByFirstCell($sheet, 'RESUMEN POR MODULO');
+                $moduleTitleRow = $this->findRowByFirstCell($sheet, 'RESUMEN POR MÓDULO')
+                    ?? $this->findRowByFirstCell($sheet, 'RESUMEN POR MODULO');
                 $serviceTitleRow = $this->findRowByFirstCell($sheet, 'RESUMEN POR SERVICIO');
                 $lastColumn = $sheet->getHighestDataColumn();
                 $lastColumnIndex = Coordinate::columnIndexFromString($lastColumn);

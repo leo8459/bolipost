@@ -100,6 +100,15 @@ class User extends Authenticatable
         return implode(', ', $this->regionalesLista());
     }
 
+    public function isSuperAdmin(): bool
+    {
+        $superAdminRole = trim((string) config('acl.super_admin_role', 'administrador'));
+
+        return $superAdminRole !== ''
+            && method_exists($this, 'hasRole')
+            && $this->hasRole($superAdminRole);
+    }
+
     public function driver(): HasOne
     {
         return $this->hasOne(Driver::class, 'user_id');

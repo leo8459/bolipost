@@ -4,6 +4,23 @@
 @inject('preloaderHelper', 'JeroenNoten\LaravelAdminLte\Helpers\PreloaderHelper')
 
 @section('adminlte_css')
+    <style>
+        body,
+        .wrapper,
+        .content-wrapper,
+        .main-sidebar,
+        .main-header,
+        .content-header,
+        .content,
+        .card,
+        .table,
+        .btn,
+        .form-control,
+        .nav-sidebar,
+        .info-box {
+            font-family: Verdana, Geneva, sans-serif !important;
+        }
+    </style>
     @stack('css')
     @yield('css')
 @stop

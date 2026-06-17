@@ -38,6 +38,7 @@ class RecojoRecogerEnvios extends Component
     public function mandarSeleccionadosAlmacen()
     {
         $this->authorizePermission('feature.paquetes-contrato.recoger-envios.assign');
+        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isSuperAdmin();
 
         $actorUserId = (int) optional(Auth::user())->id;
         $ids = collect($this->selectedRecojos)
@@ -77,9 +78,13 @@ class RecojoRecogerEnvios extends Component
             $recojosActualizar = RecojoModel::query()
                 ->whereIn('id', $ids)
                 ->where('estados_id', (int) $this->estadoSolicitudId)
-                ->when($this->userCity !== '', function ($query) {
+                ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
                     $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
-                }, function ($query) {
+                }, function ($query) use ($hasGlobalDepartmentAccess) {
+                    if ($hasGlobalDepartmentAccess) {
+                        return;
+                    }
+
                     $query->whereRaw('1 = 0');
                 })
                 ->get(['id', 'codigo']);
@@ -136,6 +141,7 @@ class RecojoRecogerEnvios extends Component
     {
         $this->searchQuery = $this->search;
         $this->resetPage();
+        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isSuperAdmin();
 
         if (!$seleccionarPorCodigo) {
             return;
@@ -147,9 +153,13 @@ class RecojoRecogerEnvios extends Component
         }
 
         $recojo = RecojoModel::query()
-            ->when($this->userCity !== '', function ($query) {
+            ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
                 $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
-            }, function ($query) {
+            }, function ($query) use ($hasGlobalDepartmentAccess) {
+                if ($hasGlobalDepartmentAccess) {
+                    return;
+                }
+
                 $query->whereRaw('1 = 0');
             })
             ->when(!empty($this->estadoSolicitudId), function ($query) {
@@ -182,6 +192,7 @@ class RecojoRecogerEnvios extends Component
     public function render()
     {
         $q = trim((string) $this->searchQuery);
+        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isSuperAdmin();
 
         $recojos = RecojoModel::query()
             ->with([
@@ -190,9 +201,13 @@ class RecojoRecogerEnvios extends Component
                 'user.empresa:id,nombre,sigla',
                 'estadoRegistro:id,nombre_estado',
             ])
-            ->when($this->userCity !== '', function ($query) {
+            ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
                 $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
-            }, function ($query) {
+            }, function ($query) use ($hasGlobalDepartmentAccess) {
+                if ($hasGlobalDepartmentAccess) {
+                    return;
+                }
+
                 $query->whereRaw('1 = 0');
             })
             ->when(!empty($this->estadoSolicitudId), function ($query) {

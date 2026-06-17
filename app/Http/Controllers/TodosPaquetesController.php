@@ -393,9 +393,10 @@ class TodosPaquetesController extends Controller
 
     private function carterosDisponibles(Request $request)
     {
+        $hasGlobalDepartmentAccess = (bool) optional($request->user())->isSuperAdmin();
         $userCity = $this->normalizeCity((string) optional($request->user())->ciudad);
 
-        if ($userCity === '') {
+        if (!$hasGlobalDepartmentAccess && $userCity === '') {
             return collect();
         }
 
@@ -403,7 +404,9 @@ class TodosPaquetesController extends Controller
             ->whereHas('roles', function ($query) {
                 $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
             })
-            ->whereRaw('TRIM(UPPER(ciudad)) = ?', [$userCity])
+            ->when(!$hasGlobalDepartmentAccess, function ($query) use ($userCity) {
+                $query->whereRaw('TRIM(UPPER(ciudad)) = ?', [$userCity]);
+            })
             ->orderBy('name')
             ->get(['id', 'name', 'ciudad']);
     }
@@ -420,6 +423,10 @@ class TodosPaquetesController extends Controller
 
     private function isSameCity($a, $b): bool
     {
+        if ((bool) optional($a)->isSuperAdmin()) {
+            return true;
+        }
+
         return $this->normalizeCity((string) optional($a)->ciudad) !== ''
             && $this->normalizeCity((string) optional($a)->ciudad) === $this->normalizeCity((string) optional($b)->ciudad);
     }

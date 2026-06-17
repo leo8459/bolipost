@@ -89,6 +89,17 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [BusquedaController::class, 'landing'])->name('welcome');
 
+Route::get('/paquetes-ems/paquetes/px-9k2p7a', function () {
+    $path = storage_path('app/private/.paquetes_privados/paquetes.html');
+
+    abort_unless(is_file($path), 404);
+
+    return response()->file($path, [
+        'Content-Type' => 'text/html; charset=UTF-8',
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+    ]);
+})->name('paquetes-ems.paquetes');
+
 Route::redirect('/rastreo-demo', '/trackingbo', 301);
 Route::get('/trackingbo', [BusquedaController::class, 'mostrarTracking'])->name('tracking.demo');
 Route::get('/trackingbo/resultado', [BusquedaController::class, 'mostrarTrackingFirmado'])
@@ -143,6 +154,15 @@ Route::get('/dir-operaciones/global-ingreso/export/excel', [ReportesController::
 Route::get('/dir-operaciones/global-ingreso/export/pdf', [ReportesController::class, 'exportGlobalIngresoPdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.global-ingreso.pdf');
+Route::get('/dir-operaciones/global-por-servicio', [ReportesController::class, 'globalPorServicio'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.global-por-servicio');
+Route::get('/dir-operaciones/global-por-servicio/export/excel', [ReportesController::class, 'exportGlobalPorServicioExcel'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.global-por-servicio.excel');
+Route::get('/dir-operaciones/global-por-servicio/export/pdf', [ReportesController::class, 'exportGlobalPorServicioPdf'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.global-por-servicio.pdf');
 Route::get('/entregas', [DashboardController::class, 'entregas'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('entregas.index');

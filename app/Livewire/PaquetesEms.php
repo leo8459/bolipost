@@ -5407,7 +5407,8 @@ class PaquetesEms extends Component
     protected function contratosAlmacenQuery(): Builder
     {
         $q = trim($this->searchQuery);
-        $userCity = trim((string) optional(Auth::user())->ciudad);
+        $userCity = $this->currentUserCity();
+        $hasGlobalDepartmentAccess = $this->hasGlobalDepartmentAccess();
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
 
         return RecojoContrato::query()
@@ -5422,9 +5423,13 @@ class PaquetesEms extends Component
             }, function ($query) {
                 $query->whereRaw('1 = 0');
             })
-            ->when($userCity !== '', function ($query) use ($userCity) {
+            ->when(!$hasGlobalDepartmentAccess && $userCity !== '', function ($query) use ($userCity) {
                 $query->whereRaw('trim(upper(origen)) = trim(upper(?))', [$userCity]);
-            }, function ($query) {
+            }, function ($query) use ($hasGlobalDepartmentAccess) {
+                if ($hasGlobalDepartmentAccess) {
+                    return;
+                }
+
                 $query->whereRaw('1 = 0');
             })
             ->when($q !== '', function ($query) use ($q) {
@@ -5460,7 +5465,8 @@ class PaquetesEms extends Component
     protected function baseSolicitudesQuery(): Builder
     {
         $q = trim((string) $this->searchQuery);
-        $userCity = trim((string) optional(Auth::user())->ciudad);
+        $userCity = $this->currentUserCity();
+        $hasGlobalDepartmentAccess = $this->hasGlobalDepartmentAccess();
         $estadoSolicitudId = $this->findEstadoId('SOLICITUD');
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
         $estadoRecibidoId = $this->findEstadoId('RECIBIDO');
@@ -5477,14 +5483,17 @@ class PaquetesEms extends Component
                 DB::raw('servicio_extras.descripcion as servicio_extra_descripcion'),
                 DB::raw('destino.nombre_destino as destino_nombre'),
             ])
-            ->when($this->isEnTransitoEms, function ($query) use ($userCity, $estadoTransitoId) {
-                if ($userCity === '' || empty($estadoTransitoId)) {
+            ->when($this->isEnTransitoEms, function ($query) use ($userCity, $estadoTransitoId, $hasGlobalDepartmentAccess) {
+                if ((!$hasGlobalDepartmentAccess && $userCity === '') || empty($estadoTransitoId)) {
                     $query->whereRaw('1 = 0');
                     return;
                 }
 
-                $query->where('solicitud_clientes.estado_id', (int) $estadoTransitoId)
-                    ->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
+                $query->where('solicitud_clientes.estado_id', (int) $estadoTransitoId);
+
+                if (!$hasGlobalDepartmentAccess) {
+                    $query->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
+                }
             })
             ->when($this->isTransitoEms, function ($query) use ($estadoRegionalRecepcionId) {
                 if (empty($estadoRegionalRecepcionId)) {
@@ -5502,24 +5511,28 @@ class PaquetesEms extends Component
 
                 $query->where('solicitud_clientes.estado_id', (int) $estadoVentanillaId);
             })
-            ->when($this->isDevolucionEms, function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $estadoVentanillaId) {
-                if ($userCity === '') {
+            ->when($this->isDevolucionEms, function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $estadoVentanillaId, $hasGlobalDepartmentAccess) {
+                if (!$hasGlobalDepartmentAccess && $userCity === '') {
                     $query->whereRaw('1 = 0');
                     return;
                 }
 
-                $query->where(function ($sub) use ($estadoAlmacenId, $estadoRecibidoId, $estadoVentanillaId, $userCity) {
+                $query->where(function ($sub) use ($estadoAlmacenId, $estadoRecibidoId, $estadoVentanillaId, $userCity, $hasGlobalDepartmentAccess) {
                     $sub->where(function ($q2) use ($estadoAlmacenId, $userCity) {
                         if ($estadoAlmacenId) {
-                            $q2->where('solicitud_clientes.estado_id', (int) $estadoAlmacenId)
-                                ->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
+                            $q2->where('solicitud_clientes.estado_id', (int) $estadoAlmacenId);
+                            if (!$hasGlobalDepartmentAccess) {
+                                $q2->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
+                            }
                         } else {
                             $q2->whereRaw('1 = 0');
                         }
                     })->orWhere(function ($q2) use ($estadoRecibidoId, $userCity) {
                         if ($estadoRecibidoId) {
-                            $q2->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId)
-                                ->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
+                            $q2->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId);
+                            if (!$hasGlobalDepartmentAccess) {
+                                $q2->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
+                            }
                         } else {
                             $q2->whereRaw('1 = 0');
                         }
@@ -5532,36 +5545,44 @@ class PaquetesEms extends Component
                     });
                 });
             })
-            ->when($this->isAlmacenEms, function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $estadoSolicitudId) {
-                if ($userCity === '') {
+            ->when($this->isAlmacenEms, function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $estadoSolicitudId, $hasGlobalDepartmentAccess) {
+                if (!$hasGlobalDepartmentAccess && $userCity === '') {
                     $query->whereRaw('1 = 0');
                     return;
                 }
 
-                $query->where(function ($sub) use ($estadoAlmacenId, $estadoRecibidoId, $estadoSolicitudId, $userCity) {
+                $query->where(function ($sub) use ($estadoAlmacenId, $estadoRecibidoId, $estadoSolicitudId, $userCity, $hasGlobalDepartmentAccess) {
                     if ($this->almacenEstadoFiltro === 'ALMACEN' && $estadoAlmacenId) {
-                        $sub->where('solicitud_clientes.estado_id', (int) $estadoAlmacenId)
-                            ->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
+                        $sub->where('solicitud_clientes.estado_id', (int) $estadoAlmacenId);
+                        if (!$hasGlobalDepartmentAccess) {
+                            $sub->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
+                        }
                         return;
                     }
 
                     if ($this->almacenEstadoFiltro === 'RECIBIDO' && $estadoRecibidoId) {
-                        $sub->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId)
-                            ->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
+                        $sub->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId);
+                        if (!$hasGlobalDepartmentAccess) {
+                            $sub->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
+                        }
                         return;
                     }
 
-                    $sub->where(function ($q2) use ($estadoAlmacenId, $userCity) {
+                    $sub->where(function ($q2) use ($estadoAlmacenId, $userCity, $hasGlobalDepartmentAccess) {
                         if ($estadoAlmacenId) {
-                            $q2->where('solicitud_clientes.estado_id', (int) $estadoAlmacenId)
-                                ->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
+                            $q2->where('solicitud_clientes.estado_id', (int) $estadoAlmacenId);
+                            if (!$hasGlobalDepartmentAccess) {
+                                $q2->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
+                            }
                         } else {
                             $q2->whereRaw('1 = 0');
                         }
-                    })->orWhere(function ($q2) use ($estadoRecibidoId, $userCity) {
+                    })->orWhere(function ($q2) use ($estadoRecibidoId, $userCity, $hasGlobalDepartmentAccess) {
                         if ($estadoRecibidoId) {
-                            $q2->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId)
-                                ->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
+                            $q2->where('solicitud_clientes.estado_id', (int) $estadoRecibidoId);
+                            if (!$hasGlobalDepartmentAccess) {
+                                $q2->whereRaw('trim(upper(coalesce(solicitud_clientes.ciudad, destino.nombre_destino))) = trim(upper(?))', [$userCity]);
+                            }
                         } else {
                             $q2->whereRaw('1 = 0');
                         }
@@ -5600,6 +5621,8 @@ class PaquetesEms extends Component
     protected function basePaquetesQuery(bool $applyServicioFilter = true): Builder
     {
         $q = trim($this->searchQuery);
+        $userCity = $this->currentUserCity();
+        $hasGlobalDepartmentAccess = $this->hasGlobalDepartmentAccess();
         $columns = [
             'origen',
             'tipo_correspondencia',
@@ -5660,8 +5683,6 @@ class PaquetesEms extends Component
             $estadoRecibidoId = $this->findEstadoId('RECIBIDO');
         }
 
-        $userCity = trim((string) optional(Auth::user())->ciudad);
-
         return PaqueteEms::query()
             ->leftJoin('tarifario', 'tarifario.id', '=', 'paquetes_ems.tarifario_id')
             ->leftJoin('servicio', 'servicio.id', '=', 'tarifario.servicio_id')
@@ -5678,61 +5699,73 @@ class PaquetesEms extends Component
             ->when(empty($estadoIds), function ($query) {
                 $query->whereRaw('1 = 0');
             })
-            ->when($this->isAlmacenEms && $userCity !== '', function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId) {
-                $query->where(function ($sub) use ($userCity, $estadoAlmacenId, $estadoRecibidoId) {
+            ->when($this->isAlmacenEms && ($hasGlobalDepartmentAccess || $userCity !== ''), function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $hasGlobalDepartmentAccess) {
+                $query->where(function ($sub) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $hasGlobalDepartmentAccess) {
                     if ($this->almacenEstadoFiltro === 'ALMACEN' && $estadoAlmacenId) {
-                        $sub->where('paquetes_ems.estado_id', $estadoAlmacenId)
-                            ->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
+                        $sub->where('paquetes_ems.estado_id', $estadoAlmacenId);
+                        if (!$hasGlobalDepartmentAccess) {
+                            $sub->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
+                        }
                         return;
                     }
 
                     if ($this->almacenEstadoFiltro === 'RECIBIDO' && $estadoRecibidoId) {
-                        $sub->where('paquetes_ems.estado_id', $estadoRecibidoId)
-                            ->whereRaw(
+                        $sub->where('paquetes_ems.estado_id', $estadoRecibidoId);
+                        if (!$hasGlobalDepartmentAccess) {
+                            $sub->whereRaw(
                                 'trim(upper(COALESCE(destino.nombre_destino, paquetes_ems.ciudad))) = trim(upper(?))',
                                 [$userCity]
                             );
+                        }
                         return;
                     }
 
-                    $sub->where(function ($q) use ($estadoAlmacenId, $userCity) {
+                    $sub->where(function ($q) use ($estadoAlmacenId, $userCity, $hasGlobalDepartmentAccess) {
                         if ($estadoAlmacenId) {
-                            $q->where('paquetes_ems.estado_id', $estadoAlmacenId)
-                                ->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
+                            $q->where('paquetes_ems.estado_id', $estadoAlmacenId);
+                            if (!$hasGlobalDepartmentAccess) {
+                                $q->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
+                            }
                         } else {
                             $q->whereRaw('1 = 0');
                         }
-                    })->orWhere(function ($q) use ($estadoRecibidoId, $userCity) {
+                    })->orWhere(function ($q) use ($estadoRecibidoId, $userCity, $hasGlobalDepartmentAccess) {
                         if ($estadoRecibidoId) {
-                            $q->where('paquetes_ems.estado_id', $estadoRecibidoId)
-                                ->whereRaw(
+                            $q->where('paquetes_ems.estado_id', $estadoRecibidoId);
+                            if (!$hasGlobalDepartmentAccess) {
+                                $q->whereRaw(
                                     'trim(upper(COALESCE(destino.nombre_destino, paquetes_ems.ciudad))) = trim(upper(?))',
                                     [$userCity]
                                 );
+                            }
                         } else {
                             $q->whereRaw('1 = 0');
                         }
                     });
                 });
             })
-            ->when($this->isDevolucionEms && $userCity !== '', function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId) {
+            ->when($this->isDevolucionEms && ($hasGlobalDepartmentAccess || $userCity !== ''), function ($query) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $hasGlobalDepartmentAccess) {
                 $estadoVentanillaId = $this->resolveVentanillaEstado()['id'] ?? null;
 
-                $query->where(function ($sub) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $estadoVentanillaId) {
-                    $sub->where(function ($q) use ($estadoAlmacenId, $userCity) {
+                $query->where(function ($sub) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $estadoVentanillaId, $hasGlobalDepartmentAccess) {
+                    $sub->where(function ($q) use ($estadoAlmacenId, $userCity, $hasGlobalDepartmentAccess) {
                         if ($estadoAlmacenId) {
-                            $q->where('paquetes_ems.estado_id', $estadoAlmacenId)
-                                ->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
+                            $q->where('paquetes_ems.estado_id', $estadoAlmacenId);
+                            if (!$hasGlobalDepartmentAccess) {
+                                $q->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
+                            }
                         } else {
                             $q->whereRaw('1 = 0');
                         }
-                    })->orWhere(function ($q) use ($estadoRecibidoId, $userCity) {
+                    })->orWhere(function ($q) use ($estadoRecibidoId, $userCity, $hasGlobalDepartmentAccess) {
                         if ($estadoRecibidoId) {
-                            $q->where('paquetes_ems.estado_id', $estadoRecibidoId)
-                                ->whereRaw(
+                            $q->where('paquetes_ems.estado_id', $estadoRecibidoId);
+                            if (!$hasGlobalDepartmentAccess) {
+                                $q->whereRaw(
                                     'trim(upper(COALESCE(destino.nombre_destino, paquetes_ems.ciudad))) = trim(upper(?))',
                                     [$userCity]
                                 );
+                            }
                         } else {
                             $q->whereRaw('1 = 0');
                         }
@@ -5745,16 +5778,16 @@ class PaquetesEms extends Component
                     });
                 });
             })
-            ->when($userCity === '' && ($this->isAlmacenEms || $this->isDevolucionEms), function ($query) {
+            ->when(!$hasGlobalDepartmentAccess && $userCity === '' && ($this->isAlmacenEms || $this->isDevolucionEms), function ($query) {
                 $query->whereRaw('1 = 0');
             })
-            ->when($this->isAdmision && $userCity !== '', function ($query) use ($userCity) {
+            ->when($this->isAdmision && !$hasGlobalDepartmentAccess && $userCity !== '', function ($query) use ($userCity) {
                 $query->whereRaw('trim(upper(paquetes_ems.origen)) = trim(upper(?))', [$userCity]);
             })
-            ->when($this->isAdmision && $userCity === '', function ($query) {
+            ->when($this->isAdmision && !$hasGlobalDepartmentAccess && $userCity === '', function ($query) {
                 $query->whereRaw('1 = 0');
             })
-            ->when($this->isTransitoEms, function ($query) use ($userCity) {
+            ->when($this->isTransitoEms, function ($query) use ($userCity, $hasGlobalDepartmentAccess) {
                 $estadoRegionalRecepcionId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
                 $estadoTransitoId = $this->findEstadoId('TRANSITO');
 
@@ -5768,10 +5801,12 @@ class PaquetesEms extends Component
                         $sub->where('paquetes_ems.estado_id', (int) $estadoRegionalRecepcionId);
                     }
 
-                    if (!empty($estadoTransitoId) && $userCity !== '') {
+                    if (!empty($estadoTransitoId) && ($hasGlobalDepartmentAccess || $userCity !== '')) {
                         $sub->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
-                            $q2->where('paquetes_ems.estado_id', (int) $estadoTransitoId)
-                                ->whereRaw('trim(upper(paquetes_ems.ciudad)) = trim(upper(?))', [$userCity]);
+                            $q2->where('paquetes_ems.estado_id', (int) $estadoTransitoId);
+                            if (!$hasGlobalDepartmentAccess) {
+                                $q2->whereRaw('trim(upper(paquetes_ems.ciudad)) = trim(upper(?))', [$userCity]);
+                            }
                         });
                     }
                 });
@@ -5805,6 +5840,16 @@ class PaquetesEms extends Component
                 });
             })
             ->orderByDesc('paquetes_ems.id');
+    }
+
+    protected function currentUserCity(): string
+    {
+        return trim((string) optional(Auth::user())->ciudad);
+    }
+
+    protected function hasGlobalDepartmentAccess(): bool
+    {
+        return (bool) optional(Auth::user())->isSuperAdmin();
     }
 
     protected function normalizePerPage($value): int

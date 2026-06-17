@@ -90,6 +90,9 @@ return [
         'dashboard.global-ingreso',
         'dashboard.global-ingreso.excel',
         'dashboard.global-ingreso.pdf',
+        'dashboard.global-por-servicio',
+        'dashboard.global-por-servicio.excel',
+        'dashboard.global-por-servicio.pdf',
     ],
 
     /*

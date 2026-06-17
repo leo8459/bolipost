@@ -352,6 +352,11 @@ return [
                     'icon' => 'fas fa-globe-americas',
                 ],
                 [
+                    'text' => 'Global por servicio',
+                    'url' => '/dir-operaciones/global-por-servicio',
+                    'icon' => 'fas fa-stream',
+                ],
+                [
                     'text' => 'Reimprimir CN-33',
                     'url' => '/dir-operaciones/reimprimir-cn33',
                     'icon' => 'fas fa-file-excel',
