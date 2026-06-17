@@ -37,6 +37,47 @@
         .table thead th{ background: rgba(52,68,124,.08); color: var(--azul); font-weight: 900; border-bottom: 2px solid rgba(52,68,124,.2); white-space: nowrap; }
         .muted{ color:var(--muted); }
         .pill-id{ background: rgba(52,68,124,.12); color: var(--azul); font-weight:900; padding:4px 10px; border-radius: 999px; display:inline-block; }
+        .preview-card{
+            border:1px solid rgba(32, 83, 154, .14);
+            border-radius:14px;
+            background:linear-gradient(180deg, rgba(32, 83, 154, .04), rgba(254, 204, 54, .08));
+            padding:12px 14px;
+            margin-bottom:14px;
+        }
+        .preview-grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+            gap:10px;
+        }
+        .preview-item{
+            background:#fff;
+            border:1px solid rgba(32, 83, 154, .10);
+            border-radius:12px;
+            padding:10px 12px;
+            box-shadow:0 6px 14px rgba(32, 83, 154, .05);
+        }
+        .preview-pill{
+            background: rgba(52,68,124,.12);
+            color: var(--azul);
+            font-weight:900;
+            padding:3px 10px;
+            border-radius:999px;
+            display:inline-block;
+            font-size:1rem;
+            line-height:1.15;
+        }
+        .preview-item-line{
+            font-size:.8rem;
+            color:#374151;
+            line-height:1.25;
+            margin-bottom:2px;
+        }
+        .preview-item-line strong{
+            color:var(--azul);
+        }
+        .preview-meta{
+            font-size:.8rem;
+        }
 
         @media (max-width: 991.98px){
             .header-shell{ flex-direction:column; }
@@ -109,6 +150,33 @@
             @endif
 
             <div class="card-body">
+                @if ($selectedPreview->isNotEmpty())
+                    <div class="preview-card">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+                            <div>
+                                <div class="fw-bold" style="color:var(--azul);">Prelista de envios a recoger</div>
+                                <div class="muted small preview-meta">Se enviaran a <strong>ALMACEN</strong> al confirmar.</div>
+                            </div>
+                            <div class="muted small">Total seleccionados validos: <strong>{{ $selectedPreview->count() }}</strong></div>
+                        </div>
+
+                        <div class="preview-grid">
+                            @foreach ($selectedPreview as $item)
+                                <div class="preview-item">
+                                    <div class="mb-1">
+                                        <span class="preview-pill">{{ $item->codigo }}</span>
+                                    </div>
+                                    <div class="preview-item-line"><strong>Estado:</strong> {{ optional($item->estadoRegistro)->nombre_estado ?? '-' }}</div>
+                                    <div class="preview-item-line"><strong>Origen:</strong> {{ $item->origen ?: '-' }}</div>
+                                    <div class="preview-item-line"><strong>Destino:</strong> {{ $item->destino ?: '-' }}</div>
+                                    <div class="preview-item-line"><strong>Remitente:</strong> {{ $item->nombre_r ?: '-' }}</div>
+                                    <div class="preview-item-line"><strong>Destinatario:</strong> {{ $item->nombre_d ?: '-' }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="muted">
                         @if(!empty($searchQuery))

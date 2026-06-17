@@ -74,7 +74,7 @@ class RecojoRecogerEnvios extends Component
         }
 
         $actualizados = 0;
-        DB::transaction(function () use ($ids, $actorUserId, &$actualizados) {
+        DB::transaction(function () use ($ids, $actorUserId, $hasGlobalDepartmentAccess, &$actualizados) {
             $recojosActualizar = RecojoModel::query()
                 ->whereIn('id', $ids)
                 ->where('estados_id', (int) $this->estadoSolicitudId)
@@ -193,6 +193,12 @@ class RecojoRecogerEnvios extends Component
     {
         $q = trim((string) $this->searchQuery);
         $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isSuperAdmin();
+        $selectedIds = collect($this->selectedRecojos)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
 
         $recojos = RecojoModel::query()
             ->with([
@@ -239,8 +245,51 @@ class RecojoRecogerEnvios extends Component
             ->orderByDesc('id')
             ->paginate(10);
 
+        $selectedPreview = collect();
+        if ($selectedIds->isNotEmpty()) {
+            $selectedPreview = RecojoModel::query()
+                ->with([
+                    'empresa:id,nombre,sigla',
+                    'user:id,name,ciudad,empresa_id',
+                    'user.empresa:id,nombre,sigla',
+                    'estadoRegistro:id,nombre_estado',
+                ])
+                ->whereIn('id', $selectedIds->all())
+                ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
+                    $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
+                }, function ($query) use ($hasGlobalDepartmentAccess) {
+                    if ($hasGlobalDepartmentAccess) {
+                        return;
+                    }
+
+                    $query->whereRaw('1 = 0');
+                })
+                ->when(!empty($this->estadoSolicitudId), function ($query) {
+                    $query->where('estados_id', (int) $this->estadoSolicitudId);
+                }, function ($query) {
+                    $query->whereRaw('1 = 0');
+                })
+                ->get([
+                    'id',
+                    'codigo',
+                    'origen',
+                    'destino',
+                    'nombre_r',
+                    'nombre_d',
+                    'telefono_r',
+                    'telefono_d',
+                    'estados_id',
+                    'empresa_id',
+                    'user_id',
+                    'created_at',
+                ])
+                ->sortBy(fn ($item) => $selectedIds->search((int) $item->id))
+                ->values();
+        }
+
         return view('livewire.recojo-recoger-envios', [
             'recojos' => $recojos,
+            'selectedPreview' => $selectedPreview,
             'canContratoRecogerAssign' => $this->userCan('feature.paquetes-contrato.recoger-envios.assign'),
             'canContratoRecogerPrint' => $this->userCan('feature.paquetes-contrato.recoger-envios.print'),
         ]);
