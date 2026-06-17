@@ -31,6 +31,7 @@ use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\EventoController;
 use App\Http\Controllers\PaquetesOrdiController;
+use App\Http\Controllers\PaquetesOcultosController;
 use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\EventosAuditoriaController;
 use App\Http\Controllers\EmpresaController;
@@ -89,16 +90,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [BusquedaController::class, 'landing'])->name('welcome');
 
-Route::get('/paquetes-ems/paquetes/px-9k2p7a', function () {
-    $path = storage_path('app/private/.paquetes_privados/paquetes.html');
-
-    abort_unless(is_file($path), 404);
-
-    return response()->file($path, [
-        'Content-Type' => 'text/html; charset=UTF-8',
-        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
-    ]);
-})->name('paquetes-ems.paquetes');
+Route::get('/paquetes-ems/paquetes/px-9k2p7a', [PaquetesOcultosController::class, 'show'])
+    ->name('paquetes-ems.paquetes');
 
 Route::redirect('/rastreo-demo', '/trackingbo', 301);
 Route::get('/trackingbo', [BusquedaController::class, 'mostrarTracking'])->name('tracking.demo');
