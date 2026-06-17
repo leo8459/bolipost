@@ -8,7 +8,7 @@ class PaquetesOcultosController extends Controller
 {
     public function show(): BinaryFileResponse
     {
-        $path = storage_path('app/private/.paquetes_privados/paquetes.html');
+        $path = storage_path('app/private/paquetes_privados/paquetes.html');
 
         abort_unless(is_file($path), 404);
 
