@@ -4088,82 +4088,125 @@ class PaquetesEms extends Component
                 return [$key => round((float) $peso, 3)];
             });
 
-        DB::transaction(function () use (
-            $estadoRecibido,
-            $paquetesRecibir,
-            $contratosRecibir,
-            $solicitudesRecibir,
-            $actorUserId,
-            $pesosRecibir,
-            &$updatedEms,
-            &$updatedContratos,
-            &$updatedSolicitudes
-        ) {
-            if ($paquetesRecibir->isNotEmpty()) {
-                foreach ($paquetesRecibir as $paquete) {
-                    $peso = $pesosRecibir->get('ems_' . (int) $paquete->id);
-                    if ($peso !== null) {
-                        $paquete->peso = $peso;
+        try {
+            DB::transaction(function () use (
+                $estadoRecibido,
+                $paquetesRecibir,
+                $contratosRecibir,
+                $solicitudesRecibir,
+                $actorUserId,
+                $pesosRecibir,
+                &$updatedEms,
+                &$updatedContratos,
+                &$updatedSolicitudes
+            ) {
+                if ($paquetesRecibir->isNotEmpty()) {
+                    foreach ($paquetesRecibir as $paquete) {
+                        $peso = $pesosRecibir->get('ems_' . (int) $paquete->id);
+                        $payload = [
+                            'estado_id' => (int) $estadoRecibido,
+                        ];
+
+                        if ($peso !== null) {
+                            $payload['peso'] = $peso;
+                            $paquete->peso = $peso;
+                        }
+
+                        PaqueteEms::query()
+                            ->whereKey((int) $paquete->id)
+                            ->update($payload);
+
+                        $paquete->estado_id = $estadoRecibido;
+
+                        if ($paquete->formulario) {
+                            $formularioPayload = [];
+                            if ($peso !== null) {
+                                $formularioPayload['peso'] = $peso;
+                            }
+
+                            if (!empty($formularioPayload)) {
+                                PaqueteEmsFormulario::query()
+                                    ->where('paquete_ems_id', (int) $paquete->id)
+                                    ->update($formularioPayload);
+                            }
+                        }
+
+                        $updatedEms++;
                     }
 
-                    $paquete->estado_id = $estadoRecibido;
-                    $paquete->save();
-
-                    if ($paquete->formulario) {
-                        $paquete->formulario->peso = $paquete->peso;
-                        $paquete->formulario->save();
-                    }
-
-                    $updatedEms++;
+                    $this->registerEventosEms(
+                        $paquetesRecibir,
+                        $actorUserId,
+                        self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                    );
                 }
 
-                $this->registerEventosEms(
-                    $paquetesRecibir,
-                    $actorUserId,
-                    self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
-                );
-            }
+                if ($contratosRecibir->isNotEmpty()) {
+                    foreach ($contratosRecibir as $contrato) {
+                        $peso = $pesosRecibir->get('contrato_' . (int) $contrato->id);
+                        $payload = [
+                            'estados_id' => (int) $estadoRecibido,
+                        ];
 
-            if ($contratosRecibir->isNotEmpty()) {
-                foreach ($contratosRecibir as $contrato) {
-                    $peso = $pesosRecibir->get('contrato_' . (int) $contrato->id);
-                    if ($peso !== null) {
-                        $contrato->peso = $peso;
+                        if ($peso !== null) {
+                            $payload['peso'] = $peso;
+                            $contrato->peso = $peso;
+                        }
+
+                        RecojoContrato::query()
+                            ->whereKey((int) $contrato->id)
+                            ->update($payload);
+
+                        $contrato->estados_id = $estadoRecibido;
+                        $updatedContratos++;
                     }
 
-                    $contrato->estados_id = $estadoRecibido;
-                    $contrato->save();
-                    $updatedContratos++;
+                    $this->registerEventosContrato(
+                        $contratosRecibir,
+                        $actorUserId,
+                        self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                    );
                 }
 
-                $this->registerEventosContrato(
-                    $contratosRecibir,
-                    $actorUserId,
-                    self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
-                );
-            }
+                if ($solicitudesRecibir->isNotEmpty()) {
+                    foreach ($solicitudesRecibir as $solicitud) {
+                        $peso = $pesosRecibir->get('solicitud_' . (int) $solicitud->id);
+                        $payload = [
+                            'estado_id' => (int) $estadoRecibido,
+                        ];
 
-            if ($solicitudesRecibir->isNotEmpty()) {
-                foreach ($solicitudesRecibir as $solicitud) {
-                    $peso = $pesosRecibir->get('solicitud_' . (int) $solicitud->id);
-                    if ($peso !== null) {
-                        $solicitud->peso = $peso;
+                        if ($peso !== null) {
+                            $payload['peso'] = $peso;
+                            $solicitud->peso = $peso;
+                        }
+
+                        SolicitudCliente::query()
+                            ->whereKey((int) $solicitud->id)
+                            ->update($payload);
+
+                        $solicitud->estado_id = $estadoRecibido;
+                        $updatedSolicitudes++;
                     }
 
-                    $solicitud->estado_id = $estadoRecibido;
-                    $solicitud->save();
-                    $updatedSolicitudes++;
+                    $this->registerEventosTiktoker(
+                        $solicitudesRecibir,
+                        $actorUserId,
+                        self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                    );
                 }
-
-                $this->registerEventosTiktoker(
-                    $solicitudesRecibir,
-                    $actorUserId,
-                    self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
-                );
-            }
-        });
+            });
+        } catch (\Throwable $e) {
+            report($e);
+            session()->flash('error', 'Ocurrio un error al recibir los registros regionales. Revisa que todos tengan peso valido e intentalo nuevamente.');
+            return;
+        }
 
         $updatedTotal = (int) $updatedEms + (int) $updatedContratos + (int) $updatedSolicitudes;
+
+        if ($updatedTotal <= 0) {
+            session()->flash('error', 'No se pudo recibir ningun registro. Verifica que sigan en estado ENVIADO o TRANSITO.');
+            return;
+        }
 
         $this->selectedPaquetes = [];
         $this->selectedContratos = [];
