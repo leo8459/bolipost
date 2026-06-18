@@ -979,10 +979,34 @@
                     throw new Error(message);
                 }
 
-                showLoadingModal('Paquete encontrado. Redirigiendo al detalle...');
+                showLoadingModal('Paquete encontrado. Abriendo el detalle...');
+                const accessResponse = await fetch("{{ route('api.public.tracking.access') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        codigo,
+                        captcha_answer: captchaValue,
+                        captcha_challenge: captchaChallenge || ''
+                    })
+                });
+                const accessData = await accessResponse.json();
+
+                if (!accessResponse.ok || !accessData?.redirect_url) {
+                    const message = accessData?.message || 'No se pudo abrir el detalle del envio.';
+                    if (accessData?.captcha?.pregunta) {
+                        updateCaptchaQuestion(accessData.captcha.pregunta, accessData?.captcha?.challenge || '');
+                    } else {
+                        await loadCaptcha();
+                    }
+                    clearTrackingForm();
+                    throw new Error(message);
+                }
+
                 clearTrackingForm();
-                window.location.href =
-                    `${trackForm.getAttribute('action')}?codigo=${encodeURIComponent(codigo)}`;
+                window.location.href = accessData.redirect_url;
             } catch (error) {
                 hideLoadingModal();
                 const message = error.message || 'No existe dicho paquete';
