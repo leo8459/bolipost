@@ -521,57 +521,6 @@ class PaquetesEms extends Component
                 return;
             }
 
-            $primerResultado = $this->almacenUnificadoQuery()->first();
-            if ($primerResultado) {
-                $recordType = strtoupper(trim((string) ($primerResultado->record_type ?? '')));
-                $recordId = (string) ((int) ($primerResultado->record_id ?? 0));
-
-                if ($recordType === 'EMS' && $recordId !== '0') {
-                    $this->selectedPaquetes = collect($this->selectedPaquetes)
-                        ->map(fn ($id) => (string) $id)
-                        ->push($recordId)
-                        ->unique()
-                        ->values()
-                        ->all();
-
-                    session()->flash('success', 'Primer resultado EMS seleccionado automaticamente.');
-                    $this->search = '';
-                    $this->searchQuery = '';
-                    $this->resetPage();
-                    return;
-                }
-
-                if ($recordType === 'CONTRATO' && $recordId !== '0') {
-                    $this->selectedContratos = collect($this->selectedContratos)
-                        ->map(fn ($id) => (string) $id)
-                        ->push($recordId)
-                        ->unique()
-                        ->values()
-                        ->all();
-
-                    session()->flash('success', 'Primer resultado CONTRATO seleccionado automaticamente.');
-                    $this->search = '';
-                    $this->searchQuery = '';
-                    $this->resetPage();
-                    return;
-                }
-
-                if ($recordType === 'SOLICITUD' && $recordId !== '0') {
-                    $this->selectedSolicitudes = collect($this->selectedSolicitudes)
-                        ->map(fn ($id) => (string) $id)
-                        ->push($recordId)
-                        ->unique()
-                        ->values()
-                        ->all();
-
-                    session()->flash('success', 'Primer resultado SOLICITUD seleccionado automaticamente.');
-                    $this->search = '';
-                    $this->searchQuery = '';
-                    $this->resetPage();
-                    return;
-                }
-            }
-
             session()->flash('error', 'No se encontro paquete.');
             $this->search = '';
             $this->searchQuery = '';
@@ -5839,13 +5788,13 @@ class PaquetesEms extends Component
                     return;
                 }
 
-                $query->where(function ($sub) use ($estadoRegionalRecepcionId, $estadoTransitoId, $userCity) {
+                $query->where(function ($sub) use ($estadoRegionalRecepcionId, $estadoTransitoId, $userCity, $hasGlobalDepartmentAccess) {
                     if (!empty($estadoRegionalRecepcionId)) {
                         $sub->where('paquetes_ems.estado_id', (int) $estadoRegionalRecepcionId);
                     }
 
                     if (!empty($estadoTransitoId) && ($hasGlobalDepartmentAccess || $userCity !== '')) {
-                        $sub->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                        $sub->orWhere(function ($q2) use ($estadoTransitoId, $userCity, $hasGlobalDepartmentAccess) {
                             $q2->where('paquetes_ems.estado_id', (int) $estadoTransitoId);
                             if (!$hasGlobalDepartmentAccess) {
                                 $q2->whereRaw('trim(upper(paquetes_ems.ciudad)) = trim(upper(?))', [$userCity]);
