@@ -364,6 +364,68 @@ return [
             ],
         ],
         [
+            'text' => 'Dir. Comercial',
+            'icon' => 'fas fa-bullhorn',
+            'submenu' => [
+                [
+                    'text' => 'Rendimiento Servicios',
+                    'url' => '/dir-comercial/rendimiento-servicios',
+                    'icon' => 'fas fa-chart-pie',
+                ],
+                [
+                    'text' => 'Clientes Estratégicos',
+                    'url' => '/dir-comercial/clientes',
+                    'icon' => 'fas fa-handshake',
+                ],
+                [
+                    'text' => 'Contratos Comerciales',
+                    'url' => '/dir-comercial/contratos',
+                    'icon' => 'fas fa-file-signature',
+                ],
+                [
+                    'text' => 'Campañas y Promociones',
+                    'url' => '/dir-comercial/campanas',
+                    'icon' => 'fas fa-bullseye',
+                ],
+                [
+                    'text' => 'Indicadores Comerciales',
+                    'url' => '/dir-comercial/indicadores',
+                    'icon' => 'fas fa-chart-bar',
+                ],
+            ],
+        ],
+        [
+            'text' => 'Dir. Financiera',
+            'icon' => 'fas fa-coins',
+            'submenu' => [
+                [
+                    'text' => 'Panel Financiero',
+                    'url' => '/dir-financiera/panel',
+                    'icon' => 'fas fa-wallet',
+                ],
+                [
+                    'text' => 'Presupuesto Institucional',
+                    'url' => '/dir-financiera/presupuesto',
+                    'icon' => 'fas fa-file-invoice-dollar',
+                ],
+                [
+                    'text' => 'Ingresos y Egresos',
+                    'url' => '/dir-financiera/ingresos-egresos',
+                    'icon' => 'fas fa-exchange-alt',
+                ],
+                [
+                    'text' => 'Cuentas por Cobrar',
+                    'url' => '/dir-financiera/cuentas-cobrar',
+                    'icon' => 'fas fa-money-check-alt',
+                ],
+                [
+                    'text' => 'Indicadores Financieros',
+                    'url' => '/dir-financiera/indicadores',
+                    'icon' => 'fas fa-chart-line',
+                ],
+            ],
+        ],
+        [
             'text' => 'Reportes',
             'icon' => 'fas fa-file-pdf',
             'submenu' => [

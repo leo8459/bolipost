@@ -1372,13 +1372,12 @@ class CarterosController extends Controller
             'feature.carteros.cartero.deliver',
         ]);
 
-        $fotoOpcional = $this->fotoOpcionalParaContratoLaPaz($request);
         $validated = $request->validate([
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
             'id' => ['required', 'integer'],
             'recibido_por' => ['required', 'string', 'max:255'],
             'descripcion' => ['nullable', 'string'],
-            'foto' => [$fotoOpcional ? 'nullable' : 'required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
+            'foto' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
         ]);
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
@@ -1455,13 +1454,12 @@ class CarterosController extends Controller
             'feature.carteros.cartero.deliver',
         ]);
 
-        $fotoOpcional = $this->fotoOpcionalParaContratoLaPaz($request);
         $validated = $request->validate([
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
             'id' => ['required', 'integer'],
             'recibido_por' => ['required', 'string', 'max:255'],
             'descripcion' => ['nullable', 'string'],
-            'foto' => [$fotoOpcional ? 'nullable' : 'required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
+            'foto' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
         ]);
 
         $tiposPermitidos = ['CONTRATO', 'EMS', 'SOLICITUD'];
@@ -2561,14 +2559,6 @@ class CarterosController extends Controller
         }
 
         return $newPath;
-    }
-
-    private function fotoOpcionalParaContratoLaPaz(Request $request): bool
-    {
-        $tipoPaquete = strtoupper(trim((string) $request->input('tipo_paquete', '')));
-        $ciudadUsuario = strtoupper(trim((string) optional($request->user())->ciudad));
-
-        return $tipoPaquete === 'CONTRATO' && $ciudadUsuario === 'LA PAZ';
     }
 
     private function buildExternalImagePayload(?UploadedFile $file): ?string

@@ -27,11 +27,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'cliente.acl.sync' => \App\Http\Middleware\EnsureClienteAclPermissionsSynced::class,
             'internal.only' => \App\Http\Middleware\EnsureInternalWebAccess::class,
             'single.mobile.session' => \App\Http\Middleware\EnsureSingleMobileSession::class,
+            'empresa.contract.active' => \App\Http\Middleware\EnsureEmpresaContractUsersActive::class,
         ]);
 
         $middleware->web(append: [
             \App\Http\Middleware\ApplySecurityHeaders::class,
             \App\Http\Middleware\EnsureAclPermissionsSynced::class,
+            \App\Http\Middleware\EnsureEmpresaContractUsersActive::class,
             \App\Http\Middleware\RegistrarAuditoria::class,
         ]);
     })

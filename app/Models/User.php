@@ -78,6 +78,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'regionales' => 'array',
+        'auto_baja_empresa_at' => 'datetime',
     ];
 
     public function regionalesLista(): array

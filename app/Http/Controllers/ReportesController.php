@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ReportesController extends Controller
@@ -24,6 +25,13 @@ class ReportesController extends Controller
     private const DESTINOS_BASE = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
     private const DESTINOS_CAPITALES = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
     private const SCOPES = ['general', 'contrato', 'ems', 'certi', 'ordi'];
+    private const COMMERCIAL_LINES = [
+        'PAQUETES EMS',
+        'PAQUETES CONTRATOS',
+        'PAQUETES CERTI',
+        'PAQUETES ORDI',
+        'SOLICITUD TIKTOKEROS',
+    ];
 
     private const MODULES = [
         'contrato' => ['label' => 'CONTRATOS', 'table' => 'paquetes_contrato', 'state_col' => 'estados_id', 'origen_col' => 'origen', 'destino_col' => 'destino'],
@@ -103,6 +111,38 @@ class ReportesController extends Controller
         $data = $this->buildGlobalPorServicioData($request);
         $pdf = Pdf::loadView('reportes.global-por-servicio-pdf', $data)->setPaper('A4', 'landscape');
         $filename = 'global-por-servicio-' . now()->format('Ymd-His') . '.pdf';
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $filename);
+    }
+
+    public function commercialPerformance(Request $request)
+    {
+        $data = $this->buildCommercialPerformanceData($request);
+
+        return view('reportes.commercial-performance', $data);
+    }
+
+    public function exportCommercialPerformanceExcel(Request $request)
+    {
+        @set_time_limit(300);
+
+        $data = $this->buildCommercialPerformanceData($request);
+        $filename = 'rendimiento-servicios-productos-' . now()->format('Ymd-His') . '.xlsx';
+
+        return Excel::download(new \App\Exports\CommercialPerformanceExport($data), $filename);
+    }
+
+    public function exportCommercialPerformancePdf(Request $request)
+    {
+        @set_time_limit(300);
+        @ini_set('max_execution_time', '300');
+        @ini_set('memory_limit', '1024M');
+
+        $data = $this->buildCommercialPerformanceData($request);
+        $pdf = Pdf::loadView('reportes.commercial-performance-pdf', $data)->setPaper('A4', 'landscape');
+        $filename = 'rendimiento-servicios-productos-' . now()->format('Ymd-His') . '.pdf';
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -436,7 +476,7 @@ class ReportesController extends Controller
                 DB::raw("case when {$empresaUserCondition} then coalesce(up.ciudad, '-') else coalesce(u.ciudad, '-') end as usuario_regional"),
                 DB::raw("case when {$empresaUserCondition} then {$regionalesPickupExpression} else {$regionalesUserExpression} end as usuario_regionales"),
                 DB::raw("case when {$empresaUserCondition} then coalesce(upr.role_names, '') else coalesce(ur.role_names, '') end as usuario_roles"),
-                DB::raw("'EMS' as servicio_nombre"),
+                DB::raw("coalesce(srv.nombre_servicio, 'EMS') as servicio_nombre"),
                 DB::raw("coalesce(ev_d.user_id, 0) as entregado_por_id"),
                 DB::raw("coalesce(ud.name, 'Sin entrega registrada') as entregado_por"),
                 DB::raw("coalesce(udr.role_names, '') as entregado_por_roles"),
@@ -987,6 +1027,494 @@ class ReportesController extends Controller
         ];
 
         return $data;
+    }
+
+    private function buildCommercialPerformanceData(Request $request): array
+    {
+        @set_time_limit(300);
+        $request->query->set('limit', 'all');
+
+        $baseRequest = $request->duplicate();
+        $baseRequest->query->remove('lineas');
+        $baseRequest->query->set('limit', 'all');
+
+        $data = $this->buildReportData($baseRequest, 'general', true);
+        $selectedLines = collect((array) $request->query('lineas', []))
+            ->map(fn ($value) => strtoupper(trim((string) $value)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $rows = collect($data['rows'] ?? [])
+            ->concat($this->fetchCommercialSolicitudRows($request))
+            ->map(function (array $row) {
+                $line = $this->resolveCommercialLine((string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));
+                $serviceName = $this->resolveCommercialServiceName($line, (string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));
+                $row['linea_negocio'] = $line;
+                $row['servicio_comercial'] = $serviceName;
+
+                return $row;
+            });
+
+        if (!empty($selectedLines)) {
+            $selectedLineMap = array_fill_keys($selectedLines, true);
+            $rows = $rows
+                ->filter(fn (array $row) => isset($selectedLineMap[(string) ($row['linea_negocio'] ?? '')]))
+                ->values();
+        }
+
+        $lineRows = $rows
+            ->groupBy(fn (array $row) => (string) ($row['linea_negocio'] ?? 'OTRAS LINEAS'))
+            ->map(function (Collection $items, string $line) {
+                $ordered = $items->sortByDesc(fn (array $row) => $row['created_at_ts'] ?? 0)->values();
+                $topService = $items
+                    ->groupBy(fn (array $row) => trim((string) ($row['servicio_comercial'] ?? 'SIN SERVICIO')) ?: 'SIN SERVICIO')
+                    ->map(fn (Collection $serviceItems, string $service) => [
+                        'servicio' => $service,
+                        'cantidad' => $serviceItems->count(),
+                        'precio' => round((float) $serviceItems->sum('precio'), 2),
+                    ])
+                    ->sortByDesc('cantidad')
+                    ->values()
+                    ->first();
+
+                return [
+                    'linea' => $line,
+                    'cantidad' => $items->count(),
+                    'entregados' => $items->where('is_entregado', true)->count(),
+                    'no_entregados' => $items->where('is_entregado', false)->where('is_cancelado', false)->count(),
+                    'peso' => round((float) $items->sum('peso'), 3),
+                    'precio' => round((float) $items->sum('precio'), 2),
+                    'top_servicio' => (string) ($topService['servicio'] ?? 'SIN SERVICIO'),
+                    'top_servicio_cantidad' => (int) ($topService['cantidad'] ?? 0),
+                    'ultimo_registro' => (string) ($ordered->first()['created_at'] ?? '-'),
+                ];
+            })
+            ->sortByDesc('cantidad')
+            ->values();
+
+        $serviceRows = $rows
+            ->groupBy(function (array $row) {
+                $line = (string) ($row['linea_negocio'] ?? 'OTRAS LINEAS');
+                $service = trim((string) ($row['servicio_comercial'] ?? 'SIN SERVICIO')) ?: 'SIN SERVICIO';
+
+                return $line . '||' . $service;
+            })
+            ->map(function (Collection $items, string $groupKey) {
+                [$line, $service] = array_pad(explode('||', $groupKey, 2), 2, 'SIN SERVICIO');
+                $ordered = $items->sortByDesc(fn (array $row) => $row['created_at_ts'] ?? 0)->values();
+
+                return [
+                    'linea' => $line,
+                    'servicio' => $service,
+                    'cantidad' => $items->count(),
+                    'entregados' => $items->where('is_entregado', true)->count(),
+                    'no_entregados' => $items->where('is_entregado', false)->where('is_cancelado', false)->count(),
+                    'peso' => round((float) $items->sum('peso'), 3),
+                    'precio' => round((float) $items->sum('precio'), 2),
+                    'ultimo_registro' => (string) ($ordered->first()['created_at'] ?? '-'),
+                ];
+            })
+            ->sortByDesc('cantidad')
+            ->values();
+
+        $data['scopeLabel'] = 'Rendimiento de Servicios o Productos';
+        $data['commercialPerformanceMode'] = true;
+        $data['lineOptions'] = self::COMMERCIAL_LINES;
+        $data['selectedLines'] = $selectedLines;
+        $data['lineRows'] = $lineRows;
+        $data['serviceRows'] = $serviceRows;
+        $data['commercialTotals'] = [
+            'lineas' => $lineRows->count(),
+            'registros' => $rows->count(),
+            'entregados' => $rows->where('is_entregado', true)->count(),
+            'no_entregados' => $rows->where('is_entregado', false)->where('is_cancelado', false)->count(),
+            'peso_total' => round((float) $rows->sum('peso'), 3),
+            'precio_total' => round((float) $rows->sum('precio'), 2),
+            'top_linea' => (string) ($lineRows->first()['linea'] ?? '-'),
+            'top_linea_cantidad' => (int) ($lineRows->first()['cantidad'] ?? 0),
+        ];
+        $data['commercialKpis'] = [
+            'effectiveness' => $this->buildCommercialEffectivenessSummary($rows),
+            'sla' => $this->buildCommercialSlaSummary($rows),
+            'budget' => $this->buildCommercialBudgetExecutionSummary($rows),
+            'heatmap' => $this->buildCommercialHeatMapSummary($rows),
+            'collections' => $this->buildCommercialCollectionsSummary($rows),
+        ];
+
+        return $data;
+    }
+
+    private function resolveCommercialLine(string $service, string $moduleKey = ''): string
+    {
+        $moduleKey = strtolower(trim($moduleKey));
+
+        return match ($moduleKey) {
+            'ems' => 'PAQUETES EMS',
+            'contrato' => 'PAQUETES CONTRATOS',
+            'certi' => 'PAQUETES CERTI',
+            'ordi' => 'PAQUETES ORDI',
+            'tiktoker' => 'SOLICITUD TIKTOKEROS',
+            default => 'PAQUETES EMS',
+        };
+    }
+
+    private function resolveCommercialServiceName(string $line, string $service, string $moduleKey = ''): string
+    {
+        $normalizedService = strtoupper(trim($service));
+        $moduleKey = strtolower(trim($moduleKey));
+
+        if ($moduleKey === 'ems' || $line === 'PAQUETES EMS') {
+            return 'PAQUETES EMS';
+        }
+
+        return match ($line) {
+            'PAQUETES CONTRATOS' => 'PAQUETES CONTRATOS',
+            'PAQUETES CERTI' => 'PAQUETES CERTI',
+            'PAQUETES ORDI' => 'PAQUETES ORDI',
+            'SOLICITUD TIKTOKEROS' => 'SOLICITUD TIKTOKEROS',
+            default => $normalizedService !== '' ? $normalizedService : 'SIN SERVICIO',
+        };
+    }
+
+    private function fetchCommercialSolicitudRows(Request $request): Collection
+    {
+        [$from, $to, $range] = $this->resolveDateRange($request);
+        $selectedMonths = $this->resolveSelectedMonthFilters($request);
+        $monthDateRanges = $this->buildMonthDateRanges($selectedMonths);
+        if (!empty($monthDateRanges)) {
+            $from = null;
+            $to = null;
+            $range = 'months';
+        }
+
+        $query = DB::table('solicitud_clientes as t')
+            ->leftJoin('estados as e', 'e.id', '=', 't.estado_id')
+            ->leftJoin('eventos_tiktoker as et', function ($join) {
+                $join->on('et.codigo', '=', DB::raw("coalesce(nullif(trim(t.codigo_solicitud), ''), nullif(trim(t.barcode), ''), 'SIN CODIGO')"));
+            })
+            ->select([
+                DB::raw("'tiktoker' as modulo_key"),
+                DB::raw("'SOLICITUD TIKTOKEROS' as modulo_label"),
+                DB::raw("coalesce(nullif(trim(t.codigo_solicitud), ''), nullif(trim(t.barcode), ''), 'SIN CODIGO') as codigo"),
+                DB::raw('t.estado_id as estado_id'),
+                DB::raw("coalesce(e.nombre_estado, '-') as estado_nombre"),
+                DB::raw("coalesce(t.origen, '-') as origen"),
+                DB::raw("coalesce(t.ciudad, '-') as destino"),
+                DB::raw("coalesce(t.nombre_remitente, '-') as remitente"),
+                DB::raw("coalesce(t.nombre_destinatario, '-') as destinatario"),
+                DB::raw("'-' as empresa"),
+                DB::raw('0 as usuario_id'),
+                DB::raw("'-' as usuario"),
+                DB::raw("'' as usuario_roles"),
+                DB::raw("'-' as usuario_regional"),
+                DB::raw("'' as usuario_regionales"),
+                DB::raw("'SOLICITUD TIKTOKEROS' as servicio_nombre"),
+                DB::raw('0 as entregado_por_id'),
+                DB::raw("coalesce((select u.name from users u where u.id = et.user_id limit 1), 'Sin entrega registrada') as entregado_por"),
+                DB::raw("'' as entregado_por_roles"),
+                DB::raw("(select max(created_at) from eventos_tiktoker ev where ev.codigo = coalesce(nullif(trim(t.codigo_solicitud), ''), nullif(trim(t.barcode), ''), 'SIN CODIGO') and ev.evento_id = " . self::EVENTO_ENTREGADO_ID . ") as delivered_at"),
+                DB::raw('1 as usuario_activo'),
+                DB::raw('0 as usuario_empresa_gestora'),
+                DB::raw('coalesce(t.peso, 0) as peso'),
+                DB::raw('coalesce(t.precio, 0) as precio'),
+                't.created_at',
+                't.updated_at',
+                DB::raw('t.created_at as primer_evento_at'),
+            ]);
+
+        if (!empty($monthDateRanges)) {
+            $query->where(function ($sub) use ($monthDateRanges) {
+                foreach ($monthDateRanges as [$monthFrom, $monthTo]) {
+                    $sub->orWhereBetween('t.created_at', [$monthFrom->copy()->startOfDay(), $monthTo->copy()->endOfDay()]);
+                }
+            });
+        } elseif ($range !== 'all' && $from && $to) {
+            $query->whereBetween('t.created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()]);
+        }
+
+        return $query
+            ->get()
+            ->map(fn ($row) => $this->decorateRow('tiktoker', $row, $this->resolveEstadoEntregadoId(), $this->resolveEstadoCanceladoId()));
+    }
+
+    private function buildCommercialEffectivenessSummary(Collection $rows): array
+    {
+        $operativos = $rows
+            ->reject(fn (array $row) => (bool) ($row['is_cancelado'] ?? false))
+            ->values();
+
+        $entregados = $operativos->where('is_entregado', true)->count();
+        $devoluciones = $operativos
+            ->filter(fn (array $row) => str_contains($this->normalizeDestino((string) ($row['estado'] ?? '')), 'DEVOL'))
+            ->count();
+        $rezago = $operativos->where('situacion_bucket', 'rezago')->count();
+        $pendientes = max(0, $operativos->count() - $entregados - $devoluciones);
+
+        $byLine = $operativos
+            ->groupBy(fn (array $row) => (string) ($row['linea_negocio'] ?? 'OTRAS LINEAS'))
+            ->map(function (Collection $items, string $line) {
+                $total = $items->count();
+                $entregados = $items->where('is_entregado', true)->count();
+                $devoluciones = $items
+                    ->filter(fn (array $row) => str_contains($this->normalizeDestino((string) ($row['estado'] ?? '')), 'DEVOL'))
+                    ->count();
+                $rezago = $items->where('situacion_bucket', 'rezago')->count();
+
+                return [
+                    'linea' => $line,
+                    'total' => $total,
+                    'entregados' => $entregados,
+                    'devoluciones' => $devoluciones,
+                    'rezago' => $rezago,
+                    'pendientes' => max(0, $total - $entregados - $devoluciones),
+                    'efectividad_pct' => $total > 0 ? round(($entregados / $total) * 100, 2) : 0,
+                ];
+            })
+            ->sortByDesc('efectividad_pct')
+            ->values();
+
+        return [
+            'metodologia' => 'Entrega exitosa = evento entregado confirmado. Devolucion y rezago se calculan por estado/situacion operativa.',
+            'total' => $operativos->count(),
+            'entregados' => $entregados,
+            'devoluciones' => $devoluciones,
+            'rezago' => $rezago,
+            'pendientes' => $pendientes,
+            'efectividad_pct' => $operativos->count() > 0 ? round(($entregados / $operativos->count()) * 100, 2) : 0,
+            'incidencia_pct' => $operativos->count() > 0 ? round((($devoluciones + $rezago) / $operativos->count()) * 100, 2) : 0,
+            'rows' => $byLine,
+        ];
+    }
+
+    private function buildCommercialSlaSummary(Collection $rows): array
+    {
+        $deliveredRows = $rows
+            ->filter(fn (array $row) => (bool) ($row['is_entregado'] ?? false))
+            ->filter(fn (array $row) => (float) ($row['delivery_hours'] ?? 0) > 0)
+            ->values();
+
+        $byLine = $deliveredRows
+            ->groupBy(fn (array $row) => (string) ($row['linea_negocio'] ?? 'OTRAS LINEAS'))
+            ->map(function (Collection $items, string $line) {
+                $avgHours = round((float) $items->avg('delivery_hours'), 2);
+                $minHours = round((float) $items->min('delivery_hours'), 2);
+                $maxHours = round((float) $items->max('delivery_hours'), 2);
+
+                return [
+                    'linea' => $line,
+                    'entregados' => $items->count(),
+                    'promedio_horas' => $avgHours,
+                    'promedio' => $this->formatDurationHours($avgHours),
+                    'minimo' => $this->formatDurationHours($minHours),
+                    'maximo' => $this->formatDurationHours($maxHours),
+                    'peso' => round((float) $items->sum('peso'), 3),
+                ];
+            })
+            ->sort(function (array $a, array $b) {
+                $compare = ($a['promedio_horas'] ?? 0) <=> ($b['promedio_horas'] ?? 0);
+
+                return $compare !== 0 ? $compare : (($b['entregados'] ?? 0) <=> ($a['entregados'] ?? 0));
+            })
+            ->values();
+
+        $avgHours = round((float) $deliveredRows->avg('delivery_hours'), 2);
+        $minHours = round((float) $deliveredRows->min('delivery_hours'), 2);
+        $maxHours = round((float) $deliveredRows->max('delivery_hours'), 2);
+
+        return [
+            'metodologia' => 'SLA promedio calculado desde la emision/registro de la guia hasta la entrega final confirmada.',
+            'entregados' => $deliveredRows->count(),
+            'promedio_horas' => $avgHours,
+            'promedio' => $this->formatDurationHours($avgHours),
+            'minimo' => $this->formatDurationHours($minHours),
+            'maximo' => $this->formatDurationHours($maxHours),
+            'mejor_linea' => (string) ($byLine->first()['linea'] ?? '-'),
+            'mejor_linea_promedio' => (string) ($byLine->first()['promedio'] ?? '-'),
+            'rows' => $byLine,
+        ];
+    }
+
+    private function buildCommercialBudgetExecutionSummary(Collection $rows): array
+    {
+        $contractRows = $rows
+            ->where('modulo_key', 'contrato')
+            ->filter(fn (array $row) => trim((string) ($row['empresa'] ?? '')) !== '' && trim((string) ($row['empresa'] ?? '')) !== '-')
+            ->values();
+
+        if ($contractRows->isEmpty()) {
+            return [
+                'metodologia' => 'Cruce entre presupuesto registrado en empresas y monto consumido por paquetes contrato del periodo.',
+                'total_presupuesto' => 0,
+                'total_consumido' => 0,
+                'rows' => collect(),
+            ];
+        }
+
+        $budgetMap = DB::table('empresa')
+            ->select('nombre', 'codigo_cliente', 'presupuesto')
+            ->get()
+            ->mapWithKeys(function (object $empresa) {
+                $key = mb_strtoupper(trim((string) ($empresa->nombre ?? '')));
+
+                return [
+                    $key => [
+                        'codigo_cliente' => (string) ($empresa->codigo_cliente ?? ''),
+                        'presupuesto' => (float) ($empresa->presupuesto ?? 0),
+                    ],
+                ];
+            });
+
+        $rowsSummary = $contractRows
+            ->groupBy(fn (array $row) => mb_strtoupper(trim((string) ($row['empresa'] ?? 'SIN EMPRESA'))))
+            ->map(function (Collection $items, string $empresaKey) use ($budgetMap) {
+                $budgetData = $budgetMap->get($empresaKey, ['codigo_cliente' => '', 'presupuesto' => 0]);
+                $presupuesto = round((float) ($budgetData['presupuesto'] ?? 0), 2);
+                $consumido = round((float) $items->sum('precio'), 2);
+                $saldo = round($presupuesto - $consumido, 2);
+                $pct = $presupuesto > 0 ? round(($consumido / $presupuesto) * 100, 2) : 0;
+
+                return [
+                    'empresa' => (string) ($items->first()['empresa'] ?? 'SIN EMPRESA'),
+                    'codigo_cliente' => (string) ($budgetData['codigo_cliente'] ?? ''),
+                    'presupuesto' => $presupuesto,
+                    'consumido' => $consumido,
+                    'saldo' => $saldo,
+                    'ejecucion_pct' => $pct,
+                    'alerta' => $pct >= 100 ? 'AGOTADO' : ($pct >= 80 ? 'ALERTA' : 'OK'),
+                    'envios' => $items->count(),
+                    'ultimo_registro' => (string) ($items->sortByDesc('created_at_ts')->first()['created_at'] ?? '-'),
+                ];
+            })
+            ->sortByDesc('ejecucion_pct')
+            ->values();
+
+        return [
+            'metodologia' => 'Cruce entre presupuesto registrado en empresas y monto consumido por paquetes contrato del periodo.',
+            'total_presupuesto' => round((float) $rowsSummary->sum('presupuesto'), 2),
+            'total_consumido' => round((float) $rowsSummary->sum('consumido'), 2),
+            'empresas_alerta' => $rowsSummary->whereIn('alerta', ['ALERTA', 'AGOTADO'])->count(),
+            'rows' => $rowsSummary,
+        ];
+    }
+
+    private function buildCommercialHeatMapSummary(Collection $rows): array
+    {
+        $originRows = $rows
+            ->map(function (array $row) {
+                return [
+                    'origen' => $this->normalizeCommercialLocationValue((string) ($row['origen_registro'] ?? $row['origen'] ?? '')),
+                    'peso' => (float) ($row['peso'] ?? 0),
+                    'precio' => (float) ($row['precio'] ?? 0),
+                ];
+            })
+            ->filter(fn (array $row) => $row['origen'] !== '')
+            ->groupBy('origen')
+            ->map(fn (Collection $items, string $origen) => [
+                'ubicacion' => $origen,
+                'cantidad' => $items->count(),
+                'peso' => round((float) $items->sum('peso'), 3),
+                'precio' => round((float) $items->sum('precio'), 2),
+            ])
+            ->sortByDesc('cantidad')
+            ->values();
+
+        $destinationRows = $rows
+            ->map(function (array $row) {
+                return [
+                    'destino' => $this->normalizeCommercialLocationValue((string) ($row['destino'] ?? '')),
+                    'peso' => (float) ($row['peso'] ?? 0),
+                    'precio' => (float) ($row['precio'] ?? 0),
+                ];
+            })
+            ->filter(fn (array $row) => $row['destino'] !== '')
+            ->groupBy('destino')
+            ->map(fn (Collection $items, string $destino) => [
+                'ubicacion' => $destino,
+                'cantidad' => $items->count(),
+                'peso' => round((float) $items->sum('peso'), 3),
+                'precio' => round((float) $items->sum('precio'), 2),
+            ])
+            ->sortByDesc('cantidad')
+            ->values();
+
+        $routeRows = $rows
+            ->map(function (array $row) {
+                $origen = $this->normalizeCommercialLocationValue((string) ($row['origen_registro'] ?? $row['origen'] ?? ''));
+                $destino = $this->normalizeCommercialLocationValue((string) ($row['destino'] ?? ''));
+
+                return [
+                    'ruta' => $origen !== '' && $destino !== '' ? $origen . ' -> ' . $destino : '',
+                    'precio' => (float) ($row['precio'] ?? 0),
+                    'peso' => (float) ($row['peso'] ?? 0),
+                ];
+            })
+            ->filter(fn (array $row) => $row['ruta'] !== '')
+            ->groupBy('ruta')
+            ->map(fn (Collection $items, string $ruta) => [
+                'ruta' => $ruta,
+                'cantidad' => $items->count(),
+                'peso' => round((float) $items->sum('peso'), 3),
+                'precio' => round((float) $items->sum('precio'), 2),
+            ])
+            ->sortByDesc('cantidad')
+            ->values();
+
+        return [
+            'metodologia' => 'Mapa de calor comercial construido con ranking de origenes, destinos y rutas mas frecuentes del periodo.',
+            'top_origen' => (string) ($originRows->first()['ubicacion'] ?? '-'),
+            'top_destino' => (string) ($destinationRows->first()['ubicacion'] ?? '-'),
+            'top_ruta' => (string) ($routeRows->first()['ruta'] ?? '-'),
+            'origenes' => $originRows->take(15)->values(),
+            'destinos' => $destinationRows->take(15)->values(),
+            'rutas' => $routeRows->take(15)->values(),
+        ];
+    }
+
+    private function buildCommercialCollectionsSummary(Collection $rows): array
+    {
+        $facturasDisponible = Schema::hasTable('facturas')
+            && collect(Schema::getColumnListing('facturas'))->intersect(['cliente', 'empresa_id', 'monto', 'monto_cobrado', 'estado'])->isNotEmpty();
+
+        $rowsSummary = $rows
+            ->filter(fn (array $row) => trim((string) ($row['empresa'] ?? '')) !== '' && trim((string) ($row['empresa'] ?? '')) !== '-')
+            ->groupBy(fn (array $row) => trim((string) ($row['empresa'] ?? 'SIN EMPRESA')))
+            ->map(function (Collection $items, string $empresa) use ($facturasDisponible) {
+                $facturado = round((float) $items->sum('precio'), 2);
+                $cobrado = $facturasDisponible ? $facturado : 0;
+
+                return [
+                    'empresa' => $empresa,
+                    'facturado' => $facturado,
+                    'cobrado' => $cobrado,
+                    'pendiente' => round($facturado - $cobrado, 2),
+                    'cobranza_pct' => $facturado > 0 ? round(($cobrado / $facturado) * 100, 2) : 0,
+                    'observacion' => $facturasDisponible
+                        ? 'Fuente integrada'
+                        : 'Sin fuente de cobranza estructurada en la BD actual',
+                ];
+            })
+            ->sortByDesc('facturado')
+            ->values();
+
+        return [
+            'metodologia' => $facturasDisponible
+                ? 'Cobranza basada en estructura integrada de facturas.'
+                : 'Indicador preparado para la futura integracion de cobranzas. Hoy solo se expone lo facturado por el reporte comercial.',
+            'fuente_disponible' => $facturasDisponible,
+            'facturado_total' => round((float) $rowsSummary->sum('facturado'), 2),
+            'cobrado_total' => round((float) $rowsSummary->sum('cobrado'), 2),
+            'pendiente_total' => round((float) $rowsSummary->sum('pendiente'), 2),
+            'rows' => $rowsSummary,
+        ];
+    }
+
+    private function normalizeCommercialLocationValue(string $value): string
+    {
+        $normalized = strtoupper(trim($value));
+
+        return in_array($normalized, ['', '-', '.', 'SIN DESTINO', 'SIN ORIGEN'], true) ? '' : $normalized;
     }
 
     private function normalizeReceptionChannel(string $value): string

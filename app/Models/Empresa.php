@@ -15,6 +15,13 @@ class Empresa extends Model
         'nombre',
         'sigla',
         'codigo_cliente',
+        'clasificacion',
+        'documentacion_legal',
+        'inicio_contrato',
+        'fin_contrato',
+        'cobertura',
+        'presupuesto',
+        'documento_pdf_path',
     ];
 
     public function codigosEmpresa()

@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
+use App\Services\EmpresaContractUserSyncService;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Log;
@@ -41,6 +43,7 @@ class LoginRequest extends FormRequest
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();
+        app(EmpresaContractUserSyncService::class)->syncExpiredUsers();
 
         $credentials = [
             'alias' => Str::lower(trim((string) $this->input('alias'))),
@@ -58,7 +61,7 @@ class LoginRequest extends FormRequest
             ]);
 
             throw ValidationException::withMessages([
-                'alias' => trans('auth.failed'),
+                'alias' => $this->failedAuthenticationMessage($credentials['alias']),
             ]);
         }
 
@@ -113,5 +116,18 @@ class LoginRequest extends FormRequest
     public function ipThrottleKey(): string
     {
         return 'login-ip:'.Str::transliterate((string) $this->ip());
+    }
+
+    private function failedAuthenticationMessage(string $alias): string
+    {
+        $user = User::withTrashed()
+            ->whereRaw('LOWER(alias) = ?', [$alias])
+            ->first();
+
+        if ($user && $user->trashed() && !empty($user->auto_baja_empresa_at)) {
+            return 'Su contrato vencio. Por favor comunicarse con su parte administrativa para confirmar la informacion.';
+        }
+
+        return trans('auth.failed');
     }
 }

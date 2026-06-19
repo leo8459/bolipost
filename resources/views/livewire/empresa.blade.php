@@ -100,6 +100,33 @@
         .muted{ color:var(--muted); }
 
         .table td{ vertical-align: middle; }
+        .table-empresa{
+            font-size:.92rem;
+        }
+        .table-empresa th,
+        .table-empresa td{
+            padding:.55rem .6rem;
+        }
+        .empresa-modal-grid{
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            gap:14px 16px;
+        }
+        .empresa-modal-grid .form-group{
+            margin-bottom:0;
+        }
+        .empresa-modal-grid .form-span-2{
+            grid-column:1 / -1;
+        }
+
+        @media (max-width: 767.98px){
+            .empresa-modal-grid{
+                grid-template-columns:1fr;
+            }
+            .empresa-modal-grid .form-span-2{
+                grid-column:auto;
+            }
+        }
 
         .modal-content{
             border:0;
@@ -197,12 +224,19 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                    <table class="table table-hover align-middle table-empresa">
                         <thead>
                             <tr>
                                 <th>Nombre</th>
                                 <th>Sigla</th>
                                 <th>Codigo cliente</th>
+                                <th>Clasificacion</th>
+                                <th>Doc. legal</th>
+                                <th>Inicio</th>
+                                <th>Fin</th>
+                                <th>Cobertura</th>
+                                <th>Presupuesto</th>
+                                <th>PDF</th>
                                 <th>Creado</th>
                                 <th>Acciones</th>
                             </tr>
@@ -213,6 +247,26 @@
                                     <td><span class="pill-id">{{ $empresa->nombre }}</span></td>
                                     <td>{{ $empresa->sigla }}</td>
                                     <td>{{ $empresa->codigo_cliente }}</td>
+                                    <td>{{ $empresa->clasificacion ?? '-' }}</td>
+                                    <td>{{ $empresa->documentacion_legal ?? '-' }}</td>
+                                    <td>{{ !empty($empresa->inicio_contrato) ? \Illuminate\Support\Carbon::parse($empresa->inicio_contrato)->format('d/m/Y') : '-' }}</td>
+                                    <td>{{ !empty($empresa->fin_contrato) ? \Illuminate\Support\Carbon::parse($empresa->fin_contrato)->format('d/m/Y') : '-' }}</td>
+                                    <td>{{ $empresa->cobertura ?? '-' }}</td>
+                                    <td>{{ !is_null($empresa->presupuesto) ? number_format((float) $empresa->presupuesto, 2) : '-' }}</td>
+                                    <td>
+                                        @if (!empty($empresa->documento_pdf_path))
+                                            <a
+                                                href="{{ asset('storage/' . $empresa->documento_pdf_path) }}"
+                                                target="_blank"
+                                                class="btn btn-sm btn-outline-azul"
+                                                title="Ver PDF"
+                                            >
+                                                <i class="fas fa-file-pdf"></i>
+                                            </a>
+                                        @else
+                                            <span class="muted small">Sin PDF</span>
+                                        @endif
+                                    </td>
                                     <td class="muted small">{{ optional($empresa->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         @aclcan('edit', $this)
@@ -234,7 +288,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center py-5">
+                                    <td colspan="12" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -252,7 +306,7 @@
     </div>
 
     <div class="modal fade" id="empresaModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content">
                 <form wire:submit.prevent="save">
                     <div class="modal-header">
@@ -265,20 +319,76 @@
                     </div>
 
                     <div class="modal-body">
-                        <div class="form-group">
-                            <label>Nombre</label>
-                            <input type="text" wire:model.defer="nombre" class="form-control uppercase-input">
-                            @error('nombre') <small class="text-danger">{{ $message }}</small> @enderror
-                        </div>
-                        <div class="form-group">
-                            <label>Sigla</label>
-                            <input type="text" wire:model.defer="sigla" class="form-control uppercase-input">
-                            @error('sigla') <small class="text-danger">{{ $message }}</small> @enderror
-                        </div>
-                        <div class="form-group mb-0">
-                            <label>Codigo cliente</label>
-                            <input type="text" wire:model.defer="codigo_cliente" class="form-control uppercase-input">
-                            @error('codigo_cliente') <small class="text-danger">{{ $message }}</small> @enderror
+                        <div class="empresa-modal-grid">
+                            <div class="form-group form-span-2">
+                                <label>Nombre</label>
+                                <input type="text" wire:model.defer="nombre" class="form-control uppercase-input">
+                                @error('nombre') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Sigla</label>
+                                <input type="text" wire:model.defer="sigla" class="form-control uppercase-input">
+                                @error('sigla') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Codigo cliente</label>
+                                <input type="text" wire:model.defer="codigo_cliente" class="form-control uppercase-input">
+                                @error('codigo_cliente') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Clasificacion</label>
+                                <select wire:model.defer="clasificacion" class="form-control">
+                                    <option value="">Selecciona una opcion</option>
+                                    <option value="PUBLICA">Publica</option>
+                                    <option value="PRIVADA">Privada</option>
+                                </select>
+                                @error('clasificacion') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Documentacion legal</label>
+                                <select wire:model.defer="documentacion_legal" class="form-control">
+                                    <option value="">Selecciona una opcion</option>
+                                    <option value="CONTRATO">Contrato</option>
+                                    <option value="CONVENIO">Convenio</option>
+                                    <option value="ADENDA">Adenda</option>
+                                </select>
+                                @error('documentacion_legal') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Inicio contrato</label>
+                                <input type="date" wire:model.defer="inicio_contrato" class="form-control">
+                                @error('inicio_contrato') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Fin contrato</label>
+                                <input type="date" wire:model.defer="fin_contrato" class="form-control">
+                                @error('fin_contrato') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Cobertura</label>
+                                <input type="text" wire:model.defer="cobertura" class="form-control uppercase-input">
+                                @error('cobertura') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Presupuesto</label>
+                                <input type="number" step="0.01" min="0" wire:model.defer="presupuesto" class="form-control">
+                                @error('presupuesto') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group form-span-2">
+                                <label>Documento PDF</label>
+                                <input type="file" wire:model="documento_pdf_file" class="form-control" accept="application/pdf">
+                                @error('documento_pdf_file') <small class="text-danger">{{ $message }}</small> @enderror
+                                <div class="muted small mt-2">Puedes subir un PDF de contrato, convenio o adenda.</div>
+                                @if ($documento_pdf_file)
+                                    <div class="small text-info mt-1">PDF listo para guardar: {{ $documento_pdf_file->getClientOriginalName() }}</div>
+                                @elseif (!empty($documento_pdf_path))
+                                    <div class="mt-2">
+                                        <a href="{{ asset('storage/' . $documento_pdf_path) }}" target="_blank" class="btn btn-sm btn-outline-azul">
+                                            <i class="fas fa-file-pdf mr-1"></i> Abrir PDF actual
+                                        </a>
+                                    </div>
+                                @endif
+                            </div>
                         </div>
                     </div>
 

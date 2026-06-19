@@ -20,6 +20,16 @@
         .info-box {
             font-family: Verdana, Geneva, sans-serif !important;
         }
+
+        .contract-alert-toast {
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .contract-alert-toast.is-hiding {
+            opacity: 0;
+            transform: translateX(24px);
+            pointer-events: none;
+        }
     </style>
     @stack('css')
     @yield('css')
@@ -51,6 +61,19 @@
         @else
             @include('adminlte::partials.cwrapper.cwrapper-iframe')
         @endempty
+
+        @auth
+            @if(!empty($empresaContractAlerts) && collect($empresaContractAlerts)->isNotEmpty())
+                <div class="position-fixed" style="top: 72px; right: 18px; z-index: 1055; width: min(460px, calc(100vw - 24px));">
+                    @foreach(collect($empresaContractAlerts)->take(5) as $contractAlert)
+                        <div class="alert alert-warning shadow-sm border mb-2 contract-alert-toast" data-contract-alert>
+                            <div class="font-weight-bold">Alerta de contrato</div>
+                            <div>{{ $contractAlert['message'] ?? '' }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        @endauth
 
         @include('partials.facturacion-shortcut')
 
@@ -104,6 +127,23 @@
             });
 
             resetInactivityTimer();
+        })();
+
+        (function () {
+            const alerts = document.querySelectorAll('[data-contract-alert]');
+            if (!alerts.length) {
+                return;
+            }
+
+            window.setTimeout(function () {
+                alerts.forEach(function (alertBox) {
+                    alertBox.classList.add('is-hiding');
+
+                    window.setTimeout(function () {
+                        alertBox.remove();
+                    }, 600);
+                });
+            }, 10000);
         })();
     </script>
     @endauth

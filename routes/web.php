@@ -156,6 +156,15 @@ Route::get('/dir-operaciones/global-por-servicio/export/excel', [ReportesControl
 Route::get('/dir-operaciones/global-por-servicio/export/pdf', [ReportesController::class, 'exportGlobalPorServicioPdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.global-por-servicio.pdf');
+Route::get('/dir-comercial/rendimiento-servicios', [ReportesController::class, 'commercialPerformance'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('dashboard.comercial.rendimiento-servicios');
+Route::get('/dir-comercial/rendimiento-servicios/export/excel', [ReportesController::class, 'exportCommercialPerformanceExcel'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('dashboard.comercial.rendimiento-servicios.excel');
+Route::get('/dir-comercial/rendimiento-servicios/export/pdf', [ReportesController::class, 'exportCommercialPerformancePdf'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('dashboard.comercial.rendimiento-servicios.pdf');
 Route::get('/entregas', [DashboardController::class, 'entregas'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('entregas.index');
