@@ -774,6 +774,7 @@
                                     <tr>
                                         <th>Modulo</th>
                                         <th>Codigo</th>
+                                        <th>Estado</th>
                                         <th>Origen</th>
                                         <th>Destino</th>
                                         <th>Destinatario</th>
@@ -790,6 +791,7 @@
                                         >
                                             <td>{{ $detalle['modulo'] ?? '-' }}</td>
                                             <td><span class="badge badge-light">{{ $detalle['codigo'] ?? '-' }}</span></td>
+                                            <td>{{ $detalle['estado'] ?? '-' }}</td>
                                             <td>{{ $detalle['origen'] ?? '-' }}</td>
                                             <td>{{ $detalle['destino'] ?? '-' }}</td>
                                             <td>{{ $detalle['destinatario'] ?? '-' }}</td>
@@ -799,11 +801,11 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted py-4">No hay paquetes pendientes para este departamento.</td>
+                                            <td colspan="7" class="text-center text-muted py-4">No hay paquetes pendientes para este departamento.</td>
                                         </tr>
                                     @endforelse
                                     <tr class="d-none" data-pending-empty-filter>
-                                        <td colspan="6" class="text-center text-muted py-4">No hay paquetes pendientes con los filtros seleccionados.</td>
+                                        <td colspan="7" class="text-center text-muted py-4">No hay paquetes pendientes con los filtros seleccionados.</td>
                                     </tr>
                                 </tbody>
                             </table>

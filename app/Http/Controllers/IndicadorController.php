@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 class IndicadorController extends Controller
 {
+    private array $estadoIdCache = [];
+
     private const EVENTO_CONTRATO_ENTREGADO_ID = 316;
     private const EVENTO_EMS_SOLICITUD_ID = 295;
     private const EVENTO_EMS_ENTREGADO_ID = 316;
@@ -94,6 +96,14 @@ class IndicadorController extends Controller
         $destino = $this->cleanFilterValue($request->query('destino'));
         $sla = $this->cleanSlaFilter($request->query('sla'));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
+        $estadoAlmacenId = $this->getEstadoIdByName('ALMACEN');
+        $destinoOperativoExpression = $this->operationalDepartmentExpression(
+            'paquetes_contrato',
+            'estados_id',
+            'destino',
+            'origen',
+            $estadoAlmacenId
+        );
         $entregadoSub = DB::table('eventos_contrato')
             ->select('codigo', DB::raw('MIN(created_at) as entregado_evento_at'))
             ->where('evento_id', self::EVENTO_CONTRATO_ENTREGADO_ID)
@@ -141,9 +151,9 @@ class IndicadorController extends Controller
         }
 
         $origenOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_contrato.origen');
-        $destinoOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_contrato.destino');
+        $destinoOptions = $this->buildDistinctOptions((clone $rows), $destinoOperativoExpression);
         $this->applyLocationFilter($rows, 'paquetes_contrato.origen', $origen);
-        $this->applyLocationFilter($rows, 'paquetes_contrato.destino', $destino);
+        $this->applyLocationFilter($rows, $destinoOperativoExpression, $destino);
 
         [$rows, $slaResumen] = $this->finalizeIndicadorRows(
             $rows,
@@ -180,6 +190,14 @@ class IndicadorController extends Controller
         $destino = $this->cleanFilterValue($request->query('destino'));
         $sla = $this->cleanSlaFilter($request->query('sla'));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
+        $estadoAlmacenId = $this->getEstadoIdByName('ALMACEN');
+        $destinoOperativoExpression = $this->operationalDepartmentExpression(
+            'paquetes_ems',
+            'estado_id',
+            'ciudad',
+            'origen',
+            $estadoAlmacenId
+        );
         $solicitudSub = DB::table('eventos_ems')
             ->select('codigo', DB::raw('MIN(created_at) as solicitud_at'))
             ->where('evento_id', self::EVENTO_EMS_SOLICITUD_ID)
@@ -230,9 +248,9 @@ class IndicadorController extends Controller
         }
 
         $origenOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_ems.origen');
-        $destinoOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_ems.ciudad');
+        $destinoOptions = $this->buildDistinctOptions((clone $rows), $destinoOperativoExpression);
         $this->applyLocationFilter($rows, 'paquetes_ems.origen', $origen);
-        $this->applyLocationFilter($rows, 'paquetes_ems.ciudad', $destino);
+        $this->applyLocationFilter($rows, $destinoOperativoExpression, $destino);
 
         [$rows, $slaResumen] = $this->finalizeIndicadorRows(
             $rows,
@@ -269,6 +287,14 @@ class IndicadorController extends Controller
         $destino = $this->cleanFilterValue($request->query('destino'));
         $sla = $this->cleanSlaFilter($request->query('sla'));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
+        $estadoAlmacenId = $this->getEstadoIdByName('ALMACEN');
+        $destinoOperativoExpression = $this->operationalDepartmentExpression(
+            'paquetes_certi',
+            'fk_estado',
+            'cuidad',
+            null,
+            $estadoAlmacenId
+        );
         $inicioSub = DB::table('eventos_certi')
             ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
             ->groupBy('codigo');
@@ -314,8 +340,8 @@ class IndicadorController extends Controller
         }
 
         $origenOptions = [];
-        $destinoOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_certi.cuidad');
-        $this->applyLocationFilter($rows, 'paquetes_certi.cuidad', $destino);
+        $destinoOptions = $this->buildDistinctOptions((clone $rows), $destinoOperativoExpression);
+        $this->applyLocationFilter($rows, $destinoOperativoExpression, $destino);
 
         [$rows, $slaResumen] = $this->finalizeIndicadorRows(
             $rows,
@@ -352,6 +378,14 @@ class IndicadorController extends Controller
         $destino = $this->cleanFilterValue($request->query('destino'));
         $sla = $this->cleanSlaFilter($request->query('sla'));
         $estadoEntregadoId = $this->getEstadoEntregadoId();
+        $estadoAlmacenId = $this->getEstadoIdByName('ALMACEN');
+        $destinoOperativoExpression = $this->operationalDepartmentExpression(
+            'paquetes_ordi',
+            'fk_estado',
+            'ciudad',
+            null,
+            $estadoAlmacenId
+        );
         $inicioSub = DB::table('eventos_ordi')
             ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
             ->groupBy('codigo');
@@ -397,8 +431,8 @@ class IndicadorController extends Controller
         }
 
         $origenOptions = [];
-        $destinoOptions = $this->buildDistinctOptions((clone $rows), 'paquetes_ordi.ciudad');
-        $this->applyLocationFilter($rows, 'paquetes_ordi.ciudad', $destino);
+        $destinoOptions = $this->buildDistinctOptions((clone $rows), $destinoOperativoExpression);
+        $this->applyLocationFilter($rows, $destinoOperativoExpression, $destino);
 
         [$rows, $slaResumen] = $this->finalizeIndicadorRows(
             $rows,
@@ -450,11 +484,24 @@ class IndicadorController extends Controller
 
     private function getEstadoEntregadoId(): ?int
     {
+        return $this->getEstadoIdByName('ENTREGADO');
+    }
+
+    private function getEstadoIdByName(string $estadoNombre): ?int
+    {
+        $cacheKey = strtoupper(trim($estadoNombre));
+        if (array_key_exists($cacheKey, $this->estadoIdCache)) {
+            return $this->estadoIdCache[$cacheKey];
+        }
+
         $id = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [$cacheKey])
             ->value('id');
 
-        return $id ? (int) $id : null;
+        $resolvedId = $id ? (int) $id : null;
+        $this->estadoIdCache[$cacheKey] = $resolvedId;
+
+        return $resolvedId;
     }
 
     private function renderListado(
@@ -600,6 +647,27 @@ class IndicadorController extends Controller
             ->filter()
             ->values()
             ->all();
+    }
+
+    private function operationalDepartmentExpression(
+        string $table,
+        string $stateColumn,
+        string $destinoColumn,
+        ?string $origenColumn,
+        ?int $estadoAlmacenId
+    ): string {
+        $qualifiedDestino = $table . '.' . $destinoColumn;
+
+        if (!$origenColumn || !$estadoAlmacenId) {
+            return $qualifiedDestino;
+        }
+
+        $qualifiedOrigen = $table . '.' . $origenColumn;
+        $qualifiedEstado = $table . '.' . $stateColumn;
+
+        return 'case when ' . $qualifiedEstado . ' = ' . (int) $estadoAlmacenId
+            . " then coalesce(nullif(trim(" . $qualifiedOrigen . "), ''), " . $qualifiedDestino . ')'
+            . ' else ' . $qualifiedDestino . ' end';
     }
 
     private function decorateEmsSlaRow(object $row, bool $entregados): object

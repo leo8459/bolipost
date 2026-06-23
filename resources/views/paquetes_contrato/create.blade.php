@@ -243,6 +243,11 @@
                                     <input type="text" name="provincia" class="form-control" value="{{ old('provincia') }}">
                                 </div>
                             </div>
+                            <div class="col-md-8">
+                                <div class="alert alert-warning mb-0" role="alert">
+                                    Toda documentacion o envio sera verificado y certificado por Correos de Bolivia.
+                                </div>
+                            </div>
                         </div>
                     </div>
 

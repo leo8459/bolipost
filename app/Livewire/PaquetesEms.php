@@ -134,8 +134,10 @@ class PaquetesEms extends Component
     public $oficialDireccionDestinatario = '';
     public $showCn33Reprint = false;
     public $showCn33Assign = false;
+    public $showCn38Generate = false;
     public $cn33Despacho = '';
     public $cn33ManualCodigo = '';
+    public $cn38Despacho = '';
     public $generadosHoyCount = 0;
     public $entregaRecibidoPor = '';
     public $entregaDescripcion = '';
@@ -150,6 +152,8 @@ class PaquetesEms extends Component
     public $regionalMismatchDestino = '';
     public $regionalMismatchScope = 'general';
     public $regionalMismatchObservaciones = [];
+    public $regionalPesoZeroItems = [];
+    public $regionalPesoInputs = [];
 
     public $ciudades = [
         'LA PAZ',
@@ -180,6 +184,7 @@ class PaquetesEms extends Component
     public $printCartaUrl = '';
     public $printOptionsMessage = 'Elige el formato para descargar o imprimir.';
     public $printOptionsShouldRedirect = false;
+    public $showCn38PrintOptionsModal = false;
     public $mostrar_empresa = false;
     public $nombre_remitente = '';
     public $nombre_envia = '';
@@ -947,6 +952,7 @@ class PaquetesEms extends Component
         $this->regionalDestino = '';
         $this->regionalTransportMode = 'TERRESTRE';
         $this->regionalTransportNumber = '';
+        $this->prepareRegionalPesoZeroData($idsEms, $idsContratos, $idsSolicitudes);
         $this->dispatch('openRegionalModal');
     }
 
@@ -969,6 +975,7 @@ class PaquetesEms extends Component
         $this->regionalDestinoContrato = '';
         $this->regionalTransportModeContrato = 'TERRESTRE';
         $this->regionalTransportNumberContrato = '';
+        $this->prepareRegionalPesoZeroData([], $ids, []);
         $this->dispatch('openRegionalContratoModal');
     }
 
@@ -1657,6 +1664,71 @@ class PaquetesEms extends Component
         }
     }
 
+    public function toggleCn38Generate(): void
+    {
+        $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
+
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $this->showCn38Generate = !$this->showCn38Generate;
+        if (!$this->showCn38Generate) {
+            $this->cn38Despacho = '';
+        }
+    }
+
+    public function cargarCn38DesdeCn33(): void
+    {
+        $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
+
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $despacho = strtoupper(trim((string) $this->cn38Despacho));
+        if ($despacho === '') {
+            session()->flash('error', 'Ingresa el despacho (cod_especial) del CN-33 para cargar el CN-38.');
+            return;
+        }
+
+        [$idsEms, $idsContratos, $idsSolicitudes] = $this->resolveCn38SelectionIds($despacho);
+
+        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'No se encontraron registros para el despacho ' . $despacho . '.');
+            return;
+        }
+
+        $this->selectedPaquetes = collect($this->selectedPaquetes)
+            ->map(fn ($id) => (string) ((int) $id))
+            ->concat(collect($idsEms)->map(fn ($id) => (string) ((int) $id)))
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->selectedContratos = collect($this->selectedContratos)
+            ->map(fn ($id) => (string) ((int) $id))
+            ->concat(collect($idsContratos)->map(fn ($id) => (string) ((int) $id)))
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->selectedSolicitudes = collect($this->selectedSolicitudes)
+            ->map(fn ($id) => (string) ((int) $id))
+            ->concat(collect($idsSolicitudes)->map(fn ($id) => (string) ((int) $id)))
+            ->unique()
+            ->values()
+            ->all();
+
+        session()->flash(
+            'success',
+            'CN-33 ' . $despacho . ' anadido al CN-38. Registros cargados: '
+            . (count($idsEms) + count($idsContratos) + count($idsSolicitudes)) . '.'
+        );
+
+        $this->cn38Despacho = '';
+    }
+
     public function updatedFiltroOrigenTransito($value): void
     {
         $this->filtroOrigenTransito = strtoupper(trim((string) $value));
@@ -1844,6 +1916,118 @@ class PaquetesEms extends Component
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'cn33-' . $despacho . '-reimpresion.pdf');
+    }
+
+    public function openCn38PrintOptionsModal(): void
+    {
+        $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
+
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $this->showCn38PrintOptionsModal = true;
+        $this->dispatch('openCn38PrintOptionsModal');
+    }
+
+    public function cerrarCn38OpcionesImpresion(): void
+    {
+        $this->showCn38PrintOptionsModal = false;
+        $this->dispatch('closeCn38PrintOptionsModal');
+    }
+
+    public function generarCn38()
+    {
+        return $this->generarCn38EnFormato('lq590');
+    }
+
+    public function generarCn38Carta()
+    {
+        return $this->generarCn38EnFormato('carta');
+    }
+
+    public function generarCn38Lq590()
+    {
+        return $this->generarCn38EnFormato('lq590');
+    }
+
+    protected function generarCn38EnFormato(string $formato)
+    {
+        $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
+
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $idsEms = collect($this->selectedPaquetes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $idsContratos = collect($this->selectedContratos)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $idsSolicitudes = collect($this->selectedSolicitudes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        $despacho = strtoupper(trim((string) $this->cn38Despacho));
+
+        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+            if ($despacho === '') {
+                session()->flash('error', 'Selecciona varios registros o ingresa el despacho CN-33 para generar el CN-38.');
+                return;
+            }
+
+            [$idsEms, $idsContratos, $idsSolicitudes] = $this->resolveCn38SelectionIds($despacho);
+
+            if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+                session()->flash('error', 'No se encontraron registros para el despacho ' . $despacho . '.');
+                return;
+            }
+
+            $this->selectedPaquetes = $idsEms;
+            $this->selectedContratos = $idsContratos;
+            $this->selectedSolicitudes = $idsSolicitudes;
+        }
+
+        $rows = $this->buildCn38PdfDispatchRows($idsEms, $idsContratos, $idsSolicitudes);
+        if ($rows->isEmpty()) {
+            session()->flash('error', 'No se pudo construir el reporte CN-38 con los registros seleccionados.');
+            return;
+        }
+
+        if ($despacho === '') {
+            $despacho = $this->resolveCn38DisplayDespacho($rows->map(function ($row) {
+                return (object) ['despacho' => $row->despacho ?? ''];
+            }));
+        }
+
+        $totalPeso = (float) $rows->sum(fn ($row) => (float) ($row->peso_total ?? 0));
+        $totalCantidad = (int) $rows->count();
+        $generatedAt = collect($rows->pluck('updated_at'))
+            ->filter()
+            ->sortDesc()
+            ->first() ?: now();
+
+        $loggedUserName = trim((string) optional(Auth::user())->name);
+        $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
+        $destinationCity = trim((string) ($rows->first()->destino ?? ''));
+
+        $view = $formato === 'carta' ? 'paquetes_ems.cn38-carta' : 'paquetes_ems.cn38';
+
+        $pdf = Pdf::loadView($view, [
+            'rows' => $rows->values(),
+            'despacho' => $despacho,
+            'generatedAt' => $generatedAt,
+            'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
+            'destinationCity' => $destinationCity !== '' ? $destinationCity : 'N/A',
+            'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
+            'totalPeso' => $totalPeso,
+            'totalCantidad' => $totalCantidad,
+            'selectedTransport' => trim((string) $this->regionalTransportMode) !== '' ? trim((string) $this->regionalTransportMode) : 'TERRESTRE',
+            'transportNumber' => trim((string) $this->regionalTransportNumber) !== '' ? trim((string) $this->regionalTransportNumber) : 'S/N',
+        ])->setPaper($formato === 'carta' ? 'letter' : 'a4', 'portrait');
+
+        $this->cerrarCn38OpcionesImpresion();
+
+        session()->flash('success', 'CN-38 generado en formato ' . strtoupper($formato) . ' con ' . $rows->count() . ' despacho(s).');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'cn38-' . $despacho . '-' . $formato . '.pdf');
     }
 
     public function openEditModal($id)
@@ -2274,6 +2458,11 @@ class PaquetesEms extends Component
             return;
         }
 
+        if (!$this->ensureRegionalZeroWeightResolved($idsEms, $idsContratos, $idsSolicitudes)) {
+            session()->flash('error', 'Los paquetes con este codigo estan en peso 0. Por favor asigne el peso antes de mandar a regional.');
+            return;
+        }
+
         $estadoRegional = $this->resolveRegionalEstado();
         $estadoRegionalId = $estadoRegional['id'] ?? null;
         $estadoRegionalNombre = $estadoRegional['nombre'] ?? null;
@@ -2548,6 +2737,8 @@ class PaquetesEms extends Component
         $this->regionalMismatchItems = [];
         $this->regionalMismatchObservaciones = [];
         $this->regionalDestino = '';
+        $this->regionalPesoZeroItems = [];
+        $this->regionalPesoInputs = [];
         $this->dispatch('closeRegionalModal');
 
         session()->flash('success', $updated . ' registro(s) enviado(s) a regional (' . $estadoRegionalNombre . ').');
@@ -2575,6 +2766,11 @@ class PaquetesEms extends Component
 
         if (empty($ids)) {
             session()->flash('error', 'Selecciona al menos un contrato.');
+            return;
+        }
+
+        if (!$this->ensureRegionalZeroWeightResolved([], $ids, [])) {
+            session()->flash('error', 'Los paquetes con este codigo estan en peso 0. Por favor asigne el peso antes de mandar a regional.');
             return;
         }
 
@@ -2711,6 +2907,8 @@ class PaquetesEms extends Component
         $this->regionalMismatchItems = [];
         $this->regionalMismatchObservaciones = [];
         $this->regionalDestinoContrato = '';
+        $this->regionalPesoZeroItems = [];
+        $this->regionalPesoInputs = [];
         $this->dispatch('closeRegionalContratoModal');
 
         session()->flash('success', $updated . ' contrato(s) enviado(s) a regional (' . $estadoRegionalNombre . ').');
@@ -4431,6 +4629,7 @@ class PaquetesEms extends Component
         $contratosAlmacen = null;
         $almacenRows = null;
         $selectedPreviewRows = collect();
+        $cn38DispatchSummaryRows = collect();
         $ventanillaResumenRows = collect();
 
         if ($this->isCreateEms) {
@@ -4469,6 +4668,7 @@ class PaquetesEms extends Component
 
             if ($this->canUseSelectedPreview) {
                 $selectedPreviewRows = $this->buildSelectedPreviewRows();
+                $cn38DispatchSummaryRows = $this->buildCn38DispatchSummaryRows();
             }
 
             if ($this->isAlmacenEms) {
@@ -4483,6 +4683,7 @@ class PaquetesEms extends Component
             'paquetes' => $paquetes,
             'almacenRows' => $almacenRows,
             'selectedPreviewRows' => $selectedPreviewRows,
+            'cn38DispatchSummaryRows' => $cn38DispatchSummaryRows,
             'ventanillaResumenRows' => $ventanillaResumenRows,
             'contratosAlmacen' => $contratosAlmacen,
             'origenesTransito' => $this->transitoFilterOptions('origen'),
@@ -4578,6 +4779,419 @@ class PaquetesEms extends Component
         return $preview
             ->sortBy(fn ($row) => sprintf('%s-%s', (string) ($row->tipo ?? ''), (string) ($row->codigo ?? '')))
             ->values();
+    }
+
+    protected function buildCn38DispatchSummaryRows(): Collection
+    {
+        $idsEms = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsContratos = collect($this->selectedContratos)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsSolicitudes = collect($this->selectedSolicitudes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $rows = collect();
+
+        if (!empty($idsEms)) {
+            $rows = $rows->concat(
+                DB::table('paquetes_ems')
+                    ->whereIn('id', $idsEms)
+                    ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
+                    ->selectRaw('coalesce(peso, 0) as peso')
+                    ->get()
+            );
+        }
+
+        if (!empty($idsContratos)) {
+            $rows = $rows->concat(
+                DB::table('paquetes_contrato')
+                    ->whereIn('id', $idsContratos)
+                    ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
+                    ->selectRaw('coalesce(peso, 0) as peso')
+                    ->get()
+            );
+        }
+
+        if (!empty($idsSolicitudes)) {
+            $rows = $rows->concat(
+                DB::table('solicitud_clientes')
+                    ->whereIn('id', $idsSolicitudes)
+                    ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
+                    ->selectRaw('coalesce(peso, 0) as peso')
+                    ->get()
+            );
+        }
+
+        return $rows
+            ->groupBy(fn ($row) => strtoupper(trim((string) ($row->despacho ?? 'SIN CN-33'))))
+            ->map(function ($group, $despacho) {
+                return (object) [
+                    'despacho' => $despacho,
+                    'registros' => $group->count(),
+                    'peso_total' => (float) $group->sum(fn ($item) => (float) ($item->peso ?? 0)),
+                ];
+            })
+            ->sortBy('despacho')
+            ->values();
+    }
+
+    protected function resolveCn38SelectionIds(string $despacho): array
+    {
+        $codigoNormalizado = strtoupper(trim($despacho));
+
+        $idsEms = PaqueteEms::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsContratos = RecojoContrato::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsSolicitudes = SolicitudCliente::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        return [$idsEms, $idsContratos, $idsSolicitudes];
+    }
+
+    protected function buildCn38Rows(string $despacho): Collection
+    {
+        $codigoNormalizado = strtoupper(trim($despacho));
+
+        $emsRows = PaqueteEms::query()
+            ->with(['user:id,empresa_id', 'user.empresa:id,nombre'])
+            ->whereRaw('trim(upper(COALESCE(paquetes_ems.cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+            ->orderBy('paquetes_ems.id')
+            ->get($this->paqueteEmsColumns([
+                'id',
+                'codigo',
+                'cod_especial',
+                'origen',
+                'ciudad',
+                'cantidad',
+                'peso',
+                'nombre_remitente',
+                'observacion',
+                'updated_at',
+                'user_id',
+            ]))
+            ->map(function ($row) {
+                return (object) [
+                    'tipo' => 'EMS',
+                    'codigo' => (string) ($row->codigo ?? 'SIN CODIGO'),
+                    'origen' => (string) ($row->origen ?? '-'),
+                    'destino' => (string) ($row->ciudad ?? '-'),
+                    'cantidad' => (int) ($row->cantidad ?? 1),
+                    'peso' => (float) ($row->peso ?? 0),
+                    'remitente' => $this->composeCn33Remitente(
+                        $row->nombre_remitente,
+                        optional(optional($row->user)->empresa)->nombre
+                    ),
+                    'observacion' => (string) ($row->observacion ?? ''),
+                    'updated_at' => $row->updated_at ?? null,
+                ];
+            });
+
+        $contratoRows = RecojoContrato::query()
+            ->with(['empresa:id,nombre'])
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo',
+                'origen',
+                'destino',
+                'peso',
+                'nombre_r',
+                'observacion',
+                'updated_at',
+                'empresa_id',
+            ])
+            ->map(function ($row) {
+                return (object) [
+                    'tipo' => 'CONTRATO',
+                    'codigo' => (string) ($row->codigo ?? 'SIN CODIGO'),
+                    'origen' => (string) ($row->origen ?? '-'),
+                    'destino' => (string) ($row->destino ?? '-'),
+                    'cantidad' => 1,
+                    'peso' => (float) ($row->peso ?? 0),
+                    'remitente' => $this->composeCn33Remitente(
+                        $row->nombre_r,
+                        optional($row->empresa)->nombre
+                    ),
+                    'observacion' => (string) ($row->observacion ?? ''),
+                    'updated_at' => $row->updated_at ?? null,
+                ];
+            });
+
+        $solicitudRows = SolicitudCliente::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo_solicitud',
+                'barcode',
+                'origen',
+                'ciudad',
+                'cantidad',
+                'peso',
+                'nombre_remitente',
+                'observacion',
+                'updated_at',
+            ])
+            ->map(function ($row) {
+                return (object) [
+                    'tipo' => 'SOLICITUD',
+                    'codigo' => (string) ($row->codigo_solicitud ?: ($row->barcode ?: 'SIN CODIGO')),
+                    'origen' => (string) ($row->origen ?? '-'),
+                    'destino' => (string) ($row->ciudad ?? '-'),
+                    'cantidad' => (int) ($row->cantidad ?? 1),
+                    'peso' => (float) ($row->peso ?? 0),
+                    'remitente' => (string) ($row->nombre_remitente ?? 'SIN REMITENTE'),
+                    'observacion' => (string) ($row->observacion ?? ''),
+                    'updated_at' => $row->updated_at ?? null,
+                ];
+            });
+
+        return $emsRows
+            ->concat($contratoRows)
+            ->concat($solicitudRows)
+            ->values()
+            ->map(function ($row, $index) {
+                $row->correlativo = $index + 1;
+                return $row;
+            });
+    }
+
+    protected function buildCn38RowsFromSelectedIds(array $idsEms, array $idsContratos, array $idsSolicitudes): Collection
+    {
+        $rows = collect();
+
+        if (!empty($idsEms)) {
+            $rows = $rows->concat(
+                PaqueteEms::query()
+                    ->with(['user:id,empresa_id', 'user.empresa:id,nombre'])
+                    ->whereIn('id', $idsEms)
+                    ->orderBy('id')
+                    ->get($this->paqueteEmsColumns([
+                        'id',
+                        'codigo',
+                        'cod_especial',
+                        'origen',
+                        'ciudad',
+                        'cantidad',
+                        'peso',
+                        'nombre_remitente',
+                        'observacion',
+                        'updated_at',
+                        'user_id',
+                    ]))
+                    ->map(function ($row) {
+                        return (object) [
+                            'tipo' => 'EMS',
+                            'codigo' => (string) ($row->codigo ?? 'SIN CODIGO'),
+                            'origen' => (string) ($row->origen ?? '-'),
+                            'destino' => (string) ($row->ciudad ?? '-'),
+                            'cantidad' => (int) ($row->cantidad ?? 1),
+                            'peso' => (float) ($row->peso ?? 0),
+                            'remitente' => $this->composeCn33Remitente(
+                                $row->nombre_remitente,
+                                optional(optional($row->user)->empresa)->nombre
+                            ),
+                            'observacion' => (string) ($row->observacion ?? ''),
+                            'updated_at' => $row->updated_at ?? null,
+                            'despacho' => (string) ($row->cod_especial ?? ''),
+                        ];
+                    })
+            );
+        }
+
+        if (!empty($idsContratos)) {
+            $rows = $rows->concat(
+                RecojoContrato::query()
+                    ->with(['empresa:id,nombre'])
+                    ->whereIn('id', $idsContratos)
+                    ->orderBy('id')
+                    ->get([
+                        'id',
+                        'codigo',
+                        'cod_especial',
+                        'origen',
+                        'destino',
+                        'peso',
+                        'nombre_r',
+                        'observacion',
+                        'updated_at',
+                        'empresa_id',
+                    ])
+                    ->map(function ($row) {
+                        return (object) [
+                            'tipo' => 'CONTRATO',
+                            'codigo' => (string) ($row->codigo ?? 'SIN CODIGO'),
+                            'origen' => (string) ($row->origen ?? '-'),
+                            'destino' => (string) ($row->destino ?? '-'),
+                            'cantidad' => 1,
+                            'peso' => (float) ($row->peso ?? 0),
+                            'remitente' => $this->composeCn33Remitente(
+                                $row->nombre_r,
+                                optional($row->empresa)->nombre
+                            ),
+                            'observacion' => (string) ($row->observacion ?? ''),
+                            'updated_at' => $row->updated_at ?? null,
+                            'despacho' => (string) ($row->cod_especial ?? ''),
+                        ];
+                    })
+            );
+        }
+
+        if (!empty($idsSolicitudes)) {
+            $rows = $rows->concat(
+                SolicitudCliente::query()
+                    ->whereIn('id', $idsSolicitudes)
+                    ->orderBy('id')
+                    ->get([
+                        'id',
+                        'codigo_solicitud',
+                        'barcode',
+                        'cod_especial',
+                        'origen',
+                        'ciudad',
+                        'cantidad',
+                        'peso',
+                        'nombre_remitente',
+                        'observacion',
+                        'updated_at',
+                    ])
+                    ->map(function ($row) {
+                        return (object) [
+                            'tipo' => 'SOLICITUD',
+                            'codigo' => (string) ($row->codigo_solicitud ?: ($row->barcode ?: 'SIN CODIGO')),
+                            'origen' => (string) ($row->origen ?? '-'),
+                            'destino' => (string) ($row->ciudad ?? '-'),
+                            'cantidad' => (int) ($row->cantidad ?? 1),
+                            'peso' => (float) ($row->peso ?? 0),
+                            'remitente' => (string) ($row->nombre_remitente ?? 'SIN REMITENTE'),
+                            'observacion' => (string) ($row->observacion ?? ''),
+                            'updated_at' => $row->updated_at ?? null,
+                            'despacho' => (string) ($row->cod_especial ?? ''),
+                        ];
+                    })
+            );
+        }
+
+        return $rows
+            ->values()
+            ->map(function ($row, $index) {
+                $row->correlativo = $index + 1;
+                return $row;
+            });
+    }
+
+    protected function buildCn38PdfDispatchRows(array $idsEms, array $idsContratos, array $idsSolicitudes): Collection
+    {
+        $rows = collect();
+
+        if (!empty($idsEms)) {
+            $rows = $rows->concat(
+                DB::table('paquetes_ems')
+                    ->whereIn('id', $idsEms)
+                    ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
+                    ->selectRaw("coalesce(origen, '-') as origen")
+                    ->selectRaw("coalesce(ciudad, '-') as destino")
+                    ->selectRaw('coalesce(peso, 0) as peso')
+                    ->selectRaw('updated_at')
+                    ->get()
+            );
+        }
+
+        if (!empty($idsContratos)) {
+            $rows = $rows->concat(
+                DB::table('paquetes_contrato')
+                    ->whereIn('id', $idsContratos)
+                    ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
+                    ->selectRaw("coalesce(origen, '-') as origen")
+                    ->selectRaw("coalesce(destino, '-') as destino")
+                    ->selectRaw('coalesce(peso, 0) as peso')
+                    ->selectRaw('updated_at')
+                    ->get()
+            );
+        }
+
+        if (!empty($idsSolicitudes)) {
+            $rows = $rows->concat(
+                DB::table('solicitud_clientes')
+                    ->whereIn('id', $idsSolicitudes)
+                    ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
+                    ->selectRaw("coalesce(origen, '-') as origen")
+                    ->selectRaw("coalesce(ciudad, '-') as destino")
+                    ->selectRaw('coalesce(peso, 0) as peso')
+                    ->selectRaw('updated_at')
+                    ->get()
+            );
+        }
+
+        return $rows
+            ->groupBy(fn ($row) => strtoupper(trim((string) ($row->despacho ?? 'SIN CN-33'))))
+            ->map(function ($group, $despacho) {
+                $first = $group->first();
+
+                return (object) [
+                    'despacho' => $despacho,
+                    'origen' => (string) ($first->origen ?? '-'),
+                    'destino' => (string) ($first->destino ?? '-'),
+                    'peso_total' => (float) $group->sum(fn ($item) => (float) ($item->peso ?? 0)),
+                    'registros' => (int) $group->count(),
+                    'updated_at' => $group->pluck('updated_at')->filter()->sortDesc()->first(),
+                ];
+            })
+            ->sortBy('despacho')
+            ->values();
+    }
+
+    protected function resolveCn38DisplayDespacho(Collection $rows): string
+    {
+        $despachos = $rows
+            ->pluck('despacho')
+            ->map(fn ($value) => strtoupper(trim((string) $value)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($despachos->count() === 1) {
+            return (string) $despachos->first();
+        }
+
+        if ($despachos->count() > 1) {
+            return 'MULTIPLE';
+        }
+
+        return 'SELECCION';
     }
 
     protected function buildVentanillaResumenRows(): Collection
@@ -7164,6 +7778,255 @@ class PaquetesEms extends Component
         }
 
         return $valid;
+    }
+
+    protected function prepareRegionalPesoZeroData(array $idsEms, array $idsContratos, array $idsSolicitudes): void
+    {
+        $items = collect();
+        $existingInputs = collect($this->regionalPesoInputs ?? []);
+
+        if (!empty($idsEms)) {
+            $items = $items->merge(
+                PaqueteEms::query()
+                    ->whereIn('id', $idsEms)
+                    ->where(function ($query) {
+                        $query->whereNull('peso')
+                            ->orWhere('peso', '<=', 0);
+                    })
+                    ->orderBy('id')
+                    ->get(['id', 'codigo', 'peso'])
+                    ->map(function (PaqueteEms $paquete) use ($existingInputs) {
+                        $key = 'ems_' . (int) $paquete->id;
+
+                        return [
+                            'key' => $key,
+                            'type' => 'ems',
+                            'id' => (int) $paquete->id,
+                            'codigo' => (string) ($paquete->codigo ?: 'SIN CODIGO'),
+                            'peso' => (float) ($paquete->peso ?? 0),
+                            'input' => $existingInputs->get($key, ''),
+                        ];
+                    })
+            );
+        }
+
+        if (!empty($idsContratos)) {
+            $items = $items->merge(
+                RecojoContrato::query()
+                    ->whereIn('id', $idsContratos)
+                    ->where(function ($query) {
+                        $query->whereNull('peso')
+                            ->orWhere('peso', '<=', 0);
+                    })
+                    ->orderBy('id')
+                    ->get(['id', 'codigo', 'peso'])
+                    ->map(function (RecojoContrato $contrato) use ($existingInputs) {
+                        $key = 'contrato_' . (int) $contrato->id;
+
+                        return [
+                            'key' => $key,
+                            'type' => 'contrato',
+                            'id' => (int) $contrato->id,
+                            'codigo' => (string) ($contrato->codigo ?: 'SIN CODIGO'),
+                            'peso' => (float) ($contrato->peso ?? 0),
+                            'input' => $existingInputs->get($key, ''),
+                        ];
+                    })
+            );
+        }
+
+        if (!empty($idsSolicitudes)) {
+            $items = $items->merge(
+                SolicitudCliente::query()
+                    ->whereIn('id', $idsSolicitudes)
+                    ->where(function ($query) {
+                        $query->whereNull('peso')
+                            ->orWhere('peso', '<=', 0);
+                    })
+                    ->orderBy('id')
+                    ->get(['id', 'codigo_solicitud', 'barcode', 'peso'])
+                    ->map(function (SolicitudCliente $solicitud) use ($existingInputs) {
+                        $key = 'solicitud_' . (int) $solicitud->id;
+                        $codigo = $solicitud->codigo_solicitud ?: ($solicitud->barcode ?: 'SIN CODIGO');
+
+                        return [
+                            'key' => $key,
+                            'type' => 'solicitud',
+                            'id' => (int) $solicitud->id,
+                            'codigo' => (string) $codigo,
+                            'peso' => (float) ($solicitud->peso ?? 0),
+                            'input' => $existingInputs->get($key, ''),
+                        ];
+                    })
+            );
+        }
+
+        $this->regionalPesoZeroItems = $items->values()->all();
+        $this->regionalPesoInputs = $items
+            ->mapWithKeys(fn (array $item) => [$item['key'] => $item['input']])
+            ->all();
+    }
+
+    protected function ensureRegionalZeroWeightResolved(array $idsEms, array $idsContratos, array $idsSolicitudes): bool
+    {
+        $this->prepareRegionalPesoZeroData($idsEms, $idsContratos, $idsSolicitudes);
+
+        if (empty($this->regionalPesoZeroItems)) {
+            return true;
+        }
+
+        $rules = [];
+        $messages = [];
+
+        foreach ($this->regionalPesoZeroItems as $item) {
+            $key = (string) ($item['key'] ?? '');
+            $codigo = (string) ($item['codigo'] ?? 'SIN CODIGO');
+
+            if ($key === '') {
+                continue;
+            }
+
+            $rules['regionalPesoInputs.' . $key] = 'required|numeric|min:0.001';
+            $messages['regionalPesoInputs.' . $key . '.required'] = 'Debes asignar el peso para ' . $codigo . '.';
+            $messages['regionalPesoInputs.' . $key . '.numeric'] = 'El peso para ' . $codigo . ' debe ser numerico.';
+            $messages['regionalPesoInputs.' . $key . '.min'] = 'El peso para ' . $codigo . ' debe ser mayor a 0.';
+        }
+
+        $validated = $this->validate($rules, $messages);
+        $pesos = collect($validated['regionalPesoInputs'] ?? [])
+            ->mapWithKeys(fn ($peso, $key) => [$key => round((float) $peso, 3)]);
+
+        try {
+            DB::transaction(function () use ($pesos) {
+                foreach ($this->regionalPesoZeroItems as $item) {
+                    $key = (string) ($item['key'] ?? '');
+                    $type = (string) ($item['type'] ?? '');
+                    $id = (int) ($item['id'] ?? 0);
+                    $peso = $pesos->get($key);
+
+                    if ($key === '' || $id <= 0 || $peso === null || $peso <= 0) {
+                        continue;
+                    }
+
+                    if ($type === 'ems') {
+                        PaqueteEms::query()
+                            ->whereKey($id)
+                            ->update(['peso' => $peso]);
+
+                        PaqueteEmsFormulario::query()
+                            ->where('paquete_ems_id', $id)
+                            ->update(['peso' => $peso]);
+
+                        continue;
+                    }
+
+                    if ($type === 'contrato') {
+                        $contrato = RecojoContrato::query()
+                            ->whereKey($id)
+                            ->lockForUpdate()
+                            ->first([
+                                'id',
+                                'empresa_id',
+                                'peso',
+                                'precio',
+                                'tarifa_contrato_id',
+                            ]);
+
+                        if (!$contrato) {
+                            continue;
+                        }
+
+                        $teniaTarifaAsignada = (int) ($contrato->tarifa_contrato_id ?? 0) > 0;
+                        $contrato->peso = $peso;
+                        $this->applyTarifaContratoPricing($contrato, $teniaTarifaAsignada);
+                        continue;
+                    }
+
+                    if ($type === 'solicitud') {
+                        $solicitud = SolicitudCliente::query()
+                            ->whereKey($id)
+                            ->lockForUpdate()
+                            ->first([
+                                'id',
+                                'peso',
+                                'precio',
+                                'servicio_extra_id',
+                                'destino_id',
+                                'origen',
+                                'pago_destinatario',
+                            ]);
+
+                        if (!$solicitud) {
+                            continue;
+                        }
+
+                        try {
+                            [$tarifario, $precio] = $this->resolveTarifarioTiktokerYPrecio(
+                                (int) $solicitud->servicio_extra_id,
+                                (string) $solicitud->origen,
+                                (int) $solicitud->destino_id,
+                                $peso,
+                                (bool) $solicitud->pago_destinatario
+                            );
+                        } catch (\RuntimeException $exception) {
+                            throw new \RuntimeException($key . '|' . $exception->getMessage());
+                        }
+
+                        $solicitud->peso = $peso;
+                        $solicitud->precio = $precio;
+                        $solicitud->tarifario_tiktoker_id = (int) $tarifario->id;
+                        $solicitud->save();
+                    }
+                }
+            });
+        } catch (\RuntimeException $exception) {
+            $message = $exception->getMessage();
+            if (str_contains($message, '|')) {
+                [$errorKey, $errorMessage] = explode('|', $message, 2);
+                $this->addError('regionalPesoInputs.' . $errorKey, $errorMessage);
+                return false;
+            }
+
+            throw $exception;
+        }
+
+        $this->prepareRegionalPesoZeroData(
+            $this->selectedPaquetesAsInt(),
+            $this->selectedContratosAsInt(),
+            $this->selectedSolicitudesAsInt()
+        );
+
+        return empty($this->regionalPesoZeroItems);
+    }
+
+    protected function selectedPaquetesAsInt(): array
+    {
+        return collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function selectedContratosAsInt(): array
+    {
+        return collect($this->selectedContratos)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function selectedSolicitudesAsInt(): array
+    {
+        return collect($this->selectedSolicitudes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     protected function refreshRemitenteSugerencias(string $value): void

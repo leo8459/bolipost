@@ -17,6 +17,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class DashboardController extends Controller
 {
+    private array $estadoIdCache = [];
+
     private const EVENTO_ENTREGADO_ID = 316;
     private const EVENTO_ENVIADO_VENTANILLA_ID = 312;
     private const EVENTO_EMS_SOLICITUD_ID = 295;
@@ -57,6 +59,7 @@ class DashboardController extends Controller
             'label' => 'EMS',
             'table' => 'paquetes_ems',
             'estado_column' => 'estado_id',
+            'origen_column' => 'origen',
             'departamento_column' => 'ciudad',
             'peso_column' => 'peso',
             'precio_column' => 'precio',
@@ -69,6 +72,7 @@ class DashboardController extends Controller
             'label' => 'CONTRATOS',
             'table' => 'paquetes_contrato',
             'estado_column' => 'estados_id',
+            'origen_column' => 'origen',
             'departamento_column' => 'destino',
             'peso_column' => 'peso',
             'precio_column' => 'precio',
@@ -81,6 +85,7 @@ class DashboardController extends Controller
             'label' => 'CERTIFICADOS',
             'table' => 'paquetes_certi',
             'estado_column' => 'fk_estado',
+            'origen_column' => null,
             'departamento_column' => 'cuidad',
             'peso_column' => 'peso',
             'precio_column' => null,
@@ -93,6 +98,7 @@ class DashboardController extends Controller
             'label' => 'ORDINARIOS',
             'table' => 'paquetes_ordi',
             'estado_column' => 'fk_estado',
+            'origen_column' => null,
             'departamento_column' => 'ciudad',
             'peso_column' => 'peso',
             'precio_column' => null,
@@ -622,11 +628,19 @@ class DashboardController extends Controller
 
     private function resolveEstadoIdByName(string $estadoNombre): ?int
     {
+        $cacheKey = strtoupper(trim($estadoNombre));
+        if (array_key_exists($cacheKey, $this->estadoIdCache)) {
+            return $this->estadoIdCache[$cacheKey];
+        }
+
         $id = Estado::query()
             ->whereRaw('trim(upper(nombre_estado)) = ?', [strtoupper(trim($estadoNombre))])
             ->value('id');
 
-        return $id ? (int) $id : null;
+        $resolvedId = $id ? (int) $id : null;
+        $this->estadoIdCache[$cacheKey] = $resolvedId;
+
+        return $resolvedId;
     }
 
     private function countLateDeliveredForModulo(array $config, int $estadoEntregadoId, ?Carbon $from, ?Carbon $to): int
@@ -1431,18 +1445,16 @@ class DashboardController extends Controller
             return;
         }
 
-        $column = (string) ($config['departamento_column'] ?? '');
-        if ($column === '') {
+        $expression = $this->effectiveDepartamentoExpression($config, $tableAlias);
+        if ($expression === '') {
             return;
         }
 
-        $qualifiedColumn = ($tableAlias !== '' ? $tableAlias . '.' : '') . $column;
-        $query->whereRaw('trim(upper(' . $qualifiedColumn . ')) = ?', [$departamento]);
+        $query->whereRaw('trim(upper(' . $expression . ')) = ?', [$departamento]);
     }
 
     private function applyDepartamentoAliasesFilter(Builder $query, array $config, array $aliases, string $tableAlias = ''): void
     {
-        $column = (string) ($config['departamento_column'] ?? '');
         $aliases = collect($aliases)
             ->map(fn ($value) => strtoupper(trim((string) $value)))
             ->filter()
@@ -1450,12 +1462,37 @@ class DashboardController extends Controller
             ->values()
             ->all();
 
-        if ($column === '' || empty($aliases)) {
+        $expression = $this->effectiveDepartamentoExpression($config, $tableAlias);
+        if ($expression === '' || empty($aliases)) {
             return;
         }
 
-        $qualifiedColumn = ($tableAlias !== '' ? $tableAlias . '.' : '') . $column;
-        $query->whereIn(DB::raw('trim(upper(' . $qualifiedColumn . '))'), $aliases);
+        $query->whereIn(DB::raw('trim(upper(' . $expression . '))'), $aliases);
+    }
+
+    private function effectiveDepartamentoExpression(array $config, string $tableAlias = ''): string
+    {
+        $destinoColumn = (string) ($config['departamento_column'] ?? '');
+        if ($destinoColumn === '') {
+            return '';
+        }
+
+        $qualifiedDestino = ($tableAlias !== '' ? $tableAlias . '.' : '') . $destinoColumn;
+        $origenColumn = (string) ($config['origen_column'] ?? '');
+        $estadoColumn = (string) ($config['estado_column'] ?? '');
+        $estadoAlmacenId = $this->resolveEstadoIdByName('ALMACEN');
+
+        if ($origenColumn === '' || $estadoColumn === '' || !$estadoAlmacenId) {
+            return 'coalesce(' . $qualifiedDestino . ", '')";
+        }
+
+        $qualifiedOrigen = ($tableAlias !== '' ? $tableAlias . '.' : '') . $origenColumn;
+        $qualifiedEstado = ($tableAlias !== '' ? $tableAlias . '.' : '') . $estadoColumn;
+
+        return 'case when '
+            . $qualifiedEstado . ' = ' . (int) $estadoAlmacenId
+            . " then coalesce(nullif(trim(" . $qualifiedOrigen . "), ''), " . $qualifiedDestino . ")"
+            . ' else coalesce(' . $qualifiedDestino . ", '') end";
     }
 
     private function departamentoAliasMap(): array
