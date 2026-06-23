@@ -492,6 +492,30 @@ class BusquedaController extends Controller
         $office = trim((string) ($evento['office'] ?? ''));
         $nextOffice = trim((string) ($evento['nextOffice'] ?? ''));
         $detail = trim((string) ($evento['detail'] ?? ''));
+        $paisOrigenIso2 = trim((string) (
+            $evento['origin_country_code']
+            ?? data_get($payload, 'meta.origin_country_code')
+            ?? ''
+        ));
+        $paisDestinoIso2 = trim((string) (
+            $evento['destination_country_code']
+            ?? data_get($payload, 'meta.destination_country_code')
+            ?? ''
+        ));
+        $paisOrigenNombre = trim((string) (
+            $evento['origin_country_name']
+            ?? data_get($payload, 'meta.origin_country_name')
+            ?? data_get($payload, 'origen')
+            ?? ''
+        ));
+        $paisDestinoNombre = trim((string) (
+            $evento['destination_country_name']
+            ?? data_get($payload, 'meta.destination_country_name')
+            ?? data_get($payload, 'destino')
+            ?? data_get($payload, 'pais_destino')
+            ?? data_get($payload, 'country_destino')
+            ?? ''
+        ));
         $ciudadOrigen = trim((string) (
             $evento['ciudad_origen']
             ?? $evento['origen']
@@ -541,6 +565,10 @@ class BusquedaController extends Controller
             'descripcion' => $detail !== '' ? $detail : null,
             'ciudad_origen' => $ciudadOrigen !== '' ? $ciudadOrigen : null,
             'ciudad_destino' => $ciudadDestino !== '' ? $ciudadDestino : null,
+            'pais_origen_iso2' => $paisOrigenIso2 !== '' ? strtoupper($paisOrigenIso2) : null,
+            'pais_destino_iso2' => $paisDestinoIso2 !== '' ? strtoupper($paisDestinoIso2) : null,
+            'pais_origen_nombre' => $paisOrigenNombre !== '' ? $paisOrigenNombre : null,
+            'pais_destino_nombre' => $paisDestinoNombre !== '' ? $paisDestinoNombre : null,
             'condition' => trim((string) ($evento['condition'] ?? '')),
             '_sort_ts' => $timestamp !== false ? $timestamp : (PHP_INT_MAX - $index),
             '_sort_priority' => $this->calcularPrioridadEvento($nombreEvento),

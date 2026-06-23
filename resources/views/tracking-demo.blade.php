@@ -134,9 +134,70 @@
 
             return preg_replace('/\s+/', ' ', $texto) ?: $texto;
         };
-        $iso2DesdeNombrePais = function (?string $valor) use ($normalizarNombrePais, $normalizarIso2): ?string {
+        $mapaPaisesConocidos = [
+            'BOLIVIA' => 'BO',
+            'PERU' => 'PE',
+            'SPAIN' => 'ES',
+            'ESPANA' => 'ES',
+            'ARGENTINA' => 'AR',
+            'BRAZIL' => 'BR',
+            'BRASIL' => 'BR',
+            'CHILE' => 'CL',
+            'UNITED STATES' => 'US',
+            'ESTADOS UNIDOS' => 'US',
+            'COLOMBIA' => 'CO',
+            'PARAGUAY' => 'PY',
+            'URUGUAY' => 'UY',
+            'ECUADOR' => 'EC',
+            'VENEZUELA' => 'VE',
+            'MEXICO' => 'MX',
+            'FRANCE' => 'FR',
+            'FRANCIA' => 'FR',
+            'GERMANY' => 'DE',
+            'ALEMANIA' => 'DE',
+            'ITALY' => 'IT',
+            'ITALIA' => 'IT',
+            'UNITED KINGDOM' => 'GB',
+            'REINO UNIDO' => 'GB',
+            'CHINA' => 'CN',
+            'JAPAN' => 'JP',
+            'JAPON' => 'JP',
+            'SOUTH KOREA' => 'KR',
+            'COREA DEL SUR' => 'KR',
+        ];
+        $mapaIso2APais = [
+            'BO' => 'Bolivia',
+            'PE' => 'Peru',
+            'ES' => 'Espana',
+            'AR' => 'Argentina',
+            'BR' => 'Brasil',
+            'CL' => 'Chile',
+            'US' => 'Estados Unidos',
+            'CO' => 'Colombia',
+            'PY' => 'Paraguay',
+            'UY' => 'Uruguay',
+            'EC' => 'Ecuador',
+            'VE' => 'Venezuela',
+            'MX' => 'Mexico',
+            'FR' => 'Francia',
+            'DE' => 'Alemania',
+            'IT' => 'Italia',
+            'GB' => 'Reino Unido',
+            'CN' => 'China',
+            'JP' => 'Japon',
+            'KR' => 'Corea del Sur',
+        ];
+        $iso2DesdeNombrePais = function (?string $valor) use ($normalizarNombrePais, $normalizarIso2, $mapaPaisesConocidos): ?string {
             $pais = $normalizarNombrePais($valor);
-            if ($pais === '' || !class_exists(\ResourceBundle::class)) {
+            if ($pais === '') {
+                return null;
+            }
+
+            if (isset($mapaPaisesConocidos[$pais])) {
+                return $mapaPaisesConocidos[$pais];
+            }
+
+            if (!class_exists(\ResourceBundle::class)) {
                 return null;
             }
 
@@ -165,9 +226,17 @@
 
             return null;
         };
-        $nombrePaisDesdeIso2 = function (?string $valor) use ($normalizarIso2): ?string {
+        $nombrePaisDesdeIso2 = function (?string $valor) use ($normalizarIso2, $mapaIso2APais): ?string {
             $iso = $normalizarIso2($valor);
-            if ($iso === null || !class_exists(\ResourceBundle::class)) {
+            if ($iso === null) {
+                return null;
+            }
+
+            if (isset($mapaIso2APais[$iso])) {
+                return $mapaIso2APais[$iso];
+            }
+
+            if (!class_exists(\ResourceBundle::class)) {
                 return null;
             }
 
@@ -196,7 +265,11 @@
                 return null;
             }
 
-            if (preg_match('/([A-Z0-9]{12,})/', $raw, $match) !== 1) {
+            if (preg_match('/RECEPTACULO|ENVASE|DESPACHO|RUTA/', $raw) !== 1) {
+                return null;
+            }
+
+            if (preg_match('/([A-Z]{2}[A-Z]{3}[A-Z0-9][A-Z]{2}[A-Z]{3}[A-Z0-9][A-Z0-9]*)/', $raw, $match) !== 1) {
                 return null;
             }
 
@@ -254,8 +327,8 @@
                 return $iso2DesdeNombrePais($paisDesdeOffice);
             }
 
-            if (preg_match('/\b([A-Z]{2})[A-Z0-9]{3,}\b/', $valor, $m) === 1) {
-                return $normalizarIso2($m[1]);
+            if (preg_match('/^([A-Z]{2}[A-Z]{3}[A-Z0-9]*)\b/', $valor, $m) === 1) {
+                return $normalizarIso2(substr((string) $m[1], 0, 2));
             }
 
             return null;
@@ -289,11 +362,15 @@
         $eventoOrigen = $eventos->first(function ($item) use ($extraerPaisDesdeOffice) {
             return $extraerPaisDesdeOffice($item->office ?? '') !== '';
         });
+        $esOficinaPaisOrigenGenerico = function (?string $texto) use ($extraerPaisDesdeOffice): bool {
+            return $extraerPaisDesdeOffice($texto) !== '';
+        };
         $paisOrigenExterno = $eventoOrigen ? $extraerPaisDesdeOffice($eventoOrigen->office ?? '') : '';
         $origenExternoIso2 = $eventoOrigen
             ? ($iso2DesdeCodigoS10($eventoOrigen->codigo ?? $codigo) ?? $iso2DesdeNombrePais($paisOrigenExterno))
             : null;
         $ciudadOrigenLocal = trim((string) ($eventos->firstWhere('ciudad_origen')?->ciudad_origen ?? ''));
+        $origenIso2DesdeCiudad = $ciudadOrigenLocal !== '' ? $iso2DesdeNombrePais($ciudadOrigenLocal) : null;
         $ciudadOrigenDesdeOficina = $eventos
             ->reverse()
             ->map(function ($item) use ($detectarDepartamentoBolivia) {
@@ -309,7 +386,15 @@
             })
             ->first(fn (?string $ciudad) => $ciudad !== null && $ciudad !== '');
         $ciudadDestinoLocal = trim((string) ($eventos->firstWhere('ciudad_destino')?->ciudad_destino ?? ''));
-        $destinoIso2DesdeCiudad = $ciudadDestinoLocal !== '' ? $iso2DesdeNombrePais($ciudadDestinoLocal) : null;
+        $ciudadDestinoDesdeOficina = $eventos
+            ->map(function ($item) use ($detectarDepartamentoBolivia) {
+                return $detectarDepartamentoBolivia($item->office ?? '')
+                    ?? $detectarDepartamentoBolivia($item->next_office ?? '');
+            })
+            ->first(fn (?string $ciudad) => $ciudad !== null && $ciudad !== '');
+        $destinoIso2DesdePayload = $normalizarIso2($eventos->firstWhere('pais_destino_iso2')?->pais_destino_iso2 ?? null);
+        $destinoNombreDesdePayload = trim((string) ($eventos->firstWhere('pais_destino_nombre')?->pais_destino_nombre ?? ''));
+        $destinoIso2DesdeCiudad = $destinoIso2DesdePayload ?? ($ciudadDestinoLocal !== '' ? $iso2DesdeNombrePais($ciudadDestinoLocal) : null);
         $rutaInternacionalSaliente = $eventos
             ->reverse()
             ->map(function ($item) use ($extraerRutaInternacional) {
@@ -340,6 +425,9 @@
         } elseif ($preferirOrigenExterno) {
             $origenLabel = $paisOrigenExterno;
             $origenIso2 = $origenExternoIso2;
+        } elseif ($origenIso2DesdeCiudad !== null && $origenIso2DesdeCiudad !== 'BO') {
+            $origenLabel = $nombrePaisDesdeIso2($origenIso2DesdeCiudad) ?? $ciudadOrigenLocal;
+            $origenIso2 = $origenIso2DesdeCiudad;
         } elseif ($ciudadOrigenLocal !== '') {
             $origenLabel = ucwords(mb_strtolower($ciudadOrigenLocal));
             $origenIso2 = 'BO';
@@ -362,8 +450,21 @@
         $origenMostrarComoPais = $origenIso2
             && mb_strtolower(trim($origenLabel)) === mb_strtolower(trim($origenNombrePais));
 
-        $destinoIso2Raw = $eventos->map(function ($item) use ($iso2DesdeOficina) {
-            return $iso2DesdeOficina($item->office ?? '') ?? $iso2DesdeOficina($item->next_office ?? '');
+        $destinoIso2Raw = $eventos->flatMap(function ($item) use ($iso2DesdeOficina, $esOficinaPaisOrigenGenerico) {
+            $candidatos = [];
+
+            foreach ([$item->office ?? '', $item->next_office ?? ''] as $texto) {
+                if ($texto === '' || $esOficinaPaisOrigenGenerico($texto)) {
+                    continue;
+                }
+
+                $iso = $iso2DesdeOficina($texto);
+                if ($iso) {
+                    $candidatos[] = strtoupper((string) $iso);
+                }
+            }
+
+            return $candidatos;
         })->filter()->values();
         $destinoIso2 = $destinoIso2Raw->first(fn ($iso) => strtoupper((string) $iso) !== 'BO')
             ?? $destinoIso2Raw->first();
@@ -392,9 +493,20 @@
                 || $destinoIso2 === 'BO'
                 || $servicioActual === 'CONTRATO'
             );
+        $esIngresoInternacionalSinDestinoExplicito = !$esCodigoBoliviano
+            && $origenIso2 !== null
+            && $origenIso2 !== 'BO'
+            && $destinoIso2DesdePayload === null
+            && $destinoNombreDesdePayload === ''
+            && $ciudadDestinoDesdeOficina !== null;
         if ($destinoIso2DesdeCiudad !== null) {
             $destinoBanderaIso2 = $destinoIso2DesdeCiudad;
-            $destinoLabel = $nombrePaisDesdeIso2($destinoBanderaIso2) ?? $ciudadDestinoLocal;
+            $destinoLabel = $destinoNombreDesdePayload !== ''
+                ? $destinoNombreDesdePayload
+                : ($nombrePaisDesdeIso2($destinoBanderaIso2) ?? $ciudadDestinoLocal);
+        } elseif ($esIngresoInternacionalSinDestinoExplicito) {
+            $destinoBanderaIso2 = 'BO';
+            $destinoLabel = $ciudadDestinoDesdeOficina;
         } elseif ($esCodigoBoliviano && is_array($rutaInternacionalSaliente)) {
             $destinoBanderaIso2 = $rutaInternacionalSaliente['destino'];
             $destinoLabel = $nombrePaisDesdeIso2($destinoBanderaIso2) ?? $destinoBanderaIso2;
@@ -558,6 +670,7 @@
                             <strong>{{ $fechaUltima->format('d/m/Y H:i') }}</strong>
                         </div>
                     </div>
+
                 </article>
 
                 <article class="card progress-card reveal-block" style="--reveal-delay: 110ms;">
