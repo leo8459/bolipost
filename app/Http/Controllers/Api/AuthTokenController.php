@@ -57,10 +57,10 @@ class AuthTokenController extends Controller
         $currentDeviceId = $this->resolveMobileDeviceId($request, $credentials);
         $previousMobileSession = $this->getActiveMobileSession($user->id);
         if ($this->hasAnotherActiveMobileSession($request, $previousMobileSession, $currentDeviceId)) {
-            return response()->json([
-                'message' => 'Esta cuenta ya tiene una sesion activa en otro dispositivo movil.',
-                'session_conflict' => true,
-            ], 409);
+            // Si existe una sesion activa en otro dispositivo, priorizamos el ultimo login.
+            // Esto evita bloqueos operativos cuando el conductor cambia de telefono o reinstala la app.
+            $this->deleteSessionRecord(is_array($previousMobileSession) ? ($previousMobileSession['session_id'] ?? null) : null);
+            $this->forgetActiveMobileSession((int) $user->id, null);
         }
 
         Auth::guard('web')->login($user);

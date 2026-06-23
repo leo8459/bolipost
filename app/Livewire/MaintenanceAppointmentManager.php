@@ -67,7 +67,7 @@ class MaintenanceAppointmentManager extends Component
     {
         abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion']), 403);
         $this->fecha_desde = now()->startOfMonth()->toDateString();
-        $this->fecha_hasta = now()->toDateString();
+        $this->fecha_hasta = null;
     }
 
     public function openForm()
@@ -236,13 +236,24 @@ class MaintenanceAppointmentManager extends Component
             return;
         }
 
-        if ($this->tipo_mantenimiento_id) {
-            $allowedType = MaintenanceType::query()
-                ->applicableToVehicle($vehicle)
-                ->whereKey((int) $this->tipo_mantenimiento_id)
-                ->first();
+        $duplicateOpenAppointment = MaintenanceAppointment::query()
+            ->active()
+            ->where('vehicle_id', (int) $this->vehicle_id)
+            ->where('tipo_mantenimiento_id', $this->tipo_mantenimiento_id)
+            ->whereIn('estado', [
+                MaintenanceAppointment::STATUS_PENDING,
+                MaintenanceAppointment::STATUS_APPROVED,
+            ])
+            ->when($this->isEdit && $this->editingId, fn ($query) => $query->where('id', '!=', (int) $this->editingId))
+            ->exists();
 
-            if (!$allowedType) {
+        if ($duplicateOpenAppointment) {
+            $this->addError('tipo_mantenimiento_id', 'Ya existe una cita abierta para este vehiculo y mantenimiento.');
+            return;
+        }
+
+        if ($this->tipo_mantenimiento_id) {
+            if (!MaintenanceType::isApplicableToVehicleId($vehicle, (int) $this->tipo_mantenimiento_id)) {
                 $this->addError('tipo_mantenimiento_id', 'El tipo de mantenimiento no corresponde al vehiculo seleccionado.');
                 return;
             }
@@ -292,8 +303,16 @@ class MaintenanceAppointmentManager extends Component
         $this->resetForm();
     }
 
-    public function edit(MaintenanceAppointment $appointment)
+    public function edit(int $appointmentId): void
     {
+        $appointment = MaintenanceAppointment::query()
+            ->with(['vehicle.vehicleClass'])
+            ->find($appointmentId);
+
+        if (!$appointment) {
+            return;
+        }
+
         $this->isEdit = true;
         $this->editingId = $appointment->id;
         $this->vehicle_id = $appointment->vehicle_id ?? 0;
@@ -319,8 +338,13 @@ class MaintenanceAppointmentManager extends Component
         $this->showForm = true; // Mostrar formulario al editar
     }
 
-    public function delete(MaintenanceAppointment $appointment)
+    public function delete(int $appointmentId): void
     {
+        $appointment = MaintenanceAppointment::query()->find($appointmentId);
+        if (!$appointment) {
+            return;
+        }
+
         if (\Illuminate\Support\Facades\Schema::hasTable('maintenance_alerts')) {
             MaintenanceAlert::query()
                 ->where('maintenance_appointment_id', $appointment->id)
@@ -421,10 +445,7 @@ class MaintenanceAppointmentManager extends Component
             return;
         }
 
-        $allowed = MaintenanceType::query()
-            ->applicableToVehicle($vehicle)
-            ->whereKey((int) $this->tipo_mantenimiento_id)
-            ->exists();
+        $allowed = MaintenanceType::isApplicableToVehicleId($vehicle, (int) $this->tipo_mantenimiento_id);
 
         if (!$allowed) {
             $this->tipo_mantenimiento_id = null;
@@ -434,34 +455,29 @@ class MaintenanceAppointmentManager extends Component
     public function updatedDriverId(): void
     {
         if (!$this->driver_id) {
+            $this->vehicle_id = 0;
             return;
         }
+
+        $today = now()->toDateString();
 
         $assignment = VehicleAssignment::query()
             ->with(['vehicle.vehicleClass'])
             ->where('driver_id', (int) $this->driver_id)
-            ->where(function ($query) {
-                $query->where('activo', true)->orWhereNull('activo');
+            ->where('activo', true)
+            ->whereNotNull('vehicle_id')
+            ->where(function ($query) use ($today) {
+                $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+            })
+            ->where(function ($query) use ($today) {
+                $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
             })
             ->orderByDesc('fecha_inicio')
             ->orderByDesc('id')
-            ->get()
-            ->first(function (VehicleAssignment $assignment) {
-                $starts = $assignment->fecha_inicio;
-                $ends = $assignment->fecha_fin;
-
-                if ($starts && now()->lt($starts)) {
-                    return false;
-                }
-
-                if ($ends && now()->gt($ends)) {
-                    return false;
-                }
-
-                return true;
-            });
+            ->first();
 
         if (!$assignment?->vehicle_id) {
+            $this->vehicle_id = 0;
             return;
         }
 
@@ -477,15 +493,18 @@ class MaintenanceAppointmentManager extends Component
             ?: 'vehiculo');
 
         if ($this->tipo_mantenimiento_id) {
-            $allowed = MaintenanceType::query()
-                ->applicableToVehicle($vehicle)
-                ->whereKey((int) $this->tipo_mantenimiento_id)
-                ->exists();
+            $allowed = MaintenanceType::isApplicableToVehicleId($vehicle, (int) $this->tipo_mantenimiento_id);
 
             if (!$allowed) {
                 $this->tipo_mantenimiento_id = null;
             }
         }
+    }
+
+    public function onDriverChanged($value): void
+    {
+        $this->driver_id = ($value !== null && $value !== '') ? (int) $value : null;
+        $this->updatedDriverId();
     }
 
     public function resolveOriginLabel(MaintenanceAppointment $appointment): string

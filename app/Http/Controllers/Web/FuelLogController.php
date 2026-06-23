@@ -539,7 +539,7 @@ class FuelLogController extends Controller
 
         $query = VehicleLog::query()
             ->active()
-            ->with(['vehicle.brand', 'driver', 'fuelLog'])
+            ->with(['vehicle.brand', 'driver', 'fuelLog.invoice'])
             ->orderBy('fecha')
             ->orderBy('id');
 

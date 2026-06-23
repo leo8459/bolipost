@@ -1017,9 +1017,25 @@ class FuelLogManager extends Component
         $isDuplicate = (string) $alert->action === 'FUEL_INVOICE_DUPLICATE_ALERT';
 
         $invoiceMatches = collect();
-        if ($invoiceNumber !== '') {
+        $existingInvoiceId = (int) ($changes['existing_invoice_id'] ?? 0);
+        $conflictingInvoiceId = (int) ($changes['conflicting_invoice_id'] ?? 0);
+
+        if ($existingInvoiceId > 0 || $conflictingInvoiceId > 0) {
+            $invoiceIds = collect([$existingInvoiceId, $conflictingInvoiceId])
+                ->filter(fn ($id) => (int) $id > 0)
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
             $invoiceMatches = FuelInvoice::query()
-                ->active()
+                ->whereIn('id', $invoiceIds)
+                ->orderByDesc('id')
+                ->get();
+        }
+
+        if ($invoiceMatches->isEmpty() && $invoiceNumber !== '') {
+            $invoiceMatches = FuelInvoice::query()
                 ->where('numero_factura', $invoiceNumber)
                 ->orderByDesc('id')
                 ->limit(2)
@@ -1049,7 +1065,19 @@ class FuelLogManager extends Component
                 'invoice_id' => (int) ($invoiceMatches->get(0)?->id ?? 0),
                 'conflicting_invoice_id' => (int) ($invoiceMatches->get(1)?->id ?? 0),
             ],
-            'invoice_a' => $this->buildFraudInvoiceData($invoiceMatches->get(0), 'Factura A'),
+            'invoice_a' => $invoiceMatches->get(0)
+                ? $this->buildFraudInvoiceData($invoiceMatches->get(0), 'Factura A')
+                : $this->buildFraudAttemptInvoiceData(
+                    'Factura A (referencia no disponible)',
+                    $invoiceNumber,
+                    [
+                        'incoming_vehicle_id' => (int) ($changes['existing_vehicle_id'] ?? $changes['vehicle_id'] ?? 0),
+                        'incoming_driver_id' => (int) ($changes['existing_driver_id'] ?? $changes['driver_id'] ?? 0),
+                        'incoming_fecha_emision' => (string) ($changes['existing_fecha_emision'] ?? $changes['fecha_emision'] ?? ''),
+                        'incoming_total' => $changes['existing_total'] ?? $changes['monto_total'] ?? null,
+                        'incoming_client_name' => (string) ($changes['existing_client_name'] ?? 'Factura referenciada por alerta'),
+                    ]
+                ),
             'invoice_b' => $invoiceBData,
             'actions' => $isDuplicate
                 ? [
@@ -2252,6 +2280,13 @@ class FuelLogManager extends Component
                 'record_id' => $invoiceId,
                 'changes_json' => [
                     'invoice_number' => $invoiceNumber,
+                    'existing_invoice_id' => $invoiceId,
+                    'existing_vehicle_id' => (int) ($existingLog?->vehicleLog?->vehicles_id ?? 0) ?: null,
+                    'existing_driver_id' => (int) ($existingLog?->vehicleLog?->drivers_id ?? 0) ?: null,
+                    'incoming_vehicle_id' => (int) ($this->vehicle_id ?? 0) ?: null,
+                    'incoming_driver_id' => (int) ($this->driver_id ?? 0) ?: null,
+                    'incoming_fecha_emision' => $this->fecha_emision,
+                    'incoming_total' => $this->total_calculado,
                     'source' => 'web_livewire',
                 ],
                 'details' => 'Intento de registro duplicado de factura en gestion web.',

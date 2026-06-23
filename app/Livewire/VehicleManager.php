@@ -12,19 +12,25 @@ use App\Models\MaintenanceType;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 class VehicleManager extends Component
 {
+    use WithFileUploads;
     use WithPagination;
 
     protected string $paginationTheme = 'bootstrap';
 
     public string $search = '';
     public string $statusFilter = 'activos';
+    public string $vehicleTypeFilter = '';
+    public string $fuelTypeFilter = '';
+    public string $tacometroFilter = 'todos';
 
     private const FUEL_TYPES = [
         'gasolina',
@@ -67,6 +73,9 @@ class VehicleManager extends Component
     public ?int $anio = null;
     public ?float $capacidad_tanque = null;
     public ?float $kilometraje = null;
+    public $kilometraje_inicial_photo = null;
+    public ?string $currentKilometrajeInicialPhotoPath = null;
+    public ?string $currentKilometrajeInicialPhotoUrl = null;
     public bool $activo = true;
     public bool $tacometro_danado = false;
 
@@ -105,6 +114,23 @@ class VehicleManager extends Component
             }
         } else {
             $query->where('activo', true);
+        }
+
+        if ($this->vehicleTypeFilter !== '' && in_array($this->vehicleTypeFilter, self::MAINTENANCE_FORM_TYPES, true)) {
+            $query->where('maintenance_form_type', $this->vehicleTypeFilter);
+        }
+
+        if ($this->fuelTypeFilter !== '' && in_array($this->fuelTypeFilter, self::FUEL_TYPES, true)) {
+            $query->where('tipo_combustible', $this->fuelTypeFilter);
+        }
+
+        if ($this->tacometroFilter === 'danado') {
+            $query->where('tacometro_danado', true);
+        } elseif ($this->tacometroFilter === 'operativo') {
+            $query->where(function ($q) {
+                $q->where('tacometro_danado', false)
+                    ->orWhereNull('tacometro_danado');
+            });
         }
 
         $search = trim($this->search);
@@ -187,6 +213,33 @@ class VehicleManager extends Component
     {
         if (!in_array($value, ['activos', 'inactivos', 'mantenimiento', 'todos'], true)) {
             $this->statusFilter = 'activos';
+        }
+
+        $this->resetPage();
+    }
+
+    public function updatedVehicleTypeFilter(string $value): void
+    {
+        if ($value !== '' && !in_array($value, self::MAINTENANCE_FORM_TYPES, true)) {
+            $this->vehicleTypeFilter = '';
+        }
+
+        $this->resetPage();
+    }
+
+    public function updatedFuelTypeFilter(string $value): void
+    {
+        if ($value !== '' && !in_array($value, self::FUEL_TYPES, true)) {
+            $this->fuelTypeFilter = '';
+        }
+
+        $this->resetPage();
+    }
+
+    public function updatedTacometroFilter(string $value): void
+    {
+        if (!in_array($value, ['todos', 'operativo', 'danado'], true)) {
+            $this->tacometroFilter = 'todos';
         }
 
         $this->resetPage();
@@ -339,6 +392,9 @@ class VehicleManager extends Component
                 'anio' => 'required|integer|min:1900|max:' . date('Y'),
                 'capacidad_tanque' => 'required|numeric|min:3|max:150',
                 'kilometraje' => 'required|numeric|min:5',
+                'kilometraje_inicial_photo' => $this->isEdit
+                    ? ['nullable', 'image', 'max:5120']
+                    : ['required', 'image', 'max:5120'],
             ],
             [
                 'placa.required' => 'La placa es obligatoria.',
@@ -375,6 +431,9 @@ class VehicleManager extends Component
                 'kilometraje.required' => 'El kilometraje es obligatorio.',
                 'kilometraje.numeric' => 'El kilometraje debe ser un numero.',
                 'kilometraje.min' => 'El kilometraje no puede ser menor a :min.',
+                'kilometraje_inicial_photo.required' => 'La foto inicial del kilometraje es obligatoria.',
+                'kilometraje_inicial_photo.image' => 'La foto inicial del kilometraje debe ser una imagen valida.',
+                'kilometraje_inicial_photo.max' => 'La foto inicial del kilometraje no puede superar 5 MB.',
             ]
         );
 
@@ -397,6 +456,11 @@ class VehicleManager extends Component
             'activo' => $this->activo,
             'tacometro_danado' => $this->tacometro_danado,
         ];
+
+        $kilometrajeInicialPhotoPath = $this->storeKilometrajeInicialPhoto();
+        if ($kilometrajeInicialPhotoPath !== null) {
+            $payload['kilometraje_inicial_photo_path'] = $kilometrajeInicialPhotoPath;
+        }
 
         if (!$this->isEdit && $this->shouldPromptInitialKilometrajeConfirm($payload)) {
             return;
@@ -449,11 +513,20 @@ class VehicleManager extends Component
 
     public function cancelMaintenanceBackfill(): void
     {
+        if (empty($this->pendingVehiclePayload)) {
+            $this->showMaintenanceBackfillConfirm = false;
+            $this->maintenanceBackfillPreview = [];
+            $this->maintenanceBackfillSelections = [];
+            session()->flash('message', 'No habia cambios pendientes para guardar.');
+            return;
+        }
+
+        $payload = $this->pendingVehiclePayload;
         $this->showMaintenanceBackfillConfirm = false;
         $this->pendingVehiclePayload = [];
         $this->maintenanceBackfillPreview = [];
         $this->maintenanceBackfillSelections = [];
-        session()->flash('message', 'Se cancelo la asignacion automatica de mantenimientos. No se guardaron cambios.');
+        $this->persistVehicle($payload, false);
     }
 
     private function persistVehicle(array $payload, bool $withMaintenanceBackfill): void
@@ -512,6 +585,11 @@ class VehicleManager extends Component
             : ($vehicle->kilometraje_inicial !== null ? (float) $vehicle->kilometraje_inicial : ($vehicle->kilometraje !== null ? (float) $vehicle->kilometraje : null));
         $this->activo = (bool) $vehicle->activo;
         $this->tacometro_danado = (bool) ($vehicle->tacometro_danado ?? false);
+        $this->currentKilometrajeInicialPhotoPath = (string) ($vehicle->kilometraje_inicial_photo_path ?? '') ?: null;
+        $this->currentKilometrajeInicialPhotoUrl = $this->currentKilometrajeInicialPhotoPath
+            ? asset('storage/' . $this->currentKilometrajeInicialPhotoPath)
+            : null;
+        $this->kilometraje_inicial_photo = null;
         $this->showInitialKilometrajeConfirm = false;
         $this->showMaintenanceBackfillConfirm = false;
         $this->maintenanceBackfillPreview = [];
@@ -560,6 +638,9 @@ class VehicleManager extends Component
         $this->anio = null;
         $this->capacidad_tanque = null;
         $this->kilometraje = null;
+        $this->kilometraje_inicial_photo = null;
+        $this->currentKilometrajeInicialPhotoPath = null;
+        $this->currentKilometrajeInicialPhotoUrl = null;
         $this->activo = true;
         $this->tacometro_danado = false;
         $this->isEdit = false;
@@ -753,6 +834,23 @@ class VehicleManager extends Component
     private function validateKilometrajeIntegrity(): bool
     {
         return true;
+    }
+
+    private function storeKilometrajeInicialPhoto(): ?string
+    {
+        if ($this->kilometraje_inicial_photo) {
+            if ($this->currentKilometrajeInicialPhotoPath && Storage::disk('public')->exists($this->currentKilometrajeInicialPhotoPath)) {
+                Storage::disk('public')->delete($this->currentKilometrajeInicialPhotoPath);
+            }
+
+            $path = (string) $this->kilometraje_inicial_photo->store('vehicles/kilometraje-inicial', 'public');
+            $this->currentKilometrajeInicialPhotoPath = $path;
+            $this->currentKilometrajeInicialPhotoUrl = asset('storage/' . $path);
+
+            return $path;
+        }
+
+        return $this->currentKilometrajeInicialPhotoPath;
     }
 
     private function shouldPromptInitialKilometrajeConfirm(array $payload): bool

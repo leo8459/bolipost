@@ -1,6 +1,10 @@
 <div class="bp-livewire-skin">
     @include('livewire.partials.button-theme')
     <style>
+        .bp-livewire-skin {
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+        }
+
         .bp-select-like-vehicle {
             border-radius: 10px;
             min-height: calc(2.35rem + 2px);
@@ -72,6 +76,14 @@
             box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
             outline: 0;
         }
+
+        .bp-comprobante-frame {
+            width: 100%;
+            min-height: 72vh;
+            border: 1px solid #d7deea;
+            border-radius: 12px;
+            background: #f8fafc;
+        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
@@ -140,7 +152,7 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label for="maintenance_type_id" class="form-label fw-bold">Tipo de Mantenimiento <span class="text-danger">*</span></label>
-                            <select id="maintenance_type_id" wire:model.live="maintenance_type_id" class="form-select bp-select-like-vehicle @error('maintenance_type_id') is-invalid @enderror" required>
+                            <select id="maintenance_type_id" wire:model.live="maintenance_type_id" class="form-select bp-select-like-vehicle @error('maintenance_type_id') is-invalid @enderror" @disabled((int) ($from_workshop_id ?? 0) > 0) required>
                                 <option value="">Seleccionar tipo</option>
                                 @foreach ($maintenanceTypes as $type)
                                     <option value="{{ $type->id }}">{{ $type->nombre }}</option>
@@ -176,7 +188,7 @@
                             <div class="form-text">
                                 @if($tacometro_danado_vehiculo)
                                     Si el tacometro esta dañado, puede conservar el ultimo kilometraje valido.
-                                @elseif((int) ($from_alert_id ?? 0) > 0)
+                                @elseif((int) ($from_alert_id ?? 0) > 0 || (int) ($from_workshop_id ?? 0) > 0)
                                     Debe ser igual o mayor al KM actual del vehiculo.
                                 @else
                                     Debe ser mayor al KM actual del vehiculo.
@@ -209,7 +221,7 @@
                                 <div class="form-text">
                                     Archivo actual:
                                     @if($editingMaintenanceId)
-                                        <a href="{{ route('maintenance-logs.comprobante', ['maintenanceLog' => $editingMaintenanceId]) }}" target="_blank" rel="noopener noreferrer">ver comprobante</a>
+                                        <button type="button" wire:click="openComprobanteModal({{ $editingMaintenanceId }})" class="btn btn-link btn-sm p-0 align-baseline">ver comprobante</button>
                                     @else
                                         <span class="text-muted">disponible al guardar</span>
                                     @endif
@@ -330,6 +342,14 @@
                             <label class="form-label fw-bold mb-1">Fecha hasta</label>
                             <input type="date" class="form-control" wire:model.live="date_to">
                         </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label fw-bold mb-1">Estado del registro</label>
+                            <select class="form-select bp-select-like-vehicle" wire:model.live="history_status_filter">
+                                <option value="active">Activos</option>
+                                <option value="inactive">Inactivos</option>
+                                <option value="all">Todos</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 @if($maintenanceLogs->count())
@@ -353,9 +373,9 @@
                                         <td>{{ optional($log->fecha)->format('d/m/Y') }}</td>
                                         <td>
                                             @if($log->comprobante)
-                                                <a href="{{ route('maintenance-logs.comprobante', ['maintenanceLog' => $log->id]) }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
+                                                <button type="button" wire:click="openComprobanteModal({{ $log->id }})" class="btn btn-sm btn-outline-primary">
                                                     <i class="fas fa-file-invoice-dollar me-1"></i>Ver
-                                                </a>
+                                                </button>
                                             @else
                                                 <span class="text-muted">Sin archivo</span>
                                             @endif
@@ -366,9 +386,15 @@
                                                 <button wire:click="edit({{ $log->id }})" class="btn btn-sm btn-outline-warning">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                <button wire:click="delete({{ $log->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
+                                                @if((bool) ($log->activo ?? true))
+                                                    <button wire:click="delete({{ $log->id }})" onclick="return confirm('Confirmar inactivacion?')" class="btn btn-sm btn-outline-danger" title="Inactivar registro">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                @else
+                                                    <button wire:click="activate({{ $log->id }})" onclick="return confirm('Confirmar activacion?')" class="btn btn-sm btn-outline-success" title="Activar registro">
+                                                        <i class="fas fa-rotate-left"></i>
+                                                    </button>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>
@@ -389,5 +415,37 @@
             {{ $maintenanceLogs->links() }}
         </div>
         @endif
+    @endif
+
+    @if($showComprobanteModal)
+        <div class="bp-gestiones-form-overlay" wire:click="closeComprobanteModal">
+            <div class="card shadow-sm mb-0 bp-gestiones-form-card" x-on:click.stop style="max-width: 980px; width: min(980px, 96vw);">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold">Comprobante</div>
+                        <div class="small text-muted">{{ $comprobantePreviewName !== '' ? $comprobantePreviewName : 'Vista previa' }}</div>
+                    </div>
+                    <button type="button" class="btn-close" wire:click="closeComprobanteModal" aria-label="Cerrar"></button>
+                </div>
+                <div class="card-body">
+                    @if($comprobantePreviewUrl !== '')
+                        <iframe
+                            src="{{ $comprobantePreviewUrl }}"
+                            class="bp-comprobante-frame"
+                            title="Vista previa del comprobante">
+                        </iframe>
+                        <div class="mt-3 d-flex justify-content-end">
+                            <a href="{{ $comprobantePreviewUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary">
+                                <i class="fas fa-up-right-from-square me-2"></i>Abrir en otra pestana
+                            </a>
+                        </div>
+                    @else
+                        <div class="alert alert-warning mb-0">
+                            No se pudo cargar el comprobante.
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
     @endif
 </div>

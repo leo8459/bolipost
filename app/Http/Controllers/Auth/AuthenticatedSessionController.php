@@ -28,10 +28,23 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        $user = $request->user();
+        $role = mb_strtolower(trim((string) ($user?->role ?? '')));
+        if ($role === 'conductor') {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')
+                ->withErrors([
+                    'email' => 'Esta cuenta esta habilitada solo para la aplicacion movil.',
+                ]);
+        }
+
         Auth::guard('cliente')->logout();
         $request->session()->regenerate();
 
-        return redirect()->to($this->firstAuthorizedUrl($request->user()));
+        return redirect()->to($this->firstAuthorizedUrl($user));
     }
 
     /**

@@ -1,6 +1,10 @@
 <div class="bp-livewire-skin">
     @include('livewire.partials.button-theme')
     <style>
+        .bp-livewire-skin {
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+        }
+
         .bp-select-like-vehicle {
             border-radius: 10px;
             min-height: calc(2.35rem + 2px);
@@ -111,6 +115,17 @@
         </div>
     @endif
 
+    @if($showForm && $errors->any())
+        <div class="alert alert-danger" role="alert">
+            <div class="fw-bold mb-2">No se pudo guardar la solicitud.</div>
+            <ul class="mb-0 ps-3">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     @if($showForm)
         <div class="bp-gestiones-form-overlay">
         <div class="card shadow-sm mb-4 bp-gestiones-form-card">
@@ -173,13 +188,13 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Conductor</label>
-                            <select wire:model="driver_id" class="form-select bp-select-like-vehicle">
+                            <select wire:model.live="driver_id" class="form-select bp-select-like-vehicle">
                                 <option value="">Seleccionar conductor</option>
                                 @foreach ($drivers as $driver)
                                     <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
                                 @endforeach
                             </select>
-                            <div class="form-text">Si el vehiculo tiene una asignacion activa, el conductor se completa automaticamente.</div>
+                            <div class="form-text">Al seleccionar conductor, se autocompleta su vehiculo asignado activo.</div>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Tipo de Mantenimiento</label>
@@ -267,9 +282,12 @@
                     </div>
 
                     <div class="d-flex flex-wrap gap-2 border-top pt-3 mt-4">
-                        <button type="submit" class="btn btn-primary px-4">
+                        <button type="submit" class="btn btn-primary px-4" wire:loading.attr="disabled" wire:target="save,formulario_documento_file">
                             <i class="fas fa-save me-2"></i>{{ $isEdit ? 'Actualizar Solicitud' : 'Guardar Solicitud' }}
                         </button>
+                        <div class="text-muted small align-self-center" wire:loading wire:target="save,formulario_documento_file">
+                            Guardando solicitud...
+                        </div>
                         <button type="button" wire:click="resetForm" class="btn btn-secondary px-4">Volver al listado</button>
                     </div>
                 </form>
@@ -421,7 +439,7 @@
             </div>
         </div>
         <div class="mt-3">
-            {{ $appointments->links('pagination::bootstrap-4') }}
+            {{ $appointments->links() }}
         </div>
     @endif
 
