@@ -29,7 +29,6 @@ class MaintenanceAppointment extends Model
         'solicitud_fecha',
         'origen_solicitud',
         'es_accidente',
-        'descripcion_problema',
         'evidencia_path',
         'formulario_documento_path',
         'estado',

@@ -115,19 +115,6 @@ class MaintenanceType extends Model
         return $query;
     }
 
-    public static function isApplicableToVehicleId(?Vehicle $vehicle, ?int $typeId): bool
-    {
-        if (!$vehicle || !$typeId) {
-            return false;
-        }
-
-        return static::query()
-            ->active()
-            ->applicableToVehicle($vehicle)
-            ->whereKey($typeId)
-            ->exists();
-    }
-
     public function scopeApplicableToVehicleForMobile(Builder $query, ?Vehicle $vehicle): Builder
     {
         if (!$vehicle) {

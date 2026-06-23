@@ -9,7 +9,6 @@ use App\Models\VehicleAssignment;
 use App\Models\Workshop;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -257,6 +256,10 @@ class VehicleAssignmentManager extends Component
             }
         }
 
+        if (!$this->skipNextReassignCheck && $this->prepareReassignConfirmation()) {
+            return;
+        }
+
         if (!$this->ensureNoActiveAssignmentConflicts()) {
             return;
         }
@@ -368,6 +371,10 @@ class VehicleAssignmentManager extends Component
             return;
         }
 
+        if (!$this->skipNextReassignCheck && $this->prepareReassignConfirmation()) {
+            return;
+        }
+
         if (!$this->ensureNoActiveAssignmentConflicts()) {
             $this->resetForm();
             return;
@@ -424,7 +431,6 @@ class VehicleAssignmentManager extends Component
 
     private function persistAssignment(?string $successMessage = null): void
     {
-        $aborted = false;
         $payload = [
             'driver_id' => $this->driver_id,
             'vehicle_id' => $this->vehicle_id,
@@ -434,64 +440,21 @@ class VehicleAssignmentManager extends Component
             'activo' => $this->activo,
         ];
 
-        try {
-            DB::transaction(function () use ($payload, $successMessage, &$aborted) {
-                if ($this->activo) {
-                    $conflictQuery = VehicleAssignment::query()
-                        ->where('activo', true)
-                        ->whereNotNull('vehicle_id')
-                        ->whereNotNull('driver_id')
-                        ->where(function ($query) {
-                            $query->where('vehicle_id', $this->vehicle_id)
-                                ->orWhere('driver_id', $this->driver_id);
-                        })
-                        ->when($this->editingId, fn ($query) => $query->where('id', '!=', $this->editingId));
-
-                    $this->applyAssignmentOverlapFilter($conflictQuery, $this->fecha_inicio, $this->fecha_fin);
-
-                    $conflict = $conflictQuery
-                        ->lockForUpdate()
-                        ->orderByDesc('fecha_inicio')
-                        ->orderByDesc('id')
-                        ->first();
-
-                    if ($conflict) {
-                        if ((int) $conflict->vehicle_id === (int) $this->vehicle_id) {
-                            $this->addError('vehicle_id', 'El vehiculo ya tiene una asignacion activa.');
-                            session()->flash('error', 'No se pudo guardar: el vehiculo ya fue asignado por otro usuario.');
-                        } else {
-                            $this->addError('driver_id', 'El conductor ya tiene una asignacion activa.');
-                            session()->flash('error', 'No se pudo guardar: el conductor ya fue asignado por otro usuario.');
-                        }
-                        $aborted = true;
-                        return;
-                    }
+        if ($this->isEdit && $this->editingId) {
+            $assignment = VehicleAssignment::find($this->editingId);
+            if ($assignment) {
+                $assignment->update($payload);
+                if ($assignment->vehicle_id) {
+                    $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
                 }
-
-                if ($this->isEdit && $this->editingId) {
-                    $assignment = VehicleAssignment::query()->lockForUpdate()->find($this->editingId);
-                    if ($assignment) {
-                        $assignment->update($payload);
-                        if ($assignment->vehicle_id) {
-                            $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
-                        }
-                        session()->flash('message', $successMessage ?: 'Asignacion actualizada correctamente.');
-                    }
-                } else {
-                    $assignment = VehicleAssignment::create($payload);
-                    if ($assignment->vehicle_id) {
-                        $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
-                    }
-                    session()->flash('message', $successMessage ?: 'Asignacion creada correctamente.');
-                }
-            });
-        } catch (\Throwable) {
-            session()->flash('error', 'No se pudo guardar la asignacion. Intente nuevamente.');
-            return;
-        }
-
-        if ($aborted) {
-            return;
+                session()->flash('message', $successMessage ?: 'Asignacion actualizada correctamente.');
+            }
+        } else {
+            $assignment = VehicleAssignment::create($payload);
+            if ($assignment->vehicle_id) {
+                $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
+            }
+            session()->flash('message', $successMessage ?: 'Asignacion creada correctamente.');
         }
 
         $this->resetForm();

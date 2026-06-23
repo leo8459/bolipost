@@ -85,7 +85,6 @@ class MaintenanceRequestApiController extends Controller
             'maintenance_type_id' => 'nullable|integer|exists:maintenance_types,id',
             'maintenance_type_name' => 'nullable|string|max:255',
             'fecha_programada' => 'nullable|date|after_or_equal:today',
-            'descripcion_problema' => 'nullable|string|max:2000',
             'es_accidente' => 'nullable|boolean',
             'photo_base64' => 'nullable|string',
         ]);
@@ -95,7 +94,6 @@ class MaintenanceRequestApiController extends Controller
             'maintenance_type_id' => $payload['maintenance_type_id'] ?? null,
             'maintenance_type_name' => $payload['maintenance_type_name'] ?? null,
             'fecha_programada' => $payload['fecha_programada'] ?? null,
-            'has_description' => trim((string) ($payload['descripcion_problema'] ?? '')) !== '',
             'es_accidente' => (bool) ($payload['es_accidente'] ?? false),
             'has_photo' => !empty($payload['photo_base64']),
         ]);
@@ -148,9 +146,6 @@ class MaintenanceRequestApiController extends Controller
             $existingPendingAppointment->fecha_programada = $scheduledAt;
             $existingPendingAppointment->solicitud_fecha = now();
             $existingPendingAppointment->es_accidente = (bool) ($payload['es_accidente'] ?? false);
-            if (Schema::hasColumn('maintenance_appointments', 'descripcion_problema')) {
-                $existingPendingAppointment->descripcion_problema = trim((string) ($payload['descripcion_problema'] ?? ''));
-            }
             if (Schema::hasColumn('maintenance_appointments', 'activo')) {
                 $existingPendingAppointment->activo = true;
             }
@@ -175,7 +170,7 @@ class MaintenanceRequestApiController extends Controller
         }
 
         $appointment = DB::transaction(function () use ($authUser, $driver, $type, $vehicle, $payload, $evidencePath, $scheduledAt) {
-            $appointmentPayload = [
+            $appointment = MaintenanceAppointment::create([
                 'vehicle_id' => (int) $vehicle->id,
                 'driver_id' => $driver?->id,
                 'requested_by_user_id' => $authUser?->id,
@@ -187,13 +182,7 @@ class MaintenanceRequestApiController extends Controller
                 'evidencia_path' => $evidencePath,
                 'estado' => MaintenanceAppointment::STATUS_PENDING,
                 'activo' => true,
-            ];
-
-            if (Schema::hasColumn('maintenance_appointments', 'descripcion_problema')) {
-                $appointmentPayload['descripcion_problema'] = trim((string) ($payload['descripcion_problema'] ?? ''));
-            }
-
-            $appointment = MaintenanceAppointment::create($appointmentPayload);
+            ]);
 
             if (Schema::hasTable('maintenance_alerts')) {
                 $plate = (string) ($vehicle->placa ?? 'N/A');
@@ -250,9 +239,6 @@ class MaintenanceRequestApiController extends Controller
             'solicitud_fecha' => optional($appointment->solicitud_fecha)->toIso8601String(),
             'estado' => (string) $appointment->estado,
             'es_accidente' => (bool) $appointment->es_accidente,
-            'descripcion_problema' => Schema::hasColumn('maintenance_appointments', 'descripcion_problema')
-                ? (string) ($appointment->descripcion_problema ?? '')
-                : '',
             'evidencia_path' => $appointment->evidencia_path ? route('maintenance-appointments.evidence', $appointment) : null,
             'request_document_url' => $appointment->evidencia_path ? route('maintenance-appointments.evidence', $appointment) : null,
             'formulario_documento_path' => $appointment->formulario_documento_path ? route('maintenance-appointments.form', $appointment) : null,

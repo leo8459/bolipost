@@ -118,10 +118,21 @@
     <div class="small" style="margin-top: 8px;">Documento generado por el sistema de bitacora.</div>
 @else
     @php
-        $logoPath = public_path('images/AGBClogo1.png');
-        $logoData = file_exists($logoPath)
-            ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
-            : null;
+        $visibleColumns = collect($visibleColumns ?? [
+            'fecha',
+            'placa',
+            'vehiculo',
+            'driver_name',
+            'kilometraje_salida',
+            'kilometraje_recorrido',
+            'kilometraje_llegada',
+            'recorrido',
+            'combustible',
+        ])->values();
+        $showKmSalida = $visibleColumns->contains('kilometraje_salida');
+        $showKmRecorrido = $visibleColumns->contains('kilometraje_recorrido');
+        $showKmLlegada = $visibleColumns->contains('kilometraje_llegada');
+        $showRecorrido = $visibleColumns->contains('recorrido');
     @endphp
     @forelse($groups as $group)
         @php
@@ -129,72 +140,94 @@
         @endphp
         @foreach($chunks as $rowsChunk)
             <div class="page">
-                @php
-                    $displayRows = $rowsChunk->values();
-                    $minimumRows = 10;
-                    $blankRows = max(0, $minimumRows - $displayRows->count());
-                    $vehicleLabel = trim(($group['vehicle']?->brand?->nombre ?? '') . ' ' . ($group['vehicle']?->modelo ?? '')) ?: '-';
-                    $driverLabel = strtoupper((string) ($group['driver']?->nombre ?? 'SIN CONDUCTOR DESIGNADO'));
-                @endphp
+                <div class="legacy-title">ANEXO 2</div>
+                <div class="legacy-subtitle">FORMULARIO DE BITACORA DE CONTROL PARA PROVISION DE COMBUSTIBLE</div>
 
-                <table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
+                <div class="filters">
+                    Generado: {{ $generatedAt->format('d/m/Y H:i') }}
+                    | Desde: {{ $fechaDesde ?: 'Todos' }}
+                    | Hasta: {{ $fechaHasta ?: 'Todos' }}
+                    | Placa filtro: {{ $placaFiltro !== '' ? $placaFiltro : 'Todas' }}
+                    | Vehiculo: {{ ($selectedVehicleLabel ?? '') !== '' ? $selectedVehicleLabel : 'Todos' }}
+                    | Conductor: {{ ($selectedDriverLabel ?? '') !== '' ? $selectedDriverLabel : 'Todos' }}
+                </div>
+
+                <table class="legacy-meta">
                     <tr>
-                        <td style="width:22%; text-align:left; vertical-align:top;">
-                            @if($logoData)
-                                <img src="{{ $logoData }}" alt="Correos de Bolivia" style="max-width:150px; max-height:52px;">
-                            @endif
-                        </td>
-                        <td style="width:56%; text-align:center; vertical-align:bottom;">
-                            <div style="font-size:15px; font-weight:700; text-transform:uppercase; margin-top:22px;">
-                                Formulario de bitácora de control para provisión de combustible
+                        <td>
+                            <span class="legacy-label">CONDUCTOR</span>
+                            <div class="legacy-value">
+                                {{ strtoupper((string) ($group['driver']?->nombre ?? 'SIN CONDUCTOR DESIGNADO')) }}
                             </div>
                         </td>
-                        <td style="width:22%; text-align:right; vertical-align:top;">
-                            @if($logoData)
-                                <img src="{{ $logoData }}" alt="Correos de Bolivia" style="max-width:150px; max-height:52px;">
-                            @endif
-                        </td>
-                    </tr>
-                </table>
-
-                <table class="legacy-meta" style="margin-bottom:10px;">
-                    <tr>
-                        <td style="width:40%;">
-                            <span class="legacy-label">Conductor:</span>
-                            <div class="legacy-value">{{ $driverLabel }}</div>
-                        </td>
-                        <td style="width:20%;">
-                            <span class="legacy-label">Placa:</span>
+                        <td>
+                            <span class="legacy-label">PLACA</span>
                             <div class="legacy-value">{{ $group['vehicle']?->placa ?? 'SIN PLACA' }}</div>
                         </td>
-                        <td style="width:40%;">
-                            <span class="legacy-label">Vehículo:</span>
-                            <div class="legacy-value">{{ strtoupper($vehicleLabel) }}</div>
+                        <td>
+                            <span class="legacy-label">VEHICULO</span>
+                            <div class="legacy-value">{{ trim(($group['vehicle']?->brand?->nombre ?? '') . ' ' . ($group['vehicle']?->modelo ?? '')) ?: '-' }}</div>
                         </td>
                     </tr>
                 </table>
 
-                <table class="legacy-table" style="table-layout:fixed;">
+                <table class="legacy-table">
                     <thead>
                         <tr>
-                            <th rowspan="2" style="width:7%;">Fecha</th>
-                            <th rowspan="2" style="width:7%;">Cantidad de litros</th>
-                            <th rowspan="2" style="width:8%;">Numero de factura</th>
-                            <th colspan="2" style="width:20%;">Kilometraje</th>
-                            <th rowspan="2" style="width:9%;">Total recorrido (Km)</th>
-                            <th colspan="2" style="width:26%;">Recorrido</th>
-                            <th rowspan="2" style="width:11%;">Cantidad de guias llevadas y/o recogidas</th>
-                            <th rowspan="2" style="width:7%;">Firma</th>
+                            @if($visibleColumns->contains('fecha'))
+                                <th>Fecha</th>
+                            @endif
+                            @if($visibleColumns->contains('placa'))
+                                <th>Placa</th>
+                            @endif
+                            @if($visibleColumns->contains('vehiculo'))
+                                <th>Vehiculo</th>
+                            @endif
+                            @if($visibleColumns->contains('driver_name'))
+                                <th>Conductor</th>
+                            @endif
+                            @if($showKmSalida || $showKmRecorrido || $showKmLlegada)
+                                <th colspan="{{ ($showKmSalida ? 1 : 0) + ($showKmRecorrido ? 1 : 0) + ($showKmLlegada ? 1 : 0) }}">Kilometraje</th>
+                            @endif
+                            @if($showRecorrido)
+                                <th>Recorrido</th>
+                            @endif
+                            @if($visibleColumns->contains('combustible'))
+                                <th>Abastecimiento de Combustible</th>
+                            @endif
                         </tr>
                         <tr class="subhead">
-                            <th>Salida</th>
-                            <th>Llegada</th>
-                            <th>Inicio</th>
-                            <th>Destino</th>
+                            @if($visibleColumns->contains('fecha'))
+                                <th></th>
+                            @endif
+                            @if($visibleColumns->contains('placa'))
+                                <th></th>
+                            @endif
+                            @if($visibleColumns->contains('vehiculo'))
+                                <th></th>
+                            @endif
+                            @if($visibleColumns->contains('driver_name'))
+                                <th></th>
+                            @endif
+                            @if($showKmSalida)
+                                <th>Salida</th>
+                            @endif
+                            @if($showKmRecorrido)
+                                <th>Recorrido</th>
+                            @endif
+                            @if($showKmLlegada)
+                                <th>Final</th>
+                            @endif
+                            @if($showRecorrido)
+                                <th></th>
+                            @endif
+                            @if($visibleColumns->contains('combustible'))
+                                <th></th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($displayRows as $row)
+                        @foreach($rowsChunk as $row)
                             @php
                                 $kmSalida = $row->kilometraje_salida !== null ? (float) $row->kilometraje_salida : null;
                                 $kmLlegada = $row->kilometraje_llegada !== null ? (float) $row->kilometraje_llegada : null;
@@ -202,79 +235,45 @@
                                     ? (float) $row->kilometraje_recorrido
                                     : (($kmSalida !== null && $kmLlegada !== null) ? max(0, $kmLlegada - $kmSalida) : null);
                                 $litros = (float) ($row->fuelLog?->cantidad ?? $row->fuelLog?->galones ?? 0);
-                                $factura = (string) ($row->fuelLog?->invoice?->numero_factura ?? $row->fuelLog?->invoice?->numero ?? '');
-                                $packageCount = max(0, (int) ($row->cantidad_paquetes ?? 0));
                             @endphp
                             <tr>
-                                <td>{{ optional($row->fecha)->format('d/m/y') ?? '' }}</td>
-                                <td class="num">{{ $litros > 0 ? number_format($litros, 2) : '' }}</td>
-                                <td>{{ $factura }}</td>
-                                <td class="num">{{ $kmSalida !== null ? number_format($kmSalida, 2) : '' }}</td>
-                                <td class="num">{{ $kmLlegada !== null ? number_format($kmLlegada, 2) : '' }}</td>
-                                <td class="num">{{ $kmRecorrido !== null ? number_format($kmRecorrido, 2) : '0' }}</td>
-                                <td>{{ (string) ($row->recorrido_inicio ?? '') }}</td>
-                                <td>{{ (string) ($row->recorrido_destino ?? '') }}</td>
-                                <td class="text-center">{{ $packageCount > 0 ? $packageCount : '' }}</td>
-                                <td></td>
+                                @if($visibleColumns->contains('fecha'))
+                                    <td>{{ optional($row->fecha)->format('d/m/y') ?? '-' }}</td>
+                                @endif
+                                @if($visibleColumns->contains('placa'))
+                                    <td>{{ $row->vehicle?->placa ?? '-' }}</td>
+                                @endif
+                                @if($visibleColumns->contains('vehiculo'))
+                                    <td>{{ trim(($row->vehicle?->brand?->nombre ?? '') . ' ' . ($row->vehicle?->modelo ?? '')) ?: '-' }}</td>
+                                @endif
+                                @if($visibleColumns->contains('driver_name'))
+                                    <td>{{ strtoupper((string) ($row->driver?->nombre ?? 'SIN CONDUCTOR')) }}</td>
+                                @endif
+                                @if($showKmSalida)
+                                    <td class="num">{{ $kmSalida !== null ? number_format($kmSalida, 2) : '-' }}</td>
+                                @endif
+                                @if($showKmRecorrido)
+                                    <td class="num">{{ $kmRecorrido !== null ? number_format($kmRecorrido, 2) : '-' }}</td>
+                                @endif
+                                @if($showKmLlegada)
+                                    <td class="num">{{ $kmLlegada !== null ? number_format($kmLlegada, 2) : '-' }}</td>
+                                @endif
+                                @if($showRecorrido)
+                                    <td>{{ trim(((string) ($row->recorrido_inicio ?? '-')) . ' -> ' . ((string) ($row->recorrido_destino ?? '-'))) }}</td>
+                                @endif
+                                @if($visibleColumns->contains('combustible'))
+                                    <td class="num">{{ $litros > 0 ? 'Si - ' . number_format($litros, 2) . ' L' : 'No' }}</td>
+                                @endif
                             </tr>
                         @endforeach
-                        @for($index = 0; $index < $blankRows; $index++)
-                            <tr>
-                                <td>&nbsp;</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td class="num">0</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                            </tr>
-                        @endfor
                     </tbody>
-                </table>
-
-                <div style="margin-top:10px; font-size:10px; font-weight:700; text-transform:uppercase;">
-                    Llenado por el conductor designado
-                </div>
-
-                <table style="width:100%; border-collapse:collapse; margin-top:10px;">
-                    <tr>
-                        <td style="width:22%;"></td>
-                        <td style="width:28%;">
-                            <table style="width:100%; border-collapse:collapse;">
-                                <tr>
-                                    <td style="border:1px solid #000; background:#d2d8df; text-align:center; font-weight:700; font-size:10px; padding:6px;">
-                                        Firma y sello del conductor designado
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="border:1px solid #000; height:72px;"></td>
-                                </tr>
-                            </table>
-                        </td>
-                        <td style="width:6%;"></td>
-                        <td style="width:28%;">
-                            <table style="width:100%; border-collapse:collapse;">
-                                <tr>
-                                    <td style="border:1px solid #000; background:#d2d8df; text-align:center; font-weight:700; font-size:10px; padding:6px;">
-                                        Firma y sello del inmediato superior
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="border:1px solid #000; height:72px;"></td>
-                                </tr>
-                            </table>
-                        </td>
-                        <td style="width:16%;"></td>
-                    </tr>
                 </table>
             </div>
         @endforeach
     @empty
         <div class="page">
-            <div class="legacy-subtitle">FORMULARIO DE BITÁCORA DE CONTROL PARA PROVISIÓN DE COMBUSTIBLE</div>
+            <div class="legacy-title">ANEXO 2</div>
+            <div class="legacy-subtitle">FORMULARIO DE BITACORA DE CONTROL PARA PROVISION DE COMBUSTIBLE</div>
             <p>No existen registros para los filtros seleccionados.</p>
         </div>
     @endforelse

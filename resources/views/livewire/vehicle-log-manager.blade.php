@@ -1,10 +1,6 @@
 <div class="bp-livewire-skin">
     @include('livewire.partials.button-theme')
     <style>
-        .bp-livewire-skin {
-            font-family: Verdana, Geneva, Tahoma, sans-serif;
-        }
-
         .bp-select-like-vehicle {
             border-radius: 10px;
             min-height: calc(2.35rem + 2px);
@@ -422,15 +418,6 @@
                                         @error('kilometraje_recorrido') <div class="invalid-feedback">{{ $message }}</div> @enderror
                                         <div class="form-text">El sistema sumara este valor al Km Salida para calcular el kilometraje final.</div>
                                     </div>
-                                    <div class="col-12 col-md-6">
-                                        <label for="cantidad_paquetes" class="form-label fw-bold">Cantidad de paquetes</label>
-                                        <input type="number" min="0" step="1" id="cantidad_paquetes" wire:model="cantidad_paquetes" class="form-control @error('cantidad_paquetes') is-invalid @enderror">
-                                        @error('cantidad_paquetes') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                                        <div class="form-text">Ingresa cuántos paquetes movio este viaje.</div>
-                                    </div>
-                                </div>
-
-                                <div class="row g-3 mb-3">
                                     <div class="col-12 col-md-6">
                                         <label for="recorrido_inicio" class="form-label fw-bold">Recorrido Inicio <span class="text-danger">*</span></label>
                                         <div class="input-group">

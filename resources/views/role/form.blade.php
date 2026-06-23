@@ -1,4 +1,4 @@
-﻿@php
+@php
     $selectedPermissions = collect(old('permissions', $selectedPermissions ?? []))
         ->map(fn ($permission) => (string) $permission)
         ->all();
@@ -384,12 +384,12 @@
             <section class="acl-hero">
                 <div class="acl-hero-title">Constructor visual de permisos</div>
                 <p class="acl-hero-copy">
-                    Configura este rol por contexto real del sistema: abre una pestana, entra a una ventana y activa solo los botones o acciones que necesita.
+                    Configura este rol por contexto real del sistema: abre una pestaña, entra a una ventana y activa solo los botones o acciones que necesita.
                 </p>
                 <div class="acl-legend">
                     <span class="acl-legend-item"><span class="acl-legend-swatch" style="background:#b8d2f5;"></span>Acceso a ventana</span>
                     <span class="acl-legend-item"><span class="acl-legend-swatch" style="background:#fecc36;"></span>Botones y acciones</span>
-                    <span class="acl-legend-item"><span class="acl-legend-swatch" style="background:#d9e2ef;"></span>Vista tecnica opcional</span>
+                    <span class="acl-legend-item"><span class="acl-legend-swatch" style="background:#d9e2ef;"></span>Vista técnica opcional</span>
                 </div>
             </section>
 
@@ -412,23 +412,158 @@
 
                 <div class="acl-meta-card">
                     <label for="guard_name">Guard</label>
-                    @php
-                        $guardInput = old('guard_name', $role->guard_name ?? 'web');
-                    @endphp
-                    <select
+                    <input
+                        type="text"
                         id="guard_name"
-                        name="guard_name"
-                        class="form-control @error('guard_name') is-invalid @enderror"
+                        value="web"
+                        class="form-control"
+                        readonly
+                        disabled
                     >
-                        <option value="movil" {{ $guardInput === 'movil' || $guardInput === 'mobile' ? 'selected' : '' }}>movil</option>
-                        <option value="web" {{ $guardInput === 'web' ? 'selected' : '' }}>web</option>
-                    </select>
-                    <small class="text-muted">Selecciona el guard del rol segun el canal que usara.</small>
-                    @error('guard_name')
-                        <div class="invalid-feedback d-block">{{ $message }}</div>
-                    @enderror
                 </div>
             </div>
+
+        @if (!empty($menuPermissionSummary))
+            <div class="menu-map mb-4">
+                <div>
+                    <h2 class="acl-section-title">Menu principal, ventanas y acciones</h2>
+                    <p class="acl-section-copy">
+                        La zona azul controla si puede entrar a la ventana. La zona dorada controla botones independientes solo de esa ventana, sin mezclar permisos de otras pestañas.
+                    </p>
+                </div>
+
+                @php
+                    $isSelectedPermission = fn (?string $permissionName): bool => is_string($permissionName) && in_array($permissionName, $selectedPermissions, true);
+                    $menuNodeCounter = 0;
+                    $nodeHasSelection = function (array $node) use (&$nodeHasSelection, $isSelectedPermission): bool {
+                        if (($node['level'] ?? null) === 'window') {
+                            $route = $node['route'] ?? null;
+                            $routeName = is_array($route) ? ($route['name'] ?? ($node['route_name'] ?? '')) : ($node['route_name'] ?? '');
+                            if ($isSelectedPermission($routeName)) {
+                                return true;
+                            }
+
+                            foreach (($node['actions'] ?? []) as $action) {
+                                if ($isSelectedPermission((string) ($action['name'] ?? ''))) {
+                                    return true;
+                                }
+                            }
+
+                            return false;
+                        }
+
+                        foreach (($node['children'] ?? []) as $child) {
+                            if ($nodeHasSelection($child)) {
+                                return true;
+                            }
+                        }
+
+                        return false;
+                    };
+                    $renderMenuNode = function (array $node, int $depth = 0) use (&$renderMenuNode, $isSelectedPermission, &$menuNodeCounter, $nodeHasSelection) {
+                        $menuNodeCounter++;
+                        $nodeId = 'menu_node_'.$menuNodeCounter;
+                        $isOpen = $nodeHasSelection($node);
+
+                        if (($node['level'] ?? null) === 'tab') {
+                            echo '<section class="menu-map-tab">';
+                            echo '<button type="button" class="menu-node-toggle js-menu-node-toggle" data-target="'.$nodeId.'" aria-expanded="'.($isOpen ? 'true' : 'false').'">';
+                            echo '<span>Pestana: '.e($node['label'] ?? 'Menu').'</span>';
+                            echo '<span>Ver submenu y ventanas</span>';
+                            echo '</button>';
+                            echo '<div id="'.$nodeId.'" class="menu-node-body '.($isOpen ? '' : 'd-none').'">';
+                            foreach (($node['children'] ?? []) as $child) {
+                                $renderMenuNode($child, $depth + 1);
+                            }
+                            echo '</div>';
+                            echo '</section>';
+                            return;
+                        }
+
+                        if (($node['level'] ?? null) === 'submenu') {
+                            echo '<div class="menu-map-submenu">';
+                            echo '<button type="button" class="menu-node-toggle js-menu-node-toggle" data-target="'.$nodeId.'" aria-expanded="'.($isOpen ? 'true' : 'false').'">';
+                            echo '<span>Submenu: '.e($node['label'] ?? 'Submenu').'</span>';
+                            echo '<span>Ver ventanas</span>';
+                            echo '</button>';
+                            echo '<div id="'.$nodeId.'" class="menu-node-body '.($isOpen ? '' : 'd-none').'">';
+                            foreach (($node['children'] ?? []) as $child) {
+                                $renderMenuNode($child, $depth + 1);
+                            }
+                            echo '</div>';
+                            echo '</div>';
+                            return;
+                        }
+
+                        $route = $node['route'] ?? null;
+                        $actions = $node['actions'] ?? [];
+                        $routeName = is_array($route) ? ($route['name'] ?? ($node['route_name'] ?? '')) : ($node['route_name'] ?? '');
+                        $routeLabel = is_array($route) ? ($route['action_label'] ?? 'Acceso a la ventana') : 'Acceso a la ventana';
+                        $routeHint = is_array($route) ? ($route['hint'] ?? null) : null;
+
+                        echo '<div class="menu-map-window">';
+                        echo '<button type="button" class="menu-node-toggle js-menu-node-toggle" data-target="'.$nodeId.'" aria-expanded="'.($isOpen ? 'true' : 'false').'">';
+                        echo '<span>Ventana: '.e($node['label'] ?? 'Ventana').'</span>';
+                        echo '<span>'.e($node['module_label'] ?? ($node['module_key'] ?? 'sin modulo')).'</span>';
+                        echo '</button>';
+                        echo '<div id="'.$nodeId.'" class="menu-node-body '.($isOpen ? '' : 'd-none').'">';
+
+                        echo '<div class="menu-map-block-title">Acceso a la ventana</div>';
+                        echo '<div class="menu-map-list menu-map-access">';
+                        echo '<label class="menu-map-check">';
+                        echo '<input type="checkbox" class="js-permission-proxy" data-target-permission="'.e($routeName).'" '.($isSelectedPermission($routeName) ? 'checked' : '').'>';
+                        echo '<span class="menu-map-check-title">'.e($routeLabel).'</span>';
+                        if (!empty($routeHint)) {
+                            echo '<small class="text-primary">'.e($routeHint).'</small>';
+                        }
+                        echo '<small class="text-muted">'.e($routeName).'</small>';
+                        echo '</label>';
+                        echo '</div>';
+
+                        if ($actions !== []) {
+                            echo '<div class="menu-map-block-title">Botones y acciones dentro de esta ventana</div>';
+                            echo '<div class="menu-map-list menu-map-actions">';
+                            foreach ($actions as $action) {
+                                $hint = trim((string) ($action['hint'] ?? ''));
+                                $permissionName = (string) ($action['name'] ?? '');
+                                echo '<label class="menu-map-check">';
+                                echo '<input type="checkbox" class="js-permission-proxy" data-target-permission="'.e($permissionName).'" '.($isSelectedPermission($permissionName) ? 'checked' : '').'>';
+                                echo '<span class="menu-map-check-title">'.e($action['action_label'] ?? $permissionName).'</span>';
+                                if ($hint !== '') {
+                                    echo '<small class="text-primary">'.e($hint).'</small>';
+                                }
+                                echo '<small class="text-muted">'.e($permissionName).'</small>';
+                                echo '</label>';
+                            }
+                            echo '</div>';
+                        }
+
+                        echo '</div>';
+                        echo '</div>';
+                    };
+                @endphp
+
+                @foreach ($menuPermissionSummary as $tabNode)
+                    @php $renderMenuNode($tabNode); @endphp
+                @endforeach
+            </div>
+        @endif
+
+        <div class="technical-permissions">
+            <button type="button" class="technical-toggle js-menu-node-toggle mb-3" data-target="technical_permissions_body" aria-expanded="false">
+                <span>Vista tecnica de permisos</span>
+            </button>
+
+            <div id="technical_permissions_body" class="d-none">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap">
+                    <div class="text-muted">
+                        Esta vista muestra el nombre tecnico exacto del permiso. La seccion superior es la forma recomendada para editar.
+                    </div>
+                    <div class="d-flex align-items-center" style="gap: .5rem;">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleAllLists">Abrir listas</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="toggleAllPermissions">Marcar todo</button>
+                    </div>
+                </div>
 
                 @foreach ($permissionGroups as $group)
                     @php
@@ -676,5 +811,3 @@
         permissionItems.forEach((permissionItem) => syncProxyFromTechnical(permissionItem.dataset.permissionName));
     });
 </script>
-
-
