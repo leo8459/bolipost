@@ -761,7 +761,6 @@ class AuthTokenController extends Controller
         $user = User::query()
             ->whereRaw('LOWER(email) = ?', [$normalized])
             ->orWhereRaw('LOWER(alias) = ?', [$normalized])
-            ->orWhereRaw('LOWER(name) = ?', [$normalized])
             ->first();
 
         if ($user) {
@@ -769,10 +768,7 @@ class AuthTokenController extends Controller
         }
 
         $driver = Driver::query()
-            ->where(function ($query) use ($normalized) {
-                $query->whereRaw('LOWER(email) = ?', [$normalized])
-                    ->orWhereRaw('LOWER(nombre) = ?', [$normalized]);
-            })
+            ->whereRaw('LOWER(email) = ?', [$normalized])
             ->first();
 
         if ($driver?->user_id) {
