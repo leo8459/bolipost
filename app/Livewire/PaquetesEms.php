@@ -138,6 +138,9 @@ class PaquetesEms extends Component
     public $cn33Despacho = '';
     public $cn33ManualCodigo = '';
     public $cn38Despacho = '';
+    public $cn38TransportMode = 'TERRESTRE';
+    public $cn38BagCount = 1;
+    public $cn38BagWeights = [''];
     public $generadosHoyCount = 0;
     public $entregaRecibidoPor = '';
     public $entregaDescripcion = '';
@@ -1675,6 +1678,7 @@ class PaquetesEms extends Component
         $this->showCn38Generate = !$this->showCn38Generate;
         if (!$this->showCn38Generate) {
             $this->cn38Despacho = '';
+            $this->resetCn38BagConfig();
         }
     }
 
@@ -1699,26 +1703,24 @@ class PaquetesEms extends Component
             return;
         }
 
-        $this->selectedPaquetes = collect($this->selectedPaquetes)
+        $this->selectedPaquetes = collect($idsEms)
             ->map(fn ($id) => (string) ((int) $id))
-            ->concat(collect($idsEms)->map(fn ($id) => (string) ((int) $id)))
-            ->unique()
             ->values()
             ->all();
 
-        $this->selectedContratos = collect($this->selectedContratos)
+        $this->selectedContratos = collect($idsContratos)
             ->map(fn ($id) => (string) ((int) $id))
-            ->concat(collect($idsContratos)->map(fn ($id) => (string) ((int) $id)))
-            ->unique()
             ->values()
             ->all();
 
-        $this->selectedSolicitudes = collect($this->selectedSolicitudes)
+        $this->selectedSolicitudes = collect($idsSolicitudes)
             ->map(fn ($id) => (string) ((int) $id))
-            ->concat(collect($idsSolicitudes)->map(fn ($id) => (string) ((int) $id)))
-            ->unique()
             ->values()
             ->all();
+
+        $totalPeso = $this->buildCn38DispatchSummaryRows()->sum(fn ($row) => (float) ($row->peso_total ?? 0));
+        $this->cn38BagCount = 1;
+        $this->cn38BagWeights = [number_format((float) $totalPeso, 3, '.', '')];
 
         session()->flash(
             'success',
@@ -1726,7 +1728,18 @@ class PaquetesEms extends Component
             . (count($idsEms) + count($idsContratos) + count($idsSolicitudes)) . '.'
         );
 
-        $this->cn38Despacho = '';
+    }
+
+    public function updatedCn38BagCount($value): void
+    {
+        $count = max(1, (int) $value);
+        $this->cn38BagCount = $count;
+        $this->syncCn38BagWeights($count);
+    }
+
+    public function updatedCn38BagWeights($value, $key): void
+    {
+        $this->cn38BagWeights[$key] = $this->normalizeCn38BagWeight($value);
     }
 
     public function updatedFiltroOrigenTransito($value): void
@@ -1989,10 +2002,24 @@ class PaquetesEms extends Component
             return;
         }
 
+        $resolvedDespacho = $this->resolveCn38DisplayDespacho($rows->map(function ($row) {
+            return (object) ['despacho' => $row->despacho ?? ''];
+        }));
+
         if ($despacho === '') {
-            $despacho = $this->resolveCn38DisplayDespacho($rows->map(function ($row) {
-                return (object) ['despacho' => $row->despacho ?? ''];
-            }));
+            $despacho = $resolvedDespacho;
+        }
+
+        if ($resolvedDespacho !== 'MULTIPLE' && $resolvedDespacho !== 'SELECCION') {
+            $despacho = $resolvedDespacho;
+            $bagRows = $this->buildCn38BagRows($rows, $despacho);
+
+            if ($bagRows === null) {
+                session()->flash('error', 'Completa el peso de todas las sacas para generar el CN-38.');
+                return;
+            }
+
+            $rows = $bagRows;
         }
 
         $totalPeso = (float) $rows->sum(fn ($row) => (float) ($row->peso_total ?? 0));
@@ -2017,8 +2044,8 @@ class PaquetesEms extends Component
             'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
             'totalPeso' => $totalPeso,
             'totalCantidad' => $totalCantidad,
-            'selectedTransport' => trim((string) $this->regionalTransportMode) !== '' ? trim((string) $this->regionalTransportMode) : 'TERRESTRE',
-            'transportNumber' => trim((string) $this->regionalTransportNumber) !== '' ? trim((string) $this->regionalTransportNumber) : 'S/N',
+            'selectedTransport' => trim((string) $this->cn38TransportMode) !== '' ? trim((string) $this->cn38TransportMode) : 'TERRESTRE',
+            'transportNumber' => 'S/N',
         ])->setPaper($formato === 'carta' ? 'letter' : 'a4', 'portrait');
 
         $this->cerrarCn38OpcionesImpresion();
@@ -5174,6 +5201,36 @@ class PaquetesEms extends Component
             ->values();
     }
 
+    protected function buildCn38BagRows(Collection $rows, string $despacho): ?Collection
+    {
+        $count = max(1, (int) $this->cn38BagCount);
+        $weights = collect($this->cn38BagWeights)
+            ->take($count)
+            ->map(fn ($weight) => $this->normalizeCn38BagWeight($weight))
+            ->values();
+
+        if ($weights->count() !== $count || $weights->contains(fn ($weight) => $weight === '')) {
+            return null;
+        }
+
+        $baseRow = $rows->first();
+        $updatedAt = $rows->pluck('updated_at')->filter()->sortDesc()->first();
+
+        return $weights->map(function ($weight, $index) use ($baseRow, $despacho, $count, $updatedAt) {
+            $bagNumber = str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT);
+
+            return (object) [
+                'despacho' => $despacho,
+                'despacho_etiqueta' => strtoupper(trim($despacho)) . '/' . $bagNumber . ($index === ($count - 1) ? '/F' : ''),
+                'origen' => (string) ($baseRow->origen ?? '-'),
+                'destino' => (string) ($baseRow->destino ?? '-'),
+                'peso_total' => (float) $weight,
+                'registros' => 1,
+                'updated_at' => $updatedAt,
+            ];
+        })->values();
+    }
+
     protected function resolveCn38DisplayDespacho(Collection $rows): string
     {
         $despachos = $rows
@@ -5192,6 +5249,35 @@ class PaquetesEms extends Component
         }
 
         return 'SELECCION';
+    }
+
+    protected function syncCn38BagWeights(int $count): void
+    {
+        $current = collect($this->cn38BagWeights)
+            ->map(fn ($weight) => $this->normalizeCn38BagWeight($weight))
+            ->values();
+
+        $this->cn38BagWeights = collect(range(0, $count - 1))
+            ->map(fn ($index) => (string) ($current->get($index, '')))
+            ->all();
+    }
+
+    protected function normalizeCn38BagWeight($value): string
+    {
+        $normalized = str_replace(',', '.', trim((string) $value));
+
+        if ($normalized === '') {
+            return '';
+        }
+
+        return is_numeric($normalized) ? $normalized : '';
+    }
+
+    protected function resetCn38BagConfig(): void
+    {
+        $this->cn38TransportMode = 'TERRESTRE';
+        $this->cn38BagCount = 1;
+        $this->cn38BagWeights = [''];
     }
 
     protected function buildVentanillaResumenRows(): Collection

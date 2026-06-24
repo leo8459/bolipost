@@ -234,7 +234,7 @@
             <tbody>
                 @foreach ($rows as $row)
                     <tr>
-                        <td class="c-despacho">{{ strtoupper((string) ($row->despacho ?? '-')) . ($loop->last ? '/F' : '') }}</td>
+                        <td class="c-despacho">{{ strtoupper((string) ($row->despacho_etiqueta ?? $row->despacho ?? '-')) }}</td>
                         <td class="c-orig">{{ mb_strtoupper(mb_substr((string) ($row->origen ?? '-'), 0, 3)) }}</td>
                         <td class="c-dest">{{ mb_strtoupper(mb_substr((string) ($row->destino ?? '-'), 0, 3)) }}</td>
                         <td class="c-cor text-center"></td>

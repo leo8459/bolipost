@@ -2509,8 +2509,51 @@
                 </div>
                 <div class="modal-body">
                     <p class="mb-3">
-                        Elige como deseas generar el CN-38. El formato <strong>LQ-590</strong> usa el diseno optimizado para impresora matricial.
+                        Configura el CN-38 antes de imprimir. El formato <strong>LQ-590</strong> usa el diseno optimizado para impresora matricial.
                     </p>
+                    <div class="form-group">
+                        <label>Transporte</label>
+                        <select class="form-control" wire:model.live="cn38TransportMode">
+                            <option value="TERRESTRE">TERRESTRE</option>
+                            <option value="AEREO">AEREO</option>
+                        </select>
+                    </div>
+                    @if (collect($cn38DispatchSummaryRows ?? collect())->count() === 1)
+                        <div class="form-row">
+                            <div class="form-group col-md-4 mb-2">
+                                <label>Cantidad de sacas</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    class="form-control"
+                                    wire:model.live="cn38BagCount"
+                                >
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            @for ($i = 0; $i < max(1, (int) $cn38BagCount); $i++)
+                                <div class="form-group col-md-4 col-sm-6 mb-2" wire:key="cn38-modal-bag-weight-{{ $i }}">
+                                    <label>
+                                        Peso saca {{ str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT) }}
+                                        @if ($i === max(1, (int) $cn38BagCount) - 1)
+                                            (F)
+                                        @endif
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.001"
+                                        class="form-control"
+                                        placeholder="0.000"
+                                        wire:model.live="cn38BagWeights.{{ $i }}"
+                                    >
+                                </div>
+                            @endfor
+                        </div>
+                        <small class="text-muted d-block mb-3">
+                            El reporte saldra como {{ strtoupper(trim((string) $cn38Despacho)) ?: 'CN33' }}/0001 y la ultima saca llevara la marca /F.
+                        </small>
+                    @endif
                     <div class="d-flex flex-column flex-sm-row" style="gap: 10px;">
                         <button type="button" class="btn btn-outline-dark flex-fill" wire:click="generarCn38Carta">
                             <i class="fas fa-file-alt mr-1"></i> Tamano carta
