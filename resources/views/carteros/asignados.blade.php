@@ -20,11 +20,27 @@
                         <input
                             id="asignados-search"
                             type="text"
-                            class="form-control"
+                            class="form-control asignados-search-input"
                             placeholder="Buscar por codigo, cod_especial o nombre del cartero"
                         >
-                        <button id="asignados-search-btn" type="button" class="btn btn-carteros-secondary">Buscar</button>
-                        <button id="asignados-clear-btn" type="button" class="btn btn-carteros-clear">Limpiar</button>
+                        <select id="asignados-city-filter" class="form-control asignados-city-select">
+                            <option value="">Todas las ciudades</option>
+                            @foreach ($ciudadesAsignadas as $ciudad)
+                                <option value="{{ $ciudad['value'] }}">{{ $ciudad['label'] }}</option>
+                            @endforeach
+                        </select>
+                        <select id="asignados-cartero-filter" class="form-control asignados-cartero-select">
+                            <option value="">Todos los carteros</option>
+                            @foreach ($carterosAsignados as $cartero)
+                                <option value="{{ $cartero['id'] }}" data-city="{{ $cartero['city'] }}">
+                                    {{ $cartero['name'] }}{{ $cartero['city_label'] !== 'Sin ciudad' ? ' - ' . $cartero['city_label'] : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="asignados-actions">
+                            <button id="asignados-search-btn" type="button" class="btn btn-carteros-secondary">Buscar</button>
+                            <button id="asignados-clear-btn" type="button" class="btn btn-carteros-clear">Limpiar</button>
+                        </div>
                     </div>
                     <div id="asignados-count" class="asignados-count">Mostrando 0 registros</div>
                 </div>
@@ -79,24 +95,51 @@
         .asignados-toolbar {
             margin-top: 14px;
             display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 14px;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
             flex-wrap: wrap;
         }
 
         .asignados-search-cluster {
-            width: min(100%, 760px);
+            flex: 1 1 980px;
+            min-width: 0;
             display: flex;
             align-items: center;
             gap: 10px;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
+        }
+
+        .asignados-search-input {
+            flex: 2.2 1 320px;
+        }
+
+        .asignados-city-select {
+            flex: 1 1 210px;
+            max-width: 240px;
+        }
+
+        .asignados-cartero-select {
+            flex: 1.2 1 260px;
+            max-width: 320px;
+        }
+
+        .asignados-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 0 0 auto;
         }
 
         .asignados-count {
             color: rgba(255, 255, 255, 0.9);
             font-weight: 800;
             white-space: nowrap;
+            flex: 0 0 auto;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            margin-left: auto;
         }
 
         .asignados-search-cluster .form-control {
@@ -140,6 +183,10 @@
             color: var(--carteros-primary);
         }
 
+        .asignados-actions .btn {
+            min-width: 92px;
+        }
+
         .asignados-table-wrap {
             border-top: 1px solid #e4e8f2;
         }
@@ -157,6 +204,42 @@
         .btn-carteros-danger:hover {
             background: #ffe4e6;
             color: #912018;
+        }
+
+        @media (max-width: 1399.98px) {
+            .asignados-search-cluster {
+                flex: 1 1 100%;
+            }
+
+            .asignados-count {
+                margin-left: 0;
+            }
+        }
+
+        @media (max-width: 991.98px) {
+            .asignados-toolbar {
+                align-items: stretch;
+            }
+
+            .asignados-search-input,
+            .asignados-city-select,
+            .asignados-cartero-select {
+                flex: 1 1 100%;
+                max-width: none;
+            }
+
+            .asignados-actions {
+                width: 100%;
+            }
+
+            .asignados-actions .btn {
+                flex: 1 1 0;
+            }
+
+            .asignados-count {
+                width: 100%;
+                justify-content: flex-start;
+            }
         }
     </style>
 @endsection
@@ -177,9 +260,18 @@
             const searchInput = document.getElementById('asignados-search');
             const searchBtn = document.getElementById('asignados-search-btn');
             const clearBtn = document.getElementById('asignados-clear-btn');
+            const cityFilter = document.getElementById('asignados-city-filter');
+            const carteroFilter = document.getElementById('asignados-cartero-filter');
             const countText = document.getElementById('asignados-count');
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
             const canUnassignAsignados = @json($canUnassignAsignados);
+            const carteroOptions = Array.from(carteroFilter.options).map(function(option) {
+                return {
+                    value: option.value,
+                    label: option.textContent,
+                    city: option.getAttribute('data-city') || ''
+                };
+            });
 
             function escapeHtml(value) {
                 if (value === null || value === undefined) return '';
@@ -199,6 +291,29 @@
             function setError() {
                 body.innerHTML = '<tr><td colspan="12" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
                 countText.textContent = 'No se pudo contar los registros';
+            }
+
+            function syncCarteroOptions() {
+                const selectedCity = cityFilter.value || '';
+                const selectedCartero = carteroFilter.value || '';
+                const filteredOptions = carteroOptions.filter(function(option) {
+                    if (option.value === '') {
+                        return true;
+                    }
+
+                    return selectedCity === '' || option.city === selectedCity;
+                });
+
+                carteroFilter.innerHTML = filteredOptions.map(function(option) {
+                    const selected = option.value === selectedCartero ? ' selected' : '';
+                    const cityAttr = option.city ? ' data-city="' + escapeHtml(option.city) + '"' : '';
+
+                    return '<option value="' + escapeHtml(option.value) + '"' + cityAttr + selected + '>' + escapeHtml(option.label) + '</option>';
+                }).join('');
+
+                if (selectedCartero !== '' && !filteredOptions.some(function(option) { return option.value === selectedCartero; })) {
+                    carteroFilter.value = '';
+                }
             }
 
             function renderRows(rows) {
@@ -286,14 +401,25 @@
             function updateCount(meta, rows) {
                 const total = Number(meta.total || 0);
                 const shown = Array.isArray(rows) ? rows.length : 0;
-                const suffix = currentSearch !== '' ? ' para la busqueda actual' : '';
+                const hasExtraFilter = currentSearch !== '' || cityFilter.value !== '' || carteroFilter.value !== '';
+                const suffix = hasExtraFilter ? ' para el filtro actual' : '';
                 countText.textContent = 'Mostrando ' + shown + ' de ' + total + ' registros' + suffix;
             }
 
             async function loadPage(page) {
                 setLoading();
                 try {
-                    const query = currentSearch !== '' ? '&search=' + encodeURIComponent(currentSearch) : '';
+                    const queryParts = [];
+                    if (currentSearch !== '') {
+                        queryParts.push('search=' + encodeURIComponent(currentSearch));
+                    }
+                    if (cityFilter.value !== '') {
+                        queryParts.push('ciudad=' + encodeURIComponent(cityFilter.value));
+                    }
+                    if (carteroFilter.value !== '') {
+                        queryParts.push('user_id=' + encodeURIComponent(carteroFilter.value));
+                    }
+                    const query = queryParts.length ? '&' + queryParts.join('&') : '';
                     const url = '{{ route('api.carteros.asignados') }}?page=' + page + '&per_page=' + perPage + query;
                     const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) throw new Error('Request failed');
@@ -324,9 +450,21 @@
                 loadPage(1);
             });
 
+            cityFilter.addEventListener('change', function() {
+                syncCarteroOptions();
+                loadPage(1);
+            });
+
+            carteroFilter.addEventListener('change', function() {
+                loadPage(1);
+            });
+
             clearBtn.addEventListener('click', function() {
                 currentSearch = '';
                 searchInput.value = '';
+                cityFilter.value = '';
+                syncCarteroOptions();
+                carteroFilter.value = '';
                 loadPage(1);
             });
 
@@ -352,6 +490,7 @@
                 );
             });
 
+            syncCarteroOptions();
             loadPage(1);
         })();
     </script>

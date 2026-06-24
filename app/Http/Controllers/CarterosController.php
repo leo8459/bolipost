@@ -54,7 +54,49 @@ class CarterosController extends Controller
 
     public function asignados()
     {
-        return view('carteros.asignados');
+        $estadoCarteroId = $this->resolveEstadoCarteroId();
+        $carteroIds = Cartero::query()
+            ->where('id_estados', $estadoCarteroId)
+            ->whereNotNull('id_user')
+            ->pluck('id_user')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $carterosAsignados = User::query()
+            ->whereIn('id', $carteroIds ?: [0])
+            ->orderBy('name')
+            ->get(['id', 'name', 'ciudad'])
+            ->map(function (User $user) {
+                $normalizedCity = $this->normalizeUserCity((string) $user->ciudad);
+
+                return [
+                    'id' => (int) $user->id,
+                    'name' => (string) $user->name,
+                    'city' => $normalizedCity,
+                    'city_label' => $normalizedCity !== ''
+                        ? Str::title(mb_strtolower($normalizedCity))
+                        : 'Sin ciudad',
+                ];
+            })
+            ->values();
+
+        $ciudadesAsignadas = $carterosAsignados
+            ->pluck('city')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn ($city) => [
+                'value' => $city,
+                'label' => Str::title(mb_strtolower((string) $city)),
+            ]);
+
+        return view('carteros.asignados', [
+            'carterosAsignados' => $carterosAsignados,
+            'ciudadesAsignadas' => $ciudadesAsignadas,
+        ]);
     }
 
     public function cartero()
@@ -1809,6 +1851,8 @@ class CarterosController extends Controller
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
         $search = trim((string) $request->query('search', ''));
+        $assignedUserId = max(0, (int) $request->query('user_id', 0));
+        $assignedCity = $this->normalizeUserCity(trim((string) $request->query('ciudad', '')));
         $codigo = trim((string) $request->query('codigo', ''));
         $cartero = trim((string) $request->query('cartero', ''));
         $nombre = trim((string) $request->query('nombre', ''));
@@ -2206,6 +2250,22 @@ class CarterosController extends Controller
                 ->values();
         }
 
+        if ($assignedUserId > 0 || $assignedCity !== '') {
+            $all = $this->attachCarteroData($all);
+
+            if ($assignedUserId > 0) {
+                $all = $all
+                    ->filter(fn ($row) => (int) ($row['user_id'] ?? 0) === $assignedUserId)
+                    ->values();
+            }
+
+            if ($assignedCity !== '') {
+                $all = $all
+                    ->filter(fn ($row) => $this->normalizeUserCity((string) ($row['asignado_ciudad'] ?? '')) === $assignedCity)
+                    ->values();
+            }
+        }
+
         if ($search !== '') {
             $needle = mb_strtolower($search);
             $all = $this->attachCarteroData($all)
@@ -2466,7 +2526,7 @@ class CarterosController extends Controller
         }
 
         $asignaciones = Cartero::query()
-            ->with('user:id,name')
+            ->with('user:id,name,ciudad')
             ->where(function ($query) use ($emsIds, $certiIds, $ordiIds, $contratoIds, $solicitudIds) {
                 if (!empty($emsIds)) {
                     $query->whereIn('id_paquetes_ems', $emsIds);
@@ -2534,6 +2594,7 @@ class CarterosController extends Controller
                 $row['estado_id'] = $asignacion->id_estados;
                 $row['user_id'] = $asignacion->id_user;
                 $row['asignado_a'] = optional($asignacion->user)->name;
+                $row['asignado_ciudad'] = optional($asignacion->user)->ciudad;
                 $row['intento'] = (int) $asignacion->intento;
                 $row['recibido_por'] = $asignacion->recibido_por;
                 $row['descripcion'] = $asignacion->descripcion;
