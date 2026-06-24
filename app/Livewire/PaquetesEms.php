@@ -2035,18 +2035,27 @@ class PaquetesEms extends Component
 
         $view = $formato === 'carta' ? 'paquetes_ems.cn38-carta' : 'paquetes_ems.cn38';
 
-        $pdf = Pdf::loadView($view, [
-            'rows' => $rows->values(),
-            'despacho' => $despacho,
-            'generatedAt' => $generatedAt,
-            'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
-            'destinationCity' => $destinationCity !== '' ? $destinationCity : 'N/A',
-            'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
-            'totalPeso' => $totalPeso,
-            'totalCantidad' => $totalCantidad,
-            'selectedTransport' => trim((string) $this->cn38TransportMode) !== '' ? trim((string) $this->cn38TransportMode) : 'TERRESTRE',
-            'transportNumber' => 'S/N',
-        ])->setPaper($formato === 'carta' ? 'letter' : 'a4', 'portrait');
+        try {
+            $pdf = Pdf::loadView($view, [
+                'rows' => $rows->values(),
+                'despacho' => $despacho,
+                'generatedAt' => $generatedAt,
+                'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
+                'destinationCity' => $destinationCity !== '' ? $destinationCity : 'N/A',
+                'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
+                'totalPeso' => $totalPeso,
+                'totalCantidad' => $totalCantidad,
+                'selectedTransport' => trim((string) $this->cn38TransportMode) !== '' ? trim((string) $this->cn38TransportMode) : 'TERRESTRE',
+                'transportNumber' => 'S/N',
+            ])->setPaper($formato === 'carta' ? 'letter' : 'a4', 'portrait');
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            $this->cerrarCn38OpcionesImpresion();
+            session()->flash('error', 'No se pudo generar el CN-38. Revisa la plantilla o los datos del despacho e intenta nuevamente.');
+
+            return;
+        }
 
         $this->cerrarCn38OpcionesImpresion();
 

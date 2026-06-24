@@ -233,16 +233,22 @@
         <table class="list">
             <tbody>
                 @foreach ($rows as $row)
+                    @php
+                        $despachoEtiqueta = strtoupper((string) data_get($row, 'despacho_etiqueta', data_get($row, 'despacho', '-')));
+                        $origenAbreviado = mb_strtoupper(mb_substr((string) data_get($row, 'origen', '-'), 0, 3));
+                        $destinoAbreviado = mb_strtoupper(mb_substr((string) data_get($row, 'destino', '-'), 0, 3));
+                        $pesoTotal = number_format((float) data_get($row, 'peso_total', 0), 1);
+                    @endphp
                     <tr>
-                        <td class="c-despacho">{{ strtoupper((string) ($row->despacho_etiqueta ?? $row->despacho ?? '-')) }}</td>
-                        <td class="c-orig">{{ mb_strtoupper(mb_substr((string) ($row->origen ?? '-'), 0, 3)) }}</td>
-                        <td class="c-dest">{{ mb_strtoupper(mb_substr((string) ($row->destino ?? '-'), 0, 3)) }}</td>
+                        <td class="c-despacho">{{ $despachoEtiqueta }}</td>
+                        <td class="c-orig">{{ $origenAbreviado }}</td>
+                        <td class="c-dest">{{ $destinoAbreviado }}</td>
                         <td class="c-cor text-center"></td>
                         <td class="c-cp text-center"></td>
                         <td class="c-ems text-center">1</td>
                         <td class="c-correos text-center"></td>
                         <td class="c-endas text-center"></td>
-                        <td class="c-peso text-right">{{ number_format((float) ($row->peso_total ?? 0), 1) }}</td>
+                        <td class="c-peso text-right">{{ $pesoTotal }}</td>
                         <td class="c-obs"></td>
                     </tr>
                 @endforeach

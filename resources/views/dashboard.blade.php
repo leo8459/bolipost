@@ -41,6 +41,115 @@
     </div>
     @endif
 
+    @if(((int) data_get($regionalPendingAlert ?? [], 'count', 0)) > 0)
+    <div class="alert alert-warning d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
+        <div>
+            <strong>Tiene paquetes pendientes:</strong>
+            {{ number_format((int) data_get($regionalPendingAlert, 'count', 0)) }}
+            con mas de {{ (int) data_get($regionalPendingAlert, 'hours', 72) }} horas habiles en
+            {{ data_get($regionalPendingAlert, 'regional', $userCity !== '' ? $userCity : 'tu regional') }}.
+        </div>
+        <div class="text-muted small mt-2 mt-md-0">
+            Se descuentan sabados y domingos.
+        </div>
+    </div>
+    @endif
+
+    @if(((int) data_get($carteroPendingAlert ?? [], 'count', 0)) > 0)
+    <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
+        <div>
+            <strong>El cartero {{ data_get($carteroPendingAlert, 'name', 'Sin nombre') }} tiene {{ number_format((int) data_get($carteroPendingAlert, 'count', 0)) }} paquetes.</strong>
+            Pendientes por entregar en su bandeja CARTERO.
+        </div>
+        <a href="{{ route('carteros.cartero') }}" class="btn btn-sm btn-outline-primary mt-2 mt-md-0">
+            Ir a mi bandeja
+        </a>
+    </div>
+    @endif
+
+    @if((bool) data_get($carteroPendingSummary ?? [], 'enabled', false))
+    @php
+        $carteroPendingRows = collect(data_get($carteroPendingSummary, 'rows', collect()));
+        $carteroPendingDepartments = $carteroPendingRows
+            ->groupBy(fn ($row) => trim((string) ($row->ciudad ?? '')) !== '' ? trim((string) $row->ciudad) : 'SIN DEPARTAMENTO')
+            ->map(function ($rows, $department) {
+                return (object) [
+                    'department' => $department,
+                    'total_carteros' => $rows->count(),
+                    'total_pendientes' => (int) $rows->sum(fn ($row) => (int) ($row->pendientes ?? 0)),
+                    'rows' => $rows->sortByDesc(fn ($row) => (int) ($row->pendientes ?? 0))->values(),
+                ];
+            })
+            ->sortByDesc(fn ($item) => (int) ($item->total_pendientes ?? 0))
+            ->values();
+    @endphp
+    <div class="alert alert-secondary mb-3">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
+            <div>
+                <strong>Departamentos con envios pendientes ({{ data_get($carteroPendingSummary, 'scope') === 'nacional' ? 'Nivel nacional' : ($userCity !== '' ? $userCity : 'Tu regional') }}):</strong>
+                {{ $carteroPendingDepartments->count() }} departamento(s) con paquetes en CARTERO.
+            </div>
+        </div>
+        <div class="mt-2 d-flex flex-wrap">
+            @foreach($carteroPendingDepartments as $index => $department)
+                <button
+                    type="button"
+                    class="btn btn-light border mr-2 mb-2"
+                    data-toggle="modal"
+                    data-target="#carteroPendingDepartmentModal{{ $index }}"
+                >
+                    {{ $department->department }}: {{ number_format((int) ($department->total_pendientes ?? 0)) }}
+                </button>
+            @endforeach
+        </div>
+    </div>
+
+    @foreach($carteroPendingDepartments as $index => $department)
+        <div class="modal fade" id="carteroPendingDepartmentModal{{ $index }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-secondary text-white">
+                        <h5 class="modal-title">
+                            {{ $department->department }} - carteros con pendientes
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-light border">
+                            <strong>Total carteros:</strong> {{ number_format((int) ($department->total_carteros ?? 0)) }}
+                            |
+                            <strong>Total pendientes:</strong> {{ number_format((int) ($department->total_pendientes ?? 0)) }}
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Cartero</th>
+                                        <th class="text-right">Pendientes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach(($department->rows ?? collect()) as $row)
+                                        <tr>
+                                            <td>{{ $row->name }}</td>
+                                            <td class="text-right">{{ number_format((int) ($row->pendientes ?? 0)) }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
+    @endif
+
     <div class="card card-filtro mb-3" data-focus-hide="true">
         <div class="card-header">
             <strong>Filtros y Vista</strong>

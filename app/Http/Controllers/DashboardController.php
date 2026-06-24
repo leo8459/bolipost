@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\DashboardReportExport;
 use App\Exports\DashboardEntregasRendimientoExport;
 use App\Exports\DashboardRankingDepartamentosExport;
+use App\Models\Cartero;
 use App\Models\Estado;
 use App\Models\Recojo;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -434,6 +435,10 @@ class DashboardController extends Controller
                 ->count();
         }
 
+        $regionalPendingAlert = $this->buildRegionalPendingAlert($userCity);
+        $carteroPendingAlert = $this->buildCarteroPendingAlert($authUser, $userRoles);
+        $carteroPendingSummary = $this->buildCarteroPendingSummary($authUser, $userRoles, $hasGlobalDepartmentAccess, $userCity);
+
         return [
             'modulosDisponibles' => self::MODULOS,
             'modulosSeleccionados' => $modulosSeleccionados,
@@ -475,7 +480,173 @@ class DashboardController extends Controller
             'userCity' => $userCity,
             'contratosPorRecoger' => $contratosPorRecoger,
             'canPlayPickupAlertSound' => $canPlayPickupAlertSound,
+            'regionalPendingAlert' => $regionalPendingAlert,
+            'carteroPendingAlert' => $carteroPendingAlert,
+            'carteroPendingSummary' => $carteroPendingSummary,
         ];
+    }
+
+    private function buildRegionalPendingAlert(string $userCity): array
+    {
+        $regional = strtoupper(trim($userCity));
+        if ($regional === '') {
+            return [
+                'count' => 0,
+                'regional' => '',
+                'hours' => 72,
+            ];
+        }
+
+        $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
+        $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
+        $pendingCount = 0;
+
+        foreach (self::MODULOS as $moduloKey => $config) {
+            $query = DB::table($config['table'] . ' as t');
+            $this->applyDepartamentoFilter($query, $config, $regional, 't');
+            $this->excludeCanceledState($query, 't.' . $config['estado_column'], $estadoCanceladoId);
+
+            if ($estadoEntregadoId) {
+                $query->where('t.' . $config['estado_column'], '!=', $estadoEntregadoId);
+            }
+
+            $startColumn = $moduloKey === 'contrato'
+                ? DB::raw('coalesce(t.fecha_recojo, t.created_at) as start_at')
+                : DB::raw('t.created_at as start_at');
+
+            $rows = $query
+                ->select($startColumn)
+                ->get();
+
+            foreach ($rows as $row) {
+                if ($this->hasExceededBusinessHours($row->start_at ?? null, 72)) {
+                    $pendingCount++;
+                }
+            }
+        }
+
+        return [
+            'count' => $pendingCount,
+            'regional' => $regional,
+            'hours' => 72,
+        ];
+    }
+
+    private function buildCarteroPendingAlert($authUser, array $userRoles): array
+    {
+        $isCartero = collect($userRoles)->contains(fn ($role) => str_contains((string) $role, 'cartero'));
+        if (!$authUser || !$isCartero) {
+            return [
+                'count' => 0,
+                'name' => '',
+            ];
+        }
+
+        $estadoCarteroId = $this->resolveEstadoIdByName('CARTERO');
+        if (!$estadoCarteroId) {
+            return [
+                'count' => 0,
+                'name' => (string) ($authUser->name ?? ''),
+            ];
+        }
+
+        $count = (int) Cartero::query()
+            ->where('id_user', $authUser->id)
+            ->where('id_estados', $estadoCarteroId)
+            ->count();
+
+        return [
+            'count' => $count,
+            'name' => trim((string) ($authUser->name ?? '')),
+        ];
+    }
+
+    private function buildCarteroPendingSummary($authUser, array $userRoles, bool $hasGlobalDepartmentAccess, string $userCity): array
+    {
+        $isCartero = collect($userRoles)->contains(fn ($role) => str_contains((string) $role, 'cartero'));
+        $isEncargadoEms = collect($userRoles)->contains(fn ($role) => (string) $role === 'encargado_ems');
+
+        if (!$authUser || $isCartero || (!$hasGlobalDepartmentAccess && !$isEncargadoEms)) {
+            return [
+                'enabled' => false,
+                'scope' => '',
+                'rows' => collect(),
+            ];
+        }
+
+        $estadoCarteroId = $this->resolveEstadoIdByName('CARTERO');
+        if (!$estadoCarteroId) {
+            return [
+                'enabled' => false,
+                'scope' => '',
+                'rows' => collect(),
+            ];
+        }
+
+        $query = Cartero::query()
+            ->join('users', 'users.id', '=', 'cartero.id_user')
+            ->where('cartero.id_estados', $estadoCarteroId)
+            ->whereNotNull('cartero.id_user')
+            ->selectRaw('users.id, users.name, users.ciudad, count(*) as pendientes')
+            ->groupBy('users.id', 'users.name', 'users.ciudad')
+            ->havingRaw('count(*) > 0')
+            ->orderByDesc('pendientes')
+            ->orderBy('users.name');
+
+        if (!$hasGlobalDepartmentAccess) {
+            if ($userCity === '') {
+                return [
+                    'enabled' => false,
+                    'scope' => '',
+                    'rows' => collect(),
+                ];
+            }
+
+            $query->whereRaw('trim(upper(users.ciudad)) = ?', [$userCity]);
+        }
+
+        $rows = $query->get()->map(function ($row) {
+            $row->pendientes = (int) ($row->pendientes ?? 0);
+            $row->name = (string) ($row->name ?? 'Sin nombre');
+            $row->ciudad = strtoupper(trim((string) ($row->ciudad ?? '')));
+
+            return $row;
+        })->values();
+
+        return [
+            'enabled' => $rows->isNotEmpty(),
+            'scope' => $hasGlobalDepartmentAccess ? 'nacional' : 'regional',
+            'rows' => $rows,
+        ];
+    }
+
+    private function hasExceededBusinessHours($startAt, int $hours): bool
+    {
+        if (empty($startAt) || $hours <= 0) {
+            return false;
+        }
+
+        $start = $startAt instanceof Carbon ? $startAt->copy() : Carbon::parse($startAt);
+
+        return $this->addBusinessHours($start, $hours)->lte(now());
+    }
+
+    private function addBusinessHours(Carbon $start, int $hours): Carbon
+    {
+        $current = $start->copy();
+        $remaining = $hours;
+
+        while ($remaining > 0) {
+            $current->addHour();
+
+            if ($current->isWeekend()) {
+                continue;
+            }
+
+            $remaining--;
+        }
+
+        return $current;
     }
 
     private function resolveModulosSeleccionados(Request $request): array
