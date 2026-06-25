@@ -198,6 +198,30 @@
             gap:10px;
             flex-wrap:wrap;
         }
+        .evento-foto-thumb{
+            width:64px;
+            height:64px;
+            object-fit:cover;
+            border-radius:12px;
+            border:1px solid #dbe4f2;
+            background:#eef3fb;
+            box-shadow:0 6px 14px rgba(32,83,154,.08);
+        }
+        .evento-foto-empty{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            min-width:64px;
+            min-height:64px;
+            padding:8px;
+            border:1px dashed #cbd5e1;
+            border-radius:12px;
+            color:#64748b;
+            font-size:.74rem;
+            text-align:center;
+            background:#f8fafc;
+            line-height:1.2;
+        }
 
         @media (max-width: 767.98px){
             .contrato-preview-grid{
@@ -426,6 +450,9 @@
                                 <th>Codigo</th>
                                 <th>Evento</th>
                                 <th>{{ $supportsClienteId ? 'Actor' : 'Usuario' }}</th>
+                                @if ($config['table'] === 'eventos_ems')
+                                    <th>Foto</th>
+                                @endif
                                 <th>Momento de creacion</th>
                                 <th>Acciones</th>
                             </tr>
@@ -442,6 +469,20 @@
                                             {{ $registro->usuario_nombre ?? ('#' . $registro->user_id) }}
                                         @endif
                                     </td>
+                                    @if ($config['table'] === 'eventos_ems')
+                                        <td>
+                                            @php
+                                                $eventoImagenUrl = !empty($registro->imagen) ? asset('storage/' . ltrim($registro->imagen, '/')) : null;
+                                            @endphp
+                                            @if ($eventoImagenUrl)
+                                                <a href="{{ $eventoImagenUrl }}" target="_blank" rel="noopener">
+                                                    <img src="{{ $eventoImagenUrl }}" alt="Foto del evento EMS" class="evento-foto-thumb">
+                                                </a>
+                                            @else
+                                                <span class="evento-foto-empty">Sin foto</span>
+                                            @endif
+                                        </td>
+                                    @endif
                                     <td class="muted small">
                                         @if(!empty($registro->created_at))
                                             @php
@@ -475,7 +516,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center py-5">
+                                    <td colspan="{{ $config['table'] === 'eventos_ems' ? 6 : 5 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

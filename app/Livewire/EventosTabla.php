@@ -162,6 +162,32 @@ class EventosTabla extends Component
         $table = $this->tableName();
         $supportsClienteId = $this->supportsClienteId();
         $contratoBuscado = null;
+        $usuarioNombreSelect = $this->tipo === 'ems'
+            ? "COALESCE(
+                (
+                    SELECT u2.name
+                    FROM paquetes_ems pe2
+                    LEFT JOIN cartero c2 ON c2.id_paquetes_ems = pe2.id
+                    LEFT JOIN users u2 ON u2.id = c2.id_user
+                    WHERE TRIM(UPPER(pe2.codigo)) = TRIM(UPPER(t.codigo))
+                        AND t.evento_id = 316
+                    ORDER BY c2.updated_at DESC NULLS LAST, c2.id DESC
+                    LIMIT 1
+                ),
+                u.name
+            ) as usuario_nombre"
+            : 'u.name as usuario_nombre';
+        $imagenSelect = match ($this->tipo) {
+            'ems' => "(
+                SELECT COALESCE(c2.imagen, pe2.imagen)
+                FROM paquetes_ems pe2
+                LEFT JOIN cartero c2 ON c2.id_paquetes_ems = pe2.id
+                WHERE TRIM(UPPER(pe2.codigo)) = TRIM(UPPER(t.codigo))
+                ORDER BY c2.updated_at DESC NULLS LAST, c2.id DESC, pe2.id DESC
+                LIMIT 1
+            ) as imagen",
+            default => 'NULL as imagen',
+        };
 
         $registrosQuery = DB::table($table . ' as t')
             ->leftJoin('eventos as e', 'e.id', '=', 't.evento_id')
@@ -173,7 +199,8 @@ class EventosTabla extends Component
                 't.user_id',
                 't.created_at',
                 'e.nombre_evento as evento_nombre',
-                'u.name as usuario_nombre',
+                DB::raw($usuarioNombreSelect),
+                DB::raw($imagenSelect),
             ])
             ->when($q !== '', function ($query) use ($q, $supportsClienteId, $table) {
                 $query->where(function ($sub) use ($q, $supportsClienteId, $table) {
