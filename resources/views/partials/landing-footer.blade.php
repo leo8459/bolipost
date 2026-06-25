@@ -64,7 +64,7 @@
         Contacto: (591-2) 2152423 - Av. Mariscal Santa Cruz Esq. C. Oruro Edif. Telecomunicaciones - agbc@correos.gob.bo
     </div>
     <div class="footer-copy">&copy; 2026 Todos los derechos reservados - Correos de Bolivia</div>
-    <div class="footer-copy footer-copy-tight">Copyright &copy; MAER 2026</div>
+    <div class="footer-copy footer-copy-tight">Copyright &copy; LGDMO 2026</div>
 
 <script
        src="https://chatbot.correos.gob.bo:5000/widget-embed.js"
