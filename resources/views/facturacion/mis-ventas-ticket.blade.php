@@ -80,7 +80,7 @@
         <div class="row"><span class="label">ORDEN:</span> {{ $ticket['orden'] }}</div>
         <div class="row"><span class="label">NOMBRE:</span> {{ $ticket['nombre'] }}</div>
         <div class="row"><span class="label">NIT/CI/CEX:</span> {{ $ticket['documento'] }}</div>
-        <div class="row"><span class="label">FACTURA N°:</span> {{ $ticket['numero_factura'] }}</div>
+        <div class="row"><span class="label">{{ $ticket['comprobante_label'] }}:</span> {{ $ticket['comprobante_valor'] }}</div>
         <div class="row"><span class="label">FECHA:</span> {{ $ticket['fecha'] }}</div>
 
         <div class="amount">TOTAL Bs: {{ number_format((float) $ticket['importe'], 2) }}</div>
@@ -89,7 +89,7 @@
             <div class="qr">
                 <img src="data:image/png;base64,{{ $ticket['qr_image'] }}" alt="QR de factura">
             </div>
-            <div class="footer">Visualice su factura desde el QR</div>
+            <div class="footer">Visualice el comprobante disponible desde el QR</div>
         @endif
 
         <div class="line"></div>

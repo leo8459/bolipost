@@ -29,26 +29,6 @@
             display: block;
         }
 
-        .label-box {
-            border: 1px solid #333;
-            padding: 7px 10px;
-            display: inline-block;
-            font-size: 11px;
-            margin-top: 10px;
-        }
-
-        .side-box {
-            width: 220px;
-            margin-left: auto;
-            margin-top: 10px;
-        }
-
-        .side-box td {
-            border: 1px solid #333;
-            padding: 4px 8px;
-            font-size: 11px;
-        }
-
         .meta td {
             border: 1px solid #333;
             padding: 6px 8px;
@@ -62,6 +42,16 @@
 
         .meta .value {
             width: 32%;
+        }
+
+        .section-title {
+            margin: 12px 0 6px;
+            padding: 5px 8px;
+            border: 1px solid #333;
+            background: #f4f6f9;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
         }
 
         .grid th,
@@ -160,6 +150,23 @@
         $filters['estado'] !== 'all' ? 'Estado: ' . strtoupper($filters['estado']) : null,
         $filters['estado_emision'] !== 'all' ? 'Emision: ' . $filters['estado_emision'] : null,
     ])->filter()->implode(' | ');
+    $sectionConfigs = [
+        'factura_electronica' => [
+            'title' => 'Facturacion electronica',
+            'total_label' => 'TOTAL FACTURACION ELECTRONICA EN CAJA',
+        ],
+        'qr' => [
+            'title' => 'Pagos QR',
+            'total_label' => 'TOTAL QR REFERENCIAL NO SUMADO A CAJA',
+        ],
+        'oficial' => [
+            'title' => 'Envios oficiales',
+            'total_label' => 'TOTAL ENVIOS OFICIALES',
+        ],
+    ];
+    $rowsByChannel = collect($rows)->groupBy(function ($row) {
+        return strtolower((string) data_get($row, 'canal_emision', 'factura_electronica'));
+    });
 @endphp
 
 @if($headerImage)
@@ -167,21 +174,6 @@
         <img src="{{ $headerImage }}" class="header-banner" alt="Encabezado Contratos">
     </div>
 @endif
-
-<table class="no-border" style="margin-bottom: 8px;">
-    <tr>
-        <td style="width: 55%;">
-            <div class="label-box">KARDEX DIARIO DE RENDICION</div>
-        </td>
-        <td style="width: 45%;">
-            <table class="side-box">
-                <tr><td>Direccion de Operaciones</td></tr>
-                <tr><td>Distribucion</td></tr>
-                <tr><td>Kardex 2</td></tr>
-            </table>
-        </td>
-    </tr>
-</table>
 
 <table class="meta" style="margin-bottom: 10px;">
     <tr>
@@ -198,37 +190,68 @@
     </tr>
 </table>
 
-<table class="grid">
-    <thead>
-        <tr>
-            <th style="width: 4%;">N°</th>
-            <th style="width: 10%;">FECHA</th>
-            <th style="width: 13%;">ORIGEN</th>
-            <th style="width: 13%;">TIPO DE ENVIO</th>
-            <th style="width: 18%;">CODIGO DE ITEM</th>
-            <th style="width: 11%;">PESO DE ENVIO</th>
-            <th style="width: 8%;">CANTIDAD</th>
-            <th style="width: 12%;">N° FACTURA</th>
-            <th style="width: 11%;">IMPORTE</th>
-        </tr>
-    </thead>
-    <tbody>
-        @forelse($rows as $index => $row)
+@php($hasAnyRows = false)
+@foreach($sectionConfigs as $channelKey => $section)
+    @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
+    @continue($sectionRows->isEmpty())
+    @php($hasAnyRows = true)
+
+    <div class="section-title">{{ $section['title'] }}</div>
+    <table class="grid">
+        <thead>
             <tr>
-                <td class="center">{{ $index + 1 }}</td>
-                <td class="center">{{ $row['fecha'] }}</td>
-                <td>{{ $row['origen'] }}</td>
-                <td>{{ $row['tipo_envio'] }}</td>
-                <td>{{ $row['codigo_item'] }}</td>
-                <td class="right">{{ number_format((float) $row['peso'], 3) }}</td>
-                <td class="center">{{ $row['cantidad'] }}</td>
-                <td class="center">{{ $row['numero_factura'] }}</td>
-                <td class="right">{{ number_format((float) $row['importe_general'], 2) }}</td>
+                <th style="width: 4%;">N°</th>
+                <th style="width: 10%;">FECHA</th>
+                <th style="width: 18%;">TIPO DE ENVIO</th>
+                <th style="width: 14%;">EMISION</th>
+                <th style="width: 19%;">CODIGO DE ITEM</th>
+                <th style="width: 12%;">PESO DE ENVIO</th>
+                <th style="width: 8%;">CANTIDAD</th>
+                <th style="width: 12%;">N° FACTURA</th>
+                <th style="width: 11%;">IMPORTE</th>
             </tr>
-        @empty
+        </thead>
+        <tbody>
+            @foreach($sectionRows as $index => $row)
+                <tr>
+                    <td class="center">{{ $index + 1 }}</td>
+                    <td class="center">{{ $row['fecha'] }}</td>
+                    <td>{{ $row['tipo_envio'] }}</td>
+                    <td>{{ $row['emision_label'] }}</td>
+                    <td>{{ $row['codigo_item'] }}</td>
+                    <td class="right">{{ number_format((float) $row['peso'], 3) }}</td>
+                    <td class="center">{{ $row['cantidad'] }}</td>
+                    <td class="center">{{ $row['numero_factura'] }}</td>
+                    <td class="right">{{ number_format((float) $row['importe_general'], 2) }}</td>
+                </tr>
+            @endforeach
+            <tr>
+                <td colspan="8" class="right" style="font-weight: 700;">{{ $section['total_label'] }}</td>
+                <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $sectionRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+            </tr>
+        </tbody>
+    </table>
+@endforeach
+
+@unless($hasAnyRows)
+    <table class="grid">
+        <thead>
+            <tr>
+                <th style="width: 4%;">N°</th>
+                <th style="width: 10%;">FECHA</th>
+                <th style="width: 18%;">TIPO DE ENVIO</th>
+                <th style="width: 14%;">EMISION</th>
+                <th style="width: 19%;">CODIGO DE ITEM</th>
+                <th style="width: 12%;">PESO DE ENVIO</th>
+                <th style="width: 8%;">CANTIDAD</th>
+                <th style="width: 12%;">N° FACTURA</th>
+                <th style="width: 11%;">IMPORTE</th>
+            </tr>
+        </thead>
+        <tbody>
             @for($i = 0; $i < 14; $i++)
                 <tr>
-                    <td>&nbsp;</td>
+                    <td>{{ $i === 0 ? "\u{00A0}" : '' }}</td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -239,33 +262,22 @@
                     <td></td>
                 </tr>
             @endfor
-        @endforelse
-        @if($rows->count() < 14)
-            @for($i = $rows->count(); $i < 14; $i++)
-                <tr>
-                    <td class="center">{{ $i + 1 }}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                </tr>
-            @endfor
-        @endif
-    </tbody>
-</table>
+        </tbody>
+    </table>
+@endunless
 
 <table class="totals" style="margin-top: 0;">
     <tr>
-        <td style="width: 89%;" class="right">TOTAL PARCIAL</td>
+        <td style="width: 89%;" class="right">TOTAL PARCIAL EN CAJA</td>
         <td style="width: 11%;" class="right">Bs {{ number_format((float) $totals['parcial'], 2) }}</td>
     </tr>
     <tr>
-        <td class="right">TOTAL GENERAL</td>
+        <td class="right">TOTAL GENERAL EN CAJA</td>
         <td class="right">Bs {{ number_format((float) $totals['general'], 2) }}</td>
+    </tr>
+    <tr>
+        <td class="right">TOTAL QR REFERENCIAL NO SUMADO A CAJA</td>
+        <td class="right">Bs {{ number_format((float) ($totals['qr'] ?? 0), 2) }}</td>
     </tr>
 </table>
 
