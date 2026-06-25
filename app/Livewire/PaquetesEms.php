@@ -11,6 +11,7 @@ use App\Models\Estado;
 use App\Models\Origen;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteEmsFormulario;
+use App\Models\PaqueteInt;
 use App\Models\Preregistro;
 use App\Models\Recojo as RecojoContrato;
 use App\Models\RemitenteEms;
@@ -157,6 +158,8 @@ class PaquetesEms extends Component
     public $regionalMismatchObservaciones = [];
     public $regionalPesoZeroItems = [];
     public $regionalPesoInputs = [];
+    public $showRegionalIntSection = false;
+    public $regionalIntRows = [];
 
     public $ciudades = [
         'LA PAZ',
@@ -240,6 +243,8 @@ class PaquetesEms extends Component
             $this->auto_codigo = true;
             $this->servicio_especial = 'IDA';
         }
+
+        $this->resetRegionalIntRows();
     }
 
     public function getIsAdmisionProperty()
@@ -955,8 +960,37 @@ class PaquetesEms extends Component
         $this->regionalDestino = '';
         $this->regionalTransportMode = 'TERRESTRE';
         $this->regionalTransportNumber = '';
+        $this->showRegionalIntSection = false;
+        $this->resetRegionalIntRows();
         $this->prepareRegionalPesoZeroData($idsEms, $idsContratos, $idsSolicitudes);
         $this->dispatch('openRegionalModal');
+    }
+
+    public function toggleRegionalIntSection(): void
+    {
+        $this->showRegionalIntSection = !$this->showRegionalIntSection;
+    }
+
+    public function addRegionalIntRow(): void
+    {
+        $this->regionalIntRows[] = [
+            'codigo' => '',
+            'peso' => '',
+        ];
+    }
+
+    public function removeRegionalIntRow(int $index): void
+    {
+        if (!isset($this->regionalIntRows[$index])) {
+            return;
+        }
+
+        unset($this->regionalIntRows[$index]);
+        $this->regionalIntRows = array_values($this->regionalIntRows);
+
+        if (empty($this->regionalIntRows)) {
+            $this->resetRegionalIntRows();
+        }
     }
 
     public function openRegionalContratoModal()
@@ -1862,7 +1896,21 @@ class PaquetesEms extends Component
                 'updated_at',
             ]);
 
-        if ($paquetes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
+        $paquetesInt = PaqueteInt::query()
+            ->whereRaw('trim(upper(cod_especial)) = trim(upper(?))', [$despacho])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'cod_especial',
+                'codigo',
+                'origen',
+                'peso',
+                'destino',
+                'created_at',
+                'updated_at',
+            ]);
+
+        if ($paquetes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty() && $paquetesInt->isEmpty()) {
             session()->flash('error', 'No se encontraron paquetes/contratos/solicitudes para el despacho ' . $despacho . '.');
             return;
         }
@@ -1903,15 +1951,25 @@ class PaquetesEms extends Component
                     'observacion' => (string) ($solicitud->observacion ?? ''),
                 ];
             })->all())
+            ->concat($paquetesInt->map(function ($paqueteInt) {
+                return (object) [
+                    'codigo' => $paqueteInt->codigo,
+                    'origen' => (string) ($paqueteInt->origen ?? trim((string) optional(Auth::user())->ciudad)),
+                    'cantidad' => 1,
+                    'peso' => (float) ($paqueteInt->peso ?? 0),
+                    'nombre_remitente' => 'PAQUETE INT',
+                    'observacion' => 'INT',
+                ];
+            })->all())
             ->values();
 
-        $generatedAt = collect([$paquetes->max('updated_at'), $contratos->max('updated_at'), $solicitudes->max('updated_at')])
+        $generatedAt = collect([$paquetes->max('updated_at'), $contratos->max('updated_at'), $solicitudes->max('updated_at'), $paquetesInt->max('updated_at')])
             ->filter()
             ->sortDesc()
             ->first() ?: now();
         $loggedUserName = trim((string) optional(Auth::user())->name);
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
-        $destinationCity = trim((string) (optional($paquetes->first())->ciudad ?? optional($contratos->first())->destino ?? optional($solicitudes->first())->ciudad));
+        $destinationCity = trim((string) (optional($paquetes->first())->ciudad ?? optional($contratos->first())->destino ?? optional($solicitudes->first())->ciudad ?? optional($paquetesInt->first())->destino));
 
         $pdf = Pdf::loadView('paquetes_ems.reporte-regional', [
             'paquetes' => $rowsPdf,
@@ -2494,6 +2552,11 @@ class PaquetesEms extends Component
             return;
         }
 
+        $regionalIntRows = $this->validatedRegionalIntRows();
+        if ($regionalIntRows === null) {
+            return;
+        }
+
         if (!$this->ensureRegionalZeroWeightResolved($idsEms, $idsContratos, $idsSolicitudes)) {
             session()->flash('error', 'Los paquetes con este codigo estan en peso 0. Por favor asigne el peso antes de mandar a regional.');
             return;
@@ -2542,6 +2605,7 @@ class PaquetesEms extends Component
         $paquetes = collect();
         $contratos = collect();
         $solicitudes = collect();
+        $paquetesInt = collect();
 
         $manifiesto = '';
 
@@ -2552,11 +2616,14 @@ class PaquetesEms extends Component
             $estadoRegionalId,
             $eligibleEstadoIds,
             $actorUserId,
+            $loggedInUserCity,
             &$manifiesto,
             &$updated,
             &$paquetes,
             &$contratos,
-            &$solicitudes
+            &$solicitudes,
+            &$paquetesInt,
+            $regionalIntRows
         ) {
             if (!empty($idsEms)) {
                 $paquetes = PaqueteEms::query()
@@ -2682,6 +2749,16 @@ class PaquetesEms extends Component
                 $updated++;
             }
 
+            $paquetesInt = collect($regionalIntRows)->map(function (array $row) use ($manifiesto, $loggedInUserCity) {
+                return PaqueteInt::create([
+                    'cod_especial' => $manifiesto,
+                    'codigo' => $row['codigo'],
+                    'origen' => $loggedInUserCity !== '' ? $loggedInUserCity : null,
+                    'peso' => $row['peso'],
+                    'destino' => $this->regionalDestino,
+                ]);
+            });
+
             $this->registrarBitacoraPorCodEspecial(
                 $manifiesto,
                 $paquetes,
@@ -2752,6 +2829,17 @@ class PaquetesEms extends Component
                     'observacion' => (string) ($solicitud->observacion ?? ''),
                 ];
             })
+        )->merge(
+            $paquetesInt->map(function ($paqueteInt) {
+                return (object) [
+                    'codigo' => $paqueteInt->codigo,
+                    'origen' => (string) ($paqueteInt->origen ?? ''),
+                    'cantidad' => 1,
+                    'peso' => (float) ($paqueteInt->peso ?? 0),
+                    'nombre_remitente' => 'PAQUETE INT',
+                    'observacion' => 'INT',
+                ];
+            })
         );
 
         $loggedUserName = trim((string) optional(Auth::user())->name);
@@ -2775,6 +2863,8 @@ class PaquetesEms extends Component
         $this->regionalDestino = '';
         $this->regionalPesoZeroItems = [];
         $this->regionalPesoInputs = [];
+        $this->showRegionalIntSection = false;
+        $this->resetRegionalIntRows();
         $this->dispatch('closeRegionalModal');
 
         session()->flash('success', $updated . ' registro(s) enviado(s) a regional (' . $estadoRegionalNombre . ').');
@@ -3118,6 +3208,8 @@ class PaquetesEms extends Component
             session()->flash('error', 'Usuario no autenticado.');
             return;
         }
+
+        $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
 
         $oficiales = PaqueteEms::query()
             ->leftJoin('paquetes_ems_formulario as formulario', 'formulario.paquete_ems_id', '=', 'paquetes_ems.id')
@@ -8210,5 +8302,45 @@ class PaquetesEms extends Component
         if ($this->auto_codigo) {
             $this->codigo = $this->generateCodigo();
         }
+    }
+
+    protected function resetRegionalIntRows(): void
+    {
+        $this->regionalIntRows = [[
+            'codigo' => '',
+            'peso' => '',
+        ]];
+    }
+
+    protected function validatedRegionalIntRows(): ?array
+    {
+        $rows = [];
+
+        foreach ((array) $this->regionalIntRows as $row) {
+            $codigo = strtoupper(trim((string) data_get($row, 'codigo')));
+            $pesoRaw = trim((string) data_get($row, 'peso'));
+
+            if ($codigo === '' && $pesoRaw === '') {
+                continue;
+            }
+
+            if ($codigo === '' || $pesoRaw === '') {
+                session()->flash('error', 'Completa codigo y peso en cada fila de paquetes INT.');
+                return null;
+            }
+
+            $peso = (float) str_replace(',', '.', $pesoRaw);
+            if ($peso <= 0) {
+                session()->flash('error', 'El peso de los paquetes INT debe ser mayor a 0.');
+                return null;
+            }
+
+            $rows[] = [
+                'codigo' => $codigo,
+                'peso' => $peso,
+            ];
+        }
+
+        return $rows;
     }
 }

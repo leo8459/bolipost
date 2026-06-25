@@ -109,6 +109,162 @@
         .frecuente-item small {
             color: #6b7280;
         }
+        .envio-selector-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        .envio-selector-copy {
+            max-width: 760px;
+        }
+        .envio-selector-copy h6 {
+            margin: 0 0 6px;
+            color: #0f172a;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -.02em;
+        }
+        .envio-selector-copy p {
+            margin: 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .envio-selector-badge {
+            background: #e0ecff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .envio-tipo-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+        }
+        .envio-tipo-option {
+            display: block;
+            margin: 0;
+            cursor: pointer;
+        }
+        .envio-tipo-option input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .envio-tipo-card {
+            display: block;
+            position: relative;
+            min-height: 168px;
+            border: 1px solid #d7e2f1;
+            border-radius: 18px;
+            padding: 18px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            cursor: pointer;
+            transition: all .2s ease;
+            overflow: hidden;
+        }
+        .envio-tipo-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at top right, rgba(59, 130, 246, .12), transparent 34%),
+                linear-gradient(135deg, rgba(255,255,255,.75), rgba(255,255,255,0));
+            pointer-events: none;
+        }
+        .envio-tipo-top {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .envio-tipo-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #e8f0ff;
+            color: #1d4ed8;
+            font-size: 18px;
+            font-weight: 800;
+            box-shadow: inset 0 0 0 1px rgba(29, 78, 216, .08);
+        }
+        .envio-tipo-check {
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            border: 2px solid #bfd2ea;
+            background: #fff;
+            transition: all .2s ease;
+        }
+        .envio-tipo-card strong {
+            position: relative;
+            z-index: 1;
+            display: block;
+            color: #0f172a;
+            margin-bottom: 8px;
+            font-size: 21px;
+            line-height: 1.1;
+        }
+        .envio-tipo-card small {
+            position: relative;
+            z-index: 1;
+            display: block;
+            color: #475569;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        .envio-tipo-note {
+            position: relative;
+            z-index: 1;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: #eef4ff;
+            color: #1e40af;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .envio-tipo-option input[type="radio"]:checked + .envio-tipo-card {
+            border-color: #2563eb;
+            background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+            box-shadow: 0 18px 34px rgba(37, 99, 235, .16);
+            transform: translateY(-2px);
+        }
+        .envio-tipo-option input[type="radio"]:checked + .envio-tipo-card .envio-tipo-check {
+            border-color: #2563eb;
+            background: #2563eb;
+            box-shadow: inset 0 0 0 5px #ffffff;
+        }
+        .envio-tipo-option:hover .envio-tipo-card {
+            border-color: #93c5fd;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, .08);
+            transform: translateY(-1px);
+        }
+        @media (max-width: 991.98px) {
+            .envio-tipo-grid {
+                grid-template-columns: 1fr;
+            }
+            .envio-selector-head {
+                flex-direction: column;
+            }
+            .envio-selector-copy h6 {
+                font-size: 21px;
+            }
+        }
     </style>
 
     @if (session()->has('error'))
@@ -144,6 +300,62 @@
                     <div id="envioFrecuenteStatus" class="alert d-none mb-3" role="alert"></div>
 
                     <div class="section-block">
+                        <div class="section-title">Tipo de envio</div>
+                        <div class="envio-selector-head">
+                            <div class="envio-selector-copy">
+                                <h6>Elige primero como se movera el envio</h6>
+                                <p>Selecciona una modalidad para que el sistema te muestre solo los campos necesarios y evites confusiones al registrar el contrato.</p>
+                            </div>
+                            <div class="envio-selector-badge">Paso 1 de 3</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Tipo de envio<span class="required-star">*</span></label>
+                            <div class="envio-tipo-grid">
+                                <label class="envio-tipo-option mb-0">
+                                    <input type="radio" name="tipo_envio" value="periurbano" {{ old('tipo_envio') === 'periurbano' ? 'checked' : '' }} required>
+                                    <span class="envio-tipo-card">
+                                        <span class="envio-tipo-top">
+                                            <span class="envio-tipo-icon">P</span>
+                                            <span class="envio-tipo-check"></span>
+                                        </span>
+                                        <strong>PERIURBANO</strong>
+                                        <small>Bloquea departamento y usa el mismo origen.</small>
+                                        <span class="envio-tipo-note">Misma ciudad de origen</span>
+                                    </span>
+                                </label>
+                                <label class="envio-tipo-option mb-0">
+                                    <input type="radio" name="tipo_envio" value="departamental" {{ old('tipo_envio') === 'departamental' ? 'checked' : '' }}>
+                                    <span class="envio-tipo-card">
+                                        <span class="envio-tipo-top">
+                                            <span class="envio-tipo-icon">D</span>
+                                            <span class="envio-tipo-check"></span>
+                                        </span>
+                                        <strong>ENVIO DEPARTAMENTAL</strong>
+                                        <small>Muestra todo excepto provincia.</small>
+                                        <span class="envio-tipo-note">Solo departamento destino</span>
+                                    </span>
+                                </label>
+                                <label class="envio-tipo-option mb-0">
+                                    <input type="radio" name="tipo_envio" value="provincial" {{ old('tipo_envio') === 'provincial' ? 'checked' : '' }}>
+                                    <span class="envio-tipo-card">
+                                        <span class="envio-tipo-top">
+                                            <span class="envio-tipo-icon">R</span>
+                                            <span class="envio-tipo-check"></span>
+                                        </span>
+                                        <strong>PROVINCIAL</strong>
+                                        <small>Muestra departamento, direccion y provincia.</small>
+                                        <span class="envio-tipo-note">Incluye provincia destino</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                Al seleccionar una opcion se habilitara automaticamente el resto del formulario.
+                            </small>
+                        </div>
+                    </div>
+
+                    <div id="formFieldsBlock" style="display:none;">
+                    <div class="section-block">
                         <div class="section-title">Remitente</div>
                         <div class="row">
                             <div class="col-md-4">
@@ -166,7 +378,6 @@
                                             class="form-control"
                                             value="{{ old('nombre_r') }}"
                                             autocomplete="off"
-                                            required
                                         >
                                         <div id="frecuentesDropdown" class="frecuente-dropdown"></div>
                                     </div>
@@ -178,7 +389,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Telefono remitente<span class="required-star">*</span></label>
-                                    <input type="text" name="telefono_r" class="form-control" value="{{ old('telefono_r') }}" required>
+                                    <input type="text" name="telefono_r" class="form-control" value="{{ old('telefono_r') }}">
                                 </div>
                             </div>
                         </div>
@@ -186,13 +397,13 @@
                             <div class="col-md-6">
                                 <div class="form-group mb-md-0">
                                     <label>Contenido<span class="required-star">*</span></label>
-                                    <textarea name="contenido" rows="2" class="form-control" required>{{ old('contenido') }}</textarea>
+                                    <textarea name="contenido" rows="2" class="form-control">{{ old('contenido') }}</textarea>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group mb-0">
                                     <label>Direccion remitente<span class="required-star">*</span></label>
-                                    <input type="text" name="direccion_r" class="form-control" value="{{ old('direccion_r') }}" required>
+                                    <input type="text" name="direccion_r" class="form-control" value="{{ old('direccion_r') }}">
                                 </div>
                             </div>
                         </div>
@@ -204,21 +415,22 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Nombre destinatario<span class="required-star">*</span></label>
-                                    <input type="text" name="nombre_d" class="form-control" value="{{ old('nombre_d') }}" required>
+                                    <input type="text" name="nombre_d" class="form-control" value="{{ old('nombre_d') }}">
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Telefono destinatario<span class="required-star">*</span></label>
-                                    <input type="text" name="telefono_d" class="form-control" value="{{ old('telefono_d') }}" required>
+                                    <input type="text" name="telefono_d" class="form-control" value="{{ old('telefono_d') }}">
                                 </div>
                             </div>
                         </div>
+                        <div id="destinoFieldsBlock">
                         <div class="row">
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label>Destino (departamento)<span class="required-star">*</span></label>
-                                    <select name="destino" class="form-control" required>
+                                    <select name="destino" id="destinoSelect" class="form-control">
                                         <option value="">Seleccione...</option>
                                         @foreach($departamentos as $dep)
                                             <option value="{{ $dep }}" {{ old('destino') === $dep ? 'selected' : '' }}>
@@ -226,21 +438,22 @@
                                             </option>
                                         @endforeach
                                     </select>
+                                    <input type="hidden" id="destinoLockedInput" value="">
                                 </div>
                             </div>
                             <div class="col-md-8">
                                 <div class="form-group">
                                     <label>Direccion destinatario<span class="required-star">*</span></label>
-                                    <textarea name="direccion" class="form-control" rows="3" required
+                                    <textarea name="direccion" id="direccionInput" class="form-control" rows="3"
                                         placeholder="Escribe la direccion completa del destinatario...">{{ old('direccion') }}</textarea>
                                 </div>
                             </div>
                         </div>
-                        <div class="row">
+                        <div class="row" id="provinciaRow">
                             <div class="col-md-4">
                                 <div class="form-group mb-0">
                                     <label>Provincia (opcional)</label>
-                                    <input type="text" name="provincia" class="form-control" value="{{ old('provincia') }}">
+                                    <input type="text" name="provincia" id="provinciaInput" class="form-control" value="{{ old('provincia') }}">
                                 </div>
                             </div>
                             <div class="col-md-8">
@@ -249,9 +462,11 @@
                                 </div>
                             </div>
                         </div>
+                        </div>
+                    </div>
                     </div>
 
-                    <div class="top-actions">
+                    <div class="top-actions" id="formActionsBlock" style="display:none;">
                         @if ($canContratoCreateFrecuente ?? false)
                         <button type="button" class="btn btn-guardar-frecuente" id="btnGuardarFrecuente">
                             Guardar envio frecuente
@@ -282,7 +497,26 @@
         const saveBtn = document.getElementById('btnGuardarFrecuente');
         const remitenteInput = document.getElementById('nombreRemitenteInput');
         const dropdown = document.getElementById('frecuentesDropdown');
+        const tipoEnvioInputs = Array.from(form.querySelectorAll('input[name="tipo_envio"]'));
+        const formFieldsBlock = document.getElementById('formFieldsBlock');
+        const formActionsBlock = document.getElementById('formActionsBlock');
+        const destinoFieldsBlock = document.getElementById('destinoFieldsBlock');
+        const destinoSelect = document.getElementById('destinoSelect');
+        const destinoLockedInput = document.getElementById('destinoLockedInput');
+        const direccionInput = document.getElementById('direccionInput');
+        const provinciaRow = document.getElementById('provinciaRow');
+        const provinciaInput = document.getElementById('provinciaInput');
+        const origenValue = @json($origen);
+        const requiredFieldNames = [
+            'nombre_r',
+            'telefono_r',
+            'contenido',
+            'direccion_r',
+            'nombre_d',
+            'telefono_d',
+        ];
         const fields = [
+            'tipo_envio',
             'nombre_r',
             'telefono_r',
             'contenido',
@@ -305,6 +539,104 @@
         };
 
         const getField = (name) => form.querySelector(`[name="${name}"]`);
+        const getTipoEnvio = () => {
+            const selected = form.querySelector('input[name="tipo_envio"]:checked');
+            return selected ? selected.value : '';
+        };
+        const setTipoEnvio = (value) => {
+            tipoEnvioInputs.forEach((input) => {
+                input.checked = input.value === value;
+            });
+        };
+        const syncDestinoLockedState = (isLocked) => {
+            if (!destinoSelect || !destinoLockedInput) return;
+
+            if (isLocked) {
+                destinoLockedInput.name = 'destino';
+                destinoLockedInput.value = String(destinoSelect.value || '').trim();
+                destinoSelect.name = 'destino_visible';
+                destinoSelect.style.pointerEvents = 'none';
+                destinoSelect.tabIndex = -1;
+                destinoSelect.classList.add('bg-light');
+                return;
+            }
+
+            destinoLockedInput.name = '';
+            destinoLockedInput.value = '';
+            destinoSelect.name = 'destino';
+            destinoSelect.style.pointerEvents = '';
+            destinoSelect.tabIndex = 0;
+            destinoSelect.classList.remove('bg-light');
+        };
+        const setFieldsRequired = (enabled) => {
+            requiredFieldNames.forEach((name) => {
+                const input = getField(name);
+                if (!input) return;
+                input.required = enabled;
+            });
+        };
+        const applyTipoEnvio = (tipoEnvio) => {
+            const mode = String(tipoEnvio || '').trim().toLowerCase();
+            const hasSelection = mode !== '';
+            const isPeriurbano = mode === 'periurbano';
+            const isProvincial = mode === 'provincial';
+
+            if (formFieldsBlock) {
+                formFieldsBlock.style.display = hasSelection ? '' : 'none';
+            }
+            if (formActionsBlock) {
+                formActionsBlock.style.display = hasSelection ? '' : 'none';
+            }
+
+            if (destinoFieldsBlock) {
+                destinoFieldsBlock.style.display = hasSelection ? '' : 'none';
+            }
+
+            if (!hasSelection) {
+                setFieldsRequired(false);
+                if (destinoSelect) {
+                    destinoSelect.required = false;
+                }
+                if (direccionInput) {
+                    direccionInput.required = false;
+                }
+                if (provinciaInput) {
+                    provinciaInput.required = false;
+                }
+                if (provinciaRow) {
+                    provinciaRow.style.display = 'none';
+                }
+                syncDestinoLockedState(false);
+                return;
+            }
+
+            setFieldsRequired(true);
+            if (destinoSelect) {
+                destinoSelect.required = true;
+            }
+            if (direccionInput) {
+                direccionInput.required = true;
+            }
+
+            if (isPeriurbano) {
+                if (destinoSelect) {
+                    destinoSelect.value = origenValue;
+                }
+                syncDestinoLockedState(true);
+            } else {
+                syncDestinoLockedState(false);
+            }
+
+            if (provinciaRow) {
+                provinciaRow.style.display = isProvincial ? '' : 'none';
+            }
+            if (provinciaInput) {
+                provinciaInput.required = isProvincial;
+                if (!isProvincial) {
+                    provinciaInput.value = '';
+                }
+            }
+        };
         const normalizeText = (value) => String(value || '').trim().toUpperCase();
         const escapeHtml = (value) => String(value || '')
             .replace(/&/g, '&amp;')
@@ -328,11 +660,30 @@
             localStorage.setItem(storageKey, JSON.stringify(items));
         };
 
+        const getFieldValue = (name) => {
+            if (name === 'tipo_envio') {
+                return getTipoEnvio();
+            }
+
+            const input = getField(name);
+            return input ? input.value : '';
+        };
+
+        const setFieldValue = (name, value) => {
+            if (name === 'tipo_envio') {
+                setTipoEnvio(value || '');
+                applyTipoEnvio(value || '');
+                return;
+            }
+
+            const input = getField(name);
+            if (!input) return;
+            input.value = value || '';
+        };
+
         const fillForm = (item) => {
             fields.forEach((name) => {
-                const input = getField(name);
-                if (!input) return;
-                input.value = item[name] || '';
+                setFieldValue(name, item[name] || '');
             });
         };
 
@@ -412,8 +763,7 @@
             saveBtn.addEventListener('click', () => {
                 const payload = {};
                 fields.forEach((name) => {
-                    const input = getField(name);
-                    payload[name] = input ? input.value : '';
+                    payload[name] = getFieldValue(name);
                 });
 
                 if (!payload.nombre_r || !payload.nombre_d) {
@@ -439,6 +789,14 @@
                 }
             });
         }
+
+        tipoEnvioInputs.forEach((input) => {
+            input.addEventListener('change', () => {
+                applyTipoEnvio(input.value);
+            });
+        });
+
+        applyTipoEnvio(getTipoEnvio());
     })();
 </script>
 @endsection

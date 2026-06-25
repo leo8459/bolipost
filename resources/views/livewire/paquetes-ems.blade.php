@@ -2672,9 +2672,70 @@
                         <label>Nro de vuelo/transporte (opcional)</label>
                         <input type="text" wire:model.defer="regionalTransportNumber" class="form-control">
                     </div>
+
+                    @if ($showRegionalIntSection)
+                    <div class="section-block mt-3 mb-0">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <div class="section-title mb-1">Paquetes INT</div>
+                                <small class="text-muted">Solo se agregan al CN-33. No suman a estadisticas.</small>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 58%;">Codigo</th>
+                                        <th style="width: 24%;">Peso</th>
+                                        <th style="width: 18%;">Accion</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($regionalIntRows as $index => $regionalIntRow)
+                                        <tr wire:key="regional-int-row-{{ $index }}">
+                                            <td>
+                                                <input
+                                                    type="text"
+                                                    class="form-control"
+                                                    wire:model.defer="regionalIntRows.{{ $index }}.codigo"
+                                                    placeholder="Codigo INT">
+                                            </td>
+                                            <td>
+                                                <input
+                                                    type="number"
+                                                    step="0.001"
+                                                    min="0.001"
+                                                    class="form-control"
+                                                    wire:model.defer="regionalIntRows.{{ $index }}.peso"
+                                                    placeholder="0.000">
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" wire:click="removeRegionalIntRow({{ $index }})">
+                                                    Quitar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="mt-2 text-right">
+                            <button type="button" class="btn btn-link btn-sm p-0" wire:click="addRegionalIntRow">
+                                Anadir otro
+                            </button>
+                        </div>
+                    </div>
+                    @endif
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsSendRegional)
+                    <button type="button" class="btn btn-outline-primary" wire:click="toggleRegionalIntSection">
+                        {{ $showRegionalIntSection ? 'Ocultar INT' : 'Anadir INT' }}
+                    </button>
+                    @endif
                     @if ($canEmsSendRegional)
                     <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosRegional">
                         Confirmar y generar manifiesto
