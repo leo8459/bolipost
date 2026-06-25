@@ -137,6 +137,7 @@ class FacturacionCartService
             null
         );
         $montoBase = round((float) ($paquete->precio ?? 0), 2);
+        $resumenOrigen = $this->buildPaqueteEmsResumenOrigen($paquete, $servicio);
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
             $this->originUserPayload($user),
@@ -149,19 +150,7 @@ class FacturacionCartService
             'nombre_servicio' => (string) ($servicio->nombre_servicio ?? ''),
             'nombre_destinatario' => (string) ($paquete->nombre_destinatario ?? ''),
             'servicios_extra' => [],
-            'resumen_origen' => [
-                'codigo' => (string) ($paquete->codigo ?? ''),
-                'contenido' => (string) ($paquete->contenido ?? ''),
-                'peso' => (float) ($paquete->peso ?? 0),
-                'destinatario' => (string) ($paquete->nombre_destinatario ?? ''),
-                'direccion' => (string) ($paquete->direccion ?? ''),
-                'ciudad' => (string) ($paquete->ciudad ?? ''),
-                'actividad_economica' => (string) ($servicio->actividadEconomica ?? ''),
-                'codigo_sin' => (string) ($servicio->codigoSin ?? ''),
-                'codigo_producto' => (string) ($servicio->codigo ?? ''),
-                'descripcion_servicio' => (string) ($servicio->descripcion ?? ''),
-                'unidad_medida' => $servicio->unidadMedida,
-            ],
+            'resumen_origen' => $resumenOrigen,
             'cantidad' => 1,
             'monto_base' => $montoBase,
             'monto_extras' => 0,
@@ -173,6 +162,129 @@ class FacturacionCartService
             throw new \RuntimeException('No se pudo guardar item remoto.');
         }
         return $cart;
+    }
+
+    public function registerPaqueteEmsOficial(User $user, PaqueteEms $paquete): array
+    {
+        $this->assertFacturacionPermission($user);
+
+        $user->loadMissing('sucursal');
+        $paquete->loadMissing(['tarifario.servicio']);
+        $servicioEms = optional(optional($paquete->tarifario)->servicio);
+        $servicio = $this->resolveFiscalServicio(
+            $servicioEms instanceof Servicio ? $servicioEms : null,
+            $this->resolveModuloServicio('EMS')
+        );
+        if (!$servicio) {
+            throw new \RuntimeException('No se encontro un servicio fiscal para registrar la venta OFICIAL.');
+        }
+
+        $resumenOrigen = $this->buildPaqueteEmsResumenOrigen($paquete, $servicio);
+        $fallbackEmail = trim((string) config('services.facturacion_bridge.fallback_email', 'sincorreo@agbc.bo'));
+        if ($fallbackEmail === '' || !filter_var($fallbackEmail, FILTER_VALIDATE_EMAIL)) {
+            $fallbackEmail = 'sincorreo@agbc.bo';
+        }
+
+        $payload = array_merge(
+            [
+                'origenVenta' => [
+                    'id' => (string) $paquete->id,
+                    'tipo' => PaqueteEms::class,
+                ],
+                'origenUsuario' => [
+                    'id' => (string) $user->id,
+                    'nombre' => (string) ($user->name ?? ''),
+                    'email' => (string) ($user->email ?? ''),
+                    'alias' => (string) ($user->alias ?? ''),
+                    'carnet' => (string) ($user->ci ?? ''),
+                ],
+                'origenSucursal' => [
+                    'id' => (string) $user->sucursal?->puntoVenta,
+                    'codigo' => (string) $user->sucursal?->codigoSucursal,
+                    'nombre' => (string) ($user->sucursal?->nombre ?? $user->sucursal?->descripcion ?? ''),
+                ],
+                'municipio' => 'LA PAZ',
+                'departamento' => 'LA PAZ',
+                'telefono' => '2222222',
+                'documentoSector' => (int) config('services.facturacion_bridge.documento_sector', 1),
+                'codigoCliente' => null,
+                'razonSocial' => 'ENVIO OFICIAL',
+                'documentoIdentidad' => null,
+                'tipoDocumentoIdentidad' => null,
+                'correo' => null,
+                'metodoPago' => null,
+                'formatoFactura' => null,
+                'montoTotal' => 0,
+                'detalle' => [[
+                    'actividadEconomica' => (string) ($resumenOrigen['actividad_economica'] ?? ''),
+                    'codigoSin' => (string) ($resumenOrigen['codigo_sin'] ?? ''),
+                    'codigo' => (string) ($resumenOrigen['codigo'] ?? ($paquete->codigo ?? '')),
+                    'descripcion' => (string) ($resumenOrigen['descripcion_servicio'] ?? 'Envio oficial'),
+                    'unidadMedida' => (int) ($resumenOrigen['unidad_medida'] ?? 58),
+                    'precioUnitario' => 0,
+                    'cantidad' => 1,
+                ]],
+            ],
+            $this->originSucursalPayload($user)
+        );
+
+        $this->assertOfficialRegistrationPayload($payload);
+
+        $body = $this->request('POST', '/registrar-oficial', $payload);
+
+        if (!(bool) data_get($body, 'ok')) {
+            throw new \RuntimeException((string) (data_get($body, 'message') ?: 'No se pudo registrar la venta OFICIAL remota.'));
+        }
+
+        return $body;
+    }
+
+    private function buildPaqueteEmsResumenOrigen(PaqueteEms $paquete, ?Servicio $servicio): array
+    {
+        return [
+            'codigo' => (string) ($paquete->codigo ?? ''),
+            'contenido' => (string) ($paquete->contenido ?? ''),
+            'peso' => (float) ($paquete->peso ?? 0),
+            'destinatario' => (string) ($paquete->nombre_destinatario ?? ''),
+            'direccion' => (string) ($paquete->direccion ?? ''),
+            'ciudad' => (string) ($paquete->ciudad ?? ''),
+            'actividad_economica' => (string) ($servicio->actividadEconomica ?? ''),
+            'codigo_sin' => (string) ($servicio->codigoSin ?? ''),
+            'codigo_producto' => (string) ($servicio->codigo ?? ''),
+            'descripcion_servicio' => (string) ($servicio->descripcion ?? ''),
+            'unidad_medida' => (int) ($servicio->unidadMedida ?? 0),
+        ];
+    }
+
+    private function assertOfficialRegistrationPayload(array $payload): void
+    {
+        $required = [
+            'origenVenta.id',
+            'origenVenta.tipo',
+            'origenUsuario.id',
+            'origenSucursal.id',
+            'origenSucursal.codigo',
+            'codigoSucursal',
+            'puntoVenta',
+            'documentoSector',
+        ];
+
+        foreach ($required as $key) {
+            $value = data_get($payload, $key);
+            if ($value === null || (is_string($value) && trim($value) === '')) {
+                throw new \RuntimeException('Falta el dato obligatorio para venta OFICIAL: ' . $key . '.');
+            }
+        }
+
+        $detalle = data_get($payload, 'detalle.0');
+        if (!is_array($detalle)) {
+            throw new \RuntimeException('La venta OFICIAL requiere al menos una linea de detalle.');
+        }
+
+        $cantidad = $detalle['cantidad'] ?? null;
+        if ($cantidad === null || !is_numeric($cantidad) || (float) $cantidad <= 0) {
+            throw new \RuntimeException('La venta OFICIAL requiere una cantidad valida en el detalle.');
+        }
     }
 
     public function addPaqueteCerti(User $user, PaqueteCerti $paquete): object

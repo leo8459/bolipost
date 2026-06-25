@@ -39,10 +39,10 @@
     $draftEmissionErrors = (array) data_get($draftEmissionResponse, 'errors', []);
     $facturacionItemsForValidation = $facturacionItems->values();
     $validationFieldLabels = [
-        'actividadEconomica' => 'Actividad econÃ³mica',
-        'codigoSin' => 'CÃ³digo SIN',
-        'codigo' => 'CÃ³digo de producto',
-        'descripcion' => 'DescripciÃ³n del servicio',
+        'actividadEconomica' => 'Actividad economica',
+        'codigoSin' => 'Codigo SIN',
+        'codigo' => 'Codigo de producto',
+        'descripcion' => 'Descripcion del servicio',
         'unidadMedida' => 'Unidad de medida',
     ];
     $draftEmissionIssues = collect(\Illuminate\Support\Arr::dot($draftEmissionErrors))
@@ -66,7 +66,7 @@
                 'item_index' => $itemIndex,
                 'field' => $field,
                 'field_label' => $validationFieldLabels[$field] ?? $field,
-                'message' => $message !== '' ? $message : 'El valor enviado no fue aceptado por Facturación.',
+                'message' => $message !== '' ? $message : 'El valor enviado no fue aceptado por Facturacion.',
             ];
         })
         ->filter()
@@ -76,12 +76,17 @@
     $facturacionDownloadPdf = session('facturacion_download_pdf');
     $facturacionQrData = session('facturacion_qr_data');
     $facturacionFeedbackAction = is_array($facturacionFeedback) ? (string) ($facturacionFeedback['action'] ?? '') : '';
-    $shouldOpenShortcutWithFeedback = is_array($facturacionFeedback) && $facturacionFeedbackAction !== 'consultar';
+    $isCajaShortcutFeedback = in_array($facturacionFeedbackAction, ['caja_abrir', 'caja_cerrar'], true);
+    $shouldRenderShortcutFeedback = is_array($facturacionFeedback) && !$isCajaShortcutFeedback;
+    $shouldOpenShortcutWithFeedback = $shouldRenderShortcutFeedback && $facturacionFeedbackAction !== 'consultar';
     $shouldOpenConsultFeedbackModal = is_array($facturacionFeedback) && $facturacionFeedbackAction === 'consultar';
     $isRejectedDraft = $activeFacturacionCart && ($activeFacturacionCart->estado_emision ?? null) === 'RECHAZADA';
     $lastEmissionReason = (string) ($resultadoEmision['razon'] ?? '');
     $lastEmissionAttempts = (int) ($resultadoEmision['_meta']['intentos'] ?? 0);
     $hasActiveFacturacionItems = $facturacionItems->isNotEmpty();
+    $draftEstado = strtolower(trim((string) ($activeFacturacionCart?->estado ?? 'borrador')));
+    $draftEstadoPago = strtolower(trim((string) ($activeFacturacionCart?->estado_pago ?? ($activeInvoiceChannel === 'qr' ? 'pendiente' : 'pagado'))));
+    $draftEstadoEmision = strtoupper(trim((string) ($activeFacturacionCart?->estado_emision ?? '')));
     $hasLastEmissionData = $ultimaFacturacionEmitida
         && (
             trim((string) ($ultimaFacturacionEmitida->estado_emision ?? '')) !== ''
@@ -90,15 +95,62 @@
             || trim((string) ($ultimaFacturacionEmitida->codigo_seguimiento ?? '')) !== ''
             || trim((string) ($facturaEmitida['nroFactura'] ?? '')) !== ''
         );
-    $emitActionLabel = $isRejectedDraft ? 'Reintentar emisión' : 'Emitir factura';
-    $emitConfirmTitle = $isRejectedDraft ? 'Reintentar emisión' : 'Emitir factura';
-    $emitConfirmMessage = $isRejectedDraft
-        ? 'Se reenviarÃ¡ el borrador rechazado con los datos actualizados a la API externa de Facturación.'
-        : 'Se enviarÃ¡ el borrador actual a la API externa de Facturación para su emisión.';
-    $emitConfirmNote = $isRejectedDraft
-        ? 'Antes de reenviar, corrige cliente, emisión o Ítemsdel borrador. No se crearÃ¡ una venta nueva; se reintentarÃ¡ el mismo borrador con tus cambios.'
-        : 'Si la API acepta la venta, este borrador quedarÃ¡ cerrado y marcado como emitido.';
-    $emitConfirmCta = $isRejectedDraft ? 'Si, reenviar' : 'Si, emitir';
+    $isQrFlowShortcut = $activeInvoiceChannel === 'qr';
+    $emitActionLabel = $isQrFlowShortcut
+        ? ($draftEstado === 'pendiente_pago' && !empty($activeFacturacionCart?->qr_transaction_id)
+            ? 'Reabrir QR vigente'
+            : ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR' : 'Generar QR de cobro'))
+        : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir factura electronica');
+    $emitConfirmTitle = $isQrFlowShortcut
+        ? 'Preparar cobro QR'
+        : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir factura');
+    $emitConfirmMessage = $isQrFlowShortcut
+        ? 'Se generara o reutilizara un QR de cobro para esta venta.'
+        : 'La venta se enviara al flujo de facturacion electronica.';
+    $emitConfirmNote = $isQrFlowShortcut
+        ? 'El pago QR no sumara a caja. Solo quedara como cobro referencial hasta que el proveedor confirme el pago.'
+        : 'La factura electronica sumara a caja si la emision concluye correctamente.';
+    $emitConfirmCta = $isQrFlowShortcut ? 'Si, continuar con QR' : ($isRejectedDraft ? 'Si, reenviar' : 'Si, emitir');
+    $workflowTitle = $isQrFlowShortcut ? 'Cobro QR guiado' : 'Facturacion electronica guiada';
+    $workflowNextStep = $isQrFlowShortcut
+        ? match (true) {
+            !$hasActiveFacturacionItems => 'Agrega items al carrito para generar el QR.',
+            $draftEstadoPago === 'pagado' => 'El pago ya fue confirmado. Puedes revisar la venta en el historial.',
+            $draftEstado === 'pendiente_pago' && !empty($activeFacturacionCart?->qr_transaction_id) => 'Comparte o reabre el QR vigente y luego actualiza el pago.',
+            default => 'Genera el QR y espera la confirmacion del proveedor.',
+        }
+        : match (true) {
+            !$hasActiveFacturacionItems => 'Agrega items al carrito antes de emitir.',
+            $draftEstadoEmision === 'RECHAZADA' => 'Corrige los datos observados y reintenta la emision.',
+            $draftEstadoEmision === 'PENDIENTE' => 'Actualiza el estado de emision en unos segundos.',
+            default => 'Verifica cliente, documento y correo antes de emitir.',
+        };
+    $workflowAccountingText = $isQrFlowShortcut
+        ? 'Cobro fuera de caja. Se reporta por separado como QR referencial.'
+        : 'Venta en caja. Se contabiliza economicamente cuando la emision concluye.';
+    $workflowStatusLabel = $isQrFlowShortcut
+        ? match ($draftEstadoPago) {
+            'pagado' => 'Pago confirmado',
+            'cancelado' => 'QR cancelado',
+            default => !empty($activeFacturacionCart?->qr_transaction_id) ? 'QR vigente' : 'Listo para generar QR',
+        }
+        : match ($draftEstadoEmision) {
+            'FACTURADA' => 'Factura emitida',
+            'PENDIENTE' => 'Factura en proceso',
+            'RECHAZADA' => 'Requiere correccion',
+            default => 'Listo para emitir',
+        };
+    $workflowSteps = $isQrFlowShortcut
+        ? [
+            ['label' => 'Carrito listo', 'state' => $hasActiveFacturacionItems ? 'done' : 'active'],
+            ['label' => 'QR generado', 'state' => !empty($activeFacturacionCart?->qr_transaction_id) ? 'done' : ($hasActiveFacturacionItems ? 'active' : 'pending')],
+            ['label' => 'Pago confirmado', 'state' => $draftEstadoPago === 'pagado' ? 'done' : ($draftEstado === 'pendiente_pago' ? 'active' : 'pending')],
+        ]
+        : [
+            ['label' => 'Carrito listo', 'state' => $hasActiveFacturacionItems ? 'done' : 'active'],
+            ['label' => 'Enviado a facturacion', 'state' => in_array($draftEstadoEmision, ['PENDIENTE', 'FACTURADA'], true) ? 'done' : ($hasActiveFacturacionItems ? 'active' : 'pending')],
+            ['label' => 'Factura emitida', 'state' => $draftEstadoEmision === 'FACTURADA' ? 'done' : ($draftEstadoEmision === 'PENDIENTE' ? 'active' : 'pending')],
+        ];
     $estadoCaja = strtoupper(trim((string) ($facturacionCajaContext['estado'] ?? 'SIN_APERTURA')));
     $isCajaAbierta = in_array($estadoCaja, ['ABIERTA', 'ABIERTO'], true);
     $activeBillingMode = 'con_datos';
@@ -111,12 +163,12 @@
         id="openFacturacionShortcut"
         aria-controls="facturacionShortcutModal"
         aria-expanded="false"
-        aria-label="Abrir accesos de Facturación"
+        aria-label="Abrir accesos de Facturacion"
     >
         <span class="global-facturacion-fab__icon">
             <i class="fas fa-file-invoice-dollar"></i>
         </span>
-        <span class="global-facturacion-fab__text">Facturación</span>
+        <span class="global-facturacion-fab__text">Facturacion</span>
         @if ($facturacionItemsCount > 0)
             <span class="global-facturacion-fab__badge">{{ $facturacionItemsCount }}</span>
         @endif
@@ -135,20 +187,20 @@
             <div class="global-shortcut-modal__body">
             <div class="global-shortcut-modal__head">
                 <div>
-                    <h3 id="facturacionShortcutTitle" class="global-shortcut-modal__title">Facturación</h3>
+                    <h3 id="facturacionShortcutTitle" class="global-shortcut-modal__title">Facturacion</h3>
                 </div>
-                <button type="button" class="global-shortcut-modal__close" id="closeFacturacionShortcut" aria-label="Cerrar modal de Facturación">
+                <button type="button" class="global-shortcut-modal__close" id="closeFacturacionShortcut" aria-label="Cerrar modal de Facturacion">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
 
-            @if (is_array($facturacionFeedback))
+            @if ($shouldRenderShortcutFeedback)
                 <div class="global-shortcut-feedback global-shortcut-feedback--{{ $facturacionFeedback['type'] ?? 'info' }}" id="facturacionFeedbackAlert">
                     <div class="global-shortcut-feedback__icon">
                         <i class="fas @if(($facturacionFeedback['type'] ?? '') === 'success') fa-check-circle @elseif(($facturacionFeedback['type'] ?? '') === 'warning') fa-exclamation-triangle @elseif(($facturacionFeedback['type'] ?? '') === 'error') fa-times-circle @else fa-info-circle @endif"></i>
                     </div>
                     <div class="global-shortcut-feedback__body">
-                        <strong>{{ $facturacionFeedback['title'] ?? 'Resultado de Facturación' }}</strong>
+                        <strong>{{ $facturacionFeedback['title'] ?? 'Resultado de Facturacion' }}</strong>
                         <p>{{ $facturacionFeedback['message'] ?? '' }}</p>
                         @if (!empty($facturacionFeedback['detail']))
                             <span>{{ $facturacionFeedback['detail'] }}</span>
@@ -163,21 +215,21 @@
                         <i class="fas fa-lock"></i>
                     </div>
                     <h4>Caja cerrada</h4>
-                    <p>La interfaz de Facturación estÃ¡ deshabilitada. Para continuar, abre caja diaria.</p>
+                    <p>La interfaz de Facturacion esta deshabilitada. Para continuar, abre caja diaria.</p>
                 </section>
             @endif
 
             @if ($isCajaAbierta && $isRejectedDraft)
                 <div class="global-shortcut-edit-hint">
                     <strong>Corrige antes de reenviar</strong>
-                    <p>Puedes editar cliente, emisión y los Ítemsdel borrador antes de volver a intentar.</p>
-                    <span>Cuando aparezca el mensaje de cambios guardados, ya puedes usar <b>Reintentar emisión</b>.</span>
+                    <p>Puedes editar cliente, emision y los items del borrador antes de volver a intentar.</p>
+                    <span>Cuando aparezca el mensaje de cambios guardados, ya puedes usar <b>Reintentar emision</b>.</span>
                 </div>
             @endif
 
             @if ($isCajaAbierta && $draftEmissionIssues->isNotEmpty())
                 <div class="global-shortcut-issue-box">
-                    <strong>Campos observados por Facturación</strong>
+                    <strong>Campos observados por Facturacion</strong>
                     <p>Corrige solo los datos marcados abajo. Cada boton abre el item exacto y enfoca el campo rechazado.</p>
                     <div class="global-shortcut-issue-list">
                         @foreach ($draftEmissionIssues as $issue)
@@ -187,7 +239,7 @@
                             <div class="global-shortcut-issue-card">
                                 <div class="global-shortcut-issue-card__body">
                                     <span class="global-shortcut-issue-card__label">Item {{ $issue['item_index'] + 1 }} | {{ $issue['field_label'] }}</span>
-                                    <strong>{{ $issueItem->codigo ?: ($issueItem->titulo ?: 'Ãtem sin cÃ³digo') }}</strong>
+                                    <strong>{{ $issueItem->codigo ?: ($issueItem->titulo ?: 'Item sin codigo') }}</strong>
                                     <p>{{ $issue['message'] }}</p>
                                 </div>
                                 <button
@@ -234,8 +286,8 @@
 
                 <div class="global-shortcut-selector-block">
                     <div class="global-shortcut-selector-group">
-                        <span class="global-shortcut-selector-label">Facturación</span>
-                        <div class="global-shortcut-choice-row" role="tablist" aria-label="Flujo de Facturación">
+                        <span class="global-shortcut-selector-label">Facturacion</span>
+                        <div class="global-shortcut-choice-row" role="tablist" aria-label="Flujo de Facturacion">
                             <button type="button" class="global-shortcut-choice-btn is-active" disabled aria-disabled="true">
                                 Con documento
                             </button>
@@ -243,10 +295,10 @@
                     </div>
 
                     <div class="global-shortcut-selector-group">
-                        <span class="global-shortcut-selector-label">Emisión</span>
+                        <span class="global-shortcut-selector-label">Emision</span>
                         <div class="global-shortcut-choice-row" role="tablist" aria-label="Tipo de salida de factura">
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
-                                Factura electrónica
+                                Factura electronica
                             </button>
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'qr') is-active @endif" data-invoice-channel-choice="qr" @disabled(!$isCajaAbierta)>
                                 QR
@@ -257,7 +309,7 @@
 
                 <div class="global-shortcut-billing-inline__grid" id="facturacionBillingFields">
                     <div class="global-shortcut-field">
-                        <label for="facturacionBillingDocumentNumber">Número</label>
+                        <label for="facturacionBillingDocumentNumber">Numero</label>
                         <input
                             type="text"
                             id="facturacionBillingDocumentNumber"
@@ -278,7 +330,7 @@
                         >
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full">
-                        <label for="facturacionBillingName">Razón social</label>
+                        <label for="facturacionBillingName">Razon social</label>
                         <input
                             type="text"
                             id="facturacionBillingName"
@@ -317,7 +369,7 @@
                         >
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full">
-                        <label for="facturacionBillingDocumentType">Documentación</label>
+                        <label for="facturacionBillingDocumentType">Documentacion</label>
                         <select id="facturacionBillingDocumentType" disabled aria-disabled="true">
                             <option value="">Selecciona</option>
                             @foreach ($billingDocumentTypes as $value => $label)
@@ -351,8 +403,8 @@
                                 action="{{ route('facturacion.cart.clear') }}"
                                 class="global-shortcut-confirm-form"
                                 data-confirm-title="Vaciar carrito"
-                                data-confirm-message="Se eliminarÃ¡n todos los Ítemsdel borrador de Facturación. Puedes volver a agregarlos despuÃ©s si hace falta."
-                                data-confirm-note="Se conservarÃ¡n intactos los registros operativos. Solo se limpiarÃ¡ el borrador actual del carrito."
+                                data-confirm-message="Se eliminaran todos los items del borrador de Facturacion. Puedes volver a agregarlos despues si hace falta."
+                                data-confirm-note="Se conservaran intactos los registros operativos. Solo se limpiara el borrador actual del carrito."
                                 data-confirm-cta="Si, vaciar"
                             >
                                 @csrf
@@ -369,8 +421,8 @@
                         <div class="global-shortcut-cart-empty__icon" aria-hidden="true">
                             <i class="fas fa-shopping-basket"></i>
                         </div>
-                        <strong>Carrito vacío</strong>
-                        <p>No agregaste Ítemspara Facturación.</p>
+                        <strong>Carrito vacio</strong>
+                        <p>No agregaste items para Facturacion.</p>
                     </div>
                 @else
                     <div class="global-shortcut-cart-list">
@@ -381,7 +433,7 @@
                                     <span class="global-shortcut-cart-item__amount">Bs {{ number_format((float) $item->total_linea, 2) }}</span>
                                 </div>
                                 <div class="global-shortcut-cart-item__meta">
-                                    <span>{{ $item->codigo ?: 'Sin cÃ³digo' }}</span>
+                                    <span>{{ $item->codigo ?: 'Sin codigo' }}</span>
                                     <span>{{ $item->nombre_servicio ?: 'Servicio no identificado' }}</span>
                                 </div>
                                 @if (!empty($item->nombre_destinatario))
@@ -429,8 +481,8 @@
                                         action="{{ route('facturacion.cart.items.destroy', $item->id) }}"
                                         class="global-shortcut-confirm-form"
                                         data-confirm-title="Quitar item"
-                                        data-confirm-message="Este Ã­tem se quitarÃ¡ del borrador de Facturación. No afectarÃ¡ ninguna factura final."
-                                        data-confirm-note="Si fue un error, luego puedes volver a agregarlo desde la operaciÃ³n correspondiente."
+                                        data-confirm-message="Este item se quitara del borrador de Facturacion. No afectara ninguna factura final."
+                                        data-confirm-note="Si fue un error, luego puedes volver a agregarlo desde la operacion correspondiente."
                                         data-confirm-cta="Si, quitar"
                                     >
                                         @csrf
@@ -451,10 +503,6 @@
             </div>
 
             <div class="global-shortcut-footer-action">
-                <div class="global-shortcut-processing" id="facturacionProcessingState" aria-live="polite" hidden>
-                    <span class="global-shortcut-processing__spinner" aria-hidden="true"></span>
-                    <span id="facturacionProcessingText">Procesando emisión, espera un momento...</span>
-                </div>
                 @if (!$isCajaAbierta)
                     <div class="global-shortcut-footer-action__row global-shortcut-footer-action__row--closed">
                         <form
@@ -474,6 +522,15 @@
                         </form>
                     </div>
                 @else
+                    <div class="global-shortcut-footer-action__row">
+                        <button
+                            type="button"
+                            class="global-shortcut-secondary-btn"
+                            id="facturacionPreviewProcessingBtn"
+                        >
+                            Probar animacion
+                        </button>
+                    </div>
                     @if ($ultimaFacturacionEmitida && !empty($ultimaFacturacionEmitida->codigo_seguimiento))
                         @if ($facturacionItems->isNotEmpty())
                             <form
@@ -498,7 +555,7 @@
                                     class="global-shortcut-emit-btn"
                                     @disabled($facturacionItems->isEmpty())
                                 >
-                                    {{ $isRejectedDraft ? 'Reintentar emisión' : 'Emitir nueva factura' }}
+                                    {{ $isRejectedDraft ? 'Reintentar emision' : 'Emitir nueva factura' }}
                                 </button>
                             </form>
                         @endif
@@ -534,7 +591,7 @@
                                 class="global-shortcut-emit-btn"
                                 disabled
                                 aria-disabled="true"
-                                title="Agrega al menos un Ã­tem al carrito para emitir."
+                                title="Agrega al menos un item al carrito para emitir."
                             >
                                 {{ $emitActionLabel }}
                             </button>
@@ -543,6 +600,66 @@
                 @endif
             </div>
 
+        </div>
+    </div>
+
+    <div class="global-shortcut-processing-overlay" id="facturacionProcessingState" aria-live="polite" data-preview-mode="false" hidden>
+        <div class="global-shortcut-processing-overlay__card" role="status" aria-label="Procesando emision">
+            <div class="global-shortcut-processing-overlay__art" aria-hidden="true">
+                <div class="global-shortcut-processing-overlay__glow"></div>
+                <svg viewBox="0 0 360 180" class="global-shortcut-processing-overlay__svg" focusable="false">
+                    <defs>
+                        <linearGradient id="facturacionStageBg" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#f7fbff"/>
+                            <stop offset="100%" stop-color="#eef4fb"/>
+                        </linearGradient>
+                        <linearGradient id="facturacionStageLine" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#20539a"/>
+                            <stop offset="100%" stop-color="#4f7ec0"/>
+                        </linearGradient>
+                        <linearGradient id="facturacionStageAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#ffd36b"/>
+                            <stop offset="100%" stop-color="#ffb53f"/>
+                        </linearGradient>
+                    </defs>
+                    <rect x="28" y="24" width="304" height="132" rx="28" fill="url(#facturacionStageBg)"/>
+                    <rect x="52" y="112" width="256" height="10" rx="5" fill="#dbe6f3"/>
+                    <g class="global-shortcut-processing-overlay__doc global-shortcut-processing-overlay__doc--source">
+                        <rect x="80" y="54" width="78" height="94" rx="18" fill="#ffffff" stroke="#d7e3f1" stroke-width="3"/>
+                        <rect x="98" y="74" width="42" height="8" rx="4" fill="#20539a" opacity=".16"/>
+                        <rect x="98" y="90" width="34" height="8" rx="4" fill="#20539a" opacity=".11"/>
+                        <rect x="98" y="106" width="46" height="8" rx="4" fill="#20539a" opacity=".11"/>
+                        <rect x="98" y="124" width="28" height="10" rx="5" fill="url(#facturacionStageAccent)"/>
+                    </g>
+                    <g class="global-shortcut-processing-overlay__flow">
+                        <path d="M158 102h44" fill="none" stroke="url(#facturacionStageLine)" stroke-width="6" stroke-linecap="round" opacity=".22"/>
+                        <path d="M163 102h34" fill="none" stroke="url(#facturacionStageLine)" stroke-width="6" stroke-linecap="round" stroke-dasharray="12 12"/>
+                        <circle cx="180" cy="102" r="8" fill="#20539a"/>
+                    </g>
+                    <g class="global-shortcut-processing-overlay__doc global-shortcut-processing-overlay__doc--target">
+                        <rect x="204" y="44" width="86" height="104" rx="20" fill="#ffffff" stroke="#d7e3f1" stroke-width="3"/>
+                        <rect x="224" y="66" width="48" height="8" rx="4" fill="#20539a" opacity=".16"/>
+                        <rect x="224" y="82" width="39" height="8" rx="4" fill="#20539a" opacity=".11"/>
+                        <rect x="224" y="98" width="52" height="8" rx="4" fill="#20539a" opacity=".11"/>
+                        <rect x="224" y="118" width="32" height="10" rx="5" fill="url(#facturacionStageAccent)"/>
+                    </g>
+                    <g class="global-shortcut-processing-overlay__seal">
+                        <circle cx="282" cy="58" r="20" fill="#eef5ff"/>
+                        <circle cx="282" cy="58" r="13" fill="#ffffff"/>
+                        <path d="M276 58l4 4 8-10" fill="none" stroke="#20539a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </g>
+                    <g class="global-shortcut-processing-overlay__ring">
+                        <circle cx="180" cy="44" r="20" fill="none" stroke="#d7e3f1" stroke-width="6"/>
+                        <circle cx="180" cy="44" r="20" fill="none" stroke="url(#facturacionStageAccent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="54 72"/>
+                    </g>
+                </svg>
+            </div>
+            <div class="global-shortcut-processing-overlay__pill">
+                Facturacion en curso
+            </div>
+            <strong>Emitiendo factura</strong>
+            <span id="facturacionProcessingText">Procesando emision, espera un momento...</span>
+            <small id="facturacionProcessingHint" hidden>Haz clic para cerrar esta vista previa.</small>
         </div>
     </div>
 
@@ -560,11 +677,11 @@
                 <div class="global-shortcut-confirm__icon">
                     <i class="fas fa-pen"></i>
                 </div>
-                <div class="global-shortcut-confirm__eyebrow">CorrecciÃ³n de Ã­tem</div>
+                <div class="global-shortcut-confirm__eyebrow">Correccion de item</div>
             </div>
             <h4 id="facturacionItemEditTitle" class="global-shortcut-confirm__title">Corregir item antes de reenviar</h4>
             <p class="global-shortcut-confirm__message">
-                Ajusta los datos observados y guarda el ítems para volver a intentar la emisión.
+                Ajusta los datos observados y guarda el item para volver a intentar la emision.
             </p>
             <form method="POST" action="" id="facturacionItemEditForm" class="global-shortcut-item-edit-form">
                 @csrf
@@ -572,7 +689,7 @@
                 <div class="global-shortcut-item-edit-alert is-hidden" id="facturacionItemEditAlert" aria-live="polite"></div>
                 <div class="global-shortcut-item-edit-grid">
                     <div class="global-shortcut-field" data-edit-field-key="codigo_item">
-                        <label for="facturacionEditItemCodigo">CÃ³digo de Ã­tem</label>
+                        <label for="facturacionEditItemCodigo">Codigo de item</label>
                         <input type="text" id="facturacionEditItemCodigo" name="codigo" required>
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="peso">
@@ -580,7 +697,7 @@
                         <input type="number" id="facturacionEditItemPeso" name="peso" min="0" step="0.001" placeholder="Ej. 0.100">
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="titulo">
-                        <label for="facturacionEditItemTitulo">TÃ­tulo</label>
+                        <label for="facturacionEditItemTitulo">Titulo</label>
                         <input type="text" id="facturacionEditItemTitulo" name="titulo" required>
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="nombre_servicio">
@@ -596,7 +713,7 @@
                         <input type="text" id="facturacionEditItemContenido" name="contenido">
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="direccion">
-                        <label for="facturacionEditItemDireccion">DirecciÃ³n</label>
+                        <label for="facturacionEditItemDireccion">Direccion</label>
                         <input type="text" id="facturacionEditItemDireccion" name="direccion">
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="ciudad">
@@ -604,15 +721,15 @@
                         <input type="text" id="facturacionEditItemCiudad" name="ciudad">
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="actividadEconomica">
-                        <label for="facturacionEditItemActividadEconomica">Actividad econÃ³mica</label>
+                        <label for="facturacionEditItemActividadEconomica">Actividad economica</label>
                         <input type="text" id="facturacionEditItemActividadEconomica" name="actividad_economica" maxlength="6" placeholder="6 caracteres">
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="codigoSin">
-                        <label for="facturacionEditItemCodigoSin">CÃ³digo SIN</label>
+                        <label for="facturacionEditItemCodigoSin">Codigo SIN</label>
                         <input type="text" id="facturacionEditItemCodigoSin" name="codigo_sin">
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="codigo">
-                        <label for="facturacionEditItemCodigoProducto">CÃ³digo de producto</label>
+                        <label for="facturacionEditItemCodigoProducto">Codigo de producto</label>
                         <input type="text" id="facturacionEditItemCodigoProducto" name="codigo_producto">
                     </div>
                     <div class="global-shortcut-field" data-edit-field-key="unidadMedida">
@@ -620,7 +737,7 @@
                         <input type="number" id="facturacionEditItemUnidadMedida" name="unidad_medida" min="1" step="1">
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="descripcion">
-                        <label for="facturacionEditItemDescripcionServicio">DescripciÃ³n del servicio</label>
+                        <label for="facturacionEditItemDescripcionServicio">Descripcion del servicio</label>
                         <input type="text" id="facturacionEditItemDescripcionServicio" name="descripcion_servicio">
                     </div>
                 </div>
@@ -650,11 +767,11 @@
                     <div class="global-shortcut-confirm__icon">
                         <i class="fas fa-circle-check" id="facturacionActionConfirmIcon"></i>
                     </div>
-                    <div class="global-shortcut-confirm__eyebrow">ConfirmaciÃ³n de carrito</div>
+                    <div class="global-shortcut-confirm__eyebrow">Confirmacion de carrito</div>
                 </div>
-            <h4 id="facturacionActionConfirmTitle" class="global-shortcut-confirm__title">Confirmar acciÃ³n</h4>
+            <h4 id="facturacionActionConfirmTitle" class="global-shortcut-confirm__title">Confirmar accion</h4>
             <p class="global-shortcut-confirm__message" id="facturacionActionConfirmMessage">
-                Esta acciÃ³n actualizarÃ¡ tu borrador de Facturación.
+                Esta accion actualizara tu borrador de Facturacion.
             </p>
             <div class="global-shortcut-confirm__note" id="facturacionActionConfirmNoteBox">
                 <span class="global-shortcut-confirm__note-label">Importante</span>
@@ -749,9 +866,23 @@
                         El proveedor recibio la venta, pero todavia no devolvio una imagen QR. Usa "Consultar estado" para refrescar la respuesta.
                     </div>
                 @endif
+                <div class="facturacion-qr-viewer__guide">
+                    <div class="facturacion-qr-viewer__guide-step">
+                        <span>1</span>
+                        <strong>Comparte el QR con el cliente</strong>
+                    </div>
+                    <div class="facturacion-qr-viewer__guide-step">
+                        <span>2</span>
+                        <strong>Espera el callback o actualiza el pago</strong>
+                    </div>
+                    <div class="facturacion-qr-viewer__guide-step">
+                        <span>3</span>
+                        <strong>El monto se reporta fuera de caja</strong>
+                    </div>
+                </div>
                 <form method="POST" action="{{ route('facturacion.cart.consultar') }}" class="facturacion-qr-viewer__actions">
                     @csrf
-                    <button type="submit" class="global-shortcut-primary-btn">Consultar estado</button>
+                    <button type="submit" class="global-shortcut-primary-btn">Actualizar pago</button>
                 </form>
             </div>
         </div>
@@ -905,6 +1036,41 @@
             margin-bottom: 12px;
             color: #2e4f79;
             font-size: .87rem;
+        }
+        .facturacion-qr-viewer__guide {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin: 0 0 14px;
+            text-align: left;
+        }
+        .facturacion-qr-viewer__guide-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 12px 11px;
+            border-radius: 13px;
+            border: 1px solid #dce7f6;
+            background: #f8fbff;
+        }
+        .facturacion-qr-viewer__guide-step span {
+            flex: 0 0 auto;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #20539a;
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .78rem;
+            font-weight: 800;
+        }
+        .facturacion-qr-viewer__guide-step strong {
+            color: #21456f;
+            font-size: .81rem;
+            line-height: 1.45;
+            font-weight: 700;
         }
         .facturacion-qr-viewer__meta {
             color: #6f83a3;
@@ -1187,6 +1353,147 @@
             margin-top: 6px;
             font-size: .81rem;
             line-height: 1.4;
+        }
+        .global-shortcut-workflow-board {
+            margin-bottom: 14px;
+            padding: 16px;
+            border-radius: 18px;
+            border: 1px solid #dbe7f5;
+            background:
+                radial-gradient(circle at top left, rgba(255, 196, 64, .16), transparent 32%),
+                linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+            box-shadow: 0 12px 30px rgba(17, 47, 92, .08);
+        }
+        .global-shortcut-workflow-board.is-muted {
+            opacity: .84;
+        }
+        .global-shortcut-workflow-board__hero {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .global-shortcut-workflow-board__copy strong {
+            display: block;
+            margin: 0;
+            color: #14345f;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+        .global-shortcut-workflow-board__copy p {
+            margin: 6px 0 0;
+            color: #557095;
+            font-size: .87rem;
+            line-height: 1.5;
+        }
+        .global-shortcut-workflow-board__eyebrow {
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #20539a;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .global-shortcut-workflow-board__badge {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #fff7e8;
+            color: #9a5a00;
+            border: 1px solid #f3ddb1;
+            font-size: .74rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .global-shortcut-workflow-board__grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .global-shortcut-workflow-card {
+            min-height: 88px;
+            padding: 13px 14px;
+            border-radius: 15px;
+            border: 1px solid #deebf8;
+            background: rgba(255, 255, 255, .92);
+        }
+        .global-shortcut-workflow-card span {
+            display: block;
+            margin-bottom: 6px;
+            color: #7890ae;
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+        }
+        .global-shortcut-workflow-card strong {
+            display: block;
+            color: #14345f;
+            font-size: .9rem;
+            line-height: 1.45;
+            font-weight: 800;
+        }
+        .global-shortcut-workflow-track {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .global-shortcut-workflow-track__step {
+            position: relative;
+            padding: 12px 12px 12px 40px;
+            border-radius: 14px;
+            border: 1px solid #dde8f6;
+            background: #f9fbfe;
+            min-height: 62px;
+        }
+        .global-shortcut-workflow-track__step strong {
+            display: block;
+            color: #24456f;
+            font-size: .84rem;
+            line-height: 1.4;
+            font-weight: 800;
+        }
+        .global-shortcut-workflow-track__dot {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            transform: translateY(-50%);
+            border: 3px solid #b8cbe3;
+            background: #fff;
+        }
+        .global-shortcut-workflow-track__step.is-done {
+            background: linear-gradient(135deg, #effaf3 0%, #f8fcfa 100%);
+            border-color: #cde8d6;
+        }
+        .global-shortcut-workflow-track__step.is-done .global-shortcut-workflow-track__dot {
+            border-color: #2e9d5f;
+            background: #2e9d5f;
+            box-shadow: 0 0 0 4px rgba(46, 157, 95, .12);
+        }
+        .global-shortcut-workflow-track__step.is-active {
+            background: linear-gradient(135deg, #fff8e9 0%, #fffdf7 100%);
+            border-color: #f1d9a2;
+        }
+        .global-shortcut-workflow-track__step.is-active .global-shortcut-workflow-track__dot {
+            border-color: #f0a400;
+            background: #f0a400;
+            box-shadow: 0 0 0 4px rgba(240, 164, 0, .15);
+        }
+        .global-shortcut-workflow-track__step.is-pending .global-shortcut-workflow-track__dot {
+            background: #eef4fb;
         }
         .global-shortcut-closed-mode {
             margin-bottom: 12px;
@@ -1876,27 +2183,107 @@
             background: #ffffff;
             border-top: 1px solid #e3ebf6;
         }
-        .global-shortcut-processing {
+        .global-shortcut-processing-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
-            padding: 12px 14px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 187, 92, 0.4);
-            background: #fff8ef;
-            color: #9a5a00;
-            font-size: .9rem;
-            font-weight: 600;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(8, 24, 50, 0.38);
+            backdrop-filter: blur(6px);
         }
-        .global-shortcut-processing__spinner {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            border: 2px solid rgba(154, 90, 0, 0.18);
-            border-top-color: #ff9800;
-            animation: facturacion-spin .85s linear infinite;
-            flex: 0 0 auto;
+        .global-shortcut-processing-overlay__card {
+            position: relative;
+            width: min(100%, 430px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 26px 28px 22px;
+            border-radius: 28px;
+            border: 1px solid rgba(207, 220, 238, 0.95);
+            background:
+                radial-gradient(circle at top center, rgba(79, 126, 192, 0.08), transparent 38%),
+                linear-gradient(180deg, #ffffff 0%, #f9fbfe 100%);
+            box-shadow:
+                0 28px 58px rgba(8, 24, 50, 0.18),
+                0 10px 24px rgba(28, 61, 108, 0.08);
+            text-align: center;
+            color: #445872;
+            overflow: hidden;
+        }
+        .global-shortcut-processing-overlay.is-preview {
+            cursor: pointer;
+        }
+        .global-shortcut-processing-overlay__art {
+            position: relative;
+            width: 100%;
+            padding: 8px 0 4px;
+        }
+        .global-shortcut-processing-overlay__glow {
+            position: absolute;
+            inset: 6px 44px 18px;
+            border-radius: 999px;
+            background: radial-gradient(circle, rgba(79, 126, 192, 0.14) 0%, rgba(79, 126, 192, 0) 72%);
+            filter: blur(14px);
+        }
+        .global-shortcut-processing-overlay__svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .global-shortcut-processing-overlay__pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 30px;
+            padding: 0 14px;
+            border-radius: 999px;
+            background: #edf3fb;
+            color: #20539a;
+            border: 1px solid #dbe6f3;
+            font-size: .74rem;
+            font-weight: 800;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+        }
+        .global-shortcut-processing-overlay__card strong {
+            font-size: 1.55rem;
+            font-weight: 800;
+            color: #173962;
+            line-height: 1.08;
+        }
+        .global-shortcut-processing-overlay__card span:last-child {
+            max-width: 26ch;
+            font-size: .98rem;
+            line-height: 1.6;
+            font-weight: 500;
+            color: #5d718d;
+        }
+        .global-shortcut-processing-overlay__card small {
+            font-size: .76rem;
+            line-height: 1.4;
+            color: #7a8ea8;
+            font-weight: 700;
+        }
+        .global-shortcut-processing-overlay__ring {
+            transform-origin: 180px 44px;
+            animation: facturacion-ring-spin 1.3s linear infinite;
+        }
+        .global-shortcut-processing-overlay__flow {
+            animation: facturacion-flow-move 1.5s linear infinite;
+        }
+        .global-shortcut-processing-overlay__doc--source {
+            animation: facturacion-doc-source 2.2s ease-in-out infinite;
+        }
+        .global-shortcut-processing-overlay__doc--target {
+            animation: facturacion-doc-target 2.2s ease-in-out infinite;
+        }
+        .global-shortcut-processing-overlay__seal {
+            transform-origin: 282px 58px;
+            animation: facturacion-seal-pulse 1.8s ease-in-out infinite;
         }
         .global-shortcut-footer-action__row {
             display: flex;
@@ -2310,6 +2697,15 @@
             .global-shortcut-selector-block {
                 grid-template-columns: 1fr;
             }
+            .global-shortcut-workflow-board__hero,
+            .global-shortcut-workflow-board__grid,
+            .global-shortcut-workflow-track,
+            .facturacion-qr-viewer__guide {
+                grid-template-columns: 1fr;
+            }
+            .global-shortcut-workflow-board__hero {
+                display: grid;
+            }
             .global-shortcut-choice-row--triple {
                 grid-template-columns: 1fr;
             }
@@ -2383,6 +2779,15 @@
             .global-shortcut-choice-row--triple {
                 grid-template-columns: 1fr;
             }
+            .global-shortcut-workflow-board {
+                padding: 14px;
+            }
+            .global-shortcut-workflow-track__step {
+                padding-left: 38px;
+            }
+            .facturacion-qr-viewer__guide-step {
+                padding: 11px;
+            }
             .global-shortcut-choice-btn {
                 min-height: 44px;
                 font-size: .8rem;
@@ -2407,6 +2812,47 @@
                 transform: rotate(360deg);
             }
         }
+        @keyframes facturacion-ring-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        @keyframes facturacion-flow-move {
+            0%, 100% {
+                transform: translateX(0);
+                opacity: .85;
+            }
+            50% {
+                transform: translateX(5px);
+                opacity: 1;
+            }
+        }
+        @keyframes facturacion-doc-source {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(3px);
+            }
+        }
+        @keyframes facturacion-doc-target {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-3px);
+            }
+        }
+        @keyframes facturacion-seal-pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: .96;
+            }
+            50% {
+                transform: scale(1.06);
+                opacity: 1;
+            }
+        }
     </style>
 
     <script>
@@ -2422,6 +2868,13 @@
             const facturacionActionConfirmIcon = document.getElementById('facturacionActionConfirmIcon');
             const facturacionActionConfirmAccept = document.getElementById('facturacionActionConfirmAccept');
             const facturacionActionConfirmCancel = document.getElementById('facturacionActionConfirmCancel');
+            const facturacionActionConfirmEyebrow = document.querySelector('.global-shortcut-confirm__eyebrow');
+            const FACTURACION_CONFIRM_DEFAULTS = {
+                eyebrow: 'Confirmacion de carrito',
+                title: 'Confirmar accion',
+                message: 'Esta accion actualizara tu borrador de Facturacion.',
+                note: 'Solo se modificara el borrador actual del carrito.',
+            };
             const facturacionItemEditModal = document.getElementById('facturacionItemEditModal');
             const facturacionItemEditForm = document.getElementById('facturacionItemEditForm');
             const facturacionItemEditCancel = document.getElementById('facturacionItemEditCancel');
@@ -2433,9 +2886,24 @@
             const facturacionBillingModeInput = document.getElementById('facturacionBillingModeInput');
             const facturacionInvoiceChannelInput = document.getElementById('facturacionInvoiceChannelInput');
             const facturacionBillingFields = document.getElementById('facturacionBillingFields');
+
+            if (facturacionActionConfirmEyebrow) {
+                facturacionActionConfirmEyebrow.textContent = FACTURACION_CONFIRM_DEFAULTS.eyebrow;
+            }
+            if (facturacionActionConfirmTitle) {
+                facturacionActionConfirmTitle.textContent = FACTURACION_CONFIRM_DEFAULTS.title;
+            }
+            if (facturacionActionConfirmMessage) {
+                facturacionActionConfirmMessage.textContent = FACTURACION_CONFIRM_DEFAULTS.message;
+            }
+            if (facturacionActionConfirmNote) {
+                facturacionActionConfirmNote.textContent = FACTURACION_CONFIRM_DEFAULTS.note;
+            }
             const facturacionAutosaveState = document.getElementById('facturacionAutosaveState');
             const facturacionProcessingState = document.getElementById('facturacionProcessingState');
             const facturacionProcessingText = document.getElementById('facturacionProcessingText');
+            const facturacionProcessingHint = document.getElementById('facturacionProcessingHint');
+            const facturacionPreviewProcessingBtn = document.getElementById('facturacionPreviewProcessingBtn');
             const facturacionFeedbackAlert = document.getElementById('facturacionFeedbackAlert');
             const facturacionQrViewer = document.getElementById('facturacionQrViewer');
             const facturacionQrViewerClose = document.getElementById('facturacionQrViewerClose');
@@ -2449,10 +2917,10 @@
             const facturacionQrData = @json($facturacionQrData);
             const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
             const facturacionFieldNames = {
-                actividadEconomica: 'Actividad econÃ³mica',
-                codigoSin: 'CÃ³digo SIN',
-                codigo: 'CÃ³digo de producto',
-                descripcion: 'DescripciÃ³n del servicio',
+                actividadEconomica: 'Actividad economica',
+                codigoSin: 'Codigo SIN',
+                codigo: 'Codigo de producto',
+                descripcion: 'Descripcion del servicio',
                 unidadMedida: 'Unidad de medida',
             };
             const facturacionFieldFocusMap = {
@@ -2470,6 +2938,27 @@
             let facturacionShortcutLastFocus = null;
             let pendingConfirmForm = null;
             let isFacturacionSubmitting = false;
+
+            const setFacturacionProcessingOverlay = (active, options = {}) => {
+                const {
+                    text = 'Procesando emision, espera un momento...',
+                    previewMode = false,
+                } = options;
+
+                if (facturacionProcessingState) {
+                    facturacionProcessingState.hidden = !active;
+                    facturacionProcessingState.dataset.previewMode = previewMode ? 'true' : 'false';
+                    facturacionProcessingState.classList.toggle('is-preview', active && previewMode);
+                }
+
+                if (facturacionProcessingText) {
+                    facturacionProcessingText.textContent = text;
+                }
+
+                if (facturacionProcessingHint) {
+                    facturacionProcessingHint.hidden = !active || !previewMode;
+                }
+            };
 
             const setFacturacionSubmittingState = (form, active) => {
                 isFacturacionSubmitting = active;
@@ -2502,13 +2991,10 @@
                     facturacionActionConfirmCancel.disabled = active;
                 }
 
-                if (facturacionProcessingState) {
-                    facturacionProcessingState.hidden = !active;
-                }
-
-                if (facturacionProcessingText) {
-                    facturacionProcessingText.textContent = 'Procesando emisión, espera un momento...';
-                }
+                setFacturacionProcessingOverlay(active, {
+                    text: 'Procesando emision, espera un momento...',
+                    previewMode: false,
+                });
             };
 
             const resolveScopedBillingForm = (contextElement) => {
@@ -2584,6 +3070,34 @@
                     });
                 });
             };
+
+            if (facturacionPreviewProcessingBtn instanceof HTMLButtonElement) {
+                facturacionPreviewProcessingBtn.addEventListener('click', function () {
+                    const isPreviewOpen = facturacionProcessingState instanceof HTMLElement
+                        && !facturacionProcessingState.hidden
+                        && facturacionProcessingState.dataset.previewMode === 'true';
+
+                    setFacturacionProcessingOverlay(!isPreviewOpen, {
+                        text: isPreviewOpen
+                            ? 'Procesando emision, espera un momento...'
+                            : 'Vista previa de la animacion de emision.',
+                        previewMode: !isPreviewOpen,
+                    });
+                });
+            }
+
+            if (facturacionProcessingState instanceof HTMLElement) {
+                facturacionProcessingState.addEventListener('click', function () {
+                    if (facturacionProcessingState.dataset.previewMode !== 'true' || isFacturacionSubmitting) {
+                        return;
+                    }
+
+                    setFacturacionProcessingOverlay(false, {
+                        text: 'Procesando emision, espera un momento...',
+                        previewMode: false,
+                    });
+                });
+            }
 
             const openFacturacionShortcutModal = () => {
                 facturacionShortcutLastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -2750,8 +3264,12 @@
                 }
 
                 pendingConfirmForm = form;
-                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || 'Confirmar acciÃ³n';
-                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || 'Esta acciÃ³n actualizarÃ¡ tu borrador de Facturación.';
+                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || FACTURACION_CONFIRM_DEFAULTS.title;
+                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || FACTURACION_CONFIRM_DEFAULTS.message;
+                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || 'Confirmar accion';
+                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || 'Esta accion actualizara tu borrador de Facturacion.';
+                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || FACTURACION_CONFIRM_DEFAULTS.title;
+                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || FACTURACION_CONFIRM_DEFAULTS.message;
                 if (facturacionActionConfirmNote && facturacionActionConfirmNoteBox) {
                     const hasCustomNote = form.hasAttribute('data-confirm-note');
                     const noteText = (form.dataset.confirmNote || '').trim();
@@ -3139,7 +3657,7 @@
                         const numberEmpty = String(billingDocumentNumberField.value || '').trim() === '';
                         const rawName = String(billingNameField.value || '').trim().toUpperCase();
 
-                        // Soporte cuando el usuario pega el documento en "Razón social"
+                        // Soporte cuando el usuario pega el documento en "Razon social"
                         if (!numberEmpty || rawName === '') {
                             return;
                         }

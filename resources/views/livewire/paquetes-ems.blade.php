@@ -1229,7 +1229,7 @@
                                     <label>Tipo de correspondencia</label>
                                     <input type="text" wire:model.defer="tipo_correspondencia" class="form-control">
                                     @error('tipo_correspondencia') <small class="text-danger">{{ $message }}</small> @enderror
-                                    <small class="text-muted">Si es OFICIAL, se guarda sin precio ni tarifario.</small>
+                                    <small class="text-muted">Si es OFICIAL, se registra sin precio ni tarifario y se envia directo a facturacion como venta, sin pasar por el carrito.</small>
                                 </div>
                             </div>
 
@@ -2173,7 +2173,7 @@
                                             @if($this->isAlmacenEms) readonly @endif
                                         >
                                         @error('tipo_correspondencia') <small class="text-danger">{{ $message }}</small> @enderror
-                                        <small class="text-muted">Si es OFICIAL, se guarda sin precio ni tarifario.</small>
+                                        <small class="text-muted">Si es OFICIAL, se registra sin precio ni tarifario y se envia directo a facturacion como venta, sin pasar por el carrito.</small>
                                     </div>
                                 </div>
 

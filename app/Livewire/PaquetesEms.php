@@ -2268,7 +2268,11 @@ class PaquetesEms extends Component
                 $this->registerAdmisionEvento($paquete, (int) $user->id);
 
                 if ($this->isCreateEms && $this->canUseFacturacionShortcut($user)) {
-                    app(FacturacionCartService::class)->addPaqueteEms($user, $paquete);
+                    if ($this->isOficialShipment()) {
+                        app(FacturacionCartService::class)->registerPaqueteEmsOficial($user, $paquete);
+                    } else {
+                        app(FacturacionCartService::class)->addPaqueteEms($user, $paquete);
+                    }
                 }
             });
 
