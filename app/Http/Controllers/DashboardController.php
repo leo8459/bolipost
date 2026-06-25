@@ -8,6 +8,7 @@ use App\Exports\DashboardRankingDepartamentosExport;
 use App\Models\Cartero;
 use App\Models\Estado;
 use App\Models\Recojo;
+use App\Support\BitacoraCn33Service;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
@@ -18,6 +19,11 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class DashboardController extends Controller
 {
+    public function __construct(
+        private readonly BitacoraCn33Service $cn33Service
+    ) {
+    }
+
     private array $estadoIdCache = [];
 
     private const EVENTO_ENTREGADO_ID = 316;
@@ -438,6 +444,9 @@ class DashboardController extends Controller
         $regionalPendingAlert = $this->buildRegionalPendingAlert($userCity);
         $carteroPendingAlert = $this->buildCarteroPendingAlert($authUser, $userRoles);
         $carteroPendingSummary = $this->buildCarteroPendingSummary($authUser, $userRoles, $hasGlobalDepartmentAccess, $userCity);
+        $pendingCn33Alert = $this->cn33Service->getPendingRegistrationAlert(
+            regional: $this->resolvePendingCn33RegionalScope($authUser)
+        );
 
         return [
             'modulosDisponibles' => self::MODULOS,
@@ -483,7 +492,31 @@ class DashboardController extends Controller
             'regionalPendingAlert' => $regionalPendingAlert,
             'carteroPendingAlert' => $carteroPendingAlert,
             'carteroPendingSummary' => $carteroPendingSummary,
+            'pendingCn33Alert' => $pendingCn33Alert,
         ];
+    }
+
+    private function resolvePendingCn33RegionalScope($user): ?string
+    {
+        if (!$user) {
+            return null;
+        }
+
+        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+            return null;
+        }
+
+        if (!method_exists($user, 'hasRole')) {
+            return null;
+        }
+
+        if ($user->hasRole('encargado_ems') || $user->hasRole('cartero_ems')) {
+            $regional = strtoupper(trim((string) ($user->ciudad ?? '')));
+
+            return $regional !== '' ? $regional : null;
+        }
+
+        return null;
     }
 
     private function buildRegionalPendingAlert(string $userCity): array

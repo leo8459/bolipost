@@ -354,6 +354,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::delete('/tarifario-tiktoker/{tarifarioTiktoker}', [TarifarioTiktokerController::class, 'destroy'])->name('tarifario-tiktoker.destroy');
     Route::get('/bitacoras', [BitacoraController::class, 'index'])->name('bitacoras.index');
     Route::get('/bitacoras/create', [BitacoraController::class, 'create'])->name('bitacoras.create');
+    Route::get('/bitacoras/cn33-summary', [BitacoraController::class, 'cn33Summary'])->name('bitacoras.cn33-summary');
     Route::post('/bitacoras', [BitacoraController::class, 'store'])->name('bitacoras.store');
     Route::get('/bitacoras/{bitacora}/edit', [BitacoraController::class, 'edit'])->name('bitacoras.edit');
     Route::put('/bitacoras/{bitacora}', [BitacoraController::class, 'update'])->name('bitacoras.update');

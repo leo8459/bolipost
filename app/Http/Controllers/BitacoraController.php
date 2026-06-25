@@ -8,7 +8,9 @@ use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\User;
+use App\Support\BitacoraCn33Service;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,8 +20,14 @@ use Illuminate\View\View;
 
 class BitacoraController extends Controller
 {
+    public function __construct(
+        private readonly BitacoraCn33Service $cn33Service
+    ) {
+    }
+
     public function index(Request $request): View
     {
+        $regionalScope = $this->resolveRegionalScopeForUser(Auth::user());
         $q = trim((string) $request->query('q', ''));
         $userId = (int) $request->query('user_id', 0);
         $codEspecial = strtoupper(trim((string) $request->query('cod_especial', '')));
@@ -91,6 +99,8 @@ class BitacoraController extends Controller
             ->orderBy('provincia')
             ->pluck('provincia');
 
+        $pendingCn33Alert = $this->cn33Service->getPendingRegistrationAlert(regional: $regionalScope);
+
         return view('bitacoras.index', compact(
             'bitacoras',
             'detallesPorCodEspecial',
@@ -103,7 +113,8 @@ class BitacoraController extends Controller
             'codEspecial',
             'provincia',
             'regional',
-            'origenCn33'
+            'origenCn33',
+            'pendingCn33Alert'
         ));
     }
 
@@ -178,9 +189,44 @@ class BitacoraController extends Controller
 
     public function create(): View
     {
+        $regionalScope = $this->resolveRegionalScopeForUser(Auth::user());
+
         return view('bitacoras.create', [
             'bitacora' => new Bitacora(),
+            'pendingCn33Alert' => $this->cn33Service->getPendingRegistrationAlert(regional: $regionalScope),
         ]);
+    }
+
+    public function cn33Summary(Request $request): JsonResponse
+    {
+        $codEspecial = strtoupper(trim((string) $request->query('cod_especial', '')));
+        $regionalScope = $this->resolveRegionalScopeForUser($request->user());
+        $summary = $this->cn33Service->getDispatchSummary($codEspecial, $regionalScope);
+
+        return response()->json($summary);
+    }
+
+    private function resolveRegionalScopeForUser($user): ?string
+    {
+        if (!$user) {
+            return null;
+        }
+
+        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+            return null;
+        }
+
+        if (!method_exists($user, 'hasRole')) {
+            return null;
+        }
+
+        if ($user->hasRole('encargado_ems') || $user->hasRole('cartero_ems')) {
+            $regional = strtoupper(trim((string) ($user->ciudad ?? '')));
+
+            return $regional !== '' ? $regional : null;
+        }
+
+        return null;
     }
 
     public function store(Request $request): RedirectResponse

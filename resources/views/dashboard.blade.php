@@ -67,6 +67,110 @@
     </div>
     @endif
 
+    @if(((int) data_get($pendingCn33Alert ?? [], 'count', 0)) > 0)
+    @php
+        $dashboardPendingCn33Rows = collect(data_get($pendingCn33Alert, 'rows', []));
+        $dashboardPendingCn33Departments = $dashboardPendingCn33Rows
+            ->groupBy(function ($row) {
+                $regional = trim((string) ($row->regional ?? ''));
+                return $regional !== '' ? $regional : 'SIN DEPARTAMENTO';
+            })
+            ->map(function ($rows, $department) {
+                return (object) [
+                    'department' => $department,
+                    'total_cn33' => $rows->count(),
+                    'max_days_delay' => (int) $rows->max('days_delay'),
+                    'rows' => $rows->sortByDesc('days_delay')->values(),
+                ];
+            })
+            ->sortByDesc(function ($item) {
+                return ((int) ($item->total_cn33 ?? 0) * 100000) + (int) ($item->max_days_delay ?? 0);
+            })
+            ->values();
+    @endphp
+    <div class="alert alert-danger d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
+        <div>
+            <strong>Registrar bitacora de envio nacional.</strong>
+            Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas.
+            @if((string) data_get($pendingCn33Alert, 'regional', '') !== '')
+            Solo se muestran registros de {{ data_get($pendingCn33Alert, 'regional') }}.
+            @else
+            Se muestran registros a nivel nacional.
+            @endif
+            Retraso maximo: {{ number_format((int) data_get($pendingCn33Alert, 'max_days_delay', 0)) }} dia(s).
+            @if($dashboardPendingCn33Departments->isNotEmpty())
+                <div class="mt-2 d-flex flex-wrap">
+                    @foreach($dashboardPendingCn33Departments as $index => $department)
+                        <button
+                            type="button"
+                            class="btn btn-light border mr-2 mb-2"
+                            data-toggle="modal"
+                            data-target="#pendingCn33DepartmentModal{{ $index }}"
+                        >
+                            {{ $department->department }}: {{ number_format((int) ($department->total_cn33 ?? 0)) }}
+                        </button>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+        <a href="{{ route('bitacoras.create') }}" class="btn btn-sm btn-outline-dark mt-2 mt-md-0">
+            Registrar bitacora
+        </a>
+    </div>
+
+    @foreach($dashboardPendingCn33Departments as $index => $department)
+        <div class="modal fade" id="pendingCn33DepartmentModal{{ $index }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            {{ $department->department }} - CN-33 que no tienen bitacora
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-light border">
+                            <strong>Total CN-33 sin bitacora:</strong> {{ number_format((int) ($department->total_cn33 ?? 0)) }}
+                            |
+                            <strong>Retraso maximo:</strong> {{ number_format((int) ($department->max_days_delay ?? 0)) }} dia(s)
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>CN-33 sin bitacora</th>
+                                        <th class="text-right">Dias de retraso</th>
+                                        <th class="text-right">Peso</th>
+                                        <th class="text-right">Registros</th>
+                                        <th>Primer registro</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach(($department->rows ?? collect()) as $row)
+                                        <tr>
+                                            <td>{{ $row->numero_despacho ?? $row->cod_especial }}</td>
+                                            <td class="text-right">{{ number_format((int) ($row->days_delay ?? 0)) }}</td>
+                                            <td class="text-right">{{ number_format((float) ($row->peso_total ?? 0), 3) }}</td>
+                                            <td class="text-right">{{ number_format((int) ($row->total_registros ?? 0)) }}</td>
+                                            <td>{{ optional($row->first_created_at)->format('d/m/Y H:i') }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ route('bitacoras.create') }}" class="btn btn-danger">Registrar bitacora</a>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
+    @endif
+
     @if((bool) data_get($carteroPendingSummary ?? [], 'enabled', false))
     @php
         $carteroPendingRows = collect(data_get($carteroPendingSummary, 'rows', collect()));
