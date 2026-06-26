@@ -2605,6 +2605,7 @@ class PaquetesEms extends Component
         }
 
         $generatedAt = now();
+        $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
         $updated = 0;
         $paquetes = collect();
         $contratos = collect();
@@ -2847,7 +2848,6 @@ class PaquetesEms extends Component
         );
 
         $loggedUserName = trim((string) optional(Auth::user())->name);
-        $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
         $pdf = Pdf::loadView('paquetes_ems.reporte-regional', [
             'paquetes' => $paquetesPdf,
             'generatedAt' => $generatedAt,
@@ -8318,6 +8318,10 @@ class PaquetesEms extends Component
 
     protected function validatedRegionalIntRows(): ?array
     {
+        if (!$this->showRegionalIntSection) {
+            return [];
+        }
+
         $rows = [];
 
         foreach ((array) $this->regionalIntRows as $row) {

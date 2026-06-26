@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -230,10 +231,27 @@ class RecojoController extends Controller
         ]);
     }
 
-    public function entregados()
-{
-    $empresaId = (int) (Auth::user()->empresa_id ?? 0);
-    $user = Auth::user();
+    public function entregados(Request $request)
+    {
+        $user = Auth::user();
+        [$fechaDesde, $fechaHasta] = $this->resolveEntregadosDateRange($request);
+
+        $contratos = $this->entregadosQueryForUser($user, $fechaDesde, $fechaHasta)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate(15)
+            ->withQueryString();
+
+        $stats = $this->buildEntregadosStats($user, $fechaDesde, $fechaHasta);
+
+        return view('paquetes_contrato.entregados', [
+            'contratos' => $contratos,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
+            'stats' => $stats,
+            'canContratoEntregadoPrint' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.print'),
+            'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
+        ]);
 
     // Si el usuario no tiene empresa, no mostramos nada
     if ($empresaId <= 0) {
@@ -279,6 +297,42 @@ class RecojoController extends Controller
         'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
     ]);
 }
+
+    public function entregadosPdf(Request $request)
+    {
+        $user = Auth::user();
+        [$fechaDesde, $fechaHasta] = $this->resolveEntregadosDateRange($request);
+
+        $contratos = $this->entregadosQueryForUser($user, $fechaDesde, $fechaHasta)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($contratos->isEmpty()) {
+            return redirect()
+                ->route('paquetes-contrato.entregados', array_filter([
+                    'fecha_desde' => $fechaDesde,
+                    'fecha_hasta' => $fechaHasta,
+                ]))
+                ->with('error', 'No hay contratos entregados para el rango de fechas seleccionado.');
+        }
+
+        $generatedAt = now();
+        $stats = $this->buildEntregadosStats($user, $fechaDesde, $fechaHasta, $contratos);
+        $pdf = Pdf::loadView('paquetes_contrato.entregados-pdf', [
+            'contratos' => $contratos,
+            'generatedAt' => $generatedAt,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
+            'stats' => $stats,
+            'empresaNombre' => optional($user?->empresa)->nombre ?? 'SIN EMPRESA',
+            'usuarioNombre' => trim((string) ($user?->name ?? 'Usuario del sistema')),
+        ])->setPaper('a4', 'landscape');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'contratos-entregados-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
 
     public function create()
     {
@@ -946,6 +1000,84 @@ class RecojoController extends Controller
         }
 
         return $nombre . ' / ' . $empresa;
+    }
+
+    private function entregadosQueryForUser($user, ?string $fechaDesde = null, ?string $fechaHasta = null)
+    {
+        $empresaId = (int) ($user?->empresa_id ?? 0);
+        $estadoEntregadoId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
+            ->value('id') ?? 0);
+
+        $query = Recojo::query()
+            ->with([
+                'empresa:id,nombre,sigla',
+                'user:id,name,empresa_id',
+                'estadoRegistro:id,nombre_estado',
+            ]);
+
+        if ($empresaId <= 0 || $estadoEntregadoId <= 0) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query
+            ->where('empresa_id', $empresaId)
+            ->where('estados_id', $estadoEntregadoId)
+            ->when($fechaDesde, fn ($sub) => $sub->whereDate('created_at', '>=', $fechaDesde))
+            ->when($fechaHasta, fn ($sub) => $sub->whereDate('created_at', '<=', $fechaHasta));
+    }
+
+    private function resolveEntregadosDateRange(Request $request): array
+    {
+        $fechaDesde = $this->normalizeDateInput(trim((string) $request->query('fecha_desde', '')));
+        $fechaHasta = $this->normalizeDateInput(trim((string) $request->query('fecha_hasta', '')));
+
+        if ($fechaDesde && $fechaHasta && $fechaDesde > $fechaHasta) {
+            [$fechaDesde, $fechaHasta] = [$fechaHasta, $fechaDesde];
+        }
+
+        return [$fechaDesde, $fechaHasta];
+    }
+
+    private function normalizeDateInput(string $value): ?string
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function buildEntregadosStats($user, ?string $fechaDesde, ?string $fechaHasta, $rows = null): array
+    {
+        $rows = $rows ?? $this->entregadosQueryForUser($user, $fechaDesde, $fechaHasta)->get();
+
+        $porDia = $rows
+            ->groupBy(fn (Recojo $contrato) => optional($contrato->created_at)->format('Y-m-d') ?: 'sin-fecha')
+            ->map(fn ($items, $fecha) => [
+                'fecha' => $fecha,
+                'label' => $fecha !== 'sin-fecha'
+                    ? Carbon::parse($fecha)->locale('es')->translatedFormat('d M Y')
+                    : 'Sin fecha',
+                'total' => $items->count(),
+                'peso' => (float) $items->sum(fn (Recojo $contrato) => (float) ($contrato->peso ?? 0)),
+            ])
+            ->sortBy('fecha')
+            ->values();
+
+        $diasCubiertos = (int) $porDia->where('fecha', '!=', 'sin-fecha')->count();
+
+        return [
+            'total' => $rows->count(),
+            'peso_total' => (float) $rows->sum(fn (Recojo $contrato) => (float) ($contrato->peso ?? 0)),
+            'dias_cubiertos' => $diasCubiertos,
+            'promedio_diario' => $diasCubiertos > 0 ? round($rows->count() / $diasCubiertos, 2) : (float) $rows->count(),
+            'por_dia' => $porDia,
+        ];
     }
 
     private function contratoFromVerificationRequest(Request $request): Recojo

@@ -393,6 +393,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-contrato/recoger-envios', [RecojoController::class, 'recogerEnvios'])->name('paquetes-contrato.recoger-envios');
     Route::get('/paquetes-contrato/almacen', [RecojoController::class, 'almacen'])->name('paquetes-contrato.almacen');
     Route::get('/paquetes-contrato/entregados', [RecojoController::class, 'entregados'])->name('paquetes-contrato.entregados');
+    Route::get('/paquetes-contrato/entregados/pdf', [RecojoController::class, 'entregadosPdf'])->name('paquetes-contrato.entregados.pdf');
     Route::get('/paquetes-contrato/cartero', [RecojoController::class, 'cartero'])->name('paquetes-contrato.cartero');
     Route::get('/paquetes-contrato/gestor', [RecojoController::class, 'gestor'])->name('paquetes-contrato.gestor');
     Route::get('/dir-operaciones/reimprimir-cn33', [RecojoController::class, 'reimprimirCn33'])->name('dashboard.reimprimir-cn33');

@@ -651,6 +651,11 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.index.manage',
             'feature.paquetes-contrato.index.print',
         ],
+        'paquetes-contrato.entregados.pdf' => [
+            'paquetes-contrato.entregados.pdf',
+            'paquetes-contrato.entregados',
+            'feature.paquetes-contrato.entregados.export',
+        ],
         'empresas.import-form' => [
             'empresas.import-form',
             'feature.empresas.import',

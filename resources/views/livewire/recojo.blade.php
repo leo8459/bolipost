@@ -100,9 +100,9 @@
                     </div>
                     <div class="header-action-row">
                         @if ($canRecojoReport)
-                        <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.reporte-hoy', [], false) }}" target="_blank">
+                        <!-- <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.reporte-hoy', [], false) }}" target="_blank">
                             Imprimir generados hoy
-                        </a>
+                        </a> -->
                         @endif
                         @if (!$this->isAlmacenMode)
                             @if ($canCreateContratoTarifa)
