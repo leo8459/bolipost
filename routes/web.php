@@ -440,6 +440,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/api/carteros/domicilio', [CarterosController::class, 'domicilioData'])->name('api.carteros.domicilio');
     Route::get('/api/carteros/users', [CarterosController::class, 'users'])->name('api.carteros.users');
     Route::post('/api/carteros/asignar', [CarterosController::class, 'assign'])->name('api.carteros.asignar');
+    Route::post('/api/carteros/cambiar-cartero', [CarterosController::class, 'changeAssignedCartero'])->name('api.carteros.cambiar-cartero');
     Route::post('/api/carteros/desasignar', [CarterosController::class, 'unassignFromCartero'])->name('api.carteros.desasignar');
     Route::post('/api/carteros/registrar-guia', [CarterosController::class, 'registerGuide'])->name('api.carteros.registrar-guia');
     Route::post('/api/carteros/devolver-almacen', [CarterosController::class, 'returnToAlmacen'])->name('api.carteros.devolver-almacen');
