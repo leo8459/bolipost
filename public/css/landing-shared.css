@@ -89,6 +89,10 @@
     font-weight: 500;
 }
 
+.menu-client-access-item {
+    display: none;
+}
+
 .menu a {
     position: relative;
     padding-bottom: .15rem;
@@ -147,6 +151,43 @@
     background: rgba(255, 255, 255, .92);
     border-color: rgba(32, 83, 154, .28);
     box-shadow: 0 8px 16px rgba(20, 53, 101, .12);
+}
+
+.btn-client-login-cta {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .08rem;
+    min-width: 158px;
+    padding: .7rem 1rem;
+    border: 1px solid rgba(32, 83, 154, .22);
+    color: #fff;
+    background:
+        radial-gradient(circle at top left, rgba(255, 226, 112, .34), transparent 42%),
+        linear-gradient(135deg, #20539A 0%, #173d72 100%);
+    box-shadow: 0 12px 24px rgba(20, 53, 101, .22);
+}
+
+.btn-client-login-cta:hover,
+.btn-client-login-cta:visited,
+.btn-client-login-cta:active {
+    color: #fff;
+    text-decoration: none;
+}
+
+.btn-client-login-cta__eyebrow {
+    font-size: .68rem;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: rgba(255, 226, 112, .92);
+}
+
+.btn-client-login-cta__label {
+    font-size: .92rem;
+    line-height: 1.15;
+    font-weight: 800;
 }
 
 .btn {
@@ -397,7 +438,8 @@
 
     .btn-public-login,
     .btn-public-register,
-    .btn-public-panel {
+    .btn-public-panel,
+    .btn-client-login-cta {
         padding: .56rem .75rem;
         font-size: .74rem;
     }
@@ -442,15 +484,40 @@
         background: rgba(255, 255, 255, .45);
     }
 
+    .menu-client-access-item {
+        display: block;
+    }
+
     .menu-client-access {
+        width: 100%;
         min-width: 0;
-        padding: .65rem .75rem !important;
-        border-radius: 12px;
-        background: linear-gradient(180deg, rgba(255, 255, 255, .88), rgba(242, 247, 255, .76));
+        justify-content: flex-start;
+        padding: .8rem .85rem !important;
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(32, 83, 154, .98), rgba(23, 61, 114, .98));
+        border-color: rgba(18, 47, 88, .32);
+        box-shadow: 0 12px 24px rgba(20, 53, 101, .16);
+        color: #fff !important;
     }
 
     .menu-client-access-label {
-        font-size: .9rem;
+        font-size: .94rem;
+        color: #fff !important;
+        font-weight: 800;
+        letter-spacing: .02em;
+    }
+
+    .menu li .menu-client-access {
+        background: linear-gradient(135deg, rgba(32, 83, 154, .98), rgba(23, 61, 114, .98));
+        color: #fff !important;
+        border: 1px solid rgba(18, 47, 88, .32);
+    }
+
+    .menu li .menu-client-access:hover,
+    .menu li .menu-client-access:active,
+    .menu li .menu-client-access:visited {
+        color: #fff !important;
+        background: linear-gradient(135deg, rgba(28, 75, 141, 1), rgba(20, 53, 101, 1));
     }
 
     .menu a::after { display: none; }
@@ -478,7 +545,8 @@
 
     .btn-public-login,
     .btn-public-register,
-    .btn-public-panel {
+    .btn-public-panel,
+    .btn-client-login-cta {
         display: none;
     }
 }

@@ -10,9 +10,9 @@
             <li><a href="https://www.correos.gob.bo/quienes-somos" target="_blank" rel="noopener noreferrer">&iquest;Qui&eacute;nes somos?</a></li>
             <li><a href="https://www.correos.gob.bo/noticias" target="_blank" rel="noopener noreferrer">Noticias</a></li>
             <li><a href="https://institucional.correos.gob.bo:8007/" target="_blank" rel="noopener noreferrer">Institucional</a></li>
-            <li style="display:none;">
-                <a href="{{ route('clientes.login') }}" class="menu-client-access">
-                    <span class="menu-client-access-label">Ingresar</span>
+            <li class="menu-client-access-item">
+                <a href="https://trackingbo.correos.gob.bo:8100/clientes/login" class="menu-client-access" target="_blank" rel="noopener noreferrer">
+                    <span class="menu-client-access-label">Ingreso clientes</span>
                 </a>
             </li>
         </ul>
@@ -29,12 +29,10 @@
                     </button>
                 </form>
             @else
-                <!-- <a class="btn btn-public-login" href="{{ route('clientes.login') }}">
-                    Login publico
+                <a class="btn btn-client-login-cta" href="https://trackingbo.correos.gob.bo:8100/clientes/login" target="_blank" rel="noopener noreferrer">
+                    <span class="btn-client-login-cta__eyebrow">Clientes</span>
+                    <span class="btn-client-login-cta__label">Iniciar sesi&oacute;n</span>
                 </a>
-                <a class="btn btn-public-register" href="{{ route('clientes.register') }}">
-                    Registro publico
-                </a> -->
             @endif
             <!-- <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}">
                 Hacer envio desde casa
