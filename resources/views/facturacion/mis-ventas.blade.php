@@ -1005,11 +1005,16 @@
             position: fixed;
             inset: 0;
             z-index: 2055;
+            opacity: 1;
+            visibility: visible;
+            transition: opacity .18s ease, visibility .18s ease;
         }
 
         .ventas-confirm-modal[aria-hidden="true"],
         .ventas-processing-overlay[aria-hidden="true"] {
             pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
         }
 
         .ventas-confirm-modal__backdrop,
@@ -1211,20 +1216,40 @@
                     return;
                 }
 
+                const confirmTitle = String(
+                    targetForm.getAttribute('data-confirm-title')
+                    || targetForm.dataset.confirmTitle
+                    || 'Confirmar accion'
+                );
+                const confirmMessage = String(
+                    targetForm.getAttribute('data-confirm-message')
+                    || targetForm.dataset.confirmMessage
+                    || 'Esta accion actualizara el estado de la caja diaria.'
+                );
+                const confirmDetail = String(
+                    targetForm.getAttribute('data-confirm-detail')
+                    || targetForm.dataset.confirmDetail
+                    || ''
+                ).trim();
+                const confirmCta = String(
+                    targetForm.getAttribute('data-confirm-cta')
+                    || targetForm.dataset.confirmCta
+                    || 'Confirmar'
+                );
+
                 pendingCajaForm = targetForm;
                 if (cajaConfirmTitle) {
-                    cajaConfirmTitle.textContent = targetForm.dataset.confirmTitle || 'Confirmar accion';
+                    cajaConfirmTitle.textContent = confirmTitle;
                 }
                 if (cajaConfirmMessage) {
-                    cajaConfirmMessage.textContent = targetForm.dataset.confirmMessage || 'Esta accion actualizara la caja diaria.';
+                    cajaConfirmMessage.textContent = confirmMessage;
                 }
                 if (cajaConfirmDetail) {
-                    const detail = String(targetForm.dataset.confirmDetail || '').trim();
-                    cajaConfirmDetail.textContent = detail;
-                    cajaConfirmDetail.hidden = detail === '';
+                    cajaConfirmDetail.textContent = confirmDetail;
+                    cajaConfirmDetail.hidden = confirmDetail === '';
                 }
                 if (cajaConfirmAccept) {
-                    cajaConfirmAccept.textContent = targetForm.dataset.confirmCta || 'Confirmar';
+                    cajaConfirmAccept.textContent = confirmCta;
                 }
 
                 cajaConfirmModal.setAttribute('aria-hidden', 'false');
@@ -1267,11 +1292,22 @@
                 }
 
                 if (active && targetForm instanceof HTMLFormElement) {
+                    const processingTitle = String(
+                        targetForm.getAttribute('data-processing-title')
+                        || targetForm.dataset.processingTitle
+                        || 'Procesando caja'
+                    );
+                    const processingText = String(
+                        targetForm.getAttribute('data-processing-text')
+                        || targetForm.dataset.processingText
+                        || 'Espera un momento...'
+                    );
+
                     if (cajaProcessingTitle) {
-                        cajaProcessingTitle.textContent = targetForm.dataset.processingTitle || 'Procesando caja';
+                        cajaProcessingTitle.textContent = processingTitle;
                     }
                     if (cajaProcessingText) {
-                        cajaProcessingText.textContent = targetForm.dataset.processingText || 'Espera un momento...';
+                        cajaProcessingText.textContent = processingText;
                     }
                 } else {
                     if (cajaProcessingTitle) {
