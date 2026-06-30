@@ -29,7 +29,7 @@ class CarterosController extends Controller
     private const EVENTO_ID_PAQUETE_CAMINO_ENTREGA_FISICA = 184;
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
     private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
-    private const EVENTO_DESASIGNAR_CARTERO = 'Desasignado de CARTERO y devuelto a estado anterior desde Carteros Asignados.';
+    private const EVENTO_DESASIGNAR_CARTERO = 'Quitar cartero. Paquete devuelto a estado anterior desde Carteros Asignados.';
     private const RETURN_TO_WINDOW_OBSERVATIONS = [
         'DESCONOCIDO',
         'SE MUDO',
@@ -96,6 +96,7 @@ class CarterosController extends Controller
         return view('carteros.asignados', [
             'carterosAsignados' => $carterosAsignados,
             'ciudadesAsignadas' => $ciudadesAsignadas,
+            'carterosDisponibles' => $this->availableCarteroUsersForActor(auth()->user()),
         ]);
     }
 
@@ -200,22 +201,120 @@ class CarterosController extends Controller
         $this->authorizeRoutePermission('carteros.distribucion');
         $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
 
-        $userCity = $this->normalizeUserCity((string) optional(auth()->user())->ciudad);
-        if ($userCity === '') {
-            return response()->json(['data' => []]);
-        }
+        return response()->json([
+            'data' => $this->availableCarteroUsersForActor(auth()->user()),
+        ]);
+    }
 
-        $users = User::query()
+    public function changeAssignedCartero(Request $request): JsonResponse
+    {
+        $this->authorizeRoutePermission('carteros.asignados');
+        $this->authorizeFeaturePermission('feature.carteros.asignados.change');
+
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
+        ]);
+
+        $actorUser = $request->user();
+        $actorUserId = (int) $actorUser->id;
+        $newAssignee = User::query()->findOrFail((int) $validated['user_id'], ['id', 'name', 'ciudad']);
+
+        $assigneeHasAllowedRole = User::query()
+            ->whereKey($newAssignee->id)
             ->whereHas('roles', function ($query) {
                 $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
             })
-            ->where(function ($query) use ($userCity) {
-                $query->whereRaw('TRIM(UPPER(ciudad)) = ?', [$userCity]);
-            })
-            ->orderBy('name')
-            ->get(['id', 'name', 'ciudad']);
+            ->exists();
 
-        return response()->json(['data' => $users]);
+        if (! $assigneeHasAllowedRole) {
+            throw ValidationException::withMessages([
+                'user_id' => 'El usuario seleccionado no tiene un rol habilitado para distribucion.',
+            ]);
+        }
+
+        if (! $this->isSameUserCity($actorUser, $newAssignee)) {
+            throw ValidationException::withMessages([
+                'user_id' => 'Solo puedes cambiar a un cartero de tu mismo departamento.',
+            ]);
+        }
+
+        $estadoCarteroId = $this->resolveEstadoCarteroId();
+        $items = collect($validated['items'])
+            ->map(fn ($item) => [
+                'id' => (int) $item['id'],
+                'tipo_paquete' => (string) $item['tipo_paquete'],
+            ])
+            ->unique(fn ($item) => $item['tipo_paquete'] . '-' . $item['id'])
+            ->values();
+
+        $assignments = $items
+            ->map(function (array $item) use ($estadoCarteroId) {
+                $assignment = $this->findAssignmentByStates($item['tipo_paquete'], $item['id'], [$estadoCarteroId]);
+
+                return [
+                    'item' => $item,
+                    'assignment' => $assignment,
+                    'previous_user_id' => (int) ($assignment->id_user ?? 0),
+                ];
+            })
+            ->values();
+
+        $currentAssigneeIds = $assignments
+            ->pluck('previous_user_id')
+            ->filter(fn ($id) => (int) $id > 0)
+            ->unique()
+            ->values();
+
+        if ($currentAssigneeIds->count() === 1 && (int) $currentAssigneeIds->first() === (int) $newAssignee->id) {
+            throw ValidationException::withMessages([
+                'user_id' => 'El paquete ya esta asignado a ese cartero.',
+            ]);
+        }
+
+        $previousAssignee = null;
+        if ($currentAssigneeIds->count() === 1) {
+            $previousAssignee = User::query()->find((int) $currentAssigneeIds->first(), ['id', 'name', 'ciudad']);
+        }
+
+        $eventoId = $this->resolveDynamicEventId(
+            $this->changeCarteroEventName($actorUser, $previousAssignee, $newAssignee)
+        );
+
+        $updated = 0;
+
+        DB::transaction(function () use ($assignments, $newAssignee, $actorUserId, $eventoId, &$updated) {
+            foreach ($assignments as $entry) {
+                /** @var Cartero $assignment */
+                $assignment = $entry['assignment'];
+                if ((int) ($assignment->id_user ?? 0) === (int) $newAssignee->id) {
+                    continue;
+                }
+
+                $assignment->id_user = (int) $newAssignee->id;
+                $assignment->updated_at = now();
+                $assignment->save();
+                $updated++;
+
+                $this->insertEventoPorPaquete(
+                    (string) $entry['item']['tipo_paquete'],
+                    (int) $entry['item']['id'],
+                    $eventoId,
+                    $actorUserId
+                );
+            }
+        });
+
+        return response()->json([
+            'message' => $updated > 0
+                ? 'Cartero cambiado correctamente.'
+                : 'No hubo cambios de cartero para los paquetes seleccionados.',
+            'updated' => [
+                'total' => $updated,
+            ],
+        ]);
     }
 
     public function distribucionData(Request $request): JsonResponse
@@ -230,7 +329,8 @@ class CarterosController extends Controller
             false,
             false,
             null,
-            $this->normalizeUserCity((string) optional($request->user())->ciudad)
+            $this->normalizeUserCity((string) optional($request->user())->ciudad),
+            true
         );
     }
 
@@ -396,10 +496,10 @@ class CarterosController extends Controller
         $previousOrdiStates = PaqueteOrdi::query()->whereIn('id', $ordiIds)->pluck('fk_estado', 'id')->map(fn ($value) => (int) $value)->all();
         $previousContratoStates = RecojoContrato::query()->whereIn('id', $contratoIds)->pluck('estados_id', 'id')->map(fn ($value) => (int) $value)->all();
         $previousSolicitudStates = SolicitudCliente::query()->whereIn('id', $solicitudIds)->pluck('estado_id', 'id')->map(fn ($value) => (int) $value)->all();
-        $destinationConflicts = $this->packageDestinationConflicts($validated['items'], (string) ($assigneeUser?->ciudad ?? ''));
-        if ($destinationConflicts !== []) {
+        $distributionEligibilityConflicts = $this->distributionEligibilityConflicts($validated['items'], (string) ($assigneeUser?->ciudad ?? ''));
+        if ($distributionEligibilityConflicts !== []) {
             throw ValidationException::withMessages([
-                'items' => 'Solo puedes asignar paquetes con destino igual al departamento del cartero: ' . implode(' ', $destinationConflicts),
+                'items' => 'No se puede asignar: ' . implode(' ', $distributionEligibilityConflicts),
             ]);
         }
 
@@ -1008,8 +1108,9 @@ class CarterosController extends Controller
             'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
         ]);
 
-        $actorUserId = (int) $request->user()->id;
-        $eventoId = $this->resolveDynamicEventId(self::EVENTO_DESASIGNAR_CARTERO);
+        $actorUser = $request->user();
+        $actorUserId = (int) $actorUser->id;
+        $eventoId = $this->resolveDynamicEventId($this->removeCarteroEventName($actorUser));
 
         $emsIds = collect($validated['items'])->where('tipo_paquete', 'EMS')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $certiIds = collect($validated['items'])->where('tipo_paquete', 'CERTI')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
@@ -1054,7 +1155,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $targetEstadoId;
-                    $asignacion->id_user = $actorUserId;
+                    $asignacion->id_user = null;
                     $asignacion->save();
                     $updatedEms++;
                 }
@@ -1079,7 +1180,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $targetEstadoId;
-                    $asignacion->id_user = $actorUserId;
+                    $asignacion->id_user = null;
                     $asignacion->save();
                     $updatedCerti++;
                 }
@@ -1104,7 +1205,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $targetEstadoId;
-                    $asignacion->id_user = $actorUserId;
+                    $asignacion->id_user = null;
                     $asignacion->save();
                     $updatedOrdi++;
                 }
@@ -1129,7 +1230,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_solicitud_cliente = null;
                     $asignacion->id_estados = $targetEstadoId;
-                    $asignacion->id_user = $actorUserId;
+                    $asignacion->id_user = null;
                     $asignacion->save();
                     $updatedContrato++;
                 }
@@ -1154,7 +1255,7 @@ class CarterosController extends Controller
                     $asignacion->id_paquetes_ordi = null;
                     $asignacion->id_paquetes_contrato = null;
                     $asignacion->id_estados = $targetEstadoId;
-                    $asignacion->id_user = $actorUserId;
+                    $asignacion->id_user = null;
                     $asignacion->save();
                     $updatedSolicitud++;
                 }
@@ -1164,7 +1265,7 @@ class CarterosController extends Controller
         });
 
         return response()->json([
-            'message' => 'Paquete desasignado correctamente y devuelto a su estado anterior.',
+            'message' => 'Cartero quitado correctamente y paquete devuelto a su estado anterior.',
             'updated' => [
                 'ems' => $updatedEms,
                 'certi' => $updatedCerti,
@@ -1846,7 +1947,7 @@ class CarterosController extends Controller
         return strtoupper($regional !== '' ? $regional : 'SIN REGIONAL');
     }
 
-    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false, bool $includePackageStateMatches = false, bool $matchUserCity = false, ?array $allowedPackageTypes = null, ?string $destinationCity = null): JsonResponse
+    private function combinedDataResponse(Request $request, ?int $estadoId = null, ?int $userId = null, bool $useUpdatedAtAsFecha = false, bool $includePackageStateMatches = false, bool $matchUserCity = false, ?array $allowedPackageTypes = null, ?string $destinationCity = null, bool $distributionEligibilityOnly = false): JsonResponse
     {
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
@@ -1940,6 +2041,7 @@ class CarterosController extends Controller
             ->select([
                 'id',
                 'codigo',
+                'origen',
                 'nombre_destinatario as destinatario',
                 'telefono_destinatario as telefono',
                 'direccion',
@@ -1973,6 +2075,7 @@ class CarterosController extends Controller
                     'id' => $item->id,
                     'tipo_paquete' => 'EMS',
                     'codigo' => $item->codigo,
+                    'origen' => $item->origen,
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
                     'ciudad' => $item->ciudad,
@@ -2025,6 +2128,7 @@ class CarterosController extends Controller
                     'id' => $item->id,
                     'tipo_paquete' => 'CERTI',
                     'codigo' => $item->codigo,
+                    'origen' => null,
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
                     'ciudad' => $item->ciudad,
@@ -2082,6 +2186,7 @@ class CarterosController extends Controller
                     'tipo_paquete' => 'ORDI',
                     'codigo' => $item->codigo,
                     'codigo_aux' => (string) ($item->cod_especial ?? ''),
+                    'origen' => null,
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
                     'ciudad' => $item->ciudad,
@@ -2103,6 +2208,7 @@ class CarterosController extends Controller
                 'id',
                 'codigo',
                 'cod_especial',
+                'origen',
                 'nombre_d as destinatario',
                 'telefono_d as telefono',
                 'destino as ciudad',
@@ -2139,6 +2245,7 @@ class CarterosController extends Controller
                     'tipo_paquete' => 'CONTRATO',
                     'codigo' => $item->codigo,
                     'codigo_aux' => (string) ($item->cod_especial ?? ''),
+                    'origen' => $item->origen,
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
                     'ciudad' => $item->ciudad,
@@ -2160,6 +2267,7 @@ class CarterosController extends Controller
                 'id',
                 DB::raw("COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO') as codigo"),
                 'cod_especial',
+                'origen',
                 'nombre_destinatario as destinatario',
                 'telefono_destinatario as telefono',
                 'ciudad',
@@ -2198,6 +2306,7 @@ class CarterosController extends Controller
                     'tipo_paquete' => 'SOLICITUD',
                     'codigo' => $item->codigo,
                     'codigo_aux' => (string) ($item->cod_especial ?? ''),
+                    'origen' => $item->origen,
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
                     'ciudad' => $item->ciudad,
@@ -2223,6 +2332,10 @@ class CarterosController extends Controller
             ->concat($solicitudes)
             ->sortByDesc('created_at')
             ->values();
+
+        if ($distributionEligibilityOnly) {
+            $all = $this->filterDistributionEligibleRows($all, (string) $destinationCity);
+        }
 
         $destinationCity = $this->normalizeUserCity((string) $destinationCity);
         if ($destinationCity !== '') {
@@ -2368,6 +2481,9 @@ class CarterosController extends Controller
                 'total' => $total,
                 'last_page' => $lastPage,
             ],
+            'lookup_issue' => $distributionEligibilityOnly && $codigo !== '' && $total === 0
+                ? $this->findDistributionLookupIssue($codigo, (string) $destinationCity)
+                : null,
         ]);
     }
 
@@ -2915,7 +3031,7 @@ class CarterosController extends Controller
         $estadoTransitoId = $this->safeResolveEstadoByName('TRANSITO');
         $estadoEnviadoId = $this->safeResolveEstadoByName('ENVIADO');
 
-        if (str_contains($texto, 'desasignado de cartero')) {
+        if (str_contains($texto, 'desasignado de cartero') || str_contains($texto, 'quitar cartero')) {
             return 0;
         }
 
@@ -3116,6 +3232,30 @@ class CarterosController extends Controller
             . '.';
     }
 
+    private function changeCarteroEventName(?User $actor, ?User $previousAssignee, ?User $newAssignee): string
+    {
+        $actorName = trim((string) ($actor?->name ?? 'SIN USUARIO'));
+        $previousName = trim((string) ($previousAssignee?->name ?? 'SIN CARTERO'));
+        $newName = trim((string) ($newAssignee?->name ?? 'SIN USUARIO'));
+
+        return 'Cambio de cartero realizado por '
+            . ($actorName !== '' ? $actorName : 'SIN USUARIO')
+            . '. De '
+            . ($previousName !== '' ? $previousName : 'SIN CARTERO')
+            . ' a '
+            . ($newName !== '' ? $newName : 'SIN USUARIO')
+            . '.';
+    }
+
+    private function removeCarteroEventName(?User $actor): string
+    {
+        $actorName = trim((string) ($actor?->name ?? 'SIN USUARIO'));
+
+        return self::EVENTO_DESASIGNAR_CARTERO . ' Ejecutado por '
+            . ($actorName !== '' ? $actorName : 'SIN USUARIO')
+            . '.';
+    }
+
     private function assignedToAnotherUserConflicts(array $items, int $assigneeUserId, bool $lockForUpdate = false): array
     {
         if ($assigneeUserId <= 0 || $items === []) {
@@ -3269,6 +3409,227 @@ class CarterosController extends Controller
             ->all();
     }
 
+    private function distributionEligibilityConflicts(array $items, string $userCity): array
+    {
+        $userCity = $this->normalizeUserCity($userCity);
+        if ($userCity === '' || $items === []) {
+            return [];
+        }
+
+        return $this->distributionEligibilityRowsForItems($items)
+            ->map(function ($row) use ($userCity) {
+                return $this->distributionEligibilityMessageForRow($row, $userCity);
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function distributionEligibilityRowsForItems(array $items)
+    {
+        $idsByType = collect(['EMS', 'CERTI', 'ORDI', 'CONTRATO', 'SOLICITUD'])
+            ->mapWithKeys(function ($type) use ($items) {
+                return [
+                    $type => collect($items)
+                        ->where('tipo_paquete', $type)
+                        ->pluck('id')
+                        ->map(fn ($id) => (int) $id)
+                        ->filter(fn ($id) => $id > 0)
+                        ->unique()
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->all();
+
+        $rows = collect();
+
+        if ($idsByType['EMS'] !== []) {
+            $rows = $rows->concat(PaqueteEms::query()
+                ->whereIn('id', $idsByType['EMS'])
+                ->get(['id', 'codigo', 'origen', 'ciudad', 'estado_id'])
+                ->map(fn ($item) => ['tipo' => 'EMS', 'codigo' => $item->codigo, 'origen' => $item->origen, 'ciudad' => $item->ciudad, 'estado_id' => (int) $item->estado_id]));
+        }
+
+        if ($idsByType['CERTI'] !== []) {
+            $rows = $rows->concat(PaqueteCerti::query()
+                ->whereIn('id', $idsByType['CERTI'])
+                ->get(['id', 'codigo', 'cuidad', 'fk_estado'])
+                ->map(fn ($item) => ['tipo' => 'CERTI', 'codigo' => $item->codigo, 'origen' => null, 'ciudad' => $item->cuidad, 'estado_id' => (int) $item->fk_estado]));
+        }
+
+        if ($idsByType['ORDI'] !== []) {
+            $rows = $rows->concat(PaqueteOrdi::query()
+                ->whereIn('id', $idsByType['ORDI'])
+                ->get(['id', 'codigo', 'ciudad', 'fk_estado'])
+                ->map(fn ($item) => ['tipo' => 'ORDI', 'codigo' => $item->codigo, 'origen' => null, 'ciudad' => $item->ciudad, 'estado_id' => (int) $item->fk_estado]));
+        }
+
+        if ($idsByType['CONTRATO'] !== []) {
+            $rows = $rows->concat(RecojoContrato::query()
+                ->whereIn('id', $idsByType['CONTRATO'])
+                ->get(['id', 'codigo', 'origen', 'destino', 'estados_id'])
+                ->map(fn ($item) => ['tipo' => 'CONTRATO', 'codigo' => $item->codigo, 'origen' => $item->origen, 'ciudad' => $item->destino, 'estado_id' => (int) $item->estados_id]));
+        }
+
+        if ($idsByType['SOLICITUD'] !== []) {
+            $rows = $rows->concat(SolicitudCliente::query()
+                ->whereIn('id', $idsByType['SOLICITUD'])
+                ->select(['id', DB::raw("COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO') as codigo"), 'origen', 'ciudad', 'estado_id'])
+                ->get()
+                ->map(fn ($item) => ['tipo' => 'SOLICITUD', 'codigo' => $item->codigo, 'origen' => $item->origen, 'ciudad' => $item->ciudad, 'estado_id' => (int) $item->estado_id]));
+        }
+
+        return $rows;
+    }
+
+    private function filterDistributionEligibleRows($rows, string $userCity)
+    {
+        $userCity = $this->normalizeUserCity($userCity);
+        if ($userCity === '') {
+            return collect();
+        }
+
+        return collect($rows)
+            ->filter(fn ($row) => $this->distributionEligibilityMessageForRow((array) $row, $userCity) === null)
+            ->values();
+    }
+
+    private function findDistributionLookupIssue(string $codigo, string $userCity): ?array
+    {
+        $codigo = $this->normalizeUserCity($codigo);
+        $userCity = $this->normalizeUserCity($userCity);
+
+        if ($codigo === '' || $userCity === '') {
+            return null;
+        }
+
+        $row = $this->findDistributionPackageByCode($codigo);
+        if (!$row) {
+            return null;
+        }
+
+        $message = $this->distributionEligibilityMessageForRow($row, $userCity);
+        if ($message === null) {
+            return null;
+        }
+
+        return [
+            'message' => $message,
+            'tracking_url' => $this->trackingUrlForPackage(
+                (string) ($row['tipo'] ?? ''),
+                (string) ($row['codigo'] ?? '')
+            ),
+        ];
+    }
+
+    private function findDistributionPackageByCode(string $codigo): ?array
+    {
+        $ems = PaqueteEms::query()
+            ->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])
+            ->first(['codigo', 'origen', 'ciudad', 'estado_id']);
+        if ($ems) {
+            return ['tipo' => 'EMS', 'codigo' => $ems->codigo, 'origen' => $ems->origen, 'ciudad' => $ems->ciudad, 'estado_id' => (int) $ems->estado_id];
+        }
+
+        $certi = PaqueteCerti::query()
+            ->where(function ($query) use ($codigo) {
+                $query->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = ?', [$codigo]);
+            })
+            ->first(['codigo', 'cuidad', 'fk_estado']);
+        if ($certi) {
+            return ['tipo' => 'CERTI', 'codigo' => $certi->codigo, 'origen' => null, 'ciudad' => $certi->cuidad, 'estado_id' => (int) $certi->fk_estado];
+        }
+
+        $ordi = PaqueteOrdi::query()
+            ->where(function ($query) use ($codigo) {
+                $query->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = ?', [$codigo]);
+            })
+            ->first(['codigo', 'ciudad', 'fk_estado']);
+        if ($ordi) {
+            return ['tipo' => 'ORDI', 'codigo' => $ordi->codigo, 'origen' => null, 'ciudad' => $ordi->ciudad, 'estado_id' => (int) $ordi->fk_estado];
+        }
+
+        $contrato = RecojoContrato::query()
+            ->where(function ($query) use ($codigo) {
+                $query->whereRaw('TRIM(UPPER(codigo)) = ?', [$codigo])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = ?', [$codigo]);
+            })
+            ->first(['codigo', 'origen', 'destino', 'estados_id']);
+        if ($contrato) {
+            return ['tipo' => 'CONTRATO', 'codigo' => $contrato->codigo, 'origen' => $contrato->origen, 'ciudad' => $contrato->destino, 'estado_id' => (int) $contrato->estados_id];
+        }
+
+        $solicitud = SolicitudCliente::query()
+            ->where(function ($query) use ($codigo) {
+                $query->whereRaw('TRIM(UPPER(COALESCE(codigo_solicitud, \'\'))) = ?', [$codigo])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(barcode, \'\'))) = ?', [$codigo])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = ?', [$codigo]);
+            })
+            ->select([DB::raw("COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO') as codigo"), 'origen', 'ciudad', 'estado_id'])
+            ->first();
+        if ($solicitud) {
+            return ['tipo' => 'SOLICITUD', 'codigo' => $solicitud->codigo, 'origen' => $solicitud->origen, 'ciudad' => $solicitud->ciudad, 'estado_id' => (int) $solicitud->estado_id];
+        }
+
+        return null;
+    }
+
+    private function distributionEligibilityMessageForRow(array $row, string $userCity): ?string
+    {
+        static $distributionStateIds = null;
+
+        if ($distributionStateIds === null) {
+            $distributionStateIds = [
+                'almacen' => $this->safeResolveEstadoByName('ALMACEN'),
+                'recibido' => $this->safeResolveEstadoByName('RECIBIDO'),
+            ];
+        }
+
+        $userCity = $this->normalizeUserCity($userCity);
+        $codigo = trim((string) ($row['codigo'] ?? 'SIN CODIGO'));
+        $tipo = trim((string) ($row['tipo'] ?? 'PAQUETE'));
+        $destino = $this->normalizeUserCity((string) ($row['ciudad'] ?? ''));
+        $origen = $this->normalizeUserCity((string) ($row['origen'] ?? ''));
+        $estadoId = (int) ($row['estado_id'] ?? 0);
+        $estadoAlmacenId = (int) ($distributionStateIds['almacen'] ?? 0);
+        $estadoRecibidoId = (int) ($distributionStateIds['recibido'] ?? 0);
+
+        if ($estadoId !== $estadoAlmacenId && $estadoId !== $estadoRecibidoId) {
+            return "El paquete {$codigo} no se encuentra en almacen ni recibido. Revisa los eventos del paquete.";
+        }
+
+        if ($destino === '' || $destino !== $userCity) {
+            return "El paquete {$codigo} no se encuentra en almacen para {$userCity}. Su destino es " . ($destino !== '' ? $destino : 'SIN DESTINO') . '. Revisa los eventos del paquete.';
+        }
+
+        if ($estadoId === $estadoAlmacenId && ($origen === '' || $origen !== $destino)) {
+            return "El paquete {$codigo} no se encuentra en almacen de destino; se encuentra en almacen de origen. Revisa los eventos del paquete.";
+        }
+
+        return null;
+    }
+
+    private function trackingUrlForPackage(string $tipoPaquete, string $codigo): ?string
+    {
+        $codigo = trim($codigo);
+        if ($codigo === '') {
+            return null;
+        }
+
+        $route = match (mb_strtoupper(trim($tipoPaquete))) {
+            'CONTRATO' => 'eventos-contrato.index',
+            'CERTI' => 'eventos-certi.index',
+            'ORDI' => 'eventos-ordi.index',
+            'SOLICITUD', 'TIKTOKER' => 'eventos-tiktoker.index',
+            default => 'eventos-ems.index',
+        };
+
+        return route($route, ['q' => $codigo], false);
+    }
+
     private function assignmentTypeAndPackageId(Cartero $assignment): array
     {
         if ((int) ($assignment->id_paquetes_ems ?? 0) > 0) {
@@ -3342,6 +3703,22 @@ class CarterosController extends Controller
         }
 
         return $actorCity === $assigneeCity;
+    }
+
+    private function availableCarteroUsersForActor(?User $actor)
+    {
+        $actorCity = $this->normalizeUserCity((string) optional($actor)->ciudad);
+        if ($actorCity === '') {
+            return collect();
+        }
+
+        return User::query()
+            ->whereHas('roles', function ($query) {
+                $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
+            })
+            ->whereRaw('TRIM(UPPER(ciudad)) = ?', [$actorCity])
+            ->orderBy('name')
+            ->get(['id', 'name', 'ciudad']);
     }
 
     private function getCodigosPorTipo(string $tipoPaquete, array $ids)
@@ -3457,6 +3834,26 @@ class CarterosController extends Controller
     {
         return Cartero::query()
             ->where('id_user', $userId)
+            ->whereIn('id_estados', $estadoIds)
+            ->where(function ($q) use ($tipoPaquete, $id) {
+                if ($tipoPaquete === 'EMS') {
+                    $q->where('id_paquetes_ems', $id);
+                } elseif ($tipoPaquete === 'SOLICITUD') {
+                    $q->where('id_solicitud_cliente', $id);
+                } elseif ($tipoPaquete === 'ORDI') {
+                    $q->where('id_paquetes_ordi', $id);
+                } elseif ($tipoPaquete === 'CONTRATO') {
+                    $q->where('id_paquetes_contrato', $id);
+                } else {
+                    $q->where('id_paquetes_certi', $id);
+                }
+            })
+            ->firstOrFail();
+    }
+
+    private function findAssignmentByStates(string $tipoPaquete, int $id, array $estadoIds): Cartero
+    {
+        return Cartero::query()
             ->whereIn('id_estados', $estadoIds)
             ->where(function ($q) use ($tipoPaquete, $id) {
                 if ($tipoPaquete === 'EMS') {

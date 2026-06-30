@@ -11,6 +11,21 @@
     @endphp
     <div class="carteros-wrap">
         <div id="distribution-toast" class="distribution-toast" role="status" aria-live="polite"></div>
+        <div id="distribution-selection-modal" class="distribution-modal-backdrop" aria-hidden="true">
+            <div class="distribution-modal-card" role="dialog" aria-modal="true" aria-labelledby="distribution-selection-modal-title">
+                <div class="distribution-modal-head">
+                    <h4 id="distribution-selection-modal-title" class="distribution-modal-title mb-0">Paquete no disponible</h4>
+                    <button type="button" id="distribution-selection-modal-close" class="distribution-modal-close" aria-label="Cerrar">&times;</button>
+                </div>
+                <div class="distribution-modal-body" id="distribution-selection-modal-body">
+                    El paquete no puede seleccionarse en esta bandeja.
+                </div>
+                <div class="distribution-modal-actions">
+                    <a href="#" id="distribution-selection-modal-track" class="btn btn-outline-primary mr-2 d-none" target="_blank" rel="noopener">Rastreo</a>
+                    <button type="button" id="distribution-selection-modal-accept" class="btn btn-carteros-primary">Entendido</button>
+                </div>
+            </div>
+        </div>
         <div class="card card-carteros">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center flex-wrap">
@@ -241,6 +256,61 @@
         .distribution-toast.is-success {
             background: #166534;
         }
+        .distribution-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 1090;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(15, 23, 42, 0.55);
+        }
+        .distribution-modal-backdrop.is-visible {
+            display: flex;
+        }
+        .distribution-modal-card {
+            width: min(460px, 100%);
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 28px 60px rgba(15, 23, 42, 0.28);
+            overflow: hidden;
+        }
+        .distribution-modal-head,
+        .distribution-modal-actions {
+            padding: 16px 18px;
+        }
+        .distribution-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border-bottom: 1px solid #e4e8f2;
+        }
+        .distribution-modal-title {
+            color: #0f172a;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+        .distribution-modal-close {
+            border: 0;
+            background: transparent;
+            color: #64748b;
+            font-size: 1.5rem;
+            line-height: 1;
+            padding: 0;
+        }
+        .distribution-modal-body {
+            padding: 18px;
+            color: #475569;
+            line-height: 1.5;
+        }
+        .distribution-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            border-top: 1px solid #e4e8f2;
+            background: #f8faff;
+        }
     </style>
 @endsection
 
@@ -274,6 +344,11 @@
             const clearSelectionButton = document.getElementById('btn-clear-selection');
             const openReportButton = document.getElementById('btn-open-report');
             const distributionToast = document.getElementById('distribution-toast');
+            const selectionModal = document.getElementById('distribution-selection-modal');
+            const selectionModalBody = document.getElementById('distribution-selection-modal-body');
+            const selectionModalClose = document.getElementById('distribution-selection-modal-close');
+            const selectionModalAccept = document.getElementById('distribution-selection-modal-accept');
+            const selectionModalTrack = document.getElementById('distribution-selection-modal-track');
             const csrfToken = '{{ csrf_token() }}';
             const canAssignDistribucion = @json($canAssignDistribucion);
             const canSelfAssignDistribucion = @json($canSelfAssignDistribucion);
@@ -394,6 +469,30 @@
                     distributionToast.classList.remove('is-visible');
                 }, 5200);
                 distributionToast.dataset.timerId = String(timerId);
+            }
+
+            function hideSelectionModal() {
+                if (!selectionModal) return;
+                selectionModal.classList.remove('is-visible');
+                selectionModal.setAttribute('aria-hidden', 'true');
+            }
+
+            function showSelectionModal(issue) {
+                const text = issue && issue.message ? issue.message : issue;
+                if (!selectionModal || !selectionModalBody || !text) return;
+                selectionModalBody.textContent = text;
+                if (selectionModalTrack) {
+                    const trackingUrl = issue && issue.tracking_url ? issue.tracking_url : null;
+                    if (trackingUrl) {
+                        selectionModalTrack.href = trackingUrl;
+                        selectionModalTrack.classList.remove('d-none');
+                    } else {
+                        selectionModalTrack.href = '#';
+                        selectionModalTrack.classList.add('d-none');
+                    }
+                }
+                selectionModal.classList.add('is-visible');
+                selectionModal.setAttribute('aria-hidden', 'false');
             }
 
             function updatePagination(meta) {
@@ -529,9 +628,14 @@
                     const rows = payload.data || [];
 
                     if (!rows.length) {
-                        const message = 'No se encontro ese codigo o el paquete no tiene destino igual al departamento del usuario.';
+                        const message = payload.lookup_issue && payload.lookup_issue.message
+                            ? payload.lookup_issue.message
+                            : 'No se encontro ese codigo o el paquete no puede seleccionarse en esta bandeja.';
                         showMessage(message, 'warning');
                         showToast(message, 'warning');
+                        if (payload.lookup_issue) {
+                            showSelectionModal(payload.lookup_issue);
+                        }
                         return;
                     }
 
@@ -606,6 +710,28 @@
                     if (!lastReportUrl) e.preventDefault();
                 });
             }
+
+            if (selectionModal) {
+                selectionModal.addEventListener('click', function(e) {
+                    if (e.target === selectionModal) {
+                        hideSelectionModal();
+                    }
+                });
+            }
+
+            if (selectionModalClose) {
+                selectionModalClose.addEventListener('click', hideSelectionModal);
+            }
+
+            if (selectionModalAccept) {
+                selectionModalAccept.addEventListener('click', hideSelectionModal);
+            }
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    hideSelectionModal();
+                }
+            });
 
             if (canAssignDistribucion && assignmentMode && assigneeUser && assignButton) {
                 assignmentMode.addEventListener('change', function() {

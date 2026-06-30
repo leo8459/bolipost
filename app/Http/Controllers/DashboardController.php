@@ -331,6 +331,7 @@ class DashboardController extends Controller
 
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
+        $estadoTransitoId = $this->resolveEstadoIdByName('TRANSITO');
         $estadoRezagoId = $this->resolveEstadoIdByName('REZAGO');
         $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
 
@@ -364,7 +365,11 @@ class DashboardController extends Controller
             $atrasados = (int) ($situacionInventario['retraso'] ?? 0);
             $rezago = (int) ($situacionInventario['rezago'] ?? 0);
 
-            $pendientes = max(0, $total - $entregados);
+            $solicitudes = $estadoSolicitudId
+                ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoSolicitudId)->count()
+                : 0;
+
+            $pendientes = max(0, $total - $entregados - $solicitudes);
 
             $pesoTotal = (float) (clone $querySinCancelados)->sum(
                 DB::raw('coalesce(' . $config['peso_column'] . ', 0)')
@@ -1386,9 +1391,10 @@ class DashboardController extends Controller
     {
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
+        $estadoTransitoId = $this->resolveEstadoIdByName('TRANSITO');
 
         $rows = collect($this->departamentoAliasMap())
-            ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId, $estadoCanceladoId) {
+            ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId) {
                 $total = 0;
                 $entregados = 0;
                 $cancelados = 0;
@@ -1412,22 +1418,27 @@ class DashboardController extends Controller
                         : 0;
                 }
 
-                $pendientes = max(0, $total - $entregados);
+                $detalleTransito = $this->buildDepartamentoTransitoDetails($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId);
+                $transito = (int) array_sum($detalleTransito['totales']);
                 $cumplimiento = $total > 0 ? round(($entregados * 100) / $total, 1) : 0.0;
                 $topEntregador = $this->buildTopEntregadorDepartamento($modulosSeleccionados, $from, $to, $aliases);
                 $detalleEntregados = $this->buildDepartamentoDeliveredDetails($modulosSeleccionados, $from, $to, $aliases);
-                $detallePendientes = $this->buildDepartamentoPendingDetails($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId);
+                $detallePendientes = $this->buildDepartamentoPendingDetails($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId);
+                $pendientes = (int) array_sum($detallePendientes['totales']);
 
                 return (object) [
                     'departamento' => $departamento,
                     'total' => $total,
                     'entregados' => $entregados,
+                    'transito' => $transito,
                     'pendientes' => $pendientes,
                     'cumplimiento' => $cumplimiento,
                     'top_entregador' => $topEntregador?->name ?? 'SIN DATOS',
                     'top_entregador_total' => (int) ($topEntregador?->total_entregados ?? 0),
                     'entregados_por_modulo' => $detalleEntregados['totales'],
                     'entregados_detalle' => $detalleEntregados['rows'],
+                    'transito_por_modulo' => $detalleTransito['totales'],
+                    'transito_detalle' => $detalleTransito['rows'],
                     'pendientes_por_modulo' => $detallePendientes['totales'],
                     'pendientes_detalle' => $detallePendientes['rows'],
                 ];
@@ -1551,7 +1562,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildDepartamentoPendingDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoEntregadoId, ?int $estadoCanceladoId): array
+    private function buildDepartamentoPendingDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoEntregadoId, ?int $estadoCanceladoId, ?int $estadoTransitoId): array
     {
         $totales = [
             'EMS' => 0,
@@ -1560,6 +1571,7 @@ class DashboardController extends Controller
             'ORDINARIOS' => 0,
         ];
         $rows = collect();
+        $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
 
         foreach ($modulosSeleccionados as $moduloKey) {
             $config = self::MODULOS[$moduloKey];
@@ -1581,7 +1593,7 @@ class DashboardController extends Controller
                 ]);
 
             $this->applyDateFilter($query, 't.created_at', $from, $to);
-            $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 't');
+            $this->applyPendingDepartamentoAliasesFilter($query, $config, $aliases, 't');
 
             if ($estadoEntregadoId) {
                 $query->where(function (Builder $sub) use ($estadoColumn, $estadoEntregadoId) {
@@ -1596,6 +1608,82 @@ class DashboardController extends Controller
                         ->orWhere('t.' . $estadoColumn, '<>', $estadoCanceladoId);
                 });
             }
+
+            if ($estadoTransitoId) {
+                $query->where(function (Builder $sub) use ($estadoColumn, $estadoTransitoId) {
+                    $sub->whereNull('t.' . $estadoColumn)
+                        ->orWhere('t.' . $estadoColumn, '<>', $estadoTransitoId);
+                });
+            }
+
+            if ($estadoSolicitudId) {
+                $query->where(function (Builder $sub) use ($estadoColumn, $estadoSolicitudId) {
+                    $sub->whereNull('t.' . $estadoColumn)
+                        ->orWhere('t.' . $estadoColumn, '<>', $estadoSolicitudId);
+                });
+            }
+
+            $moduleRows = $query->orderByDesc('t.created_at')->get();
+            $totales[$label] = (int) $moduleRows->count();
+            $rows = $rows->concat($moduleRows);
+        }
+
+        return [
+            'totales' => $totales,
+            'rows' => $rows
+                ->sortByDesc(fn ($row) => (string) ($row->creado_at ?? ''))
+                ->values()
+                ->map(fn ($row) => [
+                    'modulo' => (string) ($row->modulo ?? ''),
+                    'codigo' => (string) ($row->codigo ?? ''),
+                    'estado' => (string) ($row->estado ?? ''),
+                    'origen' => (string) ($row->origen ?? ''),
+                    'destino' => (string) ($row->destino ?? ''),
+                    'destinatario' => (string) ($row->destinatario ?? ''),
+                    'creado_at' => (string) ($row->creado_at ?? ''),
+                ])
+                ->all(),
+        ];
+    }
+
+    private function buildDepartamentoTransitoDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoTransitoId): array
+    {
+        $totales = [
+            'EMS' => 0,
+            'CONTRATOS' => 0,
+            'CERTIFICADOS' => 0,
+            'ORDINARIOS' => 0,
+        ];
+        $rows = collect();
+
+        if (!$estadoTransitoId) {
+            return [
+                'totales' => $totales,
+                'rows' => [],
+            ];
+        }
+
+        foreach ($modulosSeleccionados as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
+            $label = $config['label'];
+            $estadoColumn = $config['estado_column'];
+            $identityColumns = $this->packageIdentityColumns($moduloKey, $config);
+
+            $query = DB::table($config['table'] . ' as t')
+                ->leftJoin('estados as e', 'e.id', '=', 't.' . $estadoColumn)
+                ->select([
+                    DB::raw("'" . $label . "' as modulo"),
+                    't.codigo as codigo',
+                    DB::raw("coalesce(e.nombre_estado, 'SIN ESTADO') as estado"),
+                    DB::raw($identityColumns['origen'] . ' as origen'),
+                    DB::raw($identityColumns['destino'] . ' as destino'),
+                    DB::raw($identityColumns['destinatario'] . ' as destinatario'),
+                    't.created_at as creado_at',
+                ])
+                ->where('t.' . $estadoColumn, $estadoTransitoId);
+
+            $this->applyDateFilter($query, 't.created_at', $from, $to);
+            $this->applyOrigenAliasesFilter($query, $config, $aliases, 't');
 
             $moduleRows = $query->orderByDesc('t.created_at')->get();
             $totales[$label] = (int) $moduleRows->count();
@@ -1674,6 +1762,42 @@ class DashboardController extends Controller
         $query->whereIn(DB::raw('trim(upper(' . $expression . '))'), $aliases);
     }
 
+    private function applyPendingDepartamentoAliasesFilter(Builder $query, array $config, array $aliases, string $tableAlias = ''): void
+    {
+        $aliases = collect($aliases)
+            ->map(fn ($value) => strtoupper(trim((string) $value)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $expression = $this->effectivePendingDepartamentoExpression($config, $tableAlias);
+        if ($expression === '' || empty($aliases)) {
+            return;
+        }
+
+        $query->whereIn(DB::raw('trim(upper(' . $expression . '))'), $aliases);
+    }
+
+    private function applyOrigenAliasesFilter(Builder $query, array $config, array $aliases, string $tableAlias = ''): void
+    {
+        $aliases = collect($aliases)
+            ->map(fn ($value) => strtoupper(trim((string) $value)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $expression = $this->effectiveOrigenExpression($config, $tableAlias);
+        if ($expression === '' || empty($aliases)) {
+            // Sin columna origen no se puede atribuir transito al departamento solicitado.
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        $query->whereIn(DB::raw('trim(upper(' . $expression . '))'), $aliases);
+    }
+
     private function effectiveDepartamentoExpression(array $config, string $tableAlias = ''): string
     {
         $destinoColumn = (string) ($config['departamento_column'] ?? '');
@@ -1697,6 +1821,44 @@ class DashboardController extends Controller
             . $qualifiedEstado . ' = ' . (int) $estadoAlmacenId
             . " then coalesce(nullif(trim(" . $qualifiedOrigen . "), ''), " . $qualifiedDestino . ")"
             . ' else coalesce(' . $qualifiedDestino . ", '') end";
+    }
+
+    private function effectivePendingDepartamentoExpression(array $config, string $tableAlias = ''): string
+    {
+        $destinoColumn = (string) ($config['departamento_column'] ?? '');
+        if ($destinoColumn === '') {
+            return '';
+        }
+
+        $qualifiedDestino = ($tableAlias !== '' ? $tableAlias . '.' : '') . $destinoColumn;
+        $origenColumn = (string) ($config['origen_column'] ?? '');
+        $estadoColumn = (string) ($config['estado_column'] ?? '');
+        $estadoAlmacenId = $this->resolveEstadoIdByName('ALMACEN');
+
+        if ($origenColumn === '' || $estadoColumn === '' || !$estadoAlmacenId) {
+            return 'coalesce(' . $qualifiedDestino . ", '')";
+        }
+
+        $qualifiedOrigen = ($tableAlias !== '' ? $tableAlias . '.' : '') . $origenColumn;
+        $qualifiedEstado = ($tableAlias !== '' ? $tableAlias . '.' : '') . $estadoColumn;
+
+        return 'case when '
+            . $qualifiedEstado . ' = ' . (int) $estadoAlmacenId
+            . ' then case when trim(upper(coalesce(' . $qualifiedOrigen . ", ''))) = trim(upper(coalesce(" . $qualifiedDestino . ", '')))"
+            . ' then coalesce(' . $qualifiedDestino . ", '') else '' end"
+            . ' else coalesce(' . $qualifiedDestino . ", '') end";
+    }
+
+    private function effectiveOrigenExpression(array $config, string $tableAlias = ''): string
+    {
+        $origenColumn = (string) ($config['origen_column'] ?? '');
+        if ($origenColumn === '') {
+            return '';
+        }
+
+        $qualifiedOrigen = ($tableAlias !== '' ? $tableAlias . '.' : '') . $origenColumn;
+
+        return 'coalesce(nullif(trim(' . $qualifiedOrigen . "), ''), '')";
     }
 
     private function departamentoAliasMap(): array
