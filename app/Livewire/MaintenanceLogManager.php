@@ -9,7 +9,6 @@ use App\Models\MaintenanceAppointment;
 use App\Models\Vehicle;
 use App\Models\Workshop;
 use App\Services\MaintenanceAlertService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -29,7 +28,6 @@ class MaintenanceLogManager extends Component
     public ?string $date_from = null;
     public ?string $date_to = null;
     public ?int $history_vehicle_filter_id = null;
-    public string $history_status_filter = 'active';
 
     #[Validate('required|integer|exists:vehicles,id')]
     public ?int $vehicle_id = null;
@@ -66,9 +64,6 @@ class MaintenanceLogManager extends Component
     public ?int $from_workshop_id = null;
     public bool $manual_proximo_km = false;
     public string $tableView = 'pending';
-    public bool $showComprobanteModal = false;
-    public string $comprobantePreviewUrl = '';
-    public string $comprobantePreviewName = '';
 
     public function mount(): void
     {
@@ -93,18 +88,9 @@ class MaintenanceLogManager extends Component
     public function render()
     {
         $query = MaintenanceLog::query()
+            ->active()
             ->with(['vehicle.brand', 'vehicle.vehicleClass', 'maintenanceType'])
             ->orderBy('fecha', 'desc');
-
-        if (Schema::hasColumn('maintenance_logs', 'activo')) {
-            if ($this->history_status_filter === 'inactive') {
-                $query->where('activo', false);
-            } elseif ($this->history_status_filter === 'all') {
-                // Sin filtro adicional.
-            } else {
-                $query->where('activo', true);
-            }
-        }
 
         $search = trim($this->search);
         if ($search !== '') {
@@ -140,7 +126,6 @@ class MaintenanceLogManager extends Component
         $pendingWorkshopRecords = Workshop::query()
             ->with(['vehicle.brand', 'workshopCatalog', 'maintenanceAlert.maintenanceType', 'maintenanceAppointment.tipoMantenimiento', 'maintenanceLog'])
             ->where('estado', Workshop::STATUS_DELIVERED)
-            ->whereNull('maintenance_log_id')
             ->orderByDesc('fecha_salida')
             ->orderByDesc('fecha_listo')
             ->orderByDesc('id')
@@ -173,11 +158,6 @@ class MaintenanceLogManager extends Component
     }
 
     public function updatedHistoryVehicleFilterId(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedHistoryStatusFilter(): void
     {
         $this->resetPage();
     }
@@ -218,15 +198,10 @@ class MaintenanceLogManager extends Component
             return;
         }
 
-        $typeAllowedForVehicle = MaintenanceType::isApplicableToVehicleId($vehicle, (int) $this->maintenance_type_id);
-
-        if (!$typeAllowedForVehicle && (int) ($this->from_workshop_id ?? 0) > 0 && $this->hasWorkshopLinkedType()) {
-            $typeAllowedForVehicle = true;
-        }
-
-        if (!$typeAllowedForVehicle && (int) ($this->from_alert_id ?? 0) > 0 && $this->hasAlertLinkedType()) {
-            $typeAllowedForVehicle = true;
-        }
+        $typeAllowedForVehicle = MaintenanceType::query()
+            ->applicableToVehicle($vehicle)
+            ->whereKey((int) $this->maintenance_type_id)
+            ->exists();
 
         if (!$typeAllowedForVehicle) {
             $this->addError('maintenance_type_id', 'El tipo de mantenimiento no corresponde al vehiculo seleccionado.');
@@ -236,9 +211,7 @@ class MaintenanceLogManager extends Component
         $currentKm = $vehicle?->kilometraje_actual ?? $vehicle?->kilometraje_inicial ?? $vehicle?->kilometraje;
         if ($currentKm !== null && $this->kilometraje !== null) {
             $isFromAlert = (int) ($this->from_alert_id ?? 0) > 0;
-            $isFromWorkshop = (int) ($this->from_workshop_id ?? 0) > 0;
-            $allowsSameKm = $isFromAlert || $isFromWorkshop;
-            $isInvalid = $allowsSameKm
+            $isInvalid = $isFromAlert
                 ? ((float) $this->kilometraje < (float) $currentKm)
                 : ($this->tacometro_danado_vehiculo
                     ? ((float) $this->kilometraje < (float) $currentKm)
@@ -247,7 +220,7 @@ class MaintenanceLogManager extends Component
             if ($isInvalid) {
                 $this->addError(
                     'kilometraje',
-                    $allowsSameKm
+                    $isFromAlert
                         ? ('El kilometraje no puede ser menor al actual del vehiculo (' . number_format((float) $currentKm, 2) . ').')
                         : ('Debe registrar un nuevo kilometraje mayor al actual del vehiculo (' . number_format((float) $currentKm, 2) . ').')
                 );
@@ -256,6 +229,11 @@ class MaintenanceLogManager extends Component
         }
 
         $canUseExistingRecordFlow = $this->isEdit && (int) ($this->editingMaintenanceId ?? 0) > 0;
+
+        if (!$canUseExistingRecordFlow && !$this->hasAlertLinkedType() && !$this->hasWorkshopLinkedType()) {
+            $this->addError('maintenance_type_id', 'El mantenimiento debe existir como alerta para el vehiculo seleccionado.');
+            return;
+        }
 
         $this->tipo = (string) $selectedType->nombre;
         if (trim($this->descripcion) === '') {
@@ -300,41 +278,28 @@ class MaintenanceLogManager extends Component
             $data['proximo_kilometraje'] = $targetKm;
         }
 
-        $result = DB::transaction(function () use ($data, $vehicle) {
-            $savedMaintenance = null;
-            $kmUpdateStatus = 'skipped';
+        $savedMaintenance = null;
 
-            if ($this->isEdit && $this->editingMaintenanceId) {
-                $maintenance = MaintenanceLog::query()->lockForUpdate()->find($this->editingMaintenanceId);
-                if ($maintenance) {
-                    $maintenance->update($data);
-                    $savedMaintenance = $maintenance->fresh();
-                }
-            } else {
-                $savedMaintenance = MaintenanceLog::create($data);
-            }
-
-            if ($savedMaintenance) {
+        if ($this->isEdit && $this->editingMaintenanceId) {
+            $maintenance = MaintenanceLog::find($this->editingMaintenanceId);
+            if ($maintenance) {
+                $maintenance->update($data);
+                $savedMaintenance = $maintenance->fresh();
                 $this->markResolvedAlertsAsRead();
                 $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
                 $kmUpdateStatus = $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
-
-                if ((int) ($this->from_workshop_id ?? 0) > 0) {
-                    $this->closeWorkshopAfterMaintenanceRegistration((int) $this->from_workshop_id, (int) $savedMaintenance->id);
-                }
+                session()->flash('message', 'Registro de mantenimiento actualizado correctamente.' . ($kmUpdateStatus === 'same' ? ' El kilometraje se mantuvo igual al anterior.' : ''));
             }
+        } else {
+            $savedMaintenance = MaintenanceLog::create($data);
+            $this->markResolvedAlertsAsRead();
+            $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
+            $kmUpdateStatus = $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
+            session()->flash('message', 'Registro de mantenimiento creado correctamente.' . ($kmUpdateStatus === 'same' ? ' El kilometraje se mantuvo igual al anterior.' : ''));
+        }
 
-            return [
-                'saved' => $savedMaintenance !== null,
-                'km_status' => $kmUpdateStatus,
-            ];
-        });
-
-        if ($result['saved']) {
-            $baseMessage = $this->isEdit
-                ? 'Registro de mantenimiento actualizado correctamente.'
-                : 'Registro de mantenimiento creado correctamente.';
-            session()->flash('message', $baseMessage . (($result['km_status'] === 'same') ? ' El kilometraje se mantuvo igual al anterior.' : ''));
+        if ($savedMaintenance && (int) ($this->from_workshop_id ?? 0) > 0) {
+            $this->closeWorkshopAfterMaintenanceRegistration((int) $this->from_workshop_id, (int) $savedMaintenance->id);
         }
 
         $this->resetForm();
@@ -385,38 +350,6 @@ class MaintenanceLogManager extends Component
         session()->flash('message', 'Registro de mantenimiento inactivado correctamente.');
     }
 
-    public function activate(MaintenanceLog $maintenance): void
-    {
-        $vehicleId = $maintenance->vehicle_id ? (int) $maintenance->vehicle_id : null;
-        $maintenance->update(['activo' => true]);
-
-        if ($vehicleId) {
-            MaintenanceAlertService::evaluateVehicleByKilometraje($vehicleId);
-        }
-
-        session()->flash('message', 'Registro de mantenimiento activado correctamente.');
-    }
-
-    public function openComprobanteModal(int $maintenanceId): void
-    {
-        $maintenance = MaintenanceLog::query()->find($maintenanceId);
-        if (!$maintenance || !filled($maintenance->comprobante)) {
-            session()->flash('error', 'El comprobante no esta disponible.');
-            return;
-        }
-
-        $this->comprobantePreviewUrl = route('maintenance-logs.comprobante', ['maintenanceLog' => $maintenance->id]);
-        $this->comprobantePreviewName = basename((string) $maintenance->comprobante);
-        $this->showComprobanteModal = true;
-    }
-
-    public function closeComprobanteModal(): void
-    {
-        $this->showComprobanteModal = false;
-        $this->comprobantePreviewUrl = '';
-        $this->comprobantePreviewName = '';
-    }
-
     public function resetForm()
     {
         $this->vehicle_id = null;
@@ -442,7 +375,6 @@ class MaintenanceLogManager extends Component
         $this->isEdit = false;
         $this->editingMaintenanceId = null;
         $this->showForm = false;
-        $this->closeComprobanteModal();
         $this->resetPage();
     }
 
@@ -535,11 +467,6 @@ class MaintenanceLogManager extends Component
             return collect();
         }
 
-        $vehicle = Vehicle::with('vehicleClass')->find((int) $this->vehicle_id);
-        if (!$vehicle) {
-            return collect();
-        }
-
         $select = ['id', 'nombre', 'descripcion'];
 
         if (Schema::hasColumn('maintenance_types', 'intervalo_km_init')) {
@@ -558,22 +485,45 @@ class MaintenanceLogManager extends Component
             $select[] = 'km_alerta_previa';
         }
 
-        $query = MaintenanceType::query()
-            ->active()
-            ->applicableToVehicle($vehicle);
-
-        if (($this->isEdit || $this->from_alert_id || $this->from_workshop_id) && $this->maintenance_type_id) {
-            $query->where(function ($typesQuery) use ($vehicle) {
-                $typesQuery->applicableToVehicle($vehicle)
-                    ->orWhere('id', (int) $this->maintenance_type_id);
-            });
+        $query = MaintenanceType::query();
+        $alertTypeIds = MaintenanceAlert::query()
+            ->where('vehicle_id', (int) $this->vehicle_id)
+            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+            ->whereNotNull('maintenance_type_id')
+            ->pluck('maintenance_type_id')
+            ->unique()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->toArray();
+        $appointmentTypeIds = MaintenanceAlert::query()
+            ->where('vehicle_id', (int) $this->vehicle_id)
+            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+            ->whereNull('maintenance_type_id')
+            ->whereNotNull('maintenance_appointment_id')
+            ->with(['maintenanceAppointment:id,tipo_mantenimiento_id'])
+            ->get()
+            ->pluck('maintenanceAppointment.tipo_mantenimiento_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->toArray();
+        $allowedTypeIds = collect(array_merge($alertTypeIds, $appointmentTypeIds))
+            ->unique()
+            ->values()
+            ->all();
+        if (!empty($allowedTypeIds)) {
+            $query->whereIn('id', $allowedTypeIds);
+        } elseif (($this->isEdit || $this->from_alert_id || $this->from_workshop_id) && $this->maintenance_type_id) {
+            $query->whereKey((int) $this->maintenance_type_id);
+        } else {
+            return collect();
         }
 
-        return $query
-            ->orderBy('nombre')
-            ->get($select)
-            ->unique('id')
-            ->values();
+        $vehicle = Vehicle::with('vehicleClass')->find((int) $this->vehicle_id);
+        $query->applicableToVehicle($vehicle);
+
+        return $query->orderBy('nombre')->get($select);
     }
 
     private function loadAlertVehicles()
@@ -858,7 +808,6 @@ class MaintenanceLogManager extends Component
         if ($workshop->maintenance_log_id) {
             $maintenance = MaintenanceLog::query()->find((int) $workshop->maintenance_log_id);
             if ($maintenance) {
-                $this->from_workshop_id = (int) $workshop->id;
                 $this->edit($maintenance);
                 return;
             }

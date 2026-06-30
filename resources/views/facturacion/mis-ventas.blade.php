@@ -1,4 +1,4 @@
-@extends('adminlte::page')
+﻿@extends('adminlte::page')
 
 @section('title', 'Mis ventas')
 
@@ -14,44 +14,46 @@
             'to' => $filters['to'],
             'per_page' => $filters['per_page'],
         ];
+        $firstVisible = $carts->total() > 0 ? (($carts->currentPage() - 1) * $carts->perPage()) + 1 : 0;
+        $lastVisible = $carts->total() > 0 ? min($carts->currentPage() * $carts->perPage(), $carts->total()) : 0;
 
         $summaryCards = [
             [
-                'label' => 'Ventas emitidas',
-                'value' => number_format($summary['totalVentas']),
-                'meta' => 'Registros cerrados y enviados a facturación',
-                'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'all']),
-                'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'all',
-                'accent' => false,
-            ],
-            [
                 'label' => 'Facturadas',
                 'value' => number_format($summary['facturadas']),
-                'meta' => 'Ventas con comprobante listo para entrega',
-                'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'FACTURADA']),
-                'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'FACTURADA',
+                'meta' => '',
+                'params' => array_merge($baseFilterParams, ['estado' => 'all', 'estado_emision' => 'FACTURADA']),
+                'active' => $filters['estado'] === 'all' && $filters['estado_emision'] === 'FACTURADA',
                 'accent' => false,
             ],
             [
                 'label' => 'Pendientes',
                 'value' => number_format($summary['pendientes']),
-                'meta' => 'Emisiones en proceso o esperando actualización',
-                'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'PENDIENTE']),
-                'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'PENDIENTE',
+                'meta' => '',
+                'params' => array_merge($baseFilterParams, ['estado' => 'all', 'estado_emision' => 'PENDIENTE']),
+                'active' => $filters['estado'] === 'all' && $filters['estado_emision'] === 'PENDIENTE',
+                'accent' => false,
+            ],
+            [
+                'label' => 'QR pendientes',
+                'value' => number_format($summary['qrPendientes'] ?? 0),
+                'meta' => '',
+                'params' => array_merge($baseFilterParams, ['estado' => 'pendiente_pago', 'estado_emision' => 'NO_APLICA']),
+                'active' => $filters['estado'] === 'pendiente_pago' && $filters['estado_emision'] === 'NO_APLICA',
                 'accent' => false,
             ],
             [
                 'label' => 'Rechazadas',
                 'value' => number_format($summary['rechazadas']),
-                'meta' => 'Ventas que requieren revisión antes de reenviar',
-                'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'RECHAZADA']),
-                'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'RECHAZADA',
+                'meta' => '',
+                'params' => array_merge($baseFilterParams, ['estado' => 'all', 'estado_emision' => 'RECHAZADA']),
+                'active' => $filters['estado'] === 'all' && $filters['estado_emision'] === 'RECHAZADA',
                 'accent' => false,
             ],
             [
                 'label' => 'Borradores',
                 'value' => number_format($summary['totalBorradores']),
-                'meta' => 'Carritos guardados y aún no emitidos',
+                'meta' => '',
                 'params' => array_merge($baseFilterParams, ['estado' => 'borrador', 'estado_emision' => 'all']),
                 'active' => $filters['estado'] === 'borrador' && $filters['estado_emision'] === 'all',
                 'accent' => false,
@@ -59,7 +61,7 @@
             [
                 'label' => 'Total vendido',
                 'value' => 'Bs ' . number_format($summary['montoTotal'], 2),
-                'meta' => 'Monto acumulado de las ventas ya cobradas',
+                'meta' => '',
                 'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'all']),
                 'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'all',
                 'accent' => true,
@@ -89,19 +91,39 @@
                 </span>
             </div>
             <div class="ventas-caja-card__hint">
-                {{ $cajaMensaje !== '' ? $cajaMensaje : ($isCajaAbierta ? 'Cierra caja al finalizar tu jornada.' : 'Abre caja para habilitar emisión en facturación.') }}
+                {{ $cajaMensaje !== '' ? $cajaMensaje : ($isCajaAbierta ? 'Cierra caja al finalizar tu jornada.' : 'Abre caja para habilitar emision en facturacion.') }}
             </div>
         </div>
         <div class="ventas-caja-card__right">
             @if($isCajaAbierta)
-                <form method="POST" action="{{ route('facturacion.cart.caja.cerrar') }}" onsubmit="return confirm('Se cerrará la caja diaria. ¿Deseas continuar?');">
+                <form
+                    method="POST"
+                    action="{{ route('facturacion.cart.caja.cerrar') }}"
+                    class="ventas-caja-confirm-form"
+                    data-confirm-title="Cerrar caja"
+                    data-confirm-message="Se cerrara la caja diaria de esta sesion."
+                    data-confirm-detail="Asegurate de haber terminado tus operaciones antes de continuar."
+                    data-confirm-cta="Si, cerrar caja"
+                    data-processing-title="Cerrando caja"
+                    data-processing-text="Estamos cerrando la caja diaria, espera un momento..."
+                >
                     @csrf
                     <button type="submit" class="btn btn-outline-danger">
                         <i class="fas fa-door-closed mr-1"></i> Cerrar caja
                     </button>
                 </form>
             @else
-                <form method="POST" action="{{ route('facturacion.cart.caja.abrir') }}" onsubmit="return confirm('Se abrirá una nueva caja diaria. ¿Deseas continuar?');">
+                <form
+                    method="POST"
+                    action="{{ route('facturacion.cart.caja.abrir') }}"
+                    class="ventas-caja-confirm-form"
+                    data-confirm-title="Abrir caja"
+                    data-confirm-message="Se abrira una nueva caja diaria para esta sesion."
+                    data-confirm-detail="Despues de abrirla ya podras emitir y consultar facturas."
+                    data-confirm-cta="Si, abrir caja"
+                    data-processing-title="Abriendo caja"
+                    data-processing-text="Estamos preparando la caja diaria, espera un momento..."
+                >
                     @csrf
                     <button type="submit" class="btn btn-outline-primary">
                         <i class="fas fa-lock-open mr-1"></i> Abrir caja
@@ -115,7 +137,7 @@
         <div class="card-header ventas-panel__header">
             <div>
                 <strong>Filtros de consulta</strong>
-                <div class="text-muted small">Ajusta criterios para encontrar ventas por código, cliente, fecha o estado.</div>
+                <div class="text-muted small">Ajusta criterios para encontrar ventas por codigo, cliente, fecha o estado.</div>
             </div>
         </div>
         <div class="card-body">
@@ -123,23 +145,25 @@
                 <div class="row">
                     <div class="col-xl-4 col-lg-6 mb-3">
                         <label class="ventas-label">Buscar</label>
-                        <input type="text" class="form-control ventas-control" name="q" value="{{ $filters['q'] }}" placeholder="Código, seguimiento, cliente o mensaje" data-auto-submit="search">
+                        <input type="text" class="form-control ventas-control" name="q" value="{{ $filters['q'] }}" placeholder="Codigo, seguimiento, cliente o mensaje" data-auto-submit="search">
                     </div>
                     <div class="col-xl-2 col-lg-3 col-md-4 mb-3">
                         <label class="ventas-label">Estado</label>
                         <select class="form-control ventas-control" name="estado" data-auto-submit="change">
                             <option value="all" {{ $filters['estado'] === 'all' ? 'selected' : '' }}>Todos</option>
                             <option value="emitido" {{ $filters['estado'] === 'emitido' ? 'selected' : '' }}>Emitido</option>
+                            <option value="pendiente_pago" {{ $filters['estado'] === 'pendiente_pago' ? 'selected' : '' }}>Pendiente QR</option>
                             <option value="borrador" {{ $filters['estado'] === 'borrador' ? 'selected' : '' }}>Borrador</option>
                         </select>
                     </div>
                     <div class="col-xl-2 col-lg-3 col-md-4 mb-3">
-                        <label class="ventas-label">Estado emisión</label>
+                        <label class="ventas-label">Estado emision</label>
                         <select class="form-control ventas-control" name="estado_emision" data-auto-submit="change">
                             <option value="all" {{ $filters['estado_emision'] === 'all' ? 'selected' : '' }}>Todos</option>
                             <option value="FACTURADA" {{ $filters['estado_emision'] === 'FACTURADA' ? 'selected' : '' }}>Facturada</option>
                             <option value="PENDIENTE" {{ $filters['estado_emision'] === 'PENDIENTE' ? 'selected' : '' }}>Pendiente</option>
                             <option value="RECHAZADA" {{ $filters['estado_emision'] === 'RECHAZADA' ? 'selected' : '' }}>Rechazada</option>
+                            <option value="NO_APLICA" {{ $filters['estado_emision'] === 'NO_APLICA' ? 'selected' : '' }}>No aplica QR</option>
                             <option value="ERROR" {{ $filters['estado_emision'] === 'ERROR' ? 'selected' : '' }}>Error</option>
                         </select>
                     </div>
@@ -182,7 +206,9 @@
             >
                 <div class="ventas-stat-card__label">{{ $card['label'] }}</div>
                 <div class="ventas-stat-card__value">{{ $card['value'] }}</div>
-                <div class="ventas-stat-card__meta">{{ $card['meta'] }}</div>
+                @if ($card['meta'] !== '')
+                    <div class="ventas-stat-card__meta">{{ $card['meta'] }}</div>
+                @endif
             </a>
         @endforeach
     </div>
@@ -193,17 +219,23 @@
                 <strong>Historial de ventas</strong>
                 <div class="text-muted small">Detalle de emisiones registradas para tu cuenta.</div>
             </div>
-            <span class="ventas-table-count">{{ $carts->total() }} registros</span>
+            <div class="text-right">
+                <div class="ventas-table-count">{{ $carts->total() }} registros</div>
+                @if($carts->total() > 0)
+                    <div class="ventas-table-range">Mostrando {{ $firstVisible }} a {{ $lastVisible }}</div>
+                @endif
+            </div>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table ventas-table mb-0">
                     <thead>
                         <tr>
+                            <th class="text-center">N°</th>
                             <th>Fecha</th>
-                            <th>Código orden</th>
+                            <th>Codigo orden</th>
                             <th>Cliente</th>
-                            <th>Facturación</th>
+                            <th>Facturacion</th>
                             <th>Estado</th>
                             <th class="text-center">Items</th>
                             <th class="text-right">Total</th>
@@ -232,26 +264,44 @@
                                     ?? data_get($respuesta, 'consultaSefe.nroFactura')
                                 ));
                                 $facturaEstado = strtoupper((string) data_get($cart, 'estado_emision', ''));
+                                $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
                                 $mensajeEmision = trim((string) data_get($cart, 'mensaje_emision', ''));
                                 $cartId = (int) data_get($cart, 'id', 0);
                                 $codigoOrden = trim((string) data_get($cart, 'codigo_orden', ''));
+                                $numeroDocumento = trim((string) data_get($cart, 'numero_documento', ''));
+                                $razonSocial = trim((string) data_get($cart, 'razon_social', ''));
+                                $modalidadFacturacion = (string) data_get($cart, 'modalidad_facturacion', 'con_datos');
+                                $esOficialMeta = (bool) data_get($cart, 'es_oficial', false);
+                                $estadoSufeRaw = strtoupper(trim((string) data_get($cart, 'respuesta_emision.estadoSufe', data_get($cart, 'estado_sufe', ''))));
                                 $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', '')));
+                                $isOficial = $esOficialMeta
+                                    || str_starts_with($codigoOrden, 'OFI-')
+                                    || strtoupper($razonSocial ?? '') === 'ENVIO OFICIAL'
+                                    || $estadoSufeRaw === 'REGISTRADA_OFICIAL';
                                 if ($canalEmision === '') {
-                                    if (str_starts_with($codigoOrden, 'VQ-')) {
+                                    if ($isOficial) {
+                                        $canalEmision = 'oficial';
+                                    } elseif (str_starts_with($codigoOrden, 'VQ-')) {
                                         $canalEmision = 'qr';
                                     } elseif (str_starts_with($codigoOrden, 'VF-')) {
                                         $canalEmision = 'factura_electronica';
                                     }
                                 }
-                                $canalBadgeLabel = $canalEmision === 'qr' ? 'QR' : 'Factura electronica';
+
+                                $canalBadgeLabel = $canalEmision === 'qr'
+                                    ? 'QR'
+                                    : ($canalEmision === 'oficial' ? 'Registro oficial' : 'Factura electronica');
                                 $canalBadgeClass = $canalEmision === 'qr'
                                     ? 'ventas-channel-chip--qr'
                                     : 'ventas-channel-chip--factura';
-                                $numeroDocumento = trim((string) data_get($cart, 'numero_documento', ''));
-                                $razonSocial = trim((string) data_get($cart, 'razon_social', ''));
-                                $modalidadFacturacion = (string) data_get($cart, 'modalidad_facturacion', 'con_datos');
                                 $estadoCart = (string) data_get($cart, 'estado', '');
                                 $codigoSeguimiento = trim((string) data_get($cart, 'codigo_seguimiento', ''));
+                                $codigoSeguimientoFiscal = trim((string) data_get($cart, 'codigo_seguimiento_fiscal', $codigoSeguimiento));
+                                $qrTransactionId = trim((string) data_get($cart, 'qr_transaction_id', ''));
+                                $referenciaConsulta = $canalEmision === 'qr'
+                                    ? ($qrTransactionId !== '' ? $qrTransactionId : $codigoSeguimiento)
+                                    : ($codigoSeguimientoFiscal !== '' ? $codigoSeguimientoFiscal : $codigoSeguimiento);
+                                $referenciaLabel = $canalEmision === 'qr' ? 'QR ref' : 'Fiscal';
                                 $totalCart = (float) data_get($cart, 'total', 0);
                                 $itemsCountApi = (int) data_get($cart, 'items_count', 0);
                                 $fechaRaw = data_get($cart, 'emitido_en') ?: data_get($cart, 'created_at');
@@ -268,28 +318,46 @@
                                 }
                             @endphp
                             <tr>
+                                <td class="text-center">
+                                    <span class="ventas-row-number">{{ $firstVisible + $loop->index }}</span>
+                                </td>
                                 <td>
                                     <div class="ventas-table__primary">{{ $fecha ? $fecha->format('d/m/Y') : '-' }}</div>
                                     <div class="ventas-table__secondary">{{ $fecha ? $fecha->format('H:i') : '-' }}</div>
                                 </td>
                                 <td>
-                                    <div class="ventas-table__primary">{{ $codigoOrden !== '' ? $codigoOrden : 'Sin código' }}</div>
-                                    <div class="ventas-table__secondary">Doc: {{ $numeroDocumento !== '' ? $numeroDocumento : 'S/N' }} · Fact: {{ $numeroFactura !== '' ? $numeroFactura : 'S/N' }}</div>
+                                    <div class="ventas-table__primary">{{ $codigoOrden !== '' ? $codigoOrden : 'Sin codigo' }}</div>
+                                    @if ($isOficial)
+                                        <div class="ventas-table__secondary">Fact: {{ $numeroFactura !== '' ? $numeroFactura : 'S/N' }}</div>
+                                    @else
+                                        <div class="ventas-table__secondary">Doc: {{ $numeroDocumento !== '' ? $numeroDocumento : 'S/N' }} · Fact: {{ $numeroFactura !== '' ? $numeroFactura : 'S/N' }}</div>
+                                    @endif
+                                    @if($referenciaConsulta !== '')
+                                        <div class="ventas-table__secondary">{{ $referenciaLabel }}: {{ $referenciaConsulta }}</div>
+                                    @endif
                                 </td>
                                 <td>
                                     <div class="ventas-table__primary">{{ $razonSocial !== '' ? $razonSocial : 'SIN NOMBRE' }}</div>
-                                    <div class="ventas-table__secondary">{{ ucfirst(str_replace('_', ' ', $modalidadFacturacion)) }}</div>
+                                    <div class="ventas-table__secondary">{{ $isOficial ? 'Registro interno' : ucfirst(str_replace('_', ' ', $modalidadFacturacion)) }}</div>
                                     <div class="ventas-table__secondary">
                                         <span class="ventas-channel-chip {{ $canalBadgeClass }}">{{ $canalBadgeLabel }}</span>
                                     </div>
                                 </td>
                                 <td>
-                                    @if($facturaEstado === 'FACTURADA')
+                                    @if($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pagado')
+                                        <span class="ventas-status-chip ventas-status-chip--success">PAGADO QR</span>
+                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
+                                        <span class="ventas-status-chip ventas-status-chip--danger">QR RECHAZADO</span>
+                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA')
+                                        <span class="ventas-status-chip ventas-status-chip--warning">QR PENDIENTE</span>
+                                    @elseif($facturaEstado === 'FACTURADA')
                                         <span class="ventas-status-chip ventas-status-chip--success">FACTURADA</span>
                                     @elseif($facturaEstado === 'PENDIENTE')
                                         <span class="ventas-status-chip ventas-status-chip--warning">PENDIENTE</span>
                                     @elseif($facturaEstado === 'RECHAZADA')
                                         <span class="ventas-status-chip ventas-status-chip--danger">RECHAZADA</span>
+                                    @elseif($facturaEstado === 'NO_APLICA')
+                                        <span class="ventas-status-chip ventas-status-chip--muted">NO APLICA</span>
                                     @elseif($facturaEstado === 'ERROR')
                                         <span class="ventas-status-chip ventas-status-chip--dark">ERROR</span>
                                     @else
@@ -302,12 +370,19 @@
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Si fue por contingencia, usa actualizar estado hasta que llegue la factura.
                                         </div>
+                                    @elseif($canalEmision === 'qr')
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            El QR solo confirma pago; no genera factura fiscal automatica.
+                                        </div>
                                     @endif
                                 </td>
                                 <td>
-                                    <span class="ventas-status-chip {{ $estadoCart === 'emitido' ? 'ventas-status-chip--primary' : 'ventas-status-chip--muted' }}">
+                                    <span class="ventas-status-chip {{ $estadoCart === 'emitido' ? 'ventas-status-chip--primary' : ($estadoCart === 'pendiente_pago' ? 'ventas-status-chip--warning' : 'ventas-status-chip--muted') }}">
                                         {{ strtoupper($estadoCart !== '' ? $estadoCart : 'sin estado') }}
                                     </span>
+                                    @if($estadoCart === 'pendiente_pago' && $canalEmision === 'qr')
+                                        <div class="ventas-table__secondary mt-1">Pago QR pendiente de confirmacion.</div>
+                                    @endif
                                 </td>
                                 <td class="text-center">
                                     @if($cartItems->isNotEmpty())
@@ -329,20 +404,20 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex flex-wrap justify-content-center">
-                                        @if($codigoSeguimiento !== '')
+                                        @if($cartId > 0 && ($referenciaConsulta !== '' || $canalEmision === 'qr' || $facturaEstado === 'PENDIENTE'))
                                             <form
                                                 method="POST"
                                                 action="{{ route('facturacion.cart.consultar') }}"
                                                 class="mr-2 mb-2"
-                                                @if($facturaEstado === 'PENDIENTE')
+                                                @if($facturaEstado === 'PENDIENTE' || $canalEmision === 'qr')
                                                     data-pending-consult="true"
                                                 @endif
                                             >
                                                 @csrf
                                                 <input type="hidden" name="cart_id" value="{{ $cartId }}">
-                                                <input type="hidden" name="codigo_seguimiento" value="{{ $codigoSeguimiento }}">
+                                                <input type="hidden" name="codigo_seguimiento" value="{{ $referenciaConsulta }}">
                                                 <button type="submit" class="btn btn-xs btn-outline-secondary">
-                                                    {{ $facturaEstado === 'PENDIENTE' ? 'Actualizar estado' : 'Consultar' }}
+                                                    {{ $canalEmision === 'qr' ? 'Actualizar pago' : ($facturaEstado === 'PENDIENTE' ? 'Actualizar estado' : 'Consultar') }}
                                                 </button>
                                             </form>
                                         @endif
@@ -355,16 +430,27 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-5 text-muted">No se encontraron ventas con los filtros aplicados.</td>
+                                <td colspan="9" class="text-center py-5 text-muted">No se encontraron ventas con los filtros aplicados.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
         </div>
-        @if($carts->hasPages())
-            <div class="card-footer clearfix">
-                {{ $carts->links() }}
+        @if($carts->hasPages() || $carts->total() > 0)
+            <div class="card-footer ventas-table-footer">
+                <div class="ventas-table-footer__meta">
+                    @if($carts->total() > 0)
+                        Mostrando {{ $firstVisible }} a {{ $lastVisible }} de {{ $carts->total() }} registros
+                    @else
+                        Sin resultados para los filtros actuales
+                    @endif
+                </div>
+                @if($carts->hasPages())
+                    <div class="ventas-table-footer__pagination">
+                        {{ $carts->appends(request()->except('page'))->links('pagination::bootstrap-4') }}
+                    </div>
+                @endif
             </div>
         @endif
     </div>
@@ -403,7 +489,7 @@
                                 <table class="table ventas-items-table mb-0">
                                     <thead>
                                         <tr>
-                                            <th>Código</th>
+                                            <th>Codigo</th>
                                             <th>Detalle</th>
                                             <th class="text-center">Cant.</th>
                                             <th class="text-right">Base</th>
@@ -432,7 +518,7 @@
                                                     <div class="ventas-table__secondary">{{ $itemOrigenTipo !== '' ? $itemOrigenTipo : 'Sin origen' }}</div>
                                                 </td>
                                                 <td>
-                                                    <div class="ventas-table__primary">{{ $itemTitulo !== '' ? $itemTitulo : 'Sin título' }}</div>
+                                                    <div class="ventas-table__primary">{{ $itemTitulo !== '' ? $itemTitulo : 'Sin titulo' }}</div>
                                                     <div class="ventas-table__secondary">{{ $itemServicio !== '' ? $itemServicio : 'Sin servicio registrado' }}</div>
                                                     <div class="ventas-table__secondary">{{ $itemDestinatario !== '' ? $itemDestinatario : 'Sin destinatario' }}</div>
                                                 </td>
@@ -459,6 +545,28 @@
             </div>
         @endif
     @endforeach
+    </div>
+
+    <div class="ventas-confirm-modal" id="ventasCajaConfirmModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ventasCajaConfirmTitle">
+        <div class="ventas-confirm-modal__backdrop" data-close-ventas-caja-confirm="true"></div>
+        <div class="ventas-confirm-modal__panel" role="document">
+            <div class="ventas-confirm-modal__eyebrow">Caja diaria</div>
+            <h4 id="ventasCajaConfirmTitle" class="ventas-confirm-modal__title">Confirmar accion</h4>
+            <p class="ventas-confirm-modal__message" id="ventasCajaConfirmMessage">Esta accion actualizara el estado de la caja diaria.</p>
+            <div class="ventas-confirm-modal__detail" id="ventasCajaConfirmDetail" hidden></div>
+            <div class="ventas-confirm-modal__actions">
+                <button type="button" class="btn btn-light" id="ventasCajaConfirmCancel">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="ventasCajaConfirmAccept">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="ventas-processing-overlay" id="ventasCajaProcessingOverlay" aria-hidden="true" hidden>
+        <div class="ventas-processing-overlay__card" role="status" aria-live="polite">
+            <div class="ventas-processing-overlay__spinner" aria-hidden="true"></div>
+            <strong id="ventasCajaProcessingTitle">Procesando caja</strong>
+            <span id="ventasCajaProcessingText">Espera un momento...</span>
+        </div>
     </div>
 @stop
 
@@ -508,6 +616,11 @@
             background: #fff;
             box-shadow: 0 8px 20px rgba(16, 43, 84, 0.05);
             margin-bottom: 1rem;
+        }
+
+        .ventas-caja-confirm-form.is-submitting button {
+            pointer-events: none;
+            opacity: .72;
         }
 
         .ventas-caja-card__label {
@@ -656,6 +769,12 @@
             font-weight: 600;
         }
 
+        .ventas-table-range {
+            color: #97a7bf;
+            font-size: .78rem;
+            margin-top: .15rem;
+        }
+
         .ventas-table thead th {
             background: #f7f9fc;
             border-bottom: 1px solid rgba(32, 83, 154, 0.1);
@@ -672,6 +791,20 @@
             border-top: 1px solid rgba(32, 83, 154, 0.08);
             padding-top: 1rem;
             padding-bottom: 1rem;
+        }
+
+        .ventas-row-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            height: 34px;
+            padding: 0 .55rem;
+            border-radius: 999px;
+            background: #eef4ff;
+            color: #1f4f96;
+            font-weight: 800;
+            font-size: .8rem;
         }
 
         .ventas-table__primary {
@@ -848,6 +981,145 @@
             font-weight: 800;
         }
 
+        .ventas-table-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            background: #fbfcfe;
+        }
+
+        .ventas-table-footer__meta {
+            color: #70839f;
+            font-size: .86rem;
+            font-weight: 600;
+        }
+
+        .ventas-table-footer__pagination .pagination {
+            margin-bottom: 0;
+        }
+
+        .ventas-confirm-modal,
+        .ventas-processing-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2055;
+            opacity: 1;
+            visibility: visible;
+            transition: opacity .18s ease, visibility .18s ease;
+        }
+
+        .ventas-confirm-modal[aria-hidden="true"],
+        .ventas-processing-overlay[aria-hidden="true"] {
+            pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .ventas-confirm-modal__backdrop,
+        .ventas-processing-overlay {
+            background: rgba(15, 28, 52, 0.46);
+            backdrop-filter: blur(6px);
+        }
+
+        .ventas-confirm-modal {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+        }
+
+        .ventas-confirm-modal__panel {
+            width: min(100%, 460px);
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 24px 70px rgba(15, 28, 52, 0.24);
+            padding: 1.4rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .ventas-confirm-modal__eyebrow {
+            font-size: .76rem;
+            font-weight: 800;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: #6a7f9e;
+            margin-bottom: .55rem;
+        }
+
+        .ventas-confirm-modal__title {
+            margin: 0 0 .55rem;
+            color: #173b73;
+            font-weight: 800;
+        }
+
+        .ventas-confirm-modal__message {
+            margin: 0;
+            color: #4c6285;
+        }
+
+        .ventas-confirm-modal__detail {
+            margin-top: .85rem;
+            padding: .9rem 1rem;
+            border-radius: 14px;
+            background: #f7f9fc;
+            color: #667c9e;
+            font-size: .9rem;
+        }
+
+        .ventas-confirm-modal__actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: .75rem;
+            margin-top: 1.2rem;
+        }
+
+        .ventas-processing-overlay {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+        }
+
+        .ventas-processing-overlay__card {
+            width: min(100%, 360px);
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 24px;
+            box-shadow: 0 24px 70px rgba(15, 28, 52, 0.24);
+            padding: 1.5rem 1.3rem;
+            text-align: center;
+            display: grid;
+            gap: .55rem;
+            justify-items: center;
+        }
+
+        .ventas-processing-overlay__spinner {
+            width: 54px;
+            height: 54px;
+            border-radius: 999px;
+            border: 4px solid rgba(32, 83, 154, 0.14);
+            border-top-color: #20539a;
+            border-right-color: #fecc36;
+            animation: ventasCajaSpin .9s linear infinite;
+        }
+
+        .ventas-processing-overlay__card strong {
+            color: #173b73;
+            font-size: 1.15rem;
+        }
+
+        .ventas-processing-overlay__card span {
+            color: #5d7396;
+        }
+
+        @keyframes ventasCajaSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         @media (max-width: 1399.98px) {
             .ventas-summary-grid {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -872,6 +1144,15 @@
                 flex-direction: column;
                 align-items: stretch;
             }
+
+            .ventas-confirm-modal__actions {
+                flex-direction: column-reverse;
+            }
+
+            .ventas-table-footer {
+                flex-direction: column;
+                align-items: stretch;
+            }
         }
     </style>
 @stop
@@ -881,6 +1162,18 @@
         document.addEventListener('DOMContentLoaded', function () {
             const form = document.getElementById('ventasFiltersForm');
             const pendingConsultForms = Array.from(document.querySelectorAll('form[data-pending-consult="true"]'));
+            const cajaForms = Array.from(document.querySelectorAll('.ventas-caja-confirm-form'));
+            const cajaConfirmModal = document.getElementById('ventasCajaConfirmModal');
+            const cajaConfirmTitle = document.getElementById('ventasCajaConfirmTitle');
+            const cajaConfirmMessage = document.getElementById('ventasCajaConfirmMessage');
+            const cajaConfirmDetail = document.getElementById('ventasCajaConfirmDetail');
+            const cajaConfirmCancel = document.getElementById('ventasCajaConfirmCancel');
+            const cajaConfirmAccept = document.getElementById('ventasCajaConfirmAccept');
+            const cajaProcessingOverlay = document.getElementById('ventasCajaProcessingOverlay');
+            const cajaProcessingTitle = document.getElementById('ventasCajaProcessingTitle');
+            const cajaProcessingText = document.getElementById('ventasCajaProcessingText');
+            let pendingCajaForm = null;
+            let isCajaSubmitting = false;
 
             if (!form) {
                 return;
@@ -915,6 +1208,157 @@
                         submitFilters();
                     }
                 });
+            });
+
+            const openCajaConfirm = (targetForm) => {
+                if (!(targetForm instanceof HTMLFormElement) || !cajaConfirmModal) {
+                    targetForm?.submit();
+                    return;
+                }
+
+                const confirmTitle = String(
+                    targetForm.getAttribute('data-confirm-title')
+                    || targetForm.dataset.confirmTitle
+                    || 'Confirmar accion'
+                );
+                const confirmMessage = String(
+                    targetForm.getAttribute('data-confirm-message')
+                    || targetForm.dataset.confirmMessage
+                    || 'Esta accion actualizara el estado de la caja diaria.'
+                );
+                const confirmDetail = String(
+                    targetForm.getAttribute('data-confirm-detail')
+                    || targetForm.dataset.confirmDetail
+                    || ''
+                ).trim();
+                const confirmCta = String(
+                    targetForm.getAttribute('data-confirm-cta')
+                    || targetForm.dataset.confirmCta
+                    || 'Confirmar'
+                );
+
+                pendingCajaForm = targetForm;
+                if (cajaConfirmTitle) {
+                    cajaConfirmTitle.textContent = confirmTitle;
+                }
+                if (cajaConfirmMessage) {
+                    cajaConfirmMessage.textContent = confirmMessage;
+                }
+                if (cajaConfirmDetail) {
+                    cajaConfirmDetail.textContent = confirmDetail;
+                    cajaConfirmDetail.hidden = confirmDetail === '';
+                }
+                if (cajaConfirmAccept) {
+                    cajaConfirmAccept.textContent = confirmCta;
+                }
+
+                cajaConfirmModal.setAttribute('aria-hidden', 'false');
+                window.setTimeout(() => cajaConfirmAccept?.focus(), 30);
+            };
+
+            const closeCajaConfirm = () => {
+                pendingCajaForm = null;
+                if (!cajaConfirmModal) {
+                    return;
+                }
+                cajaConfirmModal.setAttribute('aria-hidden', 'true');
+            };
+
+            const setCajaProcessing = (active, targetForm = null) => {
+                isCajaSubmitting = active;
+
+                cajaForms.forEach((candidate) => {
+                    const button = candidate.querySelector('button[type="submit"]');
+                    candidate.classList.toggle('is-submitting', active && candidate === targetForm);
+                    if (button instanceof HTMLButtonElement) {
+                        button.dataset.originalText = button.dataset.originalText || button.textContent.trim();
+                        button.disabled = active;
+                        button.textContent = active && candidate === targetForm
+                            ? 'Procesando...'
+                            : (button.dataset.originalText || button.textContent);
+                    }
+                });
+
+                if (cajaConfirmAccept instanceof HTMLButtonElement) {
+                    cajaConfirmAccept.disabled = active;
+                }
+                if (cajaConfirmCancel instanceof HTMLButtonElement) {
+                    cajaConfirmCancel.disabled = active;
+                }
+
+                if (cajaProcessingOverlay) {
+                    cajaProcessingOverlay.hidden = !active;
+                    cajaProcessingOverlay.setAttribute('aria-hidden', active ? 'false' : 'true');
+                }
+
+                if (active && targetForm instanceof HTMLFormElement) {
+                    const processingTitle = String(
+                        targetForm.getAttribute('data-processing-title')
+                        || targetForm.dataset.processingTitle
+                        || 'Procesando caja'
+                    );
+                    const processingText = String(
+                        targetForm.getAttribute('data-processing-text')
+                        || targetForm.dataset.processingText
+                        || 'Espera un momento...'
+                    );
+
+                    if (cajaProcessingTitle) {
+                        cajaProcessingTitle.textContent = processingTitle;
+                    }
+                    if (cajaProcessingText) {
+                        cajaProcessingText.textContent = processingText;
+                    }
+                } else {
+                    if (cajaProcessingTitle) {
+                        cajaProcessingTitle.textContent = 'Procesando caja';
+                    }
+                    if (cajaProcessingText) {
+                        cajaProcessingText.textContent = 'Espera un momento...';
+                    }
+                }
+            };
+
+            cajaForms.forEach((targetForm) => {
+                targetForm.addEventListener('submit', (event) => {
+                    if (isCajaSubmitting) {
+                        event.preventDefault();
+                        return;
+                    }
+
+                    event.preventDefault();
+                    openCajaConfirm(targetForm);
+                });
+            });
+
+            cajaConfirmCancel?.addEventListener('click', closeCajaConfirm);
+            cajaConfirmAccept?.addEventListener('click', () => {
+                if (!(pendingCajaForm instanceof HTMLFormElement)) {
+                    closeCajaConfirm();
+                    return;
+                }
+
+                const targetForm = pendingCajaForm;
+                closeCajaConfirm();
+                setCajaProcessing(true, targetForm);
+                targetForm.submit();
+            });
+
+            cajaConfirmModal?.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target instanceof HTMLElement && target.dataset.closeVentasCajaConfirm === 'true' && !isCajaSubmitting) {
+                    closeCajaConfirm();
+                }
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && cajaConfirmModal?.getAttribute('aria-hidden') === 'false' && !isCajaSubmitting) {
+                    closeCajaConfirm();
+                }
+            });
+
+            window.addEventListener('pageshow', () => {
+                setCajaProcessing(false);
             });
 
         });

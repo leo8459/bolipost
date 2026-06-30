@@ -305,6 +305,11 @@ class FacturacionCartController extends Controller
     private function buildBridgeFeedback(array $respuesta, string $action): array
     {
         $estado = strtoupper(trim((string) ($respuesta['estado'] ?? '')));
+        $estadoPago = strtolower(trim((string) (
+            data_get($respuesta, 'estado_pago')
+            ?? data_get($respuesta, 'payment_status')
+            ?? ''
+        )));
         $mensaje = trim((string) ($respuesta['mensaje'] ?? ''));
         $razon = trim((string) ($respuesta['razon'] ?? ''));
         $numeroFactura = trim((string) (
@@ -333,6 +338,48 @@ class FacturacionCartController extends Controller
             ?? ''
         ));
         $feedbackMeta = $this->buildFeedbackMeta($estado, $numeroFactura, $codigoOrden, $codigoSeguimiento, $pdfUrl);
+
+        $isQrFlow = $estado === 'NO_APLICA'
+            || trim((string) (
+                data_get($respuesta, 'transaction_id')
+                ?? data_get($respuesta, 'payment_status')
+                ?? data_get($respuesta, 'qr_url')
+                ?? data_get($respuesta, 'image_data')
+                ?? ''
+            )) !== '';
+
+        if ($isQrFlow) {
+            if (in_array($estadoPago, ['pagado', 'success', 'paid', 'completed'], true)) {
+                return [
+                    'type' => 'success',
+                    'title' => 'Pago QR confirmado',
+                    'message' => 'El cobro por QR fue confirmado correctamente.',
+                    'detail' => $mensaje !== '' ? $mensaje : 'La operacion QR ya puede considerarse cobrada.',
+                    'action' => $action,
+                    'meta' => $feedbackMeta,
+                ];
+            }
+
+            if (in_array($estadoPago, ['cancelado', 'rejected', 'failed', 'expired'], true)) {
+                return [
+                    'type' => 'warning',
+                    'title' => 'Pago QR no concretado',
+                    'message' => 'El cobro QR fue cancelado o rechazado.',
+                    'detail' => $mensaje !== '' ? $mensaje : 'Puedes generar un nuevo QR si el cliente desea reintentar.',
+                    'action' => $action,
+                    'meta' => $feedbackMeta,
+                ];
+            }
+
+            return [
+                'type' => 'info',
+                'title' => 'QR generado',
+                'message' => 'El cobro QR esta pendiente de confirmacion.',
+                'detail' => $mensaje !== '' ? $mensaje : 'Espera el callback del proveedor o actualiza el pago en unos segundos.',
+                'action' => $action,
+                'meta' => $feedbackMeta,
+            ];
+        }
 
         if ($estado === 'FACTURADA') {
             return [

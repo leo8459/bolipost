@@ -24,7 +24,7 @@ class ClienteAclRoleManager
             $role = Role::findOrCreate($roleName, 'cliente');
             $patterns = (array) ($templates[$roleName] ?? []);
 
-            if ($patterns === [] || $role->permissions()->exists()) {
+            if ($patterns === []) {
                 continue;
             }
 
@@ -41,7 +41,16 @@ class ClienteAclRoleManager
                 ->values()
                 ->all();
 
-            $role->syncPermissions($resolvedPermissions);
+            if ($resolvedPermissions === []) {
+                continue;
+            }
+
+            $existingPermissionNames = $role->permissions()
+                ->pluck('name')
+                ->map(fn (mixed $permissionName): string => (string) $permissionName)
+                ->all();
+
+            $role->givePermissionTo(array_values(array_diff($resolvedPermissions, $existingPermissionNames)));
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

@@ -1,6 +1,5 @@
-    php artisan migrate --path=/database/migrations/2026_06_17_140500_add_contrato_fields_to_empresa_table.php
-    php artisan migrate --path=/database/migrations/2026_06_17_143000_add_documento_pdf_path_to_empresa_table.php
-    php artisan migrate --path=/database/migrations/2026_06_18_153000_add_auto_baja_empresa_at_to_users_table.php
+    php artisan migrate --path=/database/migrations/2026_06_25_120000_create_paquetes_int_table.php
+    php artisan migrate --path=/database/migrations/2026_06_25_121000_add_origen_to_paquetes_int_table.php
 
 +``+--
 

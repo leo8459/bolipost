@@ -16,6 +16,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ReportesController extends Controller
 {
+    private array $estadoIdCache = [];
+
     private const EVENTO_ENTREGADO_ID = 316;
     private const EVENTO_EMS_SOLICITUD_ID = 295;
     private const EVENTO_CONTRATO_RECOGIDO_ID = 295;
@@ -2456,9 +2458,8 @@ class ReportesController extends Controller
             return;
         }
 
-        $columnKey = $tipo === 'origen' ? 'origen_col' : 'destino_col';
-        $column = self::MODULES[$moduleKey][$columnKey] ?? null;
-        if (!$column) {
+        $expression = $this->departamentoFilterExpression($moduleKey, $tipo);
+        if ($expression === '') {
             $query->whereRaw('1 = 0');
             return;
         }
@@ -2475,7 +2476,33 @@ class ReportesController extends Controller
             return;
         }
 
-        $query->whereIn(DB::raw('trim(upper(t.' . $column . '))'), $aliases);
+        $query->whereIn(DB::raw('trim(upper(' . $expression . '))'), $aliases);
+    }
+
+    private function departamentoFilterExpression(string $moduleKey, string $tipo): string
+    {
+        $columnKey = $tipo === 'origen' ? 'origen_col' : 'destino_col';
+        $column = self::MODULES[$moduleKey][$columnKey] ?? null;
+        if (!$column) {
+            return '';
+        }
+
+        if ($tipo === 'origen') {
+            return 'coalesce(t.' . $column . ", '')";
+        }
+
+        $destinoExpression = 'coalesce(t.' . $column . ", '')";
+        $origenColumn = self::MODULES[$moduleKey]['origen_col'] ?? null;
+        $stateColumn = self::MODULES[$moduleKey]['state_col'] ?? null;
+        $estadoAlmacenId = $this->resolveEstadoIdByName('ALMACEN');
+
+        if (!$origenColumn || !$stateColumn || !$estadoAlmacenId) {
+            return $destinoExpression;
+        }
+
+        return 'case when t.' . $stateColumn . ' = ' . (int) $estadoAlmacenId
+            . " then coalesce(nullif(trim(t." . $origenColumn . "), ''), t." . $column . ')'
+            . ' else ' . $destinoExpression . ' end';
     }
 
     private function applySearchFilter(Builder $query, string $moduleKey, string $search): void
@@ -2534,20 +2561,29 @@ class ReportesController extends Controller
 
     private function resolveEstadoEntregadoId(): ?int
     {
-        $id = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
-            ->value('id');
-
-        return $id ? (int) $id : null;
+        return $this->resolveEstadoIdByName('ENTREGADO');
     }
 
     private function resolveEstadoCanceladoId(): ?int
     {
+        return $this->resolveEstadoIdByName('CANCELADO');
+    }
+
+    private function resolveEstadoIdByName(string $estadoNombre): ?int
+    {
+        $cacheKey = strtoupper(trim($estadoNombre));
+        if (array_key_exists($cacheKey, $this->estadoIdCache)) {
+            return $this->estadoIdCache[$cacheKey];
+        }
+
         $id = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['CANCELADO'])
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [$cacheKey])
             ->value('id');
 
-        return $id ? (int) $id : null;
+        $resolvedId = $id ? (int) $id : null;
+        $this->estadoIdCache[$cacheKey] = $resolvedId;
+
+        return $resolvedId;
     }
 
     private function resolveDepartamentoFiltro(Request $request, string $queryKey = 'departamento'): string

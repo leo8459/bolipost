@@ -1106,6 +1106,11 @@
                                         Reimprimir CN-33
                                     </button>
                                     @endif
+                                    @if ($canEmsReprintCn33)
+                                    <button class="btn btn-outline-light2" type="button" wire:click="toggleCn38Generate">
+                                        Generar CN-38
+                                    </button>
+                                    @endif
                                 @elseif ($this->isVentanillaEms)
                                     @if ($canEmsDeliver)
                                     <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
@@ -1224,7 +1229,7 @@
                                     <label>Tipo de correspondencia</label>
                                     <input type="text" wire:model.defer="tipo_correspondencia" class="form-control">
                                     @error('tipo_correspondencia') <small class="text-danger">{{ $message }}</small> @enderror
-                                    <small class="text-muted">Si es OFICIAL, se guarda sin precio ni tarifario.</small>
+                                    <small class="text-muted">Si es OFICIAL, se registra sin precio ni tarifario y se envia directo a facturacion como venta, sin pasar por el carrito.</small>
                                 </div>
                             </div>
 
@@ -1485,6 +1490,86 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                @endif
+
+                @if ($this->isAlmacenEms && $showCn38Generate && $canEmsReprintCn33)
+                    <div class="section-block mb-3">
+                        <div class="section-title">Generar CN-38 desde CN-33</div>
+                        @php
+                            $cn38SelectedTotal = count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes);
+                            $cn38DispatchRows = collect($cn38DispatchSummaryRows ?? collect());
+                            $cn38TotalPeso = (float) $cn38DispatchRows->sum(fn ($row) => (float) ($row->peso_total ?? 0));
+                        @endphp
+                        <div class="form-row align-items-end">
+                            <div class="form-group col-md-5 mb-2">
+                                <label>Despacho CN-33</label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    placeholder="Ingresa cod_especial (ej: SRZ00001)"
+                                    wire:model.defer="cn38Despacho"
+                                    wire:keydown.enter.prevent="cargarCn38DesdeCn33"
+                                >
+                                <small class="text-muted">Puedes marcar varios registros con los checkboxes o cargar automaticamente un despacho CN-33.</small>
+                            </div>
+                            <div class="form-group col-md-7 mb-2 d-flex gap-2 flex-wrap">
+                                <button class="btn btn-outline-azul" type="button" wire:click="cargarCn38DesdeCn33">
+                                    Autoseleccionar registros
+                                </button>
+                                <button class="btn btn-azul" type="button" wire:click="openCn38PrintOptionsModal">
+                                    Generar PDF CN-38
+                                </button>
+                                <button class="btn btn-outline-azul" type="button" wire:click="toggleCn38Generate">
+                                    Cerrar
+                                </button>
+                            </div>
+                        </div>
+                        @if ($cn38SelectedTotal > 0 || trim((string) $cn38Despacho) !== '')
+                            <div class="alert alert-light border mt-2 mb-0">
+                                <strong>Despacho:</strong> {{ trim((string) $cn38Despacho) !== '' ? strtoupper(trim((string) $cn38Despacho)) : 'SELECCION MANUAL' }}
+                                |
+                                <strong>CN-33 seleccionados:</strong> {{ $cn38DispatchRows->count() }}
+                                |
+                                <strong>Peso total:</strong> {{ number_format($cn38TotalPeso, 3) }} Kg
+                            </div>
+                        @endif
+                        @if ($cn38SelectedTotal > 0)
+                            <div class="mt-3 border rounded p-3 bg-white">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                    <div class="font-weight-bold text-primary">
+                                        Prelista CN-38 por CN-33 ({{ $cn38DispatchRows->count() }})
+                                    </div>
+                                    <div class="small text-muted">
+                                        Aqui solo se muestran numero de despacho CN-33 y peso total.
+                                    </div>
+                                </div>
+                                <div class="table-responsive" style="max-height: 260px;">
+                                    <table class="table table-sm table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Despacho CN-33</th>
+                                                <th>Registros</th>
+                                                <th>Peso total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse($cn38DispatchRows as $item)
+                                                <tr wire:key="cn38-cn33-{{ md5((string) ($item->despacho ?? '')) }}">
+                                                    <td><span class="pill-id">{{ $item->despacho ?? '-' }}</span></td>
+                                                    <td>{{ $item->registros ?? 0 }}</td>
+                                                    <td>{{ number_format((float) ($item->peso_total ?? 0), 3) }} Kg</td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="3" class="text-center text-muted py-3">No hay CN-33 seleccionados.</td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 @endif
 
@@ -2088,7 +2173,7 @@
                                             @if($this->isAlmacenEms) readonly @endif
                                         >
                                         @error('tipo_correspondencia') <small class="text-danger">{{ $message }}</small> @enderror
-                                        <small class="text-muted">Si es OFICIAL, se guarda sin precio ni tarifario.</small>
+                                        <small class="text-muted">Si es OFICIAL, se registra sin precio ni tarifario y se envia directo a facturacion como venta, sin pasar por el carrito.</small>
                                     </div>
                                 </div>
 
@@ -2399,6 +2484,98 @@
         </div>
     </div>
 
+    <div
+        class="modal fade @if($showCn38PrintOptionsModal) show d-block @endif"
+        id="cn38PrintOptionsModal"
+        tabindex="-1"
+        aria-hidden="{{ $showCn38PrintOptionsModal ? 'false' : 'true' }}"
+        wire:ignore.self
+        @if($showCn38PrintOptionsModal)
+            style="background: rgba(0, 0, 0, 0.5);"
+        @endif
+    >
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-bottom border-dark" style="background: #fff; color: #000;">
+                    <h5 class="modal-title">Elegir impresion para CN-38</h5>
+                    <button
+                        type="button"
+                        class="close text-dark"
+                        wire:click="cerrarCn38OpcionesImpresion"
+                        aria-label="Close"
+                    >
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">
+                        Configura el CN-38 antes de imprimir. El formato <strong>LQ-590</strong> usa el diseno optimizado para impresora matricial.
+                    </p>
+                    <div class="form-group">
+                        <label>Transporte</label>
+                        <select class="form-control" wire:model.live="cn38TransportMode">
+                            <option value="TERRESTRE">TERRESTRE</option>
+                            <option value="AEREO">AEREO</option>
+                        </select>
+                    </div>
+                    @if (collect($cn38DispatchSummaryRows ?? collect())->count() === 1)
+                        <div class="form-row">
+                            <div class="form-group col-md-4 mb-2">
+                                <label>Cantidad de sacas</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    class="form-control"
+                                    wire:model.live="cn38BagCount"
+                                >
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            @for ($i = 0; $i < max(1, (int) $cn38BagCount); $i++)
+                                <div class="form-group col-md-4 col-sm-6 mb-2" wire:key="cn38-modal-bag-weight-{{ $i }}">
+                                    <label>
+                                        Peso saca {{ str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT) }}
+                                        @if ($i === max(1, (int) $cn38BagCount) - 1)
+                                            (F)
+                                        @endif
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.001"
+                                        class="form-control"
+                                        placeholder="0.000"
+                                        wire:model.live="cn38BagWeights.{{ $i }}"
+                                    >
+                                </div>
+                            @endfor
+                        </div>
+                        <small class="text-muted d-block mb-3">
+                            El reporte saldra como {{ strtoupper(trim((string) $cn38Despacho)) ?: 'CN33' }}/0001 y la ultima saca llevara la marca /F.
+                        </small>
+                    @endif
+                    <div class="d-flex flex-column flex-sm-row" style="gap: 10px;">
+                        <button type="button" class="btn btn-outline-dark flex-fill" wire:click="generarCn38Carta">
+                            <i class="fas fa-file-alt mr-1"></i> Tamano carta
+                        </button>
+                        <button type="button" class="btn btn-dark flex-fill" wire:click="generarCn38Lq590">
+                            <i class="fas fa-print mr-1"></i> Impresora LQ-590
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer bg-white border-top">
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        wire:click="cerrarCn38OpcionesImpresion"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="generadosHoyModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
@@ -2447,6 +2624,34 @@
                     </button>
                 </div>
                 <div class="modal-body">
+                    @if (!empty($regionalPesoZeroItems))
+                        <div class="alert alert-warning">
+                            <strong>Los paquetes con este codigo estan en peso 0.</strong>
+                            Por favor asigne el peso aqui mismo para poder mandar a regional.
+                        </div>
+
+                        <div class="section-block mb-3">
+                            <div class="section-title">Paquetes pendientes de peso</div>
+                            @foreach ($regionalPesoZeroItems as $item)
+                                <div class="border rounded p-2 mb-2">
+                                    <div class="mb-2">
+                                        <strong>{{ $item['codigo'] ?? 'SIN CODIGO' }}</strong>
+                                        <span class="text-muted">| Tipo: {{ strtoupper($item['type'] ?? '-') }}</span>
+                                    </div>
+                                    <x-peso-qz-field
+                                        :model="'regionalPesoInputs.' . ($item['key'] ?? '')"
+                                        :input-id="'regional-peso-' . ($item['key'] ?? '')"
+                                        min="0.001"
+                                        :required="true"
+                                        :use-scale="true"
+                                        :show-clear="true"
+                                        label="Peso"
+                                    />
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
                     <div class="form-group">
                         <label>Ciudad destino regional</label>
                         <select wire:model.defer="regionalDestino" class="form-control">
@@ -2467,9 +2672,70 @@
                         <label>Nro de vuelo/transporte (opcional)</label>
                         <input type="text" wire:model.defer="regionalTransportNumber" class="form-control">
                     </div>
+
+                    @if ($showRegionalIntSection)
+                    <div class="section-block mt-3 mb-0">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <div class="section-title mb-1">Paquetes INT</div>
+                                <small class="text-muted">Solo se agregan al CN-33. No suman a estadisticas.</small>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 58%;">Codigo</th>
+                                        <th style="width: 24%;">Peso</th>
+                                        <th style="width: 18%;">Accion</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($regionalIntRows as $index => $regionalIntRow)
+                                        <tr wire:key="regional-int-row-{{ $index }}">
+                                            <td>
+                                                <input
+                                                    type="text"
+                                                    class="form-control"
+                                                    wire:model.defer="regionalIntRows.{{ $index }}.codigo"
+                                                    placeholder="Codigo INT">
+                                            </td>
+                                            <td>
+                                                <input
+                                                    type="number"
+                                                    step="0.001"
+                                                    min="0.001"
+                                                    class="form-control"
+                                                    wire:model.defer="regionalIntRows.{{ $index }}.peso"
+                                                    placeholder="0.000">
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" wire:click="removeRegionalIntRow({{ $index }})">
+                                                    Quitar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="mt-2 text-right">
+                            <button type="button" class="btn btn-link btn-sm p-0" wire:click="addRegionalIntRow">
+                                Anadir otro
+                            </button>
+                        </div>
+                    </div>
+                    @endif
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsSendRegional)
+                    <button type="button" class="btn btn-outline-primary" wire:click="toggleRegionalIntSection">
+                        {{ $showRegionalIntSection ? 'Ocultar INT' : 'Anadir INT' }}
+                    </button>
+                    @endif
                     @if ($canEmsSendRegional)
                     <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosRegional">
                         Confirmar y generar manifiesto
@@ -2490,6 +2756,34 @@
                     </button>
                 </div>
                 <div class="modal-body">
+                    @if (!empty($regionalPesoZeroItems))
+                        <div class="alert alert-warning">
+                            <strong>Los paquetes con este codigo estan en peso 0.</strong>
+                            Por favor asigne el peso aqui mismo para poder mandar a regional.
+                        </div>
+
+                        <div class="section-block mb-3">
+                            <div class="section-title">Paquetes pendientes de peso</div>
+                            @foreach ($regionalPesoZeroItems as $item)
+                                <div class="border rounded p-2 mb-2">
+                                    <div class="mb-2">
+                                        <strong>{{ $item['codigo'] ?? 'SIN CODIGO' }}</strong>
+                                        <span class="text-muted">| Tipo: {{ strtoupper($item['type'] ?? '-') }}</span>
+                                    </div>
+                                    <x-peso-qz-field
+                                        :model="'regionalPesoInputs.' . ($item['key'] ?? '')"
+                                        :input-id="'regional-contrato-peso-' . ($item['key'] ?? '')"
+                                        min="0.001"
+                                        :required="true"
+                                        :use-scale="true"
+                                        :show-clear="true"
+                                        label="Peso"
+                                    />
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
                     <div class="form-group">
                         <label>Ciudad destino regional</label>
                         <select wire:model.defer="regionalDestinoContrato" class="form-control">
@@ -3071,6 +3365,8 @@
             closePaqueteConfirm: '#paqueteConfirmModal',
             openPrintOptionsModal: '#printOptionsModal',
             closePrintOptionsModal: '#printOptionsModal',
+            openCn38PrintOptionsModal: '#cn38PrintOptionsModal',
+            closeCn38PrintOptionsModal: '#cn38PrintOptionsModal',
             openGeneradosHoyModal: '#generadosHoyModal',
             closeGeneradosHoyModal: '#generadosHoyModal',
             openRegionalModal: '#regionalModal',

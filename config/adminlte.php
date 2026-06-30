@@ -345,6 +345,7 @@ return [
         [
             'text' => 'Dir. Operaciones',
             'icon' => 'fas fa-chart-line',
+            'can' => 'admin-only-menu',
             'submenu' => [
                 [
                     'text' => 'Global Nivel Nacional (Ingreso)',
@@ -366,6 +367,7 @@ return [
         [
             'text' => 'Dir. Comercial',
             'icon' => 'fas fa-bullhorn',
+            'can' => 'admin-only-menu',
             'submenu' => [
                 [
                     'text' => 'Rendimiento Servicios',
@@ -397,6 +399,7 @@ return [
         [
             'text' => 'Dir. Financiera',
             'icon' => 'fas fa-coins',
+            'can' => 'admin-only-menu',
             'submenu' => [
                 [
                     'text' => 'Panel Financiero',

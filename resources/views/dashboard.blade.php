@@ -41,6 +41,219 @@
     </div>
     @endif
 
+    @if(((int) data_get($regionalPendingAlert ?? [], 'count', 0)) > 0)
+    <div class="alert alert-warning d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
+        <div>
+            <strong>Tiene paquetes pendientes:</strong>
+            {{ number_format((int) data_get($regionalPendingAlert, 'count', 0)) }}
+            con mas de {{ (int) data_get($regionalPendingAlert, 'hours', 72) }} horas habiles en
+            {{ data_get($regionalPendingAlert, 'regional', $userCity !== '' ? $userCity : 'tu regional') }}.
+        </div>
+        <div class="text-muted small mt-2 mt-md-0">
+            Se descuentan sabados y domingos.
+        </div>
+    </div>
+    @endif
+
+    @if(((int) data_get($carteroPendingAlert ?? [], 'count', 0)) > 0)
+    <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
+        <div>
+            <strong>El cartero {{ data_get($carteroPendingAlert, 'name', 'Sin nombre') }} tiene {{ number_format((int) data_get($carteroPendingAlert, 'count', 0)) }} paquetes.</strong>
+            Pendientes por entregar en su bandeja CARTERO.
+        </div>
+        <a href="{{ route('carteros.cartero') }}" class="btn btn-sm btn-outline-primary mt-2 mt-md-0">
+            Ir a mi bandeja
+        </a>
+    </div>
+    @endif
+
+    @if(((int) data_get($pendingCn33Alert ?? [], 'count', 0)) > 0)
+    @php
+        $dashboardPendingCn33Rows = collect(data_get($pendingCn33Alert, 'rows', []));
+        $dashboardPendingCn33Departments = $dashboardPendingCn33Rows
+            ->groupBy(function ($row) {
+                $regional = trim((string) ($row->regional ?? ''));
+                return $regional !== '' ? $regional : 'SIN DEPARTAMENTO';
+            })
+            ->map(function ($rows, $department) {
+                return (object) [
+                    'department' => $department,
+                    'total_cn33' => $rows->count(),
+                    'max_days_delay' => (int) $rows->max('days_delay'),
+                    'rows' => $rows->sortByDesc('days_delay')->values(),
+                ];
+            })
+            ->sortByDesc(function ($item) {
+                return ((int) ($item->total_cn33 ?? 0) * 100000) + (int) ($item->max_days_delay ?? 0);
+            })
+            ->values();
+    @endphp
+    <div class="alert alert-danger d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
+        <div>
+            <strong>Registrar bitacora de envio nacional.</strong>
+            Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas.
+            @if((string) data_get($pendingCn33Alert, 'regional', '') !== '')
+            Solo se muestran registros de {{ data_get($pendingCn33Alert, 'regional') }}.
+            @else
+            Se muestran registros a nivel nacional.
+            @endif
+            Retraso maximo: {{ number_format((int) data_get($pendingCn33Alert, 'max_days_delay', 0)) }} dia(s).
+            @if($dashboardPendingCn33Departments->isNotEmpty())
+                <div class="mt-2 d-flex flex-wrap">
+                    @foreach($dashboardPendingCn33Departments as $index => $department)
+                        <button
+                            type="button"
+                            class="btn btn-light border mr-2 mb-2"
+                            data-toggle="modal"
+                            data-target="#pendingCn33DepartmentModal{{ $index }}"
+                        >
+                            {{ $department->department }}: {{ number_format((int) ($department->total_cn33 ?? 0)) }}
+                        </button>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+        <a href="{{ route('bitacoras.create') }}" class="btn btn-sm btn-outline-dark mt-2 mt-md-0">
+            Registrar bitacora
+        </a>
+    </div>
+
+    @foreach($dashboardPendingCn33Departments as $index => $department)
+        <div class="modal fade" id="pendingCn33DepartmentModal{{ $index }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            {{ $department->department }} - CN-33 que no tienen bitacora
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-light border">
+                            <strong>Total CN-33 sin bitacora:</strong> {{ number_format((int) ($department->total_cn33 ?? 0)) }}
+                            |
+                            <strong>Retraso maximo:</strong> {{ number_format((int) ($department->max_days_delay ?? 0)) }} dia(s)
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>CN-33 sin bitacora</th>
+                                        <th class="text-right">Dias de retraso</th>
+                                        <th class="text-right">Peso</th>
+                                        <th class="text-right">Registros</th>
+                                        <th>Primer registro</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach(($department->rows ?? collect()) as $row)
+                                        <tr>
+                                            <td>{{ $row->numero_despacho ?? $row->cod_especial }}</td>
+                                            <td class="text-right">{{ number_format((int) ($row->days_delay ?? 0)) }}</td>
+                                            <td class="text-right">{{ number_format((float) ($row->peso_total ?? 0), 3) }}</td>
+                                            <td class="text-right">{{ number_format((int) ($row->total_registros ?? 0)) }}</td>
+                                            <td>{{ optional($row->first_created_at)->format('d/m/Y H:i') }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ route('bitacoras.create') }}" class="btn btn-danger">Registrar bitacora</a>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
+    @endif
+
+    @if((bool) data_get($carteroPendingSummary ?? [], 'enabled', false))
+    @php
+        $carteroPendingRows = collect(data_get($carteroPendingSummary, 'rows', collect()));
+        $carteroPendingDepartments = $carteroPendingRows
+            ->groupBy(fn ($row) => trim((string) ($row->ciudad ?? '')) !== '' ? trim((string) $row->ciudad) : 'SIN DEPARTAMENTO')
+            ->map(function ($rows, $department) {
+                return (object) [
+                    'department' => $department,
+                    'total_carteros' => $rows->count(),
+                    'total_pendientes' => (int) $rows->sum(fn ($row) => (int) ($row->pendientes ?? 0)),
+                    'rows' => $rows->sortByDesc(fn ($row) => (int) ($row->pendientes ?? 0))->values(),
+                ];
+            })
+            ->sortByDesc(fn ($item) => (int) ($item->total_pendientes ?? 0))
+            ->values();
+    @endphp
+    <div class="alert alert-secondary mb-3">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
+            <div>
+                <strong>Departamentos con envios pendientes ({{ data_get($carteroPendingSummary, 'scope') === 'nacional' ? 'Nivel nacional' : ($userCity !== '' ? $userCity : 'Tu regional') }}):</strong>
+                {{ $carteroPendingDepartments->count() }} departamento(s) con paquetes en CARTERO.
+            </div>
+        </div>
+        <div class="mt-2 d-flex flex-wrap">
+            @foreach($carteroPendingDepartments as $index => $department)
+                <button
+                    type="button"
+                    class="btn btn-light border mr-2 mb-2"
+                    data-toggle="modal"
+                    data-target="#carteroPendingDepartmentModal{{ $index }}"
+                >
+                    {{ $department->department }}: {{ number_format((int) ($department->total_pendientes ?? 0)) }}
+                </button>
+            @endforeach
+        </div>
+    </div>
+
+    @foreach($carteroPendingDepartments as $index => $department)
+        <div class="modal fade" id="carteroPendingDepartmentModal{{ $index }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-secondary text-white">
+                        <h5 class="modal-title">
+                            {{ $department->department }} - carteros con pendientes
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-light border">
+                            <strong>Total carteros:</strong> {{ number_format((int) ($department->total_carteros ?? 0)) }}
+                            |
+                            <strong>Total pendientes:</strong> {{ number_format((int) ($department->total_pendientes ?? 0)) }}
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Cartero</th>
+                                        <th class="text-right">Pendientes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach(($department->rows ?? collect()) as $row)
+                                        <tr>
+                                            <td>{{ $row->name }}</td>
+                                            <td class="text-right">{{ number_format((int) ($row->pendientes ?? 0)) }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
+    @endif
+
     <div class="card card-filtro mb-3" data-focus-hide="true">
         <div class="card-header">
             <strong>Filtros y Vista</strong>
@@ -621,6 +834,7 @@
                             <th>Departamento</th>
                             <th class="text-right">Registrados</th>
                             <th class="text-right">Entregados</th>
+                            <th class="text-right">Transito</th>
                             <th class="text-right">Pendientes</th>
                             <th class="text-right">Parte nacional</th>
                             <th class="text-right">Cumplio de su parte</th>
@@ -636,6 +850,17 @@
                                 <td><strong>{{ $item->departamento }}</strong></td>
                                 <td class="text-right">{{ number_format((int) $item->total) }}</td>
                                 <td class="text-right text-success">{{ number_format((int) $item->entregados) }}</td>
+                                <td class="text-right">
+                                    <button
+                                        type="button"
+                                        class="btn btn-link btn-sm p-0 text-info font-weight-bold"
+                                        data-toggle="modal"
+                                        data-target="#departamentoTransitoModal{{ $item->puesto }}"
+                                        title="Ver paquetes en transito de {{ $item->departamento }}"
+                                    >
+                                        {{ number_format((int) ($item->transito ?? 0)) }}
+                                    </button>
+                                </td>
                                 <td class="text-right">
                                     <button
                                         type="button"
@@ -692,7 +917,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">No hay datos por departamento para los filtros seleccionados.</td>
+                                <td colspan="11" class="text-center text-muted py-4">No hay datos por departamento para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -703,7 +928,122 @@
 
     @foreach(($rankingDepartamentos ?? collect()) as $item)
         @php($totalesModulo = $item->entregados_por_modulo ?? [])
+        @php($totalesTransitoModulo = $item->transito_por_modulo ?? [])
         @php($totalesPendientesModulo = $item->pendientes_por_modulo ?? [])
+        <div class="modal fade" id="departamentoTransitoModal{{ $item->puesto }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title mb-0">
+                            {{ $item->departamento }} - paquetes en transito
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                                <div class="col-6 col-md-3 mb-3">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="text-muted small">{{ $moduloDetalle }}</div>
+                                        <div class="h4 mb-0 text-info">{{ number_format((int) ($totalesTransitoModulo[$moduloDetalle] ?? 0)) }}</div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="alert alert-light border">
+                            <strong>Total en transito:</strong> {{ number_format((int) ($item->transito ?? 0)) }}
+                            <span class="mx-2">|</span>
+                            <strong>Criterio:</strong> se toma el origen del envio
+                            <span class="mx-2">|</span>
+                            <strong>Rango:</strong> {{ $rangoLabel }}
+                            <span class="mx-2">|</span>
+                            <strong>Filtrados:</strong>
+                            <span data-transit-filter-count>{{ number_format((int) ($item->transito ?? 0)) }}</span>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3" data-transit-filter-panel>
+                            <div class="form-row align-items-end">
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <label class="small text-muted mb-1">Desde</label>
+                                    <input type="date" class="form-control form-control-sm" data-transit-filter-from>
+                                </div>
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <label class="small text-muted mb-1">Hasta</label>
+                                    <input type="date" class="form-control form-control-sm" data-transit-filter-to>
+                                </div>
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <label class="small text-muted mb-1">Servicio o categoria</label>
+                                    <select class="form-control form-control-sm" data-transit-filter-module>
+                                        <option value="">Todos</option>
+                                        @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                                            <option value="{{ $moduloDetalle }}">{{ $moduloDetalle }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <button type="button" class="btn btn-sm btn-primary mr-1" data-transit-filter-search>
+                                        <i class="fas fa-search mr-1"></i> Buscar
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-transit-filter-clear>
+                                        <i class="fas fa-eraser mr-1"></i> Limpiar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive" style="max-height: 430px; overflow:auto;">
+                            <table class="table table-sm table-striped table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Modulo</th>
+                                        <th>Codigo</th>
+                                        <th>Estado</th>
+                                        <th>Origen</th>
+                                        <th>Destino</th>
+                                        <th>Destinatario</th>
+                                        <th>Creado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse(($item->transito_detalle ?? []) as $detalle)
+                                        @php($detalleCreadoAt = !empty($detalle['creado_at'] ?? '') ? \Illuminate\Support\Carbon::parse($detalle['creado_at']) : null)
+                                        <tr
+                                            data-transit-row
+                                            data-transit-module="{{ $detalle['modulo'] ?? '' }}"
+                                            data-transit-date="{{ $detalleCreadoAt ? $detalleCreadoAt->format('Y-m-d') : '' }}"
+                                        >
+                                            <td>{{ $detalle['modulo'] ?? '-' }}</td>
+                                            <td><span class="badge badge-light">{{ $detalle['codigo'] ?? '-' }}</span></td>
+                                            <td>{{ $detalle['estado'] ?? '-' }}</td>
+                                            <td>{{ $detalle['origen'] ?? '-' }}</td>
+                                            <td>{{ $detalle['destino'] ?? '-' }}</td>
+                                            <td>{{ $detalle['destinatario'] ?? '-' }}</td>
+                                            <td>
+                                                {{ $detalleCreadoAt ? $detalleCreadoAt->format('d/m/Y H:i') : '-' }}
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted py-4">No hay paquetes en transito para este departamento.</td>
+                                        </tr>
+                                    @endforelse
+                                    <tr class="d-none" data-transit-empty-filter>
+                                        <td colspan="7" class="text-center text-muted py-4">No hay paquetes en transito con los filtros seleccionados.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" id="departamentoPendientesModal{{ $item->puesto }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl">
                 <div class="modal-content">
@@ -729,6 +1069,8 @@
 
                         <div class="alert alert-light border">
                             <strong>Total pendiente:</strong> {{ number_format((int) $item->pendientes) }}
+                            <span class="mx-2">|</span>
+                            <strong>En transito:</strong> no incluidos
                             <span class="mx-2">|</span>
                             <strong>Cancelados:</strong> no incluidos
                             <span class="mx-2">|</span>
@@ -774,6 +1116,7 @@
                                     <tr>
                                         <th>Modulo</th>
                                         <th>Codigo</th>
+                                        <th>Estado</th>
                                         <th>Origen</th>
                                         <th>Destino</th>
                                         <th>Destinatario</th>
@@ -790,6 +1133,7 @@
                                         >
                                             <td>{{ $detalle['modulo'] ?? '-' }}</td>
                                             <td><span class="badge badge-light">{{ $detalle['codigo'] ?? '-' }}</span></td>
+                                            <td>{{ $detalle['estado'] ?? '-' }}</td>
                                             <td>{{ $detalle['origen'] ?? '-' }}</td>
                                             <td>{{ $detalle['destino'] ?? '-' }}</td>
                                             <td>{{ $detalle['destinatario'] ?? '-' }}</td>
@@ -799,11 +1143,11 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted py-4">No hay paquetes pendientes para este departamento.</td>
+                                            <td colspan="7" class="text-center text-muted py-4">No hay paquetes pendientes para este departamento.</td>
                                         </tr>
                                     @endforelse
                                     <tr class="d-none" data-pending-empty-filter>
-                                        <td colspan="6" class="text-center text-muted py-4">No hay paquetes pendientes con los filtros seleccionados.</td>
+                                        <td colspan="7" class="text-center text-muted py-4">No hay paquetes pendientes con los filtros seleccionados.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1614,6 +1958,77 @@
             });
         };
 
+        const initTransitModalFilters = () => {
+            document.querySelectorAll('[id^="departamentoTransitoModal"]').forEach((modal) => {
+                const fromInput = modal.querySelector('[data-transit-filter-from]');
+                const toInput = modal.querySelector('[data-transit-filter-to]');
+                const moduleSelect = modal.querySelector('[data-transit-filter-module]');
+                const searchButton = modal.querySelector('[data-transit-filter-search]');
+                const clearButton = modal.querySelector('[data-transit-filter-clear]');
+                const countLabel = modal.querySelector('[data-transit-filter-count]');
+                const emptyFilterRow = modal.querySelector('[data-transit-empty-filter]');
+                const rows = Array.from(modal.querySelectorAll('[data-transit-row]'));
+
+                if (!rows.length) {
+                    return;
+                }
+
+                const formatCount = (value) => Number(value).toLocaleString('es-BO');
+
+                const applyFilters = () => {
+                    const from = fromInput?.value || '';
+                    const to = toInput?.value || '';
+                    const module = moduleSelect?.value || '';
+                    let visibleCount = 0;
+
+                    rows.forEach((row) => {
+                        const rowDate = row.getAttribute('data-transit-date') || '';
+                        const rowModule = row.getAttribute('data-transit-module') || '';
+                        const matchesFrom = !from || (rowDate && rowDate >= from);
+                        const matchesTo = !to || (rowDate && rowDate <= to);
+                        const matchesModule = !module || rowModule === module;
+                        const isVisible = matchesFrom && matchesTo && matchesModule;
+
+                        row.classList.toggle('d-none', !isVisible);
+                        if (isVisible) {
+                            visibleCount += 1;
+                        }
+                    });
+
+                    if (countLabel) {
+                        countLabel.textContent = formatCount(visibleCount);
+                    }
+                    if (emptyFilterRow) {
+                        emptyFilterRow.classList.toggle('d-none', visibleCount > 0);
+                    }
+                };
+
+                const clearFilters = () => {
+                    if (fromInput) {
+                        fromInput.value = '';
+                    }
+                    if (toInput) {
+                        toInput.value = '';
+                    }
+                    if (moduleSelect) {
+                        moduleSelect.value = '';
+                    }
+                    applyFilters();
+                };
+
+                searchButton?.addEventListener('click', applyFilters);
+                clearButton?.addEventListener('click', clearFilters);
+                [fromInput, toInput, moduleSelect].forEach((control) => {
+                    control?.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            applyFilters();
+                        }
+                    });
+                });
+            });
+        };
+
         let isFocusMode = localStorage.getItem(DASHBOARD_FOCUS_KEY) === '1';
         let isCompactMode = localStorage.getItem(DASHBOARD_COMPACT_KEY) === '1';
 
@@ -1744,6 +2159,7 @@
         applyVisualModes();
         runCounterAnimation();
         initPendingModalFilters();
+        initTransitModalFilters();
         updateFullscreenButtons();
 
         function renderChartModulos(type) {

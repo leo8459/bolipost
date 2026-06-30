@@ -87,6 +87,21 @@
         gap: 12px;
         flex-wrap: wrap;
     }
+
+    .bitacora-form-helper {
+        display: block;
+        margin-top: 0.45rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .bitacora-form-helper.is-info {
+        color: #20539A;
+    }
+
+    .bitacora-form-helper.is-warning {
+        color: #b45309;
+    }
 </style>
 
 <div class="bitacora-form-shell">
@@ -114,6 +129,7 @@
                         @error('cod_especial')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                        <small id="cn33-summary-help" class="bitacora-form-helper"></small>
                     </div>
                 </div>
             </div>
@@ -204,6 +220,7 @@
                         @error('peso')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                        <small class="bitacora-form-helper is-info">Si pegas el numero de despacho del CN-33, el peso se cargara automaticamente. Luego puedes cambiarlo manualmente.</small>
                     </div>
                 </div>
             </div>
@@ -260,3 +277,79 @@
         </div>
     </div>
 </div>
+
+@if (!$editOnlyPhoto)
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const codeInput = document.getElementById('cod_especial');
+            const weightInput = document.getElementById('peso');
+            const helpBox = document.getElementById('cn33-summary-help');
+            const endpoint = @json(route('bitacoras.cn33-summary'));
+            let debounceTimer = null;
+            let lastFetchedCode = '';
+
+            if (!codeInput || !weightInput || !helpBox) {
+                return;
+            }
+
+            const setHelp = (message, type = '') => {
+                helpBox.textContent = message;
+                helpBox.className = 'bitacora-form-helper';
+                if (type !== '') {
+                    helpBox.classList.add(type);
+                }
+            };
+
+            const loadSummary = async () => {
+                const rawCode = (codeInput.value || '').trim().toUpperCase();
+                if (rawCode === '' || rawCode === lastFetchedCode) {
+                    return;
+                }
+
+                lastFetchedCode = rawCode;
+                setHelp('Consultando peso del CN-33...', 'is-info');
+
+                try {
+                    const response = await fetch(`${endpoint}?cod_especial=${encodeURIComponent(rawCode)}`, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('No se pudo consultar el CN-33.');
+                    }
+
+                    const data = await response.json();
+                    if (!data || !data.exists) {
+                        setHelp('No se encontro ese CN-33. Verifica el numero de despacho.', 'is-warning');
+                        return;
+                    }
+
+                    weightInput.value = data.peso ?? '';
+                    setHelp(`Peso cargado automaticamente: ${data.peso ?? '0.000'} kg. Puedes cambiarlo manualmente si lo necesitas.`, 'is-info');
+                } catch (error) {
+                    setHelp('No se pudo consultar el peso automatico del CN-33 en este momento.', 'is-warning');
+                }
+            };
+
+            const scheduleSummaryLoad = () => {
+                lastFetchedCode = '';
+                clearTimeout(debounceTimer);
+                debounceTimer = window.setTimeout(loadSummary, 350);
+            };
+
+            codeInput.addEventListener('input', scheduleSummaryLoad);
+            codeInput.addEventListener('change', scheduleSummaryLoad);
+            codeInput.addEventListener('blur', loadSummary);
+            codeInput.addEventListener('paste', function () {
+                window.setTimeout(scheduleSummaryLoad, 50);
+            });
+
+            if ((codeInput.value || '').trim() !== '') {
+                loadSummary();
+            }
+        });
+    </script>
+@endif

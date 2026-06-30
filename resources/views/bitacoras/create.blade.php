@@ -79,6 +79,19 @@
                         </div>
                     @endif
 
+                    @if(((int) data_get($pendingCn33Alert ?? [], 'count', 0)) > 0)
+                        <div class="alert alert-danger">
+                            <strong>Registrar bitacora de envio nacional.</strong>
+                            Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 pendientes por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas.
+                            @if((string) data_get($pendingCn33Alert, 'regional', '') !== '')
+                                Solo se muestran registros de {{ data_get($pendingCn33Alert, 'regional') }}.
+                            @else
+                                Se muestran registros a nivel nacional.
+                            @endif
+                            Retraso maximo: {{ number_format((int) data_get($pendingCn33Alert, 'max_days_delay', 0)) }} dia(s).
+                        </div>
+                    @endif
+
                     <div class="card bitacora-create-card">
                         <div class="card-header">
                             <h3 class="card-title">Crear Bitacora</h3>

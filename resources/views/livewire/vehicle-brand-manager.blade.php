@@ -21,63 +21,6 @@
             background-position: right .75rem center;
             background-size: 14px;
         }
-
-        .brand-action-group {
-            display: inline-flex;
-            align-items: center;
-            gap: .55rem;
-        }
-
-        .brand-action-btn {
-            width: 40px;
-            height: 40px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 14px;
-            border: 1.5px solid transparent;
-            background: #fff;
-            transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
-        }
-
-        .brand-action-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 18px rgba(15, 23, 42, .10);
-        }
-
-        .brand-action-btn i {
-            font-size: 1rem;
-        }
-
-        .brand-action-btn-edit {
-            border-color: #f1c84b;
-            color: #a87600;
-        }
-
-        .brand-action-btn-edit:hover {
-            background: #fff8dd;
-            color: #8f6500;
-        }
-
-        .brand-action-btn-delete {
-            border-color: #efb1b9;
-            color: #cf2f4e;
-        }
-
-        .brand-action-btn-delete:hover {
-            background: #fff1f3;
-            color: #b91c3c;
-        }
-
-        .brand-action-btn-reactivate {
-            border-color: #97d6b4;
-            color: #177245;
-        }
-
-        .brand-action-btn-reactivate:hover {
-            background: #effcf4;
-            color: #145c38;
-        }
     </style>
 
     <div class="page-title mb-4 d-flex justify-content-between align-items-center">
@@ -171,18 +114,12 @@
                                             </span>
                                         </td>
                                         <td class="text-center">
-                                            <div class="brand-action-group">
-                                                <button wire:click="edit({{ $brand->id }})" class="brand-action-btn brand-action-btn-edit" title="Editar">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
+                                            <div class="btn-group">
+                                                <button wire:click="edit({{ $brand->id }})" class="btn btn-sm btn-outline-warning"><i class="fas fa-edit"></i></button>
                                                 @if($brand->activo)
-                                                    <button type="button" wire:click="delete({{ $brand->id }})" wire:confirm="Confirmar eliminacion?" class="brand-action-btn brand-action-btn-delete" title="Eliminar">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
+                                                    <button type="button" wire:click="delete({{ $brand->id }})" wire:confirm="Confirmar eliminacion?" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
                                                 @else
-                                                    <button type="button" wire:click="reactivate({{ $brand->id }})" wire:confirm="Confirmar reactivacion?" class="brand-action-btn brand-action-btn-reactivate" title="Reactivar">
-                                                        <i class="fas fa-power-off"></i>
-                                                    </button>
+                                                    <button type="button" wire:click="reactivate({{ $brand->id }})" wire:confirm="Confirmar reactivacion?" class="btn btn-sm btn-outline-success"><i class="fas fa-power-off"></i></button>
                                                 @endif
                                             </div>
                                         </td>

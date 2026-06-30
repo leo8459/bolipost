@@ -35,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('cliente-panel', function (): bool {
             return auth('cliente')->check();
         });
+        Gate::define('admin-only-menu', fn ($user = null): bool => $this->userIsSuperAdmin($user));
 
         Gate::define('viewPulse', fn ($user = null): bool => $this->userCanInternalWindow($user, 'pulse'));
         Gate::define('viewLogViewer', fn ($user = null): bool => $this->userCanInternalWindow($user, 'log-viewer.index'));
@@ -110,12 +111,23 @@ class AppServiceProvider extends ServiceProvider
             return false;
         }
 
-        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
-
-        if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
+        if ($this->userIsSuperAdmin($user)) {
             return true;
         }
 
         return method_exists($user, 'can') && $user->can($permission);
+    }
+
+    private function userIsSuperAdmin(mixed $user): bool
+    {
+        if (! $user || ! auth('web')->check()) {
+            return false;
+        }
+
+        $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
+
+        return $superAdminRole !== ''
+            && method_exists($user, 'hasRole')
+            && $user->hasRole($superAdminRole);
     }
 }

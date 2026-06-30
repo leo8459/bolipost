@@ -354,6 +354,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::delete('/tarifario-tiktoker/{tarifarioTiktoker}', [TarifarioTiktokerController::class, 'destroy'])->name('tarifario-tiktoker.destroy');
     Route::get('/bitacoras', [BitacoraController::class, 'index'])->name('bitacoras.index');
     Route::get('/bitacoras/create', [BitacoraController::class, 'create'])->name('bitacoras.create');
+    Route::get('/bitacoras/cn33-summary', [BitacoraController::class, 'cn33Summary'])->name('bitacoras.cn33-summary');
     Route::post('/bitacoras', [BitacoraController::class, 'store'])->name('bitacoras.store');
     Route::get('/bitacoras/{bitacora}/edit', [BitacoraController::class, 'edit'])->name('bitacoras.edit');
     Route::put('/bitacoras/{bitacora}', [BitacoraController::class, 'update'])->name('bitacoras.update');
@@ -392,6 +393,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-contrato/recoger-envios', [RecojoController::class, 'recogerEnvios'])->name('paquetes-contrato.recoger-envios');
     Route::get('/paquetes-contrato/almacen', [RecojoController::class, 'almacen'])->name('paquetes-contrato.almacen');
     Route::get('/paquetes-contrato/entregados', [RecojoController::class, 'entregados'])->name('paquetes-contrato.entregados');
+    Route::get('/paquetes-contrato/entregados/pdf', [RecojoController::class, 'entregadosPdf'])->name('paquetes-contrato.entregados.pdf');
     Route::get('/paquetes-contrato/cartero', [RecojoController::class, 'cartero'])->name('paquetes-contrato.cartero');
     Route::get('/paquetes-contrato/gestor', [RecojoController::class, 'gestor'])->name('paquetes-contrato.gestor');
     Route::get('/dir-operaciones/reimprimir-cn33', [RecojoController::class, 'reimprimirCn33'])->name('dashboard.reimprimir-cn33');
@@ -438,6 +440,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/api/carteros/domicilio', [CarterosController::class, 'domicilioData'])->name('api.carteros.domicilio');
     Route::get('/api/carteros/users', [CarterosController::class, 'users'])->name('api.carteros.users');
     Route::post('/api/carteros/asignar', [CarterosController::class, 'assign'])->name('api.carteros.asignar');
+    Route::post('/api/carteros/cambiar-cartero', [CarterosController::class, 'changeAssignedCartero'])->name('api.carteros.cambiar-cartero');
     Route::post('/api/carteros/desasignar', [CarterosController::class, 'unassignFromCartero'])->name('api.carteros.desasignar');
     Route::post('/api/carteros/registrar-guia', [CarterosController::class, 'registerGuide'])->name('api.carteros.registrar-guia');
     Route::post('/api/carteros/devolver-almacen', [CarterosController::class, 'returnToAlmacen'])->name('api.carteros.devolver-almacen');
