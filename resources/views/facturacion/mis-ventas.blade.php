@@ -96,14 +96,34 @@
         </div>
         <div class="ventas-caja-card__right">
             @if($isCajaAbierta)
-                <form method="POST" action="{{ route('facturacion.cart.caja.cerrar') }}" onsubmit="return confirm('Se cerrara la caja diaria. Deseas continuar?');">
+                <form
+                    method="POST"
+                    action="{{ route('facturacion.cart.caja.cerrar') }}"
+                    class="ventas-caja-confirm-form"
+                    data-confirm-title="Cerrar caja"
+                    data-confirm-message="Se cerrara la caja diaria de esta sesion."
+                    data-confirm-detail="Asegurate de haber terminado tus operaciones antes de continuar."
+                    data-confirm-cta="Si, cerrar caja"
+                    data-processing-title="Cerrando caja"
+                    data-processing-text="Estamos cerrando la caja diaria, espera un momento..."
+                >
                     @csrf
                     <button type="submit" class="btn btn-outline-danger">
                         <i class="fas fa-door-closed mr-1"></i> Cerrar caja
                     </button>
                 </form>
             @else
-                <form method="POST" action="{{ route('facturacion.cart.caja.abrir') }}" onsubmit="return confirm('Se abrira una nueva caja diaria. Deseas continuar?');">
+                <form
+                    method="POST"
+                    action="{{ route('facturacion.cart.caja.abrir') }}"
+                    class="ventas-caja-confirm-form"
+                    data-confirm-title="Abrir caja"
+                    data-confirm-message="Se abrira una nueva caja diaria para esta sesion."
+                    data-confirm-detail="Despues de abrirla ya podras emitir y consultar facturas."
+                    data-confirm-cta="Si, abrir caja"
+                    data-processing-title="Abriendo caja"
+                    data-processing-text="Estamos preparando la caja diaria, espera un momento..."
+                >
                     @csrf
                     <button type="submit" class="btn btn-outline-primary">
                         <i class="fas fa-lock-open mr-1"></i> Abrir caja
@@ -526,6 +546,28 @@
         @endif
     @endforeach
     </div>
+
+    <div class="ventas-confirm-modal" id="ventasCajaConfirmModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ventasCajaConfirmTitle">
+        <div class="ventas-confirm-modal__backdrop" data-close-ventas-caja-confirm="true"></div>
+        <div class="ventas-confirm-modal__panel" role="document">
+            <div class="ventas-confirm-modal__eyebrow">Caja diaria</div>
+            <h4 id="ventasCajaConfirmTitle" class="ventas-confirm-modal__title">Confirmar accion</h4>
+            <p class="ventas-confirm-modal__message" id="ventasCajaConfirmMessage">Esta accion actualizara el estado de la caja diaria.</p>
+            <div class="ventas-confirm-modal__detail" id="ventasCajaConfirmDetail" hidden></div>
+            <div class="ventas-confirm-modal__actions">
+                <button type="button" class="btn btn-light" id="ventasCajaConfirmCancel">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="ventasCajaConfirmAccept">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="ventas-processing-overlay" id="ventasCajaProcessingOverlay" aria-hidden="true" hidden>
+        <div class="ventas-processing-overlay__card" role="status" aria-live="polite">
+            <div class="ventas-processing-overlay__spinner" aria-hidden="true"></div>
+            <strong id="ventasCajaProcessingTitle">Procesando caja</strong>
+            <span id="ventasCajaProcessingText">Espera un momento...</span>
+        </div>
+    </div>
 @stop
 
 @section('css')
@@ -574,6 +616,11 @@
             background: #fff;
             box-shadow: 0 8px 20px rgba(16, 43, 84, 0.05);
             margin-bottom: 1rem;
+        }
+
+        .ventas-caja-confirm-form.is-submitting button {
+            pointer-events: none;
+            opacity: .72;
         }
 
         .ventas-caja-card__label {
@@ -953,6 +1000,121 @@
             margin-bottom: 0;
         }
 
+        .ventas-confirm-modal,
+        .ventas-processing-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2055;
+        }
+
+        .ventas-confirm-modal[aria-hidden="true"],
+        .ventas-processing-overlay[aria-hidden="true"] {
+            pointer-events: none;
+        }
+
+        .ventas-confirm-modal__backdrop,
+        .ventas-processing-overlay {
+            background: rgba(15, 28, 52, 0.46);
+            backdrop-filter: blur(6px);
+        }
+
+        .ventas-confirm-modal {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+        }
+
+        .ventas-confirm-modal__panel {
+            width: min(100%, 460px);
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 24px 70px rgba(15, 28, 52, 0.24);
+            padding: 1.4rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .ventas-confirm-modal__eyebrow {
+            font-size: .76rem;
+            font-weight: 800;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: #6a7f9e;
+            margin-bottom: .55rem;
+        }
+
+        .ventas-confirm-modal__title {
+            margin: 0 0 .55rem;
+            color: #173b73;
+            font-weight: 800;
+        }
+
+        .ventas-confirm-modal__message {
+            margin: 0;
+            color: #4c6285;
+        }
+
+        .ventas-confirm-modal__detail {
+            margin-top: .85rem;
+            padding: .9rem 1rem;
+            border-radius: 14px;
+            background: #f7f9fc;
+            color: #667c9e;
+            font-size: .9rem;
+        }
+
+        .ventas-confirm-modal__actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: .75rem;
+            margin-top: 1.2rem;
+        }
+
+        .ventas-processing-overlay {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+        }
+
+        .ventas-processing-overlay__card {
+            width: min(100%, 360px);
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 24px;
+            box-shadow: 0 24px 70px rgba(15, 28, 52, 0.24);
+            padding: 1.5rem 1.3rem;
+            text-align: center;
+            display: grid;
+            gap: .55rem;
+            justify-items: center;
+        }
+
+        .ventas-processing-overlay__spinner {
+            width: 54px;
+            height: 54px;
+            border-radius: 999px;
+            border: 4px solid rgba(32, 83, 154, 0.14);
+            border-top-color: #20539a;
+            border-right-color: #fecc36;
+            animation: ventasCajaSpin .9s linear infinite;
+        }
+
+        .ventas-processing-overlay__card strong {
+            color: #173b73;
+            font-size: 1.15rem;
+        }
+
+        .ventas-processing-overlay__card span {
+            color: #5d7396;
+        }
+
+        @keyframes ventasCajaSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         @media (max-width: 1399.98px) {
             .ventas-summary-grid {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -978,6 +1140,10 @@
                 align-items: stretch;
             }
 
+            .ventas-confirm-modal__actions {
+                flex-direction: column-reverse;
+            }
+
             .ventas-table-footer {
                 flex-direction: column;
                 align-items: stretch;
@@ -991,6 +1157,18 @@
         document.addEventListener('DOMContentLoaded', function () {
             const form = document.getElementById('ventasFiltersForm');
             const pendingConsultForms = Array.from(document.querySelectorAll('form[data-pending-consult="true"]'));
+            const cajaForms = Array.from(document.querySelectorAll('.ventas-caja-confirm-form'));
+            const cajaConfirmModal = document.getElementById('ventasCajaConfirmModal');
+            const cajaConfirmTitle = document.getElementById('ventasCajaConfirmTitle');
+            const cajaConfirmMessage = document.getElementById('ventasCajaConfirmMessage');
+            const cajaConfirmDetail = document.getElementById('ventasCajaConfirmDetail');
+            const cajaConfirmCancel = document.getElementById('ventasCajaConfirmCancel');
+            const cajaConfirmAccept = document.getElementById('ventasCajaConfirmAccept');
+            const cajaProcessingOverlay = document.getElementById('ventasCajaProcessingOverlay');
+            const cajaProcessingTitle = document.getElementById('ventasCajaProcessingTitle');
+            const cajaProcessingText = document.getElementById('ventasCajaProcessingText');
+            let pendingCajaForm = null;
+            let isCajaSubmitting = false;
 
             if (!form) {
                 return;
@@ -1025,6 +1203,126 @@
                         submitFilters();
                     }
                 });
+            });
+
+            const openCajaConfirm = (targetForm) => {
+                if (!(targetForm instanceof HTMLFormElement) || !cajaConfirmModal) {
+                    targetForm?.submit();
+                    return;
+                }
+
+                pendingCajaForm = targetForm;
+                if (cajaConfirmTitle) {
+                    cajaConfirmTitle.textContent = targetForm.dataset.confirmTitle || 'Confirmar accion';
+                }
+                if (cajaConfirmMessage) {
+                    cajaConfirmMessage.textContent = targetForm.dataset.confirmMessage || 'Esta accion actualizara la caja diaria.';
+                }
+                if (cajaConfirmDetail) {
+                    const detail = String(targetForm.dataset.confirmDetail || '').trim();
+                    cajaConfirmDetail.textContent = detail;
+                    cajaConfirmDetail.hidden = detail === '';
+                }
+                if (cajaConfirmAccept) {
+                    cajaConfirmAccept.textContent = targetForm.dataset.confirmCta || 'Confirmar';
+                }
+
+                cajaConfirmModal.setAttribute('aria-hidden', 'false');
+                window.setTimeout(() => cajaConfirmAccept?.focus(), 30);
+            };
+
+            const closeCajaConfirm = () => {
+                pendingCajaForm = null;
+                if (!cajaConfirmModal) {
+                    return;
+                }
+                cajaConfirmModal.setAttribute('aria-hidden', 'true');
+            };
+
+            const setCajaProcessing = (active, targetForm = null) => {
+                isCajaSubmitting = active;
+
+                cajaForms.forEach((candidate) => {
+                    const button = candidate.querySelector('button[type="submit"]');
+                    candidate.classList.toggle('is-submitting', active && candidate === targetForm);
+                    if (button instanceof HTMLButtonElement) {
+                        button.dataset.originalText = button.dataset.originalText || button.textContent.trim();
+                        button.disabled = active;
+                        button.textContent = active && candidate === targetForm
+                            ? 'Procesando...'
+                            : (button.dataset.originalText || button.textContent);
+                    }
+                });
+
+                if (cajaConfirmAccept instanceof HTMLButtonElement) {
+                    cajaConfirmAccept.disabled = active;
+                }
+                if (cajaConfirmCancel instanceof HTMLButtonElement) {
+                    cajaConfirmCancel.disabled = active;
+                }
+
+                if (cajaProcessingOverlay) {
+                    cajaProcessingOverlay.hidden = !active;
+                    cajaProcessingOverlay.setAttribute('aria-hidden', active ? 'false' : 'true');
+                }
+
+                if (active && targetForm instanceof HTMLFormElement) {
+                    if (cajaProcessingTitle) {
+                        cajaProcessingTitle.textContent = targetForm.dataset.processingTitle || 'Procesando caja';
+                    }
+                    if (cajaProcessingText) {
+                        cajaProcessingText.textContent = targetForm.dataset.processingText || 'Espera un momento...';
+                    }
+                } else {
+                    if (cajaProcessingTitle) {
+                        cajaProcessingTitle.textContent = 'Procesando caja';
+                    }
+                    if (cajaProcessingText) {
+                        cajaProcessingText.textContent = 'Espera un momento...';
+                    }
+                }
+            };
+
+            cajaForms.forEach((targetForm) => {
+                targetForm.addEventListener('submit', (event) => {
+                    if (isCajaSubmitting) {
+                        event.preventDefault();
+                        return;
+                    }
+
+                    event.preventDefault();
+                    openCajaConfirm(targetForm);
+                });
+            });
+
+            cajaConfirmCancel?.addEventListener('click', closeCajaConfirm);
+            cajaConfirmAccept?.addEventListener('click', () => {
+                if (!(pendingCajaForm instanceof HTMLFormElement)) {
+                    closeCajaConfirm();
+                    return;
+                }
+
+                const targetForm = pendingCajaForm;
+                closeCajaConfirm();
+                setCajaProcessing(true, targetForm);
+                targetForm.submit();
+            });
+
+            cajaConfirmModal?.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target instanceof HTMLElement && target.dataset.closeVentasCajaConfirm === 'true' && !isCajaSubmitting) {
+                    closeCajaConfirm();
+                }
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && cajaConfirmModal?.getAttribute('aria-hidden') === 'false' && !isCajaSubmitting) {
+                    closeCajaConfirm();
+                }
+            });
+
+            window.addEventListener('pageshow', () => {
+                setCajaProcessing(false);
             });
 
         });
