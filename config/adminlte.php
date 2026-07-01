@@ -374,26 +374,7 @@ return [
                     'url' => '/dir-comercial/rendimiento-servicios',
                     'icon' => 'fas fa-chart-pie',
                 ],
-                [
-                    'text' => 'Clientes Estratégicos',
-                    'url' => '/dir-comercial/clientes',
-                    'icon' => 'fas fa-handshake',
-                ],
-                [
-                    'text' => 'Contratos Comerciales',
-                    'url' => '/dir-comercial/contratos',
-                    'icon' => 'fas fa-file-signature',
-                ],
-                [
-                    'text' => 'Campañas y Promociones',
-                    'url' => '/dir-comercial/campanas',
-                    'icon' => 'fas fa-bullseye',
-                ],
-                [
-                    'text' => 'Indicadores Comerciales',
-                    'url' => '/dir-comercial/indicadores',
-                    'icon' => 'fas fa-chart-bar',
-                ],
+                
             ],
         ],
         [
