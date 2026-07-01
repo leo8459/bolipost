@@ -834,6 +834,7 @@
                             <th>Departamento</th>
                             <th class="text-right">Registrados</th>
                             <th class="text-right">Entregados</th>
+                            <th class="text-right">Transito</th>
                             <th class="text-right">Pendientes</th>
                             <th class="text-right">Parte nacional</th>
                             <th class="text-right">Cumplio de su parte</th>
@@ -849,6 +850,17 @@
                                 <td><strong>{{ $item->departamento }}</strong></td>
                                 <td class="text-right">{{ number_format((int) $item->total) }}</td>
                                 <td class="text-right text-success">{{ number_format((int) $item->entregados) }}</td>
+                                <td class="text-right">
+                                    <button
+                                        type="button"
+                                        class="btn btn-link btn-sm p-0 text-info font-weight-bold"
+                                        data-toggle="modal"
+                                        data-target="#departamentoTransitoModal{{ $item->puesto }}"
+                                        title="Ver paquetes en transito de {{ $item->departamento }}"
+                                    >
+                                        {{ number_format((int) ($item->transito ?? 0)) }}
+                                    </button>
+                                </td>
                                 <td class="text-right">
                                     <button
                                         type="button"
@@ -905,7 +917,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">No hay datos por departamento para los filtros seleccionados.</td>
+                                <td colspan="11" class="text-center text-muted py-4">No hay datos por departamento para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -916,7 +928,122 @@
 
     @foreach(($rankingDepartamentos ?? collect()) as $item)
         @php($totalesModulo = $item->entregados_por_modulo ?? [])
+        @php($totalesTransitoModulo = $item->transito_por_modulo ?? [])
         @php($totalesPendientesModulo = $item->pendientes_por_modulo ?? [])
+        <div class="modal fade" id="departamentoTransitoModal{{ $item->puesto }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title mb-0">
+                            {{ $item->departamento }} - paquetes en transito
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                                <div class="col-6 col-md-3 mb-3">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="text-muted small">{{ $moduloDetalle }}</div>
+                                        <div class="h4 mb-0 text-info">{{ number_format((int) ($totalesTransitoModulo[$moduloDetalle] ?? 0)) }}</div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="alert alert-light border">
+                            <strong>Total en transito:</strong> {{ number_format((int) ($item->transito ?? 0)) }}
+                            <span class="mx-2">|</span>
+                            <strong>Criterio:</strong> se toma el origen del envio
+                            <span class="mx-2">|</span>
+                            <strong>Rango:</strong> {{ $rangoLabel }}
+                            <span class="mx-2">|</span>
+                            <strong>Filtrados:</strong>
+                            <span data-transit-filter-count>{{ number_format((int) ($item->transito ?? 0)) }}</span>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3" data-transit-filter-panel>
+                            <div class="form-row align-items-end">
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <label class="small text-muted mb-1">Desde</label>
+                                    <input type="date" class="form-control form-control-sm" data-transit-filter-from>
+                                </div>
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <label class="small text-muted mb-1">Hasta</label>
+                                    <input type="date" class="form-control form-control-sm" data-transit-filter-to>
+                                </div>
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <label class="small text-muted mb-1">Servicio o categoria</label>
+                                    <select class="form-control form-control-sm" data-transit-filter-module>
+                                        <option value="">Todos</option>
+                                        @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                                            <option value="{{ $moduloDetalle }}">{{ $moduloDetalle }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="form-group col-12 col-md-3 mb-2">
+                                    <button type="button" class="btn btn-sm btn-primary mr-1" data-transit-filter-search>
+                                        <i class="fas fa-search mr-1"></i> Buscar
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-transit-filter-clear>
+                                        <i class="fas fa-eraser mr-1"></i> Limpiar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive" style="max-height: 430px; overflow:auto;">
+                            <table class="table table-sm table-striped table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Modulo</th>
+                                        <th>Codigo</th>
+                                        <th>Estado</th>
+                                        <th>Origen</th>
+                                        <th>Destino</th>
+                                        <th>Destinatario</th>
+                                        <th>Creado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse(($item->transito_detalle ?? []) as $detalle)
+                                        @php($detalleCreadoAt = !empty($detalle['creado_at'] ?? '') ? \Illuminate\Support\Carbon::parse($detalle['creado_at']) : null)
+                                        <tr
+                                            data-transit-row
+                                            data-transit-module="{{ $detalle['modulo'] ?? '' }}"
+                                            data-transit-date="{{ $detalleCreadoAt ? $detalleCreadoAt->format('Y-m-d') : '' }}"
+                                        >
+                                            <td>{{ $detalle['modulo'] ?? '-' }}</td>
+                                            <td><span class="badge badge-light">{{ $detalle['codigo'] ?? '-' }}</span></td>
+                                            <td>{{ $detalle['estado'] ?? '-' }}</td>
+                                            <td>{{ $detalle['origen'] ?? '-' }}</td>
+                                            <td>{{ $detalle['destino'] ?? '-' }}</td>
+                                            <td>{{ $detalle['destinatario'] ?? '-' }}</td>
+                                            <td>
+                                                {{ $detalleCreadoAt ? $detalleCreadoAt->format('d/m/Y H:i') : '-' }}
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted py-4">No hay paquetes en transito para este departamento.</td>
+                                        </tr>
+                                    @endforelse
+                                    <tr class="d-none" data-transit-empty-filter>
+                                        <td colspan="7" class="text-center text-muted py-4">No hay paquetes en transito con los filtros seleccionados.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" id="departamentoPendientesModal{{ $item->puesto }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl">
                 <div class="modal-content">
@@ -942,6 +1069,8 @@
 
                         <div class="alert alert-light border">
                             <strong>Total pendiente:</strong> {{ number_format((int) $item->pendientes) }}
+                            <span class="mx-2">|</span>
+                            <strong>En transito:</strong> no incluidos
                             <span class="mx-2">|</span>
                             <strong>Cancelados:</strong> no incluidos
                             <span class="mx-2">|</span>
@@ -1829,6 +1958,77 @@
             });
         };
 
+        const initTransitModalFilters = () => {
+            document.querySelectorAll('[id^="departamentoTransitoModal"]').forEach((modal) => {
+                const fromInput = modal.querySelector('[data-transit-filter-from]');
+                const toInput = modal.querySelector('[data-transit-filter-to]');
+                const moduleSelect = modal.querySelector('[data-transit-filter-module]');
+                const searchButton = modal.querySelector('[data-transit-filter-search]');
+                const clearButton = modal.querySelector('[data-transit-filter-clear]');
+                const countLabel = modal.querySelector('[data-transit-filter-count]');
+                const emptyFilterRow = modal.querySelector('[data-transit-empty-filter]');
+                const rows = Array.from(modal.querySelectorAll('[data-transit-row]'));
+
+                if (!rows.length) {
+                    return;
+                }
+
+                const formatCount = (value) => Number(value).toLocaleString('es-BO');
+
+                const applyFilters = () => {
+                    const from = fromInput?.value || '';
+                    const to = toInput?.value || '';
+                    const module = moduleSelect?.value || '';
+                    let visibleCount = 0;
+
+                    rows.forEach((row) => {
+                        const rowDate = row.getAttribute('data-transit-date') || '';
+                        const rowModule = row.getAttribute('data-transit-module') || '';
+                        const matchesFrom = !from || (rowDate && rowDate >= from);
+                        const matchesTo = !to || (rowDate && rowDate <= to);
+                        const matchesModule = !module || rowModule === module;
+                        const isVisible = matchesFrom && matchesTo && matchesModule;
+
+                        row.classList.toggle('d-none', !isVisible);
+                        if (isVisible) {
+                            visibleCount += 1;
+                        }
+                    });
+
+                    if (countLabel) {
+                        countLabel.textContent = formatCount(visibleCount);
+                    }
+                    if (emptyFilterRow) {
+                        emptyFilterRow.classList.toggle('d-none', visibleCount > 0);
+                    }
+                };
+
+                const clearFilters = () => {
+                    if (fromInput) {
+                        fromInput.value = '';
+                    }
+                    if (toInput) {
+                        toInput.value = '';
+                    }
+                    if (moduleSelect) {
+                        moduleSelect.value = '';
+                    }
+                    applyFilters();
+                };
+
+                searchButton?.addEventListener('click', applyFilters);
+                clearButton?.addEventListener('click', clearFilters);
+                [fromInput, toInput, moduleSelect].forEach((control) => {
+                    control?.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            applyFilters();
+                        }
+                    });
+                });
+            });
+        };
+
         let isFocusMode = localStorage.getItem(DASHBOARD_FOCUS_KEY) === '1';
         let isCompactMode = localStorage.getItem(DASHBOARD_COMPACT_KEY) === '1';
 
@@ -1959,6 +2159,7 @@
         applyVisualModes();
         runCounterAnimation();
         initPendingModalFilters();
+        initTransitModalFilters();
         updateFullscreenButtons();
 
         function renderChartModulos(type) {

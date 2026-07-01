@@ -513,6 +513,9 @@
                             data-confirm-message="Se abrira una caja diaria."
                             data-confirm-cta="Si, abrir caja"
                             data-confirm-icon="fa-lock-open"
+                            data-processing-pill="Caja diaria"
+                            data-processing-title="Abriendo caja"
+                            data-processing-text="Estamos preparando la caja diaria, espera un momento..."
                         >
                             @csrf
                             <button type="submit" class="global-shortcut-secondary-btn global-shortcut-secondary-btn--open-caja">
@@ -522,15 +525,6 @@
                         </form>
                     </div>
                 @else
-                    <div class="global-shortcut-footer-action__row">
-                        <button
-                            type="button"
-                            class="global-shortcut-secondary-btn"
-                            id="facturacionPreviewProcessingBtn"
-                        >
-                            Probar animacion
-                        </button>
-                    </div>
                     @if ($ultimaFacturacionEmitida && !empty($ultimaFacturacionEmitida->codigo_seguimiento))
                         @if ($facturacionItems->isNotEmpty())
                             <form
@@ -541,6 +535,9 @@
                                 data-confirm-message="{{ $emitConfirmMessage }}"
                                 data-confirm-note="{{ $emitConfirmNote }}"
                                 data-confirm-cta="{{ $emitConfirmCta }}"
+                                data-processing-pill="Facturacion en curso"
+                                data-processing-title="Emitiendo factura"
+                                data-processing-text="Procesando emision, espera un momento..."
                             >
                                 @csrf
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
@@ -569,6 +566,9 @@
                                 data-confirm-message="{{ $emitConfirmMessage }}"
                                 data-confirm-note="{{ $emitConfirmNote }}"
                                 data-confirm-cta="{{ $emitConfirmCta }}"
+                                data-processing-pill="Facturacion en curso"
+                                data-processing-title="Emitiendo factura"
+                                data-processing-text="Procesando emision, espera un momento..."
                             >
                                 @csrf
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
@@ -654,10 +654,10 @@
                     </g>
                 </svg>
             </div>
-            <div class="global-shortcut-processing-overlay__pill">
+            <div class="global-shortcut-processing-overlay__pill" id="facturacionProcessingPill">
                 Facturacion en curso
             </div>
-            <strong>Emitiendo factura</strong>
+            <strong id="facturacionProcessingTitle">Emitiendo factura</strong>
             <span id="facturacionProcessingText">Procesando emision, espera un momento...</span>
             <small id="facturacionProcessingHint" hidden>Haz clic para cerrar esta vista previa.</small>
         </div>
@@ -2901,9 +2901,10 @@
             }
             const facturacionAutosaveState = document.getElementById('facturacionAutosaveState');
             const facturacionProcessingState = document.getElementById('facturacionProcessingState');
+            const facturacionProcessingPill = document.getElementById('facturacionProcessingPill');
+            const facturacionProcessingTitle = document.getElementById('facturacionProcessingTitle');
             const facturacionProcessingText = document.getElementById('facturacionProcessingText');
             const facturacionProcessingHint = document.getElementById('facturacionProcessingHint');
-            const facturacionPreviewProcessingBtn = document.getElementById('facturacionPreviewProcessingBtn');
             const facturacionFeedbackAlert = document.getElementById('facturacionFeedbackAlert');
             const facturacionQrViewer = document.getElementById('facturacionQrViewer');
             const facturacionQrViewerClose = document.getElementById('facturacionQrViewerClose');
@@ -2938,10 +2939,47 @@
             let facturacionShortcutLastFocus = null;
             let pendingConfirmForm = null;
             let isFacturacionSubmitting = false;
+            const FACTURACION_PROCESSING_DEFAULTS = {
+                pill: 'Facturacion en curso',
+                title: 'Emitiendo factura',
+                text: 'Procesando emision, espera un momento...',
+            };
+
+            const resolveProcessingCopy = (form = null) => {
+                if (!(form instanceof HTMLFormElement)) {
+                    return FACTURACION_PROCESSING_DEFAULTS;
+                }
+
+                const action = String(form.getAttribute('action') || '').toLowerCase();
+
+                if (action.includes('/facturacion/cart/caja/abrir')) {
+                    return {
+                        pill: 'Caja diaria',
+                        title: 'Abriendo caja',
+                        text: 'Estamos preparando la caja diaria, espera un momento...',
+                    };
+                }
+
+                if (action.includes('/facturacion/cart/caja/cerrar')) {
+                    return {
+                        pill: 'Caja diaria',
+                        title: 'Cerrando caja',
+                        text: 'Estamos cerrando la caja diaria, espera un momento...',
+                    };
+                }
+
+                return {
+                    pill: String(form.dataset.processingPill || FACTURACION_PROCESSING_DEFAULTS.pill),
+                    title: String(form.dataset.processingTitle || FACTURACION_PROCESSING_DEFAULTS.title),
+                    text: String(form.dataset.processingText || FACTURACION_PROCESSING_DEFAULTS.text),
+                };
+            };
 
             const setFacturacionProcessingOverlay = (active, options = {}) => {
                 const {
-                    text = 'Procesando emision, espera un momento...',
+                    pill = FACTURACION_PROCESSING_DEFAULTS.pill,
+                    title = FACTURACION_PROCESSING_DEFAULTS.title,
+                    text = FACTURACION_PROCESSING_DEFAULTS.text,
                     previewMode = false,
                 } = options;
 
@@ -2949,6 +2987,14 @@
                     facturacionProcessingState.hidden = !active;
                     facturacionProcessingState.dataset.previewMode = previewMode ? 'true' : 'false';
                     facturacionProcessingState.classList.toggle('is-preview', active && previewMode);
+                }
+
+                if (facturacionProcessingPill) {
+                    facturacionProcessingPill.textContent = pill;
+                }
+
+                if (facturacionProcessingTitle) {
+                    facturacionProcessingTitle.textContent = title;
                 }
 
                 if (facturacionProcessingText) {
@@ -2962,6 +3008,9 @@
 
             const setFacturacionSubmittingState = (form, active) => {
                 isFacturacionSubmitting = active;
+                const processingCopy = active
+                    ? resolveProcessingCopy(form)
+                    : FACTURACION_PROCESSING_DEFAULTS;
 
                 confirmForms.forEach((candidate) => {
                     const submitButton = candidate.querySelector('button[type="submit"]');
@@ -2992,7 +3041,9 @@
                 }
 
                 setFacturacionProcessingOverlay(active, {
-                    text: 'Procesando emision, espera un momento...',
+                    pill: processingCopy.pill,
+                    title: processingCopy.title,
+                    text: processingCopy.text,
                     previewMode: false,
                 });
             };
@@ -3071,21 +3122,6 @@
                 });
             };
 
-            if (facturacionPreviewProcessingBtn instanceof HTMLButtonElement) {
-                facturacionPreviewProcessingBtn.addEventListener('click', function () {
-                    const isPreviewOpen = facturacionProcessingState instanceof HTMLElement
-                        && !facturacionProcessingState.hidden
-                        && facturacionProcessingState.dataset.previewMode === 'true';
-
-                    setFacturacionProcessingOverlay(!isPreviewOpen, {
-                        text: isPreviewOpen
-                            ? 'Procesando emision, espera un momento...'
-                            : 'Vista previa de la animacion de emision.',
-                        previewMode: !isPreviewOpen,
-                    });
-                });
-            }
-
             if (facturacionProcessingState instanceof HTMLElement) {
                 facturacionProcessingState.addEventListener('click', function () {
                     if (facturacionProcessingState.dataset.previewMode !== 'true' || isFacturacionSubmitting) {
@@ -3093,7 +3129,9 @@
                     }
 
                     setFacturacionProcessingOverlay(false, {
-                        text: 'Procesando emision, espera un momento...',
+                        pill: FACTURACION_PROCESSING_DEFAULTS.pill,
+                        title: FACTURACION_PROCESSING_DEFAULTS.title,
+                        text: FACTURACION_PROCESSING_DEFAULTS.text,
                         previewMode: false,
                     });
                 });

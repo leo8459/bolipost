@@ -318,7 +318,7 @@ class AclPermissionRegistry
         'paquetes-ems.recibir-regional' => ['assign', 'edit', 'print'],
         'paquetes-ems.en-transito' => ['edit', 'print'],
         'paquetes-ems.entregados' => ['print', 'deliver'],
-        'carteros.asignados' => ['unassign'],
+        'carteros.asignados' => ['change', 'unassign'],
         'paquetes-ordinarios.index' => ['create', 'edit', 'delete', 'assign'],
         'paquetes-ordinarios.almacen' => ['create', 'edit', 'reencaminar', 'assign', 'dropoff', 'rezago'],
         'paquetes-ordinarios.despacho' => ['edit', 'restore', 'print'],
@@ -694,6 +694,10 @@ class AclPermissionRegistry
         'api.carteros.devolver-ventanilla' => [
             'api.carteros.devolver-ventanilla',
             'feature.carteros.cartero.returnwindow',
+        ],
+        'api.carteros.cambiar-cartero' => [
+            'api.carteros.cambiar-cartero',
+            'feature.carteros.asignados.change',
         ],
         'api.carteros.desasignar' => [
             'api.carteros.desasignar',
@@ -1690,6 +1694,7 @@ class AclPermissionRegistry
             'feature.carteros.devolucion.restore' => 'Boton: Recuperar',
             'feature.carteros.entrega.deliver' => 'Boton: Confirmar entrega',
             'feature.carteros.entrega.attempt' => 'Boton: Agregar intento',
+            'feature.carteros.asignados.change' => 'Boton: Cambiar cartero',
             'feature.carteros.asignados.unassign' => 'Boton: Desasignar',
             'feature.tarifa-contrato.report' => 'Boton: Generar reporte',
             'feature.eventos-ems.index.create' => 'Boton: Nuevo registro EMS',
@@ -1963,6 +1968,7 @@ class AclPermissionRegistry
             'feature.carteros.devolucion.restore' => 'Controla el boton Recuperar dentro de la ventana Devolucion.',
             'feature.carteros.entrega.deliver' => 'Controla el boton Confirmar entrega dentro de la ventana Entrega.',
             'feature.carteros.entrega.attempt' => 'Controla el boton Agregar intento dentro de la ventana Entrega.',
+            'feature.carteros.asignados.change' => 'Controla el boton Cambiar cartero dentro de la ventana Asignados.',
             'feature.carteros.asignados.unassign' => 'Controla el boton Desasignar dentro de la ventana Asignados.',
             'feature.tarifa-contrato.report' => 'Controla el boton Generar reporte dentro de Tarifa contrato.',
             'feature.eventos-ems.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos EMS.',

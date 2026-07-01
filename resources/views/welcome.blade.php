@@ -528,7 +528,7 @@
     </div>
 
     @include('partials.landing-footer')
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-27HR41ZF2X"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-H41CHNHCL0"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
 
@@ -537,7 +537,7 @@
         }
         gtag('js', new Date());
 
-        gtag('config', 'G-27HR41ZF2X');
+        gtag('config', 'G-H41CHNHCL0');
     </script>
     <script>
         const topbar = document.getElementById('topbar');

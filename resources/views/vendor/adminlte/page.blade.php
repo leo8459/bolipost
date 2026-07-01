@@ -4,6 +4,17 @@
 @inject('preloaderHelper', 'JeroenNoten\LaravelAdminLte\Helpers\PreloaderHelper')
 
 @section('adminlte_css')
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-H41CHNHCL0"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+
+        gtag('js', new Date());
+        gtag('config', 'G-H41CHNHCL0');
+    </script>
     <style>
         body,
         .wrapper,

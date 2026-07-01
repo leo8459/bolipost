@@ -67,6 +67,7 @@
             <th>Departamento</th>
             <th>Registrados</th>
             <th>Entregados</th>
+            <th>Transito</th>
             <th>Pendientes</th>
             <th>Parte nacional</th>
             <th>Cumplio de su parte</th>
@@ -83,6 +84,7 @@
                 <td><strong>{{ $item->departamento }}</strong></td>
                 <td class="num">{{ number_format((int) $item->total) }}</td>
                 <td class="num">{{ number_format((int) $item->entregados) }}</td>
+                <td class="num">{{ number_format((int) ($item->transito ?? 0)) }}</td>
                 <td class="num">{{ number_format((int) $item->pendientes) }}</td>
                 <td class="num">
                     {{ number_format((float) ($item->participacion_nacional ?? 0), 1) }}%<br>
@@ -105,7 +107,7 @@
                 </td>
             </tr>
         @empty
-            <tr><td colspan="10">Sin datos por departamento.</td></tr>
+            <tr><td colspan="11">Sin datos por departamento.</td></tr>
         @endforelse
     </tbody>
 </table>

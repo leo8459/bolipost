@@ -6,6 +6,7 @@
 
 @section('content')
     @php
+        $canChangeAsignados = auth()->user()?->can('feature.carteros.asignados.change') ?? false;
         $canUnassignAsignados = auth()->user()?->can('feature.carteros.asignados.unassign') ?? false;
     @endphp
     <div class="carteros-wrap">
@@ -84,6 +85,59 @@
                         <a class="page-link" href="#" id="next-page-link">Siguiente</a>
                     </li>
                 </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="changeAssignedCarteroModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form id="changeAssignedCarteroForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cambiar cartero</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-2">
+                            Paquete: <strong id="changeAssignedCarteroCode">-</strong>
+                        </p>
+                        <p class="text-muted small mb-3">
+                            Cartero actual: <span id="changeAssignedCarteroCurrent">Sin cartero</span>
+                        </p>
+                        <div class="form-group mb-0">
+                            <label for="changeAssignedCarteroUser" class="font-weight-bold">Nuevo cartero</label>
+                            <select
+                                id="changeAssignedCarteroUser"
+                                class="form-control"
+                                required
+                                @disabled(collect($carterosDisponibles ?? [])->isEmpty())
+                            >
+                                <option value="">Seleccione cartero...</option>
+                                @foreach(($carterosDisponibles ?? collect()) as $cartero)
+                                    <option value="{{ $cartero->id }}">
+                                        {{ $cartero->name }} - {{ $cartero->ciudad ?: 'SIN CIUDAD' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @if(collect($carterosDisponibles ?? [])->isEmpty())
+                                <small class="form-text text-danger">No hay carteros disponibles en tu departamento.</small>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancelar</button>
+                        <button
+                            type="submit"
+                            id="changeAssignedCarteroSubmit"
+                            class="btn btn-primary"
+                            @disabled(collect($carterosDisponibles ?? [])->isEmpty())
+                        >
+                            Cambiar cartero
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -264,7 +318,15 @@
             const carteroFilter = document.getElementById('asignados-cartero-filter');
             const countText = document.getElementById('asignados-count');
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const canChangeAsignados = @json($canChangeAsignados);
             const canUnassignAsignados = @json($canUnassignAsignados);
+            const changeModal = document.getElementById('changeAssignedCarteroModal');
+            const changeForm = document.getElementById('changeAssignedCarteroForm');
+            const changeCode = document.getElementById('changeAssignedCarteroCode');
+            const changeCurrent = document.getElementById('changeAssignedCarteroCurrent');
+            const changeUserSelect = document.getElementById('changeAssignedCarteroUser');
+            const changeSubmit = document.getElementById('changeAssignedCarteroSubmit');
+            let pendingChangeRow = null;
             const carteroOptions = Array.from(carteroFilter.options).map(function(option) {
                 return {
                     value: option.value,
@@ -316,6 +378,24 @@
                 }
             }
 
+            function actionButtons(row) {
+                const buttons = [];
+
+                if (canChangeAsignados) {
+                    buttons.push(
+                        '<button type="button" class="btn btn-carteros-primary btn-sm asignados-change-btn mr-1" data-id="' + escapeHtml(row.id) + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '" data-codigo="' + escapeHtml(row.codigo) + '" data-cartero-id="' + escapeHtml(row.user_id || '') + '" data-cartero-name="' + escapeHtml(row.asignado_a || 'Sin cartero') + '">Cambiar cartero</button>'
+                    );
+                }
+
+                if (canUnassignAsignados) {
+                    buttons.push(
+                        '<button type="button" class="btn btn-carteros-danger btn-sm asignados-unassign-btn" data-id="' + escapeHtml(row.id) + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '" data-codigo="' + escapeHtml(row.codigo) + '">Quitar cartero</button>'
+                    );
+                }
+
+                return buttons.length ? buttons.join('') : '-';
+            }
+
             function renderRows(rows) {
                 if (!rows.length) {
                     body.innerHTML = '<tr><td colspan="12" class="text-center py-4">No hay paquetes en estado CARTERO.</td></tr>';
@@ -335,11 +415,99 @@
                         '<td>' + escapeHtml(row.asignado_a) + '</td>' +
                         '<td>' + escapeHtml(row.intento) + '</td>' +
                         '<td>' + escapeHtml(row.created_at) + '</td>' +
-                        '<td>' + (canUnassignAsignados
-                            ? '<button type="button" class="btn btn-carteros-danger btn-sm asignados-unassign-btn" data-id="' + escapeHtml(row.id) + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '" data-codigo="' + escapeHtml(row.codigo) + '">Desasignar</button>'
-                            : '-') + '</td>' +
+                        '<td>' + actionButtons(row) + '</td>' +
                         '</tr>';
                 }).join('');
+            }
+
+            function openChangeModal(button) {
+                pendingChangeRow = {
+                    id: Number(button.getAttribute('data-id')),
+                    tipo_paquete: button.getAttribute('data-tipo') || '',
+                    codigo: button.getAttribute('data-codigo') || '',
+                    cartero_id: button.getAttribute('data-cartero-id') || '',
+                    cartero_name: button.getAttribute('data-cartero-name') || 'Sin cartero'
+                };
+
+                if (changeCode) {
+                    changeCode.textContent = pendingChangeRow.codigo || '-';
+                }
+
+                if (changeCurrent) {
+                    changeCurrent.textContent = pendingChangeRow.cartero_name || 'Sin cartero';
+                }
+
+                if (changeUserSelect) {
+                    changeUserSelect.value = '';
+                    if (pendingChangeRow.cartero_id) {
+                        Array.from(changeUserSelect.options).forEach(function(option) {
+                            option.disabled = option.value !== '' && option.value === String(pendingChangeRow.cartero_id);
+                        });
+                    } else {
+                        Array.from(changeUserSelect.options).forEach(function(option) {
+                            option.disabled = false;
+                        });
+                    }
+                }
+
+                if (window.jQuery && changeModal) {
+                    window.jQuery(changeModal).modal('show');
+                }
+            }
+
+            async function submitChangeCartero() {
+                if (!pendingChangeRow || !changeUserSelect || !changeUserSelect.value) {
+                    window.alert('Seleccione el nuevo cartero.');
+                    return;
+                }
+
+                if (changeSubmit) {
+                    changeSubmit.disabled = true;
+                    changeSubmit.textContent = 'Procesando...';
+                }
+
+                try {
+                    const response = await fetch('{{ route('api.carteros.cambiar-cartero') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                        body: JSON.stringify({
+                            user_id: Number(changeUserSelect.value),
+                            items: [
+                                {
+                                    id: pendingChangeRow.id,
+                                    tipo_paquete: pendingChangeRow.tipo_paquete,
+                                }
+                            ]
+                        })
+                    });
+
+                    const payload = await response.json().catch(function() {
+                        return {};
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'No se pudo cambiar el cartero.');
+                    }
+
+                    if (window.jQuery && changeModal) {
+                        window.jQuery(changeModal).modal('hide');
+                    }
+
+                    window.alert(payload.message || ('El paquete ' + pendingChangeRow.codigo + ' cambio de cartero correctamente.'));
+                    pendingChangeRow = null;
+                    loadPage(currentPage);
+                } catch (error) {
+                    window.alert(error.message || 'Ocurrio un error al cambiar el cartero.');
+                } finally {
+                    if (changeSubmit) {
+                        changeSubmit.disabled = false;
+                        changeSubmit.textContent = 'Cambiar cartero';
+                    }
+                }
             }
 
             async function unassignRow(id, tipoPaquete, codigo, button) {
@@ -376,16 +544,16 @@
                     });
 
                     if (!response.ok) {
-                        throw new Error(payload.message || 'No se pudo desasignar el paquete.');
+                        throw new Error(payload.message || 'No se pudo quitar el cartero del paquete.');
                     }
 
-                    window.alert(payload.message || ('El paquete ' + codigo + ' fue desasignado correctamente.'));
+                    window.alert(payload.message || ('El cartero fue quitado del paquete ' + codigo + ' correctamente.'));
                     loadPage(currentPage);
                 } catch (error) {
-                    window.alert(error.message || 'Ocurrio un error al desasignar el paquete.');
+                    window.alert(error.message || 'Ocurrio un error al quitar el cartero del paquete.');
                     if (button) {
                         button.disabled = false;
-                        button.textContent = 'Desasignar';
+                        button.textContent = 'Quitar cartero';
                     }
                 }
             }
@@ -476,7 +644,32 @@
                 }
             });
 
+            if (changeForm) {
+                changeForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    submitChangeCartero();
+                });
+            }
+
+            if (window.jQuery && changeModal) {
+                window.jQuery(changeModal).on('hidden.bs.modal', function() {
+                    pendingChangeRow = null;
+                    if (changeUserSelect) {
+                        changeUserSelect.value = '';
+                        Array.from(changeUserSelect.options).forEach(function(option) {
+                            option.disabled = false;
+                        });
+                    }
+                });
+            }
+
             body.addEventListener('click', function(e) {
+                const changeButton = e.target.closest('.asignados-change-btn');
+                if (changeButton) {
+                    openChangeModal(changeButton);
+                    return;
+                }
+
                 const button = e.target.closest('.asignados-unassign-btn');
                 if (!button) {
                     return;

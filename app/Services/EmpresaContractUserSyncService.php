@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Empresa;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Support\Collection;
 
 class EmpresaContractUserSyncService
@@ -85,9 +86,9 @@ class EmpresaContractUserSyncService
             ]);
     }
 
-    public function ensureAuthenticatedUserIsActive(?User $user): bool
+    public function ensureAuthenticatedUserIsActive(?AuthenticatableContract $user): bool
     {
-        if (! $user || (int) ($user->empresa_id ?? 0) <= 0) {
+        if (! $user instanceof User || (int) ($user->empresa_id ?? 0) <= 0) {
             return true;
         }
 
@@ -118,9 +119,9 @@ class EmpresaContractUserSyncService
         return false;
     }
 
-    public function buildExpirationAlertsForUser(?User $user): Collection
+    public function buildExpirationAlertsForUser(?AuthenticatableContract $user): Collection
     {
-        if (! $user) {
+        if (! $user instanceof User) {
             return collect();
         }
 
