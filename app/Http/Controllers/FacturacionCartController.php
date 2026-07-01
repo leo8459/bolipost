@@ -223,7 +223,7 @@ class FacturacionCartController extends Controller
                 (string) data_get($resultado, 'carrito.codigo_orden', $codigoSeguimiento),
                 strtolower(trim((string) data_get($resultado, 'carrito.canal_emision', ''))) === 'qr'
             );
-            if ($qrPayload !== null) {
+            if ($this->shouldShowQrSessionData($qrPayload)) {
                 Log::info('Facturacion QR detectado en consulta de estado.', [
                     'user_id' => $user->id,
                     'cart_id' => data_get($resultado, 'carrito.id'),
@@ -532,6 +532,29 @@ class FacturacionCartController extends Controller
             'internal_code' => $internalCode !== '' ? $internalCode : $defaultInternalCode,
             'message' => $message !== '' ? $message : 'QR generado.',
         ];
+    }
+
+    private function shouldShowQrSessionData(?array $qrPayload): bool
+    {
+        if (!is_array($qrPayload) || $qrPayload === []) {
+            return false;
+        }
+
+        $status = strtolower(trim((string) ($qrPayload['payment_status'] ?? 'holding')));
+
+        return !in_array($status, [
+            'pagado',
+            'success',
+            'paid',
+            'completed',
+            'approved',
+            'confirmed',
+            'cancelado',
+            'cancelled',
+            'rejected',
+            'failed',
+            'expired',
+        ], true);
     }
 
     private function findFirstResponseValue(array $payload, array $keys): string
