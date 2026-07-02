@@ -145,6 +145,7 @@ class PaquetesEms extends Component
     public $generadosHoyCount = 0;
     public $entregaRecibidoPor = '';
     public $entregaDescripcion = '';
+    public $entregaImagen = null;
     public $devolucionRecibidoPor = '';
     public $devolucionDescripcion = '';
     public $devolucionImagen = null;
@@ -3305,6 +3306,7 @@ class PaquetesEms extends Component
 
         $this->entregaRecibidoPor = '';
         $this->entregaDescripcion = '';
+        $this->entregaImagen = null;
         $this->dispatch('openEntregaVentanillaModal');
     }
 
@@ -3319,6 +3321,7 @@ class PaquetesEms extends Component
         $this->validate([
             'entregaRecibidoPor' => ['required', 'string', 'max:255'],
             'entregaDescripcion' => ['nullable', 'string'],
+            'entregaImagen' => ['required', 'image', 'max:5120'],
         ]);
 
         $ids = collect($this->selectedPaquetes)
@@ -3428,15 +3431,19 @@ class PaquetesEms extends Component
 
         $recibidoPor = trim((string) $this->entregaRecibidoPor);
         $descripcion = trim((string) $this->entregaDescripcion);
+        $imagenPath = $this->storeEntregaImage($this->entregaImagen);
         $generatedAt = now();
         $loggedUserName = trim((string) optional(Auth::user())->name);
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
 
-        DB::transaction(function () use ($paquetes, $contratos, $solicitudes, $estadoEntregadoId, $actorUserId, $eventoEntregaId, $recibidoPor, $descripcion) {
+        DB::transaction(function () use ($paquetes, $contratos, $solicitudes, $estadoEntregadoId, $actorUserId, $eventoEntregaId, $recibidoPor, $descripcion, $imagenPath) {
             if ($paquetes->isNotEmpty()) {
                 PaqueteEms::query()
                     ->whereIn('id', $paquetes->pluck('id')->all())
-                    ->update(['estado_id' => $estadoEntregadoId]);
+                    ->update([
+                        'estado_id' => $estadoEntregadoId,
+                        'imagen' => $imagenPath,
+                    ]);
 
                 $this->registerEventosEms(
                     $paquetes,
@@ -3453,6 +3460,7 @@ class PaquetesEms extends Component
                     $asignacion->id_user = $actorUserId;
                     $asignacion->recibido_por = $recibidoPor;
                     $asignacion->descripcion = $descripcion !== '' ? $descripcion : null;
+                    $asignacion->imagen = $imagenPath;
                     $asignacion->save();
                 }
             }
@@ -3460,7 +3468,10 @@ class PaquetesEms extends Component
             if ($contratos->isNotEmpty()) {
                 RecojoContrato::query()
                     ->whereIn('id', $contratos->pluck('id')->all())
-                    ->update(['estados_id' => $estadoEntregadoId]);
+                    ->update([
+                        'estados_id' => $estadoEntregadoId,
+                        'imagen' => $imagenPath,
+                    ]);
 
                 $this->registerEventosContrato(
                     $contratos,
@@ -3476,6 +3487,7 @@ class PaquetesEms extends Component
                         'estado_id' => $estadoEntregadoId,
                         'recepcionado_por' => $recibidoPor !== '' ? $recibidoPor : null,
                         'observacion' => $descripcion !== '' ? $descripcion : null,
+                        'imagen' => $imagenPath,
                     ]);
 
                 $this->registerEventosTiktoker(
@@ -3531,6 +3543,7 @@ class PaquetesEms extends Component
         $this->selectedSolicitudes = [];
         $this->entregaRecibidoPor = '';
         $this->entregaDescripcion = '';
+        $this->entregaImagen = null;
         $this->dispatch('closeEntregaVentanillaModal');
 
         session()->flash('success', $updated . ' registro(s) entregado(s) correctamente.');
@@ -7346,6 +7359,15 @@ class PaquetesEms extends Component
     }
 
     protected function storeDevolucionImage(?TemporaryUploadedFile $image): ?string
+    {
+        if (!$image) {
+            return null;
+        }
+
+        return (string) $image->store('carteros/entregas', 'public');
+    }
+
+    protected function storeEntregaImage(?TemporaryUploadedFile $image): ?string
     {
         if (!$image) {
             return null;
