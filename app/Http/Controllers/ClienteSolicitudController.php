@@ -7,6 +7,7 @@ use App\Models\Destino;
 use App\Models\Estado;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
+use App\Models\TarifarioTiktoker;
 use App\Support\SolicitudCode;
 use App\Support\TiktokerEvent;
 use Illuminate\Http\RedirectResponse;
@@ -36,11 +37,16 @@ class ClienteSolicitudController extends Controller
     public function create(): View
     {
         $cliente = Auth::guard('cliente')->user();
+        $servicioExtraIds = TarifarioTiktoker::query()
+            ->whereNotNull('servicio_extra_id')
+            ->distinct()
+            ->pluck('servicio_extra_id');
 
         return view('clientes.solicitudes', [
             'cliente' => $cliente,
             'destinos' => Destino::query()->orderBy('nombre_destino')->get(),
             'servicioExtras' => ServicioExtra::query()
+                ->whereIn('id', $servicioExtraIds)
                 ->orderBy('id')
                 ->get(['id', 'nombre', 'descripcion']),
             'ciudades' => self::CIUDADES_BOLIVIA,
@@ -74,9 +80,15 @@ class ClienteSolicitudController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $cliente = Auth::guard('cliente')->user();
+        $servicioExtraIds = TarifarioTiktoker::query()
+            ->whereNotNull('servicio_extra_id')
+            ->distinct()
+            ->pluck('servicio_extra_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
         $data = $request->validate([
-            'servicio_extra_id' => ['required', 'integer', 'exists:servicio_extras,id'],
+            'servicio_extra_id' => ['required', 'integer', 'in:' . implode(',', $servicioExtraIds)],
             'origen' => ['required', 'string'],
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
             'cantidad' => ['required', 'integer', 'min:1'],
