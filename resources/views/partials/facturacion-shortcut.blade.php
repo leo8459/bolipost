@@ -790,68 +790,64 @@
         </div>
     </div>
 
-    <div class="facturacion-result-modal" id="facturacionResultModal" aria-hidden="true" role="dialog" aria-modal="true">
-        <div class="facturacion-result-modal__backdrop" data-close-facturacion-result="true"></div>
-        <div class="facturacion-result-modal__panel" role="document">
-            <button type="button" class="facturacion-result-modal__close" id="facturacionResultModalClose" aria-label="Cerrar resultado">x</button>
-            <div class="facturacion-result-modal__icon facturacion-result-modal__icon--{{ $facturacionFeedback['type'] ?? 'info' }}" id="facturacionResultModalIcon">
-                <i class="fas @if(($facturacionFeedback['type'] ?? '') === 'success') fa-check-circle @elseif(($facturacionFeedback['type'] ?? '') === 'warning') fa-exclamation-triangle @elseif(($facturacionFeedback['type'] ?? '') === 'error') fa-times-circle @else fa-info-circle @endif" id="facturacionResultModalIconGlyph"></i>
-            </div>
-            <h4 class="facturacion-result-modal__title" id="facturacionResultModalTitle">{{ $facturacionFeedback['title'] ?? 'Resultado de consulta' }}</h4>
-            <p class="facturacion-result-modal__message" id="facturacionResultModalMessage">{{ $facturacionFeedback['message'] ?? '' }}</p>
-            <div class="facturacion-result-modal__meta-grid @if(empty($facturacionFeedback['meta']) || !is_array($facturacionFeedback['meta'])) is-hidden @endif" id="facturacionResultModalMetaGrid">
+    @if ($shouldOpenConsultFeedbackModal)
+        <div class="facturacion-result-modal" id="facturacionResultModal" aria-hidden="true" role="dialog" aria-modal="true">
+            <div class="facturacion-result-modal__backdrop" data-close-facturacion-result="true"></div>
+            <div class="facturacion-result-modal__panel" role="document">
+                <button type="button" class="facturacion-result-modal__close" id="facturacionResultModalClose" aria-label="Cerrar resultado">x</button>
+                <div class="facturacion-result-modal__icon facturacion-result-modal__icon--{{ $facturacionFeedback['type'] ?? 'info' }}">
+                    <i class="fas @if(($facturacionFeedback['type'] ?? '') === 'success') fa-check-circle @elseif(($facturacionFeedback['type'] ?? '') === 'warning') fa-exclamation-triangle @elseif(($facturacionFeedback['type'] ?? '') === 'error') fa-times-circle @else fa-info-circle @endif"></i>
+                </div>
+                <h4 class="facturacion-result-modal__title">{{ $facturacionFeedback['title'] ?? 'Resultado de consulta' }}</h4>
+                <p class="facturacion-result-modal__message">{{ $facturacionFeedback['message'] ?? '' }}</p>
                 @if (!empty($facturacionFeedback['meta']) && is_array($facturacionFeedback['meta']))
-                    @foreach ($facturacionFeedback['meta'] as $metaItem)
-                        @php
-                            $metaLabel = trim((string) ($metaItem['label'] ?? 'Dato'));
-                            $metaValue = trim((string) ($metaItem['value'] ?? ''));
-                            $metaType = trim((string) ($metaItem['type'] ?? 'text'));
-                        @endphp
-                        @if ($metaValue !== '')
-                            <div class="facturacion-result-modal__meta-card">
-                                <span class="facturacion-result-modal__meta-label">{{ $metaLabel }}</span>
-                                @if ($metaType === 'link')
-                                    <a href="{{ $metaValue }}" target="_blank" rel="noopener" class="facturacion-result-modal__meta-link">Abrir documento</a>
-                                @else
-                                    <strong class="facturacion-result-modal__meta-value">{{ $metaValue }}</strong>
-                                @endif
-                            </div>
-                        @endif
-                    @endforeach
+                    <div class="facturacion-result-modal__meta-grid">
+                        @foreach ($facturacionFeedback['meta'] as $metaItem)
+                            @php
+                                $metaLabel = trim((string) ($metaItem['label'] ?? 'Dato'));
+                                $metaValue = trim((string) ($metaItem['value'] ?? ''));
+                                $metaType = trim((string) ($metaItem['type'] ?? 'text'));
+                            @endphp
+                            @if ($metaValue !== '')
+                                <div class="facturacion-result-modal__meta-card">
+                                    <span class="facturacion-result-modal__meta-label">{{ $metaLabel }}</span>
+                                    @if ($metaType === 'link')
+                                        <a href="{{ $metaValue }}" target="_blank" rel="noopener" class="facturacion-result-modal__meta-link">Abrir documento</a>
+                                    @else
+                                        <strong class="facturacion-result-modal__meta-value">{{ $metaValue }}</strong>
+                                    @endif
+                                </div>
+                            @endif
+                        @endforeach
+                    </div>
                 @endif
-            </div>
-            <div class="facturacion-result-modal__detail @if(empty($facturacionFeedback['detail'])) is-hidden @endif" id="facturacionResultModalDetail">{{ $facturacionFeedback['detail'] ?? '' }}</div>
-            <div class="facturacion-result-modal__actions">
-                <button type="button" class="global-shortcut-primary-btn" id="facturacionResultModalAccept">Entendido</button>
+                @if (!empty($facturacionFeedback['detail']))
+                    <div class="facturacion-result-modal__detail">{{ $facturacionFeedback['detail'] }}</div>
+                @endif
+                <div class="facturacion-result-modal__actions">
+                    <button type="button" class="global-shortcut-primary-btn" id="facturacionResultModalAccept">Entendido</button>
+                </div>
             </div>
         </div>
-    </div>
+    @endif
 
     @if (is_array($facturacionQrData) && (!empty($facturacionQrData['image_data']) || !empty($facturacionQrData['transaction_id'])))
-        <div
-            class="facturacion-qr-viewer"
-            id="facturacionQrViewer"
-            aria-hidden="true"
-            role="dialog"
-            aria-modal="true"
-            data-cart-id="{{ (string) ($activeFacturacionCart?->id ?? '') }}"
-            data-consult-url="{{ route('facturacion.cart.consultar') }}"
-        >
+        <div class="facturacion-qr-viewer" id="facturacionQrViewer" aria-hidden="true" role="dialog" aria-modal="true">
             <div class="facturacion-qr-viewer__backdrop" data-close-facturacion-qr="true"></div>
             <div class="facturacion-qr-viewer__panel" role="document">
                 <button type="button" class="facturacion-qr-viewer__close" id="facturacionQrViewerClose" aria-label="Cerrar QR">x</button>
                 <h4 class="facturacion-qr-viewer__title">QR de pago</h4>
-                <p class="facturacion-qr-viewer__subtitle" id="facturacionQrViewerSubtitle">
+                <p class="facturacion-qr-viewer__subtitle">
                     {{ (string) ($facturacionQrData['message'] ?? 'Escanee este QR para completar el pago.') }}
                 </p>
                 <div class="facturacion-qr-viewer__status">
                     Estado:
-                    <strong id="facturacionQrViewerStatus">{{ strtoupper((string) ($facturacionQrData['payment_status'] ?? 'holding')) }}</strong>
+                    <strong>{{ strtoupper((string) ($facturacionQrData['payment_status'] ?? 'holding')) }}</strong>
                     @if (!empty($facturacionQrData['transaction_id']))
-                        <span class="facturacion-qr-viewer__meta" id="facturacionQrViewerTransactionMeta">| Tx: {{ $facturacionQrData['transaction_id'] }}</span>
+                        <span class="facturacion-qr-viewer__meta">| Tx: {{ $facturacionQrData['transaction_id'] }}</span>
                     @endif
                     @if (!empty($facturacionQrData['internal_code']))
-                        <span class="facturacion-qr-viewer__meta" id="facturacionQrViewerOrderMeta">| Orden: {{ $facturacionQrData['internal_code'] }}</span>
+                        <span class="facturacion-qr-viewer__meta">| Orden: {{ $facturacionQrData['internal_code'] }}</span>
                     @endif
                 </div>
                 @php
@@ -861,12 +857,15 @@
                         $qrSrc = 'data:image/png;base64,' . $rawQrImage;
                     }
                 @endphp
-                <div class="facturacion-qr-viewer__image-wrap @if ($rawQrImage === '') is-hidden @endif" id="facturacionQrViewerImageWrap">
-                    <img src="{{ $rawQrImage !== '' ? $qrSrc : '' }}" alt="QR de pago" class="facturacion-qr-viewer__image" id="facturacionQrViewerImage">
-                </div>
-                <div class="facturacion-qr-viewer__empty @if ($rawQrImage !== '') is-hidden @endif" id="facturacionQrViewerEmpty">
-                    El proveedor recibio la venta, pero todavia no devolvio una imagen QR. La consulta del pago se actualiza automaticamente.
-                </div>
+                @if ($rawQrImage !== '')
+                    <div class="facturacion-qr-viewer__image-wrap">
+                        <img src="{{ $qrSrc }}" alt="QR de pago" class="facturacion-qr-viewer__image">
+                    </div>
+                @else
+                    <div class="facturacion-qr-viewer__empty">
+                        El proveedor recibio la venta, pero todavia no devolvio una imagen QR. Usa "Consultar estado" para refrescar la respuesta.
+                    </div>
+                @endif
                 <div class="facturacion-qr-viewer__guide">
                     <div class="facturacion-qr-viewer__guide-step">
                         <span>1</span>
@@ -874,18 +873,17 @@
                     </div>
                     <div class="facturacion-qr-viewer__guide-step">
                         <span>2</span>
-                        <strong>Espera la confirmacion automatica del pago</strong>
+                        <strong>Espera el callback o actualiza el pago</strong>
                     </div>
                     <div class="facturacion-qr-viewer__guide-step">
                         <span>3</span>
                         <strong>El monto se reporta fuera de caja</strong>
                     </div>
                 </div>
-                <div class="facturacion-qr-viewer__actions">
-                    <div class="facturacion-qr-viewer__polling" id="facturacionQrViewerPollingState">
-                        Consultando pago automaticamente...
-                    </div>
-                </div>
+                <form method="POST" action="{{ route('facturacion.cart.consultar') }}" class="facturacion-qr-viewer__actions">
+                    @csrf
+                    <button type="submit" class="global-shortcut-primary-btn">Actualizar pago</button>
+                </form>
             </div>
         </div>
     @endif
@@ -1089,12 +1087,6 @@
             min-height: 280px;
             margin-bottom: 14px;
         }
-        .facturacion-qr-viewer__image-wrap.is-hidden,
-        .facturacion-qr-viewer__empty.is-hidden,
-        .facturacion-result-modal__meta-grid.is-hidden,
-        .facturacion-result-modal__detail.is-hidden {
-            display: none;
-        }
         .facturacion-qr-viewer__image {
             max-width: min(360px, 80vw);
             width: 100%;
@@ -1115,19 +1107,6 @@
         .facturacion-qr-viewer__actions {
             display: flex;
             justify-content: center;
-        }
-        .facturacion-qr-viewer__polling {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 44px;
-            padding: 0 18px;
-            border-radius: 999px;
-            background: #eef5ff;
-            color: #1c467e;
-            font-size: .9rem;
-            font-weight: 700;
-            text-align: center;
         }
         .facturacion-result-modal {
             position: fixed;
@@ -2932,20 +2911,6 @@
             const facturacionResultModal = document.getElementById('facturacionResultModal');
             const facturacionResultModalClose = document.getElementById('facturacionResultModalClose');
             const facturacionResultModalAccept = document.getElementById('facturacionResultModalAccept');
-            const facturacionResultModalIcon = document.getElementById('facturacionResultModalIcon');
-            const facturacionResultModalIconGlyph = document.getElementById('facturacionResultModalIconGlyph');
-            const facturacionResultModalTitle = document.getElementById('facturacionResultModalTitle');
-            const facturacionResultModalMessage = document.getElementById('facturacionResultModalMessage');
-            const facturacionResultModalMetaGrid = document.getElementById('facturacionResultModalMetaGrid');
-            const facturacionResultModalDetail = document.getElementById('facturacionResultModalDetail');
-            const facturacionQrViewerSubtitle = document.getElementById('facturacionQrViewerSubtitle');
-            const facturacionQrViewerStatus = document.getElementById('facturacionQrViewerStatus');
-            const facturacionQrViewerTransactionMeta = document.getElementById('facturacionQrViewerTransactionMeta');
-            const facturacionQrViewerOrderMeta = document.getElementById('facturacionQrViewerOrderMeta');
-            const facturacionQrViewerImageWrap = document.getElementById('facturacionQrViewerImageWrap');
-            const facturacionQrViewerImage = document.getElementById('facturacionQrViewerImage');
-            const facturacionQrViewerEmpty = document.getElementById('facturacionQrViewerEmpty');
-            const facturacionQrViewerPollingState = document.getElementById('facturacionQrViewerPollingState');
             const invoiceChannelButtons = document.querySelectorAll('[data-invoice-channel-choice]');
             const confirmForms = document.querySelectorAll('.global-shortcut-confirm-form');
             const facturacionFlashFeedback = @json($facturacionFeedback);
@@ -2974,20 +2939,10 @@
             let facturacionShortcutLastFocus = null;
             let pendingConfirmForm = null;
             let isFacturacionSubmitting = false;
-            let facturacionQrPollingTimer = null;
-            let facturacionQrPollingRequest = null;
             const FACTURACION_PROCESSING_DEFAULTS = {
                 pill: 'Facturacion en curso',
                 title: 'Emitiendo factura',
                 text: 'Procesando emision, espera un momento...',
-            };
-            const FACTURACION_QR_POLL_INTERVAL_MS = 5000;
-            const FACTURACION_QR_FINAL_STATUSES = ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed', 'cancelado', 'cancelled', 'rejected', 'failed', 'expired'];
-            const FACTURACION_RESULT_ICON_BY_TYPE = {
-                success: 'fa-check-circle',
-                warning: 'fa-exclamation-triangle',
-                error: 'fa-times-circle',
-                info: 'fa-info-circle',
             };
 
             const resolveProcessingCopy = (form = null) => {
@@ -3212,103 +3167,21 @@
                 facturacionQrViewer.classList.add('is-open');
                 facturacionQrViewer.setAttribute('aria-hidden', 'false');
                 document.body.classList.add('global-shortcut-open');
-                if (facturacionQrViewerPollingState instanceof HTMLElement) {
-                    facturacionQrViewerPollingState.textContent = 'Consultando pago automaticamente...';
-                }
-                scheduleFacturacionQrPolling(2500);
             };
 
             const closeFacturacionQrViewer = () => {
                 if (!facturacionQrViewer) {
                     return;
                 }
-                if (facturacionQrPollingTimer) {
-                    window.clearTimeout(facturacionQrPollingTimer);
-                    facturacionQrPollingTimer = null;
-                }
                 facturacionQrViewer.classList.remove('is-open');
                 facturacionQrViewer.setAttribute('aria-hidden', 'true');
                 document.body.classList.remove('global-shortcut-open');
             };
 
-            const renderFacturacionResultMeta = (metaItems = []) => {
-                if (!(facturacionResultModalMetaGrid instanceof HTMLElement)) {
-                    return;
-                }
-
-                facturacionResultModalMetaGrid.innerHTML = '';
-                const normalizedItems = Array.isArray(metaItems) ? metaItems : [];
-                const itemsWithValue = normalizedItems.filter((item) => item && String(item.value || '').trim() !== '');
-
-                if (!itemsWithValue.length) {
-                    facturacionResultModalMetaGrid.classList.add('is-hidden');
-                    return;
-                }
-
-                itemsWithValue.forEach((item) => {
-                    const metaCard = document.createElement('div');
-                    metaCard.className = 'facturacion-result-modal__meta-card';
-
-                    const metaLabel = document.createElement('span');
-                    metaLabel.className = 'facturacion-result-modal__meta-label';
-                    metaLabel.textContent = String(item.label || 'Dato');
-                    metaCard.appendChild(metaLabel);
-
-                    if (String(item.type || 'text') === 'link') {
-                        const metaLink = document.createElement('a');
-                        metaLink.className = 'facturacion-result-modal__meta-link';
-                        metaLink.href = String(item.value || '');
-                        metaLink.target = '_blank';
-                        metaLink.rel = 'noopener';
-                        metaLink.textContent = 'Abrir documento';
-                        metaCard.appendChild(metaLink);
-                    } else {
-                        const metaValue = document.createElement('strong');
-                        metaValue.className = 'facturacion-result-modal__meta-value';
-                        metaValue.textContent = String(item.value || '');
-                        metaCard.appendChild(metaValue);
-                    }
-
-                    facturacionResultModalMetaGrid.appendChild(metaCard);
-                });
-
-                facturacionResultModalMetaGrid.classList.remove('is-hidden');
-            };
-
-            const applyFacturacionFeedbackToResultModal = (feedback = null) => {
-                if (!feedback || typeof feedback !== 'object') {
-                    return;
-                }
-
-                const feedbackType = String(feedback.type || 'info');
-                const iconClass = FACTURACION_RESULT_ICON_BY_TYPE[feedbackType] || FACTURACION_RESULT_ICON_BY_TYPE.info;
-
-                if (facturacionResultModalIcon instanceof HTMLElement) {
-                    facturacionResultModalIcon.className = 'facturacion-result-modal__icon facturacion-result-modal__icon--' + feedbackType;
-                }
-                if (facturacionResultModalIconGlyph instanceof HTMLElement) {
-                    facturacionResultModalIconGlyph.className = 'fas ' + iconClass;
-                }
-                if (facturacionResultModalTitle instanceof HTMLElement) {
-                    facturacionResultModalTitle.textContent = String(feedback.title || 'Resultado de consulta');
-                }
-                if (facturacionResultModalMessage instanceof HTMLElement) {
-                    facturacionResultModalMessage.textContent = String(feedback.message || '');
-                }
-                if (facturacionResultModalDetail instanceof HTMLElement) {
-                    const detail = String(feedback.detail || '').trim();
-                    facturacionResultModalDetail.textContent = detail;
-                    facturacionResultModalDetail.classList.toggle('is-hidden', detail === '');
-                }
-
-                renderFacturacionResultMeta(feedback.meta || []);
-            };
-
-            const openFacturacionResultModal = (feedback = null) => {
+            const openFacturacionResultModal = () => {
                 if (!facturacionResultModal) {
                     return;
                 }
-                applyFacturacionFeedbackToResultModal(feedback);
                 facturacionResultModal.classList.add('is-open');
                 facturacionResultModal.setAttribute('aria-hidden', 'false');
                 document.body.classList.add('global-shortcut-open');
@@ -3539,15 +3412,31 @@
             }
 
             if (facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object' && facturacionFlashFeedback.action === 'consultar') {
-                openFacturacionResultModal(facturacionFlashFeedback);
+                openFacturacionResultModal();
             }
 
             if (facturacionDownloadPdf && typeof facturacionDownloadPdf === 'object' && facturacionDownloadPdf.url) {
-                handleFacturacionDownloadPdf(facturacionDownloadPdf);
+                const downloadKey = 'facturacion-pdf:' + (facturacionDownloadPdf.key || facturacionDownloadPdf.url);
+
+                try {
+                    if (!window.sessionStorage.getItem(downloadKey)) {
+                        window.sessionStorage.setItem(downloadKey, '1');
+                        window.setTimeout(() => {
+                            const tempLink = document.createElement('a');
+                            tempLink.href = facturacionDownloadPdf.url;
+                            tempLink.target = '_blank';
+                            tempLink.rel = 'noopener noreferrer';
+                            tempLink.click();
+                        }, 180);
+                    }
+                } catch (error) {
+                    window.setTimeout(() => {
+                        window.open(facturacionDownloadPdf.url, '_blank', 'noopener');
+                    }, 180);
+                }
             }
 
             if (facturacionQrData && typeof facturacionQrData === 'object' && (facturacionQrData.image_data || facturacionQrData.transaction_id)) {
-                updateFacturacionQrViewer(facturacionQrData);
                 openFacturacionQrViewer();
             }
 
@@ -3643,184 +3532,6 @@
                     if (billingDocumentTypeHiddenField && billingDocumentTypeField) {
                         billingDocumentTypeHiddenField.value = billingDocumentTypeField.value || '';
                 }
-            };
-
-            const normalizeQrImageSrc = (rawValue) => {
-                const imageValue = String(rawValue || '').trim();
-                if (imageValue === '') {
-                    return '';
-                }
-
-                if (imageValue.startsWith('data:image') || /^https?:\/\//i.test(imageValue)) {
-                    return imageValue;
-                }
-
-                return 'data:image/png;base64,' + imageValue;
-            };
-
-            const updateFacturacionQrViewer = (qrData = null) => {
-                if (!qrData || typeof qrData !== 'object') {
-                    return;
-                }
-
-                const paymentStatus = String(qrData.payment_status || 'holding').trim();
-                const transactionId = String(qrData.transaction_id || '').trim();
-                const internalCode = String(qrData.internal_code || '').trim();
-                const message = String(qrData.message || 'Escanee este QR para completar el pago.').trim();
-                const imageSrc = normalizeQrImageSrc(qrData.image_data || '');
-
-                if (facturacionQrViewerSubtitle instanceof HTMLElement) {
-                    facturacionQrViewerSubtitle.textContent = message;
-                }
-                if (facturacionQrViewerStatus instanceof HTMLElement) {
-                    facturacionQrViewerStatus.textContent = paymentStatus !== '' ? paymentStatus.toUpperCase() : 'HOLDING';
-                }
-                if (facturacionQrViewerTransactionMeta instanceof HTMLElement) {
-                    facturacionQrViewerTransactionMeta.textContent = transactionId !== '' ? '| Tx: ' + transactionId : '';
-                    facturacionQrViewerTransactionMeta.style.display = transactionId !== '' ? '' : 'none';
-                }
-                if (facturacionQrViewerOrderMeta instanceof HTMLElement) {
-                    facturacionQrViewerOrderMeta.textContent = internalCode !== '' ? '| Orden: ' + internalCode : '';
-                    facturacionQrViewerOrderMeta.style.display = internalCode !== '' ? '' : 'none';
-                }
-
-                if (imageSrc !== '') {
-                    if (facturacionQrViewerImage instanceof HTMLImageElement) {
-                        facturacionQrViewerImage.src = imageSrc;
-                    }
-                    if (facturacionQrViewerImageWrap instanceof HTMLElement) {
-                        facturacionQrViewerImageWrap.classList.remove('is-hidden');
-                    }
-                    if (facturacionQrViewerEmpty instanceof HTMLElement) {
-                        facturacionQrViewerEmpty.classList.add('is-hidden');
-                    }
-                }
-            };
-
-            const handleFacturacionDownloadPdf = (downloadPdf) => {
-                if (!downloadPdf || typeof downloadPdf !== 'object' || !downloadPdf.url) {
-                    return;
-                }
-
-                const downloadKey = 'facturacion-pdf:' + (downloadPdf.key || downloadPdf.url);
-
-                try {
-                    if (!window.sessionStorage.getItem(downloadKey)) {
-                        window.sessionStorage.setItem(downloadKey, '1');
-                        window.setTimeout(() => {
-                            const tempLink = document.createElement('a');
-                            tempLink.href = downloadPdf.url;
-                            tempLink.target = '_blank';
-                            tempLink.rel = 'noopener noreferrer';
-                            tempLink.click();
-                        }, 180);
-                    }
-                } catch (error) {
-                    window.setTimeout(() => {
-                        window.open(downloadPdf.url, '_blank', 'noopener');
-                    }, 180);
-                }
-            };
-
-            const scheduleFacturacionQrPolling = (delayMs = FACTURACION_QR_POLL_INTERVAL_MS) => {
-                if (!facturacionQrViewer || !facturacionQrViewer.classList.contains('is-open')) {
-                    return;
-                }
-
-                if (facturacionQrPollingTimer) {
-                    window.clearTimeout(facturacionQrPollingTimer);
-                }
-
-                facturacionQrPollingTimer = window.setTimeout(() => {
-                    pollFacturacionQrStatus();
-                }, delayMs);
-            };
-
-            const pollFacturacionQrStatus = () => {
-                if (!(facturacionQrViewer instanceof HTMLElement) || facturacionQrPollingRequest) {
-                    return;
-                }
-
-                const consultUrl = String(facturacionQrViewer.dataset.consultUrl || '').trim();
-                const cartId = String(facturacionQrViewer.dataset.cartId || '').trim();
-                if (consultUrl === '' || cartId === '') {
-                    return;
-                }
-
-                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
-                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
-                const formData = new FormData();
-                formData.append('cart_id', cartId);
-
-                if (facturacionQrViewerPollingState instanceof HTMLElement) {
-                    facturacionQrViewerPollingState.textContent = 'Verificando pago automaticamente...';
-                }
-
-                facturacionQrPollingRequest = fetch(consultUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                    body: formData,
-                })
-                    .then(async (response) => {
-                        const data = await response.json().catch(() => null);
-                        if (!response.ok || !data || data.ok === false) {
-                            throw new Error(data && data.feedback && data.feedback.detail ? data.feedback.detail : 'No se pudo verificar el pago QR.');
-                        }
-
-                        if (!facturacionQrViewer.classList.contains('is-open')) {
-                            return;
-                        }
-
-                        if (data.cart && typeof data.cart === 'object' && data.cart.id) {
-                            facturacionQrViewer.dataset.cartId = String(data.cart.id);
-                        }
-
-                        if (data.qr_data && typeof data.qr_data === 'object') {
-                            updateFacturacionQrViewer(data.qr_data);
-                        }
-
-                        handleFacturacionDownloadPdf(data.download_pdf || null);
-
-                        const paymentStatus = String(
-                            (data.qr_data && data.qr_data.payment_status)
-                            || (data.cart && data.cart.estado_pago)
-                            || ''
-                        ).trim().toLowerCase();
-
-                        if (FACTURACION_QR_FINAL_STATUSES.includes(paymentStatus)) {
-                            if (facturacionQrViewerPollingState instanceof HTMLElement) {
-                                facturacionQrViewerPollingState.textContent = paymentStatus === 'pagado' || paymentStatus === 'success' || paymentStatus === 'paid' || paymentStatus === 'completed' || paymentStatus === 'approved' || paymentStatus === 'confirmed'
-                                    ? 'Pago confirmado. Cerrando QR...'
-                                    : 'El QR finalizo con estado ' + paymentStatus.toUpperCase() + '.';
-                            }
-
-                            window.setTimeout(() => {
-                                closeFacturacionQrViewer();
-                                openFacturacionResultModal(data.feedback || null);
-                            }, 500);
-
-                            return;
-                        }
-
-                        if (facturacionQrViewerPollingState instanceof HTMLElement) {
-                            facturacionQrViewerPollingState.textContent = 'Esperando confirmacion del pago...';
-                        }
-
-                        scheduleFacturacionQrPolling();
-                    })
-                    .catch((error) => {
-                        if (facturacionQrViewerPollingState instanceof HTMLElement) {
-                            facturacionQrViewerPollingState.textContent = String(error && error.message ? error.message : 'No se pudo verificar el pago. Reintentando...');
-                        }
-                        scheduleFacturacionQrPolling(7000);
-                    })
-                    .finally(() => {
-                        facturacionQrPollingRequest = null;
-                    });
             };
 
                 const syncControlTributarioRule = () => {
