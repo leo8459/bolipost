@@ -831,41 +831,49 @@
         </div>
     @endif
 
-    @if (is_array($facturacionQrData) && (!empty($facturacionQrData['image_data']) || !empty($facturacionQrData['transaction_id'])))
-        <div class="facturacion-qr-viewer" id="facturacionQrViewer" aria-hidden="true" role="dialog" aria-modal="true">
+    @php
+        $initialQrImage = '';
+        $initialQrStatus = 'HOLDING';
+        $initialQrMessage = 'Escanee este QR para completar el pago.';
+        $initialQrTransactionId = '';
+        $initialQrInternalCode = '';
+        $initialQrCartId = '';
+
+        if (is_array($facturacionQrData)) {
+            $initialQrImage = trim((string) ($facturacionQrData['image_data'] ?? ''));
+            $initialQrStatus = strtoupper((string) ($facturacionQrData['payment_status'] ?? 'holding'));
+            $initialQrMessage = (string) ($facturacionQrData['message'] ?? $initialQrMessage);
+            $initialQrTransactionId = trim((string) ($facturacionQrData['transaction_id'] ?? ''));
+            $initialQrInternalCode = trim((string) ($facturacionQrData['internal_code'] ?? ''));
+            $initialQrCartId = (string) ($activeFacturacionCart?->id ?? '');
+        }
+    @endphp
+    <div class="facturacion-qr-viewer" id="facturacionQrViewer" aria-hidden="true" role="dialog" aria-modal="true">
             <div class="facturacion-qr-viewer__backdrop" data-close-facturacion-qr="true"></div>
             <div class="facturacion-qr-viewer__panel" role="document">
                 <button type="button" class="facturacion-qr-viewer__close" id="facturacionQrViewerClose" aria-label="Cerrar QR">x</button>
                 <h4 class="facturacion-qr-viewer__title">QR de pago</h4>
-                <p class="facturacion-qr-viewer__subtitle">
-                    {{ (string) ($facturacionQrData['message'] ?? 'Escanee este QR para completar el pago.') }}
+                <p class="facturacion-qr-viewer__subtitle" id="facturacionQrViewerSubtitle">
+                    {{ $initialQrMessage }}
                 </p>
                 <div class="facturacion-qr-viewer__status">
                     Estado:
-                    <strong>{{ strtoupper((string) ($facturacionQrData['payment_status'] ?? 'holding')) }}</strong>
-                    @if (!empty($facturacionQrData['transaction_id']))
-                        <span class="facturacion-qr-viewer__meta">| Tx: {{ $facturacionQrData['transaction_id'] }}</span>
-                    @endif
-                    @if (!empty($facturacionQrData['internal_code']))
-                        <span class="facturacion-qr-viewer__meta">| Orden: {{ $facturacionQrData['internal_code'] }}</span>
-                    @endif
+                    <strong id="facturacionQrViewerStatus">{{ $initialQrStatus }}</strong>
+                    <span class="facturacion-qr-viewer__meta @if ($initialQrTransactionId === '') is-hidden @endif" id="facturacionQrViewerTransactionMeta">| Tx: {{ $initialQrTransactionId }}</span>
+                    <span class="facturacion-qr-viewer__meta @if ($initialQrInternalCode === '') is-hidden @endif" id="facturacionQrViewerOrderMeta">| Orden: {{ $initialQrInternalCode }}</span>
                 </div>
                 @php
-                    $rawQrImage = trim((string) ($facturacionQrData['image_data'] ?? ''));
-                    $qrSrc = $rawQrImage;
-                    if ($rawQrImage !== '' && !str_starts_with($rawQrImage, 'data:image') && !preg_match('/^https?:\/\//i', $rawQrImage)) {
-                        $qrSrc = 'data:image/png;base64,' . $rawQrImage;
+                    $qrSrc = $initialQrImage;
+                    if ($initialQrImage !== '' && !str_starts_with($initialQrImage, 'data:image') && !preg_match('/^https?:\/\//i', $initialQrImage)) {
+                        $qrSrc = 'data:image/png;base64,' . $initialQrImage;
                     }
                 @endphp
-                @if ($rawQrImage !== '')
-                    <div class="facturacion-qr-viewer__image-wrap">
-                        <img src="{{ $qrSrc }}" alt="QR de pago" class="facturacion-qr-viewer__image">
-                    </div>
-                @else
-                    <div class="facturacion-qr-viewer__empty">
-                        El proveedor recibio la venta, pero todavia no devolvio una imagen QR. Usa "Consultar estado" para refrescar la respuesta.
-                    </div>
-                @endif
+                <div class="facturacion-qr-viewer__image-wrap @if ($initialQrImage === '') is-hidden @endif" id="facturacionQrViewerImageWrap">
+                    <img src="{{ $initialQrImage !== '' ? $qrSrc : '' }}" alt="QR de pago" class="facturacion-qr-viewer__image" id="facturacionQrViewerImage">
+                </div>
+                <div class="facturacion-qr-viewer__empty @if ($initialQrImage !== '') is-hidden @endif" id="facturacionQrViewerEmpty">
+                    El proveedor recibio la venta, pero todavia no devolvio una imagen QR. Usa "Consultar estado" para refrescar la respuesta.
+                </div>
                 <div class="facturacion-qr-viewer__guide">
                     <div class="facturacion-qr-viewer__guide-step">
                         <span>1</span>
@@ -882,11 +890,11 @@
                 </div>
                 <form method="POST" action="{{ route('facturacion.cart.consultar') }}" class="facturacion-qr-viewer__actions">
                     @csrf
+                    <input type="hidden" name="cart_id" id="facturacionQrViewerCartId" value="{{ $initialQrCartId }}">
                     <button type="submit" class="global-shortcut-primary-btn">Actualizar pago</button>
                 </form>
             </div>
         </div>
-    @endif
 
     <style>
         .global-facturacion-fab {
@@ -1086,6 +1094,11 @@
             justify-content: center;
             min-height: 280px;
             margin-bottom: 14px;
+        }
+        .facturacion-qr-viewer__image-wrap.is-hidden,
+        .facturacion-qr-viewer__empty.is-hidden,
+        .facturacion-qr-viewer__meta.is-hidden {
+            display: none;
         }
         .facturacion-qr-viewer__image {
             max-width: min(360px, 80vw);
@@ -2908,6 +2921,14 @@
             const facturacionFeedbackAlert = document.getElementById('facturacionFeedbackAlert');
             const facturacionQrViewer = document.getElementById('facturacionQrViewer');
             const facturacionQrViewerClose = document.getElementById('facturacionQrViewerClose');
+            const facturacionQrViewerSubtitle = document.getElementById('facturacionQrViewerSubtitle');
+            const facturacionQrViewerStatus = document.getElementById('facturacionQrViewerStatus');
+            const facturacionQrViewerTransactionMeta = document.getElementById('facturacionQrViewerTransactionMeta');
+            const facturacionQrViewerOrderMeta = document.getElementById('facturacionQrViewerOrderMeta');
+            const facturacionQrViewerImageWrap = document.getElementById('facturacionQrViewerImageWrap');
+            const facturacionQrViewerImage = document.getElementById('facturacionQrViewerImage');
+            const facturacionQrViewerEmpty = document.getElementById('facturacionQrViewerEmpty');
+            const facturacionQrViewerCartId = document.getElementById('facturacionQrViewerCartId');
             const facturacionResultModal = document.getElementById('facturacionResultModal');
             const facturacionResultModalClose = document.getElementById('facturacionResultModalClose');
             const facturacionResultModalAccept = document.getElementById('facturacionResultModalAccept');
@@ -3046,6 +3067,165 @@
                     text: processingCopy.text,
                     previewMode: false,
                 });
+            };
+
+            const normalizeQrImageSrc = (rawValue) => {
+                const imageValue = String(rawValue || '').trim();
+                if (imageValue === '') {
+                    return '';
+                }
+
+                if (imageValue.startsWith('data:image') || /^https?:\/\//i.test(imageValue)) {
+                    return imageValue;
+                }
+
+                return 'data:image/png;base64,' + imageValue;
+            };
+
+            const renderFacturacionShortcutFeedback = (feedback) => {
+                if (!feedback || typeof feedback !== 'object') {
+                    return;
+                }
+
+                const modalBody = facturacionShortcutModal.querySelector('.global-shortcut-modal__body');
+                if (!(modalBody instanceof HTMLElement)) {
+                    return;
+                }
+
+                if (facturacionFeedbackAlert instanceof HTMLElement) {
+                    facturacionFeedbackAlert.remove();
+                }
+
+                const alertBox = document.createElement('div');
+                alertBox.className = 'global-shortcut-feedback global-shortcut-feedback--' + String(feedback.type || 'info');
+                alertBox.id = 'facturacionFeedbackAlert';
+                alertBox.innerHTML = `
+                    <div class="global-shortcut-feedback__icon">
+                        <i class="fas ${String(feedback.type || '') === 'success' ? 'fa-check-circle' : String(feedback.type || '') === 'warning' ? 'fa-exclamation-triangle' : String(feedback.type || '') === 'error' ? 'fa-times-circle' : 'fa-info-circle'}"></i>
+                    </div>
+                    <div class="global-shortcut-feedback__body">
+                        <strong>${String(feedback.title || 'Resultado de Facturacion')}</strong>
+                        <p>${String(feedback.message || '')}</p>
+                        ${feedback.detail ? `<span>${String(feedback.detail)}</span>` : ''}
+                    </div>
+                `;
+
+                modalBody.insertBefore(alertBox, modalBody.firstChild);
+            };
+
+            const updateFacturacionQrViewer = (qrData = null, cartData = null) => {
+                if (!qrData || typeof qrData !== 'object') {
+                    return;
+                }
+
+                const paymentStatus = String(qrData.payment_status || 'holding').trim().toUpperCase();
+                const transactionId = String(qrData.transaction_id || '').trim();
+                const internalCode = String(qrData.internal_code || (cartData && cartData.codigo_orden) || '').trim();
+                const message = String(qrData.message || 'Escanee este QR para completar el pago.').trim();
+                const imageSrc = normalizeQrImageSrc(qrData.image_data || '');
+
+                if (facturacionQrViewerSubtitle instanceof HTMLElement) {
+                    facturacionQrViewerSubtitle.textContent = message;
+                }
+                if (facturacionQrViewerStatus instanceof HTMLElement) {
+                    facturacionQrViewerStatus.textContent = paymentStatus !== '' ? paymentStatus : 'HOLDING';
+                }
+                if (facturacionQrViewerTransactionMeta instanceof HTMLElement) {
+                    facturacionQrViewerTransactionMeta.textContent = '| Tx: ' + transactionId;
+                    facturacionQrViewerTransactionMeta.classList.toggle('is-hidden', transactionId === '');
+                }
+                if (facturacionQrViewerOrderMeta instanceof HTMLElement) {
+                    facturacionQrViewerOrderMeta.textContent = '| Orden: ' + internalCode;
+                    facturacionQrViewerOrderMeta.classList.toggle('is-hidden', internalCode === '');
+                }
+                if (facturacionQrViewerCartId instanceof HTMLInputElement) {
+                    facturacionQrViewerCartId.value = String((cartData && cartData.id) || facturacionQrViewerCartId.value || '');
+                }
+
+                if (imageSrc !== '') {
+                    if (facturacionQrViewerImage instanceof HTMLImageElement) {
+                        facturacionQrViewerImage.src = imageSrc;
+                    }
+                    if (facturacionQrViewerImageWrap instanceof HTMLElement) {
+                        facturacionQrViewerImageWrap.classList.remove('is-hidden');
+                    }
+                    if (facturacionQrViewerEmpty instanceof HTMLElement) {
+                        facturacionQrViewerEmpty.classList.add('is-hidden');
+                    }
+                } else {
+                    if (facturacionQrViewerImageWrap instanceof HTMLElement) {
+                        facturacionQrViewerImageWrap.classList.add('is-hidden');
+                    }
+                    if (facturacionQrViewerEmpty instanceof HTMLElement) {
+                        facturacionQrViewerEmpty.classList.remove('is-hidden');
+                    }
+                }
+            };
+
+            const handleFacturacionDownloadPdf = (downloadPdf) => {
+                if (!downloadPdf || typeof downloadPdf !== 'object' || !downloadPdf.url) {
+                    return;
+                }
+
+                const downloadKey = 'facturacion-pdf:' + (downloadPdf.key || downloadPdf.url);
+
+                try {
+                    if (!window.sessionStorage.getItem(downloadKey)) {
+                        window.sessionStorage.setItem(downloadKey, '1');
+                        window.setTimeout(() => {
+                            const tempLink = document.createElement('a');
+                            tempLink.href = downloadPdf.url;
+                            tempLink.target = '_blank';
+                            tempLink.rel = 'noopener noreferrer';
+                            tempLink.click();
+                        }, 180);
+                    }
+                } catch (error) {
+                    window.setTimeout(() => {
+                        window.open(downloadPdf.url, '_blank', 'noopener');
+                    }, 180);
+                }
+            };
+
+            const submitQrEmitForm = async (form) => {
+                if (!(form instanceof HTMLFormElement)) {
+                    return false;
+                }
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                const formData = new FormData(form);
+
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: formData,
+                });
+
+                const data = await response.json().catch(() => null);
+                if (!response.ok || !data || data.ok === false) {
+                    const errorMessage = data && data.feedback && data.feedback.detail
+                        ? data.feedback.detail
+                        : 'No se pudo generar el QR de pago.';
+                    throw new Error(errorMessage);
+                }
+
+                if (data.feedback) {
+                    renderFacturacionShortcutFeedback(data.feedback);
+                }
+                if (data.download_pdf) {
+                    handleFacturacionDownloadPdf(data.download_pdf);
+                }
+                if (data.qr_data) {
+                    updateFacturacionQrViewer(data.qr_data, data.cart || null);
+                    openFacturacionQrViewer();
+                }
+
+                return true;
             };
 
             const resolveScopedBillingForm = (contextElement) => {
@@ -3811,6 +3991,27 @@
                             setFacturacionSubmittingState(null, false);
                             return;
                         }
+                    }
+
+                    const emitChannelInput = form.querySelector('input[name="canal_emision"]');
+                    const emitChannel = String(emitChannelInput instanceof HTMLInputElement ? emitChannelInput.value : '').toLowerCase();
+                    const isQrEmit = emitChannel === 'qr' && String(form.getAttribute('action') || '').includes('/facturacion/cart/emitir');
+
+                    if (isQrEmit) {
+                        try {
+                            await submitQrEmitForm(form);
+                        } catch (error) {
+                            renderFacturacionShortcutFeedback({
+                                type: 'error',
+                                title: 'No se pudo generar el QR',
+                                message: 'La venta no pudo completar el flujo QR.',
+                                detail: String(error && error.message ? error.message : 'Ocurrio un error inesperado.'),
+                            });
+                        } finally {
+                            setFacturacionSubmittingState(null, false);
+                        }
+
+                        return;
                     }
 
                     form.submit();

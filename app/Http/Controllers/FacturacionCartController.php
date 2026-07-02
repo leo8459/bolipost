@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\FacturacionCartService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -107,7 +108,7 @@ class FacturacionCartController extends Controller
         );
     }
 
-    public function emitir(Request $request, FacturacionCartService $service): RedirectResponse
+    public function emitir(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
@@ -164,7 +165,8 @@ class FacturacionCartController extends Controller
         try {
             $resultado = $service->emitirBorrador($user, $billingSnapshot);
             $respuesta = (array) ($resultado['respuesta'] ?? []);
-            $redirect = back()->with('facturacion_feedback', $this->buildBridgeFeedback($respuesta, 'emitir'));
+            $feedback = $this->buildBridgeFeedback($respuesta, 'emitir');
+            $redirect = back()->with('facturacion_feedback', $feedback);
 
             $qrPayload = $this->extractQrSessionData(
                 $respuesta,
@@ -184,15 +186,42 @@ class FacturacionCartController extends Controller
             }
 
             $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
+            $downloadPdf = null;
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
-                $redirect->with('facturacion_download_pdf', [
+                $downloadPdf = [
                     'url' => $pdfUrl,
                     'key' => (string) ($respuesta['codigoOrden'] ?? $resultado['carrito']->codigo_orden ?? now()->timestamp),
+                ];
+                $redirect->with('facturacion_download_pdf', $downloadPdf);
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => true,
+                    'feedback' => $feedback,
+                    'qr_data' => $qrPayload,
+                    'download_pdf' => $downloadPdf,
+                    'cart' => [
+                        'id' => data_get($resultado, 'carrito.id'),
+                        'estado' => data_get($resultado, 'carrito.estado'),
+                        'estado_pago' => data_get($resultado, 'carrito.estado_pago'),
+                        'estado_emision' => data_get($resultado, 'carrito.estado_emision'),
+                        'codigo_orden' => data_get($resultado, 'carrito.codigo_orden'),
+                        'qr_transaction_id' => data_get($resultado, 'carrito.qr_transaction_id'),
+                        'canal_emision' => data_get($resultado, 'carrito.canal_emision'),
+                    ],
                 ]);
             }
 
             return $redirect;
         } catch (\RuntimeException $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $this->buildRuntimeFeedback($e->getMessage(), 'emitir'),
+                ], 422);
+            }
+
             return back()->with('facturacion_feedback', $this->buildRuntimeFeedback($e->getMessage(), 'emitir'));
         }
     }
