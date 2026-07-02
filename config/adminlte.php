@@ -909,6 +909,11 @@ return [
             'icon' => 'fas fa-calendar-alt',
             'submenu' => [
                 [
+                    'text' => 'Eventos SIOP',
+                    'url' => 'eventos-siop',
+                    'icon' => 'fas fa-layer-group',
+                ],
+                [
                     'text' => 'Eventos UPU',
                     'url' => 'eventos',
                     'icon' => 'fas fa-globe',

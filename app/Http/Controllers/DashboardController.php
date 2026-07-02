@@ -1834,18 +1834,35 @@ class DashboardController extends Controller
         $origenColumn = (string) ($config['origen_column'] ?? '');
         $estadoColumn = (string) ($config['estado_column'] ?? '');
         $estadoAlmacenId = $this->resolveEstadoIdByName('ALMACEN');
+        $estadoAdmisionesId = $this->resolveEstadoIdByName('ADMISIONES');
 
-        if ($origenColumn === '' || $estadoColumn === '' || !$estadoAlmacenId) {
+        if ($origenColumn === '' || $estadoColumn === '') {
             return 'coalesce(' . $qualifiedDestino . ", '')";
         }
 
         $qualifiedOrigen = ($tableAlias !== '' ? $tableAlias . '.' : '') . $origenColumn;
         $qualifiedEstado = ($tableAlias !== '' ? $tableAlias . '.' : '') . $estadoColumn;
+        $origenConFallback = 'coalesce(nullif(trim(' . $qualifiedOrigen . "), ''), " . $qualifiedDestino . ')';
 
-        return 'case when '
-            . $qualifiedEstado . ' = ' . (int) $estadoAlmacenId
-            . ' then case when trim(upper(coalesce(' . $qualifiedOrigen . ", ''))) = trim(upper(coalesce(" . $qualifiedDestino . ", '')))"
-            . ' then coalesce(' . $qualifiedDestino . ", '') else '' end"
+        $cases = [];
+
+        if ($estadoAdmisionesId) {
+            $cases[] = 'when ' . $qualifiedEstado . ' = ' . (int) $estadoAdmisionesId
+                . ' then ' . $origenConFallback;
+        }
+
+        if ($estadoAlmacenId) {
+            $cases[] = 'when ' . $qualifiedEstado . ' = ' . (int) $estadoAlmacenId
+                . ' then case when trim(upper(coalesce(' . $qualifiedOrigen . ", ''))) = trim(upper(coalesce(" . $qualifiedDestino . ", '')))"
+                . ' then coalesce(' . $qualifiedDestino . ", '') else '' end";
+        }
+
+        if (empty($cases)) {
+            return 'coalesce(' . $qualifiedDestino . ", '')";
+        }
+
+        return 'case '
+            . implode(' ', $cases)
             . ' else coalesce(' . $qualifiedDestino . ", '') end";
     }
 

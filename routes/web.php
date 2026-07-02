@@ -380,6 +380,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/eventos-ordi', [EventoController::class, 'ordiIndex'])->name('eventos-ordi.index');
     Route::get('/eventos-despacho', [EventoController::class, 'despachoIndex'])->name('eventos-despacho.index');
     Route::get('/eventos-contrato', [EventoController::class, 'contratoIndex'])->name('eventos-contrato.index');
+    Route::get('/eventos-siop', [EventoController::class, 'siopIndex'])->name('eventos-siop.index');
     Route::get('/eventos-tiktoker', [EventoController::class, 'tiktokerIndex'])->name('eventos-tiktoker.index');
     Route::get('/auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
     Route::get('/eventos-auditoria', [EventosAuditoriaController::class, 'index'])->name('eventos-auditoria.index');
