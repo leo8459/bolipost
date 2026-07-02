@@ -16,6 +16,7 @@ use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
 use App\Services\FacturacionCartService;
 use App\Support\SolicitudCode;
+use App\Support\TiktokerEvent;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,7 +31,6 @@ class PaquetesEmsController extends Controller
     private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
     private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
-    private const EVENTO_ID_TIKTOKER_SOLICITUD_CREADA = 295;
     private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
 
     private const CIUDADES_BOLIVIA = [
@@ -214,7 +214,7 @@ class PaquetesEmsController extends Controller
                 $this->registrarEventosTiktoker(
                     $solicitudes,
                     $actorUserId,
-                    self::EVENTO_ID_TIKTOKER_SOLICITUD_CREADA
+                    TiktokerEvent::resolveId(TiktokerEvent::RECIBIDA_ALMACEN)
                 );
             }
         }
@@ -430,7 +430,7 @@ class PaquetesEmsController extends Controller
             $this->registrarEventosTiktoker(
                 [$solicitud],
                 $actorUserId,
-                self::EVENTO_ID_TIKTOKER_SOLICITUD_CREADA
+                TiktokerEvent::resolveId(TiktokerEvent::SOLICITUD_REGISTRADA)
             );
         }
 

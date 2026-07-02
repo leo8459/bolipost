@@ -8,6 +8,7 @@ use App\Models\Estado;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Support\SolicitudCode;
+use App\Support\TiktokerEvent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +19,6 @@ use Illuminate\View\View;
 
 class ClienteSolicitudController extends Controller
 {
-    private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 295;
     private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
 
     private const CIUDADES_BOLIVIA = [
@@ -224,14 +224,15 @@ class ClienteSolicitudController extends Controller
     private function registrarEventoTiktokerCreacionCliente(SolicitudCliente $solicitud, int $clienteId): void
     {
         $codigo = trim((string) ($solicitud->codigo_solicitud ?: $solicitud->barcode));
+        $eventoId = TiktokerEvent::resolveId(TiktokerEvent::SOLICITUD_REGISTRADA);
 
-        if ($codigo === '' || $clienteId <= 0) {
+        if ($codigo === '' || $clienteId <= 0 || $eventoId <= 0) {
             return;
         }
 
         DB::table('eventos_tiktoker')->insert([
             'codigo' => $codigo,
-            'evento_id' => self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE,
+            'evento_id' => $eventoId,
             'user_id' => null,
             'cliente_id' => $clienteId,
             'created_at' => now(),
