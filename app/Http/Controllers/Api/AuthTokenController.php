@@ -457,6 +457,7 @@ class AuthTokenController extends Controller
 
             $operationalAlertsQuery = VehicleOperationAlert::query()
                 ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+                ->whereNotIn('alert_type', VehicleOperationAlert::suppressedPackgoAlertTypes())
                 ->orderByDesc('detected_at')
                 ->orderByDesc('id')
                 ->limit(30);

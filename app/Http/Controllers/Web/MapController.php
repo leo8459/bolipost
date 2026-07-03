@@ -1152,6 +1152,7 @@ class MapController extends Controller
             ->with(['vehicle', 'session.driver'])
             ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
             ->whereNotIn('alert_type', VehicleOperationAlert::mapManagedTypes())
+            ->whereNotIn('alert_type', VehicleOperationAlert::suppressedPackgoAlertTypes())
             ->orderByDesc('detected_at')
             ->orderByDesc('id')
             ->get()

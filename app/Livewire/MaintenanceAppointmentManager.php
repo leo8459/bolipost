@@ -82,7 +82,7 @@ class MaintenanceAppointmentManager extends Component
             ->active()
             ->with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'tipoMantenimiento', 'requestedBy', 'approvedBy'])
             ->orderByRaw("CASE estado WHEN 'Pendiente' THEN 1 WHEN 'Aprobado' THEN 2 WHEN 'Realizado' THEN 3 WHEN 'Rechazado' THEN 4 WHEN 'Cancelado' THEN 5 ELSE 9 END")
-            ->orderBy('fecha_programada', 'desc');
+            ->orderByRaw('COALESCE(solicitud_fecha, created_at) DESC');
 
         if ($this->statusFilter !== '') {
             $query->where('estado', $this->statusFilter);
@@ -90,11 +90,11 @@ class MaintenanceAppointmentManager extends Component
 
         [$fechaDesde, $fechaHasta] = $this->resolveOrderedFilterDateRange();
         if ($fechaDesde) {
-            $query->whereDate('fecha_programada', '>=', $fechaDesde);
+            $query->whereRaw('DATE(COALESCE(solicitud_fecha, created_at)) >= ?', [$fechaDesde]);
         }
 
         if ($fechaHasta) {
-            $query->whereDate('fecha_programada', '<=', $fechaHasta);
+            $query->whereRaw('DATE(COALESCE(solicitud_fecha, created_at)) <= ?', [$fechaHasta]);
         }
 
         $search = trim($this->search);
@@ -114,14 +114,14 @@ class MaintenanceAppointmentManager extends Component
             ->active()
             ->with(['vehicle.brand', 'driver', 'tipoMantenimiento'])
             ->where('estado', MaintenanceAppointment::STATUS_APPROVED)
-            ->orderBy('fecha_programada', 'desc');
+            ->orderByRaw('COALESCE(solicitud_fecha, created_at) DESC');
 
         if ($fechaDesde) {
-            $approvedAppointmentsQuery->whereDate('fecha_programada', '>=', $fechaDesde);
+            $approvedAppointmentsQuery->whereRaw('DATE(COALESCE(solicitud_fecha, created_at)) >= ?', [$fechaDesde]);
         }
 
         if ($fechaHasta) {
-            $approvedAppointmentsQuery->whereDate('fecha_programada', '<=', $fechaHasta);
+            $approvedAppointmentsQuery->whereRaw('DATE(COALESCE(solicitud_fecha, created_at)) <= ?', [$fechaHasta]);
         }
 
         if ($search !== '') {

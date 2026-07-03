@@ -1912,28 +1912,52 @@ class FuelLogManager extends Component
         }
 
         $normalized = mb_strtolower($value);
-        if (!str_contains($normalized, 'siat.impuestos.gob.bo/consulta')) {
-            return false;
-        }
-
         $parts = parse_url($value);
         if (!is_array($parts)) {
-            return str_contains($normalized, 'siat.impuestos.gob.bo/consulta');
+            return $this->looksLikeSiatQrUrl($normalized, null);
         }
 
         $host = strtolower((string) ($parts['host'] ?? ''));
         $path = strtolower((string) ($parts['path'] ?? ''));
 
-        return $host === 'siat.impuestos.gob.bo' && str_starts_with($path, '/consulta');
+        return $this->looksLikeSiatQrUrl($normalized, [
+            'host' => $host,
+            'path' => $path,
+        ]);
     }
 
     private function verificationMessageFromQr(string $payload): string
     {
         if ($this->isSiatQrPayload($payload)) {
-            return 'QR SIAT detectado. El registro quedara como Verificado.';
+            return 'QR SIAT detectado. El sistema consultara el servicio REST de SIAT y el registro quedara como Verificado.';
         }
 
         return 'QR detectado, pero no corresponde a SIAT. El registro quedara como Falta verificar.';
+    }
+
+    /**
+     * Detecta enlaces de consulta SIAT usados por los comprobantes actuales.
+     *
+     * La consulta no abre una pagina web interna: extrae nit/cuf/factura del QR
+     * y luego llama al endpoint REST de SIAT para traer la informacion fiscal.
+     *
+     * @param array{host?: string, path?: string}|null $parts
+     */
+    private function looksLikeSiatQrUrl(string $normalized, ?array $parts): bool
+    {
+        $allowedHosts = [
+            'siat.impuestos.gob.bo',
+            'pilotosiat.impuestos.gob.bo',
+            'www.impuestos.gob.bo',
+        ];
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $path = strtolower((string) ($parts['path'] ?? ''));
+
+        $hostMatches = $host === '' ? false : in_array($host, $allowedHosts, true);
+        $pathMatches = str_contains($path !== '' ? $path : $normalized, '/consulta');
+
+        return $hostMatches && $pathMatches;
     }
 
     private function loadInvoicePreviewFromModel(FuelInvoice $invoice): void

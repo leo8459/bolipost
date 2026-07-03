@@ -280,7 +280,7 @@
         <div class="card shadow-sm mb-3">
             <div class="card-body">
                 <div class="row g-2 align-items-end">
-                    <div class="col-12 col-md-4 col-lg-3">
+                    <div class="col-12 col-md-4 col-lg-2">
                         <label class="form-label fw-bold mb-1">Filtro de citas</label>
                         <select wire:model.live="statusFilter" class="form-select bp-select-like-vehicle">
                             <option value="">Todas</option>
@@ -291,7 +291,21 @@
                             <option value="Cancelado">Canceladas</option>
                         </select>
                     </div>
-                    <div class="col-12 col-md-8 col-lg-9">
+                    <div class="col-12 col-md-4 col-lg-3">
+                        <label class="form-label fw-bold mb-1">Solicitud desde</label>
+                        <input
+                            type="date"
+                            class="form-control"
+                            wire:model.live="fecha_desde">
+                    </div>
+                    <div class="col-12 col-md-4 col-lg-3">
+                        <label class="form-label fw-bold mb-1">Solicitud hasta</label>
+                        <input
+                            type="date"
+                            class="form-control"
+                            wire:model.live="fecha_hasta">
+                    </div>
+                    <div class="col-12 col-lg-4">
                         <label class="form-label fw-bold mb-1">Busqueda</label>
                         <input
                             type="text"

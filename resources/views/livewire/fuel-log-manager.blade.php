@@ -81,6 +81,38 @@
             filter: contrast(1.15) brightness(1.08);
         }
 
+        .qr-crop-panel {
+            border: 1px solid #d8e2ef;
+            border-radius: 8px;
+            padding: .75rem;
+            background: #f8fbff;
+        }
+
+        .qr-crop-stage {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            border: 1px solid #cfd9e8;
+            border-radius: 8px;
+            background: #eef3f9;
+            touch-action: none;
+        }
+
+        #qr-crop-canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            cursor: crosshair;
+        }
+
+        #qr-crop-selection {
+            position: absolute;
+            border: 2px solid #ffc107;
+            background: rgba(255, 193, 7, .14);
+            box-shadow: 0 0 0 9999px rgba(12, 22, 38, .35);
+            pointer-events: none;
+        }
+
         .fuel-table {
             min-width: 1300px;
         }
@@ -1064,7 +1096,7 @@
                 </div>
                 <div class="col-lg-4">
                     <div class="card border-0 shadow-sm mb-4 bp-gestiones-form-card">
-                        <div class="card-body">
+                        <div class="card-body" wire:ignore>
                             <h6 class="fw-bold mb-3"><i class="fas fa-qrcode me-2"></i>Escaner QR Factura SIAT</h6>
                             <div class="mb-3">
                                 <label for="camera-select" class="form-label fw-bold">Camaras disponibles</label>
@@ -1082,6 +1114,24 @@
                                 <input id="seleccionar-imagen-input" type="file" accept="image/*" class="d-none">
                             </div>
                             <div id="qr-reader-modal" class="w-100 rounded border bg-light" style="min-height: 320px;"></div>
+                            <div id="qr-crop-panel" class="qr-crop-panel d-none mt-3">
+                                <div class="small text-muted mb-2">Marca solo el QR y procesa el recorte.</div>
+                                <div class="qr-crop-stage">
+                                    <canvas id="qr-crop-canvas"></canvas>
+                                    <div id="qr-crop-selection"></div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                    <button id="procesar-recorte-btn" type="button" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-crop-alt me-1"></i>Procesar recorte
+                                    </button>
+                                    <button id="procesar-imagen-completa-btn" type="button" class="btn btn-outline-secondary btn-sm">
+                                        <i class="fas fa-image me-1"></i>Imagen completa
+                                    </button>
+                                    <button id="cancelar-recorte-btn" type="button" class="btn btn-outline-danger btn-sm">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
                             <p id="qr-status" class="mt-3 mb-0">Pulsa "Activar camara" o selecciona una imagen.</p>
                         </div>
                     </div>
@@ -1310,7 +1360,7 @@
     </div>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         (function() {
@@ -1367,12 +1417,23 @@
             let isHandlingDecode = false;
             let cameraDevices = [];
             let cameraRefreshTimer = null;
+            let cropState = {
+                file: null,
+                image: null,
+                objectUrl: null,
+                selection: null,
+                dragStart: null,
+            };
 
             const getStatus = () => document.getElementById('qr-status');
             const getCameraBtn = () => document.getElementById('activar-camara-btn');
             const getCameraSelect = () => document.getElementById('camera-select');
             const getImageBtn = () => document.getElementById('seleccionar-imagen-btn');
             const getImageInput = () => document.getElementById('seleccionar-imagen-input');
+            const getCropPanel = () => document.getElementById('qr-crop-panel');
+            const getCropCanvas = () => document.getElementById('qr-crop-canvas');
+            const getCropSelection = () => document.getElementById('qr-crop-selection');
+            const getQrReader = () => document.getElementById('qr-reader-modal');
 
             function setStatus(text) {
                 const el = getStatus();
@@ -1393,6 +1454,24 @@
                 button.innerHTML = '<i class="fas fa-camera me-1"></i>Activar camara';
                 button.classList.remove('btn-danger');
                 button.classList.add('btn-outline-primary');
+            }
+
+            function describeCameraError(error) {
+                if (!error) return 'error_desconocido';
+
+                const parts = [];
+                if (error.name) parts.push(error.name);
+                if (error.message && error.message !== error.name) parts.push(error.message);
+
+                return parts.length ? parts.join(': ') : String(error);
+            }
+
+            function createScannerInstance() {
+                if (!document.getElementById('qr-reader-modal') || !window.Html5Qrcode) {
+                    return null;
+                }
+
+                return new Html5Qrcode('qr-reader-modal');
             }
 
             function getLivewireComponent() {
@@ -1440,26 +1519,98 @@
                 }
 
                 if (!scanner) {
-                    scanner = new Html5Qrcode('qr-reader-modal');
+                    scanner = createScannerInstance();
+                }
+
+                if (!scanner) {
+                    setStatus('No se pudo inicializar el lector QR.');
+                    return false;
                 }
 
                 return true;
             }
 
-            async function loadCameras() {
-                const select = getCameraSelect();
-                if (!select || !window.Html5Qrcode) return;
+            async function requestCameraPermission() {
+                if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+                    return false;
+                }
 
                 try {
-                    cameraDevices = await Html5Qrcode.getCameras();
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    stream.getTracks().forEach((track) => track.stop());
+                    return true;
                 } catch (_) {
-                    cameraDevices = [];
+                    return false;
                 }
+            }
+
+            async function detectCameras() {
+                const devices = [];
+
+                if (navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
+                    try {
+                        const allDevices = await navigator.mediaDevices.enumerateDevices();
+                        allDevices
+                            .filter((device) => device && device.kind === 'videoinput')
+                            .forEach((device, index) => {
+                                devices.push({
+                                    id: device.deviceId || '',
+                                    label: device.label || `Camara ${index + 1}`,
+                                });
+                            });
+                    } catch (_) {
+                        // Se intenta el fallback abajo.
+                    }
+                }
+
+                if (!devices.length && window.Html5Qrcode && typeof Html5Qrcode.getCameras === 'function') {
+                    try {
+                        const cameras = await Html5Qrcode.getCameras();
+                        cameras.forEach((camera, index) => {
+                            devices.push({
+                                id: camera.id || '',
+                                label: camera.label || `Camara ${index + 1}`,
+                            });
+                        });
+                    } catch (_) {
+                        // sin fallback adicional
+                    }
+                }
+
+                if (devices.length && devices.every((device) => !device.label || /^Camara \d+$/.test(device.label))) {
+                    const permissionGranted = await requestCameraPermission();
+                    if (permissionGranted && navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
+                        try {
+                            const allDevices = await navigator.mediaDevices.enumerateDevices();
+                            devices.length = 0;
+                            allDevices
+                                .filter((device) => device && device.kind === 'videoinput')
+                                .forEach((device, index) => {
+                                    devices.push({
+                                        id: device.deviceId || '',
+                                        label: device.label || `Camara ${index + 1}`,
+                                    });
+                                });
+                        } catch (_) {
+                            // se conserva la lista previa
+                        }
+                    }
+                }
+
+                return devices.filter((device) => device.id !== '');
+            }
+
+            async function loadCameras() {
+                const select = getCameraSelect();
+                if (!select) return;
+
+                cameraDevices = await detectCameras();
 
                 select.innerHTML = '';
                 if (!cameraDevices.length) {
                     select.innerHTML = '<option value="">No se detectaron camaras</option>';
                     select.disabled = true;
+                    setStatus('No se detecto ninguna camara. Verifica permisos del navegador o usa la opcion de imagen.');
                     return;
                 }
 
@@ -1470,6 +1621,9 @@
                     select.appendChild(option);
                 });
                 select.disabled = false;
+                if (!select.value) {
+                    select.value = cameraDevices[0].id;
+                }
             }
 
             function startCameraRefreshLoop() {
@@ -1517,33 +1671,243 @@
 
                 try {
                     isHandlingDecode = false;
-                    setStatus('Camara activa. Escaneando QR...');
                     const selectedCameraId = getCameraSelect() ? getCameraSelect().value : '';
+                    const deviceIds = [
+                        selectedCameraId,
+                        ...(cameraDevices.map((camera) => camera.id))
+                    ].filter((deviceId, index, list) => deviceId && list.indexOf(deviceId) === index);
+                    const cameraCandidates = [
+                        ...deviceIds,
+                        { facingMode: { exact: 'environment' } },
+                        { facingMode: { ideal: 'environment' } },
+                        { facingMode: 'environment' },
+                        { facingMode: { exact: 'user' } },
+                        { facingMode: { ideal: 'user' } },
+                        { facingMode: 'user' },
+                    ];
 
-                    await scanner.start(
-                        selectedCameraId || {
-                            facingMode: 'environment'
-                        }, {
-                            fps: 10,
-                            qrbox: {
-                                width: 260,
-                                height: 260
+                    const cameraConfig = {
+                        fps: 10,
+                        qrbox: {
+                            width: 260,
+                            height: 260
+                        }
+                    };
+
+                    let started = false;
+                    let lastError = null;
+
+                    for (const candidate of cameraCandidates) {
+                        try {
+                            if (!scanner) {
+                                scanner = createScannerInstance();
                             }
-                        },
-                        async (decodedText) => {
-                                if (isHandlingDecode) return;
-                                isHandlingDecode = true;
-                                await procesarTextoQR(decodedText);
-                                await stopScanner();
-                            },
-                            () => {}
-                    );
+
+                            await scanner.start(
+                                candidate,
+                                cameraConfig,
+                                async (decodedText) => {
+                                    if (isHandlingDecode) return;
+                                    isHandlingDecode = true;
+                                    await procesarTextoQR(decodedText);
+                                    await stopScanner();
+                                },
+                                () => {}
+                            );
+
+                            started = true;
+                            break;
+                        } catch (candidateError) {
+                            lastError = candidateError;
+                            try {
+                                if (scanner && typeof scanner.stop === 'function') {
+                                    await scanner.stop();
+                                }
+                            } catch (_) {}
+                            try {
+                                if (scanner && typeof scanner.clear === 'function') {
+                                    await scanner.clear();
+                                }
+                            } catch (_) {}
+                            scanner = createScannerInstance();
+                        }
+                    }
+
+                    if (!started) {
+                        throw lastError || new Error('camera_start_failed');
+                    }
 
                     running = true;
+                    setStatus('Camara activa. Escaneando QR...');
                     setCameraButtonActive(true);
-                } catch (_) {
-                    setStatus('No se pudo acceder a la camara.');
+                } catch (error) {
+                    await loadCameras();
+                    setCameraButtonActive(false);
+                    setStatus(`No se pudo acceder a la camara interna o externa (${describeCameraError(error)}). Revisa permisos, uso compartido por otra app o usa la carga de imagen.`);
                 }
+            }
+
+            function hideImageCropper() {
+                const panel = getCropPanel();
+                const reader = getQrReader();
+                if (panel) panel.classList.add('d-none');
+                if (reader) reader.classList.remove('d-none');
+
+                if (cropState.objectUrl) {
+                    URL.revokeObjectURL(cropState.objectUrl);
+                }
+
+                cropState = {
+                    file: null,
+                    image: null,
+                    objectUrl: null,
+                    selection: null,
+                    dragStart: null,
+                };
+            }
+
+            function updateCropSelection() {
+                const selectionEl = getCropSelection();
+                const selection = cropState.selection;
+                if (!selectionEl || !selection) return;
+
+                selectionEl.style.left = `${selection.x}px`;
+                selectionEl.style.top = `${selection.y}px`;
+                selectionEl.style.width = `${selection.w}px`;
+                selectionEl.style.height = `${selection.h}px`;
+            }
+
+            function drawCropImage() {
+                const canvas = getCropCanvas();
+                const image = cropState.image;
+                if (!canvas || !image) return;
+
+                const containerWidth = canvas.parentElement ? canvas.parentElement.clientWidth : 360;
+                const maxWidth = Math.max(260, containerWidth);
+                const scale = Math.min(1, maxWidth / image.naturalWidth);
+                const width = Math.max(1, Math.round(image.naturalWidth * scale));
+                const height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+                canvas.width = width;
+                canvas.height = height;
+                canvas.style.width = `${width}px`;
+                canvas.style.height = `${height}px`;
+
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, width, height);
+                ctx.drawImage(image, 0, 0, width, height);
+
+                cropState.selection = {
+                    x: Math.round(width * 0.16),
+                    y: Math.round(height * 0.34),
+                    w: Math.round(width * 0.68),
+                    h: Math.round(height * 0.44),
+                };
+                updateCropSelection();
+            }
+
+            async function showImageCropper(file) {
+                await stopScanner();
+                hideImageCropper();
+
+                const panel = getCropPanel();
+                const reader = getQrReader();
+                const canvas = getCropCanvas();
+                if (!panel || !canvas || !file) return;
+
+                const image = new Image();
+                const objectUrl = URL.createObjectURL(file);
+                cropState.file = file;
+                cropState.image = image;
+                cropState.objectUrl = objectUrl;
+
+                image.onload = () => {
+                    if (reader) reader.classList.add('d-none');
+                    panel.classList.remove('d-none');
+                    drawCropImage();
+                    setStatus('Ajusta el recorte alrededor del QR y pulsa "Procesar recorte".');
+                };
+                image.onerror = () => {
+                    hideImageCropper();
+                    setStatus('No se pudo cargar la imagen seleccionada.');
+                };
+                image.src = objectUrl;
+            }
+
+            function canvasPointFromEvent(event) {
+                const canvas = getCropCanvas();
+                if (!canvas) return null;
+
+                const rect = canvas.getBoundingClientRect();
+                const clientX = event.clientX ?? event.touches?.[0]?.clientX;
+                const clientY = event.clientY ?? event.touches?.[0]?.clientY;
+                if (clientX === undefined || clientY === undefined) return null;
+
+                return {
+                    x: Math.max(0, Math.min(canvas.width, clientX - rect.left)),
+                    y: Math.max(0, Math.min(canvas.height, clientY - rect.top)),
+                };
+            }
+
+            function beginCropSelection(event) {
+                const point = canvasPointFromEvent(event);
+                if (!point) return;
+
+                event.preventDefault();
+                cropState.dragStart = point;
+                cropState.selection = { x: point.x, y: point.y, w: 1, h: 1 };
+                updateCropSelection();
+            }
+
+            function moveCropSelection(event) {
+                if (!cropState.dragStart) return;
+                const point = canvasPointFromEvent(event);
+                if (!point) return;
+
+                event.preventDefault();
+                const start = cropState.dragStart;
+                cropState.selection = {
+                    x: Math.min(start.x, point.x),
+                    y: Math.min(start.y, point.y),
+                    w: Math.max(1, Math.abs(point.x - start.x)),
+                    h: Math.max(1, Math.abs(point.y - start.y)),
+                };
+                updateCropSelection();
+            }
+
+            function endCropSelection() {
+                cropState.dragStart = null;
+            }
+
+            async function buildCroppedFile() {
+                const canvas = getCropCanvas();
+                const image = cropState.image;
+                const selection = cropState.selection;
+                if (!canvas || !image || !selection || selection.w < 10 || selection.h < 10) {
+                    return null;
+                }
+
+                const scaleX = image.naturalWidth / canvas.width;
+                const scaleY = image.naturalHeight / canvas.height;
+                const sourceX = Math.max(0, Math.round(selection.x * scaleX));
+                const sourceY = Math.max(0, Math.round(selection.y * scaleY));
+                const sourceW = Math.min(image.naturalWidth - sourceX, Math.round(selection.w * scaleX));
+                const sourceH = Math.min(image.naturalHeight - sourceY, Math.round(selection.h * scaleY));
+                const outputMax = 1200;
+                const outputScale = Math.min(1, outputMax / Math.max(sourceW, sourceH));
+                const outputW = Math.max(1, Math.round(sourceW * outputScale));
+                const outputH = Math.max(1, Math.round(sourceH * outputScale));
+                const outputCanvas = document.createElement('canvas');
+                outputCanvas.width = outputW;
+                outputCanvas.height = outputH;
+
+                const ctx = outputCanvas.getContext('2d');
+                ctx.drawImage(image, sourceX, sourceY, sourceW, sourceH, 0, 0, outputW, outputH);
+
+                const blob = await new Promise((resolve) => outputCanvas.toBlob(resolve, 'image/png', 0.92));
+                if (!blob) return null;
+
+                return new File([blob], 'qr-recorte.png', { type: 'image/png' });
             }
 
             async function procesarImagen(file) {
@@ -1617,7 +1981,10 @@
                 }
 
                 const ok = await procesarTextoQR(decodedText);
-                if (ok) setStatus('QR procesado correctamente.');
+                if (ok) {
+                    hideImageCropper();
+                    setStatus('QR procesado correctamente.');
+                }
             }
 
             document.addEventListener('click', async (event) => {
@@ -1636,6 +2003,42 @@
                 if (imageButton) {
                     const input = getImageInput();
                     if (input) input.click();
+                    return;
+                }
+
+                const processCropButton = event.target.closest('#procesar-recorte-btn');
+                if (processCropButton) {
+                    processCropButton.disabled = true;
+                    try {
+                        const croppedFile = await buildCroppedFile();
+                        if (!croppedFile) {
+                            setStatus('Marca un area mas grande alrededor del QR.');
+                            return;
+                        }
+                        await procesarImagen(croppedFile);
+                    } finally {
+                        processCropButton.disabled = false;
+                    }
+                    return;
+                }
+
+                const processFullButton = event.target.closest('#procesar-imagen-completa-btn');
+                if (processFullButton) {
+                    processFullButton.disabled = true;
+                    try {
+                        await procesarImagen(cropState.file);
+                    } finally {
+                        processFullButton.disabled = false;
+                    }
+                    return;
+                }
+
+                const cancelCropButton = event.target.closest('#cancelar-recorte-btn');
+                if (cancelCropButton) {
+                    hideImageCropper();
+                    const input = getImageInput();
+                    if (input) input.value = '';
+                    setStatus('Selecciona una imagen o activa la camara.');
                 }
             });
 
@@ -1645,8 +2048,21 @@
                 if (input.id !== 'seleccionar-imagen-input') return;
 
                 const file = input.files && input.files[0];
-                await procesarImagen(file);
+                await showImageCropper(file);
             });
+
+            document.addEventListener('pointerdown', (event) => {
+                if (event.target === getCropCanvas()) {
+                    beginCropSelection(event);
+                }
+            });
+
+            document.addEventListener('pointermove', (event) => {
+                moveCropSelection(event);
+            });
+
+            document.addEventListener('pointerup', endCropSelection);
+            document.addEventListener('pointercancel', endCropSelection);
 
             window.addEventListener('beforeunload', async () => {
                 stopCameraRefreshLoop();
@@ -1665,6 +2081,11 @@
 
             document.addEventListener('livewire:navigated', loadCameras);
             setTimeout(loadCameras, 300);
+            setTimeout(() => {
+                if (!cameraDevices.length) {
+                    loadCameras();
+                }
+            }, 1500);
             startCameraRefreshLoop();
         })();
     </script>

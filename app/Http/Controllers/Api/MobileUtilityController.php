@@ -428,6 +428,14 @@ class MobileUtilityController extends Controller
             'meta_json' => 'nullable|array',
         ]);
 
+        if (in_array((string) $payload['incident_type'], VehicleOperationAlert::suppressedPackgoAlertTypes(), true)) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Incidente operativo recibido sin generar alerta.',
+                'suppressed' => true,
+            ], 200);
+        }
+
         $vehicleId = (int) $payload['vehicle_id'];
         $session = $this->resolveOperationalIncidentSession(
             $payload['session_reference'] ?? null,
@@ -1473,6 +1481,7 @@ class MobileUtilityController extends Controller
         $query = VehicleOperationAlert::query()
             ->with(['vehicle:id,placa'])
             ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
+            ->whereNotIn('alert_type', VehicleOperationAlert::suppressedPackgoAlertTypes())
             ->where(function ($alertQuery) use ($driverId, $vehicleIds) {
                 if ($driverId && $driverId > 0) {
                     $alertQuery->where('meta_json->driver_id', $driverId);

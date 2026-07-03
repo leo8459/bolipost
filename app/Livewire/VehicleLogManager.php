@@ -45,6 +45,7 @@ class VehicleLogManager extends Component
     public ?float $kilometraje_recorrido = null;
 
     public ?float $kilometraje_llegada = null;
+    public ?int $cantidad_paquetes = null;
 
     #[Validate('required|string|max:255')]
     public string $recorrido_inicio = '';
@@ -90,6 +91,7 @@ class VehicleLogManager extends Component
             ->orderByDesc('id');
         $operationAlertsQuery = VehicleOperationAlert::query()
             ->with(['vehicle', 'session.driver', 'session.currentDriver', 'session.responsibleDriver'])
+            ->whereNotIn('alert_type', VehicleOperationAlert::suppressedPackgoAlertTypes())
             ->orderByDesc('detected_at')
             ->orderByDesc('id');
 
@@ -326,6 +328,7 @@ class VehicleLogManager extends Component
                 'fecha' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
                 'kilometraje_salida' => ['required', 'numeric', 'min:0'],
                 'kilometraje_recorrido' => ['required', 'numeric', 'min:0'],
+                'cantidad_paquetes' => ['nullable', 'integer', 'min:0'],
                 'recorrido_inicio' => ['required', 'string', 'max:255'],
                 'recorrido_destino' => ['required', 'string', 'max:255', 'different:recorrido_inicio'],
                 'odometro_photo' => $odometroPhotoRules,
@@ -348,6 +351,8 @@ class VehicleLogManager extends Component
                 'kilometraje_recorrido.required' => 'El kilometraje recorrido es obligatorio.',
                 'kilometraje_recorrido.numeric' => 'El kilometraje recorrido debe ser numerico.',
                 'kilometraje_recorrido.min' => 'El kilometraje recorrido no puede ser negativo.',
+                'cantidad_paquetes.integer' => 'La cantidad de paquetes debe ser un numero entero.',
+                'cantidad_paquetes.min' => 'La cantidad de paquetes no puede ser negativa.',
                 'recorrido_inicio.required' => 'El recorrido de inicio es obligatorio.',
                 'recorrido_inicio.max' => 'El recorrido de inicio no puede superar los 255 caracteres.',
                 'recorrido_destino.required' => 'El recorrido de destino es obligatorio.',
@@ -391,6 +396,7 @@ class VehicleLogManager extends Component
             'kilometraje_salida' => $this->kilometraje_salida,
             'kilometraje_recorrido' => $this->kilometraje_recorrido,
             'kilometraje_llegada' => $this->kilometraje_llegada,
+            'cantidad_paquetes' => $this->cantidad_paquetes !== null ? max(0, (int) $this->cantidad_paquetes) : null,
             'recorrido_inicio' => $this->recorrido_inicio,
             'recorrido_destino' => $this->recorrido_destino,
             'abastecimiento_combustible' => $this->resolveAbastecimientoCombustible(),
@@ -444,6 +450,7 @@ class VehicleLogManager extends Component
             : (($this->kilometraje_llegada !== null && $this->kilometraje_salida !== null)
                 ? max(0, $this->kilometraje_llegada - $this->kilometraje_salida)
                 : null);
+        $this->cantidad_paquetes = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;
         $this->recorrido_inicio = (string) $log->recorrido_inicio;
         $this->recorrido_destino = (string) $log->recorrido_destino;
         $this->latitud_inicio = $log->latitud_inicio !== null ? (float) $log->latitud_inicio : null;
@@ -479,6 +486,7 @@ class VehicleLogManager extends Component
         $this->kilometraje_salida = null;
         $this->kilometraje_recorrido = null;
         $this->kilometraje_llegada = null;
+        $this->cantidad_paquetes = null;
         $this->recorrido_inicio = '';
         $this->recorrido_destino = '';
         $this->latitud_inicio = null;
@@ -1043,7 +1051,9 @@ class VehicleLogManager extends Component
         $items->transform(function ($log) use ($deliveryCounts) {
             $userId = (int) ($log->driver?->user_id ?? 0);
             $date = optional($log->fecha)->format('Y-m-d');
-            $log->package_count = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
+            $derivedCount = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
+            $savedCount = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;
+            $log->package_count = $savedCount !== null ? $savedCount : $derivedCount;
 
             return $log;
         });

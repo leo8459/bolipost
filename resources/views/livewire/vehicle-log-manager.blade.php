@@ -419,6 +419,15 @@
                                         <div class="form-text">El sistema sumara este valor al Km Salida para calcular el kilometraje final.</div>
                                     </div>
                                     <div class="col-12 col-md-6">
+                                        <label for="cantidad_paquetes" class="form-label fw-bold">Paquetes entregados</label>
+                                        <input type="number" min="0" step="1" id="cantidad_paquetes" wire:model="cantidad_paquetes" class="form-control @error('cantidad_paquetes') is-invalid @enderror">
+                                        @error('cantidad_paquetes') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                        <div class="form-text">Registra la cantidad real de paquetes entregados en esta bitacora.</div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12 col-md-6">
                                         <label for="recorrido_inicio" class="form-label fw-bold">Recorrido Inicio <span class="text-danger">*</span></label>
                                         <div class="input-group">
                                             <input type="text" id="recorrido_inicio" wire:model="recorrido_inicio" class="form-control @error('recorrido_inicio') is-invalid @enderror" required>

@@ -85,4 +85,12 @@ class VehicleOperationAlert extends Model
             self::TYPE_MOBILE_RUNTIME_ERROR,
         ];
     }
+
+    public static function suppressedPackgoAlertTypes(): array
+    {
+        return [
+            self::TYPE_MOBILE_BACKGROUND_SYNC_FAILED,
+            self::TYPE_MOBILE_BACKGROUND_SYNC_TIMEOUT,
+        ];
+    }
 }
