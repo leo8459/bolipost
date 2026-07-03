@@ -554,9 +554,18 @@ class MisVentasController extends Controller
     private function buildQrStatusMessage(string $estadoPago, string $fallback = ''): string
     {
         $estadoPago = strtolower(trim($estadoPago));
+        $fallbackNormalized = strtolower(trim($fallback));
+
+        if ($fallback !== '' && (
+            str_contains($fallbackNormalized, 'factura')
+            || str_contains($fallbackNormalized, 'sefe')
+            || str_contains($fallbackNormalized, 'fiscal')
+        )) {
+            return $fallback;
+        }
 
         return match ($estadoPago) {
-            'pagado' => $fallback !== '' ? $fallback : 'Pago QR confirmado. No corresponde factura fiscal automatica.',
+            'pagado' => $fallback !== '' ? $fallback : 'Pago QR confirmado. La factura electronica se emitira automaticamente.',
             'cancelado' => $fallback !== '' ? $fallback : 'Pago QR cancelado o rechazado.',
             default => $fallback !== '' ? $fallback : 'QR generado. Pendiente de confirmacion de pago.',
         };

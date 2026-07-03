@@ -344,8 +344,16 @@
                                     </div>
                                 </td>
                                 <td>
-                                    @if($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pagado')
-                                        <span class="ventas-status-chip ventas-status-chip--success">PAGADO QR</span>
+                                    @if($canalEmision === 'qr' && $facturaEstado === 'FACTURADA')
+                                        <span class="ventas-status-chip ventas-status-chip--success">FACTURADA</span>
+                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'PENDIENTE')
+                                        <span class="ventas-status-chip ventas-status-chip--warning">FACTURA EN PROCESO</span>
+                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'RECHAZADA')
+                                        <span class="ventas-status-chip ventas-status-chip--danger">FACTURA RECHAZADA</span>
+                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'ERROR')
+                                        <span class="ventas-status-chip ventas-status-chip--dark">ERROR DE FACTURA</span>
+                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pagado')
+                                        <span class="ventas-status-chip ventas-status-chip--success">PAGO QR CONFIRMADO</span>
                                     @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
                                         <span class="ventas-status-chip ventas-status-chip--danger">QR RECHAZADO</span>
                                     @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA')
@@ -370,9 +378,13 @@
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Si fue por contingencia, usa actualizar estado hasta que llegue la factura.
                                         </div>
-                                    @elseif($canalEmision === 'qr')
+                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
-                                            El QR solo confirma pago; no genera factura fiscal automatica.
+                                            El QR esta pendiente de pago o de pasar a facturacion automatica.
+                                        </div>
+                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'PENDIENTE')
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            El pago QR ya fue confirmado y la factura se encuentra en proceso ante SEFE.
                                         </div>
                                     @endif
                                 </td>

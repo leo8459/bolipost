@@ -12,7 +12,9 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class FacturacionCartService
 {
@@ -506,7 +508,12 @@ class FacturacionCartService
         return ['carrito' => $cart, 'payload' => [], 'respuesta' => (array) data_get($body, 'respuesta', [])];
     }
 
-    public function consultarEstadoEmision(User $user, ?int $cartId = null): array
+    public function consultarEstadoEmision(
+        User $user,
+        ?int $cartId = null,
+        bool $autoEmitInvoice = false,
+        bool $allowPendingRetry = true
+    ): array
     {
         $payload = [
             'origen_usuario_id' => (string) $user->id,
@@ -514,7 +521,7 @@ class FacturacionCartService
         ];
 
         $body = $this->request('POST', '/cart/consultar', $payload);
-        [$body, $cart] = $this->retryPendingQrConsultIfNeeded($payload, $body);
+        [$body, $cart] = $this->retryPendingQrConsultIfNeeded($payload, $body, $allowPendingRetry);
 
         if (!$cart) {
             $cart = $this->toCart(data_get($body, 'cart'));
@@ -524,11 +531,48 @@ class FacturacionCartService
             throw new \RuntimeException((string) data_get($body, 'respuesta.mensaje', 'No se pudo consultar.'));
         }
 
-        return ['carrito' => $cart, 'respuesta' => (array) data_get($body, 'respuesta', [])];
+        $respuesta = (array) data_get($body, 'respuesta', []);
+
+        if ($this->shouldAutoEmitPaidQrInvoice($cart, $respuesta, $autoEmitInvoice)) {
+            $attemptStatus = $this->resolveAutoEmitAttemptStatus($cart);
+            if ($attemptStatus === 'cooldown' || $attemptStatus === 'locked') {
+                $respuesta['auto_factura_pending'] = true;
+
+                return ['carrito' => $cart, 'respuesta' => $respuesta];
+            }
+
+            try {
+                $this->markAutoEmitAttemptCooldown($cart, 120);
+                $invoiceResult = $this->emitFacturaForPaidQrCart($user, $cart);
+                $this->markAutoEmitAttemptCooldown($invoiceResult['carrito'] ?? $cart, 300);
+
+                return [
+                    'carrito' => $invoiceResult['carrito'],
+                    'respuesta' => (array) ($invoiceResult['respuesta'] ?? []),
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo emitir automaticamente la factura despues del pago QR.', [
+                    'user_id' => $user->id,
+                    'cart_id' => $cart->id ?? null,
+                    'codigo_orden' => $cart->codigo_orden ?? null,
+                    'message' => $e->getMessage(),
+                ]);
+
+                $respuesta['auto_factura_error'] = trim($e->getMessage());
+            } finally {
+                $this->releaseAutoEmitLock($cart);
+            }
+        }
+
+        return ['carrito' => $cart, 'respuesta' => $respuesta];
     }
 
-    private function retryPendingQrConsultIfNeeded(array $payload, array $body): array
+    private function retryPendingQrConsultIfNeeded(array $payload, array $body, bool $allowPendingRetry = true): array
     {
+        if (!$allowPendingRetry) {
+            return [$body, $this->toCart(data_get($body, 'cart'))];
+        }
+
         $cart = $this->toCart(data_get($body, 'cart'));
         if (!$this->shouldRetryPendingQrConsult($cart, (array) data_get($body, 'respuesta', []))) {
             return [$body, $cart];
@@ -574,6 +618,131 @@ class FacturacionCartService
         }
 
         return in_array($paymentStatus, ['', 'holding', 'pending', 'pendiente'], true);
+    }
+
+    private function shouldAutoEmitPaidQrInvoice(?object $cart, array $respuesta, bool $autoEmitInvoice): bool
+    {
+        if (!$autoEmitInvoice || !$cart) {
+            return false;
+        }
+
+        $canalEmision = strtolower(trim((string) ($cart->canal_emision ?? '')));
+        $estadoEmision = strtoupper(trim((string) ($cart->estado_emision ?? '')));
+        $estadoPago = strtolower(trim((string) (
+            $cart->estado_pago
+            ?? data_get($respuesta, 'estado_pago')
+            ?? data_get($respuesta, 'payment_status')
+            ?? data_get($respuesta, 'items.0.payment_status')
+            ?? ''
+        )));
+
+        if ($canalEmision !== 'qr') {
+            return false;
+        }
+
+        if (!in_array($estadoPago, ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'], true)) {
+            return false;
+        }
+
+        return in_array($estadoEmision, ['', 'NO_APLICA'], true);
+    }
+
+    private function resolveAutoEmitAttemptStatus(object $cart): string
+    {
+        $cartId = (int) ($cart->id ?? 0);
+        if ($cartId <= 0) {
+            return 'invalid';
+        }
+
+        if (Cache::has($this->autoEmitCooldownKey($cartId))) {
+            return 'cooldown';
+        }
+
+        $lock = Cache::lock($this->autoEmitLockKey($cartId), 30);
+        if (!$lock->get()) {
+            return 'locked';
+        }
+
+        return 'acquired';
+    }
+
+    private function releaseAutoEmitLock(object $cart): void
+    {
+        $cartId = (int) ($cart->id ?? 0);
+        if ($cartId <= 0) {
+            return;
+        }
+
+        try {
+            Cache::lock($this->autoEmitLockKey($cartId), 30)->forceRelease();
+        } catch (\Throwable) {
+            // Si el driver no soporta locks distribuidos, no bloqueamos el flujo.
+        }
+    }
+
+    private function markAutoEmitAttemptCooldown(object $cart, int $seconds): void
+    {
+        $cartId = (int) ($cart->id ?? 0);
+        if ($cartId <= 0 || $seconds <= 0) {
+            return;
+        }
+
+        Cache::put($this->autoEmitCooldownKey($cartId), now()->timestamp, now()->addSeconds($seconds));
+    }
+
+    private function autoEmitLockKey(int $cartId): string
+    {
+        return 'facturacion:qr:auto-emit:lock:' . $cartId;
+    }
+
+    private function autoEmitCooldownKey(int $cartId): string
+    {
+        return 'facturacion:qr:auto-emit:cooldown:' . $cartId;
+    }
+
+    private function emitFacturaForPaidQrCart(User $user, object $cart): array
+    {
+        $ctx = $this->getRemoteContextForUser($user);
+        $draft = $ctx['draft'] ?? null;
+
+        if (!$draft || (int) ($draft->id ?? 0) !== (int) ($cart->id ?? 0)) {
+            throw new \RuntimeException('La venta QR pagada ya no coincide con el borrador activo; evita reemitir automaticamente y revisa la venta desde el historial.');
+        }
+
+        if (strtolower(trim((string) ($draft->canal_emision ?? ''))) !== 'qr') {
+            throw new \RuntimeException('El borrador activo ya no esta en canal QR.');
+        }
+
+        $billingSnapshot = $this->buildFacturaElectronicaBillingSnapshot($draft);
+        $this->updateDraftBillingData($user, $billingSnapshot);
+
+        Log::info('Pago QR confirmado; iniciando emision automatica de factura electronica.', [
+            'user_id' => $user->id,
+            'cart_id' => $draft->id ?? null,
+            'codigo_orden' => $draft->codigo_orden ?? null,
+        ]);
+
+        return $this->emitirBorrador($user, $billingSnapshot);
+    }
+
+    private function buildFacturaElectronicaBillingSnapshot(object $cart): array
+    {
+        return array_filter([
+            'modalidad_facturacion' => (string) ($cart->modalidad_facturacion ?? 'con_datos'),
+            'canal_emision' => 'factura_electronica',
+            'tipo_documento' => $this->nullableString($cart->tipo_documento ?? null),
+            'numero_documento' => $this->nullableString($cart->numero_documento ?? null),
+            'complemento_documento' => $this->nullableString($cart->complemento_documento ?? null),
+            'razon_social' => $this->nullableString($cart->razon_social ?? null),
+            'correo_facturacion' => $this->nullableString($cart->correo_facturacion ?? ($cart->correo ?? null)),
+        ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        $normalized = trim((string) $value);
+
+        return $normalized !== '' ? $normalized : null;
     }
 
     private function pendingQrConsultDelaySeconds(object $cart): int

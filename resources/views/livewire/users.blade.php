@@ -402,7 +402,7 @@
                                                         wire:click="openPasswordModal({{ $user->id }})"
                                                         class="btn btn-sm btn-info"
                                                         type="button"
-                                                        title="Cambiar contrasena"
+                                                        title="Cambiar contraseña"
                                                     >
                                                         <i class="fa fa-key"></i>
                                                     </button>
@@ -479,8 +479,8 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>{{ $editingId ? 'Nueva contrasena (opcional)' : 'Contrasena' }}</label>
-                                    <input type="password" wire:model.defer="password" class="form-control" placeholder="Contrasena">
+                                    <label>{{ $editingId ? 'Nueva contraseña (opcional)' : 'Contraseña' }}</label>
+                                    <input type="password" wire:model.defer="password" class="form-control" placeholder="Contraseña">
                                     @error('password') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -586,14 +586,14 @@
             <div class="modal-content">
                 <form wire:submit.prevent="updatePassword">
                     <div class="modal-header">
-                        <h5 class="modal-title">Cambiar contrasena</h5>
+                        <h5 class="modal-title">Cambiar contraseña</h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group mb-0">
-                            <label>Nueva contrasena</label>
+                            <label>Nueva contraseña</label>
                             <input type="password" wire:model.defer="newPassword" class="form-control" placeholder="Minimo 8 caracteres">
                             @error('newPassword') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>

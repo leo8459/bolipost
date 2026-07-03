@@ -21,7 +21,7 @@
                 </div>
 
                 <div>
-                    <x-input-label for="password" :value="__('Contrasena')" />
+                    <x-input-label for="password" :value="__('Contraseña')" />
                     <div class="relative mt-1">
                         <x-text-input id="password" class="block w-full h-11 rounded-lg bg-white pr-12"
                                         type="password"
@@ -32,7 +32,7 @@
                             id="toggle-password"
                             class="absolute z-10 inline-flex h-8 w-8 items-center justify-center text-[#20539A]/70 hover:text-[#20539A] focus:outline-none"
                             style="right: 0.75rem; top: 50%; transform: translateY(-50%);"
-                            aria-label="Mostrar contrasena"
+                            aria-label="Mostrar contraseña"
                             aria-pressed="false"
                         >
                             <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -56,11 +56,6 @@
                         <span class="ms-2 text-sm text-[#20539A]/80">{{ __('Recordarme') }}</span>
                     </label>
 
-                    @if (Route::has('password.request'))
-                        <a class="text-sm font-medium text-[#FECC36] hover:text-[#FECC36] rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FECC36]" href="{{ route('password.request') }}">
-                            {{ __('Olvidaste tu contrasena?') }}
-                        </a>
-                    @endif
                 </div>
 
                 <x-primary-button class="w-full h-11 justify-center rounded-lg text-sm shadow-[0_8px_16px_rgba(234,179,18,0.35)]">
@@ -147,7 +142,7 @@
                 const isHidden = passwordInput.type === 'password';
                 passwordInput.type = isHidden ? 'text' : 'password';
                 toggleButton.setAttribute('aria-pressed', String(isHidden));
-                toggleButton.setAttribute('aria-label', isHidden ? 'Ocultar contrasena' : 'Mostrar contrasena');
+                toggleButton.setAttribute('aria-label', isHidden ? 'Ocultar contraseña' : 'Mostrar contraseña');
                 eyeOpen.classList.toggle('hidden', isHidden);
                 eyeClosed.classList.toggle('hidden', !isHidden);
             });

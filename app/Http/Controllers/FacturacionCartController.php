@@ -136,6 +136,20 @@ class FacturacionCartController extends Controller
                     'user_id' => $user?->id,
                     'message' => $e->getMessage(),
                 ]);
+
+                $feedback = $this->buildRuntimeFeedback(
+                    'No se pudo sincronizar los datos fiscales antes de emitir. Corrige el formulario y vuelve a intentar.',
+                    'emitir'
+                );
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'ok' => false,
+                        'feedback' => $feedback,
+                    ], 422);
+                }
+
+                return back()->with('facturacion_feedback', $feedback);
             }
         }
 
@@ -153,13 +167,13 @@ class FacturacionCartController extends Controller
                 return back()->with('facturacion_feedback', [
                     'type' => 'warning',
                     'title' => 'Carrito vacío',
-                    'message' => 'Agrega al menos un Ítem antes de emitir la factura.',
-                    'detail' => 'No se envió ninguna solicitud de emisión porque el borrador no tiene Ã­tems.',
+                    'message' => 'Agrega al menos un ítem antes de emitir la factura.',
+                    'detail' => 'No se envió ninguna solicitud de emisión porque el borrador no tiene ítems.',
                     'action' => 'emitir',
                 ]);
             }
         } catch (\Throwable) {
-            // Si falla la consulta previa, continÃºa con el flujo existente.
+            // Si falla la consulta previa, continúa con el flujo existente.
         }
 
         try {
@@ -226,7 +240,7 @@ class FacturacionCartController extends Controller
         }
     }
 
-    public function consultar(Request $request, FacturacionCartService $service): RedirectResponse
+    public function consultar(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
@@ -234,18 +248,21 @@ class FacturacionCartController extends Controller
         try {
             $codigoSeguimiento = trim((string) $request->input('codigo_seguimiento', ''));
             $cartId = $request->integer('cart_id') ?: null;
+            $autoEmitInvoice = $request->boolean('auto_emit_invoice');
+            $allowPendingRetry = !$request->expectsJson();
             if ($cartId !== null) {
-                $resultado = $service->consultarEstadoEmision($user, $cartId);
+                $resultado = $service->consultarEstadoEmision($user, $cartId, $autoEmitInvoice, $allowPendingRetry);
                 $respuesta = (array) ($resultado['respuesta'] ?? []);
             } elseif ($codigoSeguimiento !== '') {
                 $respuesta = (array) $service->consultarVentaSeguimiento($user, $codigoSeguimiento);
                 $resultado = ['carrito' => null, 'respuesta' => $respuesta];
             } else {
-                $resultado = $service->consultarEstadoEmision($user, null);
+                $resultado = $service->consultarEstadoEmision($user, null, $autoEmitInvoice, $allowPendingRetry);
                 $respuesta = (array) ($resultado['respuesta'] ?? []);
             }
 
-            $redirect = back()->with('facturacion_feedback', $this->buildBridgeFeedback($respuesta, 'consultar'));
+            $feedback = $this->buildBridgeFeedback($respuesta, 'consultar');
+            $redirect = back()->with('facturacion_feedback', $feedback);
 
             $qrPayload = $this->extractQrSessionData(
                 $respuesta,
@@ -266,15 +283,42 @@ class FacturacionCartController extends Controller
             }
 
             $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
+            $downloadPdf = null;
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
-                $redirect->with('facturacion_download_pdf', [
+                $downloadPdf = [
                     'url' => $pdfUrl,
                     'key' => (string) ($respuesta['codigoOrden'] ?? data_get($resultado, 'carrito.codigo_orden', now()->timestamp)),
+                ];
+                $redirect->with('facturacion_download_pdf', $downloadPdf);
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => true,
+                    'feedback' => $feedback,
+                    'qr_data' => $qrPayload,
+                    'download_pdf' => $downloadPdf,
+                    'cart' => [
+                        'id' => data_get($resultado, 'carrito.id'),
+                        'estado' => data_get($resultado, 'carrito.estado'),
+                        'estado_pago' => data_get($resultado, 'carrito.estado_pago'),
+                        'estado_emision' => data_get($resultado, 'carrito.estado_emision'),
+                        'codigo_orden' => data_get($resultado, 'carrito.codigo_orden'),
+                        'qr_transaction_id' => data_get($resultado, 'carrito.qr_transaction_id'),
+                        'canal_emision' => data_get($resultado, 'carrito.canal_emision'),
+                    ],
                 ]);
             }
 
             return $redirect;
         } catch (\RuntimeException $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $this->buildRuntimeFeedback($e->getMessage(), 'consultar'),
+                ], 422);
+            }
+
             return back()->with('facturacion_feedback', $this->buildRuntimeFeedback($e->getMessage(), 'consultar'));
         }
     }
@@ -366,6 +410,7 @@ class FacturacionCartController extends Controller
             ?? data_get($respuesta, 'urlPdf')
             ?? ''
         ));
+        $autoFacturaError = trim((string) data_get($respuesta, 'auto_factura_error', ''));
         $feedbackMeta = $this->buildFeedbackMeta($estado, $numeroFactura, $codigoOrden, $codigoSeguimiento, $pdfUrl);
 
         $isQrFlow = $estado === 'NO_APLICA'
@@ -378,7 +423,29 @@ class FacturacionCartController extends Controller
             )) !== '';
 
         if ($isQrFlow) {
-            if (in_array($estadoPago, ['pagado', 'success', 'paid', 'completed'], true)) {
+            if (in_array($estadoPago, ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'], true)) {
+                if ((bool) data_get($respuesta, 'auto_factura_pending', false)) {
+                    return [
+                        'type' => 'info',
+                        'title' => 'Pago QR confirmado',
+                        'message' => 'El pago fue confirmado y la factura se esta procesando.',
+                        'detail' => $mensaje !== '' ? $mensaje : 'Evita reenviar la venta; consulta nuevamente en unos segundos.',
+                        'action' => $action,
+                        'meta' => $feedbackMeta,
+                    ];
+                }
+
+                if ($autoFacturaError !== '') {
+                    return [
+                        'type' => 'warning',
+                        'title' => 'Pago QR confirmado',
+                        'message' => 'El cobro por QR fue confirmado, pero la factura no se emitio automaticamente.',
+                        'detail' => $autoFacturaError,
+                        'action' => $action,
+                        'meta' => $feedbackMeta,
+                    ];
+                }
+
                 return [
                     'type' => 'success',
                     'title' => 'Pago QR confirmado',
@@ -389,7 +456,7 @@ class FacturacionCartController extends Controller
                 ];
             }
 
-            if (in_array($estadoPago, ['cancelado', 'rejected', 'failed', 'expired'], true)) {
+            if (in_array($estadoPago, ['cancelado', 'cancelled', 'rejected', 'failed', 'expired'], true)) {
                 return [
                     'type' => 'warning',
                     'title' => 'Pago QR no concretado',

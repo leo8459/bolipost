@@ -891,6 +891,7 @@
                 <form method="POST" action="{{ route('facturacion.cart.consultar') }}" class="facturacion-qr-viewer__actions">
                     @csrf
                     <input type="hidden" name="cart_id" id="facturacionQrViewerCartId" value="{{ $initialQrCartId }}">
+                    <input type="hidden" name="auto_emit_invoice" value="1">
                     <button type="submit" class="global-shortcut-primary-btn">Actualizar pago</button>
                 </form>
             </div>
@@ -2960,11 +2961,16 @@
             let facturacionShortcutLastFocus = null;
             let pendingConfirmForm = null;
             let isFacturacionSubmitting = false;
+            let facturacionQrPollingTimer = null;
+            let facturacionQrPollingRequest = null;
+            let facturacionQrPollingErrorCount = 0;
             const FACTURACION_PROCESSING_DEFAULTS = {
                 pill: 'Facturacion en curso',
                 title: 'Emitiendo factura',
                 text: 'Procesando emision, espera un momento...',
             };
+            const FACTURACION_QR_POLL_INTERVAL_MS = 5000;
+            const FACTURACION_QR_FINAL_STATUSES = ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed', 'cancelado', 'cancelled', 'rejected', 'failed', 'expired'];
 
             const resolveProcessingCopy = (form = null) => {
                 if (!(form instanceof HTMLFormElement)) {
@@ -3187,6 +3193,63 @@
                 }
             };
 
+            const resetFacturacionShortcutDraftUi = () => {
+                const fabBadge = openFacturacionShortcutBtn
+                    ? openFacturacionShortcutBtn.querySelector('.global-facturacion-fab__badge')
+                    : null;
+                if (fabBadge instanceof HTMLElement) {
+                    fabBadge.remove();
+                }
+
+                document.querySelectorAll('.global-shortcut-cart-summary__metric strong').forEach((metric, index) => {
+                    if (!(metric instanceof HTMLElement)) {
+                        return;
+                    }
+
+                    metric.textContent = index === 0 ? '0' : 'Bs 0.00';
+                });
+
+                const cartBlock = facturacionShortcutModal.querySelector('.global-shortcut-cart-block');
+                if (cartBlock instanceof HTMLElement) {
+                    const actionsWrap = cartBlock.querySelector('.global-shortcut-cart-block__actions');
+                    if (actionsWrap instanceof HTMLElement) {
+                        actionsWrap.innerHTML = '';
+                    }
+
+                    const currentList = cartBlock.querySelector('.global-shortcut-cart-list');
+                    if (currentList instanceof HTMLElement) {
+                        currentList.remove();
+                    }
+
+                    let emptyState = cartBlock.querySelector('.global-shortcut-cart-empty');
+                    if (!(emptyState instanceof HTMLElement)) {
+                        emptyState = document.createElement('div');
+                        emptyState.className = 'global-shortcut-cart-empty';
+                        emptyState.innerHTML = `
+                            <div class="global-shortcut-cart-empty__icon" aria-hidden="true">
+                                <i class="fas fa-shopping-basket"></i>
+                            </div>
+                            <strong>Carrito vacio</strong>
+                            <p>No agregaste items para Facturacion.</p>
+                        `;
+                        cartBlock.appendChild(emptyState);
+                    }
+                }
+
+                facturacionShortcutModal.querySelectorAll('.global-shortcut-confirm-form, .global-shortcut-emit-btn').forEach((element) => {
+                    if (element instanceof HTMLFormElement) {
+                        const action = String(element.getAttribute('action') || '');
+                        if (action.includes('/facturacion/cart/emitir') || action.includes('/facturacion/cart/clear')) {
+                            element.remove();
+                        }
+                    } else if (element instanceof HTMLButtonElement && element.classList.contains('global-shortcut-emit-btn')) {
+                        element.disabled = true;
+                        element.setAttribute('aria-disabled', 'true');
+                        element.textContent = 'Carrito vacio';
+                    }
+                });
+            };
+
             const submitQrEmitForm = async (form) => {
                 if (!(form instanceof HTMLFormElement)) {
                     return false;
@@ -3222,10 +3285,126 @@
                 }
                 if (data.qr_data) {
                     updateFacturacionQrViewer(data.qr_data, data.cart || null);
+                    if (data.cart && String(data.cart.canal_emision || '').toLowerCase() === 'qr') {
+                        resetFacturacionShortcutDraftUi();
+                    }
                     openFacturacionQrViewer();
                 }
 
                 return true;
+            };
+
+            const scheduleFacturacionQrPolling = (delayMs = FACTURACION_QR_POLL_INTERVAL_MS) => {
+                if (!(facturacionQrViewer instanceof HTMLElement) || !facturacionQrViewer.classList.contains('is-open')) {
+                    return;
+                }
+
+                if (!(facturacionQrViewerCartId instanceof HTMLInputElement) || String(facturacionQrViewerCartId.value || '').trim() === '') {
+                    return;
+                }
+
+                if (facturacionQrPollingTimer) {
+                    window.clearTimeout(facturacionQrPollingTimer);
+                }
+
+                facturacionQrPollingTimer = window.setTimeout(() => {
+                    pollFacturacionQrStatus();
+                }, delayMs);
+            };
+
+            const pollFacturacionQrStatus = async () => {
+                if (!(facturacionQrViewer instanceof HTMLElement) || !facturacionQrViewer.classList.contains('is-open')) {
+                    return;
+                }
+
+                if (!(facturacionQrViewerCartId instanceof HTMLInputElement) || facturacionQrPollingRequest) {
+                    return;
+                }
+
+                const cartId = String(facturacionQrViewerCartId.value || '').trim();
+                if (cartId === '') {
+                    return;
+                }
+
+                const manualForm = facturacionQrViewer.querySelector('form.facturacion-qr-viewer__actions');
+                if (!(manualForm instanceof HTMLFormElement)) {
+                    return;
+                }
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                const formData = new FormData(manualForm);
+                formData.set('cart_id', cartId);
+
+                facturacionQrPollingRequest = fetch(manualForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: formData,
+                });
+
+                try {
+                    const response = await facturacionQrPollingRequest;
+                    const data = await response.json().catch(() => null);
+
+                    if (!response.ok || !data || data.ok === false) {
+                        throw new Error(data && data.feedback && data.feedback.detail ? data.feedback.detail : 'No se pudo actualizar el estado del QR.');
+                    }
+
+                    if (data.qr_data) {
+                        updateFacturacionQrViewer(data.qr_data, data.cart || null);
+                    }
+                    if (data.download_pdf) {
+                        handleFacturacionDownloadPdf(data.download_pdf);
+                    }
+                    facturacionQrPollingErrorCount = 0;
+
+                    const paymentStatus = String(
+                        (data.qr_data && data.qr_data.payment_status)
+                        || (data.cart && data.cart.estado_pago)
+                        || ''
+                    ).trim().toLowerCase();
+                    const emissionStatus = String(
+                        (data.cart && data.cart.estado_emision)
+                        || ''
+                    ).trim().toUpperCase();
+                    const shouldCloseQrViewer = FACTURACION_QR_FINAL_STATUSES.includes(paymentStatus)
+                        || ['PENDIENTE', 'FACTURADA', 'RECHAZADA', 'ERROR'].includes(emissionStatus)
+                        || !!data.download_pdf;
+
+                    if (shouldCloseQrViewer) {
+                        closeFacturacionQrViewer();
+                        if (data.feedback) {
+                            renderFacturacionShortcutFeedback(data.feedback);
+                        }
+                        if (facturacionShortcutModal instanceof HTMLElement && !facturacionShortcutModal.classList.contains('is-open')) {
+                            openFacturacionShortcutModal();
+                        }
+                        return;
+                    }
+
+                    scheduleFacturacionQrPolling();
+                } catch (error) {
+                    facturacionQrPollingErrorCount += 1;
+
+                    if (facturacionQrPollingErrorCount >= 2) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'No se pudo actualizar el QR',
+                            message: 'El estado del pago no pudo consultarse automaticamente.',
+                            detail: error instanceof Error && error.message
+                                ? error.message
+                                : 'Revisa la conexion con el servicio de facturacion y vuelve a intentar.',
+                        });
+                    }
+
+                    scheduleFacturacionQrPolling(7000);
+                } finally {
+                    facturacionQrPollingRequest = null;
+                }
             };
 
             const resolveScopedBillingForm = (contextElement) => {
@@ -3347,12 +3526,18 @@
                 facturacionQrViewer.classList.add('is-open');
                 facturacionQrViewer.setAttribute('aria-hidden', 'false');
                 document.body.classList.add('global-shortcut-open');
+                scheduleFacturacionQrPolling(2500);
             };
 
             const closeFacturacionQrViewer = () => {
                 if (!facturacionQrViewer) {
                     return;
                 }
+                if (facturacionQrPollingTimer) {
+                    window.clearTimeout(facturacionQrPollingTimer);
+                    facturacionQrPollingTimer = null;
+                }
+                facturacionQrPollingErrorCount = 0;
                 facturacionQrViewer.classList.remove('is-open');
                 facturacionQrViewer.setAttribute('aria-hidden', 'true');
                 document.body.classList.remove('global-shortcut-open');
@@ -3632,6 +3817,21 @@
                     if (target.matches('[data-close-facturacion-qr]')) {
                         closeFacturacionQrViewer();
                     }
+                });
+            }
+            const facturacionQrViewerManualForm = facturacionQrViewer
+                ? facturacionQrViewer.querySelector('form.facturacion-qr-viewer__actions')
+                : null;
+            if (facturacionQrViewerManualForm instanceof HTMLFormElement) {
+                facturacionQrViewerManualForm.addEventListener('submit', function (event) {
+                    event.preventDefault();
+
+                    if (facturacionQrPollingTimer) {
+                        window.clearTimeout(facturacionQrPollingTimer);
+                        facturacionQrPollingTimer = null;
+                    }
+
+                    pollFacturacionQrStatus();
                 });
             }
             if (facturacionResultModalClose) {
