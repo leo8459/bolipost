@@ -123,6 +123,7 @@ class AclPermissionRegistry
         'Destino' => 'destinos',
         'Empresa' => 'empresas',
         'Estado' => 'estados',
+        'EventosSiopTabla' => 'eventos-siop',
         'Evento' => 'eventos',
         'EventosAuditoria' => 'eventos-auditoria',
         'EventosTabla' => 'eventos',
@@ -258,6 +259,9 @@ class AclPermissionRegistry
         'RecojoCartero' => [
             'default' => 'paquetes-contrato.cartero',
         ],
+        'EventosSiopTabla' => [
+            'default' => 'eventos-siop.index',
+        ],
         'PaquetesEms' => [
             'admision' => 'paquetes-ems.index',
             'create_ems' => 'paquetes-ems.create',
@@ -300,6 +304,7 @@ class AclPermissionRegistry
         'eventos-despacho.index' => ['create', 'edit', 'delete'],
         'eventos-contrato.index' => ['create', 'edit', 'delete'],
         'eventos-tiktoker.index' => ['create', 'edit', 'delete'],
+        'eventos-siop.index' => ['create', 'edit', 'delete'],
         'paquetes-contrato.index' => ['create', 'manage', 'edit', 'delete', 'print', 'report'],
         'paquetes-contrato.almacen' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.recoger-envios' => ['assign', 'print'],
@@ -374,6 +379,15 @@ class AclPermissionRegistry
                 ['module' => 'eventos-ems.index', 'action' => 'edit'],
             ],
             'delete' => [['module' => 'eventos-ems.index', 'action' => 'delete']],
+        ],
+        'EventosSiopTabla' => [
+            'opencreatemodal' => [['module' => 'eventos-siop.index', 'action' => 'create']],
+            'openeditmodal' => [['module' => 'eventos-siop.index', 'action' => 'edit']],
+            'save' => [
+                ['module' => 'eventos-siop.index', 'action' => 'create'],
+                ['module' => 'eventos-siop.index', 'action' => 'edit'],
+            ],
+            'delete' => [['module' => 'eventos-siop.index', 'action' => 'delete']],
         ],
         'Recojo' => [
             'openeditmodal' => [

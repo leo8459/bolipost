@@ -4,6 +4,7 @@ use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\Api\AuthTokenController;
 use App\Http\Controllers\Api\AlertReadApiController;
+use App\Http\Controllers\Api\EventosSiopApiController;
 use App\Http\Controllers\Api\FuelLogApiController;
 use App\Http\Controllers\Api\FuelScrapeApiController;
 use App\Http\Controllers\Api\MaintenanceRequestApiController;
@@ -37,6 +38,9 @@ Route::post('/subscribe', [BusquedaController::class, 'subscribe']);
 Route::post('/unsubscribe', [BusquedaController::class, 'unsubscribe']);
 Route::post('/fuel-logs/scrape-from-qr', [FuelScrapeApiController::class, 'scrapeFromQr'])
     ->middleware('throttle:30,1');
+Route::get('/siop/eventos', [EventosSiopApiController::class, 'index'])
+    ->middleware(['siop.api.token', 'throttle:20,1'])
+    ->name('api.siop.eventos.index');
 
 Route::middleware('web')->group(function () {
     Route::post('/mobile/login', [AuthTokenController::class, 'login']);

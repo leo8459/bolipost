@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Destino;
 use App\Models\Origen;
 use App\Models\ServicioExtra;
 use App\Models\TarifarioTiktoker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -40,42 +43,150 @@ class TarifarioTiktokerController extends Controller
 
     public function index(Request $request)
     {
-        $q = trim((string) $request->query('q', ''));
-        $origenId = max(0, (int) $request->query('origen_id', 0));
-        $destinoId = max(0, (int) $request->query('destino_id', 0));
+        $filters = $this->extractFilters($request);
 
-        $tarifas = TarifarioTiktoker::query()
-            ->with([
-                'origen:id,nombre_origen',
-                'destino:id,nombre_destino',
-                'servicioExtra:id,nombre',
-            ])
-            ->when($origenId > 0, fn ($query) => $query->where('origen_id', $origenId))
-            ->when($destinoId > 0, fn ($query) => $query->where('destino_id', $destinoId))
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($search) use ($q) {
-                    $search->whereRaw('CAST(peso1 AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereRaw('CAST(peso2 AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereRaw('CAST(peso_extra AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereRaw('CAST(tiempo_entrega AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereHas('origen', fn ($sub) => $sub->where('nombre_origen', 'ILIKE', "%{$q}%"))
-                        ->orWhereHas('destino', fn ($sub) => $sub->where('nombre_destino', 'ILIKE', "%{$q}%"))
-                        ->orWhereHas('servicioExtra', fn ($sub) => $sub->where('nombre', 'ILIKE', "%{$q}%"));
-                });
-            })
+        $tarifas = $this->buildFilteredQuery($filters)
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
 
         return view('tarifario_tiktoker.index', [
             'tarifas' => $tarifas,
-            'q' => $q,
-            'origenId' => $origenId,
-            'destinoId' => $destinoId,
+            'q' => $filters['q'],
+            'origenId' => $filters['origen_id'],
+            'destinoId' => $filters['destino_id'],
             'origenes' => Origen::query()->orderBy('nombre_origen')->get(['id', 'nombre_origen']),
             'destinos' => Destino::query()->orderBy('nombre_destino')->get(['id', 'nombre_destino']),
             'servicioExtras' => ServicioExtra::query()->orderBy('nombre')->get(['id', 'nombre']),
             'regionalNameMap' => self::REGIONAL_DISPLAY_NAMES,
+        ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $filters = $this->extractFilters($request);
+        $tarifas = $this->buildFilteredQuery($filters)
+            ->orderBy('origen_id')
+            ->orderBy('destino_id')
+            ->orderBy('servicio_extra_id')
+            ->get();
+
+        $groupedTarifas = $this->groupTarifasByOrigen($tarifas);
+
+        $pdf = Pdf::loadView('tarifario_tiktoker.report-pdf', [
+            'groupedTarifas' => $groupedTarifas,
+            'generatedAt' => now(),
+            'totalTarifas' => $tarifas->count(),
+            'filters' => $this->buildFilterSummary($filters),
+        ])->setPaper('A4', 'landscape');
+
+        return $pdf->stream('tarifario-tiktoker-' . now()->format('Ymd-His') . '.pdf');
+    }
+
+    public function downloadReportExcel(Request $request)
+    {
+        $filters = $this->extractFilters($request);
+        $tarifas = $this->buildFilteredQuery($filters)
+            ->orderBy('origen_id')
+            ->orderBy('destino_id')
+            ->orderBy('servicio_extra_id')
+            ->get();
+
+        $groupedTarifas = $this->groupTarifasByOrigen($tarifas);
+        $filename = 'tarifario_tiktoker_' . now()->format('Ymd_His') . '.xlsx';
+        $filterSummary = $this->buildFilterSummary($filters);
+
+        return response()->streamDownload(function () use ($groupedTarifas, $tarifas, $filterSummary) {
+            $spreadsheet = new Spreadsheet();
+            $summarySheet = $spreadsheet->getActiveSheet();
+            $summarySheet->setTitle('Resumen');
+
+            $summarySheet->mergeCells('A1:G1');
+            $summarySheet->setCellValue('A1', 'REPORTE TARIFARIO TIKTOKER');
+            $summarySheet->mergeCells('A2:G2');
+            $summarySheet->setCellValue('A2', 'Generado el ' . now()->format('d/m/Y H:i'));
+
+            $summarySheet->fromArray([
+                ['Filtros aplicados', $filterSummary],
+                ['Total registros', $tarifas->count()],
+                ['Total departamentos', $groupedTarifas->count()],
+            ], null, 'A4');
+
+            $summarySheet->fromArray([
+                ['Departamento', 'Cantidad registros', 'Peso 1 promedio (hasta 2 kg)', 'Peso 2 promedio (hasta 5 kg)', 'Peso extra promedio (+ de 5 kg)', 'Tiempo promedio (h)', 'Servicios distintos'],
+            ], null, 'A8');
+
+            $summaryRow = 9;
+            foreach ($groupedTarifas as $department => $items) {
+                $summarySheet->fromArray([[
+                    $department,
+                    $items->count(),
+                    round((float) $items->avg('peso1'), 2),
+                    round((float) $items->avg('peso2'), 2),
+                    round((float) $items->avg('peso_extra'), 2),
+                    round((float) $items->avg('tiempo_entrega'), 0),
+                    $items->map(fn ($item) => optional($item->servicioExtra)->nombre)->filter()->unique()->count(),
+                ]], null, "A{$summaryRow}");
+                $summaryRow++;
+            }
+
+            $this->styleExcelReportSheet($summarySheet, 'A1:G2', 'A8:G8', max(8, $summaryRow - 1));
+            $summarySheet->getColumnDimension('A')->setWidth(24);
+            $summarySheet->getColumnDimension('B')->setWidth(18);
+            foreach (['C', 'D', 'E'] as $column) {
+                $summarySheet->getColumnDimension($column)->setWidth(24);
+            }
+            foreach (['F', 'G'] as $column) {
+                $summarySheet->getColumnDimension($column)->setWidth(18);
+            }
+            $summarySheet->getStyle('C9:F' . max(9, $summaryRow - 1))->getNumberFormat()->setFormatCode('#,##0.00');
+            $summarySheet->getStyle('A8:G8')->getAlignment()->setWrapText(true);
+            $summarySheet->freezePane('A9');
+
+            $sheetIndex = 1;
+            foreach ($groupedTarifas as $department => $items) {
+                $sheet = $spreadsheet->createSheet($sheetIndex++);
+                $sheet->setTitle($this->sheetTitleForDepartment($department, $sheetIndex - 1));
+
+                $sheet->mergeCells('A1:G1');
+                $sheet->setCellValue('A1', 'TARIFARIO TIKTOKER - ' . $department);
+                $sheet->mergeCells('A2:G2');
+                $sheet->setCellValue('A2', 'Registros: ' . $items->count());
+                $sheet->fromArray([
+                    ['Destino', 'Servicio extra', 'Peso 1 (hasta 2 kg)', 'Peso 2 (hasta 5 kg)', 'Peso extra (+ de 5 kg)', 'Tiempo entrega (h)', 'Referencia 5 kg + 1 kg extra'],
+                ], null, 'A4');
+
+                $row = 5;
+                foreach ($items as $item) {
+                    $sheet->fromArray([[
+                        $this->regionalDisplayName((string) optional($item->destino)->nombre_destino),
+                        (string) (optional($item->servicioExtra)->nombre ?? 'General'),
+                        (float) $item->peso1,
+                        (float) $item->peso2,
+                        (float) $item->peso_extra,
+                        (int) $item->tiempo_entrega,
+                        (float) $item->peso2 + (float) $item->peso_extra,
+                    ]], null, "A{$row}");
+                    $row++;
+                }
+
+                $lastRow = max(4, $row - 1);
+                $this->styleExcelReportSheet($sheet, 'A1:G2', 'A4:G4', $lastRow);
+                $sheet->setAutoFilter("A4:G{$lastRow}");
+                $sheet->freezePane('A5');
+                foreach (['A' => 22, 'B' => 28, 'C' => 20, 'D' => 20, 'E' => 22, 'F' => 18, 'G' => 24] as $column => $width) {
+                    $sheet->getColumnDimension($column)->setWidth($width);
+                }
+                $sheet->getStyle('A4:G4')->getAlignment()->setWrapText(true);
+                $sheet->getStyle("C5:G{$lastRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+            }
+
+            $spreadsheet->setActiveSheetIndex(0);
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
@@ -403,6 +514,134 @@ class TarifarioTiktokerController extends Controller
         $normalized = strtoupper(trim($name));
 
         return self::REGIONAL_DISPLAY_NAMES[$normalized] ?? $normalized;
+    }
+
+    private function extractFilters(Request $request): array
+    {
+        return [
+            'q' => trim((string) $request->query('q', '')),
+            'origen_id' => max(0, (int) $request->query('origen_id', 0)),
+            'destino_id' => max(0, (int) $request->query('destino_id', 0)),
+        ];
+    }
+
+    private function buildFilteredQuery(array $filters)
+    {
+        $q = (string) ($filters['q'] ?? '');
+        $origenId = (int) ($filters['origen_id'] ?? 0);
+        $destinoId = (int) ($filters['destino_id'] ?? 0);
+
+        return TarifarioTiktoker::query()
+            ->with([
+                'origen:id,nombre_origen',
+                'destino:id,nombre_destino',
+                'servicioExtra:id,nombre',
+            ])
+            ->when($origenId > 0, fn ($query) => $query->where('origen_id', $origenId))
+            ->when($destinoId > 0, fn ($query) => $query->where('destino_id', $destinoId))
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($search) use ($q) {
+                    $search->whereRaw('CAST(peso1 AS TEXT) ILIKE ?', ["%{$q}%"])
+                        ->orWhereRaw('CAST(peso2 AS TEXT) ILIKE ?', ["%{$q}%"])
+                        ->orWhereRaw('CAST(peso_extra AS TEXT) ILIKE ?', ["%{$q}%"])
+                        ->orWhereRaw('CAST(tiempo_entrega AS TEXT) ILIKE ?', ["%{$q}%"])
+                        ->orWhereHas('origen', fn ($sub) => $sub->where('nombre_origen', 'ILIKE', "%{$q}%"))
+                        ->orWhereHas('destino', fn ($sub) => $sub->where('nombre_destino', 'ILIKE', "%{$q}%"))
+                        ->orWhereHas('servicioExtra', fn ($sub) => $sub->where('nombre', 'ILIKE', "%{$q}%"));
+                });
+            });
+    }
+
+    private function groupTarifasByOrigen(Collection $tarifas): Collection
+    {
+        return $tarifas
+            ->groupBy(fn ($item) => $this->regionalDisplayName((string) optional($item->origen)->nombre_origen))
+            ->map(fn (Collection $items) => $items->sortBy(function ($item) {
+                $destino = $this->regionalDisplayName((string) optional($item->destino)->nombre_destino);
+                $servicio = (string) (optional($item->servicioExtra)->nombre ?? 'General');
+
+                return $destino . '|' . $servicio;
+            })->values())
+            ->sortKeys();
+    }
+
+    private function buildFilterSummary(array $filters): string
+    {
+        $parts = [];
+
+        if ((int) ($filters['origen_id'] ?? 0) > 0) {
+            $origen = Origen::query()->find((int) $filters['origen_id'], ['nombre_origen']);
+            if ($origen) {
+                $parts[] = 'Origen: ' . $this->regionalDisplayName((string) $origen->nombre_origen);
+            }
+        }
+
+        if ((int) ($filters['destino_id'] ?? 0) > 0) {
+            $destino = Destino::query()->find((int) $filters['destino_id'], ['nombre_destino']);
+            if ($destino) {
+                $parts[] = 'Destino: ' . $this->regionalDisplayName((string) $destino->nombre_destino);
+            }
+        }
+
+        if ((string) ($filters['q'] ?? '') !== '') {
+            $parts[] = 'Busqueda: ' . $filters['q'];
+        }
+
+        return $parts === [] ? 'Sin filtros' : implode(' | ', $parts);
+    }
+
+    private function styleExcelReportSheet(Worksheet $sheet, string $titleRange, string $headerRange, int $lastRow): void
+    {
+        [$headerStart, $headerEnd] = explode(':', $headerRange);
+        $headerStartRow = (int) preg_replace('/^[A-Z]+/', '', strtoupper($headerStart));
+        $lastHeaderColumn = preg_replace('/\d+/', '', strtoupper($headerEnd)) ?: 'A';
+
+        $sheet->getStyle($titleRange)->applyFromArray([
+            'font' => ['bold' => true, 'size' => 14, 'color' => ['argb' => 'FFFFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF20539A']],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+        ]);
+
+        $sheet->getStyle($headerRange)->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['argb' => 'FF1F2937']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFFECF64']],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['argb' => 'FFB45309'],
+                ],
+            ],
+        ]);
+
+        $sheet->getStyle("A{$headerStartRow}:{$lastHeaderColumn}{$lastRow}")->applyFromArray([
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['argb' => 'FFCBD5E1'],
+                ],
+            ],
+            'alignment' => [
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+        ]);
+    }
+
+    private function sheetTitleForDepartment(string $department, int $index): string
+    {
+        $clean = Str::upper(Str::ascii($department));
+        $clean = preg_replace('/[^A-Z0-9 ]+/', '', $clean) ?? $clean;
+        $clean = trim($clean);
+        $prefix = $index . '-';
+        $maxLength = 31 - strlen($prefix);
+
+        return $prefix . Str::limit($clean !== '' ? $clean : 'DEPARTAMENTO', $maxLength, '');
     }
 
     private function parseDecimal($value): ?float

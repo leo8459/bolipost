@@ -17,6 +17,12 @@
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                             <span id="card_title">Administracion de Tarifario Tiktoker</span>
                             <div class="d-flex" style="gap:8px;">
+                                <a href="{{ route('tarifario-tiktoker.pdf', request()->query()) }}" class="btn btn-outline-danger btn-sm" target="_blank">
+                                    Reporte PDF
+                                </a>
+                                <a href="{{ route('tarifario-tiktoker.excel', request()->query()) }}" class="btn btn-outline-success btn-sm">
+                                    Reporte Excel
+                                </a>
                                 <a href="{{ route('tarifario-tiktoker.import-form') }}" class="btn btn-info btn-sm">
                                     Importar Excel
                                 </a>
@@ -97,6 +103,16 @@
                                 </div>
                             </div>
                         </form>
+
+                        <div class="alert alert-light border d-flex justify-content-between align-items-center flex-wrap" style="gap:10px;">
+                            <div>
+                                <strong>Reportes por departamento.</strong>
+                                El PDF se agrupa por origen y el Excel incluye una hoja resumen y una hoja por departamento.
+                            </div>
+                            <div>
+                                Total actual: <strong>{{ $tarifas->total() }}</strong> registro(s)
+                            </div>
+                        </div>
 
                         <div class="table-responsive">
                             <table class="table table-striped table-hover">

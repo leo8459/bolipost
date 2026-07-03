@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 
 class FacturacionCartService
@@ -507,15 +508,93 @@ class FacturacionCartService
 
     public function consultarEstadoEmision(User $user, ?int $cartId = null): array
     {
-        $body = $this->request('POST', '/cart/consultar', [
+        $payload = [
             'origen_usuario_id' => (string) $user->id,
             'cart_id' => $cartId,
-        ]);
-        $cart = $this->toCart(data_get($body, 'cart'));
+        ];
+
+        $body = $this->request('POST', '/cart/consultar', $payload);
+        [$body, $cart] = $this->retryPendingQrConsultIfNeeded($payload, $body);
+
+        if (!$cart) {
+            $cart = $this->toCart(data_get($body, 'cart'));
+        }
+
         if (!$cart) {
             throw new \RuntimeException((string) data_get($body, 'respuesta.mensaje', 'No se pudo consultar.'));
         }
+
         return ['carrito' => $cart, 'respuesta' => (array) data_get($body, 'respuesta', [])];
+    }
+
+    private function retryPendingQrConsultIfNeeded(array $payload, array $body): array
+    {
+        $cart = $this->toCart(data_get($body, 'cart'));
+        if (!$this->shouldRetryPendingQrConsult($cart, (array) data_get($body, 'respuesta', []))) {
+            return [$body, $cart];
+        }
+
+        $delaySeconds = $this->pendingQrConsultDelaySeconds($cart);
+        if ($delaySeconds <= 0) {
+            return [$body, $cart];
+        }
+
+        sleep($delaySeconds);
+
+        $retriedBody = $this->request('POST', '/cart/consultar', $payload);
+        return [$retriedBody, $this->toCart(data_get($retriedBody, 'cart'))];
+    }
+
+    private function shouldRetryPendingQrConsult(?object $cart, array $respuesta): bool
+    {
+        if (!$cart) {
+            return false;
+        }
+
+        $canalEmision = strtolower(trim((string) ($cart->canal_emision ?? '')));
+        $estadoCart = strtolower(trim((string) ($cart->estado ?? '')));
+        $estadoPago = strtolower(trim((string) ($cart->estado_pago ?? data_get($respuesta, 'estado_pago', ''))));
+        $paymentStatus = strtolower(trim((string) (
+            data_get($respuesta, 'payment_status')
+            ?? data_get($respuesta, 'items.0.payment_status')
+            ?? ''
+        )));
+        $transactionId = trim((string) ($cart->qr_transaction_id ?? ''));
+
+        if ($canalEmision !== 'qr' || $transactionId === '') {
+            return false;
+        }
+
+        if (in_array($estadoPago, ['pagado', 'cancelado'], true)) {
+            return false;
+        }
+
+        if ($estadoCart !== 'pendiente_pago') {
+            return false;
+        }
+
+        return in_array($paymentStatus, ['', 'holding', 'pending', 'pendiente'], true);
+    }
+
+    private function pendingQrConsultDelaySeconds(object $cart): int
+    {
+        $updatedAtRaw = trim((string) ($cart->updated_at ?? ''));
+        if ($updatedAtRaw === '') {
+            return 0;
+        }
+
+        try {
+            $updatedAt = Carbon::parse($updatedAtRaw);
+        } catch (\Throwable) {
+            return 0;
+        }
+
+        $ageSeconds = $updatedAt->diffInSeconds(now());
+        if ($ageSeconds >= 15) {
+            return 0;
+        }
+
+        return max(1, 16 - $ageSeconds);
     }
 
     public function fetchVentas(User $user, array $filters): array

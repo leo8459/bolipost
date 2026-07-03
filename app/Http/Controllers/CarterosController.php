@@ -3596,8 +3596,9 @@ class CarterosController extends Controller
         $estadoId = (int) ($row['estado_id'] ?? 0);
         $estadoAlmacenId = (int) ($distributionStateIds['almacen'] ?? 0);
         $estadoRecibidoId = (int) ($distributionStateIds['recibido'] ?? 0);
+        $ignoresStateRestriction = in_array($tipo, ['CERTI', 'ORDI'], true);
 
-        if ($estadoId !== $estadoAlmacenId && $estadoId !== $estadoRecibidoId) {
+        if (! $ignoresStateRestriction && $estadoId !== $estadoAlmacenId && $estadoId !== $estadoRecibidoId) {
             return "El paquete {$codigo} no se encuentra en almacen ni recibido. Revisa los eventos del paquete.";
         }
 
@@ -3605,7 +3606,7 @@ class CarterosController extends Controller
             return "El paquete {$codigo} no se encuentra en almacen para {$userCity}. Su destino es " . ($destino !== '' ? $destino : 'SIN DESTINO') . '. Revisa los eventos del paquete.';
         }
 
-        if ($estadoId === $estadoAlmacenId && ($origen === '' || $origen !== $destino)) {
+        if (! $ignoresStateRestriction && $estadoId === $estadoAlmacenId && ($origen === '' || $origen !== $destino)) {
             return "El paquete {$codigo} no se encuentra en almacen de destino; se encuentra en almacen de origen. Revisa los eventos del paquete.";
         }
 

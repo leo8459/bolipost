@@ -20,6 +20,7 @@ use App\Models\SolicitudCliente;
 use App\Models\TarifaContrato;
 use App\Models\Tarifario;
 use App\Models\TarifarioTiktoker;
+use App\Support\TiktokerEvent;
 use App\Services\FacturacionCartService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
@@ -145,6 +146,7 @@ class PaquetesEms extends Component
     public $generadosHoyCount = 0;
     public $entregaRecibidoPor = '';
     public $entregaDescripcion = '';
+    public $entregaImagen = null;
     public $devolucionRecibidoPor = '';
     public $devolucionDescripcion = '';
     public $devolucionImagen = null;
@@ -1468,7 +1470,7 @@ class PaquetesEms extends Component
             $this->registerEventosTiktoker(
                 [$solicitud],
                 $actorUserId,
-                self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE
+                TiktokerEvent::resolveId(TiktokerEvent::RECIBIDA_ALMACEN)
             );
         }
 
@@ -2423,9 +2425,9 @@ class PaquetesEms extends Component
             return;
         }
 
-        $eventoSacaInternaSalidaId = $this->findEventoIdByName('Saca interna creada (salida).');
+        $eventoSacaInternaSalidaId = TiktokerEvent::resolveId(TiktokerEvent::ENVIADA_SACA_INTERNA);
         if (!$eventoSacaInternaSalidaId) {
-            session()->flash('error', 'No existe el evento "Saca interna creada (salida)." en la tabla eventos.');
+            session()->flash('error', 'No se pudo resolver el evento de saca interna para Delivery Express.');
             return;
         }
 
@@ -2788,7 +2790,7 @@ class PaquetesEms extends Component
             $this->registerEventosTiktoker(
                 $solicitudes,
                 $actorUserId,
-                self::EVENTO_ID_SACA_INTERNA_CREADA_SALIDA
+                TiktokerEvent::resolveId(TiktokerEvent::ENVIADA_SACA_INTERNA)
             );
         });
 
@@ -3166,7 +3168,7 @@ class PaquetesEms extends Component
                 $this->registerEventosTiktoker(
                     $solicitudes,
                     $actorUserId,
-                    self::EVENTO_ID_PAQUETE_ENVIADO_VENTANILLA_EMS
+                    TiktokerEvent::resolveId(TiktokerEvent::RECIBIDA_VENTANILLA)
                 );
             }
         });
@@ -3305,6 +3307,7 @@ class PaquetesEms extends Component
 
         $this->entregaRecibidoPor = '';
         $this->entregaDescripcion = '';
+        $this->entregaImagen = null;
         $this->dispatch('openEntregaVentanillaModal');
     }
 
@@ -3319,6 +3322,7 @@ class PaquetesEms extends Component
         $this->validate([
             'entregaRecibidoPor' => ['required', 'string', 'max:255'],
             'entregaDescripcion' => ['nullable', 'string'],
+            'entregaImagen' => ['required', 'image', 'max:5120'],
         ]);
 
         $ids = collect($this->selectedPaquetes)
@@ -3428,15 +3432,19 @@ class PaquetesEms extends Component
 
         $recibidoPor = trim((string) $this->entregaRecibidoPor);
         $descripcion = trim((string) $this->entregaDescripcion);
+        $imagenPath = $this->storeEntregaImage($this->entregaImagen);
         $generatedAt = now();
         $loggedUserName = trim((string) optional(Auth::user())->name);
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
 
-        DB::transaction(function () use ($paquetes, $contratos, $solicitudes, $estadoEntregadoId, $actorUserId, $eventoEntregaId, $recibidoPor, $descripcion) {
+        DB::transaction(function () use ($paquetes, $contratos, $solicitudes, $estadoEntregadoId, $actorUserId, $eventoEntregaId, $recibidoPor, $descripcion, $imagenPath) {
             if ($paquetes->isNotEmpty()) {
                 PaqueteEms::query()
                     ->whereIn('id', $paquetes->pluck('id')->all())
-                    ->update(['estado_id' => $estadoEntregadoId]);
+                    ->update([
+                        'estado_id' => $estadoEntregadoId,
+                        'imagen' => $imagenPath,
+                    ]);
 
                 $this->registerEventosEms(
                     $paquetes,
@@ -3453,6 +3461,7 @@ class PaquetesEms extends Component
                     $asignacion->id_user = $actorUserId;
                     $asignacion->recibido_por = $recibidoPor;
                     $asignacion->descripcion = $descripcion !== '' ? $descripcion : null;
+                    $asignacion->imagen = $imagenPath;
                     $asignacion->save();
                 }
             }
@@ -3460,7 +3469,10 @@ class PaquetesEms extends Component
             if ($contratos->isNotEmpty()) {
                 RecojoContrato::query()
                     ->whereIn('id', $contratos->pluck('id')->all())
-                    ->update(['estados_id' => $estadoEntregadoId]);
+                    ->update([
+                        'estados_id' => $estadoEntregadoId,
+                        'imagen' => $imagenPath,
+                    ]);
 
                 $this->registerEventosContrato(
                     $contratos,
@@ -3476,6 +3488,7 @@ class PaquetesEms extends Component
                         'estado_id' => $estadoEntregadoId,
                         'recepcionado_por' => $recibidoPor !== '' ? $recibidoPor : null,
                         'observacion' => $descripcion !== '' ? $descripcion : null,
+                        'imagen' => $imagenPath,
                     ]);
 
                 $this->registerEventosTiktoker(
@@ -3531,6 +3544,7 @@ class PaquetesEms extends Component
         $this->selectedSolicitudes = [];
         $this->entregaRecibidoPor = '';
         $this->entregaDescripcion = '';
+        $this->entregaImagen = null;
         $this->dispatch('closeEntregaVentanillaModal');
 
         session()->flash('success', $updated . ' registro(s) entregado(s) correctamente.');
@@ -3695,10 +3709,18 @@ class PaquetesEms extends Component
                 $this->registerEventosContrato($contratosRecibido, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
             }
             if ($solicitudesAlmacen->isNotEmpty()) {
-                $this->registerEventosTiktoker($solicitudesAlmacen, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE);
+                $this->registerEventosTiktoker(
+                    $solicitudesAlmacen,
+                    $actorUserId,
+                    TiktokerEvent::resolveId(TiktokerEvent::RECIBIDA_ALMACEN)
+                );
             }
             if ($solicitudesRecibido->isNotEmpty()) {
-                $this->registerEventosTiktoker($solicitudesRecibido, $actorUserId, self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO);
+                $this->registerEventosTiktoker(
+                    $solicitudesRecibido,
+                    $actorUserId,
+                    TiktokerEvent::resolveId(TiktokerEvent::RECIBIDA_TRANSITO)
+                );
             }
         });
 
@@ -4470,7 +4492,7 @@ class PaquetesEms extends Component
                     $this->registerEventosTiktoker(
                         $solicitudesRecibir,
                         $actorUserId,
-                        self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                        TiktokerEvent::resolveId(TiktokerEvent::RECIBIDA_TRANSITO)
                     );
                 }
             });
@@ -6269,6 +6291,7 @@ class PaquetesEms extends Component
         $estadoRecibidoId = $this->findEstadoId('RECIBIDO');
         $estadoTransitoId = $this->findEstadoId('TRANSITO');
         $estadoRegionalRecepcionId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
+        $estadoRecibirRegionalIds = $this->resolveRecibirRegionalEstadoIds();
         $estadoVentanillaId = $this->resolveVentanillaEstado()['id'] ?? null;
 
         return SolicitudCliente::query()
@@ -6292,9 +6315,14 @@ class PaquetesEms extends Component
                     $query->whereRaw('trim(upper(solicitud_clientes.origen)) = trim(upper(?))', [$userCity]);
                 }
             })
-            ->when($this->isTransitoEms, function ($query) use ($estadoRegionalRecepcionId) {
-                if (empty($estadoRegionalRecepcionId)) {
+            ->when($this->isTransitoEms, function ($query) use ($estadoRecibirRegionalIds, $estadoRegionalRecepcionId) {
+                if (empty($estadoRecibirRegionalIds) && empty($estadoRegionalRecepcionId)) {
                     $query->whereRaw('1 = 0');
+                    return;
+                }
+
+                if (!empty($estadoRecibirRegionalIds)) {
+                    $query->whereIn('solicitud_clientes.estado_id', $estadoRecibirRegionalIds);
                     return;
                 }
 
@@ -7346,6 +7374,15 @@ class PaquetesEms extends Component
     }
 
     protected function storeDevolucionImage(?TemporaryUploadedFile $image): ?string
+    {
+        if (!$image) {
+            return null;
+        }
+
+        return (string) $image->store('carteros/entregas', 'public');
+    }
+
+    protected function storeEntregaImage(?TemporaryUploadedFile $image): ?string
     {
         if (!$image) {
             return null;

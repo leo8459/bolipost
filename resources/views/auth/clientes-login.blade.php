@@ -150,34 +150,11 @@
             position: relative;
             flex: 1 1 auto;
             overflow: hidden;
-            background: linear-gradient(180deg, #d8ecff 0%, #c6e4ff 48%, #b3dbff 100%);
-        }
-
-        .cliente-login-visual svg {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-        }
-
-        .cliente-login-hero {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: min(100%, 400px);
-            background: rgba(255, 255, 255, 0.94);
-            padding: 18px;
-            border-radius: 10px;
-            box-shadow: 0 24px 48px rgba(32, 83, 154, 0.14);
-            backdrop-filter: blur(3px);
-        }
-
-        .cliente-login-hero-image {
-            display: block;
-            width: 100%;
-            height: auto;
-            border-radius: 4px;
+            background-color: #d8ecff;
+            background-image: url('{{ asset('imagecliente.png') }}');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
         }
 
         @media (max-width: 991.98px) {
@@ -272,24 +249,7 @@
         </div>
 
         <div class="cliente-login-visual">
-            <svg viewBox="0 0 860 640" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M0 160 C90 145 170 185 255 165 C355 142 440 104 550 126 C670 150 760 120 860 136 L860 640 L0 640 Z" fill="#eaf6ff"/>
-                <path d="M0 235 C85 220 165 250 250 228 C360 198 430 182 555 194 C666 206 756 180 860 196 L860 640 L0 640 Z" fill="#d7edff"/>
-                <path d="M0 320 C90 300 160 340 260 320 C352 302 445 256 568 270 C684 284 766 258 860 280 L860 640 L0 640 Z" fill="#bde0fb"/>
-                <path d="M0 640 L0 548 C110 520 190 566 284 548 C374 530 446 492 550 506 C655 520 740 500 860 522 L860 640 Z" fill="#9fcdf2"/>
-                <path d="M526 640 C540 600 566 567 592 532 C622 494 657 462 716 426" stroke="#335f8e" stroke-width="8" stroke-linecap="round" fill="none"/>
-                <path d="M596 640 C608 607 629 578 649 548 C669 519 689 495 722 468" stroke="#ffd24d" stroke-width="10" stroke-linecap="round" fill="none"/>
-                <path d="M236 420 L266 342 L295 420" stroke="#2a74b0" stroke-width="5" fill="#99d0f4"/>
-                <path d="M272 420 L308 314 L344 420" stroke="#2a74b0" stroke-width="5" fill="#86c0ea"/>
-                <path d="M318 420 L360 288 L402 420" stroke="#2a74b0" stroke-width="5" fill="#74b2e2"/>
-                <path d="M182 420 L210 360 L238 420" stroke="#2a74b0" stroke-width="5" fill="#a7d8f8"/>
-                <path d="M24 214 C88 214 114 186 176 188" stroke="#54a6da" stroke-width="4" stroke-linecap="round" fill="none"/>
-                <path d="M706 210 C758 210 788 190 840 194" stroke="#54a6da" stroke-width="4" stroke-linecap="round" fill="none"/>
-            </svg>
-
-            <div class="cliente-login-hero">
-                <img src="{{ asset('bienvenida.png') }}" alt="Bienvenida clientes" class="cliente-login-hero-image">
-            </div>
+            <span class="sr-only">Imagen de bienvenida de clientes</span>
         </div>
     </section>
 

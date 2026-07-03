@@ -263,7 +263,7 @@ return [
     'register_url' => 'register',
     'password_reset_url' => 'password/reset',
     'password_email_url' => 'password/email',
-    'profile_url' => false,
+    'profile_url' => 'profile',
 
     /*
     |--------------------------------------------------------------------------
@@ -374,26 +374,7 @@ return [
                     'url' => '/dir-comercial/rendimiento-servicios',
                     'icon' => 'fas fa-chart-pie',
                 ],
-                [
-                    'text' => 'Clientes Estratégicos',
-                    'url' => '/dir-comercial/clientes',
-                    'icon' => 'fas fa-handshake',
-                ],
-                [
-                    'text' => 'Contratos Comerciales',
-                    'url' => '/dir-comercial/contratos',
-                    'icon' => 'fas fa-file-signature',
-                ],
-                [
-                    'text' => 'Campañas y Promociones',
-                    'url' => '/dir-comercial/campanas',
-                    'icon' => 'fas fa-bullseye',
-                ],
-                [
-                    'text' => 'Indicadores Comerciales',
-                    'url' => '/dir-comercial/indicadores',
-                    'icon' => 'fas fa-chart-bar',
-                ],
+                
             ],
         ],
         [
@@ -927,6 +908,11 @@ return [
             'text' => 'Eventos',
             'icon' => 'fas fa-calendar-alt',
             'submenu' => [
+                [
+                    'text' => 'Eventos SIOP',
+                    'url' => 'eventos-siop',
+                    'icon' => 'fas fa-layer-group',
+                ],
                 [
                     'text' => 'Eventos UPU',
                     'url' => 'eventos',

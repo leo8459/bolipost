@@ -331,6 +331,8 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/tarifa-contrato/plantilla-excel', [TarifaContratoController::class, 'downloadTemplateExcel'])->name('tarifa-contrato.template-excel');
     Route::get('/tarifa-contrato/reporte', [TarifaContratoController::class, 'reporte'])->name('tarifa-contrato.reporte');
     Route::get('/tarifario-tiktoker', [TarifarioTiktokerController::class, 'index'])->name('tarifario-tiktoker.index');
+    Route::get('/tarifario-tiktoker/pdf', [TarifarioTiktokerController::class, 'exportPdf'])->name('tarifario-tiktoker.pdf');
+    Route::get('/tarifario-tiktoker/excel', [TarifarioTiktokerController::class, 'downloadReportExcel'])->name('tarifario-tiktoker.excel');
     Route::get('/tarifario-tiktoker/create', [TarifarioTiktokerController::class, 'create'])->name('tarifario-tiktoker.create');
     Route::get('/tarifario-tiktoker/import', [TarifarioTiktokerController::class, 'importForm'])->name('tarifario-tiktoker.import-form');
     Route::post('/tarifario-tiktoker/import', [TarifarioTiktokerController::class, 'import'])->name('tarifario-tiktoker.import');
@@ -380,6 +382,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/eventos-ordi', [EventoController::class, 'ordiIndex'])->name('eventos-ordi.index');
     Route::get('/eventos-despacho', [EventoController::class, 'despachoIndex'])->name('eventos-despacho.index');
     Route::get('/eventos-contrato', [EventoController::class, 'contratoIndex'])->name('eventos-contrato.index');
+    Route::get('/eventos-siop', [EventoController::class, 'siopIndex'])->name('eventos-siop.index');
     Route::get('/eventos-tiktoker', [EventoController::class, 'tiktokerIndex'])->name('eventos-tiktoker.index');
     Route::get('/auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
     Route::get('/eventos-auditoria', [EventosAuditoriaController::class, 'index'])->name('eventos-auditoria.index');

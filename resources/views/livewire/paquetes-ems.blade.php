@@ -1016,7 +1016,7 @@
                                         type="text"
                                         class="form-control search-input"
                                         placeholder="{{ $this->isEnTransitoEms ? 'Buscar por codigo, origen, destino...' : 'Buscar en toda la tabla...' }}"
-                                        wire:model="search"
+                                        wire:model.live="search"
                                         wire:keydown.enter.prevent="searchPaquetes(true)"
                                     >
                                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes(true)">Buscar</button>
@@ -3156,6 +3156,23 @@
                         <label>Descripcion (opcional)</label>
                         <textarea class="form-control" rows="3" wire:model.defer="entregaDescripcion"></textarea>
                         @error('entregaDescripcion') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group mt-3 mb-0">
+                        <label>Foto de entrega</label>
+                        <input type="file" class="form-control-file" wire:model="entregaImagen" accept="image/*">
+                        <div wire:loading wire:target="entregaImagen" class="text-muted small mt-2">
+                            Cargando imagen...
+                        </div>
+                        @error('entregaImagen') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                        @if ($entregaImagen)
+                            <div class="mt-3">
+                                <img src="{{ $entregaImagen->temporaryUrl() }}"
+                                     alt="Vista previa de la foto de entrega"
+                                     class="img-fluid rounded border"
+                                     style="max-height: 220px; object-fit: contain;">
+                            </div>
+                        @endif
+                        <small class="text-muted">La foto es obligatoria y se guardara en todos los registros seleccionados.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
