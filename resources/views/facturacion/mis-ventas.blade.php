@@ -274,6 +274,7 @@
                                 $esOficialMeta = (bool) data_get($cart, 'es_oficial', false);
                                 $estadoSufeRaw = strtoupper(trim((string) data_get($cart, 'respuesta_emision.estadoSufe', data_get($cart, 'estado_sufe', ''))));
                                 $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', '')));
+                                $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
                                 $isOficial = $esOficialMeta
                                     || str_starts_with($codigoOrden, 'OFI-')
                                     || strtoupper($razonSocial ?? '') === 'ENVIO OFICIAL'
@@ -287,11 +288,12 @@
                                         $canalEmision = 'factura_electronica';
                                     }
                                 }
+                                $isQrPayment = $metodoPago === 'qr' || trim((string) data_get($cart, 'qr_transaction_id', '')) !== '';
 
-                                $canalBadgeLabel = $canalEmision === 'qr'
-                                    ? 'QR'
+                                $canalBadgeLabel = $isQrPayment
+                                    ? 'Pago QR'
                                     : ($canalEmision === 'oficial' ? 'Registro oficial' : 'Factura electronica');
-                                $canalBadgeClass = $canalEmision === 'qr'
+                                $canalBadgeClass = $isQrPayment
                                     ? 'ventas-channel-chip--qr'
                                     : 'ventas-channel-chip--factura';
                                 $estadoCart = (string) data_get($cart, 'estado', '');
@@ -306,6 +308,8 @@
                                 $itemsCountApi = (int) data_get($cart, 'items_count', 0);
                                 $fechaRaw = data_get($cart, 'emitido_en') ?: data_get($cart, 'created_at');
                                 $fecha = null;
+                                $showConsultAction = $cartId > 0 && ($referenciaConsulta !== '' || $isQrPayment || $facturaEstado === 'PENDIENTE');
+                                $consultActionLabel = 'Consultar';
 
                                 if ($fechaRaw instanceof \Carbon\CarbonInterface) {
                                     $fecha = $fechaRaw;
@@ -315,6 +319,22 @@
                                     } catch (\Throwable $e) {
                                         $fecha = null;
                                     }
+                                }
+
+                                if ($isQrPayment) {
+                                    if ($estadoPago === 'pendiente') {
+                                        $consultActionLabel = 'Actualizar pago';
+                                    } elseif ($estadoPago === 'cancelado') {
+                                        $consultActionLabel = 'Revisar pago';
+                                    } elseif ($facturaEstado === 'FACTURADA') {
+                                        $consultActionLabel = 'Consultar';
+                                    } elseif (in_array($facturaEstado, ['PENDIENTE', 'NO_APLICA', 'ERROR', 'RECHAZADA'], true)) {
+                                        $consultActionLabel = 'Actualizar factura';
+                                    } else {
+                                        $consultActionLabel = 'Consultar';
+                                    }
+                                } elseif ($facturaEstado === 'PENDIENTE') {
+                                    $consultActionLabel = 'Actualizar estado';
                                 }
                             @endphp
                             <tr>
@@ -344,20 +364,20 @@
                                     </div>
                                 </td>
                                 <td>
-                                    @if($canalEmision === 'qr' && $facturaEstado === 'FACTURADA')
-                                        <span class="ventas-status-chip ventas-status-chip--success">FACTURADA</span>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'PENDIENTE')
-                                        <span class="ventas-status-chip ventas-status-chip--warning">FACTURA EN PROCESO</span>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'RECHAZADA')
+                                    @if($isQrPayment && $facturaEstado === 'FACTURADA')
+                                        <span class="ventas-status-chip ventas-status-chip--success">QR PAGADO Y FACTURADO</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'PENDIENTE')
+                                        <span class="ventas-status-chip ventas-status-chip--warning">QR PAGADO - FACTURA EN PROCESO</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'RECHAZADA')
                                         <span class="ventas-status-chip ventas-status-chip--danger">FACTURA RECHAZADA</span>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'ERROR')
+                                    @elseif($isQrPayment && $facturaEstado === 'ERROR')
                                         <span class="ventas-status-chip ventas-status-chip--dark">ERROR DE FACTURA</span>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pagado')
-                                        <span class="ventas-status-chip ventas-status-chip--success">PAGO QR CONFIRMADO</span>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
-                                        <span class="ventas-status-chip ventas-status-chip--danger">QR RECHAZADO</span>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA')
-                                        <span class="ventas-status-chip ventas-status-chip--warning">QR PENDIENTE</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pagado')
+                                        <span class="ventas-status-chip ventas-status-chip--success">QR PAGADO</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
+                                        <span class="ventas-status-chip ventas-status-chip--danger">QR NO PAGADO / CANCELADO</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA')
+                                        <span class="ventas-status-chip ventas-status-chip--warning">QR PENDIENTE DE PAGO</span>
                                     @elseif($facturaEstado === 'FACTURADA')
                                         <span class="ventas-status-chip ventas-status-chip--success">FACTURADA</span>
                                     @elseif($facturaEstado === 'PENDIENTE')
@@ -378,11 +398,15 @@
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Si fue por contingencia, usa actualizar estado hasta que llegue la factura.
                                         </div>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA')
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pendiente')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
-                                            El QR esta pendiente de pago o de pasar a facturacion automatica.
+                                            Si el cliente cerró la ventana o no completó el pago, la venta seguirá pendiente hasta volver a consultar.
                                         </div>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'PENDIENTE')
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            El intento de pago QR no se concretó. Puedes generar un nuevo QR o dejar la venta sin cobrar.
+                                        </div>
+                                    @elseif($isQrPayment && $facturaEstado === 'PENDIENTE')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             El pago QR ya fue confirmado y la factura se encuentra en proceso ante SEFE.
                                         </div>
@@ -392,8 +416,10 @@
                                     <span class="ventas-status-chip {{ $estadoCart === 'emitido' ? 'ventas-status-chip--primary' : ($estadoCart === 'pendiente_pago' ? 'ventas-status-chip--warning' : 'ventas-status-chip--muted') }}">
                                         {{ strtoupper($estadoCart !== '' ? $estadoCart : 'sin estado') }}
                                     </span>
-                                    @if($estadoCart === 'pendiente_pago' && $canalEmision === 'qr')
+                                    @if($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'pendiente')
                                         <div class="ventas-table__secondary mt-1">Pago QR pendiente de confirmacion.</div>
+                                    @elseif($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'cancelado')
+                                        <div class="ventas-table__secondary mt-1">El QR fue cerrado, cancelado o no completado.</div>
                                     @endif
                                 </td>
                                 <td class="text-center">
@@ -416,12 +442,12 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex flex-wrap justify-content-center">
-                                        @if($cartId > 0 && ($referenciaConsulta !== '' || $canalEmision === 'qr' || $facturaEstado === 'PENDIENTE'))
+                                        @if($showConsultAction)
                                             <form
                                                 method="POST"
                                                 action="{{ route('facturacion.cart.consultar') }}"
                                                 class="mr-2 mb-2"
-                                                @if($facturaEstado === 'PENDIENTE' || $canalEmision === 'qr')
+                                                @if($facturaEstado === 'PENDIENTE' || $isQrPayment)
                                                     data-pending-consult="true"
                                                 @endif
                                             >
@@ -429,7 +455,7 @@
                                                 <input type="hidden" name="cart_id" value="{{ $cartId }}">
                                                 <input type="hidden" name="codigo_seguimiento" value="{{ $referenciaConsulta }}">
                                                 <button type="submit" class="btn btn-xs btn-outline-secondary">
-                                                    {{ $canalEmision === 'qr' ? 'Actualizar pago' : ($facturaEstado === 'PENDIENTE' ? 'Actualizar estado' : 'Consultar') }}
+                                                    {{ $consultActionLabel }}
                                                 </button>
                                             </form>
                                         @endif

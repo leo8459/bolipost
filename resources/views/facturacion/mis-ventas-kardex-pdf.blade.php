@@ -119,6 +119,10 @@
         .obs-grid td:last-child {
             border-right: 0;
         }
+
+        .page-break {
+            page-break-before: always;
+        }
     </style>
 </head>
 <body>
@@ -155,18 +159,34 @@
             'title' => 'Facturacion electronica',
             'total_label' => 'TOTAL FACTURACION ELECTRONICA EN CAJA',
         ],
-        'qr' => [
-            'title' => 'Pagos QR',
-            'total_label' => 'TOTAL QR REFERENCIAL NO SUMADO A CAJA',
+        'qr_facturado' => [
+            'title' => 'Pagos QR facturados',
+            'total_label' => 'TOTAL QR FACTURADO REFERENCIAL NO SUMADO A CAJA',
+        ],
+        'qr_pagado_pendiente_factura' => [
+            'title' => 'Pagos QR confirmados pendientes de factura',
+            'total_label' => 'TOTAL QR PAGADO PENDIENTE DE FACTURA',
+        ],
+        'qr_pendiente' => [
+            'title' => 'Pagos QR pendientes',
+            'total_label' => 'TOTAL QR PENDIENTE',
+        ],
+        'qr_cancelado' => [
+            'title' => 'Pagos QR no concretados',
+            'total_label' => 'TOTAL QR CANCELADO / NO PAGADO',
         ],
         'oficial' => [
             'title' => 'Envios oficiales',
             'total_label' => 'TOTAL ENVIOS OFICIALES',
         ],
     ];
-    $rowsByChannel = collect($rows)->groupBy(function ($row) {
-        return strtolower((string) data_get($row, 'canal_emision', 'factura_electronica'));
-    });
+    $rowsByChannel = collect($rows)->groupBy(fn ($row) => (string) data_get($row, 'section_key', strtolower((string) data_get($row, 'canal_emision', 'factura_electronica'))));
+    $paidSectionKeys = ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'];
+    $unpaidSectionKeys = ['qr_pendiente', 'qr_cancelado'];
+    $hasPaidRows = collect($paidSectionKeys)->contains(fn ($key) => $rowsByChannel->get($key, collect())->isNotEmpty());
+    $hasUnpaidRows = collect($unpaidSectionKeys)->contains(fn ($key) => $rowsByChannel->get($key, collect())->isNotEmpty());
+    $paidRows = collect($rows)->filter(fn ($row) => in_array((string) data_get($row, 'section_key', ''), $paidSectionKeys, true))->values();
+    $unpaidRows = collect($rows)->filter(fn ($row) => in_array((string) data_get($row, 'section_key', ''), $unpaidSectionKeys, true))->values();
 @endphp
 
 @if($headerImage)
@@ -190,94 +210,60 @@
     </tr>
 </table>
 
-@php($hasAnyRows = false)
-@foreach($sectionConfigs as $channelKey => $section)
-    @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
-    @continue($sectionRows->isEmpty())
-    @php($hasAnyRows = true)
-
-    <div class="section-title">{{ $section['title'] }}</div>
+<div class="section-title">Kardex de ventas cobradas</div>
+@if($hasPaidRows)
+    @foreach($paidSectionKeys as $channelKey)
+        @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
+        @continue($sectionRows->isEmpty())
+        @include('facturacion.partials.kardex-section-table', ['section' => $sectionConfigs[$channelKey], 'sectionRows' => $sectionRows])
+    @endforeach
+@else
     <table class="grid">
-        <thead>
-            <tr>
-                <th style="width: 4%;">N°</th>
-                <th style="width: 10%;">FECHA</th>
-                <th style="width: 18%;">TIPO DE ENVIO</th>
-                <th style="width: 14%;">EMISION</th>
-                <th style="width: 19%;">CODIGO DE ITEM</th>
-                <th style="width: 12%;">PESO DE ENVIO</th>
-                <th style="width: 8%;">CANTIDAD</th>
-                <th style="width: 12%;">N° FACTURA</th>
-                <th style="width: 11%;">IMPORTE</th>
-            </tr>
-        </thead>
         <tbody>
-            @foreach($sectionRows as $index => $row)
-                <tr>
-                    <td class="center">{{ $index + 1 }}</td>
-                    <td class="center">{{ $row['fecha'] }}</td>
-                    <td>{{ $row['tipo_envio'] }}</td>
-                    <td>{{ $row['emision_label'] }}</td>
-                    <td>{{ $row['codigo_item'] }}</td>
-                    <td class="right">{{ number_format((float) $row['peso'], 3) }}</td>
-                    <td class="center">{{ $row['cantidad'] }}</td>
-                    <td class="center">{{ $row['numero_factura'] }}</td>
-                    <td class="right">{{ number_format((float) $row['importe_general'], 2) }}</td>
-                </tr>
-            @endforeach
             <tr>
-                <td colspan="8" class="right" style="font-weight: 700;">{{ $section['total_label'] }}</td>
-                <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $sectionRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+                <td class="center" style="padding: 12px;">No se encontraron ventas cobradas con los filtros aplicados.</td>
             </tr>
         </tbody>
     </table>
-@endforeach
-
-@unless($hasAnyRows)
-    <table class="grid">
-        <thead>
-            <tr>
-                <th style="width: 4%;">N°</th>
-                <th style="width: 10%;">FECHA</th>
-                <th style="width: 18%;">TIPO DE ENVIO</th>
-                <th style="width: 14%;">EMISION</th>
-                <th style="width: 19%;">CODIGO DE ITEM</th>
-                <th style="width: 12%;">PESO DE ENVIO</th>
-                <th style="width: 8%;">CANTIDAD</th>
-                <th style="width: 12%;">N° FACTURA</th>
-                <th style="width: 11%;">IMPORTE</th>
-            </tr>
-        </thead>
-        <tbody>
-            @for($i = 0; $i < 14; $i++)
-                <tr>
-                    <td>{{ $i === 0 ? "\u{00A0}" : '' }}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                </tr>
-            @endfor
-        </tbody>
-    </table>
-@endunless
+@endif
 
 <table class="totals" style="margin-top: 0;">
     <tr>
         <td style="width: 89%;" class="right">TOTAL PARCIAL EN CAJA</td>
-        <td style="width: 11%;" class="right">Bs {{ number_format((float) $totals['parcial'], 2) }}</td>
+        <td style="width: 11%;" class="right">Bs {{ number_format((float) $paidRows->sum(fn ($row) => (float) data_get($row, 'importe_parcial', 0)), 2) }}</td>
     </tr>
     <tr>
         <td class="right">TOTAL GENERAL EN CAJA</td>
-        <td class="right">Bs {{ number_format((float) $totals['general'], 2) }}</td>
+        <td class="right">Bs {{ number_format((float) $paidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
     </tr>
     <tr>
         <td class="right">TOTAL QR REFERENCIAL NO SUMADO A CAJA</td>
-        <td class="right">Bs {{ number_format((float) ($totals['qr'] ?? 0), 2) }}</td>
+        <td class="right">Bs {{ number_format((float) $paidRows->filter(fn ($row) => strtolower((string) data_get($row, 'metodo_pago', '')) === 'qr')->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+    </tr>
+</table>
+
+<div class="page-break"></div>
+<div class="section-title">Kardex de ventas no cobradas</div>
+@if($hasUnpaidRows)
+    @foreach($unpaidSectionKeys as $channelKey)
+        @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
+        @continue($sectionRows->isEmpty())
+        @include('facturacion.partials.kardex-section-table', ['section' => $sectionConfigs[$channelKey], 'sectionRows' => $sectionRows])
+    @endforeach
+@else
+    <table class="grid">
+        <tbody>
+            <tr>
+                <td class="center" style="padding: 12px;">No se encontraron ventas no cobradas con los filtros aplicados.</td>
+            </tr>
+        </tbody>
+    </table>
+@endif
+
+<table class="totals" style="margin-top: 0;">
+    <tr>
+        <td style="width: 89%;" class="right">TOTAL VENTAS NO COBRADAS</td>
+        <td style="width: 11%;" class="right">Bs {{ number_format((float) $unpaidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
     </tr>
 </table>
 

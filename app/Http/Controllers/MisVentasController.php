@@ -139,7 +139,7 @@ class MisVentasController extends Controller
                 ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))
                 ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
             'qr' => round((float) $rows
-                ->filter(fn ($row) => strtolower((string) data_get($row, 'canal_emision', '')) === 'qr')
+                ->filter(fn ($row) => strtolower((string) data_get($row, 'metodo_pago', '')) === 'qr')
                 ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
         ];
 
@@ -229,20 +229,20 @@ class MisVentasController extends Controller
             'pendientes' => $rows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'PENDIENTE')->count(),
             'rechazadas' => $rows->filter(function ($row) {
                 $estadoEmision = strtoupper((string) data_get($row, 'estado_emision', ''));
-                $canal = strtolower((string) data_get($row, 'canal_emision', ''));
+                $isQrPayment = $this->isQrPaymentRow($row);
                 $estadoPago = strtolower((string) data_get($row, 'estado_pago', 'pendiente'));
 
                 return $estadoEmision === 'RECHAZADA'
-                    || ($canal === 'qr' && $estadoPago === 'cancelado');
+                    || ($isQrPayment && $estadoPago === 'cancelado');
             })->count(),
-            'qrPagados' => $rows->filter(fn ($row) => strtolower((string) data_get($row, 'canal_emision', '')) === 'qr'
+            'qrPagados' => $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
                 && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
                 && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado')->count(),
-            'qrPendientes' => $rows->filter(fn ($row) => strtolower((string) data_get($row, 'canal_emision', '')) === 'qr'
+            'qrPendientes' => $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
                 && strtolower((string) data_get($row, 'estado', '')) === 'pendiente_pago'
                 && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pendiente')->count(),
             'montoQr' => round((float) $rows
-                ->filter(fn ($row) => strtolower((string) data_get($row, 'canal_emision', '')) === 'qr'
+                ->filter(fn ($row) => $this->isQrPaymentRow($row)
                     && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
                     && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado')
                 ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
@@ -328,14 +328,19 @@ class MisVentasController extends Controller
     {
         return $rows->map(function ($row) use ($service, $user) {
             $ventaId = (int) data_get($row, 'id', 0);
-            $origenVentaId = (int) data_get($row, 'origenVentaId', 0);
+            $origenVentaId = $this->extractOrigenVentaId($row);
+
+            $ventaDetalle = null;
+            if ($ventaId > 0 && $origenVentaId <= 0) {
+                $ventaDetalle = $service->fetchVentaDetalleByVentaId($user, $ventaId);
+                $origenVentaId = $this->extractOrigenVentaId($ventaDetalle);
+            }
 
             $bridgeCart = $origenVentaId > 0 ? $service->fetchVentaById($user, $origenVentaId) : null;
-            $ventaDetalle = null;
 
             $items = $this->normalizeItems(data_get($bridgeCart, 'items', []));
             if ($items->isEmpty() && $ventaId > 0) {
-                $ventaDetalle = $service->fetchVentaDetalleByVentaId($user, $ventaId);
+                $ventaDetalle = $ventaDetalle ?: $service->fetchVentaDetalleByVentaId($user, $ventaId);
                 $items = collect((array) data_get($ventaDetalle, 'detalle', []))
                     ->map(fn ($item) => $this->mapVentaDetalleItemToCartItem($item))
                     ->filter()
@@ -369,20 +374,24 @@ class MisVentasController extends Controller
             $createdAt = (string) data_get($row, 'fecha', '');
             $isOficial = $this->isOfficialVentaPayload($row);
             $canalEmision = $this->resolveCanalEmisionVentaPayload($row, $bridgeCart, $ventaDetalle, $isOficial);
+            $metodoPago = $this->resolveMetodoPagoVentaPayload($row, $bridgeCart, $ventaDetalle, $canalEmision);
             $emision = $this->mapEstadoSufeToBridge($estadoSufe);
             $estadoCart = trim((string) data_get($bridgeCart, 'estado', 'emitido'));
-            $estadoPago = trim((string) data_get($bridgeCart, 'estado_pago', ($canalEmision === 'qr' ? 'pendiente' : 'pagado')));
+            $estadoPago = trim((string) data_get($bridgeCart, 'estado_pago', ($metodoPago === 'qr' ? 'pendiente' : 'pagado')));
             $codigoSeguimientoFiscal = trim((string) data_get($bridgeCart, 'codigo_seguimiento_fiscal', $codigoSeguimiento));
             $qrTransactionId = trim((string) data_get($bridgeCart, 'qr_transaction_id', ''));
-            if ($canalEmision === 'qr') {
+            if ($metodoPago === 'qr') {
                 $emision = [
                     'estado' => strtoupper(trim((string) data_get($bridgeCart, 'estado_emision', 'NO_APLICA'))),
                     'mensaje' => $this->buildQrStatusMessage($estadoPago, trim((string) data_get($bridgeCart, 'mensaje_emision', ''))),
                 ];
             }
 
+            $resolvedCartId = $origenVentaId > 0 ? $origenVentaId : $ventaId;
+
             return (object) [
-                'id' => $origenVentaId > 0 ? $origenVentaId : $ventaId,
+                'id' => $resolvedCartId,
+                'origen_venta_id' => $origenVentaId > 0 ? $origenVentaId : null,
                 'venta_id' => $ventaId,
                 'created_at' => $createdAt,
                 'emitido_en' => $createdAt,
@@ -393,6 +402,7 @@ class MisVentasController extends Controller
                     ? 'registro_interno'
                     : (trim((string) data_get($row, 'codigoCliente', '')) !== '' ? 'con_datos' : 'sin_cliente'),
                 'canal_emision' => $canalEmision,
+                'metodo_pago' => $metodoPago,
                 'es_oficial' => $isOficial,
                 'estado' => $estadoCart !== '' ? $estadoCart : 'emitido',
                 'estado_pago' => $estadoPago,
@@ -419,7 +429,7 @@ class MisVentasController extends Controller
 
     private function mergeFallbackVentas(Collection $kardexRows, Collection $fallbackRows): Collection
     {
-        $indexed = $kardexRows->keyBy(fn ($row) => 'cart:' . (int) data_get($row, 'id', 0));
+        $indexed = $kardexRows->keyBy(fn ($row) => 'cart:' . $this->resolveVentaMergeCartId($row));
 
         foreach ($fallbackRows as $row) {
             $row = is_array($row) ? (object) $row : $row;
@@ -427,7 +437,7 @@ class MisVentasController extends Controller
                 continue;
             }
 
-            $cartId = (int) data_get($row, 'id', 0);
+            $cartId = $this->resolveVentaMergeCartId($row);
             $codigoOrden = trim((string) data_get($row, 'codigo_orden', ''));
             $key = 'cart:' . $cartId;
             if ($cartId > 0 && !$indexed->has($key)) {
@@ -455,6 +465,43 @@ class MisVentasController extends Controller
             ->values();
     }
 
+    private function extractOrigenVentaId(object|array|null $payload): int
+    {
+        if ($payload === null) {
+            return 0;
+        }
+
+        $candidates = [
+            data_get($payload, 'origenVentaId'),
+            data_get($payload, 'origen_venta_id'),
+            data_get($payload, 'origenVenta.id'),
+            data_get($payload, 'origen_venta.id'),
+            data_get($payload, 'venta.origenVentaId'),
+            data_get($payload, 'venta.origen_venta_id'),
+            data_get($payload, 'venta.origenVenta.id'),
+            data_get($payload, 'venta.origen_venta.id'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $value = (int) $candidate;
+            if ($value > 0) {
+                return $value;
+            }
+        }
+
+        return 0;
+    }
+
+    private function resolveVentaMergeCartId(object|array $row): int
+    {
+        $origenVentaId = $this->extractOrigenVentaId($row);
+        if ($origenVentaId > 0) {
+            return $origenVentaId;
+        }
+
+        return (int) data_get($row, 'id', 0);
+    }
+
     private function mapVentaDetailToCart(object $venta): object
     {
         $detalle = collect((array) data_get($venta, 'detalle', []))
@@ -475,6 +522,7 @@ class MisVentasController extends Controller
 
         $isOficial = $this->isOfficialVentaPayload($venta);
         $canalEmision = $this->resolveCanalEmisionVentaPayload($venta, null, $venta, $isOficial);
+        $metodoPago = $this->resolveMetodoPagoVentaPayload($venta, null, $venta, $canalEmision);
 
         return (object) [
             'id' => (int) data_get($venta, 'id', 0),
@@ -487,6 +535,7 @@ class MisVentasController extends Controller
             'total' => (float) data_get($venta, 'montoTotal', data_get($venta, 'total', 0)),
             'modalidad_facturacion' => $isOficial ? 'registro_interno' : 'con_datos',
             'canal_emision' => $canalEmision,
+            'metodo_pago' => $metodoPago,
             'es_oficial' => $isOficial,
             'items' => $detalle,
             'respuesta_emision' => [
@@ -567,7 +616,7 @@ class MisVentasController extends Controller
         return match ($estadoPago) {
             'pagado' => $fallback !== '' ? $fallback : 'Pago QR confirmado. La factura electronica se emitira automaticamente.',
             'cancelado' => $fallback !== '' ? $fallback : 'Pago QR cancelado o rechazado.',
-            default => $fallback !== '' ? $fallback : 'QR generado. Pendiente de confirmacion de pago.',
+            default => $fallback !== '' ? $fallback : 'QR generado. Si el cliente no completo el pago, la venta queda pendiente hasta actualizar su estado.',
         };
     }
 
@@ -639,6 +688,48 @@ class MisVentasController extends Controller
         return 'factura_electronica';
     }
 
+    private function resolveMetodoPagoVentaPayload(
+        object|array $venta,
+        object|array|null $bridgeCart = null,
+        object|array|null $ventaDetalle = null,
+        ?string $canalEmision = null
+    ): string {
+        $paymentHints = [
+            data_get($venta, 'metodo_pago'),
+            data_get($venta, 'metodoPago'),
+            data_get($bridgeCart, 'metodo_pago'),
+            data_get($bridgeCart, 'metodoPago'),
+            data_get($ventaDetalle, 'metodo_pago'),
+            data_get($ventaDetalle, 'metodoPago'),
+        ];
+
+        foreach ($paymentHints as $hint) {
+            $normalized = strtolower(trim((string) $hint));
+            if (in_array($normalized, ['efectivo', 'qr'], true)) {
+                return $normalized;
+            }
+        }
+
+        $qrTransactionId = trim((string) (
+            data_get($venta, 'qr_transaction_id')
+            ?? data_get($bridgeCart, 'qr_transaction_id')
+            ?? data_get($ventaDetalle, 'qr_transaction_id')
+            ?? ''
+        ));
+        if ($qrTransactionId !== '') {
+            return 'qr';
+        }
+
+        return strtolower(trim((string) ($canalEmision ?? 'factura_electronica'))) === 'qr' ? 'qr' : 'efectivo';
+    }
+
+    private function isQrPaymentRow(object|array $row): bool
+    {
+        return strtolower(trim((string) data_get($row, 'metodo_pago', ''))) === 'qr'
+            || trim((string) data_get($row, 'qr_transaction_id', '')) !== ''
+            || strtolower(trim((string) data_get($row, 'canal_emision', ''))) === 'qr';
+    }
+
     private function labelCanalEmision(string $canalEmision): string
     {
         return match (strtolower(trim($canalEmision))) {
@@ -646,6 +737,30 @@ class MisVentasController extends Controller
             'oficial' => 'Envio oficial',
             default => 'Factura electronica',
         };
+    }
+
+    private function resolvePdfSectionKey(object|array $cart): string
+    {
+        if ($this->isQrPaymentRow($cart)) {
+            $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
+            $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', 'NO_APLICA')));
+
+            if ($estadoPago === 'cancelado') {
+                return 'qr_cancelado';
+            }
+
+            if ($estadoPago !== 'pagado') {
+                return 'qr_pendiente';
+            }
+
+            if ($estadoEmision === 'FACTURADA') {
+                return 'qr_facturado';
+            }
+
+            return 'qr_pagado_pendiente_factura';
+        }
+
+        return strtolower(trim((string) data_get($cart, 'canal_emision', 'factura_electronica')));
     }
 
     private function buildPdfRows(Collection $carts): Collection
@@ -671,7 +786,19 @@ class MisVentasController extends Controller
                 $codigo = trim((string) data_get($item, 'codigo', ''));
                 $itemId = (int) data_get($item, 'id', 0);
                 $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', 'factura_electronica')));
-                $contabilizaEnCaja = $canalEmision !== 'qr';
+                $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
+                $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
+                $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', '')));
+                $contabilizaEnCaja = $metodoPago !== 'qr';
+                $sectionKey = $this->resolvePdfSectionKey($cart);
+
+                $emisionLabel = match ($sectionKey) {
+                    'qr_facturado' => 'QR pagado + facturado',
+                    'qr_pagado_pendiente_factura' => 'QR pagado',
+                    'qr_cancelado' => 'QR cancelado',
+                    'qr_pendiente' => 'QR pendiente',
+                    default => $this->labelCanalEmision($canalEmision),
+                };
 
                 return [
                     'fecha' => $fecha ? date('d/m/Y', strtotime((string) $fecha)) : '-',
@@ -681,7 +808,11 @@ class MisVentasController extends Controller
                     'peso' => (float) ($resumen['peso'] ?? 0),
                     'cantidad' => max(1, (int) data_get($item, 'cantidad', 1)),
                     'canal_emision' => $canalEmision,
-                    'emision_label' => $this->labelCanalEmision($canalEmision),
+                    'metodo_pago' => $metodoPago,
+                    'estado_pago' => $estadoPago,
+                    'estado_emision' => $estadoEmision,
+                    'section_key' => $sectionKey,
+                    'emision_label' => $emisionLabel,
                     'contabiliza_en_caja' => $contabilizaEnCaja,
                     'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',
                     'importe_parcial' => round((float) data_get($item, 'monto_base', 0), 2),

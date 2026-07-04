@@ -34,11 +34,17 @@ class FacturacionCartController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'ok' => true,
-                'cart_id' => $cart->id,
+                'cart_id' => $cart?->id,
+                'draft_missing' => $cart === null,
             ]);
         }
 
-        return back()->with('success', 'Datos de facturacion actualizados.');
+        return back()->with(
+            'success',
+            $cart
+                ? 'Datos de facturacion actualizados.'
+                : 'No habia un borrador activo. Agrega un item para iniciar una nueva venta.'
+        );
     }
 
     public function removeItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse
@@ -127,7 +133,7 @@ class FacturacionCartController extends Controller
         if ($billingSnapshot !== []) {
             try {
                 $service->updateDraftBillingData($user, $billingSnapshot);
-                Log::info('Snapshot de facturacion sincronizado antes de emitir.', [
+                Log::debug('Snapshot de facturacion sincronizado antes de emitir.', [
                     'user_id' => $user?->id,
                     'canal_emision' => $billingSnapshot['canal_emision'] ?? null,
                 ]);
@@ -156,7 +162,7 @@ class FacturacionCartController extends Controller
         try {
             $ctx = $service->getRemoteContextForUser($user);
             $draft = $ctx['draft'] ?? null;
-            Log::info('Inicio de emision de facturacion.', [
+            Log::debug('Inicio de emision de facturacion.', [
                 'user_id' => $user?->id,
                 'cart_id' => data_get($draft, 'id'),
                 'canal_emision' => data_get($draft, 'canal_emision'),
@@ -164,13 +170,22 @@ class FacturacionCartController extends Controller
             ]);
             $draftItems = collect($draft?->items ?? []);
             if ($draftItems->isEmpty()) {
-                return back()->with('facturacion_feedback', [
+                $feedback = [
                     'type' => 'warning',
                     'title' => 'Carrito vacío',
                     'message' => 'Agrega al menos un ítem antes de emitir la factura.',
                     'detail' => 'No se envió ninguna solicitud de emisión porque el borrador no tiene ítems.',
                     'action' => 'emitir',
-                ]);
+                ];
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'ok' => false,
+                        'feedback' => $feedback,
+                    ], 422);
+                }
+
+                return back()->with('facturacion_feedback', $feedback);
             }
         } catch (\Throwable) {
             // Si falla la consulta previa, continúa con el flujo existente.
@@ -188,7 +203,7 @@ class FacturacionCartController extends Controller
                 strtolower(trim((string) data_get($resultado, 'carrito.canal_emision', ''))) === 'qr'
             );
             if ($qrPayload !== null) {
-                Log::info('Facturacion QR detectado en respuesta de emision.', [
+                Log::debug('Facturacion QR detectado en respuesta de emision.', [
                     'user_id' => $user->id,
                     'cart_id' => data_get($resultado, 'carrito.id'),
                     'transaction_id' => $qrPayload['transaction_id'] ?? '',
@@ -270,7 +285,7 @@ class FacturacionCartController extends Controller
                 strtolower(trim((string) data_get($resultado, 'carrito.canal_emision', ''))) === 'qr'
             );
             if ($this->shouldShowQrSessionData($qrPayload)) {
-                Log::info('Facturacion QR detectado en consulta de estado.', [
+                Log::debug('Facturacion QR detectado en consulta de estado.', [
                     'user_id' => $user->id,
                     'cart_id' => data_get($resultado, 'carrito.id'),
                     'codigo_seguimiento' => $codigoSeguimiento,
@@ -478,11 +493,20 @@ class FacturacionCartController extends Controller
         }
 
         if ($estado === 'FACTURADA') {
+            $message = $pdfUrl !== ''
+                ? 'La factura fue emitida y el PDF se descargo automaticamente.'
+                : 'La factura ya fue procesada. Puedes entregar el comprobante al cliente.';
+            $detail = $mensaje !== ''
+                ? $mensaje
+                : ($pdfUrl !== ''
+                    ? 'Verifica la descarga del comprobante y continua con la siguiente venta cuando estes listo.'
+                    : 'El sistema genero la factura sin observaciones.');
+
             return [
                 'type' => 'success',
-                'title' => 'Factura emitida correctamente',
-                'message' => 'La factura ya fue procesada. Puedes entregar el comprobante al cliente.',
-                'detail' => $mensaje !== '' ? $mensaje : 'El sistema genero la factura sin observaciones.',
+                'title' => $pdfUrl !== '' ? 'Factura emitida y descargada' : 'Factura emitida correctamente',
+                'message' => $message,
+                'detail' => $detail,
                 'action' => $action,
                 'meta' => $feedbackMeta,
             ];

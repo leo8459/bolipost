@@ -112,9 +112,12 @@ class FacturacionCartService
         ];
     }
 
-    public function updateDraftBillingData(User $user, array $payload): object
+    public function updateDraftBillingData(User $user, array $payload, ?int $cartId = null): ?object
     {
         $payload = $this->withMotivoFromCanalEmision($payload);
+        if ($cartId !== null && $cartId > 0) {
+            $payload['cart_id'] = $cartId;
+        }
 
         $body = $this->request('PUT', '/cart/billing', array_merge(
             $payload,
@@ -123,7 +126,7 @@ class FacturacionCartService
         ));
 
         $cart = $this->toCart(data_get($body, 'cart'));
-        if (!$cart) {
+        if (!$cart && !data_get($body, 'draft_missing', false)) {
             throw new \RuntimeException('No se pudo actualizar datos de facturacion remotos.');
         }
         return $cart;
@@ -490,11 +493,20 @@ class FacturacionCartService
         return $this->toCart(data_get($body, 'cart'));
     }
 
-    public function emitirBorrador(User $user, array $overrides = []): array
+    public function emitirBorrador(User $user, array $overrides = [], ?int $cartId = null): array
     {
-        $ctx = $this->getRemoteContextForUser($user);
-        $this->ensureDraftItemsFiscalDataSynced($user, $ctx['draft'] ?? null);
-        $this->ensureDraftSucursalSynced($user);
+        if ($cartId !== null && $cartId > 0) {
+            $targetCart = $this->fetchVentaById($user, $cartId);
+            $this->ensureDraftItemsFiscalDataSynced($user, $targetCart);
+        } else {
+            $ctx = $this->getRemoteContextForUser($user);
+            $this->ensureDraftItemsFiscalDataSynced($user, $ctx['draft'] ?? null);
+            $this->ensureDraftSucursalSynced($user);
+        }
+
+        if ($cartId !== null && $cartId > 0) {
+            $overrides['cart_id'] = $cartId;
+        }
 
         $body = $this->request('POST', '/cart/emitir', array_merge(
             $overrides,
@@ -504,6 +516,9 @@ class FacturacionCartService
         $cart = $this->toCart(data_get($body, 'cart'));
         if (!$cart) {
             throw new \RuntimeException((string) data_get($body, 'respuesta.mensaje', 'No se pudo emitir.'));
+        }
+        if ($cartId !== null && $cartId > 0 && (int) ($cart->id ?? 0) !== $cartId) {
+            throw new \RuntimeException('La API de facturacion devolvio una venta distinta a la solicitada para emitir.');
         }
         return ['carrito' => $cart, 'payload' => [], 'respuesta' => (array) data_get($body, 'respuesta', [])];
     }
@@ -644,6 +659,26 @@ class FacturacionCartService
             return false;
         }
 
+        $codigoSeguimientoFiscal = trim((string) (
+            $cart->codigo_seguimiento_fiscal
+            ?? $cart->codigo_seguimiento
+            ?? data_get($respuesta, 'codigoSeguimiento')
+            ?? ''
+        ));
+        $numeroFactura = trim((string) (
+            data_get($cart, 'respuesta_emision.factura.nroFactura')
+            ?? data_get($cart, 'respuesta_emision.factura.numeroFactura')
+            ?? data_get($respuesta, 'factura.nroFactura')
+            ?? data_get($respuesta, 'factura.numeroFactura')
+            ?? data_get($respuesta, 'nroFactura')
+            ?? data_get($respuesta, 'numeroFactura')
+            ?? ''
+        ));
+
+        if ($codigoSeguimientoFiscal !== '' || $numeroFactura !== '') {
+            return false;
+        }
+
         return in_array($estadoEmision, ['', 'NO_APLICA'], true);
     }
 
@@ -702,27 +737,29 @@ class FacturacionCartService
 
     private function emitFacturaForPaidQrCart(User $user, object $cart): array
     {
-        $ctx = $this->getRemoteContextForUser($user);
-        $draft = $ctx['draft'] ?? null;
-
-        if (!$draft || (int) ($draft->id ?? 0) !== (int) ($cart->id ?? 0)) {
-            throw new \RuntimeException('La venta QR pagada ya no coincide con el borrador activo; evita reemitir automaticamente y revisa la venta desde el historial.');
+        $targetCartId = (int) ($cart->id ?? 0);
+        if ($targetCartId <= 0) {
+            throw new \RuntimeException('La venta QR pagada no tiene cart_id valido para facturar automaticamente.');
         }
 
-        if (strtolower(trim((string) ($draft->canal_emision ?? ''))) !== 'qr') {
-            throw new \RuntimeException('El borrador activo ya no esta en canal QR.');
+        $targetCart = $this->fetchVentaById($user, $targetCartId);
+        if (!$targetCart) {
+            throw new \RuntimeException('La venta QR pagada ya no se encontro en el bridge de facturacion.');
         }
 
-        $billingSnapshot = $this->buildFacturaElectronicaBillingSnapshot($draft);
-        $this->updateDraftBillingData($user, $billingSnapshot);
+        if (strtolower(trim((string) ($targetCart->metodo_pago ?? ''))) !== 'qr') {
+            throw new \RuntimeException('La venta pagada ya no figura como cobro QR en el bridge.');
+        }
 
-        Log::info('Pago QR confirmado; iniciando emision automatica de factura electronica.', [
+        $billingSnapshot = $this->buildFacturaElectronicaBillingSnapshot($targetCart);
+
+        Log::debug('Pago QR confirmado; iniciando emision automatica de factura electronica.', [
             'user_id' => $user->id,
-            'cart_id' => $draft->id ?? null,
-            'codigo_orden' => $draft->codigo_orden ?? null,
+            'cart_id' => $targetCart->id ?? null,
+            'codigo_orden' => $targetCart->codigo_orden ?? null,
         ]);
 
-        return $this->emitirBorrador($user, $billingSnapshot);
+        return $this->emitirBorrador($user, $billingSnapshot, $targetCartId);
     }
 
     private function buildFacturaElectronicaBillingSnapshot(object $cart): array

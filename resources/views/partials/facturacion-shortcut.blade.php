@@ -790,46 +790,22 @@
         </div>
     </div>
 
-    @if ($shouldOpenConsultFeedbackModal)
-        <div class="facturacion-result-modal" id="facturacionResultModal" aria-hidden="true" role="dialog" aria-modal="true">
-            <div class="facturacion-result-modal__backdrop" data-close-facturacion-result="true"></div>
-            <div class="facturacion-result-modal__panel" role="document">
-                <button type="button" class="facturacion-result-modal__close" id="facturacionResultModalClose" aria-label="Cerrar resultado">x</button>
-                <div class="facturacion-result-modal__icon facturacion-result-modal__icon--{{ $facturacionFeedback['type'] ?? 'info' }}">
-                    <i class="fas @if(($facturacionFeedback['type'] ?? '') === 'success') fa-check-circle @elseif(($facturacionFeedback['type'] ?? '') === 'warning') fa-exclamation-triangle @elseif(($facturacionFeedback['type'] ?? '') === 'error') fa-times-circle @else fa-info-circle @endif"></i>
-                </div>
-                <h4 class="facturacion-result-modal__title">{{ $facturacionFeedback['title'] ?? 'Resultado de consulta' }}</h4>
-                <p class="facturacion-result-modal__message">{{ $facturacionFeedback['message'] ?? '' }}</p>
-                @if (!empty($facturacionFeedback['meta']) && is_array($facturacionFeedback['meta']))
-                    <div class="facturacion-result-modal__meta-grid">
-                        @foreach ($facturacionFeedback['meta'] as $metaItem)
-                            @php
-                                $metaLabel = trim((string) ($metaItem['label'] ?? 'Dato'));
-                                $metaValue = trim((string) ($metaItem['value'] ?? ''));
-                                $metaType = trim((string) ($metaItem['type'] ?? 'text'));
-                            @endphp
-                            @if ($metaValue !== '')
-                                <div class="facturacion-result-modal__meta-card">
-                                    <span class="facturacion-result-modal__meta-label">{{ $metaLabel }}</span>
-                                    @if ($metaType === 'link')
-                                        <a href="{{ $metaValue }}" target="_blank" rel="noopener" class="facturacion-result-modal__meta-link">Abrir documento</a>
-                                    @else
-                                        <strong class="facturacion-result-modal__meta-value">{{ $metaValue }}</strong>
-                                    @endif
-                                </div>
-                            @endif
-                        @endforeach
-                    </div>
-                @endif
-                @if (!empty($facturacionFeedback['detail']))
-                    <div class="facturacion-result-modal__detail">{{ $facturacionFeedback['detail'] }}</div>
-                @endif
-                <div class="facturacion-result-modal__actions">
-                    <button type="button" class="global-shortcut-primary-btn" id="facturacionResultModalAccept">Entendido</button>
-                </div>
+    <div class="facturacion-result-modal" id="facturacionResultModal" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="facturacion-result-modal__backdrop" data-close-facturacion-result="true"></div>
+        <div class="facturacion-result-modal__panel" role="document">
+            <button type="button" class="facturacion-result-modal__close" id="facturacionResultModalClose" aria-label="Cerrar resultado">x</button>
+            <div class="facturacion-result-modal__icon facturacion-result-modal__icon--{{ $facturacionFeedback['type'] ?? 'info' }}" id="facturacionResultModalIcon">
+                <i class="fas @if(($facturacionFeedback['type'] ?? '') === 'success') fa-check-circle @elseif(($facturacionFeedback['type'] ?? '') === 'warning') fa-exclamation-triangle @elseif(($facturacionFeedback['type'] ?? '') === 'error') fa-times-circle @else fa-info-circle @endif" id="facturacionResultModalIconGlyph"></i>
+            </div>
+            <h4 class="facturacion-result-modal__title" id="facturacionResultModalTitle">{{ $facturacionFeedback['title'] ?? 'Resultado de facturacion' }}</h4>
+            <p class="facturacion-result-modal__message" id="facturacionResultModalMessage">{{ $facturacionFeedback['message'] ?? '' }}</p>
+            <div class="facturacion-result-modal__meta-grid{{ empty($facturacionFeedback['meta']) ? ' is-hidden' : '' }}" id="facturacionResultModalMeta"></div>
+            <div class="facturacion-result-modal__detail{{ empty($facturacionFeedback['detail']) ? ' is-hidden' : '' }}" id="facturacionResultModalDetail">{{ $facturacionFeedback['detail'] ?? '' }}</div>
+            <div class="facturacion-result-modal__actions">
+                <button type="button" class="global-shortcut-primary-btn" id="facturacionResultModalAccept">Entendido</button>
             </div>
         </div>
-    @endif
+    </div>
 
     @php
         $initialQrImage = '';
@@ -892,7 +868,7 @@
                     @csrf
                     <input type="hidden" name="cart_id" id="facturacionQrViewerCartId" value="{{ $initialQrCartId }}">
                     <input type="hidden" name="auto_emit_invoice" value="1">
-                    <button type="submit" class="global-shortcut-primary-btn">Actualizar pago</button>
+                    <button type="submit" class="global-shortcut-primary-btn">Actualizar pago/factura</button>
                 </form>
             </div>
         </div>
@@ -1286,6 +1262,7 @@
             padding: 13px 14px;
             border-radius: 16px;
             border: 1px solid transparent;
+            position: relative;
         }
         .global-shortcut-feedback--success {
             background: #edf9f1;
@@ -1343,6 +1320,29 @@
             font-size: .82rem;
             line-height: 1.45;
             opacity: .92;
+        }
+        .global-shortcut-feedback__close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .74);
+            color: currentColor;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform .18s ease, background .18s ease, opacity .18s ease;
+        }
+        .global-shortcut-feedback__close:hover,
+        .global-shortcut-feedback__close:focus {
+            background: rgba(255, 255, 255, .94);
+            opacity: 1;
+            outline: none;
+            transform: scale(1.04);
         }
         .global-shortcut-edit-hint {
             margin-bottom: 12px;
@@ -2933,12 +2933,34 @@
             const facturacionResultModal = document.getElementById('facturacionResultModal');
             const facturacionResultModalClose = document.getElementById('facturacionResultModalClose');
             const facturacionResultModalAccept = document.getElementById('facturacionResultModalAccept');
+            const facturacionResultModalIcon = document.getElementById('facturacionResultModalIcon');
+            const facturacionResultModalIconGlyph = document.getElementById('facturacionResultModalIconGlyph');
+            const facturacionResultModalTitle = document.getElementById('facturacionResultModalTitle');
+            const facturacionResultModalMessage = document.getElementById('facturacionResultModalMessage');
+            const facturacionResultModalMeta = document.getElementById('facturacionResultModalMeta');
+            const facturacionResultModalDetail = document.getElementById('facturacionResultModalDetail');
             const invoiceChannelButtons = document.querySelectorAll('[data-invoice-channel-choice]');
             const confirmForms = document.querySelectorAll('.global-shortcut-confirm-form');
             const facturacionFlashFeedback = @json($facturacionFeedback);
             const facturacionDownloadPdf = @json($facturacionDownloadPdf);
             const facturacionQrData = @json($facturacionQrData);
             const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
+            const facturacionConsultarRoute = @json(route('facturacion.cart.consultar'));
+            const facturacionInitialFeedbackKey = facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object'
+                ? JSON.stringify({
+                    action: String(facturacionFlashFeedback.action || ''),
+                    title: String(facturacionFlashFeedback.title || ''),
+                    message: String(facturacionFlashFeedback.message || ''),
+                    detail: String(facturacionFlashFeedback.detail || ''),
+                })
+                : '';
+            const facturacionInitialQrKey = facturacionQrData && typeof facturacionQrData === 'object'
+                ? JSON.stringify({
+                    transaction_id: String(facturacionQrData.transaction_id || ''),
+                    internal_code: String(facturacionQrData.internal_code || ''),
+                    payment_status: String(facturacionQrData.payment_status || ''),
+                })
+                : '';
             const facturacionFieldNames = {
                 actividadEconomica: 'Actividad economica',
                 codigoSin: 'Codigo SIN',
@@ -2964,12 +2986,26 @@
             let facturacionQrPollingTimer = null;
             let facturacionQrPollingRequest = null;
             let facturacionQrPollingErrorCount = 0;
+            let facturacionDraftAutosaveEnabled = @json($hasActiveFacturacionItems);
+            let facturacionProcessingPreviewTimer = null;
+            let facturacionPendingEmitPollTimer = null;
+            let facturacionPendingEmitState = null;
+            let facturacionCurrentResultKey = facturacionInitialFeedbackKey;
+            let facturacionCurrentQrKey = facturacionInitialQrKey;
             const FACTURACION_PROCESSING_DEFAULTS = {
                 pill: 'Facturacion en curso',
                 title: 'Emitiendo factura',
                 text: 'Procesando emision, espera un momento...',
             };
             const FACTURACION_QR_POLL_INTERVAL_MS = 5000;
+            const FACTURACION_EMIT_PREVIEW_DELAY_MS = 7000;
+            const FACTURACION_EMIT_FINAL_WAIT_ATTEMPTS = 4;
+            const FACTURACION_EMIT_FINAL_WAIT_INTERVAL_MS = 2200;
+            const FACTURACION_BACKGROUND_POLL_INTERVAL_MS = 8000;
+            const FACTURACION_BACKGROUND_POLL_MAX_DURATION_MS = 120000;
+            const FACTURACION_PENDING_STORAGE_KEY = 'facturacion-pending-emit';
+            const FACTURACION_RESULT_MODAL_DISMISSED_PREFIX = 'facturacion-result-dismissed:';
+            const FACTURACION_QR_VIEWER_DISMISSED_PREFIX = 'facturacion-qr-dismissed:';
             const FACTURACION_QR_FINAL_STATUSES = ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed', 'cancelado', 'cancelled', 'rejected', 'failed', 'expired'];
 
             const resolveProcessingCopy = (form = null) => {
@@ -3067,6 +3103,11 @@
                     facturacionActionConfirmCancel.disabled = active;
                 }
 
+                if (!active && facturacionProcessingPreviewTimer) {
+                    window.clearTimeout(facturacionProcessingPreviewTimer);
+                    facturacionProcessingPreviewTimer = null;
+                }
+
                 setFacturacionProcessingOverlay(active, {
                     pill: processingCopy.pill,
                     title: processingCopy.title,
@@ -3106,6 +3147,9 @@
                 alertBox.className = 'global-shortcut-feedback global-shortcut-feedback--' + String(feedback.type || 'info');
                 alertBox.id = 'facturacionFeedbackAlert';
                 alertBox.innerHTML = `
+                    <button type="button" class="global-shortcut-feedback__close" aria-label="Cerrar aviso">
+                        <i class="fas fa-times"></i>
+                    </button>
                     <div class="global-shortcut-feedback__icon">
                         <i class="fas ${String(feedback.type || '') === 'success' ? 'fa-check-circle' : String(feedback.type || '') === 'warning' ? 'fa-exclamation-triangle' : String(feedback.type || '') === 'error' ? 'fa-times-circle' : 'fa-info-circle'}"></i>
                     </div>
@@ -3117,12 +3161,133 @@
                 `;
 
                 modalBody.insertBefore(alertBox, modalBody.firstChild);
+
+                const dismissAlert = () => {
+                    if (!alertBox.isConnected || alertBox.classList.contains('is-dismissing')) {
+                        return;
+                    }
+
+                    alertBox.classList.add('is-dismissing');
+                    window.setTimeout(() => {
+                        if (alertBox.isConnected) {
+                            alertBox.remove();
+                        }
+                    }, 260);
+                };
+
+                const closeButton = alertBox.querySelector('.global-shortcut-feedback__close');
+                if (closeButton instanceof HTMLButtonElement) {
+                    closeButton.addEventListener('click', dismissAlert);
+                }
+
+                window.setTimeout(dismissAlert, 3000);
+            };
+
+            const renderFacturacionResultModal = (feedback) => {
+                if (!feedback || typeof feedback !== 'object') {
+                    return;
+                }
+
+                facturacionCurrentResultKey = JSON.stringify({
+                    title: String(feedback.title || ''),
+                    message: String(feedback.message || ''),
+                    detail: String(feedback.detail || ''),
+                    meta: Array.isArray(feedback.meta)
+                        ? feedback.meta.map((item) => ({
+                            label: String(item && item.label ? item.label : ''),
+                            value: String(item && item.value ? item.value : ''),
+                        }))
+                        : [],
+                });
+
+                const feedbackType = String(feedback.type || 'info');
+                const iconClass = feedbackType === 'success'
+                    ? 'fa-check-circle'
+                    : feedbackType === 'warning'
+                        ? 'fa-exclamation-triangle'
+                        : feedbackType === 'error'
+                            ? 'fa-times-circle'
+                            : 'fa-info-circle';
+
+                if (facturacionResultModalIcon instanceof HTMLElement) {
+                    facturacionResultModalIcon.className = 'facturacion-result-modal__icon facturacion-result-modal__icon--' + feedbackType;
+                }
+
+                if (facturacionResultModalIconGlyph instanceof HTMLElement) {
+                    facturacionResultModalIconGlyph.className = 'fas ' + iconClass;
+                }
+
+                if (facturacionResultModalTitle instanceof HTMLElement) {
+                    facturacionResultModalTitle.textContent = String(feedback.title || 'Resultado de facturacion');
+                }
+
+                if (facturacionResultModalMessage instanceof HTMLElement) {
+                    facturacionResultModalMessage.textContent = String(feedback.message || '');
+                }
+
+                if (facturacionResultModalMeta instanceof HTMLElement) {
+                    const metaItems = Array.isArray(feedback.meta) ? feedback.meta : [];
+                    facturacionResultModalMeta.innerHTML = '';
+
+                    metaItems.forEach((metaItem) => {
+                        if (!metaItem || typeof metaItem !== 'object') {
+                            return;
+                        }
+
+                        const metaLabel = String(metaItem.label || 'Dato').trim();
+                        const metaValue = String(metaItem.value || '').trim();
+                        const metaType = String(metaItem.type || 'text').trim();
+
+                        if (metaValue === '') {
+                            return;
+                        }
+
+                        const metaCard = document.createElement('div');
+                        metaCard.className = 'facturacion-result-modal__meta-card';
+
+                        const labelEl = document.createElement('span');
+                        labelEl.className = 'facturacion-result-modal__meta-label';
+                        labelEl.textContent = metaLabel;
+                        metaCard.appendChild(labelEl);
+
+                        if (metaType === 'link') {
+                            const linkEl = document.createElement('a');
+                            linkEl.href = metaValue;
+                            linkEl.target = '_blank';
+                            linkEl.rel = 'noopener';
+                            linkEl.className = 'facturacion-result-modal__meta-link';
+                            linkEl.textContent = 'Abrir documento';
+                            metaCard.appendChild(linkEl);
+                        } else {
+                            const valueEl = document.createElement('strong');
+                            valueEl.className = 'facturacion-result-modal__meta-value';
+                            valueEl.textContent = metaValue;
+                            metaCard.appendChild(valueEl);
+                        }
+
+                        facturacionResultModalMeta.appendChild(metaCard);
+                    });
+
+                    facturacionResultModalMeta.classList.toggle('is-hidden', facturacionResultModalMeta.children.length === 0);
+                }
+
+                if (facturacionResultModalDetail instanceof HTMLElement) {
+                    const detailText = String(feedback.detail || '').trim();
+                    facturacionResultModalDetail.textContent = detailText;
+                    facturacionResultModalDetail.classList.toggle('is-hidden', detailText === '');
+                }
             };
 
             const updateFacturacionQrViewer = (qrData = null, cartData = null) => {
                 if (!qrData || typeof qrData !== 'object') {
                     return;
                 }
+
+                facturacionCurrentQrKey = JSON.stringify({
+                    transaction_id: String(qrData.transaction_id || ''),
+                    internal_code: String(qrData.internal_code || (cartData && cartData.codigo_orden) || ''),
+                    payment_status: String(qrData.payment_status || ''),
+                });
 
                 const paymentStatus = String(qrData.payment_status || 'holding').trim().toUpperCase();
                 const transactionId = String(qrData.transaction_id || '').trim();
@@ -3179,21 +3344,71 @@
                     if (!window.sessionStorage.getItem(downloadKey)) {
                         window.sessionStorage.setItem(downloadKey, '1');
                         window.setTimeout(() => {
-                            const tempLink = document.createElement('a');
-                            tempLink.href = downloadPdf.url;
-                            tempLink.target = '_blank';
-                            tempLink.rel = 'noopener noreferrer';
-                            tempLink.click();
+                            triggerFacturacionPdfDownload(downloadPdf.url, downloadPdf.filename || '');
                         }, 180);
                     }
                 } catch (error) {
                     window.setTimeout(() => {
-                        window.open(downloadPdf.url, '_blank', 'noopener');
+                        triggerFacturacionPdfDownload(downloadPdf.url, downloadPdf.filename || '');
                     }, 180);
                 }
             };
 
+            const resolveFacturacionPdfFilename = (url, explicitFilename = '') => {
+                const cleanExplicit = String(explicitFilename || '').trim();
+                if (cleanExplicit !== '') {
+                    return cleanExplicit.toLowerCase().endsWith('.pdf') ? cleanExplicit : cleanExplicit + '.pdf';
+                }
+
+                try {
+                    const parsedUrl = new URL(String(url || ''), window.location.origin);
+                    const pathname = String(parsedUrl.pathname || '');
+                    const basename = pathname.split('/').filter(Boolean).pop() || 'factura-electronica.pdf';
+                    return basename.toLowerCase().endsWith('.pdf') ? basename : basename + '.pdf';
+                } catch (error) {
+                    return 'factura-electronica.pdf';
+                }
+            };
+
+            const triggerFacturacionPdfDownload = async (url, explicitFilename = '') => {
+                const filename = resolveFacturacionPdfFilename(url, explicitFilename);
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        credentials: 'include',
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('No se pudo descargar el PDF.');
+                    }
+
+                    const blob = await response.blob();
+                    const objectUrl = window.URL.createObjectURL(blob);
+                    const tempLink = document.createElement('a');
+                    tempLink.href = objectUrl;
+                    tempLink.download = filename;
+                    tempLink.rel = 'noopener noreferrer';
+                    document.body.appendChild(tempLink);
+                    tempLink.click();
+                    tempLink.remove();
+                    window.setTimeout(() => {
+                        window.URL.revokeObjectURL(objectUrl);
+                    }, 1200);
+                    return;
+                } catch (error) {
+                    const tempLink = document.createElement('a');
+                    tempLink.href = url;
+                    tempLink.download = filename;
+                    tempLink.rel = 'noopener noreferrer';
+                    document.body.appendChild(tempLink);
+                    tempLink.click();
+                    tempLink.remove();
+                }
+            };
+
             const resetFacturacionShortcutDraftUi = () => {
+                facturacionDraftAutosaveEnabled = false;
                 const fabBadge = openFacturacionShortcutBtn
                     ? openFacturacionShortcutBtn.querySelector('.global-facturacion-fab__badge')
                     : null;
@@ -3248,6 +3463,12 @@
                         element.textContent = 'Carrito vacio';
                     }
                 });
+
+                if (facturacionAutosaveState) {
+                    facturacionAutosaveState.classList.remove('is-saving', 'is-error');
+                    facturacionAutosaveState.classList.add('is-saved');
+                    facturacionAutosaveState.textContent = 'Venta finalizada. Agrega otro item para iniciar una nueva facturacion.';
+                }
             };
 
             const submitQrEmitForm = async (form) => {
@@ -3292,6 +3513,412 @@
                 }
 
                 return true;
+            };
+
+            const submitFacturacionEmitForm = async (form) => {
+                if (!(form instanceof HTMLFormElement)) {
+                    return false;
+                }
+
+                const emitChannelInput = form.querySelector('input[name="canal_emision"]');
+                const emitChannel = String(emitChannelInput instanceof HTMLInputElement ? emitChannelInput.value : '').toLowerCase();
+
+                if (emitChannel === 'qr') {
+                    return submitQrEmitForm(form);
+                }
+
+                const previewCopy = resolveProcessingCopy(form);
+                if (facturacionProcessingPreviewTimer) {
+                    window.clearTimeout(facturacionProcessingPreviewTimer);
+                }
+                facturacionProcessingPreviewTimer = window.setTimeout(() => {
+                    setFacturacionProcessingOverlay(true, {
+                        pill: previewCopy.pill,
+                        title: 'La emision sigue en proceso',
+                        text: 'Puedes cerrar esta vista. La factura seguira procesandose y se descargara cuando el sistema responda.',
+                        previewMode: true,
+                    });
+                }, FACTURACION_EMIT_PREVIEW_DELAY_MS);
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                const formData = new FormData(form);
+
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: formData,
+                });
+
+                const data = await response.json().catch(() => null);
+                if (!response.ok || !data || data.ok === false) {
+                    const errorMessage = data && data.feedback && data.feedback.detail
+                        ? data.feedback.detail
+                        : 'No se pudo emitir la factura electronica.';
+                    throw new Error(errorMessage);
+                }
+
+                const shouldWaitForFacturaResult = !data.download_pdf
+                    && !data.qr_data
+                    && data.cart
+                    && String(data.cart.canal_emision || '').toLowerCase() !== 'qr'
+                    && ['PENDIENTE', 'PROCESADA', ''].includes(String(data.cart.estado_emision || '').trim().toUpperCase());
+
+                const finalData = shouldWaitForFacturaResult
+                    ? await waitForFacturaEmitResult(data.cart.id, data)
+                    : data;
+
+                if (finalData.feedback) {
+                    renderFacturacionShortcutFeedback(finalData.feedback);
+                    renderFacturacionResultModal(finalData.feedback);
+                }
+                if (finalData.download_pdf) {
+                    handleFacturacionDownloadPdf(finalData.download_pdf);
+                }
+                if (finalData.qr_data) {
+                    updateFacturacionQrViewer(finalData.qr_data, finalData.cart || null);
+                    openFacturacionQrViewer();
+                    return true;
+                }
+
+                if (shouldKeepFacturaPolling(finalData)) {
+                    startFacturaBackgroundTracking(finalData);
+                } else {
+                    clearFacturaBackgroundTracking();
+                }
+
+                if (finalData.cart) {
+                    resetFacturacionShortcutDraftUi();
+                }
+
+                openFacturacionResultModal();
+                return true;
+            };
+
+            const waitForFacturaEmitResult = async (cartId, fallbackData) => {
+                const resolvedCartId = Number(cartId || 0);
+                if (!Number.isFinite(resolvedCartId) || resolvedCartId <= 0) {
+                    return fallbackData;
+                }
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+
+                for (let attempt = 0; attempt < FACTURACION_EMIT_FINAL_WAIT_ATTEMPTS; attempt += 1) {
+                    await new Promise((resolve) => window.setTimeout(resolve, FACTURACION_EMIT_FINAL_WAIT_INTERVAL_MS));
+
+                    const consultFormData = new FormData();
+                    consultFormData.set('_token', csrfToken);
+                    consultFormData.set('cart_id', String(resolvedCartId));
+
+                    let response;
+                    let data;
+
+                    try {
+                        response = await fetch(facturacionConsultarRoute, {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                            },
+                            body: consultFormData,
+                        });
+                        data = await response.json().catch(() => null);
+                    } catch (error) {
+                        continue;
+                    }
+
+                    if (!response.ok || !data || data.ok === false) {
+                        continue;
+                    }
+
+                    const emissionStatus = String((data.cart && data.cart.estado_emision) || '').trim().toUpperCase();
+                    const hasPdf = !!data.download_pdf;
+                    const isFinal = hasPdf || ['FACTURADA', 'RECHAZADA', 'ERROR'].includes(emissionStatus);
+
+                    if (isFinal) {
+                        return data;
+                    }
+                }
+
+                return fallbackData;
+            };
+
+            const shouldKeepFacturaPolling = (data) => {
+                if (!data || typeof data !== 'object' || !data.cart) {
+                    return false;
+                }
+
+                if (data.download_pdf || data.qr_data) {
+                    return false;
+                }
+
+                if (String(data.cart.canal_emision || '').toLowerCase() === 'qr') {
+                    return false;
+                }
+
+                const emissionStatus = String(data.cart.estado_emision || '').trim().toUpperCase();
+                return ['PENDIENTE', 'PROCESADA', ''].includes(emissionStatus);
+            };
+
+            const isQrPaymentConfirmed = (data) => {
+                if (!data || typeof data !== 'object') {
+                    return false;
+                }
+
+                const paymentStatus = String(
+                    (data.qr_data && data.qr_data.payment_status)
+                    || (data.cart && data.cart.estado_pago)
+                    || ''
+                ).trim().toLowerCase();
+
+                return ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'].includes(paymentStatus);
+            };
+
+            const continueAutomaticQrFacturaFlow = (data) => {
+                closeFacturacionQrViewer();
+
+                renderFacturacionShortcutFeedback({
+                    type: 'success',
+                    title: 'QR pagado',
+                    message: 'El pago QR fue confirmado automaticamente.',
+                    detail: 'Continuamos con la solicitud de factura electronica.',
+                });
+
+                if (shouldKeepFacturaPolling(data)) {
+                    setFacturacionProcessingOverlay(true, {
+                        pill: 'FACTURACION EN CURSO',
+                        title: 'Solicitando factura',
+                        text: 'El pago ya fue confirmado. Estamos continuando con la facturacion electronica.',
+                        previewMode: false,
+                    });
+
+                    startFacturaBackgroundTracking(data, null, {
+                        feedback: {
+                            type: 'info',
+                            title: 'Solicitando factura',
+                            message: 'El QR fue pagado y la factura electronica se esta procesando automaticamente.',
+                            detail: 'Puedes seguir trabajando. El sistema consultara la respuesta hasta descargar el PDF o mostrar el estado final.',
+                        },
+                    });
+                    return true;
+                }
+
+                if (data.feedback) {
+                    renderFacturacionShortcutFeedback(data.feedback);
+                }
+
+                if (data.download_pdf) {
+                    handleFacturacionDownloadPdf(data.download_pdf);
+                }
+
+                if (data.cart) {
+                    resetFacturacionShortcutDraftUi();
+                }
+
+                if (facturacionShortcutModal instanceof HTMLElement && !facturacionShortcutModal.classList.contains('is-open')) {
+                    openFacturacionShortcutModal();
+                }
+
+                if (data.feedback) {
+                    renderFacturacionResultModal(data.feedback);
+                    openFacturacionResultModal();
+                }
+
+                return true;
+            };
+
+            const persistFacturaPendingState = () => {
+                if (!facturacionPendingEmitState) {
+                    return;
+                }
+
+                try {
+                    window.sessionStorage.setItem(FACTURACION_PENDING_STORAGE_KEY, JSON.stringify(facturacionPendingEmitState));
+                } catch (error) {
+                    // Ignora errores de storage y continua con el seguimiento en memoria.
+                }
+            };
+
+            const clearFacturaPendingStorage = () => {
+                try {
+                    window.sessionStorage.removeItem(FACTURACION_PENDING_STORAGE_KEY);
+                } catch (error) {
+                    // Ignora errores de storage.
+                }
+            };
+
+            const clearFacturaBackgroundTracking = () => {
+                if (facturacionPendingEmitPollTimer) {
+                    window.clearTimeout(facturacionPendingEmitPollTimer);
+                    facturacionPendingEmitPollTimer = null;
+                }
+
+                facturacionPendingEmitState = null;
+                clearFacturaPendingStorage();
+                setFacturacionProcessingOverlay(false, {
+                    pill: '',
+                    title: '',
+                    text: '',
+                    previewMode: false,
+                });
+            };
+
+            const readFacturaPendingStorage = () => {
+                try {
+                    const rawValue = window.sessionStorage.getItem(FACTURACION_PENDING_STORAGE_KEY);
+                    if (!rawValue) {
+                        return null;
+                    }
+
+                    const parsed = JSON.parse(rawValue);
+                    return parsed && typeof parsed === 'object' ? parsed : null;
+                } catch (error) {
+                    return null;
+                }
+            };
+
+            const fetchFacturaConsultData = async (cartId) => {
+                const resolvedCartId = Number(cartId || 0);
+                if (!Number.isFinite(resolvedCartId) || resolvedCartId <= 0) {
+                    return null;
+                }
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                const consultFormData = new FormData();
+                consultFormData.set('_token', csrfToken);
+                consultFormData.set('cart_id', String(resolvedCartId));
+
+                const response = await fetch(facturacionConsultarRoute, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: consultFormData,
+                });
+
+                const data = await response.json().catch(() => null);
+                if (!response.ok || !data || data.ok === false) {
+                    throw new Error(data && data.feedback && data.feedback.detail
+                        ? data.feedback.detail
+                        : 'No se pudo consultar el estado de la factura.');
+                }
+
+                return data;
+            };
+
+            const handleFacturaBackgroundResolved = (data) => {
+                clearFacturaBackgroundTracking();
+                setFacturacionProcessingOverlay(false, {
+                    pill: '',
+                    title: '',
+                    text: '',
+                    previewMode: false,
+                });
+
+                if (data.feedback) {
+                    renderFacturacionShortcutFeedback(data.feedback);
+                    renderFacturacionResultModal(data.feedback);
+                }
+
+                if (data.download_pdf) {
+                    handleFacturacionDownloadPdf(data.download_pdf);
+                }
+
+                if (data.cart) {
+                    resetFacturacionShortcutDraftUi();
+                }
+
+                if (facturacionShortcutModal instanceof HTMLElement && !facturacionShortcutModal.classList.contains('is-open')) {
+                    openFacturacionShortcutModal();
+                }
+
+                openFacturacionResultModal();
+            };
+
+            const pollFacturaBackgroundStatus = async () => {
+                if (!facturacionPendingEmitState) {
+                    return;
+                }
+
+                const elapsedMs = Date.now() - Number(facturacionPendingEmitState.startedAt || Date.now());
+                if (elapsedMs >= FACTURACION_BACKGROUND_POLL_MAX_DURATION_MS) {
+                    renderFacturacionShortcutFeedback({
+                        type: 'info',
+                        title: 'Factura aun en proceso',
+                        message: 'Seguimos esperando la respuesta final de facturacion.',
+                        detail: 'La venta ya fue enviada. Puedes continuar trabajando y usar "Actualizar estado" si el comprobante tarda mas de lo habitual.',
+                    });
+                    clearFacturaBackgroundTracking();
+                    return;
+                }
+
+                try {
+                    const data = await fetchFacturaConsultData(facturacionPendingEmitState.cartId);
+                    if (shouldKeepFacturaPolling(data)) {
+                        facturacionPendingEmitState.lastCheckedAt = Date.now();
+                        persistFacturaPendingState();
+                        facturacionPendingEmitPollTimer = window.setTimeout(pollFacturaBackgroundStatus, FACTURACION_BACKGROUND_POLL_INTERVAL_MS);
+                        return;
+                    }
+
+                    handleFacturaBackgroundResolved(data);
+                } catch (error) {
+                    facturacionPendingEmitState.lastCheckedAt = Date.now();
+                    persistFacturaPendingState();
+                    facturacionPendingEmitPollTimer = window.setTimeout(pollFacturaBackgroundStatus, FACTURACION_BACKGROUND_POLL_INTERVAL_MS);
+                }
+            };
+
+            const startFacturaBackgroundTracking = (data, restoredState = null, options = {}) => {
+                const cartId = Number(restoredState && restoredState.cartId ? restoredState.cartId : data && data.cart ? data.cart.id : 0);
+                if (!Number.isFinite(cartId) || cartId <= 0) {
+                    return;
+                }
+
+                if (facturacionPendingEmitPollTimer) {
+                    window.clearTimeout(facturacionPendingEmitPollTimer);
+                    facturacionPendingEmitPollTimer = null;
+                }
+
+                facturacionPendingEmitState = {
+                    cartId,
+                    startedAt: Number(restoredState && restoredState.startedAt ? restoredState.startedAt : Date.now()),
+                    lastCheckedAt: Date.now(),
+                };
+                persistFacturaPendingState();
+
+                renderFacturacionShortcutFeedback(options.feedback || {
+                    type: 'info',
+                    title: 'Factura en proceso',
+                    message: 'La venta fue enviada correctamente. Seguiremos consultando el resultado automaticamente.',
+                    detail: 'Puedes continuar con otra venta. El PDF se descargara apenas Facturacion lo devuelva.',
+                });
+
+                facturacionPendingEmitPollTimer = window.setTimeout(pollFacturaBackgroundStatus, FACTURACION_BACKGROUND_POLL_INTERVAL_MS);
+            };
+
+            const restoreFacturaBackgroundTracking = () => {
+                const storedState = readFacturaPendingStorage();
+                if (!storedState || !storedState.cartId) {
+                    return;
+                }
+
+                const elapsedMs = Date.now() - Number(storedState.startedAt || Date.now());
+                if (elapsedMs >= FACTURACION_BACKGROUND_POLL_MAX_DURATION_MS) {
+                    clearFacturaBackgroundTracking();
+                    return;
+                }
+
+                startFacturaBackgroundTracking(null, storedState);
             };
 
             const scheduleFacturacionQrPolling = (delayMs = FACTURACION_QR_POLL_INTERVAL_MS) => {
@@ -3376,6 +4003,11 @@
                         || !!data.download_pdf;
 
                     if (shouldCloseQrViewer) {
+                        if (isQrPaymentConfirmed(data)) {
+                            continueAutomaticQrFacturaFlow(data);
+                            return;
+                        }
+
                         closeFacturacionQrViewer();
                         if (data.feedback) {
                             renderFacturacionShortcutFeedback(data.feedback);
@@ -3483,7 +4115,7 @@
 
             if (facturacionProcessingState instanceof HTMLElement) {
                 facturacionProcessingState.addEventListener('click', function () {
-                    if (facturacionProcessingState.dataset.previewMode !== 'true' || isFacturacionSubmitting) {
+                    if (facturacionProcessingState.dataset.previewMode !== 'true') {
                         return;
                     }
 
@@ -3523,6 +4155,9 @@
                 if (!facturacionQrViewer) {
                     return;
                 }
+                if (isFacturacionQrViewerDismissed(facturacionCurrentQrKey)) {
+                    return;
+                }
                 facturacionQrViewer.classList.add('is-open');
                 facturacionQrViewer.setAttribute('aria-hidden', 'false');
                 document.body.classList.add('global-shortcut-open');
@@ -3541,10 +4176,21 @@
                 facturacionQrViewer.classList.remove('is-open');
                 facturacionQrViewer.setAttribute('aria-hidden', 'true');
                 document.body.classList.remove('global-shortcut-open');
+
+                if (facturacionCurrentQrKey !== '') {
+                    try {
+                        window.sessionStorage.setItem(FACTURACION_QR_VIEWER_DISMISSED_PREFIX + facturacionCurrentQrKey, '1');
+                    } catch (error) {
+                        // Ignora errores de storage.
+                    }
+                }
             };
 
             const openFacturacionResultModal = () => {
                 if (!facturacionResultModal) {
+                    return;
+                }
+                if (isFacturacionResultDismissed(facturacionCurrentResultKey)) {
                     return;
                 }
                 facturacionResultModal.classList.add('is-open');
@@ -3565,6 +4211,38 @@
                 facturacionResultModal.classList.remove('is-open');
                 facturacionResultModal.setAttribute('aria-hidden', 'true');
                 document.body.classList.remove('global-shortcut-open');
+
+                if (facturacionCurrentResultKey !== '') {
+                    try {
+                        window.sessionStorage.setItem(FACTURACION_RESULT_MODAL_DISMISSED_PREFIX + facturacionCurrentResultKey, '1');
+                    } catch (error) {
+                        // Ignora errores de storage.
+                    }
+                }
+            };
+
+            const isFacturacionResultDismissed = (resultKey) => {
+                if (!resultKey) {
+                    return false;
+                }
+
+                try {
+                    return window.sessionStorage.getItem(FACTURACION_RESULT_MODAL_DISMISSED_PREFIX + resultKey) === '1';
+                } catch (error) {
+                    return false;
+                }
+            };
+
+            const isFacturacionQrViewerDismissed = (qrKey) => {
+                if (!qrKey) {
+                    return false;
+                }
+
+                try {
+                    return window.sessionStorage.getItem(FACTURACION_QR_VIEWER_DISMISSED_PREFIX + qrKey) === '1';
+                } catch (error) {
+                    return false;
+                }
             };
 
             const openFacturacionItemEditModal = (trigger) => {
@@ -3776,9 +4454,20 @@
                 }
             }
 
-            if (facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object' && facturacionFlashFeedback.action === 'consultar') {
+            if (facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object') {
+                renderFacturacionResultModal(facturacionFlashFeedback);
+            }
+
+            if (
+                facturacionFlashFeedback
+                && typeof facturacionFlashFeedback === 'object'
+                && facturacionFlashFeedback.action === 'consultar'
+                && !isFacturacionResultDismissed(facturacionInitialFeedbackKey)
+            ) {
                 openFacturacionResultModal();
             }
+
+            restoreFacturaBackgroundTracking();
 
             if (facturacionDownloadPdf && typeof facturacionDownloadPdf === 'object' && facturacionDownloadPdf.url) {
                 const downloadKey = 'facturacion-pdf:' + (facturacionDownloadPdf.key || facturacionDownloadPdf.url);
@@ -3787,21 +4476,22 @@
                     if (!window.sessionStorage.getItem(downloadKey)) {
                         window.sessionStorage.setItem(downloadKey, '1');
                         window.setTimeout(() => {
-                            const tempLink = document.createElement('a');
-                            tempLink.href = facturacionDownloadPdf.url;
-                            tempLink.target = '_blank';
-                            tempLink.rel = 'noopener noreferrer';
-                            tempLink.click();
+                            triggerFacturacionPdfDownload(facturacionDownloadPdf.url, facturacionDownloadPdf.filename || '');
                         }, 180);
                     }
                 } catch (error) {
                     window.setTimeout(() => {
-                        window.open(facturacionDownloadPdf.url, '_blank', 'noopener');
+                        triggerFacturacionPdfDownload(facturacionDownloadPdf.url, facturacionDownloadPdf.filename || '');
                     }, 180);
                 }
             }
 
-            if (facturacionQrData && typeof facturacionQrData === 'object' && (facturacionQrData.image_data || facturacionQrData.transaction_id)) {
+            if (
+                facturacionQrData
+                && typeof facturacionQrData === 'object'
+                && (facturacionQrData.image_data || facturacionQrData.transaction_id)
+                && !isFacturacionQrViewerDismissed(facturacionInitialQrKey)
+            ) {
                 openFacturacionQrViewer();
             }
 
@@ -3881,6 +4571,11 @@
                         return Promise.resolve(false);
                     }
 
+                    if (!facturacionDraftAutosaveEnabled) {
+                        setAutosaveState('is-saved', 'Sin borrador activo. Agrega un item para iniciar una nueva facturacion.');
+                        return Promise.resolve(true);
+                    }
+
                     const formData = new FormData(targetForm);
                     setAutosaveState('is-saving', 'Guardando cambios...');
 
@@ -3892,11 +4587,19 @@
                         },
                         body: formData,
                     })
-                        .then((response) => {
+                        .then((response) => response.json().catch(() => ({})).then((data) => ({ response, data })))
+                        .then(({ response, data }) => {
                             if (!response.ok) {
                                 throw new Error('No se pudo guardar');
                             }
 
+                            if (data && data.draft_missing) {
+                                facturacionDraftAutosaveEnabled = false;
+                                setAutosaveState('is-saved', 'Sin borrador activo. Agrega un item para iniciar una nueva facturacion.');
+                                return true;
+                            }
+
+                            facturacionDraftAutosaveEnabled = true;
                             setAutosaveState('is-saved', 'Cambios guardados. Ya puedes reenviar.');
                             return true;
                         })
@@ -4193,18 +4896,16 @@
                         }
                     }
 
-                    const emitChannelInput = form.querySelector('input[name="canal_emision"]');
-                    const emitChannel = String(emitChannelInput instanceof HTMLInputElement ? emitChannelInput.value : '').toLowerCase();
-                    const isQrEmit = emitChannel === 'qr' && String(form.getAttribute('action') || '').includes('/facturacion/cart/emitir');
+                    const isEmitAction = String(form.getAttribute('action') || '').includes('/facturacion/cart/emitir');
 
-                    if (isQrEmit) {
+                    if (isEmitAction) {
                         try {
-                            await submitQrEmitForm(form);
+                            await submitFacturacionEmitForm(form);
                         } catch (error) {
                             renderFacturacionShortcutFeedback({
                                 type: 'error',
-                                title: 'No se pudo generar el QR',
-                                message: 'La venta no pudo completar el flujo QR.',
+                                title: 'No se pudo completar la emision',
+                                message: 'La venta no pudo completar el flujo de facturacion.',
                                 detail: String(error && error.message ? error.message : 'Ocurrio un error inesperado.'),
                             });
                         } finally {
@@ -4254,6 +4955,7 @@
 
             window.addEventListener('pageshow', function () {
                 setFacturacionSubmittingState(null, false);
+                restoreFacturaBackgroundTracking();
             });
         });
     </script>
