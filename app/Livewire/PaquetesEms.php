@@ -96,6 +96,7 @@ class PaquetesEms extends Component
     public $searchQuery = '';
     public $editingId = null;
     public $selectedPaquetes = [];
+    public $selectedPaquetesInt = [];
     public $selectedContratos = [];
     public $selectedSolicitudes = [];
     public $selectedPreviewSearch = '';
@@ -134,6 +135,11 @@ class PaquetesEms extends Component
     public $oficialNombreRemitente = '';
     public $oficialNombreDestinatario = '';
     public $oficialDireccionDestinatario = '';
+    public $paqueteIntCodigo = '';
+    public $paqueteIntOrigen = '';
+    public $paqueteIntPeso = '';
+    public $paqueteIntPrecio = '';
+    public $paqueteIntDestino = '';
     public $showCn33Reprint = false;
     public $showCn33Assign = false;
     public $showCn38Generate = false;
@@ -449,6 +455,18 @@ class PaquetesEms extends Component
                 return;
             }
 
+            $paqueteInt = $this->almacenIntQueryBase()
+                ->where(function ($query) use ($codigo) {
+                    $query->whereRaw('trim(upper(paquetes_int.codigo)) = trim(upper(?))', [$codigo])
+                        ->orWhereRaw('trim(upper(COALESCE(paquetes_int.cod_especial, \'\'))) = trim(upper(?))', [$codigo]);
+                })
+                ->first(['paquetes_int.id']);
+
+            if ($paqueteInt) {
+                $this->handleSearchCodigoNoEncontrado();
+                return;
+            }
+
             session()->flash('error', $this->resolveCodigoFueraDeAlmacenMessage($codigo));
             $this->search = '';
             $this->searchQuery = '';
@@ -536,9 +554,7 @@ class PaquetesEms extends Component
                 return;
             }
 
-            session()->flash('error', 'No se encontro paquete.');
-            $this->search = '';
-            $this->searchQuery = '';
+            $this->handleSearchCodigoNoEncontrado();
             return;
         }
 
@@ -640,9 +656,7 @@ class PaquetesEms extends Component
                 return;
             }
 
-            session()->flash('error', 'No se encontro paquete.');
-            $this->search = '';
-            $this->searchQuery = '';
+            $this->handleSearchCodigoNoEncontrado();
             return;
         }
 
@@ -677,9 +691,7 @@ class PaquetesEms extends Component
                 ->first(['solicitud_clientes.id']);
 
             if (!$solicitud) {
-                session()->flash('error', 'No se encontro paquete.');
-                $this->search = '';
-                $this->searchQuery = '';
+                $this->handleSearchCodigoNoEncontrado();
                 return;
             }
 
@@ -705,9 +717,7 @@ class PaquetesEms extends Component
             ->first(['paquetes_ems.id']);
 
         if (!$paquete) {
-            session()->flash('error', 'No se encontro paquete.');
-            $this->search = '';
-            $this->searchQuery = '';
+            $this->handleSearchCodigoNoEncontrado();
             return;
         }
 
@@ -733,6 +743,152 @@ class PaquetesEms extends Component
         $this->authorizeCreateRouteAccess();
 
         return $this->redirect(route('paquetes-ems.create', absolute: false), navigate: false);
+    }
+
+    protected function handleSearchCodigoNoEncontrado(): void
+    {
+        $this->searchQuery = trim((string) $this->search);
+        $this->resetPage();
+
+        if ($this->isAlmacenEms) {
+            $this->resetPage('contratosPage');
+        }
+
+        // Mantener la busqueda como filtro normal evita el mensaje rojo
+        // cuando el usuario solo queria buscar en tabla y no seleccionar exacto.
+    }
+
+    protected function almacenIntQueryBase()
+    {
+        $userCity = $this->resolveLoggedUserOrigin();
+        $hasEstadoId = Schema::hasColumn('paquetes_int', 'estado_id');
+        $estadoAlmacenId = $this->findEstadoId('ALMACEN');
+        $estadoRecibidoId = $this->findEstadoId('RECIBIDO');
+        $estadoTransitoId = $this->findEstadoId('TRANSITO');
+        $estadoRecibirRegionalId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
+        $estadoVentanillaId = $this->resolveVentanillaEstado()['id'] ?? null;
+
+        $query = DB::table('paquetes_int');
+
+        if (!$hasEstadoId) {
+            // Compatibilidad temporal para bases donde aun no se corrio la migracion
+            // de estado_id. Solo consideramos en ALMACEN los INT ya enviados desde admision.
+            if (
+                !$this->isAlmacenEms ||
+                $this->almacenEstadoFiltro === 'RECIBIDO' ||
+                $userCity === ''
+            ) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereNotNull('paquetes_int.enviado_admision_at')
+                    ->whereRaw('trim(upper(paquetes_int.origen)) = trim(upper(?))', [$userCity]);
+            }
+
+            if ($this->filtroServicioId !== '') {
+                $query->where('paquetes_int.servicio_id', (int) $this->filtroServicioId);
+            }
+
+            return $query;
+        }
+
+        if ($this->isEnTransitoEms) {
+            if ($estadoTransitoId) {
+                $query->where('paquetes_int.estado_id', (int) $estadoTransitoId);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        } elseif ($this->isTransitoEms) {
+            if (empty($estadoRecibirRegionalId) && empty($estadoTransitoId)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($sub) use ($estadoRecibirRegionalId, $estadoTransitoId, $userCity) {
+                    if (!empty($estadoRecibirRegionalId)) {
+                        $sub->where('paquetes_int.estado_id', (int) $estadoRecibirRegionalId);
+                    }
+
+                    if (!empty($estadoTransitoId) && $userCity !== '') {
+                        $sub->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                            $q2->where('paquetes_int.estado_id', (int) $estadoTransitoId)
+                                ->whereRaw('trim(upper(paquetes_int.destino)) = trim(upper(?))', [$userCity]);
+                        });
+                    }
+                });
+            }
+        } elseif ($this->isVentanillaEms) {
+            if ($estadoVentanillaId) {
+                $query->where('paquetes_int.estado_id', (int) $estadoVentanillaId);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        } elseif ($this->isDevolucionEms) {
+            if ($userCity === '') {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($sub) use ($userCity, $estadoAlmacenId, $estadoRecibidoId, $estadoVentanillaId) {
+                    $sub->where(function ($q2) use ($userCity, $estadoAlmacenId) {
+                        if ($estadoAlmacenId) {
+                            $q2->where('paquetes_int.estado_id', (int) $estadoAlmacenId)
+                                ->whereRaw('trim(upper(paquetes_int.origen)) = trim(upper(?))', [$userCity]);
+                        } else {
+                            $q2->whereRaw('1 = 0');
+                        }
+                    })->orWhere(function ($q2) use ($userCity, $estadoRecibidoId) {
+                        if ($estadoRecibidoId) {
+                            $q2->where('paquetes_int.estado_id', (int) $estadoRecibidoId)
+                                ->whereRaw('trim(upper(paquetes_int.destino)) = trim(upper(?))', [$userCity]);
+                        } else {
+                            $q2->whereRaw('1 = 0');
+                        }
+                    })->orWhere(function ($q2) use ($estadoVentanillaId) {
+                        if ($estadoVentanillaId) {
+                            $q2->where('paquetes_int.estado_id', (int) $estadoVentanillaId);
+                        } else {
+                            $q2->whereRaw('1 = 0');
+                        }
+                    });
+                });
+            }
+        } else {
+            if ($userCity === '') {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($sub) use ($userCity, $estadoAlmacenId, $estadoRecibidoId) {
+                    if ($this->almacenEstadoFiltro === 'ALMACEN' && $estadoAlmacenId) {
+                        $sub->where('paquetes_int.estado_id', (int) $estadoAlmacenId)
+                            ->whereRaw('trim(upper(paquetes_int.origen)) = trim(upper(?))', [$userCity]);
+                        return;
+                    }
+
+                    if ($this->almacenEstadoFiltro === 'RECIBIDO' && $estadoRecibidoId) {
+                        $sub->where('paquetes_int.estado_id', (int) $estadoRecibidoId)
+                            ->whereRaw('trim(upper(paquetes_int.destino)) = trim(upper(?))', [$userCity]);
+                        return;
+                    }
+
+                    $sub->where(function ($q2) use ($userCity, $estadoAlmacenId) {
+                        if ($estadoAlmacenId) {
+                            $q2->where('paquetes_int.estado_id', (int) $estadoAlmacenId)
+                                ->whereRaw('trim(upper(paquetes_int.origen)) = trim(upper(?))', [$userCity]);
+                        } else {
+                            $q2->whereRaw('1 = 0');
+                        }
+                    })->orWhere(function ($q2) use ($userCity, $estadoRecibidoId) {
+                        if ($estadoRecibidoId) {
+                            $q2->where('paquetes_int.estado_id', (int) $estadoRecibidoId)
+                                ->whereRaw('trim(upper(paquetes_int.destino)) = trim(upper(?))', [$userCity]);
+                        } else {
+                            $q2->whereRaw('1 = 0');
+                        }
+                    });
+                });
+            }
+        }
+
+        if ($this->filtroServicioId !== '') {
+            $query->where('paquetes_int.servicio_id', (int) $this->filtroServicioId);
+        }
+
+        return $query;
     }
 
     private function resolveCodigoFueraDeAlmacenMessage(string $codigo): string
@@ -796,6 +952,36 @@ class PaquetesEms extends Component
                 . '.';
         }
 
+        $paquetesIntQuery = PaqueteInt::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(COALESCE(codigo, \'\'))) = ?', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado]);
+            })
+            ->orderByDesc('id');
+
+        $hasEstadoId = Schema::hasColumn('paquetes_int', 'estado_id');
+        $paqueteIntColumns = ['id', 'codigo', 'cod_especial', 'origen', 'destino', 'enviado_admision_at'];
+        if ($hasEstadoId) {
+            $paqueteIntColumns[] = 'estado_id';
+        }
+
+        $paqueteInt = $paquetesIntQuery->first($paqueteIntColumns);
+
+        if ($paqueteInt) {
+            $estado = 'ADMISIONES';
+
+            if ($hasEstadoId) {
+                $estado = $estadoNombres[(int) ($paqueteInt->estado_id ?? 0)] ?? ('ID ' . (int) ($paqueteInt->estado_id ?? 0));
+            } elseif (!empty($paqueteInt->enviado_admision_at)) {
+                $estado = 'ALMACEN';
+            }
+
+            return 'No se encontro en ALMACEN. Se encuentra en: '
+                . $estado
+                . $this->buildUbicacionDetalle((string) ($paqueteInt->origen ?? ''), (string) ($paqueteInt->destino ?? ''))
+                . '.';
+        }
+
         return 'No se encontro en ALMACEN ni en otros modulos con ese codigo.';
     }
 
@@ -848,6 +1034,105 @@ class PaquetesEms extends Component
         ]);
 
         $this->dispatch('openEnvioOficialModal');
+    }
+
+    public function openPaqueteIntModal()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('create', 'admision'));
+
+        if (!$this->isAdmision) {
+            return;
+        }
+
+        $this->paqueteIntCodigo = '';
+        $this->paqueteIntOrigen = $this->resolveLoggedUserOrigin();
+        $this->paqueteIntPeso = '0.001';
+        $this->paqueteIntPrecio = '';
+        $this->paqueteIntDestino = '';
+        $this->resetValidation([
+            'paqueteIntCodigo',
+            'paqueteIntPeso',
+            'paqueteIntPrecio',
+            'paqueteIntDestino',
+        ]);
+
+        $this->dispatch('openPaqueteIntModal');
+    }
+
+    public function registrarPaqueteInt()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('create', 'admision'));
+
+        if (!$this->isAdmision) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'paqueteIntCodigo' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('paquetes_int', 'codigo'),
+            ],
+            'paqueteIntPeso' => 'required|numeric|min:0.001',
+            'paqueteIntPrecio' => 'required|numeric|min:0',
+            'paqueteIntDestino' => ['required', 'string', Rule::in($this->ciudades)],
+        ], [], [
+            'paqueteIntCodigo' => 'codigo',
+            'paqueteIntPeso' => 'peso',
+            'paqueteIntPrecio' => 'precio',
+            'paqueteIntDestino' => 'destino',
+        ]);
+
+        $user = Auth::user();
+        if (!$user) {
+            session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
+        $codigo = strtoupper(trim((string) $validated['paqueteIntCodigo']));
+        $codigo = preg_replace('/\s+/', '', $codigo) ?: '';
+        if ($codigo === '') {
+            $this->addError('paqueteIntCodigo', 'Ingresa un codigo valido.');
+            return;
+        }
+
+        $codigoExistente = PaqueteInt::query()
+            ->whereRaw('trim(upper(codigo)) = ?', [$codigo])
+            ->exists();
+
+        if ($codigoExistente) {
+            $this->addError('paqueteIntCodigo', 'Ese codigo ya esta registrado en paquetes INT.');
+            return;
+        }
+
+        $origen = $this->resolveLoggedUserOrigin();
+        if ($origen === '') {
+            session()->flash('error', 'El usuario no tiene ciudad u origen configurado.');
+            return;
+        }
+
+        $estadoAdmisionId = $this->findEstadoId('ADMISIONES');
+
+        PaqueteInt::query()->create([
+            'codigo' => $codigo,
+            'origen' => $origen,
+            'estado_id' => $estadoAdmisionId,
+            'peso' => round((float) $validated['paqueteIntPeso'], 3),
+            'precio' => round((float) $validated['paqueteIntPrecio'], 2),
+            'destino' => strtoupper(trim((string) $validated['paqueteIntDestino'])),
+            'cod_especial' => null,
+            'enviado_admision_at' => null,
+        ]);
+
+        $this->paqueteIntCodigo = '';
+        $this->paqueteIntOrigen = $origen;
+        $this->paqueteIntPeso = '0.001';
+        $this->paqueteIntPrecio = '';
+        $this->paqueteIntDestino = '';
+        $this->dispatch('closePaqueteIntModal');
+
+        session()->flash('success', 'Paquete INT registrado correctamente.');
     }
 
     public function guardarEnvioOficial()
@@ -940,6 +1225,13 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
+        $idsInt = collect($this->selectedPaquetesInt)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $idsContratos = collect($this->selectedContratos)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -954,8 +1246,8 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
-            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, paquete INT, contrato o solicitud.');
             return;
         }
 
@@ -964,7 +1256,7 @@ class PaquetesEms extends Component
         $this->regionalTransportNumber = '';
         $this->showRegionalIntSection = false;
         $this->resetRegionalIntRows();
-        $this->prepareRegionalPesoZeroData($idsEms, $idsContratos, $idsSolicitudes);
+        $this->prepareRegionalPesoZeroData($idsEms, $idsInt, $idsContratos, $idsSolicitudes);
         $this->dispatch('openRegionalModal');
     }
 
@@ -1009,16 +1301,22 @@ class PaquetesEms extends Component
         }
 
         $idsEms = $this->selectedPaquetesAsInt();
+        $idsInt = collect($this->selectedPaquetesInt)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
         $idsContratos = $this->selectedContratosAsInt();
         $idsSolicitudes = $this->selectedSolicitudesAsInt();
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
-            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, paquete INT, contrato o solicitud.');
             return;
         }
 
         $hadPendingItems = !empty($this->regionalPesoZeroItems);
-        $saved = $this->ensureRegionalZeroWeightResolved($idsEms, $idsContratos, $idsSolicitudes);
+        $saved = $this->ensureRegionalZeroWeightResolved($idsEms, $idsInt, $idsContratos, $idsSolicitudes);
 
         if (!$saved) {
             session()->flash('error', 'Corrige los pesos pendientes antes de guardarlos.');
@@ -1794,14 +2092,19 @@ class PaquetesEms extends Component
             return;
         }
 
-        [$idsEms, $idsContratos, $idsSolicitudes] = $this->resolveCn38SelectionIds($despacho);
+        [$idsEms, $idsInt, $idsContratos, $idsSolicitudes] = $this->resolveCn38SelectionIds($despacho);
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
             session()->flash('error', 'No se encontraron registros para el despacho ' . $despacho . '.');
             return;
         }
 
         $this->selectedPaquetes = collect($idsEms)
+            ->map(fn ($id) => (string) ((int) $id))
+            ->values()
+            ->all();
+
+        $this->selectedPaquetesInt = collect($idsInt)
             ->map(fn ($id) => (string) ((int) $id))
             ->values()
             ->all();
@@ -1823,7 +2126,7 @@ class PaquetesEms extends Component
         session()->flash(
             'success',
             'CN-33 ' . $despacho . ' anadido al CN-38. Registros cargados: '
-            . (count($idsEms) + count($idsContratos) + count($idsSolicitudes)) . '.'
+            . (count($idsEms) + count($idsInt) + count($idsContratos) + count($idsSolicitudes)) . '.'
         );
 
     }
@@ -2095,30 +2398,32 @@ class PaquetesEms extends Component
         }
 
         $idsEms = collect($this->selectedPaquetes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $idsInt = collect($this->selectedPaquetesInt)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
         $idsContratos = collect($this->selectedContratos)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
         $idsSolicitudes = collect($this->selectedSolicitudes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
 
         $despacho = strtoupper(trim((string) $this->cn38Despacho));
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
             if ($despacho === '') {
                 session()->flash('error', 'Selecciona varios registros o ingresa el despacho CN-33 para generar el CN-38.');
                 return;
             }
 
-            [$idsEms, $idsContratos, $idsSolicitudes] = $this->resolveCn38SelectionIds($despacho);
+            [$idsEms, $idsInt, $idsContratos, $idsSolicitudes] = $this->resolveCn38SelectionIds($despacho);
 
-            if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+            if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
                 session()->flash('error', 'No se encontraron registros para el despacho ' . $despacho . '.');
                 return;
             }
 
             $this->selectedPaquetes = $idsEms;
+            $this->selectedPaquetesInt = $idsInt;
             $this->selectedContratos = $idsContratos;
             $this->selectedSolicitudes = $idsSolicitudes;
         }
 
-        $rows = $this->buildCn38PdfDispatchRows($idsEms, $idsContratos, $idsSolicitudes);
+        $rows = $this->buildCn38PdfDispatchRows($idsEms, $idsInt, $idsContratos, $idsSolicitudes);
         if ($rows->isEmpty()) {
             session()->flash('error', 'No se pudo construir el reporte CN-38 con los registros seleccionados.');
             return;
@@ -2410,7 +2715,8 @@ class PaquetesEms extends Component
             return;
         }
 
-        $this->generadosHoyCount = count($this->idsGeneradosHoyEnAdmision());
+        $this->generadosHoyCount = count($this->idsGeneradosHoyEnAdmision())
+            + $this->paquetesIntPendientesHoyEnAdmisionQuery()->count();
         $this->dispatch('openGeneradosHoyModal');
     }
 
@@ -2423,11 +2729,12 @@ class PaquetesEms extends Component
         }
 
         $ids = $this->idsGeneradosHoyEnAdmision();
-        $this->generadosHoyCount = count($ids);
+        $paquetesIntHoyCount = $this->paquetesIntPendientesHoyEnAdmisionQuery()->count();
+        $this->generadosHoyCount = count($ids) + $paquetesIntHoyCount;
 
-        if (empty($ids)) {
+        if (empty($ids) && $paquetesIntHoyCount === 0) {
             $this->dispatch('closeGeneradosHoyModal');
-            session()->flash('error', 'No hay paquetes generados hoy en ADMISIONES para enviar.');
+            session()->flash('error', 'No hay paquetes EMS ni paquetes INT generados hoy en ADMISIONES para enviar.');
             return;
         }
 
@@ -2468,6 +2775,13 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
+        $idsInt = collect($this->selectedPaquetesInt)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $idsContratos = collect($this->selectedContratos)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -2482,8 +2796,8 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
-            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, paquete INT, contrato o solicitud.');
             return;
         }
 
@@ -2508,7 +2822,7 @@ class PaquetesEms extends Component
         $updated = 0;
         $actorUserId = (int) (auth()->id() ?? 0);
 
-        DB::transaction(function () use ($idsEms, $idsContratos, $idsSolicitudes, $eligibleEstadoIds, $estadoTransitoId, $codEspecial, $eventoSacaInternaSalidaId, $actorUserId, &$updated) {
+        DB::transaction(function () use ($idsEms, $idsInt, $idsContratos, $idsSolicitudes, $eligibleEstadoIds, $estadoTransitoId, $codEspecial, $eventoSacaInternaSalidaId, $actorUserId, &$updated) {
             if (!empty($idsEms)) {
                 $paquetes = PaqueteEms::query()
                     ->whereIn('id', $idsEms)
@@ -2527,6 +2841,25 @@ class PaquetesEms extends Component
                         ]);
 
                     $this->registerEventosEms($paquetes, $actorUserId, (int) $eventoSacaInternaSalidaId);
+                }
+            }
+
+            if (!empty($idsInt)) {
+                $paquetesInt = PaqueteInt::query()
+                    ->whereIn('id', $idsInt)
+                    ->whereIn('estado_id', $eligibleEstadoIds)
+                    ->get(['id', 'codigo']);
+
+                $updated += $paquetesInt->count();
+
+                if ($paquetesInt->isNotEmpty()) {
+                    PaqueteInt::query()
+                        ->whereIn('id', $paquetesInt->pluck('id')->all())
+                        ->update([
+                            'cod_especial' => $codEspecial,
+                            'estado_id' => (int) $estadoTransitoId,
+                            'updated_at' => now(),
+                        ]);
                 }
             }
 
@@ -2581,6 +2914,7 @@ class PaquetesEms extends Component
         session()->flash('success', 'cod_especial ' . $codEspecial . ' asignado y enviado a TRANSITO: ' . $updated . ' registro(s).');
         $this->cn33ManualCodigo = '';
         $this->selectedPaquetes = [];
+        $this->selectedPaquetesInt = [];
         $this->selectedContratos = [];
         $this->selectedSolicitudes = [];
     }
@@ -2601,6 +2935,13 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
+        $idsInt = collect($this->selectedPaquetesInt)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $idsContratos = collect($this->selectedContratos)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -2615,8 +2956,8 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
-            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, paquete INT, contrato o solicitud.');
             return;
         }
 
@@ -2625,7 +2966,7 @@ class PaquetesEms extends Component
             return;
         }
 
-        if (!$this->ensureRegionalZeroWeightResolved($idsEms, $idsContratos, $idsSolicitudes)) {
+        if (!$this->ensureRegionalZeroWeightResolved($idsEms, $idsInt, $idsContratos, $idsSolicitudes)) {
             session()->flash('error', 'Los paquetes con este codigo estan en peso 0. Por favor asigne el peso antes de mandar a regional.');
             return;
         }
@@ -2653,6 +2994,7 @@ class PaquetesEms extends Component
 
         $mismatchItems = $this->regionalMismatchItemsForSelection(
             $idsEms,
+            $idsInt,
             $idsContratos,
             $idsSolicitudes,
             (string) $this->regionalDestino,
@@ -2672,6 +3014,7 @@ class PaquetesEms extends Component
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
         $updated = 0;
         $paquetes = collect();
+        $paquetesIntExistentes = collect();
         $contratos = collect();
         $solicitudes = collect();
         $paquetesInt = collect();
@@ -2680,6 +3023,7 @@ class PaquetesEms extends Component
 
         DB::transaction(function () use (
             $idsEms,
+            $idsInt,
             $idsContratos,
             $idsSolicitudes,
             $estadoRegionalId,
@@ -2689,6 +3033,7 @@ class PaquetesEms extends Component
             &$manifiesto,
             &$updated,
             &$paquetes,
+            &$paquetesIntExistentes,
             &$contratos,
             &$solicitudes,
             &$paquetesInt,
@@ -2767,7 +3112,28 @@ class PaquetesEms extends Component
                 $solicitudes = collect();
             }
 
-            if ($paquetes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
+            if (!empty($idsInt)) {
+                $paquetesIntExistentes = PaqueteInt::query()
+                    ->whereIn('id', $idsInt)
+                    ->whereIn('estado_id', $eligibleEstadoIds)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get([
+                        'id',
+                        'codigo',
+                        'cod_especial',
+                        'origen',
+                        'destino',
+                        'peso',
+                        'precio',
+                        'estado_id',
+                        'created_at',
+                    ]);
+            } else {
+                $paquetesIntExistentes = collect();
+            }
+
+            if ($paquetes->isEmpty() && $paquetesIntExistentes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
                 return;
             }
 
@@ -2818,10 +3184,19 @@ class PaquetesEms extends Component
                 $updated++;
             }
 
+            foreach ($paquetesIntExistentes as $paqueteIntExistente) {
+                $paqueteIntExistente->cod_especial = $manifiesto;
+                $paqueteIntExistente->estado_id = (int) $estadoRegionalId;
+                $paqueteIntExistente->destino = $this->regionalDestino;
+                $paqueteIntExistente->save();
+                $updated++;
+            }
+
             $paquetesInt = collect($regionalIntRows)->map(function (array $row) use ($manifiesto, $loggedInUserCity) {
                 return PaqueteInt::create([
                     'cod_especial' => $manifiesto,
                     'codigo' => $row['codigo'],
+                    'estado_id' => $estadoRegionalId,
                     'origen' => $loggedInUserCity !== '' ? $loggedInUserCity : null,
                     'peso' => $row['peso'],
                     'destino' => $this->regionalDestino,
@@ -2856,8 +3231,8 @@ class PaquetesEms extends Component
             );
         });
 
-        if ($paquetes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
-            session()->flash('error', 'No hay paquetes, contratos o solicitudes seleccionados para enviar.');
+        if ($paquetes->isEmpty() && $paquetesIntExistentes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
+            session()->flash('error', 'No hay paquetes, paquetes INT, contratos o solicitudes seleccionados para enviar.');
             return;
         }
 
@@ -2899,6 +3274,17 @@ class PaquetesEms extends Component
                 ];
             })
         )->merge(
+            $paquetesIntExistentes->map(function ($paqueteInt) {
+                return (object) [
+                    'codigo' => $paqueteInt->codigo,
+                    'origen' => (string) ($paqueteInt->origen ?? ''),
+                    'cantidad' => 1,
+                    'peso' => (float) ($paqueteInt->peso ?? 0),
+                    'nombre_remitente' => 'PAQUETE INT',
+                    'observacion' => 'INT',
+                ];
+            })
+        )->merge(
             $paquetesInt->map(function ($paqueteInt) {
                 return (object) [
                     'codigo' => $paqueteInt->codigo,
@@ -2924,6 +3310,7 @@ class PaquetesEms extends Component
         ])->setPaper('a4', 'portrait');
 
         $this->selectedPaquetes = [];
+        $this->selectedPaquetesInt = [];
         $this->selectedContratos = [];
         $this->selectedSolicitudes = [];
         $this->regionalMismatchItems = [];
@@ -4090,6 +4477,13 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
+        $idsInt = collect($this->selectedPaquetesInt)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $idsContratos = collect($this->selectedContratos)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -4104,8 +4498,8 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
-            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, paquete INT, contrato o solicitud.');
             return;
         }
 
@@ -4121,6 +4515,36 @@ class PaquetesEms extends Component
                 ->whereIn('paquetes_ems.id', $idsEms)
                 ->orderBy('paquetes_ems.id')
                 ->get(['paquetes_ems.id', 'paquetes_ems.codigo', 'paquetes_ems.nombre_remitente', 'paquetes_ems.nombre_destinatario', 'paquetes_ems.ciudad', 'paquetes_ems.peso']);
+        }
+
+        $paquetesInt = collect();
+        if (!empty($idsInt)) {
+            $userCity = trim((string) optional(Auth::user())->ciudad);
+            $estadoTransitoId = $this->findEstadoId('TRANSITO');
+
+            $paquetesInt = PaqueteInt::query()
+                ->whereIn('id', $idsInt)
+                ->whereIn('estado_id', $estadoRecibirRegionalIds)
+                ->when($userCity !== '', function ($query) use ($userCity, $estadoTransitoId) {
+                    if (empty($estadoTransitoId)) {
+                        return;
+                    }
+
+                    $query->where(function ($sub) use ($estadoTransitoId, $userCity) {
+                        $sub->where('estado_id', '<>', (int) $estadoTransitoId)
+                            ->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                                $q2->where('estado_id', (int) $estadoTransitoId)
+                                    ->whereRaw('trim(upper(destino)) = trim(upper(?))', [$userCity]);
+                            });
+                    });
+                })
+                ->orderBy('id')
+                ->get([
+                    'id',
+                    'codigo',
+                    'destino',
+                    'peso',
+                ]);
         }
 
         $contratos = collect();
@@ -4170,8 +4594,8 @@ class PaquetesEms extends Component
                 ]);
         }
 
-        if ($paquetes->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
-            session()->flash('error', 'No hay paquetes, contratos o solicitudes validos para recibir en este listado.');
+        if ($paquetes->isEmpty() && $paquetesInt->isEmpty() && $contratos->isEmpty() && $solicitudes->isEmpty()) {
+            session()->flash('error', 'No hay paquetes, paquetes INT, contratos o solicitudes validos para recibir en este listado.');
             return;
         }
 
@@ -4188,6 +4612,23 @@ class PaquetesEms extends Component
                     'nombre_remitente' => (string) ($formulario->nombre_remitente ?? $paquete->nombre_remitente),
                     'nombre_destinatario' => (string) ($formulario->nombre_destinatario ?? $paquete->nombre_destinatario),
                     'ciudad' => (string) ($formulario->ciudad ?? $paquete->ciudad),
+                    'peso' => $peso,
+                ];
+            })
+            ->values();
+
+        $previewInt = $paquetesInt
+            ->map(function ($paqueteInt) {
+                $peso = $this->formatPesoEditable($paqueteInt->peso);
+
+                return [
+                    'id' => (int) $paqueteInt->id,
+                    'peso_key' => 'int_' . (int) $paqueteInt->id,
+                    'tipo' => 'INT',
+                    'codigo' => (string) ($paqueteInt->codigo ?? 'SIN CODIGO'),
+                    'nombre_remitente' => 'PAQUETE INT',
+                    'nombre_destinatario' => '-',
+                    'ciudad' => (string) ($paqueteInt->destino ?? ''),
                     'peso' => $peso,
                 ];
             })
@@ -4228,6 +4669,7 @@ class PaquetesEms extends Component
             ->values();
 
         $this->recibirRegionalPreview = $previewEms
+            ->merge($previewInt)
             ->merge($previewContratos)
             ->merge($previewSolicitudes)
             ->values()
@@ -4287,6 +4729,31 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
+        $userCity = trim((string) optional(Auth::user())->ciudad);
+        $estadoTransitoId = $this->findEstadoId('TRANSITO');
+
+        $idsInt = PaqueteInt::query()
+            ->whereIn('estado_id', $estadoRecibirRegionalIds)
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoCn33])
+            ->when($userCity !== '', function ($query) use ($userCity, $estadoTransitoId) {
+                if (empty($estadoTransitoId)) {
+                    return;
+                }
+
+                $query->where(function ($sub) use ($estadoTransitoId, $userCity) {
+                    $sub->where('estado_id', '<>', (int) $estadoTransitoId)
+                        ->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                            $q2->where('estado_id', (int) $estadoTransitoId)
+                                ->whereRaw('trim(upper(destino)) = trim(upper(?))', [$userCity]);
+                        });
+                });
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $idsContratos = RecojoContrato::query()
             ->whereIn('estados_id', $estadoRecibirRegionalIds)
             ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoCn33])
@@ -4296,8 +4763,6 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
-        $userCity = trim((string) optional(Auth::user())->ciudad);
-        $estadoTransitoId = $this->findEstadoId('TRANSITO');
         $idsSolicitudes = SolicitudCliente::query()
             ->whereIn('estado_id', $estadoRecibirRegionalIds)
             ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoCn33])
@@ -4320,12 +4785,13 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
             session()->flash('error', 'No se encontraron registros en recibir regional para el CN-33 ' . $codigoCn33 . '.');
             return;
         }
 
         $this->selectedPaquetes = $idsEms;
+        $this->selectedPaquetesInt = $idsInt;
         $this->selectedContratos = $idsContratos;
         $this->selectedSolicitudes = $idsSolicitudes;
 
@@ -4369,6 +4835,13 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
+        $idsInt = collect($this->selectedPaquetesInt)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $idsContratos = collect($this->selectedContratos)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -4383,8 +4856,8 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
-            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, paquete INT, contrato o solicitud.');
             return;
         }
 
@@ -4428,6 +4901,30 @@ class PaquetesEms extends Component
                 ->get(['id', 'codigo', 'peso', 'estados_id']);
         }
 
+        $paquetesIntRecibir = collect();
+        if (!empty($idsInt)) {
+            $userCity = trim((string) optional(Auth::user())->ciudad);
+            $estadoTransitoId = $this->findEstadoId('TRANSITO');
+            $paquetesIntRecibir = PaqueteInt::query()
+                ->whereIn('id', $idsInt)
+                ->whereIn('estado_id', $estadoRecibirRegionalIds)
+                ->when($userCity !== '', function ($query) use ($userCity, $estadoTransitoId) {
+                    if (empty($estadoTransitoId)) {
+                        return;
+                    }
+
+                    $query->where(function ($sub) use ($estadoTransitoId, $userCity) {
+                        $sub->where('estado_id', '<>', (int) $estadoTransitoId)
+                            ->orWhere(function ($q2) use ($estadoTransitoId, $userCity) {
+                                $q2->where('estado_id', (int) $estadoTransitoId)
+                                    ->whereRaw('trim(upper(destino)) = trim(upper(?))', [$userCity]);
+                            });
+                    });
+                })
+                ->orderBy('id')
+                ->get(['id', 'codigo', 'peso', 'estado_id']);
+        }
+
         $solicitudesRecibir = collect();
         if (!empty($idsSolicitudes)) {
             $userCity = trim((string) optional(Auth::user())->ciudad);
@@ -4453,6 +4950,7 @@ class PaquetesEms extends Component
         }
 
         $updatedEms = 0;
+        $updatedInt = 0;
         $updatedContratos = 0;
         $updatedSolicitudes = 0;
         $pesosRecibir = collect($this->recibirRegionalPesos)
@@ -4464,11 +4962,13 @@ class PaquetesEms extends Component
             DB::transaction(function () use (
                 $estadoRecibido,
                 $paquetesRecibir,
+                $paquetesIntRecibir,
                 $contratosRecibir,
                 $solicitudesRecibir,
                 $actorUserId,
                 $pesosRecibir,
                 &$updatedEms,
+                &$updatedInt,
                 &$updatedContratos,
                 &$updatedSolicitudes
             ) {
@@ -4511,6 +5011,27 @@ class PaquetesEms extends Component
                         $actorUserId,
                         self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
                     );
+                }
+
+                if ($paquetesIntRecibir->isNotEmpty()) {
+                    foreach ($paquetesIntRecibir as $paqueteInt) {
+                        $peso = $pesosRecibir->get('int_' . (int) $paqueteInt->id);
+                        $payload = [
+                            'estado_id' => (int) $estadoRecibido,
+                        ];
+
+                        if ($peso !== null) {
+                            $payload['peso'] = $peso;
+                            $paqueteInt->peso = $peso;
+                        }
+
+                        PaqueteInt::query()
+                            ->whereKey((int) $paqueteInt->id)
+                            ->update($payload);
+
+                        $paqueteInt->estado_id = $estadoRecibido;
+                        $updatedInt++;
+                    }
                 }
 
                 if ($contratosRecibir->isNotEmpty()) {
@@ -4573,7 +5094,7 @@ class PaquetesEms extends Component
             return;
         }
 
-        $updatedTotal = (int) $updatedEms + (int) $updatedContratos + (int) $updatedSolicitudes;
+        $updatedTotal = (int) $updatedEms + (int) $updatedInt + (int) $updatedContratos + (int) $updatedSolicitudes;
 
         if ($updatedTotal <= 0) {
             session()->flash('error', 'No se pudo recibir ningun registro. Verifica que sigan en estado ENVIADO o TRANSITO.');
@@ -4581,6 +5102,7 @@ class PaquetesEms extends Component
         }
 
         $this->selectedPaquetes = [];
+        $this->selectedPaquetesInt = [];
         $this->selectedContratos = [];
         $this->selectedSolicitudes = [];
         $this->recibirRegionalPreview = [];
@@ -4588,7 +5110,7 @@ class PaquetesEms extends Component
         $this->dispatch('closeRecibirRegionalModal');
         session()->flash(
             'success',
-            $updatedTotal . ' registro(s) recibido(s) en RECIBIDO. EMS: ' . $updatedEms . ', Contratos: ' . $updatedContratos . ', Solicitudes: ' . $updatedSolicitudes . '.'
+            $updatedTotal . ' registro(s) recibido(s) en RECIBIDO. EMS: ' . $updatedEms . ', INT: ' . $updatedInt . ', Contratos: ' . $updatedContratos . ', Solicitudes: ' . $updatedSolicitudes . '.'
         );
     }
 
@@ -4644,8 +5166,16 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
-        if (empty($ids)) {
-            session()->flash('error', 'Selecciona al menos un paquete.');
+        $paquetesInt = $soloHoy
+            ? $this->paquetesIntPendientesHoyEnAdmisionQuery()
+                ->orderBy('id')
+                ->get(['id', 'codigo', 'origen', 'destino', 'peso', 'precio', 'created_at'])
+            : collect();
+
+        if (empty($ids) && $paquetesInt->isEmpty()) {
+            session()->flash('error', $soloHoy
+                ? 'No hay paquetes EMS ni paquetes INT pendientes para enviar hoy.'
+                : 'Selecciona al menos un paquete.');
             return;
         }
 
@@ -4667,11 +5197,11 @@ class PaquetesEms extends Component
             ->orderBy('id')
             ->get(['id', 'codigo', 'user_id', 'created_at']);
 
-        if ($paquetes->isEmpty()) {
+        if ($paquetes->isEmpty() && $paquetesInt->isEmpty()) {
             session()->flash(
                 'error',
                 $soloHoy
-                    ? 'No hay paquetes seleccionados que se hayan generado hoy.'
+                    ? 'No hay paquetes EMS ni paquetes INT pendientes que se hayan generado hoy.'
                     : 'No hay paquetes seleccionados para enviar.'
             );
             return;
@@ -4683,22 +5213,54 @@ class PaquetesEms extends Component
             return;
         }
 
-        DB::transaction(function () use ($paquetes, $estadoAlmacenEms, $actorUserId) {
-            PaqueteEms::query()
-                ->whereIn('id', $paquetes->pluck('id')->all())
-                ->update(['estado_id' => $estadoAlmacenEms]);
+        DB::transaction(function () use ($paquetes, $paquetesInt, $estadoAlmacenEms, $actorUserId, $soloHoy) {
+            if ($paquetes->isNotEmpty()) {
+                PaqueteEms::query()
+                    ->whereIn('id', $paquetes->pluck('id')->all())
+                    ->update(['estado_id' => $estadoAlmacenEms]);
 
-            $this->registerEventosEms(
-                $paquetes,
-                $actorUserId,
-                self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
-            );
+                $this->registerEventosEms(
+                    $paquetes,
+                    $actorUserId,
+                    self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                );
+            }
+
+            if ($soloHoy && $paquetesInt->isNotEmpty()) {
+                PaqueteInt::query()
+                    ->whereIn('id', $paquetesInt->pluck('id')->all())
+                    ->update([
+                        'estado_id' => (int) $estadoAlmacenEms,
+                        'enviado_admision_at' => now(),
+                    ]);
+            }
         });
 
         $generatedAt = now();
         $loggedUserName = trim((string) optional(Auth::user())->name);
+        $reportRows = $paquetes
+            ->map(function ($paquete) {
+                return (object) [
+                    'tipo' => 'EMS',
+                    'codigo' => (string) $paquete->codigo,
+                    'usuario' => (string) (optional($paquete->user)->name ?? 'N/A'),
+                    'precio' => null,
+                    'created_at' => $paquete->created_at,
+                ];
+            })
+            ->concat($paquetesInt->map(function ($paqueteInt) use ($loggedUserName) {
+                return (object) [
+                    'tipo' => 'INT',
+                    'codigo' => (string) $paqueteInt->codigo,
+                    'usuario' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
+                    'precio' => $paqueteInt->precio,
+                    'created_at' => $paqueteInt->created_at,
+                ];
+            }))
+            ->values();
+
         $pdf = Pdf::loadView('paquetes_ems.reporte-envio', [
-            'paquetes' => $paquetes,
+            'paquetes' => $reportRows,
             'generatedAt' => $generatedAt,
             'filtro' => $soloHoy ? 'GENERADOS HOY' : 'SELECCIONADOS',
             'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
@@ -4856,6 +5418,7 @@ class PaquetesEms extends Component
         $selectedPreviewRows = collect();
         $cn38DispatchSummaryRows = collect();
         $ventanillaResumenRows = collect();
+        $paquetesIntAdmision = collect();
 
         if ($this->isCreateEms) {
             return view('livewire.paquetes-ems', [
@@ -4879,6 +5442,7 @@ class PaquetesEms extends Component
                 'canEmsReprintCn33' => false,
                 'canEmsAlmacenAdmisiones' => false,
                 'canContratoAlmacenPrint' => false,
+                'paquetesIntAdmision' => $paquetesIntAdmision,
             ]);
         }
 
@@ -4902,6 +5466,22 @@ class PaquetesEms extends Component
         } else {
             $paquetes = $this->basePaquetesQuery()
                 ->simplePaginate($this->normalizePerPage($this->perPagePaquetes));
+
+            if ($this->isAdmision) {
+                $paquetesIntAdmision = PaqueteInt::query()
+                    ->whereRaw('trim(upper(origen)) = trim(upper(?))', [$this->resolveLoggedUserOrigin()])
+                    ->when(trim((string) $this->search) !== '', function ($query) {
+                        $search = trim((string) $this->search);
+                        $query->where(function ($sub) use ($search) {
+                            $sub->where('codigo', 'like', '%' . $search . '%')
+                                ->orWhere('destino', 'like', '%' . $search . '%')
+                                ->orWhere('origen', 'like', '%' . $search . '%');
+                        });
+                    })
+                    ->orderByDesc('created_at')
+                    ->limit(15)
+                    ->get();
+            }
         }
 
         return view('livewire.paquetes-ems', [
@@ -4930,12 +5510,20 @@ class PaquetesEms extends Component
             'canEmsReprintCn33' => $this->userCan(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION),
             'canEmsAlmacenAdmisiones' => $this->userCan(self::ALMACEN_ADMISIONES_ROUTE_PERMISSION),
             'canContratoAlmacenPrint' => $this->userCan('feature.paquetes-contrato.almacen.print'),
+            'paquetesIntAdmision' => $paquetesIntAdmision,
         ]);
     }
 
     protected function buildSelectedPreviewRows(): Collection
     {
         $idsEms = collect($this->selectedPaquetes)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $idsInt = collect($this->selectedPaquetesInt)
             ->filter()
             ->map(fn ($id) => (int) $id)
             ->unique()
@@ -4971,6 +5559,20 @@ class PaquetesEms extends Component
                 ->get();
 
             $preview = $preview->concat($emsRows);
+        }
+
+        if (!empty($idsInt)) {
+            $intRows = DB::table('paquetes_int')
+                ->whereIn('id', $idsInt)
+                ->selectRaw("'INT' as tipo")
+                ->selectRaw('id as record_id')
+                ->selectRaw("coalesce(codigo, 'SIN CODIGO') as codigo")
+                ->selectRaw("'-' as destinatario")
+                ->selectRaw("coalesce(destino, '-') as destino")
+                ->selectRaw('coalesce(peso, 0) as peso')
+                ->get();
+
+            $preview = $preview->concat($intRows);
         }
 
         if (!empty($idsContratos)) {
@@ -5015,6 +5617,13 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
+        $idsInt = collect($this->selectedPaquetesInt)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $idsContratos = collect($this->selectedContratos)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -5035,6 +5644,16 @@ class PaquetesEms extends Component
             $rows = $rows->concat(
                 DB::table('paquetes_ems')
                     ->whereIn('id', $idsEms)
+                    ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
+                    ->selectRaw('coalesce(peso, 0) as peso')
+                    ->get()
+            );
+        }
+
+        if (!empty($idsInt)) {
+            $rows = $rows->concat(
+                DB::table('paquetes_int')
+                    ->whereIn('id', $idsInt)
                     ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
                     ->selectRaw('coalesce(peso, 0) as peso')
                     ->get()
@@ -5086,6 +5705,14 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
+        $idsInt = PaqueteInt::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $idsContratos = RecojoContrato::query()
             ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado])
             ->pluck('id')
@@ -5102,7 +5729,7 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
-        return [$idsEms, $idsContratos, $idsSolicitudes];
+        return [$idsEms, $idsInt, $idsContratos, $idsSolicitudes];
     }
 
     protected function buildCn38Rows(string $despacho): Collection
@@ -5139,6 +5766,31 @@ class PaquetesEms extends Component
                         optional(optional($row->user)->empresa)->nombre
                     ),
                     'observacion' => (string) ($row->observacion ?? ''),
+                    'updated_at' => $row->updated_at ?? null,
+                ];
+            });
+
+        $intRows = PaqueteInt::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+            ->orderBy('id')
+            ->get([
+                'id',
+                'codigo',
+                'origen',
+                'destino',
+                'peso',
+                'updated_at',
+            ])
+            ->map(function ($row) {
+                return (object) [
+                    'tipo' => 'INT',
+                    'codigo' => (string) ($row->codigo ?? 'SIN CODIGO'),
+                    'origen' => (string) ($row->origen ?? '-'),
+                    'destino' => (string) ($row->destino ?? '-'),
+                    'cantidad' => 1,
+                    'peso' => (float) ($row->peso ?? 0),
+                    'remitente' => 'PAQUETE INT',
+                    'observacion' => 'INT',
                     'updated_at' => $row->updated_at ?? null,
                 ];
             });
@@ -5205,6 +5857,7 @@ class PaquetesEms extends Component
             });
 
         return $emsRows
+            ->concat($intRows)
             ->concat($contratoRows)
             ->concat($solicitudRows)
             ->values()
@@ -5214,7 +5867,7 @@ class PaquetesEms extends Component
             });
     }
 
-    protected function buildCn38RowsFromSelectedIds(array $idsEms, array $idsContratos, array $idsSolicitudes): Collection
+    protected function buildCn38RowsFromSelectedIds(array $idsEms, array $idsInt, array $idsContratos, array $idsSolicitudes): Collection
     {
         $rows = collect();
 
@@ -5250,6 +5903,37 @@ class PaquetesEms extends Component
                                 optional(optional($row->user)->empresa)->nombre
                             ),
                             'observacion' => (string) ($row->observacion ?? ''),
+                            'updated_at' => $row->updated_at ?? null,
+                            'despacho' => (string) ($row->cod_especial ?? ''),
+                        ];
+                    })
+            );
+        }
+
+        if (!empty($idsInt)) {
+            $rows = $rows->concat(
+                PaqueteInt::query()
+                    ->whereIn('id', $idsInt)
+                    ->orderBy('id')
+                    ->get([
+                        'id',
+                        'codigo',
+                        'cod_especial',
+                        'origen',
+                        'destino',
+                        'peso',
+                        'updated_at',
+                    ])
+                    ->map(function ($row) {
+                        return (object) [
+                            'tipo' => 'INT',
+                            'codigo' => (string) ($row->codigo ?? 'SIN CODIGO'),
+                            'origen' => (string) ($row->origen ?? '-'),
+                            'destino' => (string) ($row->destino ?? '-'),
+                            'cantidad' => 1,
+                            'peso' => (float) ($row->peso ?? 0),
+                            'remitente' => 'PAQUETE INT',
+                            'observacion' => 'INT',
                             'updated_at' => $row->updated_at ?? null,
                             'despacho' => (string) ($row->cod_especial ?? ''),
                         ];
@@ -5338,7 +6022,7 @@ class PaquetesEms extends Component
             });
     }
 
-    protected function buildCn38PdfDispatchRows(array $idsEms, array $idsContratos, array $idsSolicitudes): Collection
+    protected function buildCn38PdfDispatchRows(array $idsEms, array $idsInt, array $idsContratos, array $idsSolicitudes): Collection
     {
         $rows = collect();
 
@@ -5349,6 +6033,19 @@ class PaquetesEms extends Component
                     ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
                     ->selectRaw("coalesce(origen, '-') as origen")
                     ->selectRaw("coalesce(ciudad, '-') as destino")
+                    ->selectRaw('coalesce(peso, 0) as peso')
+                    ->selectRaw('updated_at')
+                    ->get()
+            );
+        }
+
+        if (!empty($idsInt)) {
+            $rows = $rows->concat(
+                DB::table('paquetes_int')
+                    ->whereIn('id', $idsInt)
+                    ->selectRaw("coalesce(nullif(trim(cod_especial), ''), 'SIN CN-33') as despacho")
+                    ->selectRaw("coalesce(origen, '-') as origen")
+                    ->selectRaw("coalesce(destino, '-') as destino")
                     ->selectRaw('coalesce(peso, 0) as peso')
                     ->selectRaw('updated_at')
                     ->get()
@@ -6102,9 +6799,34 @@ class PaquetesEms extends Component
                 $query->whereRaw('1 = 0');
             });
 
+        $paquetesIntQuery = $this->almacenIntQueryBase()
+            ->leftJoin('servicio', 'servicio.id', '=', 'paquetes_int.servicio_id')
+            ->selectRaw("'INT' as record_type")
+            ->selectRaw('paquetes_int.id as record_id')
+            ->selectRaw("coalesce(paquetes_int.codigo, 'SIN CODIGO') as codigo")
+            ->selectRaw("'INT' as tipo")
+            ->selectRaw("'-' as servicio_especial")
+            ->selectRaw("coalesce(servicio.nombre_servicio, 'PAQUETE INTERNACIONAL') as servicio")
+            ->selectRaw("coalesce(paquetes_int.destino, '-') as destino")
+            ->selectRaw("'PAQUETE INTERNACIONAL' as contenido")
+            ->selectRaw("'1' as cantidad")
+            ->selectRaw('coalesce(paquetes_int.peso, 0) as peso')
+            ->selectRaw("'-' as remitente")
+            ->selectRaw("'-' as nombre_envia")
+            ->selectRaw("'-' as carnet")
+            ->selectRaw("'-' as telefono_r")
+            ->selectRaw("'-' as destinatario")
+            ->selectRaw("'-' as telefono_d")
+            ->selectRaw("coalesce(paquetes_int.destino, '-') as ciudad")
+            ->selectRaw("coalesce(paquetes_int.origen, '-') as origen")
+            ->selectRaw("'-' as empresa")
+            ->selectRaw('paquetes_int.cod_especial as cod_especial')
+            ->selectRaw('paquetes_int.created_at as created_at');
+
         $union = $emsQuery
             ->unionAll($contratosQuery)
-            ->unionAll($solicitudesQuery);
+            ->unionAll($solicitudesQuery)
+            ->unionAll($paquetesIntQuery);
 
         $query = DB::query()
             ->fromSub($union, 'almacen_mix')
@@ -6197,9 +6919,17 @@ class PaquetesEms extends Component
                 : "coalesce(solicitud_clientes.ciudad, destino.nombre_destino, '-') as value"
             );
 
+        $paquetesIntQuery = DB::table('paquetes_int')
+            ->where('paquetes_int.estado_id', (int) $estadoTransitoId)
+            ->selectRaw($field === 'origen'
+                ? "coalesce(paquetes_int.origen, '-') as value"
+                : "coalesce(paquetes_int.destino, '-') as value"
+            );
+
         $union = $emsQuery
             ->unionAll($contratosQuery)
-            ->unionAll($solicitudesQuery);
+            ->unionAll($solicitudesQuery)
+            ->unionAll($paquetesIntQuery);
 
         return DB::query()
             ->fromSub($union, 'transito_options')
@@ -6283,9 +7013,22 @@ class PaquetesEms extends Component
             ->selectRaw("coalesce(estados.nombre_estado, '-') as estado")
             ->selectRaw('solicitud_clientes.created_at as created_at');
 
+        $paquetesIntQuery = DB::table('paquetes_int')
+            ->leftJoin('estados', 'estados.id', '=', 'paquetes_int.estado_id')
+            ->whereRaw('trim(upper(coalesce(paquetes_int.cod_especial, \'\'))) = ?', [$codigo])
+            ->selectRaw("'INT' as tipo")
+            ->selectRaw('paquetes_int.codigo as codigo')
+            ->selectRaw("coalesce(paquetes_int.origen, '-') as origen")
+            ->selectRaw("coalesce(paquetes_int.destino, '-') as destino")
+            ->selectRaw("'-' as destinatario")
+            ->selectRaw('coalesce(paquetes_int.peso, 0) as peso')
+            ->selectRaw("coalesce(estados.nombre_estado, '-') as estado")
+            ->selectRaw('paquetes_int.created_at as created_at');
+
         $union = $emsQuery
             ->unionAll($contratosQuery)
-            ->unionAll($solicitudesQuery);
+            ->unionAll($solicitudesQuery)
+            ->unionAll($paquetesIntQuery);
 
         return DB::query()
             ->fromSub($union, 'cod_especial_detalle')
@@ -6833,6 +7576,32 @@ class PaquetesEms extends Component
             ->all();
     }
 
+    protected function paquetesIntPendientesHoyEnAdmisionQuery()
+    {
+        $userCity = $this->resolveLoggedUserOrigin();
+
+        return PaqueteInt::query()
+            ->whereNull('enviado_admision_at')
+            ->whereDate('created_at', now()->toDateString())
+            ->when($userCity !== '', function ($query) use ($userCity) {
+                $query->whereRaw('trim(upper(origen)) = trim(upper(?))', [$userCity]);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            });
+    }
+
+    protected function resolveLoggedUserOrigin(): string
+    {
+        $user = Auth::user();
+        $origen = strtoupper(trim((string) optional($user)->ciudad));
+
+        if ($origen === '') {
+            $origen = strtoupper(trim((string) optional($user)->name));
+        }
+
+        return $origen;
+    }
+
     protected function registerAdmisionEvento(PaqueteEms $paquete, int $userId): void
     {
         if (!$this->isAdmision && !$this->isCreateEms) {
@@ -6973,6 +7742,11 @@ class PaquetesEms extends Component
             return;
         }
 
+        if (str_starts_with($name, 'selectedPaquetesInt')) {
+            $this->normalizeSelectionProperty('selectedPaquetesInt');
+            return;
+        }
+
         if (str_starts_with($name, 'selectedContratos')) {
             $this->normalizeSelectionProperty('selectedContratos');
             return;
@@ -7086,6 +7860,7 @@ class PaquetesEms extends Component
         }
 
         $this->selectedPaquetes = [];
+        $this->selectedPaquetesInt = [];
         $this->selectedContratos = [];
         $this->selectedSolicitudes = [];
     }
@@ -7099,6 +7874,7 @@ class PaquetesEms extends Component
         $tipoNormalizado = strtoupper(trim($tipo));
         $target = match ($tipoNormalizado) {
             'EMS' => 'selectedPaquetes',
+            'INT' => 'selectedPaquetesInt',
             'CONTRATO' => 'selectedContratos',
             'SOLICITUD' => 'selectedSolicitudes',
             default => null,
@@ -7878,6 +8654,7 @@ class PaquetesEms extends Component
 
     protected function regionalMismatchItemsForSelection(
         array $idsEms,
+        array $idsInt,
         array $idsContratos,
         array $idsSolicitudes,
         string $regionalDestino,
@@ -7913,6 +8690,31 @@ class PaquetesEms extends Component
                 ->filter();
 
             $items = $items->merge($emsItems);
+        }
+
+        if (!empty($idsInt)) {
+            $intItems = PaqueteInt::query()
+                ->whereIn('id', $idsInt)
+                ->whereIn('estado_id', $eligibleEstadoIds)
+                ->get(['id', 'codigo', 'destino'])
+                ->map(function ($row) use ($targetDestino) {
+                    $destino = strtoupper(trim((string) ($row->destino ?? '')));
+                    if ($destino === '' || $destino === $targetDestino) {
+                        return null;
+                    }
+
+                    return [
+                        'type' => 'int',
+                        'id' => (int) $row->id,
+                        'key' => $this->regionalObservationKey('int', (int) $row->id),
+                        'codigo' => (string) ($row->codigo ?: 'SIN CODIGO'),
+                        'destino' => $destino,
+                        'observacion' => '',
+                    ];
+                })
+                ->filter();
+
+            $items = $items->merge($intItems);
         }
 
         if (!empty($idsContratos)) {
@@ -8079,7 +8881,7 @@ class PaquetesEms extends Component
         return $valid;
     }
 
-    protected function prepareRegionalPesoZeroData(array $idsEms, array $idsContratos, array $idsSolicitudes): void
+    protected function prepareRegionalPesoZeroData(array $idsEms, array $idsInt = [], array $idsContratos = [], array $idsSolicitudes = []): void
     {
         $items = collect();
         $existingInputs = collect($this->regionalPesoInputs ?? []);
@@ -8103,6 +8905,31 @@ class PaquetesEms extends Component
                             'id' => (int) $paquete->id,
                             'codigo' => (string) ($paquete->codigo ?: 'SIN CODIGO'),
                             'peso' => (float) ($paquete->peso ?? 0),
+                            'input' => $existingInputs->get($key, ''),
+                        ];
+                    })
+            );
+        }
+
+        if (!empty($idsInt)) {
+            $items = $items->merge(
+                PaqueteInt::query()
+                    ->whereIn('id', $idsInt)
+                    ->where(function ($query) {
+                        $query->whereNull('peso')
+                            ->orWhere('peso', '<=', 0);
+                    })
+                    ->orderBy('id')
+                    ->get(['id', 'codigo', 'peso'])
+                    ->map(function (PaqueteInt $paqueteInt) use ($existingInputs) {
+                        $key = 'int_' . (int) $paqueteInt->id;
+
+                        return [
+                            'key' => $key,
+                            'type' => 'int',
+                            'id' => (int) $paqueteInt->id,
+                            'codigo' => (string) ($paqueteInt->codigo ?: 'SIN CODIGO'),
+                            'peso' => (float) ($paqueteInt->peso ?? 0),
                             'input' => $existingInputs->get($key, ''),
                         ];
                     })
@@ -8166,9 +8993,9 @@ class PaquetesEms extends Component
             ->all();
     }
 
-    protected function ensureRegionalZeroWeightResolved(array $idsEms, array $idsContratos, array $idsSolicitudes): bool
+    protected function ensureRegionalZeroWeightResolved(array $idsEms, array $idsInt = [], array $idsContratos = [], array $idsSolicitudes = []): bool
     {
-        $this->prepareRegionalPesoZeroData($idsEms, $idsContratos, $idsSolicitudes);
+        $this->prepareRegionalPesoZeroData($idsEms, $idsInt, $idsContratos, $idsSolicitudes);
 
         if (empty($this->regionalPesoZeroItems)) {
             return true;
@@ -8214,6 +9041,14 @@ class PaquetesEms extends Component
 
                         PaqueteEmsFormulario::query()
                             ->where('paquete_ems_id', $id)
+                            ->update(['peso' => $peso]);
+
+                        continue;
+                    }
+
+                    if ($type === 'int') {
+                        PaqueteInt::query()
+                            ->whereKey($id)
                             ->update(['peso' => $peso]);
 
                         continue;

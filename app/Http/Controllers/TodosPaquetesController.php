@@ -463,28 +463,20 @@ class TodosPaquetesController extends Controller
                 'cod_especial' => 'cod_especial',
                 'origen' => 'origen',
                 'destino' => 'ciudad',
+                'empresa' => null,
                 'destinatario' => 'nombre_destinatario',
                 'remitente' => 'nombre_remitente',
                 'telefono' => 'telefono_destinatario',
                 'peso' => 'peso',
                 'precio' => 'precio',
             ]),
-            $this->selectFor('contrato', 'paquetes_contrato', 'estados_id', [
-                'codigo' => 'codigo',
-                'cod_especial' => 'cod_especial',
-                'origen' => 'origen',
-                'destino' => 'destino',
-                'destinatario' => 'nombre_d',
-                'remitente' => 'nombre_r',
-                'telefono' => 'telefono_d',
-                'peso' => 'peso',
-                'precio' => 'precio',
-            ]),
+            $this->selectForContrato(),
             $this->selectFor('certi', 'paquetes_certi', 'fk_estado', [
                 'codigo' => 'codigo',
                 'cod_especial' => 'cod_especial',
                 'origen' => null,
                 'destino' => 'cuidad',
+                'empresa' => null,
                 'destinatario' => 'destinatario',
                 'remitente' => null,
                 'telefono' => 'telefono',
@@ -496,6 +488,7 @@ class TodosPaquetesController extends Controller
                 'cod_especial' => 'cod_especial',
                 'origen' => null,
                 'destino' => 'ciudad',
+                'empresa' => null,
                 'destinatario' => 'destinatario',
                 'remitente' => null,
                 'telefono' => 'telefono',
@@ -507,6 +500,7 @@ class TodosPaquetesController extends Controller
                 'cod_especial' => 'cod_especial',
                 'origen' => 'origen',
                 'destino' => 'ciudad',
+                'empresa' => null,
                 'destinatario' => 'nombre_destinatario',
                 'remitente' => 'nombre_remitente',
                 'telefono' => 'telefono_destinatario',
@@ -544,6 +538,11 @@ class TodosPaquetesController extends Controller
                 : DB::raw("'' as " . $alias);
         }
 
+        $empresaColumn = $columns['empresa'] ?? null;
+        $selects[] = $empresaColumn
+            ? DB::raw('COALESCE(' . $table . '.' . $empresaColumn . "::text, '') as empresa")
+            : DB::raw("'' as empresa");
+
         $selects[] = DB::raw('COALESCE(' . $table . '.' . ($columns['peso'] ?? 'id') . "::text, '') as peso");
         $selects[] = DB::raw('COALESCE(' . $table . '.' . ($columns['precio'] ?? 'id') . "::text, '') as precio");
         $selects[] = DB::raw($table . '.' . $stateColumn . ' as estado_id');
@@ -555,6 +554,51 @@ class TodosPaquetesController extends Controller
         return DB::table($table)
             ->leftJoin('estados', 'estados.id', '=', $table . '.' . $stateColumn)
             ->select($selects);
+    }
+
+    private function selectForContrato()
+    {
+        $table = 'paquetes_contrato';
+        $label = self::TYPES['contrato']['label'];
+        $empresaExpr = "COALESCE(NULLIF(TRIM(emp.nombre), ''), NULLIF(TRIM(emp_user.nombre), ''), '')";
+
+        return DB::table($table)
+            ->leftJoin('estados', 'estados.id', '=', $table . '.estados_id')
+            ->leftJoin('empresa as emp', 'emp.id', '=', $table . '.empresa_id')
+            ->leftJoin('users as u', 'u.id', '=', $table . '.user_id')
+            ->leftJoin('empresa as emp_user', 'emp_user.id', '=', 'u.empresa_id')
+            ->select([
+                DB::raw("'contrato' as type_key"),
+                DB::raw("'" . str_replace("'", "''", $label) . "' as tipo"),
+                DB::raw($table . '.id as record_id'),
+                DB::raw("COALESCE(" . $table . ".codigo::text, '') as codigo"),
+                DB::raw("COALESCE(" . $table . ".cod_especial::text, '') as cod_especial"),
+                DB::raw("COALESCE(" . $table . ".origen::text, '') as origen"),
+                DB::raw("COALESCE(" . $table . ".destino::text, '') as destino"),
+                DB::raw($empresaExpr . ' as empresa'),
+                DB::raw("COALESCE(" . $table . ".nombre_d::text, '') as destinatario"),
+                DB::raw("COALESCE(" . $table . ".nombre_r::text, '') as remitente"),
+                DB::raw("COALESCE(" . $table . ".telefono_d::text, '') as telefono"),
+                DB::raw("COALESCE(" . $table . ".peso::text, '') as peso"),
+                DB::raw("COALESCE(" . $table . ".precio::text, '') as precio"),
+                DB::raw($table . '.estados_id as estado_id'),
+                DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+                DB::raw($table . '.created_at as created_at'),
+                DB::raw($table . '.updated_at as updated_at'),
+                DB::raw(
+                    "LOWER(CONCAT_WS(' ', " .
+                    "COALESCE(" . $table . ".codigo::text, ''), " .
+                    "COALESCE(" . $table . ".cod_especial::text, ''), " .
+                    "COALESCE(" . $table . ".origen::text, ''), " .
+                    "COALESCE(" . $table . ".destino::text, ''), " .
+                    $empresaExpr . ", " .
+                    "COALESCE(" . $table . ".nombre_d::text, ''), " .
+                    "COALESCE(" . $table . ".nombre_r::text, ''), " .
+                    "COALESCE(" . $table . ".telefono_d::text, ''), " .
+                    "COALESCE(estados.nombre_estado, '')" .
+                    ")) as search_blob"
+                ),
+            ]);
     }
 
     private function searchExpression(string $table, array $columns, bool $rawCodigo): string

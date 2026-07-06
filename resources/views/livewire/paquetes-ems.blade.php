@@ -1051,6 +1051,11 @@
                             @endif
                             <div class="header-actions-group">
                                 @if ($this->isAdmision)
+                                    @if ($canEmsAdmisionCreate)
+                                    <button class="btn btn-dorado" type="button" wire:click="openPaqueteIntModal">
+                                        Anadir paquete INT
+                                    </button>
+                                    @endif
                                     @if ($canEmsAssign)
                                     <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
                                         GENERADOS EL DIA DE HOY
@@ -1584,7 +1589,7 @@
                     @if ($this->canSelect)
                         @php
                             $seleccionadosTotal = ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
-                                ? (count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes))
+                                ? (count($selectedPaquetes) + count($selectedPaquetesInt) + count($selectedContratos) + count($selectedSolicitudes))
                                 : count($selectedPaquetes);
                         @endphp
                         <div class="muted small">
@@ -1599,13 +1604,14 @@
                 </div>
 
                 @php
-                    $seleccionadosTotalGlobal = (count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes));
+                    $seleccionadosTotalGlobal = (count($selectedPaquetes) + count($selectedPaquetesInt) + count($selectedContratos) + count($selectedSolicitudes));
                 @endphp
                 @if ($this->canUseSelectedPreview && $seleccionadosTotalGlobal > 0)
                     <div class="prelist-shell mb-3">
                         @php
                             $selectedPreviewBase = collect($selectedPreviewRows ?? collect());
                             $selectedPreviewEms = $selectedPreviewBase->where('tipo', 'EMS')->count();
+                            $selectedPreviewInt = $selectedPreviewBase->where('tipo', 'INT')->count();
                             $selectedPreviewContratos = $selectedPreviewBase->where('tipo', 'CONTRATO')->count();
                             $selectedPreviewSolicitudes = $selectedPreviewBase->where('tipo', 'SOLICITUD')->count();
                             $selectedPreviewFiltered = $selectedPreviewBase;
@@ -1638,6 +1644,7 @@
                         </div>
                         <div class="prelist-kpis">
                             <span class="prelist-kpi">EMS: <strong>{{ $selectedPreviewEms }}</strong></span>
+                            <span class="prelist-kpi">INT: <strong>{{ $selectedPreviewInt }}</strong></span>
                             <span class="prelist-kpi">CONTRATO: <strong>{{ $selectedPreviewContratos }}</strong></span>
                             <span class="prelist-kpi">SOLICITUD: <strong>{{ $selectedPreviewSolicitudes }}</strong></span>
                         </div>
@@ -1646,6 +1653,7 @@
                                 <select wire:model.live="selectedPreviewType" class="form-control" style="max-width: 230px;">
                                     <option value="TODOS">Todos</option>
                                     <option value="EMS">EMS</option>
+                                    <option value="INT">INT</option>
                                     <option value="CONTRATO">Contrato</option>
                                     <option value="SOLICITUD">Solicitud</option>
                                 </select>
@@ -1799,6 +1807,8 @@
                                             <td>
                                                 @if (($row->record_type ?? '') === 'EMS')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes" wire:key="check-almacen-ems-{{ $row->record_id }}">
+                                                @elseif (($row->record_type ?? '') === 'INT')
+                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetesInt" wire:key="check-almacen-int-{{ $row->record_id }}">
                                                 @elseif (($row->record_type ?? '') === 'CONTRATO')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedContratos" wire:key="check-almacen-contrato-{{ $row->record_id }}">
                                                 @else
@@ -1825,10 +1835,12 @@
                                         @endif
                                         <td class="action-cell">
                                             <div class="action-stack">
+                                            @if (($row->record_type ?? '') !== 'INT')
                                             @include('partials.rastreo-eventos-button', [
                                                 'tipo' => strtolower((string) ($row->record_type ?? 'EMS')),
                                                 'codigo' => $row->codigo,
                                             ])
+                                            @endif
                                             @if (($row->record_type ?? '') === 'EMS')
                                                 @if ($this->isAlmacenEms || $this->isTransitoEms)
                                                     @if ($canEmsEdit)
@@ -1857,22 +1869,22 @@
                                                     </button>
                                                     @endif
                                                 @endif
+                                            @elseif (($row->record_type ?? '') === 'CONTRATO')
+                                                <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
+                                                   target="_blank"
+                                                   class="btn btn-sm btn-outline-azul action-btn"
+                                                   title="Reimprimir rotulo">
+                                                    <i class="fas fa-print"></i>
+                                                </a>
+                                            @elseif (($row->record_type ?? '') === 'SOLICITUD')
+                                                <a href="{{ route('paquetes-ems.solicitudes.ticket', $row->record_id) }}"
+                                                   target="_blank"
+                                                   class="btn btn-sm btn-outline-azul action-btn"
+                                                   title="Imprimir ticket de solicitud">
+                                                    <i class="fas fa-print"></i>
+                                                </a>
                                             @else
-                                                @if (($row->record_type ?? '') === 'CONTRATO')
-                                                    <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
-                                                       target="_blank"
-                                                       class="btn btn-sm btn-outline-azul action-btn"
-                                                       title="Reimprimir rotulo">
-                                                        <i class="fas fa-print"></i>
-                                                    </a>
-                                                @else
-                                                    <a href="{{ route('paquetes-ems.solicitudes.ticket', $row->record_id) }}"
-                                                       target="_blank"
-                                                       class="btn btn-sm btn-outline-azul action-btn"
-                                                       title="Imprimir ticket de solicitud">
-                                                        <i class="fas fa-print"></i>
-                                                    </a>
-                                                @endif
+                                                <span class="badge badge-warning">INT</span>
                                             @endif
                                             </div>
                                         </td>
@@ -1886,6 +1898,10 @@
                                     </tr>
                                 @endforelse
                             @else
+                                @php
+                                    $hayPaquetesAdmision = $paquetes->count() > 0;
+                                    $hayPaquetesIntAdmision = $paquetesIntAdmision->count() > 0;
+                                @endphp
                                 @forelse ($paquetes as $paquete)
                                     @php
                                         $formulario = $paquete->formulario;
@@ -1947,13 +1963,45 @@
                                         </td>
                                     </tr>
                                 @empty
+                                @endforelse
+
+                                @foreach ($paquetesIntAdmision as $paqueteInt)
+                                    <tr>
+                                        @if ($this->canSelect)
+                                            <td></td>
+                                        @endif
+                                        <td><span class="pill-id">{{ $paqueteInt->codigo }}</span></td>
+                                        <td>INT</td>
+                                        <td>-</td>
+                                        <td>{{ optional($paqueteInt->servicio)->nombre_servicio ?? '-' }}</td>
+                                        <td>{{ $paqueteInt->destino ?: '-' }}</td>
+                                        <td>PAQUETE INTERNACIONAL</td>
+                                        <td>1</td>
+                                        <td>{{ number_format((float) $paqueteInt->peso, 3) }}</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>{{ $paqueteInt->origen ?: '-' }}</td>
+                                        <td>{{ optional($paqueteInt->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                        <td class="action-cell">
+                                            <div class="action-stack">
+                                                <span class="badge badge-warning">INT</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+
+                                @if (!$hayPaquetesAdmision && !$hayPaquetesIntAdmision)
                                     <tr>
                                         <td colspan="{{ $this->canSelect ? 18 : 17 }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
                                     </tr>
-                                @endforelse
+                                @endif
                             @endif
                         </tbody>
                     </table>
@@ -3095,6 +3143,58 @@
         </div>
     </div>
 
+    <div class="modal fade" id="paqueteIntModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Anadir paquete INT</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Codigo</label>
+                        <input type="text" class="form-control text-uppercase" wire:model.defer="paqueteIntCodigo" placeholder="Ej: INT001">
+                        @error('paqueteIntCodigo') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group">
+                        <label>Origen (automatico del usuario)</label>
+                        <input type="text" class="form-control" wire:model="paqueteIntOrigen" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Destino</label>
+                        <select class="form-control" wire:model.defer="paqueteIntDestino">
+                            <option value="">Seleccione...</option>
+                            @foreach($ciudades as $ciudadOpt)
+                                <option value="{{ $ciudadOpt }}">{{ $ciudadOpt }}</option>
+                            @endforeach
+                        </select>
+                        @error('paqueteIntDestino') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Peso</label>
+                            <input type="number" step="0.001" min="0.001" class="form-control" wire:model.defer="paqueteIntPeso">
+                            @error('paqueteIntPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Precio</label>
+                            <input type="number" step="0.01" min="0" class="form-control" wire:model.defer="paqueteIntPrecio">
+                            @error('paqueteIntPrecio') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" wire:click="registrarPaqueteInt">
+                        Guardar paquete INT
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="contratoPesoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
@@ -3489,6 +3589,8 @@
             closeContratoRegistrarModal: '#contratoRegistrarModal',
             openEnvioOficialModal: '#envioOficialModal',
             closeEnvioOficialModal: '#envioOficialModal',
+            openPaqueteIntModal: '#paqueteIntModal',
+            closePaqueteIntModal: '#paqueteIntModal',
             openContratoPesoModal: '#contratoPesoModal',
             closeContratoPesoModal: '#contratoPesoModal',
             openTiktokerPesoModal: '#tiktokerPesoModal',

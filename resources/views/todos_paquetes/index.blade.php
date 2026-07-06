@@ -24,7 +24,7 @@
             <div class="card-header">
                 <div>
                     <h3 class="card-title mb-1">Busqueda unificada</h3>
-                    <div class="tp-muted">EMS, contratos, certificados, ordinarios y solicitudes.</div>
+                    <div class="tp-muted">EMS, contratos, certificados, ordinarios y solicitudes. La busqueda tambien contempla empresa.</div>
                 </div>
             </div>
             <div class="card-body">
@@ -36,7 +36,7 @@
                             name="q"
                             value="{{ $search }}"
                             class="form-control"
-                            placeholder="Codigo, CN-33, destinatario, telefono, ciudad, estado..."
+                            placeholder="Codigo, CN-33, empresa, destinatario, telefono, ciudad, estado..."
                         >
                     </div>
                     <div class="col-lg-2 col-md-3 mb-2">
@@ -86,6 +86,7 @@
                                 <th>CN-33</th>
                                 <th>Origen</th>
                                 <th>Destino</th>
+                                <th>Empresa</th>
                                 <th>Destinatario</th>
                                 <th>Telefono</th>
                                 <th>Peso</th>
@@ -104,6 +105,7 @@
                                     <td>{{ $paquete->cod_especial ?: '-' }}</td>
                                     <td>{{ $paquete->origen ?: '-' }}</td>
                                     <td>{{ $paquete->destino ?: '-' }}</td>
+                                    <td>{{ $paquete->empresa ?: '-' }}</td>
                                     <td>{{ $paquete->destinatario ?: '-' }}</td>
                                     <td>{{ $paquete->telefono ?: '-' }}</td>
                                     <td>{{ $paquete->peso !== '' ? $paquete->peso : '-' }}</td>
@@ -184,7 +186,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="13" class="text-center text-muted py-4">No hay paquetes con los filtros seleccionados.</td>
+                                    <td colspan="14" class="text-center text-muted py-4">No hay paquetes con los filtros seleccionados.</td>
                                 </tr>
                             @endforelse
                         </tbody>

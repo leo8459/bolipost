@@ -101,8 +101,10 @@
         <thead>
             <tr>
                 <th>#</th>
+                <th>Tipo</th>
                 <th>Codigo</th>
                 <th>Usuario</th>
+                <th>Precio</th>
                 <th>Fecha/Hora de registro</th>
                 <th>Traspaso</th>
             </tr>
@@ -111,8 +113,16 @@
             @foreach ($paquetes as $index => $paquete)
                 <tr>
                     <td>{{ $index + 1 }}</td>
+                    <td>{{ $paquete->tipo ?? 'EMS' }}</td>
                     <td>{{ $paquete->codigo }}</td>
-                    <td>{{ optional($paquete->user)->name ?? 'N/A' }}</td>
+                    <td>{{ $paquete->usuario ?? (optional($paquete->user)->name ?? 'N/A') }}</td>
+                    <td>
+                        @if (($paquete->precio ?? null) !== null)
+                            {{ number_format((float) $paquete->precio, 2) }}
+                        @else
+                            -
+                        @endif
+                    </td>
                     <td>{{ optional($paquete->created_at)->format('d/m/Y H:i:s') }}</td>
                     <td>{{ $generatedAt->format('d/m/Y H:i:s') }}</td>
                 </tr>
