@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\BitacoraDepartamentoExport;
 use App\Models\Bitacora;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
@@ -10,6 +11,7 @@ use App\Models\Recojo;
 use App\Models\User;
 use App\Services\BitacoraFacturaQrService;
 use App\Support\BitacoraCn33Service;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BitacoraController extends Controller
 {
@@ -29,6 +32,28 @@ class BitacoraController extends Controller
     }
 
     public function index(Request $request): View
+    {
+        return view('bitacoras.index', $this->buildIndexData($request));
+    }
+
+    public function exportExcel(Request $request)
+    {
+        $data = $this->buildIndexData($request, false);
+        $filename = 'reporte-bitacoras-departamentos-' . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(new BitacoraDepartamentoExport($this->buildDepartmentReportPayload($data)), $filename);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $data = $this->buildIndexData($request, false);
+        $payload = $this->buildDepartmentReportPayload($data);
+        $pdf = Pdf::loadView('bitacoras.report-departamentos-pdf', $payload)->setPaper('A4', 'landscape');
+
+        return $pdf->download('reporte-bitacoras-departamentos-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    private function buildIndexData(Request $request, bool $paginate = true): array
     {
         $regionalScope = $this->resolveRegionalScopeForUser(Auth::user());
         $q = trim((string) $request->query('q', ''));
@@ -51,20 +76,22 @@ class BitacoraController extends Controller
             ->whereNotNull('peso')
             ->groupBy(DB::raw('trim(upper(cod_especial))'));
 
-        $bitacoras = Bitacora::query()
+        $bitacorasQuery = Bitacora::query()
             ->with([
                 'user:id,name',
-                'paqueteEms:id,codigo,cod_especial,origen',
-                'paqueteContrato:id,codigo,cod_especial,origen',
+                'paqueteEms:id,codigo,cod_especial,origen,ciudad',
+                'paqueteContrato:id,codigo,cod_especial,origen,destino',
                 'paqueteOrdi:id,codigo,cod_especial',
                 'paqueteCerti:id,codigo,cod_especial',
             ])
             ->whereIn('id', $latestIdsQuery)
-            ->orderByDesc('id')
-            ->paginate(15)
-            ->withQueryString();
+            ->orderByDesc('id');
 
-        $codEspecialesPagina = $bitacoras->getCollection()
+        $bitacoras = $paginate
+            ? $bitacorasQuery->paginate(15)->withQueryString()
+            : $bitacorasQuery->get();
+
+        $codEspecialesPagina = collect($bitacoras instanceof \Illuminate\Contracts\Pagination\Paginator ? $bitacoras->getCollection() : $bitacoras)
             ->pluck('cod_especial')
             ->map(fn ($codigo) => strtoupper(trim((string) $codigo)))
             ->filter()
@@ -74,8 +101,8 @@ class BitacoraController extends Controller
         $detallesPorCodEspecial = Bitacora::query()
             ->with([
                 'user:id,name',
-                'paqueteEms:id,codigo,cod_especial,origen',
-                'paqueteContrato:id,codigo,cod_especial,origen',
+                'paqueteEms:id,codigo,cod_especial,origen,ciudad',
+                'paqueteContrato:id,codigo,cod_especial,origen,destino',
                 'paqueteOrdi:id,codigo,cod_especial',
                 'paqueteCerti:id,codigo,cod_especial',
             ])
@@ -103,8 +130,45 @@ class BitacoraController extends Controller
             ->pluck('provincia');
 
         $pendingCn33Alert = $this->cn33Service->getPendingRegistrationAlert(regional: $regionalScope);
+        $reportRows = $this->buildDepartmentReportRows($latestIdsQuery);
+        $reportByOrigin = $reportRows
+            ->groupBy('origen_departamento')
+            ->map(function ($rows, $origin) {
+                return (object) [
+                    'departamento' => $origin,
+                    'total_registros' => (int) $rows->sum('total_registros'),
+                    'total_precio' => round((float) $rows->sum('total_precio'), 2),
+                    'total_peso' => round((float) $rows->sum('total_peso'), 3),
+                ];
+            })
+            ->sortByDesc('total_precio')
+            ->values();
 
-        return view('bitacoras.index', compact(
+        $reportByDestination = $reportRows
+            ->groupBy('destino_departamento')
+            ->map(function ($rows, $destination) {
+                return (object) [
+                    'departamento' => $destination,
+                    'total_registros' => (int) $rows->sum('total_registros'),
+                    'total_precio' => round((float) $rows->sum('total_precio'), 2),
+                    'total_peso' => round((float) $rows->sum('total_peso'), 3),
+                ];
+            })
+            ->sortByDesc('total_precio')
+            ->values();
+
+        $reportByTransportadora = $this->buildTransportadoraRankingRows($latestIdsQuery);
+
+        $reportTotals = [
+            'total_registros' => (int) $reportRows->sum('total_registros'),
+            'total_precio' => round((float) $reportRows->sum('total_precio'), 2),
+            'total_peso' => round((float) $reportRows->sum('total_peso'), 3),
+            'origenes' => $reportByOrigin->count(),
+            'destinos' => $reportByDestination->count(),
+            'transportadoras' => $reportByTransportadora->count(),
+        ];
+
+        return compact(
             'bitacoras',
             'detallesPorCodEspecial',
             'users',
@@ -117,8 +181,72 @@ class BitacoraController extends Controller
             'provincia',
             'regional',
             'origenCn33',
-            'pendingCn33Alert'
-        ));
+            'pendingCn33Alert',
+            'reportRows',
+            'reportByOrigin',
+            'reportByDestination',
+            'reportByTransportadora',
+            'reportTotals'
+        );
+    }
+
+    private function buildDepartmentReportRows($latestIdsQuery)
+    {
+        return Bitacora::query()
+            ->from('bitacoras as b')
+            ->leftJoin('paquetes_ems as pe', 'pe.id', '=', 'b.paquetes_ems_id')
+            ->leftJoin('paquetes_contrato as pc', 'pc.id', '=', 'b.paquetes_contrato_id')
+            ->whereIn('b.id', $latestIdsQuery)
+            ->selectRaw("
+                COALESCE(NULLIF(trim(upper(COALESCE(pe.origen, pc.origen, ''))), ''), 'SIN ORIGEN') as origen_departamento,
+                COALESCE(NULLIF(trim(upper(COALESCE(pe.ciudad, pc.destino, ''))), ''), 'SIN DESTINO') as destino_departamento,
+                COUNT(*) as total_registros,
+                COALESCE(SUM(b.precio_total), 0) as total_precio,
+                COALESCE(SUM(b.peso), 0) as total_peso
+            ")
+            ->groupByRaw("
+                COALESCE(NULLIF(trim(upper(COALESCE(pe.origen, pc.origen, ''))), ''), 'SIN ORIGEN'),
+                COALESCE(NULLIF(trim(upper(COALESCE(pe.ciudad, pc.destino, ''))), ''), 'SIN DESTINO')
+            ")
+            ->orderByDesc('total_precio')
+            ->get();
+    }
+
+    private function buildDepartmentReportPayload(array $data): array
+    {
+        return [
+            'generatedAt' => now(),
+            'filters' => [
+                'q' => (string) ($data['q'] ?? ''),
+                'regional' => (string) ($data['regional'] ?? ''),
+                'user' => optional(collect($data['users'] ?? [])->firstWhere('id', (int) ($data['userId'] ?? 0)))->name,
+                'codEspecial' => (string) ($data['codEspecial'] ?? ''),
+                'provincia' => (string) ($data['provincia'] ?? ''),
+                'origenCn33' => (string) ($data['origenCn33'] ?? ''),
+            ],
+            'reportRows' => $data['reportRows'] ?? collect(),
+            'reportByOrigin' => $data['reportByOrigin'] ?? collect(),
+            'reportByDestination' => $data['reportByDestination'] ?? collect(),
+            'reportByTransportadora' => $data['reportByTransportadora'] ?? collect(),
+            'reportTotals' => $data['reportTotals'] ?? [],
+        ];
+    }
+
+    private function buildTransportadoraRankingRows($latestIdsQuery)
+    {
+        return Bitacora::query()
+            ->from('bitacoras as b')
+            ->whereIn('b.id', $latestIdsQuery)
+            ->selectRaw("
+                COALESCE(NULLIF(trim(upper(COALESCE(b.transportadora, ''))), ''), 'SIN TRANSPORTADORA') as transportadora,
+                COUNT(*) as total_registros,
+                COALESCE(SUM(b.precio_total), 0) as total_precio,
+                COALESCE(SUM(b.peso), 0) as total_peso
+            ")
+            ->groupByRaw("COALESCE(NULLIF(trim(upper(COALESCE(b.transportadora, ''))), ''), 'SIN TRANSPORTADORA')")
+            ->orderByDesc('total_registros')
+            ->orderByDesc('total_precio')
+            ->get();
     }
 
     private function applyBitacoraFilters($query, string $q, int $userId, string $codEspecial, string $provincia, string $regional, string $origenCn33): void
@@ -439,7 +567,7 @@ class BitacoraController extends Controller
 
         $data['cod_especial'] = $codEspecial;
         $data['user_id'] = (int) Auth::id();
-        $data['transportadora'] = $this->emptyToNull($data['transportadora'] ?? null);
+        $data['transportadora'] = $this->normalizeUpperOrNull($data['transportadora'] ?? null);
         $data['provincia'] = $this->normalizeUpperOrNull($data['provincia'] ?? null);
         $data['factura'] = $this->emptyToNull($data['factura'] ?? null);
         $data['precio_total'] = $data['precio_total'] ?? ($totales['precio_total'] > 0 ? $totales['precio_total'] : null);

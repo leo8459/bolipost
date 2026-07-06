@@ -186,6 +186,10 @@
         margin-top: 0.75rem;
     }
 
+    .text-uppercase-live {
+        text-transform: uppercase;
+    }
+
     @media (max-width: 768px) {
         .bitacora-file-actions {
             grid-template-columns: 1fr;
@@ -281,7 +285,8 @@
                             id="transportadora"
                             name="transportadora"
                             value="{{ old('transportadora', $bitacora->transportadora) }}"
-                            class="form-control @error('transportadora') is-invalid @enderror"
+                            class="form-control text-uppercase-live @error('transportadora') is-invalid @enderror"
+                            style="text-transform: uppercase;"
                         >
                         @error('transportadora')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -515,6 +520,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             const codeInput = document.getElementById('cod_especial');
             const weightInput = document.getElementById('peso');
+            const transportadoraInput = document.getElementById('transportadora');
             const helpBox = document.getElementById('cn33-summary-help');
             const qrFileInputs = document.querySelectorAll('.js-factura-file');
             const qrResultBox = document.getElementById('bitacora-qr-result');
@@ -534,6 +540,27 @@
 
             if (!codeInput || !weightInput || !helpBox) {
                 return;
+            }
+
+            const normalizeUppercaseValue = (input) => {
+                if (!input) {
+                    return;
+                }
+
+                input.value = String(input.value || '').toUpperCase();
+            };
+
+            if (transportadoraInput) {
+                normalizeUppercaseValue(transportadoraInput);
+                transportadoraInput.addEventListener('input', function () {
+                    normalizeUppercaseValue(transportadoraInput);
+                });
+                transportadoraInput.addEventListener('change', function () {
+                    normalizeUppercaseValue(transportadoraInput);
+                });
+                transportadoraInput.addEventListener('blur', function () {
+                    normalizeUppercaseValue(transportadoraInput);
+                });
             }
 
             const setHelp = (message, type = '') => {

@@ -129,6 +129,128 @@
             margin-top: 0.25rem;
         }
 
+        .bitacoras-report {
+            padding: 18px;
+            border-bottom: 1px solid var(--bitacora-border);
+            background:
+                radial-gradient(circle at top right, rgba(254, 204, 54, 0.18), transparent 28%),
+                linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+        }
+
+        .bitacoras-report-title {
+            color: var(--bitacora-primary);
+            font-size: 1rem;
+            font-weight: 800;
+            margin-bottom: 0.2rem;
+        }
+
+        .bitacoras-report-subtitle {
+            color: #5e6b86;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+
+        .bitacoras-report-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .bitacoras-report-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-bitacora-export {
+            min-height: 42px;
+            border-radius: 12px;
+            font-weight: 800;
+            padding-inline: 1rem;
+            border: 1px solid rgba(32, 83, 154, 0.18);
+            background: #fff;
+            color: var(--bitacora-primary);
+        }
+
+        .btn-bitacora-export:hover {
+            color: #173d72;
+            background: #eff6ff;
+        }
+
+        .bitacoras-metric-card {
+            border: 1px solid rgba(32, 83, 154, 0.12);
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+            padding: 1rem;
+            height: 100%;
+        }
+
+        .bitacoras-metric-label {
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-size: 0.76rem;
+            font-weight: 800;
+            margin-bottom: 0.35rem;
+        }
+
+        .bitacoras-metric-value {
+            color: var(--bitacora-primary);
+            font-size: 1.45rem;
+            line-height: 1.1;
+            font-weight: 900;
+        }
+
+        .bitacoras-metric-note {
+            color: #64748b;
+            font-size: 0.82rem;
+            margin-top: 0.3rem;
+        }
+
+        .bitacoras-report-table {
+            border: 1px solid var(--bitacora-border);
+            border-radius: 14px;
+            background: #fff;
+            overflow: hidden;
+            height: 100%;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .bitacoras-report-table .table {
+            margin-bottom: 0;
+        }
+
+        .bitacoras-report-table .table thead th {
+            background: #eef3ff;
+            color: var(--bitacora-primary);
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            border-bottom: 1px solid #d8e2f5;
+        }
+
+        .bitacoras-report-table .table td {
+            vertical-align: middle;
+            border-top: 1px solid rgba(32, 83, 154, 0.08);
+        }
+
+        .bitacoras-report-table-title {
+            color: #0f172a;
+            font-size: 0.95rem;
+            font-weight: 800;
+            margin: 0;
+            padding: 1rem 1rem 0.4rem;
+        }
+
+        .bitacoras-report-table-subtitle {
+            color: #64748b;
+            font-size: 0.8rem;
+            padding: 0 1rem 0.9rem;
+        }
+
         .btn-bitacoras-filter,
         .btn-bitacoras-clear {
             min-height: 44px;
@@ -462,6 +584,187 @@
                                 </form>
                             </div>
 
+                            <div class="bitacoras-report">
+                                <div class="bitacoras-report-head">
+                                    <div>
+                                        <div class="bitacoras-report-title">Reporte profesional por departamento</div>
+                                        <div class="bitacoras-report-subtitle">El resumen usa las mismas bitacoras filtradas actualmente y acumula el `precio_total` por origen, destino y ruta.</div>
+                                    </div>
+                                    <div class="bitacoras-report-actions">
+                                        <a href="{{ route('bitacoras.export-pdf', request()->query()) }}" class="btn btn-bitacora-export" target="_blank">
+                                            Exportar PDF
+                                        </a>
+                                        <a href="{{ route('bitacoras.export-excel', request()->query()) }}" class="btn btn-bitacora-export">
+                                            Exportar Excel
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-lg-3 col-md-6 mb-3">
+                                        <div class="bitacoras-metric-card">
+                                            <div class="bitacoras-metric-label">Precio total acumulado</div>
+                                            <div class="bitacoras-metric-value">Bs {{ number_format((float) data_get($reportTotals, 'total_precio', 0), 2) }}</div>
+                                            <div class="bitacoras-metric-note">Total consolidado del reporte actual</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-3 col-md-6 mb-3">
+                                        <div class="bitacoras-metric-card">
+                                            <div class="bitacoras-metric-label">Registros agrupados</div>
+                                            <div class="bitacoras-metric-value">{{ number_format((int) data_get($reportTotals, 'total_registros', 0)) }}</div>
+                                            <div class="bitacoras-metric-note">Bitacoras finales consideradas</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-3 col-md-6 mb-3">
+                                        <div class="bitacoras-metric-card">
+                                            <div class="bitacoras-metric-label">Departamentos origen</div>
+                                            <div class="bitacoras-metric-value">{{ number_format((int) data_get($reportTotals, 'origenes', 0)) }}</div>
+                                            <div class="bitacoras-metric-note">Orígenes únicos detectados</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-3 col-md-6 mb-3">
+                                        <div class="bitacoras-metric-card">
+                                            <div class="bitacoras-metric-label">Departamentos destino</div>
+                                            <div class="bitacoras-metric-value">{{ number_format((int) data_get($reportTotals, 'destinos', 0)) }}</div>
+                                            <div class="bitacoras-metric-note">Destinos únicos detectados</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-3 col-md-6 mb-3">
+                                        <div class="bitacoras-metric-card">
+                                            <div class="bitacoras-metric-label">Transportadoras</div>
+                                            <div class="bitacoras-metric-value">{{ number_format((int) data_get($reportTotals, 'transportadoras', 0)) }}</div>
+                                            <div class="bitacoras-metric-note">Transportadoras únicas en el reporte</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-xl-3 mb-3">
+                                        <div class="bitacoras-report-table">
+                                            <h4 class="bitacoras-report-table-title">Ranking de transportadoras</h4>
+                                            <div class="bitacoras-report-table-subtitle">Muestra a cuál transportadora se envía más, ordenado por cantidad de registros.</div>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Transportadora</th>
+                                                            <th class="text-right">Envíos</th>
+                                                            <th class="text-right">Precio Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @forelse($reportByTransportadora as $row)
+                                                            <tr>
+                                                                <td>{{ strtoupper((string) $row->transportadora) }}</td>
+                                                                <td class="text-right">{{ number_format((int) $row->total_registros) }}</td>
+                                                                <td class="text-right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr>
+                                                                <td colspan="3" class="text-center text-muted py-3">No hay datos para mostrar.</td>
+                                                            </tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-xl-3 mb-3">
+                                        <div class="bitacoras-report-table">
+                                            <h4 class="bitacoras-report-table-title">Totales por origen</h4>
+                                            <div class="bitacoras-report-table-subtitle">Precio total y peso acumulado por departamento de salida.</div>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Origen</th>
+                                                            <th class="text-right">Registros</th>
+                                                            <th class="text-right">Precio Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @forelse($reportByOrigin as $row)
+                                                            <tr>
+                                                                <td>{{ $row->departamento }}</td>
+                                                                <td class="text-right">{{ number_format((int) $row->total_registros) }}</td>
+                                                                <td class="text-right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr>
+                                                                <td colspan="3" class="text-center text-muted py-3">No hay datos para mostrar.</td>
+                                                            </tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-xl-3 mb-3">
+                                        <div class="bitacoras-report-table">
+                                            <h4 class="bitacoras-report-table-title">Totales por destino</h4>
+                                            <div class="bitacoras-report-table-subtitle">Resumen del importe acumulado según departamento de llegada.</div>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Destino</th>
+                                                            <th class="text-right">Registros</th>
+                                                            <th class="text-right">Precio Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @forelse($reportByDestination as $row)
+                                                            <tr>
+                                                                <td>{{ $row->departamento }}</td>
+                                                                <td class="text-right">{{ number_format((int) $row->total_registros) }}</td>
+                                                                <td class="text-right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr>
+                                                                <td colspan="3" class="text-center text-muted py-3">No hay datos para mostrar.</td>
+                                                            </tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-xl-3 mb-3">
+                                        <div class="bitacoras-report-table">
+                                            <h4 class="bitacoras-report-table-title">Cruce origen y destino</h4>
+                                            <div class="bitacoras-report-table-subtitle">Vista ejecutiva para identificar las rutas con mayor facturación.</div>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Ruta</th>
+                                                            <th class="text-right">Registros</th>
+                                                            <th class="text-right">Precio Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @forelse($reportRows as $row)
+                                                            <tr>
+                                                                <td>{{ $row->origen_departamento }} <span class="text-muted">→</span> {{ $row->destino_departamento }}</td>
+                                                                <td class="text-right">{{ number_format((int) $row->total_registros) }}</td>
+                                                                <td class="text-right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr>
+                                                                <td colspan="3" class="text-center text-muted py-3">No hay datos para mostrar.</td>
+                                                            </tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="bitacoras-table-wrap">
                                 <div class="table-responsive">
                                     <table class="table table-striped table-hover">
@@ -531,7 +834,7 @@
                                                             -
                                                         @endif
                                                     </td>
-                                                    <td>{{ $bitacora->transportadora ?: '-' }}</td>
+                                                    <td>{{ $bitacora->transportadora ? strtoupper((string) $bitacora->transportadora) : '-' }}</td>
                                                     <td>{{ $bitacora->provincia ?: '-' }}</td>
                                                     <td>{{ $bitacora->factura ?: '-' }}</td>
                                                     <td>{{ $bitacora->precio_total !== null ? number_format((float) $bitacora->precio_total, 2) : '-' }}</td>
@@ -667,7 +970,7 @@
                                                                             @endif
                                                                         </td>
                                                                         <td>{{ $detalle->paqueteEms->origen ?? $detalle->paqueteContrato->origen ?? '-' }}</td>
-                                                                        <td>{{ $detalle->transportadora ?: '-' }}</td>
+                                                                        <td>{{ $detalle->transportadora ? strtoupper((string) $detalle->transportadora) : '-' }}</td>
                                                                         <td>{{ $detalle->factura ?: '-' }}</td>
                                                                         <td>{{ $detalle->precio_total !== null ? number_format((float) $detalle->precio_total, 2) : '-' }}</td>
                                                                         <td>{{ $detalle->peso !== null ? number_format((float) $detalle->peso, 3) : '-' }}</td>
