@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PaqueteCerti;
+use App\Models\PaqueteInt;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
@@ -342,6 +343,62 @@ class FacturacionCartService
         return $cart;
     }
 
+    public function addPaqueteInt(User $user, PaqueteInt $paquete): object
+    {
+        $this->assertFacturacionPermission($user);
+
+        $paquete->loadMissing('servicio');
+        $servicioInternacional = $this->resolveServicioInternacional();
+        $servicio = $this->resolveFiscalServicio($servicioInternacional, $paquete->servicio, $this->resolveAnyServicioWithFiscalData())
+            ?: $servicioInternacional
+            ?: $paquete->servicio
+            ?: $this->resolveAnyServicioWithFiscalData();
+        $peso = $this->toFloatNumber($paquete->peso ?? 0);
+        $montoBase = round($this->toFloatNumber($paquete->precio ?? 0), 2);
+        $codigo = (string) ($paquete->codigo ?? '');
+        if (trim($codigo) === '') {
+            $codigo = (string) ($paquete->cod_especial ?? '');
+        }
+
+        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+            $this->originUserPayload($user),
+            $this->originSucursalPayload($user),
+            [
+                'origen_tipo' => PaqueteInt::class,
+                'origen_id' => (int) $paquete->id,
+                'codigo' => $codigo,
+                'titulo' => (string) ($servicio->nombre_servicio ?? 'Paquete interno'),
+                'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'PAQUETE INTERNO'),
+                'nombre_destinatario' => (string) ($paquete->destino ?? ''),
+                'servicios_extra' => [],
+                'resumen_origen' => [
+                    'codigo' => $codigo,
+                    'contenido' => 'INTERNO',
+                    'peso' => $peso,
+                    'destinatario' => (string) ($paquete->destino ?? ''),
+                    'direccion' => (string) ($paquete->destino ?? ''),
+                    'ciudad' => (string) ($paquete->destino ?? ''),
+                    'actividad_economica' => (string) ($servicio->actividadEconomica ?? ''),
+                    'codigo_sin' => (string) ($servicio->codigoSin ?? ''),
+                    'codigo_producto' => (string) ($servicio->codigo ?? $codigo),
+                    'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? 'PAQUETE INTERNO'),
+                    'unidad_medida' => $servicio->unidadMedida ?? 58,
+                ],
+                'cantidad' => 1,
+                'monto_base' => $montoBase,
+                'monto_extras' => 0,
+                'total_linea' => $montoBase,
+            ]
+        ));
+
+        $cart = $this->toCart(data_get($body, 'cart'));
+        if (!$cart) {
+            throw new \RuntimeException('No se pudo guardar item remoto.');
+        }
+
+        return $cart;
+    }
+
     public function addPaqueteContrato(User $user, Recojo $paquete): object
     {
         $this->assertFacturacionPermission($user);
@@ -437,6 +494,20 @@ class FacturacionCartService
             ]);
         }
 
+        $interno = PaqueteInt::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado]);
+            })
+            ->first();
+        if ($interno) {
+            $matches->push([
+                'type' => 'interno',
+                'label' => 'Paquete Interno',
+                'record' => $interno,
+            ]);
+        }
+
         $ems = PaqueteEms::query()
             ->where(function ($query) use ($codigoNormalizado) {
                 $query->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
@@ -467,7 +538,7 @@ class FacturacionCartService
         }
 
         if ($matches->isEmpty()) {
-            throw new \RuntimeException('No se encontro ningun paquete de Contratos, Ordinarios, Certificados, EMS o Solicitudes EMS con ese codigo.');
+            throw new \RuntimeException('No se encontro ningun paquete de Contratos, Ordinarios, Certificados, Internos, EMS o Solicitudes EMS con ese codigo.');
         }
 
         if ($matches->count() > 1) {
@@ -482,6 +553,7 @@ class FacturacionCartService
             'contrato' => $this->addPaqueteContrato($user, $record),
             'ordinario' => $this->addPaqueteOrdi($user, $record),
             'certificado' => $this->addPaqueteCerti($user, $record),
+            'interno' => $this->addPaqueteInt($user, $record),
             'ems' => $this->addPaqueteEms($user, $record),
             'solicitud_ems' => $this->addSolicitudEms($user, $record),
             default => throw new \RuntimeException('El codigo escaneado no tiene un modulo compatible con Facturacion.'),
@@ -1471,6 +1543,16 @@ class FacturacionCartService
         return $fallback ?: $servicio;
     }
 
+    private function resolveServicioInternacional(): ?Servicio
+    {
+        return Servicio::query()
+            ->where(function ($query) {
+                $query->whereRaw('trim(upper(nombre_servicio)) = trim(upper(?))', ['INTERNACIONAL'])
+                    ->orWhereRaw('trim(upper(codigo)) = trim(upper(?))', ['SRVI-001']);
+            })
+            ->first();
+    }
+
     private function resolveAnyServicioWithFiscalData(): ?Servicio
     {
         return Servicio::query()
@@ -1577,6 +1659,14 @@ class FacturacionCartService
             return $this->resolveFiscalServicio(
                 $paquete?->servicio,
                 $this->resolveModuloServicio('CERTIFICADAS')
+            );
+        }
+
+        if ($origenTipo === ltrim(PaqueteInt::class, '\\')) {
+            $paquete = PaqueteInt::query()->with('servicio')->find($origenId);
+            return $this->resolveFiscalServicio(
+                $paquete?->servicio,
+                $this->resolveAnyServicioWithFiscalData()
             );
         }
 

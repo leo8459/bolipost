@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\PaqueteEms;
+use App\Models\PaqueteInt;
 use App\Models\SolicitudCliente;
 use App\Models\User;
 use App\Services\FacturacionCartService;
@@ -42,6 +43,13 @@ class FacturacionCartScanAddTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('paquetes_int', function (Blueprint $table) {
+            $table->id();
+            $table->string('codigo')->nullable();
+            $table->string('cod_especial')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('solicitud_clientes', function (Blueprint $table) {
             $table->id();
             $table->string('codigo_solicitud')->nullable();
@@ -57,6 +65,7 @@ class FacturacionCartScanAddTest extends TestCase
         Schema::dropIfExists('paquetes_ordi');
         Schema::dropIfExists('paquetes_certi');
         Schema::dropIfExists('paquetes_ems');
+        Schema::dropIfExists('paquetes_int');
         Schema::dropIfExists('solicitud_clientes');
 
         Mockery::close();
@@ -117,5 +126,33 @@ class FacturacionCartScanAddTest extends TestCase
         $this->assertSame('Solicitud EMS', $resultado['item']['label']);
         $this->assertSame('SL00000016LP', $resultado['item']['code']);
         $this->assertSame(123, $resultado['cart']->id);
+    }
+
+    public function test_scan_add_resolves_paquete_int_by_codigo(): void
+    {
+        $paquete = PaqueteInt::query()->create([
+            'codigo' => 'INT-0001',
+            'cod_especial' => 'INTS-0001',
+        ]);
+
+        $user = Mockery::mock(User::class)->makePartial();
+        $user->shouldReceive('can')
+            ->with('feature.dashboard.facturacion')
+            ->andReturn(true);
+
+        $service = Mockery::mock(FacturacionCartService::class)->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('addPaqueteInt')
+            ->once()
+            ->withArgs(function ($receivedUser, $receivedPaquete) use ($user, $paquete) {
+                return $receivedUser === $user && $receivedPaquete->id === $paquete->id;
+            })
+            ->andReturn((object) ['id' => 321]);
+
+        $resultado = $service->addScannedItemByCode($user, 'INT-0001');
+
+        $this->assertSame('interno', $resultado['item']['type']);
+        $this->assertSame('Paquete Interno', $resultado['item']['label']);
+        $this->assertSame('INT-0001', $resultado['item']['code']);
+        $this->assertSame(321, $resultado['cart']->id);
     }
 }
