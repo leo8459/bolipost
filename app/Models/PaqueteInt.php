@@ -18,6 +18,7 @@ class PaqueteInt extends Model
         'peso',
         'precio',
         'destino',
+        'tramo',
         'enviado_admision_at',
     ];
 

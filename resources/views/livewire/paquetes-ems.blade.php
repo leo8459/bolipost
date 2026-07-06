@@ -3164,13 +3164,18 @@
                     </div>
                     <div class="form-group">
                         <label>Destino</label>
-                        <select class="form-control" wire:model.defer="paqueteIntDestino">
+                        <input type="text" class="form-control text-uppercase" wire:model.defer="paqueteIntDestino" placeholder="Escriba el destino">
+                        @error('paqueteIntDestino') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group">
+                        <label>Tramo</label>
+                        <select class="form-control" wire:model.defer="paqueteIntTramo">
                             <option value="">Seleccione...</option>
-                            @foreach($ciudades as $ciudadOpt)
-                                <option value="{{ $ciudadOpt }}">{{ $ciudadOpt }}</option>
+                            @foreach($departamentos as $departamento)
+                                <option value="{{ $departamento }}">{{ $departamento }}</option>
                             @endforeach
                         </select>
-                        @error('paqueteIntDestino') <small class="text-danger">{{ $message }}</small> @enderror
+                        @error('paqueteIntTramo') <small class="text-danger">{{ $message }}</small> @enderror
                     </div>
                     <div class="form-row">
                         <div class="form-group col-md-6">

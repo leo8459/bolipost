@@ -140,6 +140,7 @@ class PaquetesEms extends Component
     public $paqueteIntPeso = '';
     public $paqueteIntPrecio = '';
     public $paqueteIntDestino = '';
+    public $paqueteIntTramo = '';
     public $showCn33Reprint = false;
     public $showCn33Assign = false;
     public $showCn38Generate = false;
@@ -176,6 +177,18 @@ class PaquetesEms extends Component
         'COBIJA',
         'TARIJA',
         'SUCRE',
+        'ORURO',
+        'COCHABAMBA',
+        'POTOSI',
+    ];
+
+    public $departamentos = [
+        'LA PAZ',
+        'SANTA CRUZ',
+        'BENI',
+        'PANDO',
+        'TARIJA',
+        'CHUQUISACA',
         'ORURO',
         'COCHABAMBA',
         'POTOSI',
@@ -1049,11 +1062,13 @@ class PaquetesEms extends Component
         $this->paqueteIntPeso = '0.001';
         $this->paqueteIntPrecio = '';
         $this->paqueteIntDestino = '';
+        $this->paqueteIntTramo = '';
         $this->resetValidation([
             'paqueteIntCodigo',
             'paqueteIntPeso',
             'paqueteIntPrecio',
             'paqueteIntDestino',
+            'paqueteIntTramo',
         ]);
 
         $this->dispatch('openPaqueteIntModal');
@@ -1076,12 +1091,14 @@ class PaquetesEms extends Component
             ],
             'paqueteIntPeso' => 'required|numeric|min:0.001',
             'paqueteIntPrecio' => 'required|numeric|min:0',
-            'paqueteIntDestino' => ['required', 'string', Rule::in($this->ciudades)],
+            'paqueteIntDestino' => 'required|string|max:120',
+            'paqueteIntTramo' => ['required', 'string', Rule::in($this->departamentos)],
         ], [], [
             'paqueteIntCodigo' => 'codigo',
             'paqueteIntPeso' => 'peso',
             'paqueteIntPrecio' => 'precio',
             'paqueteIntDestino' => 'destino',
+            'paqueteIntTramo' => 'tramo',
         ]);
 
         $user = Auth::user();
@@ -1121,6 +1138,7 @@ class PaquetesEms extends Component
             'peso' => round((float) $validated['paqueteIntPeso'], 3),
             'precio' => round((float) $validated['paqueteIntPrecio'], 2),
             'destino' => strtoupper(trim((string) $validated['paqueteIntDestino'])),
+            'tramo' => strtoupper(trim((string) $validated['paqueteIntTramo'])),
             'cod_especial' => null,
             'enviado_admision_at' => null,
         ]);
@@ -1130,6 +1148,7 @@ class PaquetesEms extends Component
         $this->paqueteIntPeso = '0.001';
         $this->paqueteIntPrecio = '';
         $this->paqueteIntDestino = '';
+        $this->paqueteIntTramo = '';
         $this->dispatch('closePaqueteIntModal');
 
         session()->flash('success', 'Paquete INT registrado correctamente.');
