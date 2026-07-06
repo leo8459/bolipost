@@ -75,6 +75,7 @@ class FacturacionCartController extends Controller
             'direccion' => ['nullable', 'string', 'max:255'],
             'ciudad' => ['nullable', 'string', 'max:255'],
             'peso' => ['nullable', 'numeric', 'min:0'],
+            'precio' => ['required', 'numeric', 'min:0'],
             'actividad_economica' => ['nullable', 'string', 'max:6'],
             'codigo_sin' => ['nullable', 'string', 'max:50'],
             'codigo_producto' => ['nullable', 'string', 'max:50'],
@@ -83,7 +84,12 @@ class FacturacionCartController extends Controller
         ]);
 
         try {
-            $service->updateDraftItem($user, $itemId, $validated);
+            $payload = $validated;
+            $payload['monto_base'] = (float) $payload['precio'];
+            $payload['total_linea'] = (float) $payload['precio'];
+            $payload['precio'] = (float) $payload['precio'];
+
+            $service->updateDraftItem($user, $itemId, $payload);
 
             return back()->with('facturacion_feedback', [
                 'type' => 'success',
@@ -112,6 +118,63 @@ class FacturacionCartController extends Controller
             $cart ? 'success' : 'info',
             $cart ? 'Carrito borrador vaciado correctamente.' : 'No habia items en el carrito borrador.'
         );
+    }
+
+    public function scanAdd(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeFacturacionAccess($user);
+
+        $validated = $request->validate([
+            'scan_code' => ['required', 'string', 'max:120'],
+        ]);
+
+        try {
+            $resultado = $service->addScannedItemByCode($user, (string) $validated['scan_code']);
+            $item = (array) ($resultado['item'] ?? []);
+            $cart = $resultado['cart'] ?? null;
+
+            $feedback = [
+                'type' => 'success',
+                'title' => 'Item agregado al carrito',
+                'message' => trim((string) ($item['label'] ?? 'Paquete')) . ' agregado correctamente.',
+                'detail' => 'Codigo detectado: ' . trim((string) ($item['code'] ?? 'SIN CODIGO')) . '. Ya puedes seguir escaneando o emitir la factura.',
+                'action' => 'scan_add',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => true,
+                    'feedback' => $feedback,
+                    'item' => $item,
+                    'cart' => $this->buildCartPayload($cart),
+                ]);
+            }
+
+            return back()
+                ->with('facturacion_feedback', $feedback)
+                ->with('facturacion_scanner_open', true);
+        } catch (\RuntimeException $e) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No se pudo agregar el codigo',
+                'message' => 'El escaneo no pudo agregarse al carrito de Facturacion.',
+                'detail' => trim($e->getMessage()),
+                'action' => 'scan_add',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 422);
+            }
+
+            return back()
+                ->withInput()
+                ->with('facturacion_feedback', $feedback)
+                ->with('facturacion_scanner_open', true);
+        }
     }
 
     public function emitir(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
@@ -751,6 +814,35 @@ class FacturacionCartController extends Controller
 
             return $imageData;
         }
+    }
+
+    private function buildCartPayload(?object $cart): ?array
+    {
+        if (!$cart) {
+            return null;
+        }
+
+        $items = collect((array) ($cart->items ?? []))
+            ->map(function ($item) {
+                return [
+                    'id' => data_get($item, 'id'),
+                    'codigo' => (string) data_get($item, 'codigo', ''),
+                    'titulo' => (string) data_get($item, 'titulo', ''),
+                    'nombre_servicio' => (string) data_get($item, 'nombre_servicio', ''),
+                    'nombre_destinatario' => (string) data_get($item, 'nombre_destinatario', ''),
+                    'total_linea' => (float) data_get($item, 'total_linea', 0),
+                    'servicios_extra' => array_values((array) data_get($item, 'servicios_extra', [])),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'id' => data_get($cart, 'id'),
+            'cantidad_items' => (int) (data_get($cart, 'cantidad_items') ?? count($items)),
+            'total' => (float) data_get($cart, 'total', 0),
+            'items' => $items,
+        ];
     }
 
     private function authorizeFacturacionAccess($user): void

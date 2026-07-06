@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
+use App\Models\Recojo;
 use App\Models\Servicio;
 use App\Models\SolicitudCliente;
 use App\Models\User;
@@ -339,6 +340,161 @@ class FacturacionCartService
             throw new \RuntimeException('No se pudo guardar item remoto.');
         }
         return $cart;
+    }
+
+    public function addPaqueteContrato(User $user, Recojo $paquete): object
+    {
+        $this->assertFacturacionPermission($user);
+
+        $servicio = $this->resolveFiscalServicio(
+            $this->resolveModuloServicio('CONTRATOS'),
+            $this->resolveModuloServicio('ORDINARIAS'),
+            $this->resolveModuloServicio('CERTIFICADAS')
+        );
+        $montoBase = round($this->toFloatNumber($paquete->precio ?? 0), 2);
+        $peso = $this->toFloatNumber($paquete->peso ?? 0);
+
+        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+            $this->originUserPayload($user),
+            $this->originSucursalPayload($user),
+            [
+                'origen_tipo' => Recojo::class,
+                'origen_id' => (int) $paquete->id,
+                'codigo' => (string) ($paquete->codigo ?? ''),
+                'titulo' => (string) ($servicio->nombre_servicio ?? 'Paquete contrato'),
+                'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'PAQUETE CONTRATO'),
+                'nombre_destinatario' => (string) ($paquete->nombre_d ?? ''),
+                'servicios_extra' => [],
+                'resumen_origen' => [
+                    'codigo' => (string) ($paquete->codigo ?? ''),
+                    'contenido' => (string) ($paquete->contenido ?? 'CONTRATO'),
+                    'peso' => $peso,
+                    'destinatario' => (string) ($paquete->nombre_d ?? ''),
+                    'direccion' => (string) ($paquete->direccion_d ?? ''),
+                    'ciudad' => (string) ($paquete->destino ?? ''),
+                    'actividad_economica' => (string) ($servicio->actividadEconomica ?? ''),
+                    'codigo_sin' => (string) ($servicio->codigoSin ?? ''),
+                    'codigo_producto' => (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
+                    'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? 'PAQUETE CONTRATO'),
+                    'unidad_medida' => $servicio->unidadMedida ?? 58,
+                ],
+                'cantidad' => max(1, (int) ($paquete->cantidad ?? 1)),
+                'monto_base' => $montoBase,
+                'monto_extras' => 0,
+                'total_linea' => $montoBase,
+            ]
+        ));
+
+        $cart = $this->toCart(data_get($body, 'cart'));
+        if (!$cart) {
+            throw new \RuntimeException('No se pudo guardar item remoto.');
+        }
+
+        return $cart;
+    }
+
+    public function addScannedItemByCode(User $user, string $codigo): array
+    {
+        $this->assertFacturacionPermission($user);
+
+        $codigoNormalizado = strtoupper(trim($codigo));
+        if ($codigoNormalizado === '') {
+            throw new \RuntimeException('Ingresa un codigo valido para escanear.');
+        }
+
+        $matches = collect();
+
+        $contrato = Recojo::query()
+            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+            ->first();
+        if ($contrato) {
+            $matches->push([
+                'type' => 'contrato',
+                'label' => 'Paquete Contrato',
+                'record' => $contrato,
+            ]);
+        }
+
+        $ordinario = PaqueteOrdi::query()
+            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+            ->first();
+        if ($ordinario) {
+            $matches->push([
+                'type' => 'ordinario',
+                'label' => 'Paquete Ordinario',
+                'record' => $ordinario,
+            ]);
+        }
+
+        $certificado = PaqueteCerti::query()
+            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+            ->first();
+        if ($certificado) {
+            $matches->push([
+                'type' => 'certificado',
+                'label' => 'Paquete Certificado',
+                'record' => $certificado,
+            ]);
+        }
+
+        $ems = PaqueteEms::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado]);
+            })
+            ->first();
+        if ($ems) {
+            $matches->push([
+                'type' => 'ems',
+                'label' => 'Paquete EMS',
+                'record' => $ems,
+            ]);
+        }
+
+        $solicitudEms = SolicitudCliente::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(COALESCE(codigo_solicitud, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(barcode, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado]);
+            })
+            ->first();
+        if ($solicitudEms) {
+            $matches->push([
+                'type' => 'solicitud_ems',
+                'label' => 'Solicitud EMS',
+                'record' => $solicitudEms,
+            ]);
+        }
+
+        if ($matches->isEmpty()) {
+            throw new \RuntimeException('No se encontro ningun paquete de Contratos, Ordinarios, Certificados, EMS o Solicitudes EMS con ese codigo.');
+        }
+
+        if ($matches->count() > 1) {
+            $labels = $matches->pluck('label')->implode(', ');
+            throw new \RuntimeException('El codigo existe en varios modulos (' . $labels . '). Revisa el registro antes de agregarlo al carrito.');
+        }
+
+        $match = $matches->first();
+        $record = $match['record'];
+
+        $cart = match ($match['type']) {
+            'contrato' => $this->addPaqueteContrato($user, $record),
+            'ordinario' => $this->addPaqueteOrdi($user, $record),
+            'certificado' => $this->addPaqueteCerti($user, $record),
+            'ems' => $this->addPaqueteEms($user, $record),
+            'solicitud_ems' => $this->addSolicitudEms($user, $record),
+            default => throw new \RuntimeException('El codigo escaneado no tiene un modulo compatible con Facturacion.'),
+        };
+
+        return [
+            'cart' => $cart,
+            'item' => [
+                'type' => (string) $match['type'],
+                'label' => (string) $match['label'],
+                'code' => (string) ($record->codigo ?? $codigoNormalizado),
+            ],
+        ];
     }
 
     public function addSolicitudEms(User $user, SolicitudCliente $solicitud): object
@@ -1438,6 +1594,14 @@ class FacturacionCartService
             if ($servicio instanceof Servicio) {
                 return $this->resolveFiscalServicio($servicio);
             }
+        }
+
+        if ($origenTipo === ltrim(Recojo::class, '\\')) {
+            return $this->resolveFiscalServicio(
+                $this->resolveModuloServicio('CONTRATOS'),
+                $this->resolveModuloServicio('ORDINARIAS'),
+                $this->resolveModuloServicio('CERTIFICADAS')
+            );
         }
 
         if ($origenTipo === ltrim(SolicitudCliente::class, '\\')) {

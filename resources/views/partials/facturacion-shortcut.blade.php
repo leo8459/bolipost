@@ -26,6 +26,7 @@
     if (!in_array($activeInvoiceChannel, ['factura_electronica', 'qr'], true)) {
         $activeInvoiceChannel = 'factura_electronica';
     }
+    $activeInvoiceChannel = 'factura_electronica';
     $activeDocumentType = (string) ($activeFacturacionCart?->tipo_documento ?? '');
     $defaultBillingEmail = 'safe@correos.gob.bo';
     $storedBillingEmail = trim((string) ($activeFacturacionCart?->correo_facturacion ?? ''));
@@ -44,6 +45,11 @@
         'codigo' => 'Codigo de producto',
         'descripcion' => 'Descripcion del servicio',
         'unidadMedida' => 'Unidad de medida',
+        'montoBase' => 'Precio',
+        'monto_base' => 'Precio',
+        'precio' => 'Precio',
+        'totalLinea' => 'Precio',
+        'total_linea' => 'Precio',
     ];
     $draftEmissionIssues = collect(\Illuminate\Support\Arr::dot($draftEmissionErrors))
         ->map(function ($messages, $path) use ($facturacionItemsForValidation, $validationFieldLabels) {
@@ -80,6 +86,7 @@
     $shouldRenderShortcutFeedback = is_array($facturacionFeedback) && !$isCajaShortcutFeedback;
     $shouldOpenShortcutWithFeedback = $shouldRenderShortcutFeedback && $facturacionFeedbackAction !== 'consultar';
     $shouldOpenConsultFeedbackModal = is_array($facturacionFeedback) && $facturacionFeedbackAction === 'consultar';
+    $shouldOpenFacturacionScanner = (bool) session('facturacion_scanner_open') || old('scan_code') !== null;
     $isRejectedDraft = $activeFacturacionCart && ($activeFacturacionCart->estado_emision ?? null) === 'RECHAZADA';
     $lastEmissionReason = (string) ($resultadoEmision['razon'] ?? '');
     $lastEmissionAttempts = (int) ($resultadoEmision['_meta']['intentos'] ?? 0);
@@ -256,6 +263,7 @@
                                     data-item-direccion="{{ (string) data_get($issueItem->resumen_origen, 'direccion', '') }}"
                                     data-item-ciudad="{{ (string) data_get($issueItem->resumen_origen, 'ciudad', '') }}"
                                     data-item-peso="{{ (string) data_get($issueItem->resumen_origen, 'peso', '') }}"
+                                    data-item-precio="{{ number_format((float) (data_get($issueItem, 'monto_base') ?? data_get($issueItem, 'precio') ?? data_get($issueItem, 'total_linea', 0)), 2, '.', '') }}"
                                     data-item-actividad-economica="{{ (string) data_get($issueItem->resumen_origen, 'actividad_economica', '') }}"
                                     data-item-codigo-sin="{{ (string) data_get($issueItem->resumen_origen, 'codigo_sin', '') }}"
                                     data-item-codigo-producto="{{ (string) data_get($issueItem->resumen_origen, 'codigo_producto', '') }}"
@@ -296,12 +304,9 @@
 
                     <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Emision</span>
-                        <div class="global-shortcut-choice-row" role="tablist" aria-label="Tipo de salida de factura">
+                        <div class="global-shortcut-choice-row global-shortcut-choice-row--single" role="tablist" aria-label="Tipo de salida de factura">
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
                                 Factura electronica
-                            </button>
-                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'qr') is-active @endif" data-invoice-channel-choice="qr" @disabled(!$isCajaAbierta)>
-                                QR
                             </button>
                         </div>
                     </div>
@@ -309,7 +314,7 @@
 
                 <div class="global-shortcut-billing-inline__grid" id="facturacionBillingFields">
                     <div class="global-shortcut-field">
-                        <label for="facturacionBillingDocumentNumber">Numero</label>
+                        <label for="facturacionBillingDocumentNumber">Numero de documento</label>
                         <input
                             type="text"
                             id="facturacionBillingDocumentNumber"
@@ -381,6 +386,46 @@
                     </div>
                 </div>
             </form>
+
+            <details class="global-shortcut-scan-panel" @if($shouldOpenFacturacionScanner) open @endif>
+                <summary class="global-shortcut-scan-panel__summary">
+                    <span class="global-shortcut-scan-panel__summary-main">
+                        <span class="global-shortcut-scan-panel__summary-icon" aria-hidden="true">
+                            <i class="fas fa-barcode"></i>
+                        </span>
+                        <span class="global-shortcut-scan-panel__summary-copy">
+                            <span class="global-shortcut-scan-panel__eyebrow">Carga manual</span>
+                            <span class="global-shortcut-scan-panel__title">Agregar al carrito por codigo</span>
+                        </span>
+                    </span>
+                </summary>
+                <div class="global-shortcut-scan-panel__body">
+                    <form
+                        method="POST"
+                        action="{{ route('facturacion.cart.scan-add') }}"
+                        class="global-shortcut-scan-form"
+                        id="facturacionScanForm"
+                    >
+                        @csrf
+                        <div class="global-shortcut-scan-form__row">
+                            <input
+                                type="text"
+                                name="scan_code"
+                                id="facturacionScanCode"
+                                value="{{ old('scan_code') }}"
+                                placeholder="Escanea aqui el codigo"
+                                autocomplete="off"
+                                autocapitalize="characters"
+                                spellcheck="false"
+                                @disabled(!$isCajaAbierta)
+                            >
+                            <button type="submit" class="global-shortcut-secondary-btn" @disabled(!$isCajaAbierta)>
+                                Agregar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </details>
 
             <div class="global-shortcut-cart-summary">
                 <div class="global-shortcut-cart-summary__metric">
@@ -468,6 +513,7 @@
                                         data-item-direccion="{{ (string) data_get($item->resumen_origen, 'direccion', '') }}"
                                         data-item-ciudad="{{ (string) data_get($item->resumen_origen, 'ciudad', '') }}"
                                         data-item-peso="{{ (string) data_get($item->resumen_origen, 'peso', '') }}"
+                                        data-item-precio="{{ number_format((float) (data_get($item, 'monto_base') ?? data_get($item, 'precio') ?? data_get($item, 'total_linea', 0)), 2, '.', '') }}"
                                         data-item-actividad-economica="{{ (string) data_get($item->resumen_origen, 'actividad_economica', '') }}"
                                         data-item-codigo-sin="{{ (string) data_get($item->resumen_origen, 'codigo_sin', '') }}"
                                         data-item-codigo-producto="{{ (string) data_get($item->resumen_origen, 'codigo_producto', '') }}"
@@ -681,64 +727,58 @@
             </div>
             <h4 id="facturacionItemEditTitle" class="global-shortcut-confirm__title">Corregir item antes de reenviar</h4>
             <p class="global-shortcut-confirm__message">
-                Ajusta los datos observados y guarda el item para volver a intentar la emision.
+                Ajusta solo el precio del item y guarda los cambios para volver a intentar la emision.
             </p>
             <form method="POST" action="" id="facturacionItemEditForm" class="global-shortcut-item-edit-form">
                 @csrf
                 @method('PUT')
-                <div class="global-shortcut-item-edit-alert is-hidden" id="facturacionItemEditAlert" aria-live="polite"></div>
+                <input type="hidden" id="facturacionEditItemCodigo" name="codigo" required>
+                <input type="hidden" id="facturacionEditItemTitulo" name="titulo" required>
+                <input type="hidden" id="facturacionEditItemServicio" name="nombre_servicio">
+                <input type="hidden" id="facturacionEditItemDestinatario" name="nombre_destinatario">
+                <input type="hidden" id="facturacionEditItemContenido" name="contenido">
+                <input type="hidden" id="facturacionEditItemDireccion" name="direccion">
+                <input type="hidden" id="facturacionEditItemCiudad" name="ciudad">
+                <input type="hidden" id="facturacionEditItemPeso" name="peso">
+                <input type="hidden" id="facturacionEditItemActividadEconomica" name="actividad_economica">
+                <input type="hidden" id="facturacionEditItemCodigoSin" name="codigo_sin">
+                <input type="hidden" id="facturacionEditItemCodigoProducto" name="codigo_producto">
+                <input type="hidden" id="facturacionEditItemUnidadMedida" name="unidad_medida">
+                <input type="hidden" id="facturacionEditItemDescripcionServicio" name="descripcion_servicio">
+                <div class="global-shortcut-item-edit-summary">
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Codigo</span>
+                        <strong id="facturacionEditItemCodigoResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Titulo</span>
+                        <strong id="facturacionEditItemTituloResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Servicio</span>
+                        <strong id="facturacionEditItemServicioResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Destinatario</span>
+                        <strong id="facturacionEditItemDestinatarioResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Contenido</span>
+                        <strong id="facturacionEditItemContenidoResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Direccion</span>
+                        <strong id="facturacionEditItemDireccionResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Ciudad</span>
+                        <strong id="facturacionEditItemCiudadResumen">-</strong>
+                    </div>
+                </div>
                 <div class="global-shortcut-item-edit-grid">
-                    <div class="global-shortcut-field" data-edit-field-key="codigo_item">
-                        <label for="facturacionEditItemCodigo">Codigo de item</label>
-                        <input type="text" id="facturacionEditItemCodigo" name="codigo" required>
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="peso">
-                        <label for="facturacionEditItemPeso">Peso</label>
-                        <input type="number" id="facturacionEditItemPeso" name="peso" min="0" step="0.001" placeholder="Ej. 0.100">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="titulo">
-                        <label for="facturacionEditItemTitulo">Titulo</label>
-                        <input type="text" id="facturacionEditItemTitulo" name="titulo" required>
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="nombre_servicio">
-                        <label for="facturacionEditItemServicio">Servicio</label>
-                        <input type="text" id="facturacionEditItemServicio" name="nombre_servicio">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="nombre_destinatario">
-                        <label for="facturacionEditItemDestinatario">Destinatario</label>
-                        <input type="text" id="facturacionEditItemDestinatario" name="nombre_destinatario">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="contenido">
-                        <label for="facturacionEditItemContenido">Contenido</label>
-                        <input type="text" id="facturacionEditItemContenido" name="contenido">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="direccion">
-                        <label for="facturacionEditItemDireccion">Direccion</label>
-                        <input type="text" id="facturacionEditItemDireccion" name="direccion">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="ciudad">
-                        <label for="facturacionEditItemCiudad">Ciudad</label>
-                        <input type="text" id="facturacionEditItemCiudad" name="ciudad">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="actividadEconomica">
-                        <label for="facturacionEditItemActividadEconomica">Actividad economica</label>
-                        <input type="text" id="facturacionEditItemActividadEconomica" name="actividad_economica" maxlength="6" placeholder="6 caracteres">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="codigoSin">
-                        <label for="facturacionEditItemCodigoSin">Codigo SIN</label>
-                        <input type="text" id="facturacionEditItemCodigoSin" name="codigo_sin">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="codigo">
-                        <label for="facturacionEditItemCodigoProducto">Codigo de producto</label>
-                        <input type="text" id="facturacionEditItemCodigoProducto" name="codigo_producto">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="unidadMedida">
-                        <label for="facturacionEditItemUnidadMedida">Unidad de medida</label>
-                        <input type="number" id="facturacionEditItemUnidadMedida" name="unidad_medida" min="1" step="1">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="descripcion">
-                        <label for="facturacionEditItemDescripcionServicio">Descripcion del servicio</label>
-                        <input type="text" id="facturacionEditItemDescripcionServicio" name="descripcion_servicio">
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="precio">
+                        <label for="facturacionEditItemPrecio">Precio</label>
+                        <input type="number" id="facturacionEditItemPrecio" name="precio" min="0" step="0.01" required>
                     </div>
                 </div>
                 <div class="global-shortcut-confirm__actions">
@@ -1943,6 +1983,9 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
         }
+        .global-shortcut-choice-row--single {
+            grid-template-columns: 1fr;
+        }
         .global-shortcut-choice-row--triple {
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
@@ -2008,6 +2051,101 @@
         .global-shortcut-anonymous-note.is-hidden,
         .global-shortcut-sin-cliente.is-hidden {
             display: none;
+        }
+        .global-shortcut-scan-panel {
+            margin-top: 16px;
+            border: 1px solid #dbe7f5;
+            border-radius: 16px;
+            background: linear-gradient(180deg, #f9fbff 0%, #ffffff 100%);
+            overflow: hidden;
+        }
+        .global-shortcut-scan-panel[open] {
+            border-color: #c7daf2;
+            box-shadow: 0 10px 24px rgba(17, 47, 92, .08);
+        }
+        .global-shortcut-scan-panel__summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .global-shortcut-scan-panel__summary::-webkit-details-marker {
+            display: none;
+        }
+        .global-shortcut-scan-panel__summary-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+        .global-shortcut-scan-panel__summary-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            background: linear-gradient(135deg, #eef5ff 0%, #dfeeff 100%);
+            color: #20539a;
+            box-shadow: inset 0 0 0 1px rgba(32, 83, 154, .1);
+        }
+        .global-shortcut-scan-panel__summary-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+        .global-shortcut-scan-panel__eyebrow {
+            color: #6b7f9d;
+            font-size: .7rem;
+            font-weight: 800;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+        }
+        .global-shortcut-scan-panel__title {
+            color: #173962;
+            font-size: .98rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+        .global-shortcut-scan-panel__body {
+            padding: 0 16px 16px;
+            border-top: 1px solid #e7eff8;
+        }
+        .global-shortcut-scan-panel__text {
+            margin: 12px 0 0;
+            color: #607089;
+            font-size: .84rem;
+            line-height: 1.5;
+        }
+        .global-shortcut-scan-form {
+            margin-top: 12px;
+        }
+        .global-shortcut-scan-form__row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: center;
+        }
+        .global-shortcut-scan-form__row input {
+            width: 100%;
+            min-height: 46px;
+            border-radius: 12px;
+            border: 1px solid #d6e3f3;
+            background: #fff;
+            color: #173962;
+            font-size: .95rem;
+            padding: 0 14px;
+        }
+        .global-shortcut-scan-form__row input:focus {
+            outline: none;
+            border-color: #8eb2e2;
+            box-shadow: 0 0 0 3px rgba(32, 83, 154, .12);
         }
         .global-shortcut-field--full {
             grid-column: 1 / -1;
@@ -2519,14 +2657,17 @@
         .global-shortcut-confirm__panel {
             position: relative;
             width: min(420px, calc(100vw - 26px));
+            max-height: calc(100vh - 28px);
             padding: 0;
             border-radius: 24px;
             background: #ffffff;
             border: 1px solid rgba(32, 83, 154, .12);
             box-shadow: 0 18px 36px rgba(8, 24, 50, .2);
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
             transform: translateY(10px) scale(.97);
             transition: transform .2s ease;
+            scrollbar-gutter: stable;
         }
         .global-shortcut-confirm__panel--wide {
             width: min(620px, calc(100vw - 26px));
@@ -2671,6 +2812,7 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
             margin-top: 18px;
+            align-content: start;
         }
         .global-shortcut-item-edit-grid .global-shortcut-field.is-hidden {
             display: none;
@@ -2694,21 +2836,25 @@
                 justify-content: center;
             }
             .global-shortcut-modal__panel {
-                width: calc(100vw - 18px);
-                margin: 0 9px 9px;
-                border-radius: 18px;
-                max-height: calc(100vh - 18px);
+                width: calc(100vw - 12px);
+                margin: 0 6px 6px;
+                border-radius: 20px 20px 16px 16px;
+                max-height: calc(100vh - 12px);
             }
             .global-shortcut-modal__body {
-                padding: 16px 16px 10px;
+                padding: 16px 14px 10px;
             }
             .global-shortcut-modal__head {
                 gap: 10px;
+                align-items: center;
             }
             .global-shortcut-modal__title {
                 font-size: 1.18rem;
             }
             .global-shortcut-selector-block {
+                grid-template-columns: 1fr;
+            }
+            .global-shortcut-choice-row {
                 grid-template-columns: 1fr;
             }
             .global-shortcut-workflow-board__hero,
@@ -2730,11 +2876,27 @@
             .global-shortcut-billing-inline__grid {
                 grid-template-columns: 1fr;
             }
+            .global-shortcut-scan-panel__summary {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .global-shortcut-scan-form__row {
+                grid-template-columns: 1fr;
+            }
             .global-shortcut-field--full {
                 grid-column: auto;
             }
+            .global-shortcut-field-head {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .global-shortcut-email-toggle {
+                white-space: normal;
+                line-height: 1.35;
+            }
             .global-shortcut-confirm__panel {
                 width: calc(100vw - 18px);
+                max-height: calc(100vh - 18px);
                 border-radius: 20px;
             }
             .global-shortcut-confirm__panel--wide {
@@ -2758,6 +2920,10 @@
             .global-shortcut-confirm__actions {
                 grid-template-columns: 1fr;
                 padding: 0 16px 16px;
+                position: sticky;
+                bottom: 0;
+                margin-top: 14px;
+                background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #ffffff 18%, #ffffff 100%);
             }
             .global-shortcut-item-edit-form {
                 padding: 0 16px 16px;
@@ -2787,6 +2953,19 @@
             .facturacion-result-modal__meta-grid {
                 grid-template-columns: 1fr;
             }
+            .global-shortcut-modal__panel {
+                width: calc(100vw - 8px);
+                margin: 0 4px 4px;
+                max-height: calc(100vh - 8px);
+            }
+            .global-shortcut-confirm__panel {
+                width: calc(100vw - 8px);
+                max-height: calc(100vh - 8px);
+                border-radius: 18px;
+            }
+            .global-shortcut-confirm__panel--wide {
+                width: calc(100vw - 8px);
+            }
             .global-shortcut-selector-block {
                 grid-template-columns: 1fr;
             }
@@ -2807,8 +2986,43 @@
                 font-size: .8rem;
                 padding: 7px 8px;
             }
+            .global-shortcut-scan-panel__summary-main {
+                gap: 10px;
+            }
+            .global-shortcut-scan-panel__summary-icon {
+                width: 38px;
+                height: 38px;
+                border-radius: 12px;
+            }
+            .global-shortcut-scan-panel__title {
+                font-size: .92rem;
+            }
             .global-shortcut-cart-summary {
                 grid-template-columns: 1fr;
+            }
+            .global-shortcut-confirm__header {
+                padding: 16px 14px 10px;
+            }
+            .global-shortcut-confirm__title {
+                padding: 14px 14px 0;
+                font-size: 1.03rem;
+            }
+            .global-shortcut-confirm__message {
+                padding: 0 14px;
+                font-size: .88rem;
+                line-height: 1.45;
+            }
+            .global-shortcut-item-edit-form {
+                padding: 0 14px 14px;
+            }
+            .global-shortcut-item-edit-grid {
+                gap: 10px;
+            }
+            .global-shortcut-confirm__actions {
+                padding: 0 14px 14px;
+            }
+            .global-shortcut-confirm__btn {
+                min-height: 44px;
             }
             .global-shortcut-turno-row {
                 flex-direction: column;
@@ -2894,12 +3108,16 @@
             const facturacionItemEditCancel = document.getElementById('facturacionItemEditCancel');
             const facturacionItemEditButtons = document.querySelectorAll('[data-edit-facturacion-item="true"]');
             const facturacionItemEditSubmit = document.getElementById('facturacionItemEditSubmit');
-            const facturacionItemEditAlert = document.getElementById('facturacionItemEditAlert');
             const facturacionItemEditFields = document.querySelectorAll('[data-edit-field-key]');
             const facturacionBillingInlineForm = document.getElementById('facturacionBillingInlineForm');
             const facturacionBillingModeInput = document.getElementById('facturacionBillingModeInput');
             const facturacionInvoiceChannelInput = document.getElementById('facturacionInvoiceChannelInput');
             const facturacionBillingFields = document.getElementById('facturacionBillingFields');
+            const facturacionScanForm = document.getElementById('facturacionScanForm');
+            const facturacionScanCodeInput = document.getElementById('facturacionScanCode');
+            const facturacionScanPanel = facturacionScanForm
+                ? facturacionScanForm.closest('.global-shortcut-scan-panel')
+                : null;
 
             if (facturacionActionConfirmEyebrow) {
                 facturacionActionConfirmEyebrow.textContent = FACTURACION_CONFIRM_DEFAULTS.eyebrow;
@@ -2961,21 +3179,6 @@
                     payment_status: String(facturacionQrData.payment_status || ''),
                 })
                 : '';
-            const facturacionFieldNames = {
-                actividadEconomica: 'Actividad economica',
-                codigoSin: 'Codigo SIN',
-                codigo: 'Codigo de producto',
-                descripcion: 'Descripcion del servicio',
-                unidadMedida: 'Unidad de medida',
-            };
-            const facturacionFieldFocusMap = {
-                actividadEconomica: 'facturacionEditItemActividadEconomica',
-                codigoSin: 'facturacionEditItemCodigoSin',
-                codigo: 'facturacionEditItemCodigoProducto',
-                descripcion: 'facturacionEditItemDescripcionServicio',
-                unidadMedida: 'facturacionEditItemUnidadMedida',
-            };
-
             if (!facturacionShortcutModal || !openFacturacionShortcutBtn || !closeFacturacionShortcutBtn) {
                 return;
             }
@@ -4136,6 +4339,12 @@
                 openFacturacionShortcutBtn.setAttribute('aria-expanded', 'true');
 
                 window.setTimeout(() => {
+                    if (facturacionScanPanel instanceof HTMLDetailsElement && facturacionScanPanel.open && facturacionScanCodeInput instanceof HTMLInputElement) {
+                        facturacionScanCodeInput.focus();
+                        facturacionScanCodeInput.select();
+                        return;
+                    }
+
                     closeFacturacionShortcutBtn.focus();
                 }, 30);
             };
@@ -4266,26 +4475,23 @@
                     facturacionEditItemDireccion: trigger.dataset.itemDireccion || '',
                     facturacionEditItemCiudad: trigger.dataset.itemCiudad || '',
                     facturacionEditItemPeso: trigger.dataset.itemPeso || '',
+                    facturacionEditItemPrecio: trigger.dataset.itemPrecio || '',
                     facturacionEditItemActividadEconomica: trigger.dataset.itemActividadEconomica || '',
                     facturacionEditItemCodigoSin: trigger.dataset.itemCodigoSin || '',
                     facturacionEditItemCodigoProducto: trigger.dataset.itemCodigoProducto || '',
-                    facturacionEditItemDescripcionServicio: trigger.dataset.itemDescripcionServicio || '',
                     facturacionEditItemUnidadMedida: trigger.dataset.itemUnidadMedida || '',
+                    facturacionEditItemDescripcionServicio: trigger.dataset.itemDescripcionServicio || '',
                 };
 
-                const focusField = trigger.dataset.focusField || '';
-                const focusFieldId = facturacionFieldFocusMap[focusField] || 'facturacionEditItemCodigo';
-                const focusFieldName = facturacionFieldNames[focusField] || '';
-
-                if (facturacionItemEditAlert instanceof HTMLElement) {
-                    if (focusFieldName !== '') {
-                        facturacionItemEditAlert.textContent = 'Campo observado: ' + focusFieldName + '. Corrigelo y guarda el item antes de reenviar.';
-                        facturacionItemEditAlert.classList.remove('is-hidden');
-                    } else {
-                        facturacionItemEditAlert.textContent = '';
-                        facturacionItemEditAlert.classList.add('is-hidden');
-                    }
-                }
+                const summaryMap = {
+                    facturacionEditItemCodigoResumen: trigger.dataset.itemCodigo || '',
+                    facturacionEditItemTituloResumen: trigger.dataset.itemTitulo || '',
+                    facturacionEditItemServicioResumen: trigger.dataset.itemServicio || '',
+                    facturacionEditItemDestinatarioResumen: trigger.dataset.itemDestinatario || '',
+                    facturacionEditItemContenidoResumen: trigger.dataset.itemContenido || '',
+                    facturacionEditItemDireccionResumen: trigger.dataset.itemDireccion || '',
+                    facturacionEditItemCiudadResumen: trigger.dataset.itemCiudad || '',
+                };
 
                 Object.entries(fieldMap).forEach(([fieldId, value]) => {
                     const input = document.getElementById(fieldId);
@@ -4294,15 +4500,10 @@
                     }
                 });
 
-                facturacionItemEditFields.forEach((field) => {
-                    if (!(field instanceof HTMLElement)) {
-                        return;
-                    }
-
-                    if (focusField !== '') {
-                        field.classList.toggle('is-hidden', field.dataset.editFieldKey !== focusField);
-                    } else {
-                        field.classList.remove('is-hidden');
+                Object.entries(summaryMap).forEach(([fieldId, value]) => {
+                    const summary = document.getElementById(fieldId);
+                    if (summary instanceof HTMLElement) {
+                        summary.textContent = value || '-';
                     }
                 });
 
@@ -4310,10 +4511,10 @@
                 facturacionItemEditModal.setAttribute('aria-hidden', 'false');
 
                 window.setTimeout(() => {
-                    const firstField = document.getElementById(focusFieldId);
-                    if (firstField instanceof HTMLInputElement) {
-                        firstField.focus();
-                        firstField.select();
+                    const priceField = document.getElementById('facturacionEditItemPrecio');
+                    if (priceField instanceof HTMLInputElement) {
+                        priceField.focus();
+                        priceField.select();
                     }
                 }, 30);
             };
@@ -4325,17 +4526,6 @@
 
                 facturacionItemEditModal.classList.remove('is-open');
                 facturacionItemEditModal.setAttribute('aria-hidden', 'true');
-
-                if (facturacionItemEditAlert instanceof HTMLElement) {
-                    facturacionItemEditAlert.textContent = '';
-                    facturacionItemEditAlert.classList.add('is-hidden');
-                }
-
-                facturacionItemEditFields.forEach((field) => {
-                    if (field instanceof HTMLElement) {
-                        field.classList.remove('is-hidden');
-                    }
-                });
             };
 
             const openFacturacionActionConfirm = (form) => {
@@ -4522,6 +4712,18 @@
                     }
 
                     pollFacturacionQrStatus();
+                });
+            }
+            if (facturacionScanPanel instanceof HTMLDetailsElement && facturacionScanCodeInput instanceof HTMLInputElement) {
+                facturacionScanPanel.addEventListener('toggle', function () {
+                    if (!facturacionScanPanel.open) {
+                        return;
+                    }
+
+                    window.setTimeout(() => {
+                        facturacionScanCodeInput.focus();
+                        facturacionScanCodeInput.select();
+                    }, 40);
                 });
             }
             if (facturacionResultModalClose) {

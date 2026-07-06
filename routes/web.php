@@ -125,6 +125,7 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
     Route::post('/facturacion/cart/caja/cerrar', [FacturacionCartController::class, 'cerrarCaja'])->name('facturacion.cart.caja.cerrar');
     Route::post('/facturacion/cart/consultar', [FacturacionCartController::class, 'consultar'])->name('facturacion.cart.consultar');
     Route::post('/facturacion/cart/emitir', [FacturacionCartController::class, 'emitir'])->name('facturacion.cart.emitir');
+    Route::post('/facturacion/cart/scan-add', [FacturacionCartController::class, 'scanAdd'])->name('facturacion.cart.scan-add');
     Route::post('/facturacion/cart/clear', [FacturacionCartController::class, 'clear'])->name('facturacion.cart.clear');
     Route::delete('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'removeItem'])->name('facturacion.cart.items.destroy');
   });
