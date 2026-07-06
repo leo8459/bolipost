@@ -2096,6 +2096,7 @@ class CarterosController extends Controller
             ->select([
                 'id',
                 'codigo',
+                'cod_especial',
                 'destinatario',
                 'telefono',
                 'cuidad as ciudad',
@@ -2106,7 +2107,10 @@ class CarterosController extends Controller
                 'updated_at',
             ])
             ->when($codigo !== '', function ($query) use ($codigo) {
-                $query->whereRaw('LOWER(codigo) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
+                $query->where(function ($sub) use ($codigo) {
+                    $sub->whereRaw('LOWER(codigo) LIKE ?', ['%' . mb_strtolower($codigo) . '%'])
+                        ->orWhereRaw('LOWER(COALESCE(cod_especial, \'\')) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
+                });
             })
             ->when($estadoId !== null || $userId !== null, function ($query) use ($certiFilterIds, $estadoId, $userId, $includePackageStateMatches, $deliveryEventCodes) {
                 if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
@@ -2128,6 +2132,7 @@ class CarterosController extends Controller
                     'id' => $item->id,
                     'tipo_paquete' => 'CERTI',
                     'codigo' => $item->codigo,
+                    'codigo_aux' => (string) ($item->cod_especial ?? ''),
                     'origen' => null,
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
@@ -3597,7 +3602,7 @@ class CarterosController extends Controller
 
         $userCity = $this->normalizeUserCity($userCity);
         $codigo = trim((string) ($row['codigo'] ?? 'SIN CODIGO'));
-        $tipo = trim((string) ($row['tipo'] ?? 'PAQUETE'));
+        $tipo = trim((string) ($row['tipo_paquete'] ?? $row['tipo'] ?? 'PAQUETE'));
         $destino = $this->normalizeUserCity((string) ($row['ciudad'] ?? ''));
         $origen = $this->normalizeUserCity((string) ($row['origen'] ?? ''));
         $estadoId = (int) ($row['estado_id'] ?? 0);
