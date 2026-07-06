@@ -19,24 +19,6 @@ class MisVentasController extends Controller
         [$user, $filters] = $this->resolveRequestContext($request);
         $cajaContext = $this->resolveCajaContext($service, $user);
 
-        if ($filters['estado'] === 'borrador') {
-            $empty = collect();
-            $carts = new LengthAwarePaginator(
-                $empty,
-                0,
-                (int) $filters['per_page'],
-                (int) $filters['page'],
-                ['path' => $request->url(), 'query' => $request->query()]
-            );
-
-            return view('facturacion.mis-ventas', [
-                'carts' => $carts,
-                'summary' => $this->emptySummary(),
-                'filters' => $filters,
-                'cajaContext' => $cajaContext,
-            ]);
-        }
-
         $remote = $service->fetchKardexVentas($user, $filters);
         $rawRows = collect($remote['detalle'] ?? [])
             ->map(fn ($row) => is_array($row) ? (object) $row : $row)
@@ -108,28 +90,23 @@ class MisVentasController extends Controller
     public function exportPdf(Request $request, FacturacionCartService $service): Response
     {
         [$user, $filters] = $this->resolveRequestContext($request);
+        $exportFilters = $filters;
+        $exportFilters['per_page'] = 100;
+        $remote = $service->fetchKardexVentas($user, $exportFilters);
+        $rawRows = collect($remote['detalle'] ?? [])
+            ->map(fn ($row) => is_array($row) ? (object) $row : $row)
+            ->filter(fn ($row) => is_object($row))
+            ->values();
+        $ventasFallback = $service->fetchVentas($user, $exportFilters);
+        $fallbackRows = collect($ventasFallback['carts'] ?? [])
+            ->map(fn ($row) => is_array($row) ? (object) $row : $row)
+            ->filter(fn ($row) => is_object($row))
+            ->values();
 
-        if ($filters['estado'] === 'borrador') {
-            $rows = collect();
-            $carts = collect();
-        } else {
-            $exportFilters = $filters;
-            $exportFilters['per_page'] = 100;
-            $remote = $service->fetchKardexVentas($user, $exportFilters);
-            $rawRows = collect($remote['detalle'] ?? [])
-                ->map(fn ($row) => is_array($row) ? (object) $row : $row)
-                ->filter(fn ($row) => is_object($row))
-                ->values();
-            $ventasFallback = $service->fetchVentas($user, $exportFilters);
-            $fallbackRows = collect($ventasFallback['carts'] ?? [])
-                ->map(fn ($row) => is_array($row) ? (object) $row : $row)
-                ->filter(fn ($row) => is_object($row))
-                ->values();
-
-            $carts = $this->normalizeKardexRows($rawRows, $service, $user);
-            $carts = $this->mergeFallbackVentas($carts, $fallbackRows);
-            $rows = $this->buildPdfRows($carts);
-        }
+        $carts = $this->normalizeKardexRows($rawRows, $service, $user);
+        $carts = $this->mergeFallbackVentas($carts, $fallbackRows);
+        $carts = $this->applyLocalFilters($carts, $filters);
+        $rows = $this->buildPdfRows($carts);
 
         $totals = [
             'parcial' => round((float) $rows
@@ -196,7 +173,7 @@ class MisVentasController extends Controller
         ]);
 
         return [$user, [
-            'estado' => (string) ($validated['estado'] ?? 'all'),
+            'estado' => (string) (($validated['estado'] ?? 'all') === 'borrador' ? 'all' : ($validated['estado'] ?? 'all')),
             'estado_emision' => (string) ($validated['estado_emision'] ?? 'all'),
             'from' => $validated['from'] ?? $today,
             'to' => $validated['to'] ?? $today,
@@ -271,6 +248,8 @@ class MisVentasController extends Controller
     private function applyLocalFilters(Collection $rows, array $filters): Collection
     {
         $filtered = $rows;
+
+        $filtered = $filtered->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) !== 'borrador');
 
         if (($filters['estado'] ?? 'all') !== 'all') {
             $estado = strtolower((string) $filters['estado']);

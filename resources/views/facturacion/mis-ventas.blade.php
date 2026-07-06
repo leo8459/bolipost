@@ -51,14 +51,6 @@
                 'accent' => false,
             ],
             [
-                'label' => 'Borradores',
-                'value' => number_format($summary['totalBorradores']),
-                'meta' => '',
-                'params' => array_merge($baseFilterParams, ['estado' => 'borrador', 'estado_emision' => 'all']),
-                'active' => $filters['estado'] === 'borrador' && $filters['estado_emision'] === 'all',
-                'accent' => false,
-            ],
-            [
                 'label' => 'Total vendido',
                 'value' => 'Bs ' . number_format($summary['montoTotal'], 2),
                 'meta' => '',
@@ -153,7 +145,6 @@
                             <option value="all" {{ $filters['estado'] === 'all' ? 'selected' : '' }}>Todos</option>
                             <option value="emitido" {{ $filters['estado'] === 'emitido' ? 'selected' : '' }}>Emitido</option>
                             <option value="pendiente_pago" {{ $filters['estado'] === 'pendiente_pago' ? 'selected' : '' }}>Pendiente QR</option>
-                            <option value="borrador" {{ $filters['estado'] === 'borrador' ? 'selected' : '' }}>Borrador</option>
                         </select>
                     </div>
                     <div class="col-xl-2 col-lg-3 col-md-4 mb-3">
