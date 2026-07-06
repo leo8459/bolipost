@@ -24,11 +24,22 @@ class Bitacora extends Model
         'precio_total',
         'peso',
         'imagen_factura',
+        'qr_url',
+        'qr_texto',
+        'qr_datos',
+        'factura_fecha_emision',
+        'factura_nit_emisor',
+        'factura_cuf',
+        'factura_razon_social',
+        'factura_cliente',
+        'factura_direccion',
     ];
 
     protected $casts = [
         'precio_total' => 'decimal:2',
         'peso' => 'decimal:3',
+        'qr_datos' => 'array',
+        'factura_fecha_emision' => 'datetime',
     ];
 
     public function paqueteEms()

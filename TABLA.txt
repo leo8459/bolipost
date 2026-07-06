@@ -1,5 +1,5 @@
     php artisan migrate --path=/database/migrations/2026_06_25_120000_create_paquetes_int_table.php
-    php artisan migrate --path=/database/migrations/2026_06_25_121000_add_origen_to_paquetes_int_table.php
+    php artisan migrate --path=/database/migrations/2026_07_02_180000_add_qr_factura_fields_to_bitacoras_table.php
 
 +``+--
 

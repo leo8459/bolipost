@@ -8,12 +8,14 @@ use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\User;
+use App\Services\BitacoraFacturaQrService;
 use App\Support\BitacoraCn33Service;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
@@ -21,7 +23,8 @@ use Illuminate\View\View;
 class BitacoraController extends Controller
 {
     public function __construct(
-        private readonly BitacoraCn33Service $cn33Service
+        private readonly BitacoraCn33Service $cn33Service,
+        private readonly BitacoraFacturaQrService $facturaQrService
     ) {
     }
 
@@ -206,6 +209,92 @@ class BitacoraController extends Controller
         return response()->json($summary);
     }
 
+    public function extractFacturaQr(Request $request): JsonResponse
+    {
+        @set_time_limit(120);
+
+        $request->validate([
+            'imagen_factura' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
+        ]);
+
+        $file = $request->file('imagen_factura');
+        $startedAt = microtime(true);
+
+        Log::info('Bitacora QR: solicitud recibida.', [
+            'file' => $file?->getClientOriginalName(),
+            'mime' => $file?->getMimeType(),
+            'size' => $file?->getSize(),
+            'user_id' => $request->user()?->id,
+        ]);
+
+        $result = $this->facturaQrService->extractFromUploadedFile($file);
+
+        Log::info('Bitacora QR: solicitud finalizada.', [
+            'success' => (bool) ($result['success'] ?? false),
+            'message' => $result['message'] ?? null,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
+
+        if (!($result['success'] ?? false)) {
+            return response()->json($result, 422);
+        }
+
+        return $this->facturaQrJsonResponse($result);
+    }
+
+    public function extractFacturaQrText(Request $request): JsonResponse
+    {
+        $request->validate([
+            'qr_text' => ['required', 'string', 'max:4096'],
+        ]);
+
+        $startedAt = microtime(true);
+        $qrText = (string) $request->input('qr_text');
+
+        Log::info('Bitacora QR: texto recibido desde camara.', [
+            'user_id' => $request->user()?->id,
+            'qr_preview' => \Illuminate\Support\Str::limit($qrText, 160),
+        ]);
+
+        $result = $this->facturaQrService->extractFromQrText($qrText);
+
+        Log::info('Bitacora QR: texto de camara procesado.', [
+            'success' => (bool) ($result['success'] ?? false),
+            'message' => $result['message'] ?? null,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
+
+        if (!($result['success'] ?? false)) {
+            return response()->json($result, 422);
+        }
+
+        return $this->facturaQrJsonResponse($result);
+    }
+
+    private function facturaQrJsonResponse(array $result): JsonResponse
+    {
+        $invoiceData = $result['invoice_data'] ?? [];
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'] ?? 'QR procesado correctamente.',
+            'data' => [
+                'qr_url' => $result['qr_url'] ?? null,
+                'qr_texto' => $result['qr_text'] ?? null,
+                'factura' => $invoiceData['numero_factura'] ?? null,
+                'precio_total' => $invoiceData['monto_total'] ?? null,
+                'factura_fecha_emision' => $invoiceData['fecha_emision'] ?? null,
+                'factura_nit_emisor' => $invoiceData['nit_emisor'] ?? null,
+                'factura_cuf' => $invoiceData['cuf'] ?? null,
+                'factura_razon_social' => $invoiceData['razon_social_emisor'] ?? null,
+                'factura_cliente' => $invoiceData['nombre_cliente'] ?? null,
+                'factura_direccion' => $invoiceData['direccion_emisor'] ?? null,
+                'qr_datos' => $invoiceData,
+                'verificado' => (bool) ($invoiceData['verified'] ?? false),
+            ],
+        ]);
+    }
+
     private function resolveRegionalScopeForUser($user): ?string
     {
         if (!$user) {
@@ -285,6 +374,13 @@ class BitacoraController extends Controller
                 'factura' => ['nullable', 'string', 'max:255'],
                 'precio_total' => ['nullable', 'numeric', 'min:0'],
                 'peso' => ['nullable', 'numeric', 'min:0'],
+                'qr_url' => ['nullable', 'url', 'max:2048'],
+                'factura_fecha_emision' => ['nullable', 'date'],
+                'factura_nit_emisor' => ['nullable', 'string', 'max:50'],
+                'factura_cuf' => ['nullable', 'string', 'max:255'],
+                'factura_razon_social' => ['nullable', 'string', 'max:255'],
+                'factura_cliente' => ['nullable', 'string', 'max:255'],
+                'factura_direccion' => ['nullable', 'string', 'max:255'],
                 'imagen_factura' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             ],
             [],
@@ -295,6 +391,13 @@ class BitacoraController extends Controller
                 'factura' => 'factura',
                 'precio_total' => 'precio total',
                 'peso' => 'peso',
+                'qr_url' => 'url del QR',
+                'factura_fecha_emision' => 'fecha de emision',
+                'factura_nit_emisor' => 'NIT emisor',
+                'factura_cuf' => 'CUF',
+                'factura_razon_social' => 'razon social',
+                'factura_cliente' => 'cliente de factura',
+                'factura_direccion' => 'direccion de factura',
                 'imagen_factura' => 'imagen de factura',
             ]
         );
@@ -341,8 +444,18 @@ class BitacoraController extends Controller
         $data['factura'] = $this->emptyToNull($data['factura'] ?? null);
         $data['precio_total'] = $data['precio_total'] ?? ($totales['precio_total'] > 0 ? $totales['precio_total'] : null);
         $data['peso'] = $data['peso'] ?? $totales['peso'];
+        $data['qr_url'] = $this->emptyToNull($data['qr_url'] ?? null);
+        $data['factura_nit_emisor'] = $this->emptyToNull($data['factura_nit_emisor'] ?? null);
+        $data['factura_cuf'] = $this->emptyToNull($data['factura_cuf'] ?? null);
+        $data['factura_razon_social'] = $this->emptyToNull($data['factura_razon_social'] ?? null);
+        $data['factura_cliente'] = $this->emptyToNull($data['factura_cliente'] ?? null);
+        $data['factura_direccion'] = $this->emptyToNull($data['factura_direccion'] ?? null);
+        $data['factura_fecha_emision'] = $this->normalizeDateTimeOrNull($data['factura_fecha_emision'] ?? null);
+        $data['qr_texto'] = null;
+        $data['qr_datos'] = null;
 
         if ($request->hasFile('imagen_factura')) {
+            $data = $this->mergeQrFacturaData($data, $request->file('imagen_factura'));
             $data['imagen_factura'] = $request->file('imagen_factura')->store('bitacoras/facturas', 'public');
         } else {
             $data['imagen_factura'] = null;
@@ -434,6 +547,15 @@ class BitacoraController extends Controller
                     'factura' => $payload['factura'],
                     'precio_total' => $index === $lastIndex ? $payload['precio_total'] : null,
                     'peso' => $index === $lastIndex ? $payload['peso'] : null,
+                    'qr_url' => $payload['qr_url'] ?? null,
+                    'qr_texto' => $payload['qr_texto'] ?? null,
+                    'qr_datos' => $payload['qr_datos'] ?? null,
+                    'factura_fecha_emision' => $payload['factura_fecha_emision'] ?? null,
+                    'factura_nit_emisor' => $payload['factura_nit_emisor'] ?? null,
+                    'factura_cuf' => $payload['factura_cuf'] ?? null,
+                    'factura_razon_social' => $payload['factura_razon_social'] ?? null,
+                    'factura_cliente' => $payload['factura_cliente'] ?? null,
+                    'factura_direccion' => $payload['factura_direccion'] ?? null,
                 ];
 
                 if (!empty($payload['imagen_factura'])) {
@@ -453,11 +575,25 @@ class BitacoraController extends Controller
         $data = $request->validate(
             [
                 'factura' => ['nullable', 'string', 'max:255'],
+                'qr_url' => ['nullable', 'url', 'max:2048'],
+                'factura_fecha_emision' => ['nullable', 'date'],
+                'factura_nit_emisor' => ['nullable', 'string', 'max:50'],
+                'factura_cuf' => ['nullable', 'string', 'max:255'],
+                'factura_razon_social' => ['nullable', 'string', 'max:255'],
+                'factura_cliente' => ['nullable', 'string', 'max:255'],
+                'factura_direccion' => ['nullable', 'string', 'max:255'],
                 'imagen_factura' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             ],
             [],
             [
                 'factura' => 'factura',
+                'qr_url' => 'url del QR',
+                'factura_fecha_emision' => 'fecha de emision',
+                'factura_nit_emisor' => 'NIT emisor',
+                'factura_cuf' => 'CUF',
+                'factura_razon_social' => 'razon social',
+                'factura_cliente' => 'cliente de factura',
+                'factura_direccion' => 'direccion de factura',
                 'imagen_factura' => 'imagen de factura',
             ]
         );
@@ -469,7 +605,31 @@ class BitacoraController extends Controller
             $updates['factura'] = $factura;
         }
 
+        foreach ([
+            'qr_url',
+            'factura_nit_emisor',
+            'factura_cuf',
+            'factura_razon_social',
+            'factura_cliente',
+            'factura_direccion',
+        ] as $field) {
+            $incoming = $this->emptyToNull($data[$field] ?? null);
+            $current = $this->emptyToNull($bitacora->{$field});
+
+            if ($incoming !== $current) {
+                $updates[$field] = $incoming;
+            }
+        }
+
+        $facturaFecha = $this->normalizeDateTimeOrNull($data['factura_fecha_emision'] ?? null);
+        $facturaFechaActual = $this->normalizeDateTimeOrNull($bitacora->factura_fecha_emision?->format('Y-m-d H:i:s'));
+        if ($facturaFecha !== $facturaFechaActual) {
+            $updates['factura_fecha_emision'] = $facturaFecha;
+        }
+
         if ($request->hasFile('imagen_factura')) {
+            $updates = $this->mergeQrFacturaData($updates, $request->file('imagen_factura'));
+
             if (!empty($bitacora->imagen_factura) && Storage::disk('public')->exists($bitacora->imagen_factura)) {
                 Storage::disk('public')->delete($bitacora->imagen_factura);
             }
@@ -529,5 +689,43 @@ class BitacoraController extends Controller
         $text = trim((string) $value);
 
         return $text === '' ? null : strtoupper($text);
+    }
+
+    private function normalizeDateTimeOrNull(mixed $value): ?string
+    {
+        $text = trim((string) $value);
+        if ($text === '') {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($text)->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function mergeQrFacturaData(array $data, \Illuminate\Http\UploadedFile $file): array
+    {
+        $result = $this->facturaQrService->extractFromUploadedFile($file);
+        if (!($result['success'] ?? false)) {
+            return $data;
+        }
+
+        $invoiceData = $result['invoice_data'] ?? [];
+
+        $data['qr_url'] = $result['qr_url'] ?? ($data['qr_url'] ?? null);
+        $data['qr_texto'] = $result['qr_text'] ?? ($data['qr_texto'] ?? null);
+        $data['qr_datos'] = $invoiceData;
+        $data['factura'] = $data['factura'] ?? ($invoiceData['numero_factura'] ?? null);
+        $data['precio_total'] = $data['precio_total'] ?? ($invoiceData['monto_total'] ?? null);
+        $data['factura_fecha_emision'] = $data['factura_fecha_emision'] ?? $this->normalizeDateTimeOrNull($invoiceData['fecha_emision'] ?? null);
+        $data['factura_nit_emisor'] = $data['factura_nit_emisor'] ?? ($invoiceData['nit_emisor'] ?? null);
+        $data['factura_cuf'] = $data['factura_cuf'] ?? ($invoiceData['cuf'] ?? null);
+        $data['factura_razon_social'] = $data['factura_razon_social'] ?? ($invoiceData['razon_social_emisor'] ?? null);
+        $data['factura_cliente'] = $data['factura_cliente'] ?? ($invoiceData['nombre_cliente'] ?? null);
+        $data['factura_direccion'] = $data['factura_direccion'] ?? ($invoiceData['direccion_emisor'] ?? null);
+
+        return $data;
     }
 }

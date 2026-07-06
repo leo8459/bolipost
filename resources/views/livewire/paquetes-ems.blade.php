@@ -1077,7 +1077,7 @@
                                     </button>
                                     @endif
                                     @if ($canEmsSendVentanilla)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
+                                    <button class="btn btn-outline-light2" type="button" wire:click="openVentanillaPesoModal">
                                         Enviar a ventanilla EMS
                                     </button>
                                     @endif
@@ -2617,6 +2617,13 @@
     <div class="modal fade" id="regionalModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
+                @php
+                    $regionalPesoPendiente = collect($regionalPesoZeroItems ?? [])->contains(function ($item) use ($regionalPesoInputs) {
+                        $key = (string) ($item['key'] ?? '');
+                        $value = trim((string) ($regionalPesoInputs[$key] ?? ''));
+                        return $key === '' || !is_numeric(str_replace(',', '.', $value)) || (float) str_replace(',', '.', $value) <= 0;
+                    });
+                @endphp
                 <div class="modal-header">
                     <h5 class="modal-title">Enviar a regional</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -2731,13 +2738,18 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsSendRegional && !empty($regionalPesoZeroItems))
+                    <button type="button" class="btn btn-outline-success" wire:click="guardarPesosPendientesSeleccionados">
+                        Guardar pesos
+                    </button>
+                    @endif
                     @if ($canEmsSendRegional)
                     <button type="button" class="btn btn-outline-primary" wire:click="toggleRegionalIntSection">
                         {{ $showRegionalIntSection ? 'Ocultar INT' : 'Anadir INT' }}
                     </button>
                     @endif
                     @if ($canEmsSendRegional)
-                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosRegional">
+                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosRegional" @disabled($regionalPesoPendiente)>
                         Confirmar y generar manifiesto
                     </button>
                     @endif
@@ -2749,6 +2761,13 @@
     <div class="modal fade" id="regionalContratoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
+                @php
+                    $regionalContratoPesoPendiente = collect($regionalPesoZeroItems ?? [])->contains(function ($item) use ($regionalPesoInputs) {
+                        $key = (string) ($item['key'] ?? '');
+                        $value = trim((string) ($regionalPesoInputs[$key] ?? ''));
+                        return $key === '' || !is_numeric(str_replace(',', '.', $value)) || (float) str_replace(',', '.', $value) <= 0;
+                    });
+                @endphp
                 <div class="modal-header">
                     <h5 class="modal-title">Enviar contratos a regional</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -2807,9 +2826,81 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsSendRegional && !empty($regionalPesoZeroItems))
+                    <button type="button" class="btn btn-outline-success" wire:click="guardarPesosPendientesSeleccionados">
+                        Guardar pesos
+                    </button>
+                    @endif
                     @if ($canEmsSendRegional)
-                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosContratosRegional">
+                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosContratosRegional" @disabled($regionalContratoPesoPendiente)>
                         Confirmar y generar manifiesto
+                    </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="ventanillaPesoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                @php
+                    $ventanillaPesoPendiente = collect($regionalPesoZeroItems ?? [])->contains(function ($item) use ($regionalPesoInputs) {
+                        $key = (string) ($item['key'] ?? '');
+                        $value = trim((string) ($regionalPesoInputs[$key] ?? ''));
+                        return $key === '' || !is_numeric(str_replace(',', '.', $value)) || (float) str_replace(',', '.', $value) <= 0;
+                    });
+                @endphp
+                <div class="modal-header">
+                    <h5 class="modal-title">Enviar a ventanilla EMS</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <strong>Hay registros seleccionados sin peso.</strong>
+                        Completa el peso de todos para poder enviarlos a ventanilla.
+                    </div>
+
+                    <div class="section-block mb-0">
+                        <div class="section-title">Registros pendientes de peso</div>
+                        @forelse ($regionalPesoZeroItems as $item)
+                            <div class="border rounded p-3 mb-2">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                    <div>
+                                        <strong>{{ $item['codigo'] ?? 'SIN CODIGO' }}</strong>
+                                        <span class="text-muted">| Tipo: {{ strtoupper($item['type'] ?? '-') }}</span>
+                                    </div>
+                                    <div class="small text-muted">
+                                        Peso actual: {{ number_format((float) ($item['peso'] ?? 0), 3) }} Kg
+                                    </div>
+                                </div>
+                                <x-peso-qz-field
+                                    :model="'regionalPesoInputs.' . ($item['key'] ?? '')"
+                                    :input-id="'ventanilla-peso-' . ($item['key'] ?? '')"
+                                    min="0.001"
+                                    :required="true"
+                                    :use-scale="true"
+                                    :show-clear="true"
+                                    label="Nuevo peso"
+                                />
+                            </div>
+                        @empty
+                            <div class="text-muted">No hay registros pendientes de peso.</div>
+                        @endforelse
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsSendVentanilla && !empty($regionalPesoZeroItems))
+                    <button type="button" class="btn btn-outline-success" wire:click="guardarPesosPendientesSeleccionados">
+                        Guardar pesos
+                    </button>
+                    @endif
+                    @if ($canEmsSendVentanilla)
+                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosVentanillaEms" @disabled($ventanillaPesoPendiente)>
+                        Guardar pesos y enviar
                     </button>
                     @endif
                 </div>
@@ -3390,6 +3481,8 @@
             closeRegionalModal: '#regionalModal',
             openRegionalContratoModal: '#regionalContratoModal',
             closeRegionalContratoModal: '#regionalContratoModal',
+            openVentanillaPesoModal: '#ventanillaPesoModal',
+            closeVentanillaPesoModal: '#ventanillaPesoModal',
             openRegionalMismatchModal: '#regionalMismatchModal',
             closeRegionalMismatchModal: '#regionalMismatchModal',
             openContratoRegistrarModal: '#contratoRegistrarModal',

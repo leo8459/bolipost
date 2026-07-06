@@ -968,6 +968,68 @@ class PaquetesEms extends Component
         $this->dispatch('openRegionalModal');
     }
 
+    public function openVentanillaPesoModal()
+    {
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_VENTANILLA_PERMISSION);
+
+        if (!$this->isAlmacenEms) {
+            session()->flash('error', 'Esta accion solo esta disponible en ALMACEN EMS.');
+            return;
+        }
+
+        $idsEms = $this->selectedPaquetesAsInt();
+        $idsContratos = $this->selectedContratosAsInt();
+        $idsSolicitudes = $this->selectedSolicitudesAsInt();
+
+        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+            return;
+        }
+
+        $this->prepareRegionalPesoZeroData($idsEms, $idsContratos, $idsSolicitudes);
+
+        if (empty($this->regionalPesoZeroItems)) {
+            $this->mandarSeleccionadosVentanillaEms();
+            return;
+        }
+
+        $this->dispatch('openVentanillaPesoModal');
+    }
+
+    public function guardarPesosPendientesSeleccionados()
+    {
+        if (
+            !$this->isAlmacenEms &&
+            !$this->isTransitoEms &&
+            !$this->isVentanillaEms &&
+            !$this->isDevolucionEms
+        ) {
+            session()->flash('error', 'Esta accion no esta disponible en la vista actual.');
+            return;
+        }
+
+        $idsEms = $this->selectedPaquetesAsInt();
+        $idsContratos = $this->selectedContratosAsInt();
+        $idsSolicitudes = $this->selectedSolicitudesAsInt();
+
+        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+            return;
+        }
+
+        $hadPendingItems = !empty($this->regionalPesoZeroItems);
+        $saved = $this->ensureRegionalZeroWeightResolved($idsEms, $idsContratos, $idsSolicitudes);
+
+        if (!$saved) {
+            session()->flash('error', 'Corrige los pesos pendientes antes de guardarlos.');
+            return;
+        }
+
+        session()->flash('success', $hadPendingItems
+            ? 'Pesos guardados correctamente. Ya puedes continuar con el envio.'
+            : 'No habia pesos pendientes por guardar.');
+    }
+
     public function toggleRegionalIntSection(): void
     {
         $this->showRegionalIntSection = !$this->showRegionalIntSection;
@@ -3102,6 +3164,12 @@ class PaquetesEms extends Component
             return;
         }
 
+        if (!$this->ensureRegionalZeroWeightResolved($ids, $idsContratos, $idsSolicitudes)) {
+            $this->dispatch('openVentanillaPesoModal');
+            session()->flash('error', 'Los paquetes seleccionados con peso 0 deben completar su peso antes de enviarse a ventanilla.');
+            return;
+        }
+
         $estadoVentanilla = $this->resolveVentanillaEstado();
         $estadoVentanillaId = $estadoVentanilla['id'] ?? null;
         if (!$estadoVentanillaId) {
@@ -3177,6 +3245,9 @@ class PaquetesEms extends Component
         $this->selectedPaquetes = [];
         $this->selectedContratos = [];
         $this->selectedSolicitudes = [];
+        $this->regionalPesoZeroItems = [];
+        $this->regionalPesoInputs = [];
+        $this->dispatch('closeVentanillaPesoModal');
         session()->flash('success', $updated . ' registro(s) enviado(s) a VENTANILLA EMS.');
 
         return $this->redirect(route('paquetes-ems.ventanilla'), navigate: false);
