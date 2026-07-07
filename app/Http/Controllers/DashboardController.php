@@ -123,6 +123,13 @@ class DashboardController extends Controller
         return view('dashboard', $data);
     }
 
+    public function welcome(Request $request)
+    {
+        $data = $this->buildDashboardData($request);
+
+        return view('home.welcome', $data);
+    }
+
     public function entregas(Request $request)
     {
         return view('entregas', $this->buildEntregasData($request));

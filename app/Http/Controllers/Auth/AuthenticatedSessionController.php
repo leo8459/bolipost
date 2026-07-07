@@ -71,11 +71,7 @@ class AuthenticatedSessionController extends Controller
             return route('livewire.workshops', absolute: false);
         }
 
-        foreach ($this->authorizedMenuUrls($user) as $url) {
-            return $url;
-        }
-
-        return route('profile.edit', absolute: false);
+        return route('home.welcome', absolute: false);
     }
 
     /**

@@ -133,6 +133,9 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard');
+Route::get('/inicio', [DashboardController::class, 'welcome'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('home.welcome');
 Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.export.excel');

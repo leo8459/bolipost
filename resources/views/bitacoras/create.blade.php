@@ -95,7 +95,7 @@
                     <div class="card bitacora-create-card">
                         <div class="card-header">
                             <h3 class="card-title">Crear Bitacora</h3>
-                            <div class="bitacora-create-subtitle">Registra una nueva bitacora provincial con datos operativos y evidencia adjunta.</div>
+                            <div class="bitacora-create-subtitle">Registra una nueva bitacora provincial con los datos operativos esenciales.</div>
                         </div>
                         <div class="card-body">
                             <div class="bitacora-create-panel">
