@@ -21,6 +21,34 @@
                 </div>
             </div>
             <div class="card-body">
+                @if (session('success') || session('error'))
+                    <div class="ems-alert-stack" id="emsAlertStack">
+                        @if (session('success'))
+                            <div class="ems-floating-alert is-success" data-alert-card>
+                                <div class="ems-floating-alert__icon">OK</div>
+                                <div class="ems-floating-alert__content">
+                                    <div class="ems-floating-alert__title">Accion completada</div>
+                                    <div class="ems-floating-alert__message">{{ session('success') }}</div>
+                                </div>
+                                <button type="button" class="ems-floating-alert__close" data-alert-close aria-label="Cerrar">×</button>
+                                <div class="ems-floating-alert__progress"></div>
+                            </div>
+                        @endif
+
+                        @if (session('error'))
+                            <div class="ems-floating-alert is-error" data-alert-card>
+                                <div class="ems-floating-alert__icon">!</div>
+                                <div class="ems-floating-alert__content">
+                                    <div class="ems-floating-alert__title">Algo necesita revision</div>
+                                    <div class="ems-floating-alert__message">{{ session('error') }}</div>
+                                </div>
+                                <button type="button" class="ems-floating-alert__close" data-alert-close aria-label="Cerrar">×</button>
+                                <div class="ems-floating-alert__progress"></div>
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
                 <form method="GET" action="{{ route('paquetes-ems.encargado') }}" class="ems-filters-shell">
                     <div class="row ems-encargado-toolbar">
                         <div class="col-xl-2 col-lg-3 col-md-6 mb-3">
@@ -140,7 +168,7 @@
                                     </td>
                                     <td>
                                         <div class="ems-action-stack">
-                                            <form method="POST" action="{{ route('paquetes-ems.encargado.cancelar-envio') }}" onsubmit="return confirm('Seguro que deseas cancelar este envio y ponerlo en estado 0?');" class="ems-action-form">
+                                            <form method="POST" action="{{ route('paquetes-ems.encargado.cancelar-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="danger" data-confirm-title="Cancelar envio" data-confirm-message="Se marcara este envio como CANCELADO y se registrara el evento con tu usuario.">
                                                 @csrf
                                                 <input type="hidden" name="id" value="{{ $paquete->id }}">
                                                 <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
@@ -150,13 +178,13 @@
                                                 <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                 <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                 <button type="submit" class="btn btn-sm ems-btn-danger ems-action-btn">
-                                                    <span>Cancelar</span>
-                                                    <small>Estado 0</small>
+                                                    <span>Envio cancelado</span>
+                                                    <small>Registra quien lo hizo</small>
                                                 </button>
                                             </form>
 
                                             @if (in_array($paquete->servicio, ['EMS', 'CONTRATO', 'SOLICITUD'], true))
-                                                <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" onsubmit="return confirm('Seguro que deseas devolver este envio a ALMACEN de origen?');" class="ems-action-form">
+                                                <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="warning" data-confirm-title="Devolver a origen" data-confirm-message="Este envio volvera a ALMACEN de origen y se registrara el evento con tu usuario.">
                                                     @csrf
                                                     <input type="hidden" name="id" value="{{ $paquete->id }}">
                                                     <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
@@ -167,11 +195,11 @@
                                                     <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                     <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                     <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn">
-                                                        <span>Devolver origen</span>
-                                                        <small>Va a almacen</small>
+                                                        <span>Devolver a origen</span>
+                                                        <small>Registra quien lo hizo</small>
                                                     </button>
                                                 </form>
-                                                <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" onsubmit="return confirm('Seguro que deseas devolver este envio a ALMACEN de destino en estado RECIBIDO?');" class="ems-action-form">
+                                                <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="info" data-confirm-title="Devolver a destino" data-confirm-message="Este envio volvera a ALMACEN de destino en estado RECIBIDO y se registrara el evento con tu usuario.">
                                                     @csrf
                                                     <input type="hidden" name="id" value="{{ $paquete->id }}">
                                                     <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
@@ -182,14 +210,14 @@
                                                     <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                     <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                     <button type="submit" class="btn btn-sm ems-btn-info ems-action-btn">
-                                                        <span>Devolver destino</span>
-                                                        <small>Va a recibido</small>
+                                                        <span>Devolver a destino</span>
+                                                        <small>Registra quien lo hizo</small>
                                                     </button>
                                                 </form>
                                             @endif
 
                                             @if (in_array($paquete->servicio, ['CERTI', 'ORDI'], true))
-                                                <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" onsubmit="return confirm('Seguro que deseas devolver este envio a VENTANILLA?');" class="ems-action-form">
+                                                <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="warning" data-confirm-title="Devolver a ventanilla" data-confirm-message="Este envio volvera a VENTANILLA y se registrara el evento con tu usuario.">
                                                     @csrf
                                                     <input type="hidden" name="id" value="{{ $paquete->id }}">
                                                     <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
@@ -225,6 +253,19 @@
             </div>
         </div>
     </div>
+
+    <div class="ems-confirm-modal" id="emsConfirmModal" aria-hidden="true">
+        <div class="ems-confirm-modal__backdrop" data-confirm-close></div>
+        <div class="ems-confirm-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="emsConfirmTitle">
+            <div class="ems-confirm-modal__eyebrow">Confirmacion</div>
+            <h4 class="ems-confirm-modal__title" id="emsConfirmTitle">Confirmar accion</h4>
+            <p class="ems-confirm-modal__message" id="emsConfirmMessage">Confirma si deseas continuar con esta accion.</p>
+            <div class="ems-confirm-modal__actions">
+                <button type="button" class="ems-confirm-modal__btn is-secondary" data-confirm-close>Volver</button>
+                <button type="button" class="ems-confirm-modal__btn is-primary" id="emsConfirmAccept">Si, continuar</button>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @section('css')
@@ -239,8 +280,158 @@
         .ems-soft-pill,
         .ems-status-badge,
         .ems-action-btn,
-        .ems-filter-chip {
+        .ems-filter-chip,
+        .ems-floating-alert {
             box-sizing: border-box;
+        }
+
+        .ems-alert-stack {
+            display: grid;
+            gap: 14px;
+            margin-bottom: 1rem;
+        }
+
+        .ems-floating-alert {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            overflow: hidden;
+            padding: 1rem 1.1rem;
+            border-radius: 18px;
+            border: 1px solid transparent;
+            box-shadow: 0 18px 34px rgba(23, 35, 68, 0.14);
+            transform-origin: top center;
+            animation: emsAlertEnter .45s cubic-bezier(.2, .8, .2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        .ems-floating-alert.is-success {
+            background: linear-gradient(135deg, rgba(232, 255, 242, 0.96) 0%, rgba(241, 255, 247, 0.98) 100%);
+            border-color: rgba(31, 122, 90, 0.22);
+        }
+
+        .ems-floating-alert.is-error {
+            background: linear-gradient(135deg, rgba(255, 239, 239, 0.97) 0%, rgba(255, 248, 248, 0.98) 100%);
+            border-color: rgba(214, 69, 69, 0.24);
+        }
+
+        .ems-floating-alert__icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+            font-weight: 900;
+            flex: 0 0 auto;
+        }
+
+        .ems-floating-alert.is-success .ems-floating-alert__icon {
+            background: linear-gradient(135deg, #1f7a5a 0%, #2f9d74 100%);
+            color: #fff;
+            box-shadow: 0 10px 20px rgba(31, 122, 90, 0.24);
+        }
+
+        .ems-floating-alert.is-error .ems-floating-alert__icon {
+            background: linear-gradient(135deg, #d64545 0%, #ea6a6a 100%);
+            color: #fff;
+            box-shadow: 0 10px 20px rgba(214, 69, 69, 0.22);
+        }
+
+        .ems-floating-alert__content {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .ems-floating-alert__title {
+            font-size: 0.96rem;
+            font-weight: 900;
+            color: #183153;
+            margin-bottom: 0.18rem;
+        }
+
+        .ems-floating-alert__message {
+            color: #4f5d74;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+
+        .ems-floating-alert__close {
+            width: 34px;
+            height: 34px;
+            border: 0;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.76);
+            color: #43608f;
+            font-size: 1.4rem;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform .18s ease, background .18s ease, color .18s ease;
+        }
+
+        .ems-floating-alert__close:hover {
+            transform: scale(1.06);
+            background: rgba(255, 255, 255, 0.96);
+            color: #1c3158;
+        }
+
+        .ems-floating-alert__progress {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 4px;
+            transform-origin: left center;
+            animation: emsAlertProgress 5.6s linear forwards;
+        }
+
+        .ems-floating-alert.is-success .ems-floating-alert__progress {
+            background: linear-gradient(90deg, #1f7a5a 0%, #44c28d 100%);
+        }
+
+        .ems-floating-alert.is-error .ems-floating-alert__progress {
+            background: linear-gradient(90deg, #d64545 0%, #ff8a8a 100%);
+        }
+
+        .ems-floating-alert.is-leaving {
+            animation: emsAlertExit .28s ease forwards;
+        }
+
+        @keyframes emsAlertEnter {
+            0% {
+                opacity: 0;
+                transform: translateY(-12px) scale(.98);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes emsAlertExit {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+                max-height: 180px;
+                margin-bottom: 0;
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-10px) scale(.98);
+                max-height: 0;
+                margin-bottom: -8px;
+                padding-top: 0;
+                padding-bottom: 0;
+            }
+        }
+
+        @keyframes emsAlertProgress {
+            0% { transform: scaleX(1); }
+            100% { transform: scaleX(0); }
         }
 
         .ems-encargado-wrap {
@@ -617,6 +808,119 @@
             filter: brightness(.96);
         }
 
+        .ems-confirm-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 2100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .22s ease;
+        }
+
+        .ems-confirm-modal.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .ems-confirm-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(8, 15, 31, 0.52);
+            backdrop-filter: blur(4px);
+        }
+
+        .ems-confirm-modal__dialog {
+            position: relative;
+            width: min(520px, 100%);
+            border-radius: 24px;
+            padding: 1.4rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+            box-shadow: 0 28px 60px rgba(13, 25, 51, 0.28);
+            transform: translateY(18px) scale(.98);
+            transition: transform .24s cubic-bezier(.2, .8, .2, 1);
+            border: 1px solid rgba(214, 224, 241, 0.92);
+        }
+
+        .ems-confirm-modal.is-open .ems-confirm-modal__dialog {
+            transform: translateY(0) scale(1);
+        }
+
+        .ems-confirm-modal__eyebrow {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.28rem 0.65rem;
+            border-radius: 999px;
+            background: #eef4ff;
+            color: #33518f;
+            font-size: 0.74rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 0.85rem;
+        }
+
+        .ems-confirm-modal__title {
+            margin: 0 0 0.6rem;
+            color: #162b4d;
+            font-size: 1.4rem;
+            font-weight: 900;
+        }
+
+        .ems-confirm-modal__message {
+            margin: 0;
+            color: #50607c;
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+
+        .ems-confirm-modal__actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 1.3rem;
+        }
+
+        .ems-confirm-modal__btn {
+            min-width: 132px;
+            min-height: 46px;
+            padding: 0.7rem 1rem;
+            border: 0;
+            border-radius: 14px;
+            font-weight: 900;
+            transition: transform .16s ease, filter .16s ease, background .16s ease;
+        }
+
+        .ems-confirm-modal__btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(.98);
+        }
+
+        .ems-confirm-modal__btn.is-secondary {
+            background: #eef2f8;
+            color: #38507e;
+        }
+
+        .ems-confirm-modal__btn.is-primary {
+            background: linear-gradient(135deg, #214e95 0%, #3468c4 100%);
+            color: #fff;
+        }
+
+        .ems-confirm-modal__btn.is-primary.variant-danger {
+            background: linear-gradient(135deg, #c83939 0%, #e25757 100%);
+        }
+
+        .ems-confirm-modal__btn.is-primary.variant-warning {
+            background: linear-gradient(135deg, #d9901b 0%, #f0ad4e 100%);
+        }
+
+        .ems-confirm-modal__btn.is-primary.variant-info {
+            background: linear-gradient(135deg, #256fd1 0%, #41a0ff 100%);
+        }
+
         @media (max-width: 991.98px) {
             .ems-encargado-total {
                 align-items: flex-start;
@@ -647,4 +951,105 @@
             }
         }
     </style>
+@endsection
+
+@section('js')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const alerts = Array.from(document.querySelectorAll('[data-alert-card]'));
+            const confirmModal = document.getElementById('emsConfirmModal');
+            const confirmTitle = document.getElementById('emsConfirmTitle');
+            const confirmMessage = document.getElementById('emsConfirmMessage');
+            const confirmAccept = document.getElementById('emsConfirmAccept');
+            const confirmCloseButtons = Array.from(document.querySelectorAll('[data-confirm-close]'));
+            const confirmForms = Array.from(document.querySelectorAll('[data-confirm-form]'));
+            let pendingForm = null;
+
+            function closeAlert(card) {
+                if (!card || card.classList.contains('is-leaving')) {
+                    return;
+                }
+
+                card.classList.add('is-leaving');
+                window.setTimeout(function () {
+                    card.remove();
+                }, 280);
+            }
+
+            alerts.forEach(function (card) {
+                const closeButton = card.querySelector('[data-alert-close]');
+                if (closeButton) {
+                    closeButton.addEventListener('click', function () {
+                        closeAlert(card);
+                    });
+                }
+
+                window.setTimeout(function () {
+                    closeAlert(card);
+                }, 5600);
+            });
+
+            function closeConfirmModal() {
+                if (!confirmModal) {
+                    return;
+                }
+
+                confirmModal.classList.remove('is-open');
+                confirmModal.setAttribute('aria-hidden', 'true');
+                pendingForm = null;
+                confirmAccept.classList.remove('variant-danger', 'variant-warning', 'variant-info');
+            }
+
+            function openConfirmModal(form) {
+                if (!confirmModal || !form) {
+                    return;
+                }
+
+                pendingForm = form;
+                confirmTitle.textContent = form.getAttribute('data-confirm-title') || 'Confirmar accion';
+                confirmMessage.textContent = form.getAttribute('data-confirm-message') || 'Confirma si deseas continuar.';
+                confirmAccept.classList.remove('variant-danger', 'variant-warning', 'variant-info');
+
+                const variant = form.getAttribute('data-confirm-variant');
+                if (variant) {
+                    confirmAccept.classList.add('variant-' + variant);
+                }
+
+                confirmModal.classList.add('is-open');
+                confirmModal.setAttribute('aria-hidden', 'false');
+            }
+
+            confirmForms.forEach(function (form) {
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    openConfirmModal(form);
+                });
+            });
+
+            confirmCloseButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    closeConfirmModal();
+                });
+            });
+
+            if (confirmAccept) {
+                confirmAccept.addEventListener('click', function () {
+                    if (!pendingForm) {
+                        closeConfirmModal();
+                        return;
+                    }
+
+                    const targetForm = pendingForm;
+                    closeConfirmModal();
+                    targetForm.submit();
+                });
+            }
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && confirmModal && confirmModal.classList.contains('is-open')) {
+                    closeConfirmModal();
+                }
+            });
+        });
+    </script>
 @endsection

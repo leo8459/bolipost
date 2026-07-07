@@ -747,49 +747,63 @@ class PaquetesEmsController extends Controller
         $id = (int) $data['id'];
         $servicio = mb_strtoupper(trim((string) $data['servicio']));
         $actorUserId = (int) optional($request->user())->id;
+        $actorName = $this->resolveActorDisplayName($request);
+        $estadoCanceladoId = $this->findEstadoIdByNombre('CANCELADO');
         $updated = 0;
 
-        DB::transaction(function () use ($servicio, $id, $actorUserId, &$updated) {
+        if ($estadoCanceladoId <= 0) {
+            return redirect()
+                ->route('paquetes-ems.encargado', array_filter([
+                    'servicio' => $request->input('current_servicio'),
+                    'q' => $request->input('q'),
+                    'from' => $request->input('from'),
+                    'to' => $request->input('to'),
+                    'page' => $request->input('page'),
+                ]))
+                ->with('error', 'No existe el estado CANCELADO en la tabla estados.');
+        }
+
+        DB::transaction(function () use ($servicio, $id, $actorUserId, $actorName, $estadoCanceladoId, &$updated) {
             $updated = match ($servicio) {
                 'EMS' => $this->moveEncargadoRecordAndRegisterEvent(
                     PaqueteEms::query()->whereKey($id)->first(),
                     'estado_id',
-                    0,
+                    (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado desde encargado.'
+                    'Envio cancelado por ' . $actorName . '.'
                 ),
                 'CONTRATO' => $this->moveEncargadoRecordAndRegisterEvent(
                     RecojoContrato::query()->whereKey($id)->first(),
                     'estados_id',
-                    0,
+                    (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado desde encargado.'
+                    'Envio cancelado por ' . $actorName . '.'
                 ),
                 'CERTI' => $this->moveEncargadoRecordAndRegisterEvent(
                     PaqueteCerti::query()->whereKey($id)->first(),
                     'fk_estado',
-                    0,
+                    (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado desde encargado.'
+                    'Envio cancelado por ' . $actorName . '.'
                 ),
                 'ORDI' => $this->moveEncargadoRecordAndRegisterEvent(
                     PaqueteOrdi::query()->whereKey($id)->first(),
                     'fk_estado',
-                    0,
+                    (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado desde encargado.'
+                    'Envio cancelado por ' . $actorName . '.'
                 ),
                 'SOLICITUD' => $this->moveEncargadoRecordAndRegisterEvent(
                     SolicitudCliente::query()->whereKey($id)->first(),
                     'estado_id',
-                    0,
+                    (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Solicitud cancelada desde encargado.'
+                    'Envio cancelado por ' . $actorName . '.'
                 ),
                 default => 0,
             };
@@ -806,7 +820,7 @@ class PaquetesEmsController extends Controller
             ->with(
                 $updated > 0 ? 'success' : 'error',
                 $updated > 0
-                    ? 'El envio fue cancelado y enviado a estado 0.'
+                    ? 'El envio fue cancelado y enviado a estado CANCELADO.'
                     : 'No se pudo cancelar el envio seleccionado.'
             );
     }
@@ -826,6 +840,7 @@ class PaquetesEmsController extends Controller
         $servicio = mb_strtoupper(trim((string) $data['servicio']));
         $destinoAccion = trim((string) $data['destino_accion']);
         $actorUserId = (int) optional($request->user())->id;
+        $actorName = $this->resolveActorDisplayName($request);
         $updated = 0;
 
         $estadoAlmacenId = $this->findEstadoIdByNombre('ALMACEN');
@@ -854,6 +869,7 @@ class PaquetesEmsController extends Controller
             $estadoAlmacenId,
             $estadoRecibidoId,
             $estadoVentanillaId,
+            $actorName,
             &$updated
         ) {
             if ($servicio === 'EMS') {
@@ -864,7 +880,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoAlmacenId,
                         $servicio,
                         $actorUserId,
-                        self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE
+                        'Devuelto a almacen origen por ' . $actorName . '.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
                         PaqueteEms::query()->whereKey($id)->first(),
@@ -872,7 +888,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoRecibidoId,
                         $servicio,
                         $actorUserId,
-                        self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                        'Devuelto a almacen destino por ' . $actorName . '.'
                     );
 
                 return;
@@ -886,7 +902,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoAlmacenId,
                         $servicio,
                         $actorUserId,
-                        self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE
+                        'Devuelto a almacen origen por ' . $actorName . '.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
                         RecojoContrato::query()->whereKey($id)->first(),
@@ -894,7 +910,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoRecibidoId,
                         $servicio,
                         $actorUserId,
-                        self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO
+                        'Devuelto a almacen destino por ' . $actorName . '.'
                     );
 
                 return;
@@ -908,7 +924,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoAlmacenId,
                         $servicio,
                         $actorUserId,
-                        TiktokerEvent::RECIBIDA_ALMACEN
+                        'Devuelto a almacen origen por ' . $actorName . '.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
                         SolicitudCliente::query()->whereKey($id)->first(),
@@ -916,7 +932,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoRecibidoId,
                         $servicio,
                         $actorUserId,
-                        TiktokerEvent::RECIBIDA_TRANSITO
+                        'Devuelto a almacen destino por ' . $actorName . '.'
                     );
 
                 return;
@@ -929,7 +945,7 @@ class PaquetesEmsController extends Controller
                     (int) $estadoVentanillaId,
                     $servicio,
                     $actorUserId,
-                    self::EVENTO_ID_CERTI_RECIBIDO_OFICINA_ENTREGA
+                    'Envio devuelto a ventanilla por ' . $actorName . '.'
                 );
 
                 return;
@@ -942,7 +958,7 @@ class PaquetesEmsController extends Controller
                     (int) $estadoVentanillaId,
                     $servicio,
                     $actorUserId,
-                    'Envio devuelto a ventanilla desde encargado.'
+                    'Envio devuelto a ventanilla por ' . $actorName . '.'
                 );
             }
         });
@@ -2368,6 +2384,13 @@ class PaquetesEmsController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    private function resolveActorDisplayName(Request $request): string
+    {
+        $name = trim((string) optional($request->user())->name);
+
+        return $name !== '' ? $name : 'USUARIO DEL SISTEMA';
     }
 
     private function successMessageForDevolucion(string $servicio, string $destinoAccion): string
