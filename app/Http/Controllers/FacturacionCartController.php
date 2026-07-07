@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ConceptoFacturacion;
 use App\Services\FacturacionCartService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -199,6 +200,15 @@ class FacturacionCartController extends Controller
             $item = (array) ($resultado['item'] ?? []);
             $cart = $resultado['cart'] ?? null;
 
+            Log::debug('Codigo agregado al carrito de facturacion.', [
+                'user_id' => $user?->id,
+                'scan_code' => (string) $validated['scan_code'],
+                'item_type' => $item['type'] ?? null,
+                'item_code' => $item['code'] ?? null,
+                'cart_id' => $cart->id ?? null,
+                'expects_json' => $request->expectsJson(),
+            ]);
+
             $feedback = [
                 'type' => 'success',
                 'title' => 'Item agregado al carrito',
@@ -220,6 +230,13 @@ class FacturacionCartController extends Controller
                 ->with('facturacion_feedback', $feedback)
                 ->with('facturacion_scanner_open', true);
         } catch (\RuntimeException $e) {
+            Log::warning('No se pudo agregar codigo al carrito de facturacion.', [
+                'user_id' => $user?->id,
+                'scan_code' => (string) $validated['scan_code'],
+                'expects_json' => $request->expectsJson(),
+                'error' => $e->getMessage(),
+            ]);
+
             $feedback = [
                 'type' => 'warning',
                 'title' => 'No se pudo agregar el codigo',
@@ -233,6 +250,34 @@ class FacturacionCartController extends Controller
                     'ok' => false,
                     'feedback' => $feedback,
                 ], 422);
+            }
+
+            return back()
+                ->withInput()
+                ->with('facturacion_feedback', $feedback)
+                ->with('facturacion_scanner_open', true);
+        } catch (\Throwable $e) {
+            Log::error('Error inesperado al agregar codigo al carrito de facturacion.', [
+                'user_id' => $user?->id,
+                'scan_code' => (string) $validated['scan_code'],
+                'expects_json' => $request->expectsJson(),
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            $feedback = [
+                'type' => 'error',
+                'title' => 'No se pudo agregar el codigo',
+                'message' => 'Ocurrio un error inesperado al agregar el paquete al carrito de Facturacion.',
+                'detail' => 'Revisa storage/logs/laravel.log para ver el motivo exacto del rechazo.',
+                'action' => 'scan_add',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 500);
             }
 
             return back()
@@ -916,6 +961,148 @@ class FacturacionCartController extends Controller
             'total' => (float) data_get($cart, 'total', 0),
             'items' => $items,
         ];
+    }
+
+    public function addConcepto(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeFacturacionAccess($user);
+        $expectsJson = $request->expectsJson() || $request->wantsJson() || $request->ajax();
+
+        try {
+            $validated = $request->validate([
+                'concepto_facturacion_id' => ['required', 'integer', 'exists:conceptos_facturacion,id'],
+            ]);
+
+            $concepto = ConceptoFacturacion::query()
+                ->where('activo', true)
+                ->findOrFail((int) $validated['concepto_facturacion_id']);
+
+            $cart = $service->addConceptoFacturacion($user, $concepto);
+            $montoBase = round((float) ($concepto->precio_base ?? 0), 2);
+
+            $feedback = [
+                'type' => 'success',
+                'title' => 'Cobro agregado al carrito',
+                'message' => trim((string) $concepto->nombre) . ' agregado correctamente.',
+                'detail' => 'Precio base aplicado: Bs ' . number_format($montoBase, 2) . '. Si hace falta, puedes editarlo dentro del carrito.',
+                'action' => 'concepto_add',
+            ];
+
+            Log::debug('Concepto facturable agregado al carrito.', [
+                'user_id' => $user?->id,
+                'concepto_id' => $concepto->id,
+                'cart_id' => $cart->id ?? null,
+                'expects_json' => $expectsJson,
+            ]);
+
+            if ($expectsJson) {
+                return response()->json([
+                    'ok' => true,
+                    'feedback' => $feedback,
+                    'cart' => $this->buildCartPayload($cart),
+                ]);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'Concepto invalido',
+                'message' => 'Debes seleccionar un concepto facturable valido.',
+                'detail' => $e->validator->errors()->first('concepto_facturacion_id') ?: 'La solicitud no contiene un concepto valido.',
+                'action' => 'concepto_add',
+            ];
+
+            Log::warning('Validacion fallida al agregar concepto facturable.', [
+                'user_id' => $user?->id,
+                'payload' => $request->all(),
+                'expects_json' => $expectsJson,
+                'errors' => $e->errors(),
+            ]);
+
+            if ($expectsJson) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+
+            throw $e;
+        } catch (ModelNotFoundException $e) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'Concepto no disponible',
+                'message' => 'El concepto facturable ya no esta disponible.',
+                'detail' => 'Actualiza la pantalla y vuelve a intentarlo.',
+                'action' => 'concepto_add',
+            ];
+
+            Log::warning('Concepto facturable no encontrado o inactivo al agregar.', [
+                'user_id' => $user?->id,
+                'payload' => $request->all(),
+                'expects_json' => $expectsJson,
+            ]);
+
+            if ($expectsJson) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 404);
+            }
+
+            return back()->withInput()->with('facturacion_feedback', $feedback);
+        } catch (\RuntimeException $e) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No se pudo agregar el cobro',
+                'message' => 'El concepto no pudo agregarse al carrito de Facturacion.',
+                'detail' => trim($e->getMessage()),
+                'action' => 'concepto_add',
+            ];
+
+            Log::warning('Fallo de negocio al agregar concepto facturable.', [
+                'user_id' => $user?->id,
+                'payload' => $request->all(),
+                'expects_json' => $expectsJson,
+                'message' => $e->getMessage(),
+            ]);
+
+            if ($expectsJson) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 422);
+            }
+
+            return back()->withInput()->with('facturacion_feedback', $feedback);
+        } catch (\Throwable $e) {
+            $feedback = [
+                'type' => 'error',
+                'title' => 'No se pudo agregar el cobro',
+                'message' => 'La solicitud fallo antes de completar el agregado al carrito.',
+                'detail' => 'Revisa el log del servidor para mas detalle tecnico.',
+                'action' => 'concepto_add',
+            ];
+
+            Log::error('Error inesperado al agregar concepto facturable.', [
+                'user_id' => $user?->id,
+                'payload' => $request->all(),
+                'expects_json' => $expectsJson,
+                'message' => $e->getMessage(),
+                'exception' => get_class($e),
+            ]);
+
+            if ($expectsJson) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 500);
+            }
+
+            throw $e;
+        }
     }
 
     private function authorizeFacturacionAccess($user): void

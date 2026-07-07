@@ -15,6 +15,9 @@
     } catch (\Throwable $e) {
         $facturacionCajaContext = ['estado' => 'SIN_APERTURA', 'mensaje' => 'No se pudo consultar el estado de caja.', 'caja' => []];
     }
+    $facturacionConceptos = $canOpenFacturacionShortcut && \Illuminate\Support\Facades\Schema::hasTable('conceptos_facturacion')
+        ? \App\Models\ConceptoFacturacion::query()->where('activo', true)->orderBy('nombre')->get()
+        : collect();
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
     $facturacionItems = collect($activeFacturacionCart?->items ?? []);
@@ -87,6 +90,7 @@
     $shouldOpenShortcutWithFeedback = $shouldRenderShortcutFeedback && $facturacionFeedbackAction !== 'consultar';
     $shouldOpenConsultFeedbackModal = is_array($facturacionFeedback) && $facturacionFeedbackAction === 'consultar';
     $shouldOpenFacturacionScanner = (bool) session('facturacion_scanner_open') || old('scan_code') !== null;
+    $shouldOpenFacturacionAddPanel = $shouldOpenFacturacionScanner;
     $isRejectedDraft = $activeFacturacionCart && ($activeFacturacionCart->estado_emision ?? null) === 'RECHAZADA';
     $lastEmissionReason = (string) ($resultadoEmision['razon'] ?? '');
     $lastEmissionAttempts = (int) ($resultadoEmision['_meta']['intentos'] ?? 0);
@@ -495,19 +499,21 @@
                 @endif
             </div>
 
-            <details class="global-shortcut-scan-panel" @if($shouldOpenFacturacionScanner) open @endif>
+            <details class="global-shortcut-scan-panel global-shortcut-scan-panel--entry" @if($shouldOpenFacturacionAddPanel) open @endif>
                 <summary class="global-shortcut-scan-panel__summary">
                     <span class="global-shortcut-scan-panel__summary-main">
                         <span class="global-shortcut-scan-panel__summary-icon" aria-hidden="true">
-                            <i class="fas fa-barcode"></i>
+                            <i class="fas fa-plus"></i>
                         </span>
                         <span class="global-shortcut-scan-panel__summary-copy">
-                            <span class="global-shortcut-scan-panel__eyebrow">Carga manual</span>
-                            <span class="global-shortcut-scan-panel__title">Agregar al carrito por codigo</span>
+                            <span class="global-shortcut-scan-panel__title">Agregar item</span>
                         </span>
                     </span>
                 </summary>
                 <div class="global-shortcut-scan-panel__body">
+                    <div class="global-shortcut-add-compact">
+                        <section class="global-shortcut-add-compact__section">
+                            <label for="facturacionScanCode" class="global-shortcut-add-compact__label">Codigo</label>
                     <form
                         method="POST"
                         action="{{ route('facturacion.cart.scan-add') }}"
@@ -535,6 +541,44 @@
                             </button>
                         </div>
                     </form>
+                        </section>
+
+                        @if ($facturacionConceptos->isNotEmpty())
+                            <section class="global-shortcut-add-compact__section">
+                                <label for="facturacionConceptoSelect" class="global-shortcut-add-compact__label">Cobro extra</label>
+                        <form
+                            method="POST"
+                            action="{{ route('facturacion.cart.conceptos.store') }}"
+                            class="global-shortcut-scan-form"
+                            id="facturacionConceptoForm"
+                            data-processing-pill="Carrito en actualizacion"
+                            data-processing-title="Agregando cobro"
+                            data-processing-text="Estamos agregando el cobro adicional al carrito, espera un momento..."
+                        >
+                            @csrf
+                            <input type="hidden" name="concepto_facturacion_id" id="facturacionConceptoHidden" value="">
+                            <div class="global-shortcut-field global-shortcut-field--full" style="margin-bottom: 0;">
+                                <select
+                                    id="facturacionConceptoSelect"
+                                    @disabled(!$isCajaAbierta)
+                                >
+                                    <option value="">Selecciona un concepto facturable</option>
+                                    @foreach ($facturacionConceptos as $conceptoFacturable)
+                                        <option value="{{ $conceptoFacturable->id }}">
+                                            {{ $conceptoFacturable->nombre }} | {{ $conceptoFacturable->codigo }} | Bs {{ number_format((float) $conceptoFacturable->precio_base, 2) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="global-shortcut-scan-form__row global-shortcut-scan-form__row--select">
+                                <button type="submit" class="global-shortcut-secondary-btn" @disabled(!$isCajaAbierta)>
+                                    Agregar cobro
+                                </button>
+                            </div>
+                        </form>
+                            </section>
+                        @endif
+                    </div>
                 </div>
             </details>
 
@@ -2048,23 +2092,23 @@
         }
         .global-shortcut-scan-panel {
             margin-top: 16px;
-            border: 1px solid #dbe7f5;
-            border-radius: 16px;
-            background: linear-gradient(180deg, #f9fbff 0%, #ffffff 100%);
+            border: 1px solid #e2eaf5;
+            border-radius: 14px;
+            background: #fff;
             overflow: hidden;
         }
         .global-shortcut-scan-panel[open] {
-            border-color: #c7daf2;
-            box-shadow: 0 10px 24px rgba(17, 47, 92, .08);
+            border-color: #cfddee;
+            box-shadow: 0 8px 20px rgba(17, 47, 92, .06);
         }
         .global-shortcut-scan-panel__summary {
             list-style: none;
             cursor: pointer;
-            padding: 14px 16px;
+            padding: 13px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
+            gap: 10px;
         }
         .global-shortcut-scan-panel__summary::-webkit-details-marker {
             display: none;
@@ -2072,21 +2116,21 @@
         .global-shortcut-scan-panel__summary-main {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
             min-width: 0;
             flex: 1 1 auto;
         }
         .global-shortcut-scan-panel__summary-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: 14px;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             flex: 0 0 auto;
-            background: linear-gradient(135deg, #eef5ff 0%, #dfeeff 100%);
+            background: #edf4fc;
             color: #20539a;
-            box-shadow: inset 0 0 0 1px rgba(32, 83, 154, .1);
+            box-shadow: inset 0 0 0 1px rgba(32, 83, 154, .08);
         }
         .global-shortcut-scan-panel__summary-copy {
             display: flex;
@@ -2094,31 +2138,35 @@
             gap: 2px;
             min-width: 0;
         }
-        .global-shortcut-scan-panel__eyebrow {
-            color: #6b7f9d;
-            font-size: .7rem;
-            font-weight: 800;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-        }
         .global-shortcut-scan-panel__title {
             color: #173962;
-            font-size: .98rem;
+            font-size: .92rem;
             font-weight: 800;
             line-height: 1.25;
         }
         .global-shortcut-scan-panel__body {
-            padding: 0 16px 16px;
+            padding: 0 16px 14px;
             border-top: 1px solid #e7eff8;
         }
-        .global-shortcut-scan-panel__text {
-            margin: 12px 0 0;
-            color: #607089;
-            font-size: .84rem;
-            line-height: 1.5;
+        .global-shortcut-scan-panel--entry .global-shortcut-scan-panel__summary {
+            padding-bottom: 13px;
+        }
+        .global-shortcut-add-compact {
+            display: grid;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .global-shortcut-add-compact__section {
+            display: grid;
+            gap: 8px;
+        }
+        .global-shortcut-add-compact__label {
+            color: #5b6f8e;
+            font-size: .79rem;
+            font-weight: 700;
         }
         .global-shortcut-scan-form {
-            margin-top: 12px;
+            margin-top: 0;
         }
         .global-shortcut-scan-form__row {
             display: grid;
@@ -2140,6 +2188,11 @@
             outline: none;
             border-color: #8eb2e2;
             box-shadow: 0 0 0 3px rgba(32, 83, 154, .12);
+        }
+        .global-shortcut-scan-form__row--select {
+            grid-template-columns: auto;
+            justify-content: end;
+            margin-top: 10px;
         }
         .global-shortcut-field--full {
             grid-column: 1 / -1;
@@ -2266,6 +2319,9 @@
             color: #6f8098;
             font-size: .82rem;
             line-height: 1.45;
+        }
+        .global-shortcut-cart-empty .global-shortcut-secondary-btn {
+            margin-top: 4px;
         }
         .global-shortcut-cart-list {
             max-height: none;
@@ -3112,6 +3168,9 @@
             const facturacionScanPanel = facturacionScanForm
                 ? facturacionScanForm.closest('.global-shortcut-scan-panel')
                 : null;
+            const facturacionConceptoForm = document.getElementById('facturacionConceptoForm');
+            const facturacionConceptoSelect = document.getElementById('facturacionConceptoSelect');
+            const facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
 
             if (facturacionActionConfirmEyebrow) {
                 facturacionActionConfirmEyebrow.textContent = FACTURACION_CONFIRM_DEFAULTS.eyebrow;
@@ -3391,6 +3450,7 @@
 
                 replaceSection('.global-shortcut-cart-summary');
                 replaceSection('.global-shortcut-cart-block');
+                replaceSection('.global-shortcut-scan-panel--entry');
                 replaceSection('.global-shortcut-footer-action');
 
                 const currentBadge = openFacturacionShortcutBtn
@@ -3430,6 +3490,19 @@
                 syncFacturacionShortcutSectionsFromDocument(sourceDoc);
             };
 
+            const syncFacturacionShortcutAfterMutation = async () => {
+                try {
+                    await fetchAndSyncFacturacionShortcutSections();
+                    return true;
+                } catch (error) {
+                    window.setTimeout(() => {
+                        window.location.reload();
+                    }, 120);
+
+                    return false;
+                }
+            };
+
             window.syncFacturacionShortcutSections = async () => {
                 await fetchAndSyncFacturacionShortcutSections();
             };
@@ -3464,7 +3537,7 @@
                     renderFacturacionShortcutFeedback(data.feedback);
                 }
 
-                await fetchAndSyncFacturacionShortcutSections();
+                await syncFacturacionShortcutAfterMutation();
 
                 const hasBadge = openFacturacionShortcutBtn
                     && openFacturacionShortcutBtn.querySelector('.global-facturacion-fab__badge');
@@ -4498,6 +4571,20 @@
                 }, 30);
             };
 
+            const openFacturacionAddPanel = () => {
+                const addPanel = facturacionShortcutModal.querySelector('.global-shortcut-scan-panel--entry');
+                if (addPanel instanceof HTMLDetailsElement) {
+                    addPanel.open = true;
+                    window.setTimeout(() => {
+                        addPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        if (facturacionScanCodeInput instanceof HTMLInputElement && !facturacionScanCodeInput.disabled) {
+                            facturacionScanCodeInput.focus();
+                            facturacionScanCodeInput.select();
+                        }
+                    }, 50);
+                }
+            };
+
             const closeFacturacionShortcutModal = () => {
                 facturacionShortcutModal.classList.remove('is-open');
                 facturacionShortcutModal.setAttribute('aria-hidden', 'true');
@@ -4729,6 +4816,14 @@
                 const target = event.target;
                 if (target instanceof HTMLElement && target.dataset.closeFacturacionModal === 'true') {
                     closeFacturacionShortcutModal();
+                    return;
+                }
+
+                const openAddPanelTrigger = target instanceof HTMLElement
+                    ? target.closest('[data-open-facturacion-add-panel="true"]')
+                    : null;
+                if (openAddPanelTrigger instanceof HTMLElement) {
+                    openFacturacionAddPanel();
                 }
             });
 
@@ -4776,7 +4871,7 @@
                             renderFacturacionResultModal(data.feedback);
                         }
 
-                        await fetchAndSyncFacturacionShortcutSections();
+                        await syncFacturacionShortcutAfterMutation();
                         closeFacturacionItemEditModal();
                         facturacionDraftAutosaveEnabled = true;
                         if (typeof setAutosaveState === 'function') {
@@ -4845,7 +4940,7 @@
                             renderFacturacionResultModal(data.feedback);
                         }
 
-                        await fetchAndSyncFacturacionShortcutSections();
+                        await syncFacturacionShortcutAfterMutation();
                         facturacionDraftAutosaveEnabled = true;
                         if (typeof setAutosaveState === 'function') {
                             setAutosaveState('is-saved', 'Cambios guardados. Ya puedes seguir agregando o emitir.');
@@ -4877,6 +4972,114 @@
                         }
                         if (facturacionScanCodeInput instanceof HTMLInputElement) {
                             facturacionScanCodeInput.disabled = false;
+                        }
+                    }
+                });
+            }
+
+            if (facturacionConceptoForm) {
+                if (facturacionConceptoSelect instanceof HTMLSelectElement && facturacionConceptoHidden instanceof HTMLInputElement) {
+                    facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
+                    facturacionConceptoSelect.addEventListener('change', function () {
+                        facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
+                    });
+                }
+
+                facturacionConceptoForm.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+
+                    if (isFacturacionSubmitting) {
+                        return;
+                    }
+
+                    if (!(facturacionConceptoSelect instanceof HTMLSelectElement) || !facturacionConceptoSelect.value) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'Selecciona un concepto',
+                            message: 'Debes elegir un concepto facturable antes de agregarlo.',
+                            detail: 'Elige el cobro extra que corresponde a esta venta.',
+                            action: 'concepto_add',
+                        });
+                        return;
+                    }
+
+                    setFacturacionSubmittingState(facturacionConceptoForm, true);
+
+                    const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                    const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                    if (facturacionConceptoHidden instanceof HTMLInputElement && facturacionConceptoSelect instanceof HTMLSelectElement) {
+                        facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
+                    }
+                    const formData = new FormData(facturacionConceptoForm);
+                    const conceptoSubmitButton = facturacionConceptoForm.querySelector('button[type="submit"]');
+                    if (conceptoSubmitButton instanceof HTMLButtonElement) {
+                        conceptoSubmitButton.dataset.originalText = conceptoSubmitButton.dataset.originalText || conceptoSubmitButton.textContent.trim();
+                        conceptoSubmitButton.disabled = true;
+                        conceptoSubmitButton.textContent = 'Agregando...';
+                    }
+                    facturacionConceptoSelect.disabled = true;
+
+                    try {
+                        const response = await fetch(facturacionConceptoForm.action, {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                            },
+                            body: formData,
+                            credentials: 'include',
+                        });
+
+                        const responseText = await response.text();
+                        let data = null;
+
+                        try {
+                            data = responseText ? JSON.parse(responseText) : null;
+                        } catch (parseError) {
+                            data = null;
+                        }
+
+                        if (!response.ok || !data || data.ok === false) {
+                            const rawSnippet = String(responseText || '')
+                                .replace(/<[^>]+>/g, ' ')
+                                .replace(/\s+/g, ' ')
+                                .trim()
+                                .slice(0, 220);
+                            const message = data && data.feedback && data.feedback.detail
+                                ? data.feedback.detail
+                                : (rawSnippet || 'No se pudo agregar el cobro al carrito.');
+                            throw new Error(message);
+                        }
+
+                        if (data.feedback) {
+                            renderFacturacionShortcutFeedback(data.feedback);
+                            renderFacturacionResultModal(data.feedback);
+                        }
+
+                        await syncFacturacionShortcutAfterMutation();
+                        facturacionDraftAutosaveEnabled = true;
+                        if (typeof setAutosaveState === 'function') {
+                            setAutosaveState('is-saved', 'Cobro agregado. Puedes editar el precio en el carrito.');
+                        }
+
+                        facturacionConceptoForm.reset();
+                    } catch (error) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'No se pudo agregar el cobro',
+                            message: 'El concepto facturable no pudo agregarse al carrito.',
+                            detail: error instanceof Error ? error.message : 'Ocurrio un error inesperado.',
+                            action: 'concepto_add',
+                        });
+                    } finally {
+                        setFacturacionSubmittingState(null, false);
+                        if (conceptoSubmitButton instanceof HTMLButtonElement) {
+                            conceptoSubmitButton.disabled = false;
+                            conceptoSubmitButton.textContent = conceptoSubmitButton.dataset.originalText || 'Agregar cobro';
+                        }
+                        if (facturacionConceptoSelect instanceof HTMLSelectElement) {
+                            facturacionConceptoSelect.disabled = false;
                         }
                     }
                 });

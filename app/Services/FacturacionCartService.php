@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ConceptoFacturacion;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteInt;
 use App\Models\PaqueteEms;
@@ -445,6 +446,51 @@ class FacturacionCartService
         $cart = $this->toCart(data_get($body, 'cart'));
         if (!$cart) {
             throw new \RuntimeException('No se pudo guardar item remoto.');
+        }
+
+        return $cart;
+    }
+
+    public function addConceptoFacturacion(User $user, ConceptoFacturacion $concepto): object
+    {
+        $this->assertFacturacionPermission($user);
+
+        $montoBase = round((float) ($concepto->precio_base ?? 0), 2);
+
+        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+            $this->originUserPayload($user),
+            $this->originSucursalPayload($user),
+            [
+                'origen_tipo' => ConceptoFacturacion::class,
+                'origen_id' => (int) $concepto->id,
+                'codigo' => (string) ($concepto->codigo ?? ''),
+                'titulo' => (string) ($concepto->nombre ?? 'Cobro adicional'),
+                'nombre_servicio' => (string) ($concepto->nombre ?? 'COBRO ADICIONAL'),
+                'nombre_destinatario' => '',
+                'servicios_extra' => [],
+                'resumen_origen' => [
+                    'codigo' => (string) ($concepto->codigo ?? ''),
+                    'contenido' => 'COBRO ADICIONAL',
+                    'peso' => 0,
+                    'destinatario' => '',
+                    'direccion' => '',
+                    'ciudad' => '',
+                    'actividad_economica' => (string) ($concepto->actividad_economica ?? ''),
+                    'codigo_sin' => (string) ($concepto->codigo_sin ?? ''),
+                    'codigo_producto' => (string) ($concepto->codigo ?? ''),
+                    'descripcion_servicio' => (string) ($concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'),
+                    'unidad_medida' => (int) ($concepto->unidad_medida ?? 58),
+                ],
+                'cantidad' => 1,
+                'monto_base' => $montoBase,
+                'monto_extras' => 0,
+                'total_linea' => $montoBase,
+            ]
+        ));
+
+        $cart = $this->toCart(data_get($body, 'cart'));
+        if (!$cart) {
+            throw new \RuntimeException('No se pudo guardar el concepto facturable en el carrito.');
         }
 
         return $cart;
@@ -1696,6 +1742,22 @@ class FacturacionCartService
 
         if ($origenTipo === ltrim(SolicitudCliente::class, '\\')) {
             return $this->resolveFiscalServicio($this->resolveModuloServicio('EMS'));
+        }
+
+        if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\')) {
+            $concepto = ConceptoFacturacion::query()->find($origenId);
+            if (!$concepto) {
+                return null;
+            }
+
+            return new Servicio([
+                'nombre_servicio' => (string) ($concepto->nombre ?? ''),
+                'actividadEconomica' => (string) ($concepto->actividad_economica ?? ''),
+                'codigoSin' => (string) ($concepto->codigo_sin ?? ''),
+                'codigo' => (string) ($concepto->codigo ?? ''),
+                'descripcion' => (string) ($concepto->descripcion ?? $concepto->nombre ?? ''),
+                'unidadMedida' => (int) ($concepto->unidad_medida ?? 58),
+            ]);
         }
 
         return null;
