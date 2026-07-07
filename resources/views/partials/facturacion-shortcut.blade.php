@@ -3200,6 +3200,11 @@
                 title: 'Emitiendo factura',
                 text: 'Procesando emision, espera un momento...',
             };
+            const FACTURACION_CART_PROCESSING_DEFAULTS = {
+                pill: 'Carrito en actualizacion',
+                title: 'Actualizando carrito',
+                text: 'Estamos guardando los cambios en tu carrito, espera un momento...',
+            };
             const FACTURACION_QR_POLL_INTERVAL_MS = 5000;
             const FACTURACION_EMIT_PREVIEW_DELAY_MS = 7000;
             const FACTURACION_EMIT_FINAL_WAIT_ATTEMPTS = 4;
@@ -3231,6 +3236,17 @@
                         pill: 'Caja diaria',
                         title: 'Cerrando caja',
                         text: 'Estamos cerrando la caja diaria, espera un momento...',
+                    };
+                }
+
+                if (action.includes('/facturacion/cart/')
+                    && !action.includes('/facturacion/cart/emitir')
+                    && !action.includes('/facturacion/cart/caja/')
+                    && !action.includes('/facturacion/cart/consultar')) {
+                    return {
+                        pill: String(form.dataset.processingPill || FACTURACION_CART_PROCESSING_DEFAULTS.pill),
+                        title: String(form.dataset.processingTitle || FACTURACION_CART_PROCESSING_DEFAULTS.title),
+                        text: String(form.dataset.processingText || FACTURACION_CART_PROCESSING_DEFAULTS.text),
                     };
                 }
 
@@ -4535,10 +4551,6 @@
                 }
 
                 pendingConfirmForm = form;
-                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || FACTURACION_CONFIRM_DEFAULTS.title;
-                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || FACTURACION_CONFIRM_DEFAULTS.message;
-                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || 'Confirmar accion';
-                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || 'Esta accion actualizara tu borrador de Facturacion.';
                 facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || FACTURACION_CONFIRM_DEFAULTS.title;
                 facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || FACTURACION_CONFIRM_DEFAULTS.message;
                 if (facturacionActionConfirmNote && facturacionActionConfirmNoteBox) {
