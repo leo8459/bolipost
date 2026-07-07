@@ -94,7 +94,6 @@ return [
         'dashboard.global-por-servicio',
         'dashboard.global-por-servicio.excel',
         'dashboard.global-por-servicio.pdf',
-        'paquetes-ems.encargado',
     ],
 
     /*
@@ -139,6 +138,11 @@ return [
         'feature.paquetes-ems.almacen.sendventanilla',
         'feature.paquetes-ems.almacen.sendregional',
         'feature.paquetes-ems.almacen.reprintcn33',
+        'feature.paquetes-ems.encargado.cancel',
+        'feature.paquetes-ems.encargado.returnorigin',
+        'feature.paquetes-ems.encargado.returndestination',
+        'feature.paquetes-ems.encargado.returnwindow',
+        'feature.paquetes-ems.encargado.updateweight',
         'feature.paquetes-ems.entregados.deliver',
         'feature.paquetes-ems.devolucion.deliver',
         'feature.paquetes-ems.devolucion.print',

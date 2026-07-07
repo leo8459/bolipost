@@ -578,6 +578,7 @@ return [
                     'text' => 'Encargado',
                     'url' => 'paquetes-ems/encargado',
                     'icon' => 'fas fa-user-tie',
+                    'can' => 'paquetes-ems.encargado',
                 ],
                 [
                     'text' => 'VENTANILLA EMS',

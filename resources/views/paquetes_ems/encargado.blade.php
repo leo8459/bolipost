@@ -136,28 +136,30 @@
                                     <td>
                                         <div class="ems-value-stack">
                                             <div><span class="ems-value-label">Peso</span> {{ $paquete->peso !== null ? number_format((float) $paquete->peso, 3) . ' kg' : '-' }}</div>
-                                            <form method="POST" action="{{ route('paquetes-ems.encargado.actualizar-peso') }}" class="ems-weight-form">
-                                                @csrf
-                                                <input type="hidden" name="id" value="{{ $paquete->id }}">
-                                                <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
-                                                <input type="hidden" name="current_servicio" value="{{ $servicio }}">
-                                                <input type="hidden" name="q" value="{{ $search }}">
-                                                <input type="hidden" name="from" value="{{ $fechaDesde }}">
-                                                <input type="hidden" name="to" value="{{ $fechaHasta }}">
-                                                <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
-                                                <div class="ems-weight-form__row">
-                                                    <input
-                                                        type="number"
-                                                        name="peso"
-                                                        step="0.001"
-                                                        min="0"
-                                                        value="{{ $paquete->peso !== null ? number_format((float) $paquete->peso, 3, '.', '') : '' }}"
-                                                        class="form-control ems-weight-input"
-                                                        placeholder="Peso"
-                                                    >
-                                                    <button type="submit" class="btn btn-sm ems-btn-save-weight">Guardar</button>
-                                                </div>
-                                            </form>
+                                            @if ($canUpdateWeightEncargado)
+                                                <form method="POST" action="{{ route('paquetes-ems.encargado.actualizar-peso') }}" class="ems-weight-form">
+                                                    @csrf
+                                                    <input type="hidden" name="id" value="{{ $paquete->id }}">
+                                                    <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
+                                                    <input type="hidden" name="current_servicio" value="{{ $servicio }}">
+                                                    <input type="hidden" name="q" value="{{ $search }}">
+                                                    <input type="hidden" name="from" value="{{ $fechaDesde }}">
+                                                    <input type="hidden" name="to" value="{{ $fechaHasta }}">
+                                                    <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+                                                    <div class="ems-weight-form__row">
+                                                        <input
+                                                            type="number"
+                                                            name="peso"
+                                                            step="0.001"
+                                                            min="0"
+                                                            value="{{ $paquete->peso !== null ? number_format((float) $paquete->peso, 3, '.', '') : '' }}"
+                                                            class="form-control ems-weight-input"
+                                                            placeholder="Peso"
+                                                        >
+                                                        <button type="submit" class="btn btn-sm ems-btn-save-weight">Guardar</button>
+                                                    </div>
+                                                </form>
+                                            @endif
                                         </div>
                                     </td>
                                     <td>
@@ -168,55 +170,61 @@
                                     </td>
                                     <td>
                                         <div class="ems-action-stack">
-                                            <form method="POST" action="{{ route('paquetes-ems.encargado.cancelar-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="danger" data-confirm-title="Cancelar envio" data-confirm-message="Se marcara este envio como CANCELADO y se registrara el evento con tu usuario.">
-                                                @csrf
-                                                <input type="hidden" name="id" value="{{ $paquete->id }}">
-                                                <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
-                                                <input type="hidden" name="current_servicio" value="{{ $servicio }}">
-                                                <input type="hidden" name="q" value="{{ $search }}">
-                                                <input type="hidden" name="from" value="{{ $fechaDesde }}">
-                                                <input type="hidden" name="to" value="{{ $fechaHasta }}">
-                                                <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
-                                                <button type="submit" class="btn btn-sm ems-btn-danger ems-action-btn">
-                                                    <span>Envio cancelado</span>
-                                                    <small>Registra quien lo hizo</small>
-                                                </button>
-                                            </form>
-
-                                            @if (in_array($paquete->servicio, ['EMS', 'CONTRATO', 'SOLICITUD'], true))
-                                                <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="warning" data-confirm-title="Devolver a origen" data-confirm-message="Este envio volvera a ALMACEN de origen y se registrara el evento con tu usuario.">
+                                            @if ($canCancelEncargado)
+                                                <form method="POST" action="{{ route('paquetes-ems.encargado.cancelar-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="danger" data-confirm-title="Cancelar envio" data-confirm-message="Se marcara este envio como CANCELADO y se registrara el evento con tu usuario.">
                                                     @csrf
                                                     <input type="hidden" name="id" value="{{ $paquete->id }}">
                                                     <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
-                                                    <input type="hidden" name="destino_accion" value="origen">
                                                     <input type="hidden" name="current_servicio" value="{{ $servicio }}">
                                                     <input type="hidden" name="q" value="{{ $search }}">
                                                     <input type="hidden" name="from" value="{{ $fechaDesde }}">
                                                     <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                     <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
-                                                    <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn">
-                                                        <span>Devolver a origen</span>
-                                                        <small>Registra quien lo hizo</small>
-                                                    </button>
-                                                </form>
-                                                <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="info" data-confirm-title="Devolver a destino" data-confirm-message="Este envio volvera a ALMACEN de destino en estado RECIBIDO y se registrara el evento con tu usuario.">
-                                                    @csrf
-                                                    <input type="hidden" name="id" value="{{ $paquete->id }}">
-                                                    <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
-                                                    <input type="hidden" name="destino_accion" value="destino">
-                                                    <input type="hidden" name="current_servicio" value="{{ $servicio }}">
-                                                    <input type="hidden" name="q" value="{{ $search }}">
-                                                    <input type="hidden" name="from" value="{{ $fechaDesde }}">
-                                                    <input type="hidden" name="to" value="{{ $fechaHasta }}">
-                                                    <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
-                                                    <button type="submit" class="btn btn-sm ems-btn-info ems-action-btn">
-                                                        <span>Devolver a destino</span>
+                                                    <button type="submit" class="btn btn-sm ems-btn-danger ems-action-btn">
+                                                        <span>Envio cancelado</span>
                                                         <small>Registra quien lo hizo</small>
                                                     </button>
                                                 </form>
                                             @endif
 
-                                            @if (in_array($paquete->servicio, ['CERTI', 'ORDI'], true))
+                                            @if (in_array($paquete->servicio, ['EMS', 'CONTRATO', 'SOLICITUD'], true))
+                                                @if ($canReturnOriginEncargado)
+                                                    <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="warning" data-confirm-title="Devolver a origen" data-confirm-message="Este envio volvera a ALMACEN de origen y se registrara el evento con tu usuario.">
+                                                        @csrf
+                                                        <input type="hidden" name="id" value="{{ $paquete->id }}">
+                                                        <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
+                                                        <input type="hidden" name="destino_accion" value="origen">
+                                                        <input type="hidden" name="current_servicio" value="{{ $servicio }}">
+                                                        <input type="hidden" name="q" value="{{ $search }}">
+                                                        <input type="hidden" name="from" value="{{ $fechaDesde }}">
+                                                        <input type="hidden" name="to" value="{{ $fechaHasta }}">
+                                                        <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+                                                        <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn">
+                                                            <span>Devolver a origen</span>
+                                                            <small>Registra quien lo hizo</small>
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                                @if ($canReturnDestinationEncargado)
+                                                    <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="info" data-confirm-title="Devolver a destino" data-confirm-message="Este envio volvera a ALMACEN de destino en estado RECIBIDO y se registrara el evento con tu usuario.">
+                                                        @csrf
+                                                        <input type="hidden" name="id" value="{{ $paquete->id }}">
+                                                        <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
+                                                        <input type="hidden" name="destino_accion" value="destino">
+                                                        <input type="hidden" name="current_servicio" value="{{ $servicio }}">
+                                                        <input type="hidden" name="q" value="{{ $search }}">
+                                                        <input type="hidden" name="from" value="{{ $fechaDesde }}">
+                                                        <input type="hidden" name="to" value="{{ $fechaHasta }}">
+                                                        <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+                                                        <button type="submit" class="btn btn-sm ems-btn-info ems-action-btn">
+                                                            <span>Devolver a destino</span>
+                                                            <small>Registra quien lo hizo</small>
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                            @endif
+
+                                            @if (in_array($paquete->servicio, ['CERTI', 'ORDI'], true) && $canReturnWindowEncargado)
                                                 <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="warning" data-confirm-title="Devolver a ventanilla" data-confirm-message="Este envio volvera a VENTANILLA y se registrara el evento con tu usuario.">
                                                     @csrf
                                                     <input type="hidden" name="id" value="{{ $paquete->id }}">

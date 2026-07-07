@@ -546,12 +546,17 @@ class PaquetesEmsController extends Controller
 
     public function encargado(Request $request)
     {
+        $this->authorizeAnyPermission($request, [
+            'paquetes-ems.encargado',
+        ]);
+
         $search = trim((string) $request->query('q', ''));
         $servicio = trim((string) $request->query('servicio', ''));
         $fechaDesde = trim((string) $request->query('from', ''));
         $fechaHasta = trim((string) $request->query('to', ''));
 
         $servicios = collect(['CONTRATO', 'EMS', 'CERTI', 'ORDI', 'SOLICITUD']);
+        $user = $request->user();
 
         $emsQuery = PaqueteEms::query()
             ->leftJoin('paquetes_ems_formulario as formulario', 'formulario.paquete_ems_id', '=', 'paquetes_ems.id')
@@ -731,11 +736,20 @@ class PaquetesEmsController extends Controller
             'servicio' => $servicio,
             'fechaDesde' => $fechaDesde,
             'fechaHasta' => $fechaHasta,
+            'canCancelEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.cancel'),
+            'canReturnOriginEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.returnorigin'),
+            'canReturnDestinationEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.returndestination'),
+            'canReturnWindowEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.returnwindow'),
+            'canUpdateWeightEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.updateweight'),
         ]);
     }
 
     public function cancelarEnvioEncargado(Request $request)
     {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.encargado.cancel',
+        ]);
+
         $data = $request->validate([
             'id' => ['required', 'integer', 'min:1'],
             'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
@@ -839,6 +853,15 @@ class PaquetesEmsController extends Controller
         $id = (int) $data['id'];
         $servicio = mb_strtoupper(trim((string) $data['servicio']));
         $destinoAccion = trim((string) $data['destino_accion']);
+
+        $this->authorizeAnyPermission($request, [
+            match ($destinoAccion) {
+                'origen' => 'feature.paquetes-ems.encargado.returnorigin',
+                'destino' => 'feature.paquetes-ems.encargado.returndestination',
+                'ventanilla' => 'feature.paquetes-ems.encargado.returnwindow',
+            },
+        ]);
+
         $actorUserId = (int) optional($request->user())->id;
         $actorName = $this->resolveActorDisplayName($request);
         $updated = 0;
@@ -981,6 +1004,10 @@ class PaquetesEmsController extends Controller
 
     public function actualizarPesoEncargado(Request $request)
     {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.encargado.updateweight',
+        ]);
+
         $data = $request->validate([
             'id' => ['required', 'integer', 'min:1'],
             'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
@@ -2480,6 +2507,11 @@ class PaquetesEmsController extends Controller
         }
 
         abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
+    }
+
+    private function userCan($user, string $permission): bool
+    {
+        return (bool) ($user && method_exists($user, 'can') && $user->can($permission));
     }
 
     private function nextCorrelativoEmpresa(int $empresaId, string $codigoCliente): int
