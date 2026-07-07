@@ -1,9 +1,18 @@
 ﻿@extends('adminlte::page')
 
-@section('title', 'Mis ventas')
+@section('title', ($pageContext['page_title'] ?? 'Mis ventas'))
 
 @section('content')
     @php
+        $pageContext = array_merge([
+            'page_title' => 'Mis ventas',
+            'panel_title' => 'Historial de ventas',
+            'panel_subtitle' => 'Detalle de emisiones registradas para tu cuenta.',
+            'filter_route' => 'mis-ventas.index',
+            'export_route' => 'mis-ventas.export.pdf',
+            'show_cashier_column' => false,
+            'scope' => 'own',
+        ], $pageContext ?? []);
         $facturacionFeedback = session('facturacion_feedback');
         $cajaEstado = strtoupper(trim((string) data_get($cajaContext ?? [], 'estado', 'SIN_APERTURA')));
         $isCajaAbierta = in_array($cajaEstado, ['ABIERTA', 'ABIERTO'], true);
@@ -98,8 +107,11 @@
                     data-confirm-cta="Si, cerrar caja"
                     data-processing-title="Cerrando caja"
                     data-processing-text="Estamos cerrando la caja diaria, espera un momento..."
+                    data-requires-close-amount="true"
+                    data-close-amount-suggested="{{ number_format((float) ($summary['montoTotal'] ?? 0), 2, '.', '') }}"
                 >
                     @csrf
+                    <input type="hidden" name="monto_cierre_declarado" value="{{ number_format((float) ($summary['montoTotal'] ?? 0), 2, '.', '') }}" data-caja-close-amount-hidden>
                     <button type="submit" class="btn btn-outline-danger">
                         <i class="fas fa-door-closed mr-1"></i> Cerrar caja
                     </button>
@@ -133,7 +145,7 @@
             </div>
         </div>
         <div class="card-body">
-            <form method="GET" action="{{ route('mis-ventas.index') }}" id="ventasFiltersForm">
+            <form method="GET" action="{{ route($pageContext['filter_route']) }}" id="ventasFiltersForm">
                 <div class="row">
                     <div class="col-xl-4 col-lg-6 mb-3">
                         <label class="ventas-label">Buscar</label>
@@ -178,10 +190,19 @@
                 </div>
 
                 <div class="d-flex flex-wrap">
-                    <a href="{{ route('mis-ventas.export.pdf', request()->query()) }}" target="_blank" rel="noopener" class="btn btn-outline-primary mr-2 mb-2">
+                    @if(($pageContext['scope'] ?? 'own') === 'own' && auth()->user()?->can('ventas-sucursal.index'))
+                        <a href="{{ route('ventas-sucursal.index') }}" class="btn btn-outline-info mr-2 mb-2">
+                            <i class="fas fa-store mr-1"></i> Ventas sucursal
+                        </a>
+                    @elseif(($pageContext['scope'] ?? 'own') === 'branch' && auth()->user()?->can('feature.dashboard.facturacion'))
+                        <a href="{{ route('mis-ventas.index') }}" class="btn btn-outline-info mr-2 mb-2">
+                            <i class="fas fa-user mr-1"></i> Mis ventas
+                        </a>
+                    @endif
+                    <a href="{{ route($pageContext['export_route'], request()->query()) }}" target="_blank" rel="noopener" class="btn btn-outline-primary mr-2 mb-2">
                         <i class="fas fa-file-pdf mr-1"></i> Reporte PDF
                     </a>
-                    <a href="{{ route('mis-ventas.index') }}" class="btn btn-outline-secondary mb-2">
+                    <a href="{{ route($pageContext['filter_route']) }}" class="btn btn-outline-secondary mb-2">
                         <i class="fas fa-undo mr-1"></i> Reiniciar
                     </a>
                 </div>
@@ -189,10 +210,39 @@
         </div>
     </div>
 
+    @if(($pageContext['scope'] ?? 'own') === 'branch' && collect($branchCashierSummary ?? [])->isNotEmpty())
+        <div class="card ventas-panel mb-4">
+            <div class="card-header ventas-panel__header">
+                <div>
+                    <strong>Cajeros de la sucursal</strong>
+                    <div class="text-muted small">Resumen de ventas agrupadas por usuario facturador de tu sucursal.</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    @foreach(collect($branchCashierSummary)->take(6) as $cashier)
+                        <div class="col-xl-4 col-md-6 mb-3">
+                            <div class="ventas-branch-cashier-card">
+                                <div class="ventas-branch-cashier-card__name">{{ $cashier['nombre'] }}</div>
+                                @if(($cashier['email'] ?? '') !== '')
+                                    <div class="ventas-branch-cashier-card__meta">{{ $cashier['email'] }}</div>
+                                @endif
+                                <div class="ventas-branch-cashier-card__stats">
+                                    <span>{{ $cashier['cantidad_ventas'] }} venta(s)</span>
+                                    <strong>Bs {{ number_format((float) $cashier['total_vendido'], 2) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="ventas-summary-grid">
         @foreach($summaryCards as $card)
             <a
-                href="{{ route('mis-ventas.index', $card['params']) }}"
+                href="{{ route($pageContext['filter_route'], $card['params']) }}"
                 class="ventas-stat-card {{ $card['accent'] ? 'ventas-stat-card--accent' : '' }} {{ $card['active'] ? 'ventas-stat-card--active' : '' }}"
             >
                 <div class="ventas-stat-card__label">{{ $card['label'] }}</div>
@@ -207,8 +257,8 @@
     <div class="card ventas-panel">
         <div class="card-header ventas-panel__header d-flex justify-content-between align-items-center">
             <div>
-                <strong>Historial de ventas</strong>
-                <div class="text-muted small">Detalle de emisiones registradas para tu cuenta.</div>
+                <strong>{{ $pageContext['panel_title'] }}</strong>
+                <div class="text-muted small">{{ $pageContext['panel_subtitle'] }}</div>
             </div>
             <div class="text-right">
                 <div class="ventas-table-count">{{ $carts->total() }} registros</div>
@@ -225,6 +275,9 @@
                             <th class="text-center">N°</th>
                             <th>Fecha</th>
                             <th>Codigo orden</th>
+                            @if($pageContext['show_cashier_column'])
+                                <th>Cajero</th>
+                            @endif
                             <th>Cliente</th>
                             <th>Facturacion</th>
                             <th>Estado</th>
@@ -366,6 +419,12 @@
                                         <div class="ventas-table__secondary">{{ $referenciaLabel }}: {{ $referenciaConsulta }}</div>
                                     @endif
                                 </td>
+                                @if($pageContext['show_cashier_column'])
+                                    <td>
+                                        <div class="ventas-table__primary">{{ trim((string) data_get($cart, 'origen_usuario_nombre', 'Sin usuario')) }}</div>
+                                        <div class="ventas-table__secondary">{{ trim((string) data_get($cart, 'origen_usuario_email', '')) }}</div>
+                                    </td>
+                                @endif
                                 <td>
                                     <div class="ventas-table__primary">{{ $razonSocial !== '' ? $razonSocial : 'SIN NOMBRE' }}</div>
                                     <div class="ventas-table__secondary">{{ $isOficial ? 'Registro interno' : ucfirst(str_replace('_', ' ', $modalidadFacturacion)) }}</div>
@@ -441,7 +500,7 @@
                                                 data-toggle="modal"
                                                 data-target="#ventasItemsModal-{{ $cartId }}"
                                                 data-ventas-detail-trigger="true"
-                                                data-detail-url="{{ route('mis-ventas.detail', $cartId) }}"
+                                                data-detail-url="{{ route('mis-ventas.detail', ['cart' => $cartId, 'source_user_id' => data_get($cart, 'origen_usuario_id'), 'scope' => $pageContext['scope']]) }}"
                                                 aria-label="Ver {{ $cartItems->count() }} items de la venta {{ $codigoOrden !== '' ? $codigoOrden : $cartId }}"
                                             >
                                                 {{ $itemsCountApi > 0 ? $itemsCountApi : $cartItems->count() }}
@@ -461,7 +520,7 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex flex-wrap justify-content-center">
-                                        @if($showConsultAction)
+                                        @if($showConsultAction && ($pageContext['scope'] ?? 'own') !== 'branch')
                                             <form
                                                 method="POST"
                                                 action="{{ route('facturacion.cart.consultar') }}"
@@ -481,13 +540,13 @@
                                         @if($pdfUrl !== '')
                                             <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary mr-2 mb-2">PDF original</a>
                                         @endif
-                                        <a href="{{ route('mis-ventas.ticket', $cartId) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-dark mb-2">Ticket</a>
+                                        <a href="{{ route('mis-ventas.ticket', ['cart' => $cartId, 'source_user_id' => data_get($cart, 'origen_usuario_id'), 'scope' => $pageContext['scope']]) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-dark mb-2">Ticket</a>
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center py-5 text-muted">No se encontraron ventas con los filtros aplicados.</td>
+                                <td colspan="{{ $pageContext['show_cashier_column'] ? 10 : 9 }}" class="text-center py-5 text-muted">No se encontraron ventas con los filtros aplicados.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -543,6 +602,7 @@
             $cartId = (int) data_get($cart, 'id', 0);
             $codigoOrden = trim((string) data_get($cart, 'codigo_orden', ''));
             $totalCart = (float) data_get($cart, 'total', 0);
+            $modalItemsCount = max((int) data_get($cart, 'items_count', 0), $cartItems->count());
         @endphp
         @if($cartItems->isNotEmpty() || data_get($cart, 'items_count', 0) > 0)
             <div class="modal fade ventas-items-modal" id="ventasItemsModal-{{ $cartId }}" tabindex="-1" role="dialog" aria-labelledby="ventasItemsModalLabel-{{ $cartId }}" aria-hidden="true">
@@ -552,7 +612,7 @@
                             <div>
                                 <h5 class="modal-title" id="ventasItemsModalLabel-{{ $cartId }}">Detalle de venta</h5>
                                 <div class="ventas-items-modal__subtitle">
-                                    Venta {{ $codigoOrden !== '' ? $codigoOrden : ('#' . $cartId) }} · {{ $cartItems->count() }} concepto(s)
+                                    Venta {{ $codigoOrden !== '' ? $codigoOrden : ('#' . $cartId) }} · {{ $modalItemsCount }} concepto(s)
                                     @if($itemsBreakdown !== '')
                                         · {{ $itemsBreakdown }}
                                     @endif
@@ -649,6 +709,11 @@
             <h4 id="ventasCajaConfirmTitle" class="ventas-confirm-modal__title">Confirmar accion</h4>
             <p class="ventas-confirm-modal__message" id="ventasCajaConfirmMessage">Esta accion actualizara el estado de la caja diaria.</p>
             <div class="ventas-confirm-modal__detail" id="ventasCajaConfirmDetail" hidden></div>
+            <div class="ventas-confirm-modal__field" id="ventasCajaCloseAmountField" hidden>
+                <label for="ventasCajaCloseAmountInput" class="ventas-confirm-modal__label">Monto de cierre declarado</label>
+                <input type="number" min="0" step="0.01" id="ventasCajaCloseAmountInput" class="form-control ventas-confirm-modal__input" inputmode="decimal">
+                <small class="ventas-confirm-modal__hint">Puedes ajustarlo antes de confirmar el cierre.</small>
+            </div>
             <div class="ventas-confirm-modal__actions">
                 <button type="button" class="btn btn-light" id="ventasCajaConfirmCancel">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="ventasCajaConfirmAccept">Confirmar</button>
@@ -943,6 +1008,41 @@
             font-size: 1.05rem;
         }
 
+        .ventas-branch-cashier-card {
+            height: 100%;
+            padding: 1rem 1.05rem;
+            border: 1px solid rgba(32, 83, 154, 0.12);
+            border-radius: 18px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            box-shadow: 0 10px 24px rgba(15, 28, 52, 0.05);
+        }
+
+        .ventas-branch-cashier-card__name {
+            color: #173b73;
+            font-weight: 800;
+        }
+
+        .ventas-branch-cashier-card__meta {
+            margin-top: .2rem;
+            color: #74839b;
+            font-size: .85rem;
+        }
+
+        .ventas-branch-cashier-card__stats {
+            margin-top: .75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+            color: #4f6280;
+            font-size: .92rem;
+        }
+
+        .ventas-branch-cashier-card__stats strong {
+            color: #173b73;
+            font-size: 1rem;
+        }
+
         .ventas-count-pill {
             display: inline-flex;
             align-items: center;
@@ -1201,6 +1301,32 @@
             margin-top: 1.2rem;
         }
 
+        .ventas-confirm-modal__field {
+            margin-top: .9rem;
+            text-align: left;
+        }
+
+        .ventas-confirm-modal__label {
+            display: block;
+            margin-bottom: .45rem;
+            font-size: .86rem;
+            font-weight: 700;
+            color: #284572;
+        }
+
+        .ventas-confirm-modal__input {
+            min-height: 44px;
+            border-radius: 12px;
+            border-color: #cfdcf4;
+        }
+
+        .ventas-confirm-modal__hint {
+            display: block;
+            margin-top: .45rem;
+            color: #667c9e;
+            font-size: .84rem;
+        }
+
         .ventas-processing-overlay {
             display: flex;
             align-items: center;
@@ -1293,6 +1419,8 @@
             const cajaConfirmTitle = document.getElementById('ventasCajaConfirmTitle');
             const cajaConfirmMessage = document.getElementById('ventasCajaConfirmMessage');
             const cajaConfirmDetail = document.getElementById('ventasCajaConfirmDetail');
+            const cajaCloseAmountField = document.getElementById('ventasCajaCloseAmountField');
+            const cajaCloseAmountInput = document.getElementById('ventasCajaCloseAmountInput');
             const cajaConfirmCancel = document.getElementById('ventasCajaConfirmCancel');
             const cajaConfirmAccept = document.getElementById('ventasCajaConfirmAccept');
             const cajaProcessingOverlay = document.getElementById('ventasCajaProcessingOverlay');
@@ -1496,6 +1624,16 @@
                     || targetForm.dataset.confirmCta
                     || 'Confirmar'
                 );
+                const requiresCloseAmount = String(
+                    targetForm.getAttribute('data-requires-close-amount')
+                    || targetForm.dataset.requiresCloseAmount
+                    || ''
+                ) === 'true';
+                const suggestedCloseAmount = String(
+                    targetForm.getAttribute('data-close-amount-suggested')
+                    || targetForm.dataset.closeAmountSuggested
+                    || '0.00'
+                );
 
                 pendingCajaForm = targetForm;
                 if (cajaConfirmTitle) {
@@ -1511,9 +1649,23 @@
                 if (cajaConfirmAccept) {
                     cajaConfirmAccept.textContent = confirmCta;
                 }
+                if (cajaCloseAmountField) {
+                    cajaCloseAmountField.hidden = !requiresCloseAmount;
+                }
+                if (cajaCloseAmountInput) {
+                    cajaCloseAmountInput.value = suggestedCloseAmount;
+                }
 
                 cajaConfirmModal.setAttribute('aria-hidden', 'false');
-                window.setTimeout(() => cajaConfirmAccept?.focus(), 30);
+                window.setTimeout(() => {
+                    if (requiresCloseAmount && cajaCloseAmountInput) {
+                        cajaCloseAmountInput.focus();
+                        cajaCloseAmountInput.select();
+                        return;
+                    }
+
+                    cajaConfirmAccept?.focus();
+                }, 30);
             };
 
             const closeCajaConfirm = () => {
@@ -1522,6 +1674,9 @@
                     return;
                 }
                 cajaConfirmModal.setAttribute('aria-hidden', 'true');
+                if (cajaCloseAmountField) {
+                    cajaCloseAmountField.hidden = true;
+                }
             };
 
             const setCajaProcessing = (active, targetForm = null) => {
@@ -1596,6 +1751,20 @@
                 if (!(pendingCajaForm instanceof HTMLFormElement)) {
                     closeCajaConfirm();
                     return;
+                }
+
+                if (cajaCloseAmountField && !cajaCloseAmountField.hidden) {
+                    const hiddenInput = pendingCajaForm.querySelector('[data-caja-close-amount-hidden]');
+                    const enteredValue = cajaCloseAmountInput ? cajaCloseAmountInput.value.trim() : '';
+
+                    if (enteredValue === '' || Number.isNaN(Number(enteredValue)) || Number(enteredValue) < 0) {
+                        cajaCloseAmountInput?.focus();
+                        return;
+                    }
+
+                    if (hiddenInput instanceof HTMLInputElement) {
+                        hiddenInput.value = Number(enteredValue).toFixed(2);
+                    }
                 }
 
                 const targetForm = pendingCajaForm;

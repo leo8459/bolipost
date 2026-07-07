@@ -204,6 +204,12 @@ Route::get('/mis-ventas', [MisVentasController::class, 'index'])
 Route::get('/mis-ventas/export/pdf', [MisVentasController::class, 'exportPdf'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.export.pdf');
+Route::get('/ventas-sucursal', [MisVentasController::class, 'branchIndex'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('ventas-sucursal.index');
+Route::get('/ventas-sucursal/export/pdf', [MisVentasController::class, 'branchExportPdf'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('ventas-sucursal.export.pdf');
 Route::get('/mis-ventas/{cart}/detail', [MisVentasController::class, 'detail'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.detail');

@@ -80,9 +80,12 @@ class FacturacionCartService
         ];
     }
 
-    public function cerrarCaja(User $user): array
+    public function cerrarCaja(User $user, float $montoCierreDeclarado): array
     {
         $body = $this->request('POST', '/caja/cerrar', array_merge(
+            [
+                'monto_cierre_declarado' => round($montoCierreDeclarado, 2),
+            ],
             $this->originUserPayload($user),
             $this->originSucursalPayload($user)
         ));
@@ -1434,6 +1437,8 @@ class FacturacionCartService
         $codigoSucursal = trim((string) $sucursal->codigoSucursal);
         $puntoVenta = trim((string) $sucursal->puntoVenta);
         $nombreSucursal = trim((string) ($sucursal->nombre ?? $sucursal->descripcion ?? $sucursal->municipio ?? ''));
+        $municipio = trim((string) ($sucursal->municipio ?? ''));
+        $departamento = trim((string) ($sucursal->departamento ?? $municipio));
 
         if ($codigoSucursal === '' || $puntoVenta === '') {
             throw new \RuntimeException('La sucursal asignada no tiene codigoSucursal/puntoVenta validos.');
@@ -1444,12 +1449,18 @@ class FacturacionCartService
             'origen_sucursal_id' => $puntoVenta,
             'origen_sucursal_codigo' => $codigoSucursal,
             'origen_sucursal_nombre' => $nombreSucursal,
+            'origen_sucursal_municipio' => $municipio !== '' ? $municipio : null,
+            'origen_sucursal_departamento' => $departamento !== '' ? $departamento : null,
             // Claves requeridas por endpoints de caja en API facturacion
             'codigo_sucursal' => $codigoSucursal,
             'punto_venta' => $puntoVenta,
+            'municipio' => $municipio !== '' ? $municipio : null,
+            'departamento' => $departamento !== '' ? $departamento : null,
             // Compatibilidad adicional por si el backend valida en camelCase
             'codigoSucursal' => $codigoSucursal,
             'puntoVenta' => $puntoVenta,
+            'municipioSucursal' => $municipio !== '' ? $municipio : null,
+            'departamentoSucursal' => $departamento !== '' ? $departamento : null,
         ];
     }
 

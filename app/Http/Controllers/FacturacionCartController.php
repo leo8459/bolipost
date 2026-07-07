@@ -541,9 +541,12 @@ class FacturacionCartController extends Controller
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
+        $validated = $request->validate([
+            'monto_cierre_declarado' => ['required', 'numeric', 'min:0'],
+        ]);
 
         try {
-            $resultado = $service->cerrarCaja($user);
+            $resultado = $service->cerrarCaja($user, (float) $validated['monto_cierre_declarado']);
 
             return back()->with('facturacion_feedback', [
                 'type' => 'success',

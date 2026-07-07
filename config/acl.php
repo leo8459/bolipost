@@ -94,6 +94,7 @@ return [
         'dashboard.global-por-servicio',
         'dashboard.global-por-servicio.excel',
         'dashboard.global-por-servicio.pdf',
+        'ventas-sucursal.export.pdf',
     ],
 
     /*
@@ -259,6 +260,7 @@ return [
         'reportes' => 'Reportes',
         'malencaminados' => 'Malencaminados',
         'mis-ventas' => 'Mis Ventas',
+        'ventas-sucursal' => 'Ventas Sucursal',
         'paquetes-ems' => 'Paquetes EMS',
         'paquetes-ems.almacen-admisiones' => 'Almacen admisiones',
         'paquetes-ems.solicitudes.index' => 'Solicitudes EMS',

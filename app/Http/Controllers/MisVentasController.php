@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Services\FacturacionCartService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
@@ -17,34 +18,42 @@ class MisVentasController extends Controller
 {
     public function index(Request $request, FacturacionCartService $service): View
     {
-        [$user, $filters] = $this->resolveRequestContext($request);
-        $cajaContext = $this->resolveCajaContext($service, $user);
+        return $this->renderVentasPage($request, $service, 'own');
+    }
 
-        $remote = $service->fetchKardexVentas($user, $filters);
-        $rawRows = collect($remote['detalle'] ?? [])
-            ->map(fn ($row) => is_array($row) ? (object) $row : $row)
-            ->filter(fn ($row) => is_object($row))
-            ->values();
-        if ($rawRows->isEmpty()) {
-            $carts = new LengthAwarePaginator(
-                collect(),
-                0,
-                (int) $filters['per_page'],
-                (int) $filters['page'],
-                ['path' => $request->url(), 'query' => $request->query()]
-            );
+    public function branchIndex(Request $request, FacturacionCartService $service): View
+    {
+        return $this->renderVentasPage($request, $service, 'branch');
+    }
 
-            return view('facturacion.mis-ventas', [
-                'carts' => $carts,
-                'summary' => $this->emptySummary(),
-                'filters' => $filters,
-                'cajaContext' => $cajaContext,
-            ]);
+    private function resolveCajaContext(FacturacionCartService $service, $user): array
+    {
+        try {
+            return $service->fetchCajaEstado($user);
+        } catch (\Throwable) {
+            return [
+                'estado' => 'SIN_APERTURA',
+                'mensaje' => 'No se pudo consultar el estado de caja.',
+                'caja' => [],
+            ];
         }
+    }
 
-        $rows = $this->normalizeKardexRows($rawRows);
-        $rows = $this->applyLocalFilters($rows, $filters);
-        $summary = $this->summaryFromRows($rows);
+    public function exportPdf(Request $request, FacturacionCartService $service): Response
+    {
+        return $this->exportVentasPdf($request, $service, 'own');
+    }
+
+    public function branchExportPdf(Request $request, FacturacionCartService $service): Response
+    {
+        return $this->exportVentasPdf($request, $service, 'branch');
+    }
+
+    private function renderVentasPage(Request $request, FacturacionCartService $service, string $scope): View
+    {
+        [$user, $filters] = $this->resolveRequestContext($request, $scope);
+        $cajaContext = $this->resolveCajaContext($service, $user);
+        [$rows, $summary, $extra] = $this->loadScopedVentas($service, $user, $filters, $scope);
 
         $pageRows = $rows
             ->forPage((int) $filters['page'], (int) $filters['per_page'])
@@ -63,34 +72,17 @@ class MisVentasController extends Controller
             'summary' => $summary,
             'filters' => $filters,
             'cajaContext' => $cajaContext,
+            'pageContext' => $this->pageContextForScope($scope),
+            'branchCashierSummary' => $extra['branch_cashiers'] ?? collect(),
         ]);
     }
 
-    private function resolveCajaContext(FacturacionCartService $service, $user): array
+    private function exportVentasPdf(Request $request, FacturacionCartService $service, string $scope): Response
     {
-        try {
-            return $service->fetchCajaEstado($user);
-        } catch (\Throwable) {
-            return [
-                'estado' => 'SIN_APERTURA',
-                'mensaje' => 'No se pudo consultar el estado de caja.',
-                'caja' => [],
-            ];
-        }
-    }
-
-    public function exportPdf(Request $request, FacturacionCartService $service): Response
-    {
-        [$user, $filters] = $this->resolveRequestContext($request);
+        [$user, $filters] = $this->resolveRequestContext($request, $scope);
         $exportFilters = $filters;
         $exportFilters['per_page'] = 100;
-        $remote = $service->fetchKardexVentas($user, $exportFilters);
-        $rawRows = collect($remote['detalle'] ?? [])
-            ->map(fn ($row) => is_array($row) ? (object) $row : $row)
-            ->filter(fn ($row) => is_object($row))
-            ->values();
-        $carts = $this->normalizeKardexRows($rawRows);
-        $carts = $this->applyLocalFilters($carts, $filters);
+        [$carts] = $this->loadScopedVentas($service, $user, $exportFilters, $scope);
         $rows = $this->buildPdfRows($carts);
 
         $totals = [
@@ -112,6 +104,7 @@ class MisVentasController extends Controller
             'carts' => $carts,
             'rows' => $rows,
             'totals' => $totals,
+            'scope' => $scope,
         ])->setPaper('a4', 'portrait');
 
         $filename = 'kardex-facturacion-' . now()->format('Ymd-His') . '.pdf';
@@ -124,10 +117,9 @@ class MisVentasController extends Controller
 
     public function ticket(Request $request, int $cart, FacturacionCartService $service): StreamedResponse
     {
-        $user = $request->user();
-        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para ver tus ventas.');
-
-        $venta = $this->resolveVentaForDetail($service, $user, $cart);
+        $user = $this->authorizeVentasViewer($request->user(), $request->query('scope') === 'branch' ? 'branch' : 'own');
+        $sourceUser = $this->resolveSourceUserForRequest($request, $user);
+        $venta = $this->resolveVentaForDetail($service, $sourceUser, $cart);
 
         abort_unless($venta, 404, 'No se encontro la venta solicitada.');
 
@@ -139,10 +131,9 @@ class MisVentasController extends Controller
 
     public function detail(Request $request, int $cart, FacturacionCartService $service): JsonResponse
     {
-        $user = $request->user();
-        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para ver tus ventas.');
-
-        $venta = $this->resolveVentaForDetail($service, $user, $cart);
+        $user = $this->authorizeVentasViewer($request->user(), $request->query('scope') === 'branch' ? 'branch' : 'own');
+        $sourceUser = $this->resolveSourceUserForRequest($request, $user);
+        $venta = $this->resolveVentaForDetail($service, $sourceUser, $cart);
         abort_unless($venta, 404, 'No se encontro la venta solicitada.');
 
         $items = $this->normalizeItems(data_get($venta, 'items', []))
@@ -176,10 +167,9 @@ class MisVentasController extends Controller
         ]);
     }
 
-    private function resolveRequestContext(Request $request): array
+    private function resolveRequestContext(Request $request, string $scope = 'own'): array
     {
-        $user = $request->user();
-        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para ver tus ventas.');
+        $user = $this->authorizeVentasViewer($request->user(), $scope);
         $today = now()->toDateString();
 
         $validated = $request->validate([
@@ -201,6 +191,160 @@ class MisVentasController extends Controller
             'per_page' => (int) ($validated['per_page'] ?? 20),
             'page' => (int) ($validated['page'] ?? 1),
         ]];
+    }
+
+    private function authorizeVentasViewer(?User $user, string $scope = 'own'): User
+    {
+        abort_unless($user, 403, 'No tienes permiso para ver ventas.');
+
+        if ($scope === 'branch') {
+            abort_unless($user->can('ventas-sucursal.index'), 403, 'No tienes permiso para ver ventas de sucursal.');
+            abort_unless((int) ($user->sucursal_id ?? 0) > 0, 403, 'Tu cuenta no tiene una sucursal de facturacion asignada.');
+
+            return $user;
+        }
+
+        abort_unless($user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para ver tus ventas.');
+
+        return $user;
+    }
+
+    private function pageContextForScope(string $scope): array
+    {
+        if ($scope === 'branch') {
+            return [
+                'page_title' => 'Ventas sucursal',
+                'panel_title' => 'Ventas de sucursal',
+                'panel_subtitle' => 'Ventas emitidas por los cajeros de tu sucursal de facturacion.',
+                'filter_route' => 'ventas-sucursal.index',
+                'export_route' => 'ventas-sucursal.export.pdf',
+                'show_cashier_column' => true,
+                'scope' => 'branch',
+            ];
+        }
+
+        return [
+            'page_title' => 'Mis ventas',
+            'panel_title' => 'Historial de ventas',
+            'panel_subtitle' => 'Detalle de emisiones registradas para tu cuenta.',
+            'filter_route' => 'mis-ventas.index',
+            'export_route' => 'mis-ventas.export.pdf',
+            'show_cashier_column' => false,
+            'scope' => 'own',
+        ];
+    }
+
+    private function loadScopedVentas(FacturacionCartService $service, User $user, array $filters, string $scope): array
+    {
+        $rawRows = $scope === 'branch'
+            ? $this->fetchBranchRawRows($service, $user, $filters)
+            : $this->fetchOwnRawRows($service, $user, $filters);
+
+        if ($rawRows->isEmpty()) {
+            return [collect(), $this->emptySummary(), [
+                'branch_cashiers' => collect(),
+            ]];
+        }
+
+        $rows = $this->normalizeKardexRows($rawRows);
+        $rows = $this->applyLocalFilters($rows, $filters);
+
+        return [
+            $rows->values(),
+            $this->summaryFromRows($rows),
+            [
+                'branch_cashiers' => $scope === 'branch' ? $this->buildBranchCashierSummary($rows) : collect(),
+            ],
+        ];
+    }
+
+    private function fetchOwnRawRows(FacturacionCartService $service, User $user, array $filters): Collection
+    {
+        $remote = $service->fetchKardexVentas($user, $filters);
+
+        return collect($remote['detalle'] ?? [])
+            ->map(fn ($row) => is_array($row) ? (object) $row : $row)
+            ->filter(fn ($row) => is_object($row))
+            ->values();
+    }
+
+    private function fetchBranchRawRows(FacturacionCartService $service, User $viewer, array $filters): Collection
+    {
+        return $this->resolveBranchCashiers($viewer)
+            ->flatMap(function (User $cashier) use ($service, $filters) {
+                try {
+                    return $this->fetchOwnRawRows($service, $cashier, $filters)
+                        ->map(function ($row) use ($cashier) {
+                            if (!isset($row->origenUsuarioId) || trim((string) ($row->origenUsuarioId ?? '')) === '') {
+                                $row->origenUsuarioId = (string) $cashier->id;
+                            }
+                            if (!isset($row->origenUsuarioNombre) || trim((string) ($row->origenUsuarioNombre ?? '')) === '') {
+                                $row->origenUsuarioNombre = (string) $cashier->name;
+                            }
+                            if (!isset($row->origenUsuarioEmail) || trim((string) ($row->origenUsuarioEmail ?? '')) === '') {
+                                $row->origenUsuarioEmail = (string) $cashier->email;
+                            }
+                            if (!isset($row->origenUsuarioAlias) || trim((string) ($row->origenUsuarioAlias ?? '')) === '') {
+                                $row->origenUsuarioAlias = (string) ($cashier->alias ?? '');
+                            }
+                            if (!isset($row->origenUsuarioCarnet) || trim((string) ($row->origenUsuarioCarnet ?? '')) === '') {
+                                $row->origenUsuarioCarnet = (string) ($cashier->ci ?? '');
+                            }
+
+                            return $row;
+                        });
+                } catch (\Throwable) {
+                    return collect();
+                }
+            })
+            ->sortByDesc(fn ($row) => strtotime((string) data_get($row, 'fecha', '1970-01-01 00:00:00')))
+            ->values();
+    }
+
+    private function resolveBranchCashiers(User $viewer): Collection
+    {
+        return User::query()
+            ->where('sucursal_id', (int) $viewer->sucursal_id)
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (User $candidate) => $candidate->can('feature.dashboard.facturacion'))
+            ->values();
+    }
+
+    private function buildBranchCashierSummary(Collection $rows): Collection
+    {
+        return $rows
+            ->groupBy(function ($row) {
+                return trim((string) data_get($row, 'origen_usuario_id', data_get($row, 'origen_usuario_email', 'sin-usuario')));
+            })
+            ->map(function (Collection $cashierRows) {
+                $first = $cashierRows->first();
+
+                return [
+                    'usuario_id' => trim((string) data_get($first, 'origen_usuario_id', '')),
+                    'nombre' => trim((string) data_get($first, 'origen_usuario_nombre', 'Sin usuario')),
+                    'email' => trim((string) data_get($first, 'origen_usuario_email', '')),
+                    'cantidad_ventas' => $cashierRows->count(),
+                    'total_vendido' => round((float) $cashierRows->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
+                ];
+            })
+            ->sortByDesc('total_vendido')
+            ->values();
+    }
+
+    private function resolveSourceUserForRequest(Request $request, User $viewer): User
+    {
+        $sourceUserId = (int) $request->query('source_user_id', 0);
+        if ($sourceUserId <= 0 || ! $viewer->can('ventas-sucursal.index')) {
+            return $viewer;
+        }
+
+        $sourceUser = User::query()
+            ->whereKey($sourceUserId)
+            ->where('sucursal_id', (int) $viewer->sucursal_id)
+            ->first();
+
+        return $sourceUser ?: $viewer;
     }
 
     private function summaryFromKardex(array $resumen): array
@@ -307,6 +451,8 @@ class MisVentasController extends Controller
                     data_get($row, 'qr_transaction_id'),
                     data_get($row, 'numero_documento'),
                     data_get($row, 'razon_social'),
+                    data_get($row, 'origen_usuario_nombre'),
+                    data_get($row, 'origen_usuario_email'),
                     data_get($row, 'mensaje_emision'),
                 ];
 
@@ -377,6 +523,9 @@ class MisVentasController extends Controller
                 'id' => $resolvedCartId,
                 'origen_venta_id' => $origenVentaId > 0 ? $origenVentaId : null,
                 'venta_id' => $ventaId,
+                'origen_usuario_id' => trim((string) data_get($row, 'origenUsuarioId', data_get($row, 'origen_usuario_id', ''))),
+                'origen_usuario_nombre' => trim((string) data_get($row, 'origenUsuarioNombre', data_get($row, 'origen_usuario_nombre', ''))),
+                'origen_usuario_email' => trim((string) data_get($row, 'origenUsuarioEmail', data_get($row, 'origen_usuario_email', ''))),
                 'created_at' => $createdAt,
                 'emitido_en' => $createdAt,
                 'codigo_orden' => $codigoOrden,
@@ -758,6 +907,11 @@ class MisVentasController extends Controller
                 ->filter()
                 ->unique()
                 ->implode(' / ');
+            $detalleItems = $items
+                ->map(fn ($item) => trim((string) data_get($item, 'titulo', data_get($item, 'nombre_servicio', ''))))
+                ->filter()
+                ->unique()
+                ->implode(' / ');
             $codigoOrden = trim((string) data_get($cart, 'codigo_orden', data_get($cart, 'codigo_seguimiento', ''))) ?: '-';
             $codigosPaquete = $this->extractPackageCodesFromItems($items);
             $pesoTotal = (float) $items->sum(fn ($item) => (float) data_get($item, 'resumen_origen.peso', 0));
@@ -765,10 +919,28 @@ class MisVentasController extends Controller
             if ($cantidadTotal <= 0) {
                 $cantidadTotal = max(1, $items->count());
             }
+            $packageItemsCount = $codigosPaquete->count();
+            $serviceItemsCount = max(0, $cantidadTotal - $packageItemsCount);
+            $detalleResumen = collect([
+                $packageItemsCount > 0 ? $packageItemsCount . ' paquete' . ($packageItemsCount === 1 ? '' : 's') : null,
+                $serviceItemsCount > 0 ? $serviceItemsCount . ' servicio' . ($serviceItemsCount === 1 ? '' : 's') : null,
+            ])->filter()->implode(' + ');
+            $clienteLabel = trim((string) data_get($cart, 'razon_social', ''));
+            if ($clienteLabel === '') {
+                $clienteLabel = (bool) data_get($cart, 'es_oficial', false) ? 'ENVIO OFICIAL' : 'Sin cliente';
+            }
 
             return [
+                'origen_usuario_id' => trim((string) data_get($cart, 'origen_usuario_id', '')),
+                'origen_usuario_nombre' => trim((string) data_get($cart, 'origen_usuario_nombre', '')),
+                'origen_usuario_email' => trim((string) data_get($cart, 'origen_usuario_email', '')),
                 'fecha' => $fecha ? date('d/m/Y', strtotime((string) $fecha)) : '-',
+                'fecha_hora' => $fecha ? date('d/m/Y H:i', strtotime((string) $fecha)) : '-',
+                'fecha_sort' => $fecha ? strtotime((string) $fecha) : 0,
+                'cliente' => $clienteLabel,
                 'tipo_envio' => $tipoEnvio !== '' ? $tipoEnvio : 'SIN DETALLE REAL',
+                'detalle_items' => $detalleItems !== '' ? $detalleItems : 'Sin detalle real',
+                'detalle_resumen' => $detalleResumen,
                 'codigo_item' => $codigoOrden,
                 'codigo_paquetes' => $codigosPaquete,
                 'codigo_referencia' => $codigosPaquete->isNotEmpty()
@@ -783,6 +955,7 @@ class MisVentasController extends Controller
                 'section_key' => $sectionKey,
                 'emision_label' => $emisionLabel,
                 'contabiliza_en_caja' => $contabilizaEnCaja,
+                'cobrada' => in_array($sectionKey, ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'], true),
                 'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',
                 'importe_parcial' => round((float) data_get($cart, 'total', 0), 2),
                 'importe_general' => round((float) data_get($cart, 'total', 0), 2),

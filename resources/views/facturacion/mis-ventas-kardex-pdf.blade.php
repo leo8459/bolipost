@@ -123,10 +123,39 @@
         .page-break {
             page-break-before: always;
         }
+
+        .cashier-meta td {
+            border: 1px solid #333;
+            padding: 5px 7px;
+            font-size: 9.5px;
+        }
+
+        .cashier-name {
+            font-weight: 700;
+            font-size: 11px;
+        }
+
+        .cashier-muted {
+            color: #444;
+            font-size: 9px;
+        }
+
+        .summary-grid td {
+            border: 1px solid #333;
+            padding: 6px 8px;
+            font-size: 10px;
+        }
+
+        .summary-label {
+            font-weight: 700;
+            text-transform: uppercase;
+            background: #f4f6f9;
+        }
     </style>
 </head>
 <body>
 @php
+    $scope = $scope ?? 'own';
     $headerImagePath = public_path('images/encabezado_contratos.jpeg');
     $headerImage = file_exists($headerImagePath) ? 'data:image/jpeg;base64,' . base64_encode(file_get_contents($headerImagePath)) : null;
     $sucursal = $user->sucursal;
@@ -187,6 +216,30 @@
     $hasUnpaidRows = collect($unpaidSectionKeys)->contains(fn ($key) => $rowsByChannel->get($key, collect())->isNotEmpty());
     $paidRows = collect($rows)->filter(fn ($row) => in_array((string) data_get($row, 'section_key', ''), $paidSectionKeys, true))->values();
     $unpaidRows = collect($rows)->filter(fn ($row) => in_array((string) data_get($row, 'section_key', ''), $unpaidSectionKeys, true))->values();
+    $branchGroups = collect($rows)
+        ->groupBy(fn ($row) => trim((string) data_get($row, 'origen_usuario_id', data_get($row, 'origen_usuario_email', 'sin-usuario'))))
+        ->map(function ($groupRows) {
+            $groupRows = collect($groupRows)
+                ->sortBy(fn ($row) => (int) data_get($row, 'fecha_sort', 0))
+                ->values();
+            $first = $groupRows->first();
+
+            return [
+                'usuario_id' => trim((string) data_get($first, 'origen_usuario_id', '')),
+                'nombre' => trim((string) data_get($first, 'origen_usuario_nombre', 'Sin usuario')),
+                'email' => trim((string) data_get($first, 'origen_usuario_email', '')),
+                'rows' => $groupRows,
+                'ventas' => $groupRows->count(),
+                'cobradas' => $groupRows->filter(fn ($row) => (bool) data_get($row, 'cobrada', false))->count(),
+                'pendientes' => $groupRows->filter(fn ($row) => ! (bool) data_get($row, 'cobrada', false))->count(),
+                'total' => round((float) $groupRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+                'total_cobrado' => round((float) $groupRows
+                    ->filter(fn ($row) => (bool) data_get($row, 'cobrada', false))
+                    ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+            ];
+        })
+        ->sortByDesc('total')
+        ->values();
 @endphp
 
 @if($headerImage)
@@ -199,7 +252,7 @@
     <tr>
         <td class="field">Oficina Postal:</td>
         <td class="value">{{ $oficinaPostal !== '' ? $oficinaPostal : '-' }}</td>
-        <td class="field">Nombre Responsable:</td>
+        <td class="field">{{ $scope === 'branch' ? 'Encargado sucursal:' : 'Nombre Responsable:' }}</td>
         <td class="value">{{ $user->name }}</td>
     </tr>
     <tr>
@@ -210,62 +263,159 @@
     </tr>
 </table>
 
-<div class="section-title">Kardex de ventas cobradas</div>
-@if($hasPaidRows)
-    @foreach($paidSectionKeys as $channelKey)
-        @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
-        @continue($sectionRows->isEmpty())
-        @include('facturacion.partials.kardex-section-table', ['section' => $sectionConfigs[$channelKey], 'sectionRows' => $sectionRows])
-    @endforeach
-@else
-    <table class="grid">
-        <tbody>
+@if($scope === 'branch')
+    <div class="section-title">Kardex agrupado por cajero</div>
+    <table class="summary-grid" style="margin-bottom: 10px;">
+        <tr>
+            <td class="summary-label" style="width: 25%;">Cajeros con ventas</td>
+            <td style="width: 25%;">{{ $branchGroups->count() }}</td>
+            <td class="summary-label" style="width: 25%;">Total ventas</td>
+            <td style="width: 25%;">{{ collect($rows)->count() }}</td>
+        </tr>
+        <tr>
+            <td class="summary-label">Total cobrado</td>
+            <td>Bs {{ number_format((float) $paidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+            <td class="summary-label">Total general</td>
+            <td>Bs {{ number_format((float) collect($rows)->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+        </tr>
+    </table>
+
+    @forelse($branchGroups as $cashierIndex => $group)
+        <div class="section-title">Cajero {{ $cashierIndex + 1 }}: {{ $group['nombre'] }}</div>
+        <table class="cashier-meta" style="margin-bottom: 6px;">
             <tr>
-                <td class="center" style="padding: 12px;">No se encontraron ventas cobradas con los filtros aplicados.</td>
+                <td style="width: 38%;">
+                    <div class="cashier-name">{{ $group['nombre'] }}</div>
+                    <div class="cashier-muted">{{ $group['email'] !== '' ? $group['email'] : 'Sin correo registrado' }}</div>
+                </td>
+                <td style="width: 14%;" class="center"><strong>{{ $group['ventas'] }}</strong><br>ventas</td>
+                <td style="width: 14%;" class="center"><strong>{{ $group['cobradas'] }}</strong><br>cobradas</td>
+                <td style="width: 14%;" class="center"><strong>{{ $group['pendientes'] }}</strong><br>pendientes</td>
+                <td style="width: 20%;" class="right"><strong>Bs {{ number_format((float) $group['total'], 2) }}</strong><br>total emitido</td>
             </tr>
-        </tbody>
+        </table>
+
+        <table class="grid" style="margin-bottom: 10px;">
+            <thead>
+                <tr>
+                    <th style="width: 4%;">Nro.</th>
+                    <th style="width: 10%;">Fecha</th>
+                    <th style="width: 12%;">Orden</th>
+                    <th style="width: 14%;">Cliente</th>
+                    <th style="width: 23%;">Detalle</th>
+                    <th style="width: 17%;">Paquete / codigos</th>
+                    <th style="width: 8%;">Factura</th>
+                    <th style="width: 6%;">Estado</th>
+                    <th style="width: 6%;">Importe</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($group['rows'] as $index => $row)
+                    <tr>
+                        <td class="center">{{ $index + 1 }}</td>
+                        <td class="center">{{ data_get($row, 'fecha_hora', data_get($row, 'fecha', '-')) }}</td>
+                        <td>{{ data_get($row, 'codigo_item', '-') }}</td>
+                        <td>{{ data_get($row, 'cliente', 'Sin cliente') }}</td>
+                        <td>
+                            <strong>{{ data_get($row, 'detalle_items', data_get($row, 'tipo_envio', 'Sin detalle')) }}</strong>
+                            @if((string) data_get($row, 'detalle_resumen', '') !== '')
+                                <br>{{ data_get($row, 'detalle_resumen') }}
+                            @endif
+                        </td>
+                        <td style="white-space: pre-line;">{{ data_get($row, 'codigo_referencia', '-') }}</td>
+                        <td class="center">{{ data_get($row, 'numero_factura', '-') }}</td>
+                        <td class="center">{{ (bool) data_get($row, 'cobrada', false) ? 'Cobrada' : 'Pend.' }}</td>
+                        <td class="right">{{ number_format((float) data_get($row, 'importe_general', 0), 2) }}</td>
+                    </tr>
+                @endforeach
+                <tr>
+                    <td colspan="8" class="right" style="font-weight: 700;">SUBTOTAL {{ strtoupper($group['nombre']) }}</td>
+                    <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $group['total'], 2) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    @empty
+        <table class="grid">
+            <tbody>
+                <tr>
+                    <td class="center" style="padding: 12px;">No se encontraron ventas de sucursal con los filtros aplicados.</td>
+                </tr>
+            </tbody>
+        </table>
+    @endforelse
+
+    <table class="totals" style="margin-top: 4px;">
+        <tr>
+            <td style="width: 89%;" class="right">TOTAL COBRADO SUCURSAL</td>
+            <td style="width: 11%;" class="right">Bs {{ number_format((float) $paidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+        </tr>
+        <tr>
+            <td class="right">TOTAL PENDIENTE / NO COBRADO</td>
+            <td class="right">Bs {{ number_format((float) $unpaidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+        </tr>
+        <tr>
+            <td class="right">TOTAL GENERAL SUCURSAL</td>
+            <td class="right">Bs {{ number_format((float) collect($rows)->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+        </tr>
+    </table>
+@else
+    <div class="section-title">Kardex de ventas cobradas</div>
+    @if($hasPaidRows)
+        @foreach($paidSectionKeys as $channelKey)
+            @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
+            @continue($sectionRows->isEmpty())
+            @include('facturacion.partials.kardex-section-table', ['section' => $sectionConfigs[$channelKey], 'sectionRows' => $sectionRows])
+        @endforeach
+    @else
+        <table class="grid">
+            <tbody>
+                <tr>
+                    <td class="center" style="padding: 12px;">No se encontraron ventas cobradas con los filtros aplicados.</td>
+                </tr>
+            </tbody>
+        </table>
+    @endif
+
+    <table class="totals" style="margin-top: 0;">
+        <tr>
+            <td style="width: 89%;" class="right">TOTAL PARCIAL EN CAJA</td>
+            <td style="width: 11%;" class="right">Bs {{ number_format((float) $paidRows->sum(fn ($row) => (float) data_get($row, 'importe_parcial', 0)), 2) }}</td>
+        </tr>
+        <tr>
+            <td class="right">TOTAL GENERAL EN CAJA</td>
+            <td class="right">Bs {{ number_format((float) $paidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+        </tr>
+        <tr>
+            <td class="right">TOTAL QR REFERENCIAL NO SUMADO A CAJA</td>
+            <td class="right">Bs {{ number_format((float) $paidRows->filter(fn ($row) => strtolower((string) data_get($row, 'metodo_pago', '')) === 'qr')->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+        </tr>
+    </table>
+
+    <div class="page-break"></div>
+    <div class="section-title">Kardex de ventas no cobradas</div>
+    @if($hasUnpaidRows)
+        @foreach($unpaidSectionKeys as $channelKey)
+            @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
+            @continue($sectionRows->isEmpty())
+            @include('facturacion.partials.kardex-section-table', ['section' => $sectionConfigs[$channelKey], 'sectionRows' => $sectionRows])
+        @endforeach
+    @else
+        <table class="grid">
+            <tbody>
+                <tr>
+                    <td class="center" style="padding: 12px;">No se encontraron ventas no cobradas con los filtros aplicados.</td>
+                </tr>
+            </tbody>
+        </table>
+    @endif
+
+    <table class="totals" style="margin-top: 0;">
+        <tr>
+            <td style="width: 89%;" class="right">TOTAL VENTAS NO COBRADAS</td>
+            <td style="width: 11%;" class="right">Bs {{ number_format((float) $unpaidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+        </tr>
     </table>
 @endif
-
-<table class="totals" style="margin-top: 0;">
-    <tr>
-        <td style="width: 89%;" class="right">TOTAL PARCIAL EN CAJA</td>
-        <td style="width: 11%;" class="right">Bs {{ number_format((float) $paidRows->sum(fn ($row) => (float) data_get($row, 'importe_parcial', 0)), 2) }}</td>
-    </tr>
-    <tr>
-        <td class="right">TOTAL GENERAL EN CAJA</td>
-        <td class="right">Bs {{ number_format((float) $paidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
-    </tr>
-    <tr>
-        <td class="right">TOTAL QR REFERENCIAL NO SUMADO A CAJA</td>
-        <td class="right">Bs {{ number_format((float) $paidRows->filter(fn ($row) => strtolower((string) data_get($row, 'metodo_pago', '')) === 'qr')->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
-    </tr>
-</table>
-
-<div class="page-break"></div>
-<div class="section-title">Kardex de ventas no cobradas</div>
-@if($hasUnpaidRows)
-    @foreach($unpaidSectionKeys as $channelKey)
-        @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
-        @continue($sectionRows->isEmpty())
-        @include('facturacion.partials.kardex-section-table', ['section' => $sectionConfigs[$channelKey], 'sectionRows' => $sectionRows])
-    @endforeach
-@else
-    <table class="grid">
-        <tbody>
-            <tr>
-                <td class="center" style="padding: 12px;">No se encontraron ventas no cobradas con los filtros aplicados.</td>
-            </tr>
-        </tbody>
-    </table>
-@endif
-
-<table class="totals" style="margin-top: 0;">
-    <tr>
-        <td style="width: 89%;" class="right">TOTAL VENTAS NO COBRADAS</td>
-        <td style="width: 11%;" class="right">Bs {{ number_format((float) $unpaidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
-    </tr>
-</table>
 
 <table class="observaciones" style="margin-top: 14px;">
     <tr>

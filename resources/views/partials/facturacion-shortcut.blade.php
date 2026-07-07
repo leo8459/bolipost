@@ -397,19 +397,21 @@
                 <div class="global-shortcut-cart-block__head">
                     <strong>Detalle de venta</strong>
                     <div class="global-shortcut-cart-block__actions">
-                        @if ($facturacionItems->isNotEmpty())
+                        @if ($activeFacturacionCart)
                             <form
                                 method="POST"
                                 action="{{ route('facturacion.cart.clear') }}"
                                 class="global-shortcut-confirm-form"
-                                data-confirm-title="Vaciar carrito"
-                                data-confirm-message="Se eliminaran todos los items del borrador de Facturacion. Puedes volver a agregarlos despues si hace falta."
+                                data-confirm-title="{{ $facturacionItems->isNotEmpty() ? 'Vaciar carrito' : 'Eliminar borrador' }}"
+                                data-confirm-message="{{ $facturacionItems->isNotEmpty()
+                                    ? 'Se eliminaran todos los items del borrador de Facturacion. Puedes volver a agregarlos despues si hace falta.'
+                                    : 'Se eliminara el borrador actual de Facturacion para que puedas empezar de nuevo o cerrar caja.' }}"
                                 data-confirm-note="Se conservaran intactos los registros operativos. Solo se limpiara el borrador actual del carrito."
-                                data-confirm-cta="Si, vaciar"
+                                data-confirm-cta="{{ $facturacionItems->isNotEmpty() ? 'Si, vaciar' : 'Si, eliminar' }}"
                             >
                                 @csrf
                                 <button type="submit" class="global-shortcut-link-btn">
-                                    Vaciar carrito
+                                    {{ $facturacionItems->isNotEmpty() ? 'Vaciar carrito' : 'Eliminar borrador' }}
                                 </button>
                             </form>
                         @endif
@@ -421,8 +423,8 @@
                         <div class="global-shortcut-cart-empty__icon" aria-hidden="true">
                             <i class="fas fa-shopping-basket"></i>
                         </div>
-                        <strong>Carrito vacio</strong>
-                        <p>No agregaste items para Facturacion.</p>
+                        <strong>{{ $activeFacturacionCart ? 'Borrador sin items' : 'Carrito vacio' }}</strong>
+                        <p>{{ $activeFacturacionCart ? 'Este borrador sigue activo aunque ya no tenga items. Puedes eliminarlo si ya no lo necesitas.' : 'No agregaste items para Facturacion.' }}</p>
                     </div>
                 @else
                     <div class="global-shortcut-cart-list">
