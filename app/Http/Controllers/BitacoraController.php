@@ -502,14 +502,6 @@ class BitacoraController extends Controller
                 'factura' => ['nullable', 'string', 'max:255'],
                 'precio_total' => ['nullable', 'numeric', 'min:0'],
                 'peso' => ['nullable', 'numeric', 'min:0'],
-                'qr_url' => ['nullable', 'url', 'max:2048'],
-                'factura_fecha_emision' => ['nullable', 'date'],
-                'factura_nit_emisor' => ['nullable', 'string', 'max:50'],
-                'factura_cuf' => ['nullable', 'string', 'max:255'],
-                'factura_razon_social' => ['nullable', 'string', 'max:255'],
-                'factura_cliente' => ['nullable', 'string', 'max:255'],
-                'factura_direccion' => ['nullable', 'string', 'max:255'],
-                'imagen_factura' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             ],
             [],
             [
@@ -519,14 +511,6 @@ class BitacoraController extends Controller
                 'factura' => 'factura',
                 'precio_total' => 'precio total',
                 'peso' => 'peso',
-                'qr_url' => 'url del QR',
-                'factura_fecha_emision' => 'fecha de emision',
-                'factura_nit_emisor' => 'NIT emisor',
-                'factura_cuf' => 'CUF',
-                'factura_razon_social' => 'razon social',
-                'factura_cliente' => 'cliente de factura',
-                'factura_direccion' => 'direccion de factura',
-                'imagen_factura' => 'imagen de factura',
             ]
         );
 
@@ -572,22 +556,16 @@ class BitacoraController extends Controller
         $data['factura'] = $this->emptyToNull($data['factura'] ?? null);
         $data['precio_total'] = $data['precio_total'] ?? ($totales['precio_total'] > 0 ? $totales['precio_total'] : null);
         $data['peso'] = $data['peso'] ?? $totales['peso'];
-        $data['qr_url'] = $this->emptyToNull($data['qr_url'] ?? null);
-        $data['factura_nit_emisor'] = $this->emptyToNull($data['factura_nit_emisor'] ?? null);
-        $data['factura_cuf'] = $this->emptyToNull($data['factura_cuf'] ?? null);
-        $data['factura_razon_social'] = $this->emptyToNull($data['factura_razon_social'] ?? null);
-        $data['factura_cliente'] = $this->emptyToNull($data['factura_cliente'] ?? null);
-        $data['factura_direccion'] = $this->emptyToNull($data['factura_direccion'] ?? null);
-        $data['factura_fecha_emision'] = $this->normalizeDateTimeOrNull($data['factura_fecha_emision'] ?? null);
+        $data['qr_url'] = null;
         $data['qr_texto'] = null;
         $data['qr_datos'] = null;
-
-        if ($request->hasFile('imagen_factura')) {
-            $data = $this->mergeQrFacturaData($data, $request->file('imagen_factura'));
-            $data['imagen_factura'] = $request->file('imagen_factura')->store('bitacoras/facturas', 'public');
-        } else {
-            $data['imagen_factura'] = null;
-        }
+        $data['factura_fecha_emision'] = null;
+        $data['factura_nit_emisor'] = null;
+        $data['factura_cuf'] = null;
+        $data['factura_razon_social'] = null;
+        $data['factura_cliente'] = null;
+        $data['factura_direccion'] = null;
+        $data['imagen_factura'] = null;
 
         return $data;
     }
