@@ -47,7 +47,7 @@ class FacturacionCartController extends Controller
         );
     }
 
-    public function removeItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse
+    public function removeItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
@@ -55,13 +55,43 @@ class FacturacionCartController extends Controller
         try {
             $service->removeItem($user, $itemId);
 
+            $feedback = [
+                'type' => 'success',
+                'title' => 'Item quitado del carrito',
+                'message' => 'El item fue retirado correctamente.',
+                'detail' => 'Puedes seguir agregando items o emitir la factura.',
+                'action' => 'remove_item',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => true,
+                    'feedback' => $feedback,
+                ]);
+            }
+
             return back()->with('success', 'Item eliminado del borrador de facturacion.');
         } catch (ModelNotFoundException) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No se pudo quitar el item',
+                'message' => 'No se encontro el item que querias quitar.',
+                'detail' => 'Actualiza el carrito e intenta nuevamente.',
+                'action' => 'remove_item',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 404);
+            }
+
             return back()->with('error', 'No se encontro el item que querias quitar.');
         }
     }
 
-    public function updateItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse
+    public function updateItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
@@ -91,28 +121,63 @@ class FacturacionCartController extends Controller
 
             $service->updateDraftItem($user, $itemId, $payload);
 
-            return back()->with('facturacion_feedback', [
+            $feedback = [
                 'type' => 'success',
                 'title' => 'Item actualizado',
                 'message' => 'El item del borrador fue corregido.',
                 'detail' => 'Ya puedes revisar los cambios y reintentar la emision.',
-            ]);
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => true,
+                    'feedback' => $feedback,
+                ]);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
         } catch (ModelNotFoundException) {
-            return back()->with('facturacion_feedback', [
+            $feedback = [
                 'type' => 'error',
                 'title' => 'No se pudo actualizar el item',
                 'message' => 'No se encontro el item que querias corregir.',
                 'detail' => 'Vuelve a abrir el acceso rapido y revisa el borrador.',
-            ]);
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 404);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
         }
     }
 
-    public function clear(Request $request, FacturacionCartService $service): RedirectResponse
+    public function clear(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
 
         $cart = $service->clearDraftCart($user);
+
+        $feedback = [
+            'type' => $cart ? 'success' : 'info',
+            'title' => $cart ? 'Carrito vaciado' : 'Carrito ya vacio',
+            'message' => $cart ? 'Se eliminaron todos los items del borrador.' : 'No habia items en el carrito borrador.',
+            'detail' => $cart
+                ? 'Puedes volver a agregar items cuando lo necesites.'
+                : 'Agrega un item para iniciar una nueva facturacion.',
+            'action' => 'clear_cart',
+        ];
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'feedback' => $feedback,
+            ]);
+        }
 
         return back()->with(
             $cart ? 'success' : 'info',
@@ -830,6 +895,9 @@ class FacturacionCartController extends Controller
                     'titulo' => (string) data_get($item, 'titulo', ''),
                     'nombre_servicio' => (string) data_get($item, 'nombre_servicio', ''),
                     'nombre_destinatario' => (string) data_get($item, 'nombre_destinatario', ''),
+                    'resumen_origen' => (array) data_get($item, 'resumen_origen', []),
+                    'monto_base' => (float) data_get($item, 'monto_base', data_get($item, 'precio', data_get($item, 'total_linea', 0))),
+                    'monto_extras' => (float) data_get($item, 'monto_extras', 0),
                     'total_linea' => (float) data_get($item, 'total_linea', 0),
                     'servicios_extra' => array_values((array) data_get($item, 'servicios_extra', [])),
                 ];
@@ -839,6 +907,11 @@ class FacturacionCartController extends Controller
 
         return [
             'id' => data_get($cart, 'id'),
+            'estado' => (string) data_get($cart, 'estado', ''),
+            'estado_pago' => (string) data_get($cart, 'estado_pago', ''),
+            'estado_emision' => (string) data_get($cart, 'estado_emision', ''),
+            'codigo_orden' => (string) data_get($cart, 'codigo_orden', ''),
+            'canal_emision' => (string) data_get($cart, 'canal_emision', ''),
             'cantidad_items' => (int) (data_get($cart, 'cantidad_items') ?? count($items)),
             'total' => (float) data_get($cart, 'total', 0),
             'items' => $items,
