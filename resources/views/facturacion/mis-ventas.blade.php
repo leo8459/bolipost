@@ -228,7 +228,7 @@
                             <th>Cliente</th>
                             <th>Facturacion</th>
                             <th>Estado</th>
-                            <th class="text-center">Items</th>
+                            <th class="text-center">Detalle</th>
                             <th class="text-right">Total</th>
                             <th class="text-center">Acciones</th>
                         </tr>
@@ -244,6 +244,25 @@
                                     ->map(fn ($item) => is_array($item) ? (object) $item : $item)
                                     ->filter(fn ($item) => is_object($item))
                                     ->values();
+
+                                $packageCodes = $cartItems
+                                    ->map(function ($item) {
+                                        return trim((string) (
+                                            data_get($item, 'codigo')
+                                            ?: data_get($item, 'codigo_paquete')
+                                            ?: data_get($item, 'resumen_origen.codigo')
+                                            ?: data_get($item, 'resumen_origen.codigo_paquete')
+                                        ));
+                                    })
+                                    ->filter()
+                                    ->unique()
+                                    ->values();
+                                $packageItemsCount = $packageCodes->count();
+                                $serviceItemsCount = max(0, $cartItems->count() - $packageItemsCount);
+                                $itemsBreakdown = collect([
+                                    $packageItemsCount > 0 ? $packageItemsCount . ' paquete' . ($packageItemsCount === 1 ? '' : 's') : null,
+                                    $serviceItemsCount > 0 ? $serviceItemsCount . ' servicio' . ($serviceItemsCount === 1 ? '' : 's') : null,
+                                ])->filter()->implode(' + ');
 
                                 $respuesta = (array) data_get($cart, 'respuesta_emision', []);
                                 $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
@@ -414,18 +433,27 @@
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    @if($cartItems->isNotEmpty())
-                                        <button
-                                            type="button"
-                                            class="ventas-count-pill ventas-count-pill--button"
-                                            data-toggle="modal"
-                                            data-target="#ventasItemsModal-{{ $cartId }}"
-                                            aria-label="Ver {{ $cartItems->count() }} items de la venta {{ $codigoOrden !== '' ? $codigoOrden : $cartId }}"
-                                        >
-                                            {{ $cartItems->count() }}
-                                        </button>
+                                    @if($cartItems->isNotEmpty() || $itemsCountApi > 0)
+                                        <div class="ventas-items-cell">
+                                            <button
+                                                type="button"
+                                                class="ventas-count-pill ventas-count-pill--button"
+                                                data-toggle="modal"
+                                                data-target="#ventasItemsModal-{{ $cartId }}"
+                                                data-ventas-detail-trigger="true"
+                                                data-detail-url="{{ route('mis-ventas.detail', $cartId) }}"
+                                                aria-label="Ver {{ $cartItems->count() }} items de la venta {{ $codigoOrden !== '' ? $codigoOrden : $cartId }}"
+                                            >
+                                                {{ $itemsCountApi > 0 ? $itemsCountApi : $cartItems->count() }}
+                                            </button>
+                                            @if($itemsBreakdown !== '')
+                                                <div class="ventas-table__secondary mt-1">{{ $itemsBreakdown }}</div>
+                                            @endif
+                                        </div>
                                     @else
-                                        <span class="ventas-count-pill">{{ $itemsCountApi > 0 ? $itemsCountApi : 0 }}</span>
+                                        <div class="ventas-items-cell">
+                                            <span class="ventas-count-pill">{{ $itemsCountApi > 0 ? $itemsCountApi : 0 }}</span>
+                                        </div>
                                     @endif
                                 </td>
                                 <td class="text-right">
@@ -494,19 +522,40 @@
                 ->map(fn ($item) => is_array($item) ? (object) $item : $item)
                 ->filter(fn ($item) => is_object($item))
                 ->values();
+            $packageCodes = $cartItems
+                ->map(function ($item) {
+                    return trim((string) (
+                        data_get($item, 'codigo')
+                        ?: data_get($item, 'codigo_paquete')
+                        ?: data_get($item, 'resumen_origen.codigo')
+                        ?: data_get($item, 'resumen_origen.codigo_paquete')
+                    ));
+                })
+                ->filter()
+                ->unique()
+                ->values();
+            $packageItemsCount = $packageCodes->count();
+            $serviceItemsCount = max(0, $cartItems->count() - $packageItemsCount);
+            $itemsBreakdown = collect([
+                $packageItemsCount > 0 ? $packageItemsCount . ' paquete' . ($packageItemsCount === 1 ? '' : 's') : null,
+                $serviceItemsCount > 0 ? $serviceItemsCount . ' servicio' . ($serviceItemsCount === 1 ? '' : 's') : null,
+            ])->filter()->implode(' + ');
             $cartId = (int) data_get($cart, 'id', 0);
             $codigoOrden = trim((string) data_get($cart, 'codigo_orden', ''));
             $totalCart = (float) data_get($cart, 'total', 0);
         @endphp
-        @if($cartItems->isNotEmpty())
+        @if($cartItems->isNotEmpty() || data_get($cart, 'items_count', 0) > 0)
             <div class="modal fade ventas-items-modal" id="ventasItemsModal-{{ $cartId }}" tabindex="-1" role="dialog" aria-labelledby="ventasItemsModalLabel-{{ $cartId }}" aria-hidden="true">
                 <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
                     <div class="modal-content">
                         <div class="modal-header ventas-items-modal__header">
                             <div>
-                                <h5 class="modal-title" id="ventasItemsModalLabel-{{ $cartId }}">Detalle de items</h5>
+                                <h5 class="modal-title" id="ventasItemsModalLabel-{{ $cartId }}">Detalle de venta</h5>
                                 <div class="ventas-items-modal__subtitle">
-                                    Venta {{ $codigoOrden !== '' ? $codigoOrden : ('#' . $cartId) }} · {{ $cartItems->count() }} item(s)
+                                    Venta {{ $codigoOrden !== '' ? $codigoOrden : ('#' . $cartId) }} · {{ $cartItems->count() }} concepto(s)
+                                    @if($itemsBreakdown !== '')
+                                        · {{ $itemsBreakdown }}
+                                    @endif
                                 </div>
                             </div>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
@@ -514,11 +563,16 @@
                             </button>
                         </div>
                         <div class="modal-body p-0">
-                            <div class="table-responsive">
-                                <table class="table ventas-items-table mb-0">
+                            <div class="ventas-items-modal__loading" {{ $cartItems->isNotEmpty() ? 'hidden' : '' }}>
+                                Cargando detalle de la venta...
+                            </div>
+                            <div class="ventas-items-modal__error" hidden></div>
+                            <div class="table-responsive" {{ $cartItems->isEmpty() ? 'hidden' : '' }}>
+                                <table class="table ventas-items-table mb-0" data-ventas-items-table="true">
                                     <thead>
                                         <tr>
-                                            <th>Codigo</th>
+                                            <th>Tipo</th>
+                                            <th>Codigo / referencia</th>
                                             <th>Detalle</th>
                                             <th class="text-center">Cant.</th>
                                             <th class="text-right">Base</th>
@@ -526,7 +580,7 @@
                                             <th class="text-right">Total</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody data-ventas-items-body="true">
                                         @foreach($cartItems as $item)
                                             @php
                                                 $item = is_array($item) ? (object) $item : $item;
@@ -536,15 +590,27 @@
                                                 $itemTitulo = trim((string) data_get($item, 'titulo', ''));
                                                 $itemServicio = trim((string) data_get($item, 'nombre_servicio', ''));
                                                 $itemDestinatario = trim((string) data_get($item, 'nombre_destinatario', ''));
+                                                $itemResumenCodigo = trim((string) data_get($item, 'resumen_origen.codigo', data_get($item, 'resumen_origen.codigo_paquete', '')));
                                                 $itemCantidad = (int) data_get($item, 'cantidad', 0);
                                                 $itemMontoBase = (float) data_get($item, 'monto_base', 0);
                                                 $itemMontoExtras = (float) data_get($item, 'monto_extras', 0);
                                                 $itemTotalLinea = (float) data_get($item, 'total_linea', 0);
+                                                $itemHasPackageCode = $itemCodigo !== '' || $itemResumenCodigo !== '';
+                                                $itemTipoLabel = $itemHasPackageCode ? 'Paquete' : 'Servicio';
+                                                $itemReferencia = $itemCodigo !== ''
+                                                    ? $itemCodigo
+                                                    : ($itemResumenCodigo !== '' ? $itemResumenCodigo : 'Sin codigo de paquete');
                                             @endphp
                                             <tr>
                                                 <td>
-                                                    <div class="ventas-table__primary">{{ $itemCodigo !== '' ? $itemCodigo : ('Item #' . $itemId) }}</div>
+                                                    <div class="ventas-item-kind">{{ $itemTipoLabel }}</div>
                                                     <div class="ventas-table__secondary">{{ $itemOrigenTipo !== '' ? $itemOrigenTipo : 'Sin origen' }}</div>
+                                                </td>
+                                                <td>
+                                                    <div class="ventas-table__primary">{{ $itemReferencia }}</div>
+                                                    @if($itemHasPackageCode && $itemResumenCodigo !== '' && $itemResumenCodigo !== $itemCodigo)
+                                                        <div class="ventas-table__secondary">Origen: {{ $itemResumenCodigo }}</div>
+                                                    @endif
                                                 </td>
                                                 <td>
                                                     <div class="ventas-table__primary">{{ $itemTitulo !== '' ? $itemTitulo : 'Sin titulo' }}</div>
@@ -564,7 +630,7 @@
                             </div>
                         </div>
                         <div class="modal-footer ventas-items-modal__footer">
-                            <div class="ventas-items-modal__summary">
+                            <div class="ventas-items-modal__summary" data-ventas-items-summary="true">
                                 Total venta: Bs {{ number_format($totalCart, 2) }}
                             </div>
                             <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cerrar</button>
@@ -904,6 +970,13 @@
             outline: none;
         }
 
+        .ventas-items-cell {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: .2rem;
+        }
+
         .ventas-status-chip {
             display: inline-flex;
             align-items: center;
@@ -963,6 +1036,17 @@
             font-size: .85rem;
         }
 
+        .ventas-items-modal__loading,
+        .ventas-items-modal__error {
+            padding: 1rem 1.25rem;
+            color: #5d7396;
+            font-size: .92rem;
+        }
+
+        .ventas-items-modal__error {
+            color: #b02a37;
+        }
+
         .ventas-items-table thead th {
             background: #f7f9fc;
             color: #38557f;
@@ -979,6 +1063,18 @@
             border-top: 1px solid rgba(32, 83, 154, 0.08);
             padding-top: .9rem;
             padding-bottom: .9rem;
+        }
+
+        .ventas-item-kind {
+            display: inline-flex;
+            align-items: center;
+            padding: .28rem .58rem;
+            border-radius: 999px;
+            background: rgba(32, 83, 154, 0.08);
+            color: #20539a;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .02em;
         }
 
         .ventas-items-table__qty {
@@ -1192,6 +1288,7 @@
             const form = document.getElementById('ventasFiltersForm');
             const pendingConsultForms = Array.from(document.querySelectorAll('form[data-pending-consult="true"]'));
             const cajaForms = Array.from(document.querySelectorAll('.ventas-caja-confirm-form'));
+            const detailTriggers = Array.from(document.querySelectorAll('[data-ventas-detail-trigger="true"]'));
             const cajaConfirmModal = document.getElementById('ventasCajaConfirmModal');
             const cajaConfirmTitle = document.getElementById('ventasCajaConfirmTitle');
             const cajaConfirmMessage = document.getElementById('ventasCajaConfirmMessage');
@@ -1210,6 +1307,134 @@
 
             let searchTimer = null;
             let isSubmitting = false;
+            const detailCache = new Map();
+
+            const escapeHtml = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            const classifyItem = (item) => {
+                const code = String(item.codigo || item.resumen_origen?.codigo || item.resumen_origen?.codigo_paquete || '').trim();
+
+                return {
+                    kind: code !== '' ? 'Paquete' : 'Servicio',
+                    reference: code !== '' ? code : 'Sin codigo de paquete',
+                };
+            };
+
+            const renderDetailRows = (items) => items.map((item) => {
+                const kind = classifyItem(item);
+                const itemTitle = String(item.titulo || 'Sin titulo').trim();
+                const itemService = String(item.nombre_servicio || '').trim();
+                const itemDest = String(item.nombre_destinatario || '').trim();
+                const itemOrigin = String(item.origen_tipo || '').trim();
+                const base = Number(item.monto_base || 0).toFixed(2);
+                const extras = Number(item.monto_extras || 0).toFixed(2);
+                const total = Number(item.total_linea || 0).toFixed(2);
+                const qty = Number(item.cantidad || 0);
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="ventas-item-kind">${escapeHtml(kind.kind)}</div>
+                            <div class="ventas-table__secondary">${escapeHtml(itemOrigin || 'Sin origen')}</div>
+                        </td>
+                        <td>
+                            <div class="ventas-table__primary">${escapeHtml(kind.reference)}</div>
+                        </td>
+                        <td>
+                            <div class="ventas-table__primary">${escapeHtml(itemTitle)}</div>
+                            <div class="ventas-table__secondary">${escapeHtml(itemService || 'Sin servicio registrado')}</div>
+                            <div class="ventas-table__secondary">${escapeHtml(itemDest || 'Sin destinatario')}</div>
+                        </td>
+                        <td class="text-center">
+                            <span class="ventas-items-table__qty">${escapeHtml(qty)}</span>
+                        </td>
+                        <td class="text-right">Bs ${base}</td>
+                        <td class="text-right">Bs ${extras}</td>
+                        <td class="text-right ventas-items-table__total">Bs ${total}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const hydrateDetailModal = async (trigger) => {
+                const targetSelector = trigger.getAttribute('data-target');
+                const detailUrl = trigger.getAttribute('data-detail-url');
+                const modal = targetSelector ? document.querySelector(targetSelector) : null;
+                if (!modal || !detailUrl) {
+                    return;
+                }
+
+                const loadingNode = modal.querySelector('.ventas-items-modal__loading');
+                const errorNode = modal.querySelector('.ventas-items-modal__error');
+                const tableWrap = modal.querySelector('.table-responsive');
+                const tbody = modal.querySelector('[data-ventas-items-body="true"]');
+                const summary = modal.querySelector('[data-ventas-items-summary="true"]');
+
+                if (!tbody || !tableWrap) {
+                    return;
+                }
+
+                if (detailCache.has(detailUrl)) {
+                    const cached = detailCache.get(detailUrl);
+                    tbody.innerHTML = renderDetailRows(cached.items || []);
+                    if (summary) {
+                        summary.textContent = `Total venta: Bs ${Number(cached.cart?.total || 0).toFixed(2)}`;
+                    }
+                    if (loadingNode) {
+                        loadingNode.hidden = true;
+                    }
+                    if (errorNode) {
+                        errorNode.hidden = true;
+                        errorNode.textContent = '';
+                    }
+                    tableWrap.hidden = false;
+                    return;
+                }
+
+                if (loadingNode) {
+                    loadingNode.hidden = false;
+                }
+                if (errorNode) {
+                    errorNode.hidden = true;
+                    errorNode.textContent = '';
+                }
+                tableWrap.hidden = true;
+
+                try {
+                    const response = await fetch(detailUrl, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                    });
+
+                    const payload = await response.json();
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'No se pudo cargar el detalle.');
+                    }
+
+                    detailCache.set(detailUrl, payload);
+                    tbody.innerHTML = renderDetailRows(payload.items || []);
+                    if (summary) {
+                        summary.textContent = `Total venta: Bs ${Number(payload.cart?.total || 0).toFixed(2)}`;
+                    }
+                    tableWrap.hidden = false;
+                } catch (error) {
+                    if (errorNode) {
+                        errorNode.hidden = false;
+                        errorNode.textContent = error instanceof Error ? error.message : 'No se pudo cargar el detalle de la venta.';
+                    }
+                } finally {
+                    if (loadingNode) {
+                        loadingNode.hidden = true;
+                    }
+                }
+            };
 
             const submitFilters = () => {
                 if (isSubmitting) {
@@ -1236,6 +1461,12 @@
                         window.clearTimeout(searchTimer);
                         submitFilters();
                     }
+                });
+            });
+
+            detailTriggers.forEach((trigger) => {
+                trigger.addEventListener('click', function () {
+                    hydrateDetailModal(trigger);
                 });
             });
 

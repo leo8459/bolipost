@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\FacturacionCartService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -24,18 +25,10 @@ class MisVentasController extends Controller
             ->map(fn ($row) => is_array($row) ? (object) $row : $row)
             ->filter(fn ($row) => is_object($row))
             ->values();
-        $ventasFallback = $service->fetchVentas($user, $filters);
-        $fallbackRows = collect($ventasFallback['carts'] ?? [])
-            ->map(fn ($row) => is_array($row) ? (object) $row : $row)
-            ->filter(fn ($row) => is_object($row))
-            ->values();
-
-        // Fallback: algunas integraciones no poblan kardex-usuarios, pero si /cart/ventas.
         if ($rawRows->isEmpty()) {
-            $filteredFallbackRows = $this->applyLocalFilters($fallbackRows, $filters);
             $carts = new LengthAwarePaginator(
-                $filteredFallbackRows->forPage((int) $filters['page'], (int) $filters['per_page'])->values(),
-                $filteredFallbackRows->count(),
+                collect(),
+                0,
                 (int) $filters['per_page'],
                 (int) $filters['page'],
                 ['path' => $request->url(), 'query' => $request->query()]
@@ -43,14 +36,13 @@ class MisVentasController extends Controller
 
             return view('facturacion.mis-ventas', [
                 'carts' => $carts,
-                'summary' => $this->summaryFromRows($filteredFallbackRows),
+                'summary' => $this->emptySummary(),
                 'filters' => $filters,
                 'cajaContext' => $cajaContext,
             ]);
         }
 
-        $rows = $this->normalizeKardexRows($rawRows, $service, $user);
-        $rows = $this->mergeFallbackVentas($rows, $fallbackRows);
+        $rows = $this->normalizeKardexRows($rawRows);
         $rows = $this->applyLocalFilters($rows, $filters);
         $summary = $this->summaryFromRows($rows);
 
@@ -97,14 +89,7 @@ class MisVentasController extends Controller
             ->map(fn ($row) => is_array($row) ? (object) $row : $row)
             ->filter(fn ($row) => is_object($row))
             ->values();
-        $ventasFallback = $service->fetchVentas($user, $exportFilters);
-        $fallbackRows = collect($ventasFallback['carts'] ?? [])
-            ->map(fn ($row) => is_array($row) ? (object) $row : $row)
-            ->filter(fn ($row) => is_object($row))
-            ->values();
-
-        $carts = $this->normalizeKardexRows($rawRows, $service, $user);
-        $carts = $this->mergeFallbackVentas($carts, $fallbackRows);
+        $carts = $this->normalizeKardexRows($rawRows);
         $carts = $this->applyLocalFilters($carts, $filters);
         $rows = $this->buildPdfRows($carts);
 
@@ -142,11 +127,7 @@ class MisVentasController extends Controller
         $user = $request->user();
         abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para ver tus ventas.');
 
-        $venta = $service->fetchVentaById($user, $cart);
-        if (!$venta) {
-            $ventaDetalle = $service->fetchVentaDetalleByVentaId($user, $cart);
-            $venta = $ventaDetalle ? $this->mapVentaDetailToCart($ventaDetalle) : null;
-        }
+        $venta = $this->resolveVentaForDetail($service, $user, $cart);
 
         abort_unless($venta, 404, 'No se encontro la venta solicitada.');
 
@@ -154,6 +135,45 @@ class MisVentasController extends Controller
         $pdf = Pdf::loadView('facturacion.mis-ventas-ticket', ['cart' => $venta, 'ticket' => $ticket])->setPaper([0, 0, 226.77, 680], 'portrait');
 
         return response()->streamDownload(fn () => print($pdf->output()), 'ticket-' . ($venta->codigo_orden ?: ('venta-' . $venta->id)) . '.pdf');
+    }
+
+    public function detail(Request $request, int $cart, FacturacionCartService $service): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para ver tus ventas.');
+
+        $venta = $this->resolveVentaForDetail($service, $user, $cart);
+        abort_unless($venta, 404, 'No se encontro la venta solicitada.');
+
+        $items = $this->normalizeItems(data_get($venta, 'items', []))
+            ->map(function ($item) {
+                $item = is_array($item) ? (object) $item : $item;
+
+                return [
+                    'id' => (int) data_get($item, 'id', 0),
+                    'codigo' => trim((string) data_get($item, 'codigo', '')),
+                    'origen_tipo' => trim((string) data_get($item, 'origen_tipo', '')),
+                    'titulo' => trim((string) data_get($item, 'titulo', '')),
+                    'nombre_servicio' => trim((string) data_get($item, 'nombre_servicio', '')),
+                    'nombre_destinatario' => trim((string) data_get($item, 'nombre_destinatario', '')),
+                    'resumen_origen' => (array) data_get($item, 'resumen_origen', []),
+                    'cantidad' => (int) data_get($item, 'cantidad', 0),
+                    'monto_base' => round((float) data_get($item, 'monto_base', 0), 2),
+                    'monto_extras' => round((float) data_get($item, 'monto_extras', 0), 2),
+                    'total_linea' => round((float) data_get($item, 'total_linea', 0), 2),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'cart' => [
+                'id' => (int) data_get($venta, 'id', $cart),
+                'codigo_orden' => trim((string) data_get($venta, 'codigo_orden', '')),
+                'total' => round((float) data_get($venta, 'total', 0), 2),
+                'items_count' => max((int) data_get($venta, 'items_count', 0), $items->count()),
+            ],
+            'items' => $items,
+        ]);
     }
 
     private function resolveRequestContext(Request $request): array
@@ -303,48 +323,27 @@ class MisVentasController extends Controller
         return $filtered->values();
     }
 
-    private function normalizeKardexRows(Collection $rows, FacturacionCartService $service, $user): Collection
+    private function normalizeKardexRows(Collection $rows): Collection
     {
-        return $rows->map(function ($row) use ($service, $user) {
+        return $rows->map(function ($row) {
             $ventaId = (int) data_get($row, 'id', 0);
             $origenVentaId = $this->extractOrigenVentaId($row);
-
-            $ventaDetalle = null;
-            if ($ventaId > 0 && $origenVentaId <= 0) {
-                $ventaDetalle = $service->fetchVentaDetalleByVentaId($user, $ventaId);
-                $origenVentaId = $this->extractOrigenVentaId($ventaDetalle);
-            }
-
-            $bridgeCart = $origenVentaId > 0 ? $service->fetchVentaById($user, $origenVentaId) : null;
-
-            $items = $this->normalizeItems(data_get($bridgeCart, 'items', []));
-            if ($items->isEmpty() && $ventaId > 0) {
-                $ventaDetalle = $ventaDetalle ?: $service->fetchVentaDetalleByVentaId($user, $ventaId);
-                $items = collect((array) data_get($ventaDetalle, 'detalle', []))
-                    ->map(fn ($item) => $this->mapVentaDetalleItemToCartItem($item))
-                    ->filter()
-                    ->values();
-            }
+            $items = $this->normalizeItems(data_get($row, 'items', data_get($row, 'detalle', [])));
 
             $codigoOrden = trim((string) data_get($row, 'codigoOrden', ''));
             $codigoSeguimiento = trim((string) data_get($row, 'codigoSeguimiento', ''));
             $numeroFactura = trim((string) (
                 data_get($row, 'numeroFactura')
-                ?? data_get($bridgeCart, 'respuesta_emision.factura.nroFactura')
-                ?? data_get($bridgeCart, 'respuesta_emision.factura.numeroFactura')
-                ?? data_get($ventaDetalle, 'seguimiento.detalle.nroFactura')
-                ?? data_get($ventaDetalle, 'seguimiento.detalle.numeroFactura')
+                ?? data_get($row, 'nroFactura')
             ));
             $estadoSufe = strtoupper(trim((string) data_get($row, 'estadoSufe', '')));
             $cuf = trim((string) (
                 data_get($row, 'cuf')
-                ?? data_get($bridgeCart, 'respuesta_emision.factura.cuf')
-                ?? data_get($ventaDetalle, 'seguimiento.cuf')
             ));
 
             $pdfUrl = trim((string) (
-                data_get($bridgeCart, 'respuesta_emision.factura.pdfUrl')
-                ?? data_get($ventaDetalle, 'seguimiento.urlPdf')
+                data_get($row, 'pdfUrl')
+                ?? data_get($row, 'urlPdf')
             ));
             if ($pdfUrl === '' && $cuf !== '' && $estadoSufe === 'PROCESADA') {
                 $pdfUrl = 'https://sefe.demo.agetic.gob.bo/public/facturas_pdf/' . $cuf . '.pdf';
@@ -352,17 +351,23 @@ class MisVentasController extends Controller
 
             $createdAt = (string) data_get($row, 'fecha', '');
             $isOficial = $this->isOfficialVentaPayload($row);
-            $canalEmision = $this->resolveCanalEmisionVentaPayload($row, $bridgeCart, $ventaDetalle, $isOficial);
-            $metodoPago = $this->resolveMetodoPagoVentaPayload($row, $bridgeCart, $ventaDetalle, $canalEmision);
+            $canalEmision = $this->resolveCanalEmisionVentaPayload($row, null, null, $isOficial);
+            $metodoPago = $this->resolveMetodoPagoVentaPayload($row, null, null, $canalEmision);
             $emision = $this->mapEstadoSufeToBridge($estadoSufe);
-            $estadoCart = trim((string) data_get($bridgeCart, 'estado', 'emitido'));
-            $estadoPago = trim((string) data_get($bridgeCart, 'estado_pago', ($metodoPago === 'qr' ? 'pendiente' : 'pagado')));
-            $codigoSeguimientoFiscal = trim((string) data_get($bridgeCart, 'codigo_seguimiento_fiscal', $codigoSeguimiento));
-            $qrTransactionId = trim((string) data_get($bridgeCart, 'qr_transaction_id', ''));
+            $estadoCart = strtolower(trim((string) data_get($row, 'estado', '')));
+            if ($estadoCart === '') {
+                $estadoCart = 'emitido';
+            }
+            $estadoPago = strtolower(trim((string) data_get($row, 'estado_pago', '')));
+            if ($estadoPago === '') {
+                $estadoPago = $metodoPago === 'qr' ? 'pendiente' : 'pagado';
+            }
+            $codigoSeguimientoFiscal = trim((string) data_get($row, 'codigo_seguimiento_fiscal', $codigoSeguimiento));
+            $qrTransactionId = trim((string) data_get($row, 'qr_transaction_id', ''));
             if ($metodoPago === 'qr') {
                 $emision = [
-                    'estado' => strtoupper(trim((string) data_get($bridgeCart, 'estado_emision', 'NO_APLICA'))),
-                    'mensaje' => $this->buildQrStatusMessage($estadoPago, trim((string) data_get($bridgeCart, 'mensaje_emision', ''))),
+                    'estado' => strtoupper(trim((string) data_get($row, 'estado_emision', 'NO_APLICA'))),
+                    'mensaje' => $this->buildQrStatusMessage($estadoPago, trim((string) data_get($row, 'mensaje_emision', ''))),
                 ];
             }
 
@@ -383,7 +388,7 @@ class MisVentasController extends Controller
                 'canal_emision' => $canalEmision,
                 'metodo_pago' => $metodoPago,
                 'es_oficial' => $isOficial,
-                'estado' => $estadoCart !== '' ? $estadoCart : 'emitido',
+                'estado' => $estadoCart,
                 'estado_pago' => $estadoPago,
                 'estado_emision' => $emision['estado'],
                 'mensaje_emision' => $emision['mensaje'],
@@ -391,7 +396,7 @@ class MisVentasController extends Controller
                 'codigo_seguimiento_fiscal' => $codigoSeguimientoFiscal !== '' ? $codigoSeguimientoFiscal : $codigoSeguimiento,
                 'qr_transaction_id' => $qrTransactionId !== '' ? $qrTransactionId : null,
                 'total' => (float) data_get($row, 'total', 0),
-                'items_count' => (int) data_get($row, 'itemsCount', $items->count()),
+                'items_count' => (int) data_get($row, 'itemsCount', data_get($row, 'cantidadItems', $items->count())),
                 'items' => $items,
                 'respuesta_emision' => [
                     'factura' => [
@@ -404,44 +409,6 @@ class MisVentasController extends Controller
                 ],
             ];
         })->values();
-    }
-
-    private function mergeFallbackVentas(Collection $kardexRows, Collection $fallbackRows): Collection
-    {
-        $indexed = $kardexRows->keyBy(fn ($row) => 'cart:' . $this->resolveVentaMergeCartId($row));
-
-        foreach ($fallbackRows as $row) {
-            $row = is_array($row) ? (object) $row : $row;
-            if (!is_object($row)) {
-                continue;
-            }
-
-            $cartId = $this->resolveVentaMergeCartId($row);
-            $codigoOrden = trim((string) data_get($row, 'codigo_orden', ''));
-            $key = 'cart:' . $cartId;
-            if ($cartId > 0 && !$indexed->has($key)) {
-                $indexed->put($key, $row);
-                continue;
-            }
-
-            if ($codigoOrden !== '') {
-                $existsByCode = $indexed->contains(function ($existing) use ($codigoOrden) {
-                    return trim((string) data_get($existing, 'codigo_orden', '')) === $codigoOrden;
-                });
-
-                if (!$existsByCode) {
-                    $indexed->put('code:' . $codigoOrden, $row);
-                }
-            }
-        }
-
-        return $indexed
-            ->values()
-            ->sortByDesc(function ($row) {
-                $date = data_get($row, 'emitido_en') ?: data_get($row, 'created_at');
-                return $date ? strtotime((string) $date) : 0;
-            })
-            ->values();
     }
 
     private function extractOrigenVentaId(object|array|null $payload): int
@@ -479,6 +446,21 @@ class MisVentasController extends Controller
         }
 
         return (int) data_get($row, 'id', 0);
+    }
+
+    private function resolveVentaForDetail(FacturacionCartService $service, object $user, int $cart): ?object
+    {
+        $venta = $service->fetchVentaById($user, $cart);
+        if ($venta && $this->normalizeItems(data_get($venta, 'items', []))->isNotEmpty()) {
+            return $venta;
+        }
+
+        $ventaDetalle = $service->fetchVentaDetalleByVentaId($user, $cart);
+        if ($ventaDetalle) {
+            return $this->mapVentaDetailToCart($ventaDetalle);
+        }
+
+        return $venta;
     }
 
     private function mapVentaDetailToCart(object $venta): object
@@ -744,7 +726,7 @@ class MisVentasController extends Controller
 
     private function buildPdfRows(Collection $carts): Collection
     {
-        return $carts->flatMap(function ($cart) {
+        return $carts->map(function ($cart) {
             $cart = is_array($cart) ? (object) $cart : $cart;
             $items = $this->normalizeItems(data_get($cart, 'items', []));
 
@@ -755,50 +737,75 @@ class MisVentasController extends Controller
                 ?? data_get($respuesta, 'consultaSefe.nroFactura')
                 ?? $cart->id
             ));
+            $fecha = $cart->emitido_en ?? $cart->created_at;
+            $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', 'factura_electronica')));
+            $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
+            $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
+            $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', '')));
+            $contabilizaEnCaja = $metodoPago !== 'qr';
+            $sectionKey = $this->resolvePdfSectionKey($cart);
 
-            return $items->map(function ($item) use ($cart, $numeroFactura) {
-                $resumen = (array) data_get($item, 'resumen_origen', []);
-                $fecha = $cart->emitido_en ?? $cart->created_at;
-                $origenTipo = trim((string) data_get($item, 'origen_tipo', ''));
-                $nombreServicio = trim((string) data_get($item, 'nombre_servicio', ''));
-                $titulo = trim((string) data_get($item, 'titulo', ''));
-                $codigo = trim((string) data_get($item, 'codigo', ''));
-                $itemId = (int) data_get($item, 'id', 0);
-                $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', 'factura_electronica')));
-                $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
-                $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
-                $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', '')));
-                $contabilizaEnCaja = $metodoPago !== 'qr';
-                $sectionKey = $this->resolvePdfSectionKey($cart);
+            $emisionLabel = match ($sectionKey) {
+                'qr_facturado' => 'QR pagado + facturado',
+                'qr_pagado_pendiente_factura' => 'QR pagado',
+                'qr_cancelado' => 'QR cancelado',
+                'qr_pendiente' => 'QR pendiente',
+                default => $this->labelCanalEmision($canalEmision),
+            };
 
-                $emisionLabel = match ($sectionKey) {
-                    'qr_facturado' => 'QR pagado + facturado',
-                    'qr_pagado_pendiente_factura' => 'QR pagado',
-                    'qr_cancelado' => 'QR cancelado',
-                    'qr_pendiente' => 'QR pendiente',
-                    default => $this->labelCanalEmision($canalEmision),
-                };
+            $tipoEnvio = $items
+                ->map(fn ($item) => trim((string) data_get($item, 'nombre_servicio', data_get($item, 'titulo', ''))))
+                ->filter()
+                ->unique()
+                ->implode(' / ');
+            $codigoOrden = trim((string) data_get($cart, 'codigo_orden', data_get($cart, 'codigo_seguimiento', ''))) ?: '-';
+            $codigosPaquete = $this->extractPackageCodesFromItems($items);
+            $pesoTotal = (float) $items->sum(fn ($item) => (float) data_get($item, 'resumen_origen.peso', 0));
+            $cantidadTotal = (int) data_get($cart, 'items_count', 0);
+            if ($cantidadTotal <= 0) {
+                $cantidadTotal = max(1, $items->count());
+            }
 
-                return [
-                    'fecha' => $fecha ? date('d/m/Y', strtotime((string) $fecha)) : '-',
-                    'origen' => trim((string) ($resumen['ciudad'] ?? $resumen['origen'] ?? $origenTipo)) ?: '-',
-                    'tipo_envio' => $nombreServicio !== '' ? $nombreServicio : ($titulo !== '' ? $titulo : 'SIN SERVICIO'),
-                    'codigo_item' => trim((string) (($resumen['codigo'] ?? null) ?: $codigo ?: ('ITEM-' . $itemId))),
-                    'peso' => (float) ($resumen['peso'] ?? 0),
-                    'cantidad' => max(1, (int) data_get($item, 'cantidad', 1)),
-                    'canal_emision' => $canalEmision,
-                    'metodo_pago' => $metodoPago,
-                    'estado_pago' => $estadoPago,
-                    'estado_emision' => $estadoEmision,
-                    'section_key' => $sectionKey,
-                    'emision_label' => $emisionLabel,
-                    'contabiliza_en_caja' => $contabilizaEnCaja,
-                    'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',
-                    'importe_parcial' => round((float) data_get($item, 'monto_base', 0), 2),
-                    'importe_general' => round((float) data_get($item, 'total_linea', 0), 2),
-                ];
-            });
+            return [
+                'fecha' => $fecha ? date('d/m/Y', strtotime((string) $fecha)) : '-',
+                'tipo_envio' => $tipoEnvio !== '' ? $tipoEnvio : 'SIN DETALLE REAL',
+                'codigo_item' => $codigoOrden,
+                'codigo_paquetes' => $codigosPaquete,
+                'codigo_referencia' => $codigosPaquete->isNotEmpty()
+                    ? $codigoOrden . "\nPaquetes: " . $codigosPaquete->implode(', ')
+                    : $codigoOrden,
+                'peso' => $pesoTotal,
+                'cantidad' => $cantidadTotal,
+                'canal_emision' => $canalEmision,
+                'metodo_pago' => $metodoPago,
+                'estado_pago' => $estadoPago,
+                'estado_emision' => $estadoEmision,
+                'section_key' => $sectionKey,
+                'emision_label' => $emisionLabel,
+                'contabiliza_en_caja' => $contabilizaEnCaja,
+                'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',
+                'importe_parcial' => round((float) data_get($cart, 'total', 0), 2),
+                'importe_general' => round((float) data_get($cart, 'total', 0), 2),
+            ];
         })->values();
+    }
+
+    private function extractPackageCodesFromItems(Collection $items): Collection
+    {
+        return $items
+            ->flatMap(function ($item) {
+                return [
+                    trim((string) data_get($item, 'codigo', '')),
+                    trim((string) data_get($item, 'codigo_item', '')),
+                    trim((string) data_get($item, 'codigo_paquete', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo_item', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo_paquete', '')),
+                ];
+            })
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     private function normalizeItems(mixed $items): Collection
