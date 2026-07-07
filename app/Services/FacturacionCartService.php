@@ -210,10 +210,10 @@ class FacturacionCartService
                 'origenSucursal' => [
                     'id' => (string) $user->sucursal?->puntoVenta,
                     'codigo' => (string) $user->sucursal?->codigoSucursal,
-                    'nombre' => (string) ($user->sucursal?->nombre ?? $user->sucursal?->descripcion ?? ''),
+                    'nombre' => (string) ($user->sucursal?->nombre ?? $user->sucursal?->descripcion ?? $user->sucursal?->municipio ?? ''),
                 ],
-                'municipio' => 'LA PAZ',
-                'departamento' => 'LA PAZ',
+                'municipio' => (string) ($user->sucursal?->municipio ?? 'LA PAZ'),
+                'departamento' => (string) ($user->sucursal?->departamento ?? $user->sucursal?->municipio ?? 'LA PAZ'),
                 'telefono' => '2222222',
                 'documentoSector' => (int) config('services.facturacion_bridge.documento_sector', 1),
                 'codigoCliente' => null,
@@ -1433,7 +1433,7 @@ class FacturacionCartService
 
         $codigoSucursal = trim((string) $sucursal->codigoSucursal);
         $puntoVenta = trim((string) $sucursal->puntoVenta);
-        $nombreSucursal = trim((string) ($sucursal->nombre ?? $sucursal->descripcion ?? ''));
+        $nombreSucursal = trim((string) ($sucursal->nombre ?? $sucursal->descripcion ?? $sucursal->municipio ?? ''));
 
         if ($codigoSucursal === '' || $puntoVenta === '') {
             throw new \RuntimeException('La sucursal asignada no tiene codigoSucursal/puntoVenta validos.');

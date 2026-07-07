@@ -17,6 +17,7 @@ class Users extends Component
 
     public $search = '';
     public $searchQuery = '';
+    public $groupByBillingSucursal = false;
 
     public $editingId = null;
     public $name = '';
@@ -204,6 +205,12 @@ class Users extends Component
         $this->newPassword = '';
     }
 
+    public function toggleGroupByBillingSucursal(): void
+    {
+        $this->groupByBillingSucursal = ! $this->groupByBillingSucursal;
+        $this->resetPage();
+    }
+
     protected function createRules(): array
     {
         $regionales = $this->regionalesDisponibles();
@@ -306,7 +313,7 @@ class Users extends Component
     {
         $q = trim((string) $this->searchQuery);
 
-        $users = User::withTrashed()
+        $baseQuery = User::withTrashed()
             ->with(['empresa', 'sucursal', 'roles'])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($inner) use ($q) {
@@ -325,12 +332,39 @@ class Users extends Component
                                 ->orWhere('telefono', 'like', '%'.$q.'%');
                         });
                 });
-            })
-            ->orderByDesc('id')
-            ->paginate(10);
+            });
+
+        $groupedUsers = collect();
+
+        if ($this->groupByBillingSucursal) {
+            $groupedUsers = (clone $baseQuery)
+                ->whereNotNull('sucursal_id')
+                ->orderByRaw('CASE WHEN sucursal_id IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('sucursal_id')
+                ->orderBy('name')
+                ->get()
+                ->groupBy(fn (User $user) => (string) $user->sucursal_id)
+                ->map(function ($items, $groupKey) {
+                    $firstUser = $items->first();
+                    $sucursal = $firstUser?->sucursal;
+
+                    return [
+                        'key' => (string) $groupKey,
+                        'label' => 'Suc. ' . $sucursal->codigoSucursal . ' / PV ' . $sucursal->puntoVenta . ' - ' . $sucursal->municipio,
+                        'meta' => trim(collect([$sucursal->departamento, $sucursal->telefono ? 'Tel. ' . $sucursal->telefono : null])->filter()->implode(' | ')),
+                        'users' => $items->values(),
+                    ];
+                })
+                ->values();
+        }
+
+        $users = $this->groupByBillingSucursal
+            ? $baseQuery->orderByDesc('id')->paginate(10, ['*'], 'page', 1)
+            : $baseQuery->orderByDesc('id')->paginate(10);
 
         return view('livewire.users', [
             'users' => $users,
+            'groupedUsers' => $groupedUsers,
             'roles' => Role::query()->orderBy('name')->get(),
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
             'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
