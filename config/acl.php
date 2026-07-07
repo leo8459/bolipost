@@ -94,6 +94,7 @@ return [
         'dashboard.global-por-servicio',
         'dashboard.global-por-servicio.excel',
         'dashboard.global-por-servicio.pdf',
+        'paquetes-ems.encargado',
     ],
 
     /*

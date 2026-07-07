@@ -575,6 +575,11 @@ return [
                     'icon' => 'fas fa-warehouse',
                 ],
                 [
+                    'text' => 'Encargado',
+                    'url' => 'paquetes-ems/encargado',
+                    'icon' => 'fas fa-user-tie',
+                ],
+                [
                     'text' => 'VENTANILLA EMS',
                     'url' => 'paquetes-ems/ventanilla',
                     'icon' => 'fas fa-door-open',
