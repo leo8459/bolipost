@@ -2668,6 +2668,9 @@ class PaquetesEms extends Component
             $this->showPaqueteConfirmModal = false;
             $this->dispatch('closePaqueteConfirm');
             $this->dispatch('closePaqueteModal');
+            if ($this->isCreateEms && $this->canUseFacturacionShortcut($user)) {
+                $this->dispatch('facturacionCartSyncNeeded');
+            }
             if ($this->isCreateEms) {
                 $termicaUrl = route('paquetes-ems.boleta', $paquete->id, false);
                 $cartaUrl = route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'formato' => 'carta'], false);

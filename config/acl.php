@@ -278,6 +278,7 @@ return [
         'eventos-auditoria' => 'Eventos Auditoria',
         'auditoria' => 'Auditoria',
         'servicios' => 'Servicios',
+        'conceptos-facturacion' => 'Conceptos Facturables',
         'origenes' => 'Origenes',
         'destinos' => 'Destinos',
         'pesos' => 'Pesos',

@@ -9,6 +9,7 @@ use App\Http\Controllers\RoleHasPermissionController;
 use App\Http\Controllers\PlantillaController;
 use App\Http\Controllers\PaquetesEmsController;
 use App\Http\Controllers\PaquetesEmsBoletaController;
+use App\Http\Controllers\ConceptoFacturacionController;
 use App\Http\Controllers\ServicioController;
 use App\Http\Controllers\DestinoController;
 use App\Http\Controllers\PesoController;
@@ -126,6 +127,7 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
     Route::post('/facturacion/cart/consultar', [FacturacionCartController::class, 'consultar'])->name('facturacion.cart.consultar');
     Route::post('/facturacion/cart/emitir', [FacturacionCartController::class, 'emitir'])->name('facturacion.cart.emitir');
     Route::post('/facturacion/cart/scan-add', [FacturacionCartController::class, 'scanAdd'])->name('facturacion.cart.scan-add');
+    Route::post('/facturacion/cart/conceptos', [FacturacionCartController::class, 'addConcepto'])->name('facturacion.cart.conceptos.store');
     Route::post('/facturacion/cart/clear', [FacturacionCartController::class, 'clear'])->name('facturacion.cart.clear');
     Route::delete('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'removeItem'])->name('facturacion.cart.items.destroy');
   });
@@ -312,6 +314,12 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/servicio-extras/{servicioExtra}/edit', [ServicioExtraController::class, 'edit'])->name('servicio-extras.edit');
     Route::put('/servicio-extras/{servicioExtra}', [ServicioExtraController::class, 'update'])->name('servicio-extras.update');
     Route::delete('/servicio-extras/{servicioExtra}', [ServicioExtraController::class, 'destroy'])->name('servicio-extras.destroy');
+    Route::get('/conceptos-facturacion', [ConceptoFacturacionController::class, 'index'])->name('conceptos-facturacion.index');
+    Route::get('/conceptos-facturacion/create', [ConceptoFacturacionController::class, 'create'])->name('conceptos-facturacion.create');
+    Route::post('/conceptos-facturacion', [ConceptoFacturacionController::class, 'store'])->name('conceptos-facturacion.store');
+    Route::get('/conceptos-facturacion/{conceptoFacturacion}/edit', [ConceptoFacturacionController::class, 'edit'])->name('conceptos-facturacion.edit');
+    Route::put('/conceptos-facturacion/{conceptoFacturacion}', [ConceptoFacturacionController::class, 'update'])->name('conceptos-facturacion.update');
+    Route::delete('/conceptos-facturacion/{conceptoFacturacion}', [ConceptoFacturacionController::class, 'destroy'])->name('conceptos-facturacion.destroy');
     Route::get('/sucursales', [SucursalController::class, 'index'])->name('sucursales.index');
     Route::get('/sucursales/create', [SucursalController::class, 'create'])->name('sucursales.create');
     Route::post('/sucursales', [SucursalController::class, 'store'])->name('sucursales.store');

@@ -1012,6 +1012,11 @@ return [
                             'icon' => 'fas fa-plus-square',
                         ],
                         [
+                            'text' => 'Conceptos Facturables',
+                            'url' => 'conceptos-facturacion',
+                            'icon' => 'fas fa-file-invoice',
+                        ],
+                        [
                             'text' => 'Origenes',
                             'url' => 'origenes',
                             'icon' => 'fas fa-route',

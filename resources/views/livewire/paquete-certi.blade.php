@@ -772,7 +772,9 @@
 
     window.addEventListener('facturacionCartSyncNeeded', () => {
         window.setTimeout(() => {
-            window.location.reload();
+            if (typeof window.syncFacturacionShortcutSections === 'function') {
+                window.syncFacturacionShortcutSections().catch(() => {});
+            }
         }, 350);
     });
 </script>

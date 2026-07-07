@@ -337,6 +337,7 @@ class AclPermissionRegistry
         'tarifa-contrato.index' => ['create', 'duplicate', 'edit', 'delete', 'save', 'import', 'export', 'report'],
         'empresas.index' => ['create', 'edit', 'delete', 'import', 'export'],
         'servicios.index' => ['create', 'edit', 'delete'],
+        'conceptos-facturacion.index' => ['create', 'edit', 'delete'],
         'sucursales.index' => ['create', 'edit', 'delete'],
         'sacas.index' => ['create', 'edit', 'delete', 'assign', 'confirm'],
     ];
