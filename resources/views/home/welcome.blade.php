@@ -3,30 +3,35 @@
 @section('title', 'Bienvenida')
 
 @section('content_header')
+    @php
+        $welcomeUser = auth()->user();
+        $isEmpresaUser = $welcomeUser && method_exists($welcomeUser, 'hasRole') && $welcomeUser->hasRole('empresa');
+    @endphp
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
         <div>
             <h1 class="mb-1">Bienvenido, {{ auth()->user()?->name }}</h1>
             <small class="text-muted">Resumen rapido de alertas y accesos principales.</small>
         </div>
+        @if($isEmpresaUser)
         <div class="mt-3 mt-lg-0 d-flex flex-wrap">
-            <a href="{{ route('dashboard') }}" class="btn btn-primary mr-2 mb-2">
-                Ir al dashboard
-            </a>
-            <a href="{{ route('preregistros.public.create') }}" target="_blank" rel="noopener" class="btn btn-outline-primary mb-2">
-                Hacer envio desde casa
+            <a href="{{ route('paquetes-contrato.index') }}" class="btn btn-primary mb-2">
+                Solicitar correspondencia
             </a>
         </div>
+        @endif
     </div>
 @stop
 
 @section('content')
     <div class="welcome-hub">
+        @unless($isEmpresaUser)
         @include('dashboard.partials.alerts')
+        @endunless
 
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body p-4 p-lg-5">
                 <div class="row align-items-center">
-                    <div class="col-lg-8 mb-4 mb-lg-0">
+                    <div class="{{ $isEmpresaUser ? 'col-12' : 'col-lg-8 mb-4 mb-lg-0' }}">
                         <span class="welcome-badge">Inicio</span>
                         <h2 class="welcome-title mt-3">Tu jornada empieza aqui</h2>
                         <p class="welcome-copy mb-0">
@@ -34,6 +39,7 @@
                             o entrar directamente a los modulos que mas uses en tu flujo diario.
                         </p>
                     </div>
+                    @unless($isEmpresaUser)
                     <div class="col-lg-4">
                         <div class="welcome-actions">
                             <a href="{{ route('dashboard') }}" class="btn btn-primary btn-block mb-2">Abrir dashboard</a>
@@ -41,6 +47,7 @@
                             <a href="{{ route('bitacoras.create') }}" class="btn btn-outline-secondary btn-block">Registrar bitacora</a>
                         </div>
                     </div>
+                    @endunless
                 </div>
             </div>
         </div>
