@@ -197,27 +197,9 @@ class FacturacionCartController extends Controller
                 'scan_code' => ['required', 'string', 'max:120'],
             ]);
 
-            Log::info('FacturacionCartController scanAdd start', [
-                'user_id' => $user?->id,
-                'sucursal_id' => $user?->sucursal_id,
-                'scan_code' => (string) $validated['scan_code'],
-                'expects_json' => $request->expectsJson(),
-                'wants_json' => $request->wantsJson(),
-                'ajax' => $request->ajax(),
-            ]);
-
             $resultado = $service->addScannedItemByCode($user, (string) $validated['scan_code']);
             $item = (array) ($resultado['item'] ?? []);
             $cart = $resultado['cart'] ?? null;
-
-            Log::debug('Codigo agregado al carrito de facturacion.', [
-                'user_id' => $user?->id,
-                'scan_code' => (string) $validated['scan_code'],
-                'item_type' => $item['type'] ?? null,
-                'item_code' => $item['code'] ?? null,
-                'cart_id' => $cart->id ?? null,
-                'expects_json' => $request->expectsJson(),
-            ]);
 
             $feedback = [
                 'type' => 'success',
@@ -228,22 +210,11 @@ class FacturacionCartController extends Controller
             ];
 
             if ($request->expectsJson()) {
-                $cartPayload = $this->buildCartPayload($cart);
-                Log::debug('FacturacionCartController scanAdd JSON response', [
-                    'user_id' => $user?->id,
-                    'scan_code' => (string) $validated['scan_code'],
-                    'cart_id' => $cart->id ?? null,
-                    'cart_payload_items' => count((array) ($cartPayload['items'] ?? [])),
-                    'cart_payload_codes' => array_values(array_filter(array_map(
-                        static fn (array $row): string => trim((string) ($row['codigo'] ?? '')),
-                        (array) ($cartPayload['items'] ?? [])
-                    ))),
-                ]);
                 return response()->json([
                     'ok' => true,
                     'feedback' => $feedback,
                     'item' => $item,
-                    'cart' => $cartPayload,
+                    'cart' => $this->buildCartPayload($cart),
                 ]);
             }
 
@@ -251,14 +222,6 @@ class FacturacionCartController extends Controller
                 ->with('facturacion_feedback', $feedback)
                 ->with('facturacion_scanner_open', true);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::warning('Validacion fallida al agregar codigo al carrito de facturacion.', [
-                'user_id' => $user?->id,
-                'sucursal_id' => $user?->sucursal_id,
-                'payload' => $request->all(),
-                'expects_json' => $expectsJson,
-                'errors' => $e->errors(),
-            ]);
-
             $feedback = [
                 'type' => 'warning',
                 'title' => 'Codigo invalido',
@@ -332,28 +295,6 @@ class FacturacionCartController extends Controller
                 ->with('facturacion_feedback', $feedback)
                 ->with('facturacion_scanner_open', true);
         }
-    }
-
-    public function clientLog(Request $request): JsonResponse
-    {
-        $user = $request->user();
-        $this->authorizeFacturacionAccess($user);
-
-        $validated = $request->validate([
-            'event' => ['required', 'string', 'max:120'],
-            'context' => ['nullable', 'array'],
-        ]);
-
-        Log::info('FacturacionShortcut client event', [
-            'user_id' => $user?->id,
-            'sucursal_id' => $user?->sucursal_id,
-            'event' => (string) $validated['event'],
-            'context' => Arr::wrap($validated['context'] ?? []),
-        ]);
-
-        return response()->json([
-            'ok' => true,
-        ]);
     }
 
     public function emitir(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
@@ -1049,17 +990,6 @@ class FacturacionCartController extends Controller
             })
             ->values()
             ->all();
-
-        Log::debug('FacturacionCartController buildCartPayload', [
-            'cart_id' => data_get($cart, 'id'),
-            'raw_items_type' => is_object($rawItems) ? get_class($rawItems) : gettype($rawItems),
-            'raw_items_count' => $itemsCollection->count(),
-            'mapped_items_count' => count($items),
-            'mapped_codes' => array_values(array_filter(array_map(
-                static fn (array $item): string => trim((string) ($item['codigo'] ?? '')),
-                $items
-            ))),
-        ]);
 
         return [
             'id' => data_get($cart, 'id'),

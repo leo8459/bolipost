@@ -3447,31 +3447,6 @@
                 facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
             };
 
-            const sendFacturacionClientLog = (eventName, context = {}) => {
-                try {
-                    const tokenMeta = document.querySelector('meta[name="csrf-token"]');
-                    const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
-
-                    fetch(@json(route('facturacion.cart.client-log')), {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
-                        },
-                        credentials: 'include',
-                        keepalive: true,
-                        body: JSON.stringify({
-                            event: eventName,
-                            context,
-                        }),
-                    }).catch(() => {});
-                } catch (error) {
-                    console.warn('[FacturacionShortcut] client log failed', error);
-                }
-            };
-
             const submitFacturacionScanForm = async (form) => {
                 if (!(form instanceof HTMLFormElement)) {
                     return;
@@ -3482,21 +3457,7 @@
                 const scanInput = form.querySelector('#facturacionScanCode');
                 const scanPanel = form.closest('.global-shortcut-scan-panel');
 
-                console.info('[FacturacionShortcut] scan submit triggered', {
-                    action: form.action || '',
-                    code: scanInput instanceof HTMLInputElement ? scanInput.value : '',
-                });
-                sendFacturacionClientLog('scan_submit_triggered', {
-                    action: form.action || '',
-                    code: scanInput instanceof HTMLInputElement ? scanInput.value : '',
-                    is_connected: typeof form.isConnected === 'boolean' ? form.isConnected : null,
-                });
-
                 if (isFacturacionSubmitting) {
-                    console.info('[FacturacionShortcut] scan submit ignored because another request is in progress');
-                    sendFacturacionClientLog('scan_submit_ignored_busy', {
-                        action: form.action || '',
-                    });
                     return;
                 }
 
@@ -3526,21 +3487,7 @@
                         body: formData,
                         credentials: 'include',
                     });
-
                     const data = await response.json().catch(() => null);
-                    console.info('[FacturacionShortcut] scan response', {
-                        status: response.status,
-                        ok: response.ok,
-                        data,
-                    });
-                    sendFacturacionClientLog('scan_response_received', {
-                        action: form.action || '',
-                        status: response.status,
-                        ok: response.ok,
-                        code: scanInput instanceof HTMLInputElement ? scanInput.value : '',
-                        has_data: data !== null,
-                        response_ok_flag: data && Object.prototype.hasOwnProperty.call(data, 'ok') ? data.ok : null,
-                    });
                     if (!response.ok || !data || data.ok === false) {
                         const message = data && data.feedback && data.feedback.detail
                             ? data.feedback.detail
@@ -3578,12 +3525,6 @@
                         }, 50);
                     }
                 } catch (error) {
-                    console.error('[FacturacionShortcut] scan add failed', error);
-                    sendFacturacionClientLog('scan_submit_failed', {
-                        action: form.action || '',
-                        code: scanInput instanceof HTMLInputElement ? scanInput.value : '',
-                        message: error instanceof Error ? error.message : String(error),
-                    });
                     renderFacturacionShortcutFeedback({
                         type: 'warning',
                         title: 'No se pudo agregar el codigo',
@@ -3786,10 +3727,6 @@
                 }
 
                 const html = await response.text();
-                console.info('[FacturacionShortcut] sync html response', {
-                    status: response.status,
-                    htmlLength: html.length,
-                });
                 const parser = new DOMParser();
                 const sourceDoc = parser.parseFromString(html, 'text/html');
                 syncFacturacionShortcutSectionsFromDocument(sourceDoc);
@@ -3798,10 +3735,8 @@
             const syncFacturacionShortcutAfterMutation = async () => {
                 try {
                     await fetchAndSyncFacturacionShortcutSections();
-                    console.info('[FacturacionShortcut] sync after mutation ok');
                     return true;
                 } catch (error) {
-                    console.error('[FacturacionShortcut] sync after mutation failed', error);
                     window.setTimeout(() => {
                         window.location.reload();
                     }, 120);
@@ -5397,33 +5332,6 @@
                         .finally(() => {
                             delete form.dataset.facturacionDelegatedRunning;
                         });
-                }, true);
-
-                document.addEventListener('click', function (event) {
-                    const button = event.target instanceof Element
-                        ? event.target.closest('#facturacionScanForm button[type="submit"]')
-                        : null;
-
-                    if (!(button instanceof HTMLButtonElement)) {
-                        return;
-                    }
-
-                    const form = button.form;
-                    console.info('[FacturacionShortcut] scan submit button clicked', {
-                        formFound: form instanceof HTMLFormElement,
-                        formAction: form instanceof HTMLFormElement ? form.action : '',
-                        buttonDisabled: button.disabled,
-                    });
-                    sendFacturacionClientLog('scan_button_clicked', {
-                        form_found: form instanceof HTMLFormElement,
-                        form_action: form instanceof HTMLFormElement ? form.action : '',
-                        button_disabled: button.disabled,
-                        code: form instanceof HTMLFormElement
-                            ? ((form.querySelector('#facturacionScanCode') instanceof HTMLInputElement)
-                                ? form.querySelector('#facturacionScanCode').value
-                                : '')
-                            : '',
-                    });
                 }, true);
             }
 
