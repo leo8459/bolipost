@@ -159,8 +159,7 @@ class FacturacionCartService
         );
         $montoBase = round((float) ($paquete->precio ?? 0), 2);
         $resumenOrigen = $this->buildPaqueteEmsResumenOrigen($paquete, $servicio);
-
-        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+        $payload = array_merge(
             $this->originUserPayload($user),
             $this->originSucursalPayload($user),
             [
@@ -176,7 +175,22 @@ class FacturacionCartService
             'monto_base' => $montoBase,
             'monto_extras' => 0,
             'total_linea' => $montoBase,
-        ]));
+        ]);
+
+        Log::info('FacturacionCartService addPaqueteEms upsert request', [
+            'user_id' => $user->id,
+            'paquete_id' => $paquete->id,
+            'codigo' => $paquete->codigo ?? null,
+            'cod_especial' => $paquete->cod_especial ?? null,
+            'payload' => $payload,
+        ]);
+
+        $body = $this->request('POST', '/cart/items/upsert', $payload);
+        Log::info('FacturacionCartService addPaqueteEms upsert response', [
+            'user_id' => $user->id,
+            'paquete_id' => $paquete->id,
+            'body' => $body,
+        ]);
 
         $cart = $this->toCart(data_get($body, 'cart'));
         if (!$cart) {
@@ -368,26 +382,36 @@ class FacturacionCartService
 
         $paquete->loadMissing('servicio');
         $servicioInternacional = $this->resolveServicioInternacional();
-        $servicio = $this->resolveFiscalServicio($servicioInternacional, $paquete->servicio, $this->resolveAnyServicioWithFiscalData())
-            ?: $servicioInternacional
-            ?: $paquete->servicio
-            ?: $this->resolveAnyServicioWithFiscalData();
+        $servicioFiscal = $this->resolveFiscalServicio($servicioInternacional, $paquete->servicio, $this->resolveAnyServicioWithFiscalData());
+        $servicioPresentacion = $servicioInternacional ?: $paquete->servicio ?: $servicioFiscal;
         $peso = $this->toFloatNumber($paquete->peso ?? 0);
         $montoBase = round($this->toFloatNumber($paquete->precio ?? 0), 2);
         $codigo = (string) ($paquete->codigo ?? '');
         if (trim($codigo) === '') {
             $codigo = (string) ($paquete->cod_especial ?? '');
         }
+        $tituloServicio = (string) (
+            $servicioPresentacion->nombre_servicio
+            ?? $servicioFiscal->nombre_servicio
+            ?? 'INTERNACIONAL'
+        );
+        $descripcionServicio = (string) (
+            $servicioPresentacion->descripcion
+            ?? $servicioFiscal->descripcion
+            ?? $servicioPresentacion->nombre_servicio
+            ?? $servicioFiscal->nombre_servicio
+            ?? 'ENVIOS DE PAQUETERIA INTERNACIONAL'
+        );
 
-        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+        $payload = array_merge(
             $this->originUserPayload($user),
             $this->originSucursalPayload($user),
             [
                 'origen_tipo' => PaqueteInt::class,
                 'origen_id' => (int) $paquete->id,
                 'codigo' => $codigo,
-                'titulo' => (string) ($servicio->nombre_servicio ?? 'Paquete interno'),
-                'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'PAQUETE INTERNO'),
+                'titulo' => $tituloServicio,
+                'nombre_servicio' => $tituloServicio,
                 'nombre_destinatario' => (string) ($paquete->destino ?? ''),
                 'servicios_extra' => [],
                 'resumen_origen' => [
@@ -397,18 +421,35 @@ class FacturacionCartService
                     'destinatario' => (string) ($paquete->destino ?? ''),
                     'direccion' => (string) ($paquete->destino ?? ''),
                     'ciudad' => (string) ($paquete->destino ?? ''),
-                    'actividad_economica' => (string) ($servicio->actividadEconomica ?? ''),
-                    'codigo_sin' => (string) ($servicio->codigoSin ?? ''),
-                    'codigo_producto' => (string) ($servicio->codigo ?? $codigo),
-                    'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? 'PAQUETE INTERNO'),
-                    'unidad_medida' => $servicio->unidadMedida ?? 58,
+                    'actividad_economica' => (string) ($servicioFiscal->actividadEconomica ?? $servicioPresentacion->actividadEconomica ?? ''),
+                    'codigo_sin' => (string) ($servicioFiscal->codigoSin ?? $servicioPresentacion->codigoSin ?? ''),
+                    'codigo_producto' => (string) ($servicioFiscal->codigo ?? $servicioPresentacion->codigo ?? $codigo),
+                    'descripcion_servicio' => $descripcionServicio,
+                    'unidad_medida' => $servicioFiscal->unidadMedida ?? $servicioPresentacion->unidadMedida ?? 58,
                 ],
                 'cantidad' => 1,
                 'monto_base' => $montoBase,
                 'monto_extras' => 0,
                 'total_linea' => $montoBase,
             ]
-        ));
+        );
+
+        Log::info('FacturacionCartService addPaqueteInt upsert request', [
+            'user_id' => $user->id,
+            'paquete_id' => $paquete->id,
+            'codigo' => $paquete->codigo ?? null,
+            'cod_especial' => $paquete->cod_especial ?? null,
+            'servicio_presentacion' => $servicioPresentacion?->nombre_servicio,
+            'servicio_fiscal' => $servicioFiscal?->nombre_servicio,
+            'payload' => $payload,
+        ]);
+
+        $body = $this->request('POST', '/cart/items/upsert', $payload);
+        Log::info('FacturacionCartService addPaqueteInt upsert response', [
+            'user_id' => $user->id,
+            'paquete_id' => $paquete->id,
+            'body' => $body,
+        ]);
 
         $cart = $this->toCart(data_get($body, 'cart'));
         if (!$cart) {
@@ -519,6 +560,11 @@ class FacturacionCartService
         $this->assertFacturacionPermission($user);
 
         $codigoNormalizado = strtoupper(trim($codigo));
+        Log::info('FacturacionCartService addScannedItemByCode start', [
+            'user_id' => $user->id,
+            'codigo_original' => $codigo,
+            'codigo_normalizado' => $codigoNormalizado,
+        ]);
         if ($codigoNormalizado === '') {
             throw new \RuntimeException('Ingresa un codigo valido para escanear.');
         }
@@ -601,17 +647,54 @@ class FacturacionCartService
             ]);
         }
 
+        Log::info('FacturacionCartService addScannedItemByCode query results', [
+            'user_id' => $user->id,
+            'codigo_normalizado' => $codigoNormalizado,
+            'found' => [
+                'contrato' => $contrato ? ['id' => $contrato->id, 'codigo' => $contrato->codigo ?? null] : null,
+                'ordinario' => $ordinario ? ['id' => $ordinario->id, 'codigo' => $ordinario->codigo ?? null] : null,
+                'certificado' => $certificado ? ['id' => $certificado->id, 'codigo' => $certificado->codigo ?? null] : null,
+                'interno' => $interno ? ['id' => $interno->id, 'codigo' => $interno->codigo ?? null, 'cod_especial' => $interno->cod_especial ?? null] : null,
+                'ems' => $ems ? ['id' => $ems->id, 'codigo' => $ems->codigo ?? null, 'cod_especial' => $ems->cod_especial ?? null] : null,
+                'solicitud_ems' => $solicitudEms ? ['id' => $solicitudEms->id, 'codigo_solicitud' => $solicitudEms->codigo_solicitud ?? null, 'barcode' => $solicitudEms->barcode ?? null, 'cod_especial' => $solicitudEms->cod_especial ?? null] : null,
+            ],
+            'matches_count' => $matches->count(),
+        ]);
+
         if ($matches->isEmpty()) {
+            Log::warning('Escaneo de facturacion sin coincidencias.', [
+                'user_id' => $user->id,
+                'codigo_original' => $codigo,
+                'codigo_normalizado' => $codigoNormalizado,
+            ]);
             throw new \RuntimeException('No se encontro ningun paquete de Contratos, Ordinarios, Certificados, Internos, EMS o Solicitudes EMS con ese codigo.');
         }
 
         if ($matches->count() > 1) {
             $labels = $matches->pluck('label')->implode(', ');
+            Log::warning('Escaneo de facturacion con coincidencias multiples.', [
+                'user_id' => $user->id,
+                'codigo_original' => $codigo,
+                'codigo_normalizado' => $codigoNormalizado,
+                'coincidencias' => $matches->map(fn ($match) => [
+                    'type' => $match['type'],
+                    'label' => $match['label'],
+                    'record_id' => $match['record']->id ?? null,
+                    'record_code' => $match['record']->codigo ?? null,
+                ])->values()->all(),
+            ]);
             throw new \RuntimeException('El codigo existe en varios modulos (' . $labels . '). Revisa el registro antes de agregarlo al carrito.');
         }
 
         $match = $matches->first();
         $record = $match['record'];
+        Log::info('FacturacionCartService addScannedItemByCode selected match', [
+            'user_id' => $user->id,
+            'codigo_normalizado' => $codigoNormalizado,
+            'type' => $match['type'] ?? null,
+            'label' => $match['label'] ?? null,
+            'record_id' => $record->id ?? null,
+        ]);
 
         $cart = match ($match['type']) {
             'contrato' => $this->addPaqueteContrato($user, $record),
@@ -622,6 +705,17 @@ class FacturacionCartService
             'solicitud_ems' => $this->addSolicitudEms($user, $record),
             default => throw new \RuntimeException('El codigo escaneado no tiene un modulo compatible con Facturacion.'),
         };
+
+        Log::info('Escaneo de facturacion agregado al carrito.', [
+            'user_id' => $user->id,
+            'codigo_original' => $codigo,
+            'codigo_normalizado' => $codigoNormalizado,
+            'type' => $match['type'],
+            'record_id' => $record->id ?? null,
+            'record_code' => $record->codigo ?? $codigoNormalizado,
+            'cart_id' => $cart->id ?? null,
+            'items_count' => is_countable($cart->items ?? null) ? count($cart->items) : null,
+        ]);
 
         return [
             'cart' => $cart,
