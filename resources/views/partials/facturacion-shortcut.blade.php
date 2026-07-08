@@ -3454,6 +3454,8 @@
                 replaceSection('.global-shortcut-cart-block');
                 replaceSection('.global-shortcut-scan-panel--entry');
                 replaceSection('.global-shortcut-footer-action');
+                replaceSection('.global-shortcut-edit-hint');
+                replaceSection('.global-shortcut-issue-box');
 
                 const currentBadge = openFacturacionShortcutBtn
                     ? openFacturacionShortcutBtn.querySelector('.global-facturacion-fab__badge')
@@ -3877,6 +3879,12 @@
                         cartBlock.appendChild(emptyState);
                     }
                 }
+
+                facturacionShortcutModal.querySelectorAll('.global-shortcut-edit-hint, .global-shortcut-issue-box').forEach((element) => {
+                    if (element instanceof HTMLElement) {
+                        element.remove();
+                    }
+                });
 
                 facturacionShortcutModal.querySelectorAll('.global-shortcut-confirm-form, .global-shortcut-emit-btn').forEach((element) => {
                     if (element instanceof HTMLFormElement) {

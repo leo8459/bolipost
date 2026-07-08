@@ -515,6 +515,10 @@ class FacturacionCartController extends Controller
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
+        Log::info('FacturacionCartController abrirCaja start', [
+            'user_id' => $user->id,
+            'sucursal_id' => $user->sucursal_id,
+        ]);
 
         try {
             $resultado = $service->abrirCaja($user);
@@ -527,6 +531,11 @@ class FacturacionCartController extends Controller
                 'action' => 'caja_abrir',
             ]);
         } catch (\RuntimeException $e) {
+            Log::warning('FacturacionCartController abrirCaja failed', [
+                'user_id' => $user->id,
+                'sucursal_id' => $user->sucursal_id,
+                'error' => $e->getMessage(),
+            ]);
             return back()->with('facturacion_feedback', [
                 'type' => 'error',
                 'title' => 'No se pudo abrir caja',
@@ -542,11 +551,25 @@ class FacturacionCartController extends Controller
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
         $validated = $request->validate([
-            'monto_cierre_declarado' => ['required', 'numeric', 'min:0'],
+            'monto_cierre_declarado' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         try {
-            $resultado = $service->cerrarCaja($user, (float) $validated['monto_cierre_declarado']);
+            try {
+                $service->clearDraftCart($user);
+            } catch (\Throwable $draftError) {
+                Log::info('No se pudo limpiar el borrador antes del cierre de caja.', [
+                    'user_id' => $user->id,
+                    'error' => $draftError->getMessage(),
+                ]);
+            }
+
+            $montoCierreDeclarado = array_key_exists('monto_cierre_declarado', $validated)
+                && $validated['monto_cierre_declarado'] !== null
+                ? (float) $validated['monto_cierre_declarado']
+                : 0.0;
+
+            $resultado = $service->cerrarCaja($user, $montoCierreDeclarado);
 
             return back()->with('facturacion_feedback', [
                 'type' => 'success',

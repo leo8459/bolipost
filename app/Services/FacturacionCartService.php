@@ -68,10 +68,19 @@ class FacturacionCartService
 
     public function abrirCaja(User $user): array
     {
-        $body = $this->request('POST', '/caja/abrir', array_merge(
+        $payload = array_merge(
             $this->originUserPayload($user),
             $this->originSucursalPayload($user)
-        ));
+        );
+        Log::info('FacturacionCartService abrirCaja request', [
+            'user_id' => $user->id,
+            'payload' => $payload,
+        ]);
+        $body = $this->request('POST', '/caja/abrir', $payload);
+        Log::info('FacturacionCartService abrirCaja response', [
+            'user_id' => $user->id,
+            'body' => $body,
+        ]);
 
         return [
             'estado' => strtoupper(trim((string) (data_get($body, 'estado') ?? data_get($body, 'data.estado') ?? 'ABIERTA'))),
@@ -196,6 +205,13 @@ class FacturacionCartService
         if ($fallbackEmail === '' || !filter_var($fallbackEmail, FILTER_VALIDATE_EMAIL)) {
             $fallbackEmail = 'sincorreo@agbc.bo';
         }
+        $telefonoSucursal = preg_replace('/\D+/', '', (string) ($user->sucursal?->telefono ?? '')) ?? '';
+        if (strlen($telefonoSucursal) > 8) {
+            $telefonoSucursal = substr($telefonoSucursal, 0, 8);
+        }
+        if (strlen($telefonoSucursal) < 7) {
+            $telefonoSucursal = '2222222';
+        }
 
         $payload = array_merge(
             [
@@ -216,8 +232,7 @@ class FacturacionCartService
                     'nombre' => (string) ($user->sucursal?->nombre ?? $user->sucursal?->descripcion ?? $user->sucursal?->municipio ?? ''),
                 ],
                 'municipio' => (string) ($user->sucursal?->municipio ?? 'LA PAZ'),
-                'departamento' => (string) ($user->sucursal?->departamento ?? $user->sucursal?->municipio ?? 'LA PAZ'),
-                'telefono' => '2222222',
+                'telefono' => $telefonoSucursal,
                 'documentoSector' => (int) config('services.facturacion_bridge.documento_sector', 1),
                 'codigoCliente' => null,
                 'razonSocial' => 'ENVIO OFICIAL',
@@ -1303,6 +1318,13 @@ class FacturacionCartService
             $response->throw();
         } catch (RequestException $e) {
             $body = $this->decodeJsonBody($response);
+            Log::warning('FacturacionCartService request failed', [
+                'method' => strtoupper($method),
+                'path' => $path,
+                'payload' => $payload,
+                'status' => $response->status(),
+                'body' => $body ?: trim((string) $response->body()),
+            ]);
             $msg = is_array($body)
                 ? (string) ($body['message'] ?? $body['mensaje'] ?? $this->firstValidationError($body) ?? 'Error remoto')
                 : trim((string) $response->body());
@@ -1450,17 +1472,14 @@ class FacturacionCartService
             'origen_sucursal_codigo' => $codigoSucursal,
             'origen_sucursal_nombre' => $nombreSucursal,
             'origen_sucursal_municipio' => $municipio !== '' ? $municipio : null,
-            'origen_sucursal_departamento' => $departamento !== '' ? $departamento : null,
             // Claves requeridas por endpoints de caja en API facturacion
             'codigo_sucursal' => $codigoSucursal,
             'punto_venta' => $puntoVenta,
             'municipio' => $municipio !== '' ? $municipio : null,
-            'departamento' => $departamento !== '' ? $departamento : null,
             // Compatibilidad adicional por si el backend valida en camelCase
             'codigoSucursal' => $codigoSucursal,
             'puntoVenta' => $puntoVenta,
             'municipioSucursal' => $municipio !== '' ? $municipio : null,
-            'departamentoSucursal' => $departamento !== '' ? $departamento : null,
         ];
     }
 
