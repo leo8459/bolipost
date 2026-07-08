@@ -313,7 +313,7 @@
                                     <span class="global-shortcut-choice-btn__meta">Emision fiscal</span>
                                 </span>
                             </button>
-                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'qr') is-active @endif" data-invoice-channel-choice="qr" @disabled(!$isCajaAbierta)>
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'qr') is-active @endif" data-invoice-channel-choice="qr" @disabled(!$isCajaAbierta) hidden aria-hidden="true">
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">
                                         <path d="M4.75 4.75h5.5v5.5h-5.5zM13.75 4.75h5.5v5.5h-5.5zM4.75 13.75h5.5v5.5h-5.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
