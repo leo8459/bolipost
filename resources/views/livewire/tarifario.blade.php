@@ -217,7 +217,7 @@
                                         @endif
                                     </td>
                                     <td>{{ $t->precio }}</td>
-                                    <td class="muted">{{ $t->observacion ?? '—' }}</td>
+                                    <td class="muted">{{ $t->observacion ?? '-' }}</td>
                                     <td class="muted small">{{ optional($t->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         @aclcan('edit', $this)

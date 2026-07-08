@@ -81,6 +81,31 @@
         text-transform: uppercase;
     }
 
+    .bitacora-photo-card {
+        margin-top: 1rem;
+        padding: 1rem;
+        border: 1px dashed #cbd5e1;
+        border-radius: 14px;
+        background: #f8fbff;
+    }
+
+    .bitacora-photo-preview {
+        display: none;
+        width: 100%;
+        max-width: 340px;
+        max-height: 320px;
+        object-fit: contain;
+        margin-top: 0.9rem;
+        border-radius: 12px;
+        border: 1px solid #d7deea;
+        background: #fff;
+        padding: 0.4rem;
+    }
+
+    .bitacora-photo-preview.is-visible {
+        display: block;
+    }
+
 </style>
 
 <div class="bitacora-form-shell">
@@ -224,6 +249,48 @@
             </div>
         @endif
 
+        <div class="bitacora-photo-card">
+            <div class="form-group mb-0">
+                <label for="imagen_factura">Foto o factura</label>
+                <input
+                    type="file"
+                    id="imagen_factura"
+                    name="imagen_factura"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    class="form-control-file @error('imagen_factura') is-invalid @enderror"
+                >
+                @error('imagen_factura')
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                @enderror
+                <small class="bitacora-form-helper">Puedes subir JPG, PNG, WEBP o PDF. Si subes una imagen, el sistema la optimiza para que pese menos antes de guardarla.</small>
+                @php
+                    $existingImageUrl = $bitacora->imagen_factura ? asset('storage/' . $bitacora->imagen_factura) : null;
+                    $existingImageExtension = $bitacora->imagen_factura ? strtolower(pathinfo((string) $bitacora->imagen_factura, PATHINFO_EXTENSION)) : null;
+                    $canPreviewExistingImage = $existingImageUrl && in_array($existingImageExtension, ['jpg', 'jpeg', 'png', 'webp'], true);
+                @endphp
+                @if ($canPreviewExistingImage)
+                    <img
+                        src="{{ $existingImageUrl }}"
+                        alt="Imagen actual de factura"
+                        id="imagen_factura_preview"
+                        class="bitacora-photo-preview is-visible"
+                    >
+                @else
+                    <img
+                        src=""
+                        alt="Previsualizacion de la imagen"
+                        id="imagen_factura_preview"
+                        class="bitacora-photo-preview"
+                    >
+                @endif
+                @if ($existingImageUrl)
+                    <div class="mt-2">
+                        <a href="{{ $existingImageUrl }}" target="_blank" class="btn btn-sm btn-outline-azul">Ver archivo actual</a>
+                    </div>
+                @endif
+            </div>
+        </div>
+
     <div class="bitacora-form-footer">
         <div class="bitacora-form-actions">
             <a href="{{ route('bitacoras.index') }}" class="btn btn-outline-azul">Volver</a>
@@ -329,3 +396,31 @@
         });
     </script>
 @endif
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const imageInput = document.getElementById('imagen_factura');
+        const imagePreview = document.getElementById('imagen_factura_preview');
+
+        if (!imageInput || !imagePreview) {
+            return;
+        }
+
+        imageInput.addEventListener('change', function (event) {
+            const file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
+            if (!file) {
+                return;
+            }
+
+            if ((file.type || '').toLowerCase() === 'application/pdf') {
+                imagePreview.removeAttribute('src');
+                imagePreview.classList.remove('is-visible');
+                return;
+            }
+
+            const objectUrl = URL.createObjectURL(file);
+            imagePreview.src = objectUrl;
+            imagePreview.classList.add('is-visible');
+        });
+    });
+</script>

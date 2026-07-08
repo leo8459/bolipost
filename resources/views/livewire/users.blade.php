@@ -611,8 +611,8 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Alias de acceso *</label>
-                                    <input type="text" wire:model.defer="alias" class="form-control" placeholder="Ej: juan_perez" required>
-                                    <small class="text-muted">Solo letras, numeros, guion y guion bajo.</small>
+                                    <input type="text" wire:model.defer="alias" class="form-control" placeholder="Ej: juan.perez+lp" required>
+                                    <small class="text-muted">Se permiten caracteres especiales. Evita solo duplicados.</small>
                                     @error('alias') <small class="text-danger d-block">{{ $message }}</small> @enderror
                                 </div>
                             </div>

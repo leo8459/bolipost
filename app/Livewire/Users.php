@@ -217,7 +217,7 @@ class Users extends Component
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')],
+            'alias' => ['required', 'string', 'max:255', Rule::unique('users', 'alias')],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'min:8'],
             'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
@@ -236,7 +236,7 @@ class Users extends Component
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')->ignore((int) $this->editingId)],
+            'alias' => ['required', 'string', 'max:255', Rule::unique('users', 'alias')->ignore((int) $this->editingId)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore((int) $this->editingId)],
             'password' => ['nullable', 'string', 'min:8'],
             'regionalesSeleccionadas' => ['required', 'array', 'min:1'],

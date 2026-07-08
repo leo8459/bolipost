@@ -44,7 +44,7 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'alias' => 'required|string|max:255|alpha_dash|unique:users,alias',
+            'alias' => 'required|string|max:255|unique:users,alias',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8',
             'ciudad' => 'required|string|max:255',
@@ -97,7 +97,7 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'alias' => 'required|string|max:255|alpha_dash|unique:users,alias,' . $user->id,
+            'alias' => 'required|string|max:255|unique:users,alias,' . $user->id,
             'email' => 'required|email|unique:users,email,' . $user->id,
             'ciudad' => 'required|string|max:255',
             'ci' => 'nullable|string|max:255',
@@ -208,7 +208,7 @@ class UserController extends Controller
         $sheet->fromArray($headers, null, 'A1');
         $sheet->fromArray([
             'Juan Perez',
-            'juan_perez',
+            'juan.perez+lp',
             'juan.perez@correo.com',
             '12345678',
             'LA PAZ',
@@ -339,7 +339,7 @@ class UserController extends Controller
                 $existingUser = User::withTrashed()->whereRaw('LOWER(email) = ?', [$payload['email']])->first();
                 $validator = Validator::make($payload, [
                     'name' => ['required', 'string', 'max:255'],
-                    'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')->ignore(optional($existingUser)->id)],
+                    'alias' => ['required', 'string', 'max:255', Rule::unique('users', 'alias')->ignore(optional($existingUser)->id)],
                     'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore(optional($existingUser)->id)],
                     'password' => ['required', 'string', 'min:8'],
                     'ciudad' => ['required', 'string', 'max:255'],

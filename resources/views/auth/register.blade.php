@@ -11,7 +11,7 @@
 
         <div class="mt-4">
             <x-input-label for="alias" :value="__('Alias de acceso')" />
-            <x-text-input id="alias" class="block mt-1 w-full" type="text" name="alias" :value="old('alias')" required autocomplete="username" placeholder="Ej: juan_perez" />
+            <x-text-input id="alias" class="block mt-1 w-full" type="text" name="alias" :value="old('alias')" required autocomplete="username" placeholder="Ej: juan.perez+lp" />
             <x-input-error :messages="$errors->get('alias')" class="mt-2" />
         </div>
 

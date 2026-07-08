@@ -15,11 +15,13 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -502,6 +504,7 @@ class BitacoraController extends Controller
                 'factura' => ['nullable', 'string', 'max:255'],
                 'precio_total' => ['nullable', 'numeric', 'min:0'],
                 'peso' => ['nullable', 'numeric', 'min:0'],
+                'imagen_factura' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             ],
             [],
             [
@@ -511,6 +514,7 @@ class BitacoraController extends Controller
                 'factura' => 'factura',
                 'precio_total' => 'precio total',
                 'peso' => 'peso',
+                'imagen_factura' => 'imagen de factura',
             ]
         );
 
@@ -566,6 +570,11 @@ class BitacoraController extends Controller
         $data['factura_cliente'] = null;
         $data['factura_direccion'] = null;
         $data['imagen_factura'] = null;
+
+        if ($request->hasFile('imagen_factura')) {
+            $data = $this->mergeQrFacturaData($data, $request->file('imagen_factura'));
+            $data['imagen_factura'] = $this->storeOptimizedFacturaFile($request->file('imagen_factura'));
+        }
 
         return $data;
     }
@@ -740,7 +749,7 @@ class BitacoraController extends Controller
                 Storage::disk('public')->delete($bitacora->imagen_factura);
             }
 
-            $updates['imagen_factura'] = $request->file('imagen_factura')->store('bitacoras/facturas', 'public');
+            $updates['imagen_factura'] = $this->storeOptimizedFacturaFile($request->file('imagen_factura'));
         }
 
         return $updates;
@@ -811,7 +820,7 @@ class BitacoraController extends Controller
         }
     }
 
-    private function mergeQrFacturaData(array $data, \Illuminate\Http\UploadedFile $file): array
+    private function mergeQrFacturaData(array $data, UploadedFile $file): array
     {
         $result = $this->facturaQrService->extractFromUploadedFile($file);
         if (!($result['success'] ?? false)) {
@@ -833,5 +842,156 @@ class BitacoraController extends Controller
         $data['factura_direccion'] = $data['factura_direccion'] ?? ($invoiceData['direccion_emisor'] ?? null);
 
         return $data;
+    }
+
+    private function storeOptimizedFacturaFile(UploadedFile $file): string
+    {
+        if (!$this->canOptimizeFacturaImage($file)) {
+            return $file->store('bitacoras/facturas', 'public');
+        }
+
+        $optimized = $this->buildOptimizedFacturaImageBinary($file);
+        if ($optimized === null) {
+            return $file->store('bitacoras/facturas', 'public');
+        }
+
+        $relativePath = 'bitacoras/facturas/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $optimized['extension'];
+        Storage::disk('public')->put($relativePath, $optimized['binary']);
+
+        return $relativePath;
+    }
+
+    private function canOptimizeFacturaImage(UploadedFile $file): bool
+    {
+        $mime = strtolower((string) $file->getMimeType());
+
+        return str_starts_with($mime, 'image/') && function_exists('imagecreatefromstring');
+    }
+
+    private function buildOptimizedFacturaImageBinary(UploadedFile $file): ?array
+    {
+        try {
+            $binary = $file->get();
+            if ($binary === false || $binary === '') {
+                return null;
+            }
+
+            $source = @imagecreatefromstring($binary);
+            if ($source === false) {
+                return null;
+            }
+
+            $imageInfo = @getimagesizefromstring($binary) ?: [];
+            $sourceWidth = (int) ($imageInfo[0] ?? imagesx($source));
+            $sourceHeight = (int) ($imageInfo[1] ?? imagesy($source));
+            if ($sourceWidth <= 0 || $sourceHeight <= 0) {
+                imagedestroy($source);
+
+                return null;
+            }
+
+            [$targetWidth, $targetHeight] = $this->resolveFacturaImageDimensions($sourceWidth, $sourceHeight, 1600);
+            $canvas = imagecreatetruecolor($targetWidth, $targetHeight);
+            $background = imagecolorallocate($canvas, 255, 255, 255);
+            imagefill($canvas, 0, 0, $background);
+            imagecopyresampled($canvas, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
+
+            imagedestroy($source);
+
+            $originalSize = (int) $file->getSize();
+            $candidates = [];
+
+            if (function_exists('imagewebp')) {
+                foreach ([78, 70, 62, 55, 48, 40] as $quality) {
+                    $candidateBinary = $this->encodeGdImage($canvas, 'webp', $quality);
+                    if ($candidateBinary === null) {
+                        continue;
+                    }
+
+                    $candidates[] = [
+                        'binary' => $candidateBinary,
+                        'extension' => 'webp',
+                    ];
+
+                    if (strlen($candidateBinary) < $originalSize) {
+                        imagedestroy($canvas);
+
+                        return [
+                            'binary' => $candidateBinary,
+                            'extension' => 'webp',
+                        ];
+                    }
+                }
+            }
+
+            foreach ([82, 74, 66, 58, 50, 42] as $quality) {
+                $candidateBinary = $this->encodeGdImage($canvas, 'jpeg', $quality);
+                if ($candidateBinary === null) {
+                    continue;
+                }
+
+                $candidates[] = [
+                    'binary' => $candidateBinary,
+                    'extension' => 'jpg',
+                ];
+
+                if (strlen($candidateBinary) < $originalSize) {
+                    imagedestroy($canvas);
+
+                    return [
+                        'binary' => $candidateBinary,
+                        'extension' => 'jpg',
+                    ];
+                }
+            }
+
+            imagedestroy($canvas);
+
+            if ($candidates === []) {
+                return null;
+            }
+
+            usort($candidates, fn (array $a, array $b) => strlen($a['binary']) <=> strlen($b['binary']));
+
+            return $candidates[0];
+        } catch (\Throwable $e) {
+            Log::warning('Bitacora factura: no se pudo optimizar la imagen subida.', [
+                'file' => $file->getClientOriginalName(),
+                'mime' => $file->getMimeType(),
+                'message' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function resolveFacturaImageDimensions(int $width, int $height, int $maxSide): array
+    {
+        if ($width <= $maxSide && $height <= $maxSide) {
+            return [$width, $height];
+        }
+
+        $scale = min($maxSide / $width, $maxSide / $height);
+
+        return [
+            max(1, (int) round($width * $scale)),
+            max(1, (int) round($height * $scale)),
+        ];
+    }
+
+    private function encodeGdImage($image, string $format, int $quality): ?string
+    {
+        ob_start();
+        $success = match ($format) {
+            'webp' => imagewebp($image, null, $quality),
+            default => imagejpeg($image, null, $quality),
+        };
+        $binary = ob_get_clean();
+
+        if (!$success || !is_string($binary) || $binary === '') {
+            return null;
+        }
+
+        return $binary;
     }
 }

@@ -766,17 +766,17 @@
                             </div>
 
                             <div class="bitacoras-table-wrap">
+                                <div class="small text-muted mb-2">
+                                    Se muestra una sola fila por <strong>cod_especial</strong>. Haz click en el codigo para ver la lista completa de registros relacionados.
+                                </div>
                                 <div class="table-responsive">
                                     <table class="table table-striped table-hover">
                                         <thead class="thead">
                                             <tr>
                                                 <th>ID</th>
                                                 <th>Cod Especial</th>
+                                                <th>Registros</th>
                                                 <th>Usuario</th>
-                                                <th>Paquete EMS</th>
-                                                <th>Paquete Contrato</th>
-                                                <th>Paquete Ordinario</th>
-                                                <th>Paquete Certificado</th>
                                                 <th>Transportadora</th>
                                                 <th>Provincia</th>
                                                 <th>Factura</th>
@@ -805,35 +805,12 @@
                                                             {{ $bitacora->cod_especial }}
                                                         </button>
                                                     </td>
+                                                    <td>
+                                                        <span class="badge badge-light border">
+                                                            {{ number_format($detallesCodigo->count()) }}
+                                                        </span>
+                                                    </td>
                                                     <td>{{ $bitacora->user->name ?? '-' }}</td>
-                                                    <td>
-                                                        @if($bitacora->paqueteEms)
-                                                            #{{ $bitacora->paqueteEms->id }} - {{ $bitacora->paqueteEms->codigo }}
-                                                        @else
-                                                            -
-                                                        @endif
-                                                    </td>
-                                                    <td>
-                                                        @if($bitacora->paqueteContrato)
-                                                            #{{ $bitacora->paqueteContrato->id }} - {{ $bitacora->paqueteContrato->codigo }}
-                                                        @else
-                                                            -
-                                                        @endif
-                                                    </td>
-                                                    <td>
-                                                        @if($bitacora->paqueteOrdi)
-                                                            #{{ $bitacora->paqueteOrdi->id }} - {{ $bitacora->paqueteOrdi->codigo }}
-                                                        @else
-                                                            -
-                                                        @endif
-                                                    </td>
-                                                    <td>
-                                                        @if($bitacora->paqueteCerti)
-                                                            #{{ $bitacora->paqueteCerti->id }} - {{ $bitacora->paqueteCerti->codigo }}
-                                                        @else
-                                                            -
-                                                        @endif
-                                                    </td>
                                                     <td>{{ $bitacora->transportadora ? strtoupper((string) $bitacora->transportadora) : '-' }}</td>
                                                     <td>{{ $bitacora->provincia ?: '-' }}</td>
                                                     <td>{{ $bitacora->factura ?: '-' }}</td>
@@ -841,9 +818,23 @@
                                                     <td>{{ $bitacora->peso !== null ? number_format((float) $bitacora->peso, 3) : '-' }}</td>
                                                     <td>
                                                         @if($bitacora->imagen_factura)
-                                                            <a href="{{ asset('storage/' . $bitacora->imagen_factura) }}" target="_blank" class="btn btn-sm btn-outline-info">
-                                                                Ver
-                                                            </a>
+                                                            @php
+                                                                $bitacoraImagenExtension = strtolower(pathinfo((string) $bitacora->imagen_factura, PATHINFO_EXTENSION));
+                                                                $bitacoraEsImagen = in_array($bitacoraImagenExtension, ['jpg', 'jpeg', 'png', 'webp'], true);
+                                                            @endphp
+                                                            @if($bitacoraEsImagen)
+                                                                <a href="{{ asset('storage/' . $bitacora->imagen_factura) }}" target="_blank" class="d-inline-block">
+                                                                    <img
+                                                                        src="{{ asset('storage/' . $bitacora->imagen_factura) }}"
+                                                                        alt="Factura bitacora {{ $bitacora->id }}"
+                                                                        style="width:60px; height:60px; object-fit:cover; border-radius:10px; border:1px solid #dbe3f0; background:#fff; padding:2px;"
+                                                                    >
+                                                                </a>
+                                                            @else
+                                                                <a href="{{ asset('storage/' . $bitacora->imagen_factura) }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                                                    Ver PDF
+                                                                </a>
+                                                            @endif
                                                         @else
                                                             -
                                                         @endif
@@ -868,7 +859,7 @@
                                                 </tr>
                                             @empty
                                                 <tr>
-                                                    <td colspan="14" class="text-center py-4">No hay registros</td>
+                                                    <td colspan="10" class="text-center py-4">No hay registros</td>
                                                 </tr>
                                             @endforelse
                                         </tbody>
@@ -976,9 +967,23 @@
                                                                         <td>{{ $detalle->peso !== null ? number_format((float) $detalle->peso, 3) : '-' }}</td>
                                                                         <td>
                                                                             @if($detalle->imagen_factura)
-                                                                                <a href="{{ asset('storage/' . $detalle->imagen_factura) }}" target="_blank" class="btn btn-xs btn-outline-info">
-                                                                                    Ver
-                                                                                </a>
+                                                                                @php
+                                                                                    $detalleImagenExtension = strtolower(pathinfo((string) $detalle->imagen_factura, PATHINFO_EXTENSION));
+                                                                                    $detalleEsImagen = in_array($detalleImagenExtension, ['jpg', 'jpeg', 'png', 'webp'], true);
+                                                                                @endphp
+                                                                                @if($detalleEsImagen)
+                                                                                    <a href="{{ asset('storage/' . $detalle->imagen_factura) }}" target="_blank" class="d-inline-block">
+                                                                                        <img
+                                                                                            src="{{ asset('storage/' . $detalle->imagen_factura) }}"
+                                                                                            alt="Factura bitacora {{ $detalle->id }}"
+                                                                                            style="width:56px; height:56px; object-fit:cover; border-radius:10px; border:1px solid #dbe3f0; background:#fff; padding:2px;"
+                                                                                        >
+                                                                                    </a>
+                                                                                @else
+                                                                                    <a href="{{ asset('storage/' . $detalle->imagen_factura) }}" target="_blank" class="btn btn-xs btn-outline-info">
+                                                                                        Ver PDF
+                                                                                    </a>
+                                                                                @endif
                                                                             @else
                                                                                 -
                                                                             @endif
