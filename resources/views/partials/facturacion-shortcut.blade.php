@@ -299,9 +299,31 @@
                 <div class="global-shortcut-selector-block">
                     <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Emision</span>
-                        <div class="global-shortcut-choice-row global-shortcut-choice-row--single" role="tablist" aria-label="Tipo de salida de factura">
+                        <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel" role="tablist" aria-label="Tipo de salida de factura">
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
-                                Factura electronica
+                                <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M7 3.75h7.5L19.25 8.5V19a1.25 1.25 0 0 1-1.25 1.25H7A1.25 1.25 0 0 1 5.75 19V5A1.25 1.25 0 0 1 7 3.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                        <path d="M14.5 3.75V8.5h4.75" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                        <path d="M8.75 12h6.5M8.75 15.25h6.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                    </svg>
+                                </span>
+                                <span class="global-shortcut-choice-btn__content">
+                                    <span class="global-shortcut-choice-btn__title">Factura electronica</span>
+                                    <span class="global-shortcut-choice-btn__meta">Emision fiscal</span>
+                                </span>
+                            </button>
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'qr') is-active @endif" data-invoice-channel-choice="qr" @disabled(!$isCajaAbierta)>
+                                <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M4.75 4.75h5.5v5.5h-5.5zM13.75 4.75h5.5v5.5h-5.5zM4.75 13.75h5.5v5.5h-5.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                        <path d="M15 13.75h1.5v1.5H15zM18 16.25h1.25v3H16.5V18h1.5v-1.75ZM13.75 18h1.75v1.25h-1.75z" fill="currentColor"/>
+                                    </svg>
+                                </span>
+                                <span class="global-shortcut-choice-btn__content">
+                                    <span class="global-shortcut-choice-btn__title">QR</span>
+                                    <span class="global-shortcut-choice-btn__meta">Cobro referencial</span>
+                                </span>
                             </button>
                         </div>
                     </div>
@@ -2004,7 +2026,7 @@
         }
         .global-shortcut-selector-block {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: 1fr;
             gap: 16px;
             margin-bottom: 16px;
         }
@@ -2029,32 +2051,85 @@
         .global-shortcut-choice-row--triple {
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
+        .global-shortcut-choice-row--invoice-channel {
+            grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+            align-items: stretch;
+            width: 100%;
+            max-width: 100%;
+        }
         .global-shortcut-choice-btn {
-            min-height: 46px;
-            border-radius: 12px;
-            border: 1px solid #d8e4f3;
-            background: #f8fbff;
+            min-height: 64px;
+            border-radius: 16px;
+            border: 1px solid #d6e2f2;
+            background: linear-gradient(180deg, #fbfdff 0%, #f2f7fd 100%);
             color: #20539a;
             font-size: .85rem;
             font-weight: 700;
             line-height: 1.2;
-            text-align: center;
-            padding: 8px 10px;
+            text-align: left;
+            padding: 12px 14px;
             white-space: normal;
             word-break: keep-all;
-            transition: border-color .16s ease, box-shadow .16s ease, background .16s ease, transform .16s ease;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75);
+            transition: border-color .16s ease, box-shadow .16s ease, background .16s ease, transform .16s ease, color .16s ease;
+        }
+        .global-shortcut-choice-btn__icon {
+            width: 38px;
+            height: 38px;
+            flex: 0 0 38px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(32, 83, 154, .08);
+            color: currentColor;
+        }
+        .global-shortcut-choice-btn__icon svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+        .global-shortcut-choice-btn__content {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 2px;
+        }
+        .global-shortcut-choice-btn__title {
+            display: block;
+            font-size: .98rem;
+            line-height: 1.08;
+        }
+        .global-shortcut-choice-btn__meta {
+            display: block;
+            font-size: .72rem;
+            font-weight: 700;
+            line-height: 1.1;
+            opacity: .72;
+            letter-spacing: .01em;
         }
         .global-shortcut-choice-btn:hover,
         .global-shortcut-choice-btn:focus {
             outline: none;
             transform: translateY(-1px);
             border-color: #aac4e8;
+            box-shadow: 0 10px 22px rgba(32, 83, 154, .12);
         }
         .global-shortcut-choice-btn.is-active {
             background: linear-gradient(135deg, #20539a 0%, #0f3f78 100%);
             border-color: #0f3f78;
             color: #fff;
-            box-shadow: none;
+            box-shadow: 0 12px 26px rgba(15, 63, 120, .22);
+        }
+        .global-shortcut-choice-btn.is-active .global-shortcut-choice-btn__icon {
+            background: rgba(255, 255, 255, .16);
         }
         .global-shortcut-anonymous-note {
             margin-bottom: 12px;
@@ -2909,6 +2984,10 @@
             .global-shortcut-choice-row {
                 grid-template-columns: 1fr;
             }
+            .global-shortcut-choice-row--invoice-channel {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                max-width: none;
+            }
             .global-shortcut-workflow-board__hero,
             .global-shortcut-workflow-board__grid,
             .global-shortcut-workflow-track,
@@ -3021,6 +3100,10 @@
             .global-shortcut-selector-block {
                 grid-template-columns: 1fr;
             }
+            .global-shortcut-choice-row--invoice-channel {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                max-width: none;
+            }
             .global-shortcut-choice-row--triple {
                 grid-template-columns: 1fr;
             }
@@ -3036,7 +3119,20 @@
             .global-shortcut-choice-btn {
                 min-height: 44px;
                 font-size: .8rem;
-                padding: 7px 8px;
+                padding: 9px 10px;
+                gap: 8px;
+            }
+            .global-shortcut-choice-btn__icon {
+                width: 32px;
+                height: 32px;
+                flex-basis: 32px;
+                border-radius: 10px;
+            }
+            .global-shortcut-choice-btn__title {
+                font-size: .88rem;
+            }
+            .global-shortcut-choice-btn__meta {
+                font-size: .66rem;
             }
             .global-shortcut-scan-panel__summary-main {
                 gap: 10px;
