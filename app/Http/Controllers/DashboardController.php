@@ -125,7 +125,11 @@ class DashboardController extends Controller
 
     public function welcome(Request $request)
     {
-        $data = $this->buildDashboardData($request);
+        $authUser = Auth::user();
+
+        $data = $this->userHasRole($authUser, 'empresa')
+            ? []
+            : $this->buildDashboardData($request);
 
         return view('home.welcome', $data);
     }
@@ -529,6 +533,13 @@ class DashboardController extends Controller
         }
 
         return null;
+    }
+
+    private function userHasRole($user, string $role): bool
+    {
+        return $user
+            && method_exists($user, 'hasRole')
+            && $user->hasRole($role);
     }
 
     private function buildRegionalPendingAlert(string $userCity): array

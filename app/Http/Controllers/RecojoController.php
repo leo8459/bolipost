@@ -15,6 +15,7 @@ use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
@@ -214,9 +215,11 @@ class RecojoController extends Controller
 
         $totalContratos = (clone $baseQuery)->count();
         $totalPeso = (float) ((clone $baseQuery)->sum('peso') ?? 0);
-        $estados = Estado::query()
-            ->orderBy('nombre_estado')
-            ->get(['id', 'nombre_estado']);
+        $estados = Cache::remember('lookup:paquetes-contrato:estados', now()->addMinutes(30), function () {
+            return Estado::query()
+                ->orderBy('nombre_estado')
+                ->get(['id', 'nombre_estado']);
+        });
 
         return view('paquetes_contrato.gestor', [
             'contratos' => $contratos,
