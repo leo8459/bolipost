@@ -42,6 +42,7 @@ use App\Http\Controllers\IndicadorController;
 use App\Http\Controllers\RecojoController;
 use App\Http\Controllers\ZonaPaqueteController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\MisVentasController;
 use App\Http\Controllers\AclController;
@@ -181,6 +182,15 @@ Route::get('/entregas/export/excel', [DashboardController::class, 'exportEntrega
 Route::get('/reportes', [ReportesController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('reportes.index');
+Route::get('/performance', [PerformanceController::class, 'index'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('performance.index');
+Route::get('/performance/export/excel', [PerformanceController::class, 'exportExcel'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('performance.export.excel');
+Route::get('/performance/export/pdf', [PerformanceController::class, 'exportPdf'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('performance.export.pdf');
 Route::get('/reportes/{scope}', [ReportesController::class, 'show'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->where('scope', 'general|contrato|ems|certi|ordi')
