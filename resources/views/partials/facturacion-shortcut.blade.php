@@ -24,7 +24,7 @@
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
     $facturacionItems = collect($activeFacturacionCart?->items ?? []);
-    $facturacionItemsCount = (int) ($activeFacturacionCart?->cantidad_items ?? $facturacionItems->count());
+    $facturacionItemsCount = (int) $facturacionItems->sum(fn ($item) => max(1, (int) data_get($item, 'cantidad', 1)));
     $facturacionCartTotal = (float) ($activeFacturacionCart?->total ?? 0);
     $billingDocumentTypes = \App\Models\Cliente::tiposDocumentoIdentidad();
     $activeBillingMode = (string) ($activeFacturacionCart?->modalidad_facturacion ?? 'con_datos');
@@ -141,7 +141,7 @@
             : ($activeInvoiceMode === 'qr_factura'
                 ? ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR y facturar' : 'Generar QR y facturar')
                 : ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR' : 'Generar QR de cobro')))
-        : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir factura electronica');
+        : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir venta');
     $emitConfirmTitle = $isQrFlowShortcut
         ? ($activeInvoiceMode === 'qr_factura' ? 'Preparar QR + factura' : 'Preparar cobro QR')
         : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir factura');
@@ -502,9 +502,12 @@
                 @else
                     <div class="global-shortcut-cart-list">
                         @foreach ($facturacionItems->sortByDesc('id') as $item)
+                            @php
+                                $itemCantidad = max(1, (int) data_get($item, 'cantidad', 1));
+                            @endphp
                             <article class="global-shortcut-cart-item">
                                 <div class="global-shortcut-cart-item__top">
-                                    <strong>{{ $item->titulo }}</strong>
+                                    <strong>{{ $item->titulo }} @if($itemCantidad > 1) x{{ $itemCantidad }} @endif</strong>
                                     <span class="global-shortcut-cart-item__amount">Bs {{ number_format((float) $item->total_linea, 2) }}</span>
                                 </div>
                                 <div class="global-shortcut-cart-item__meta">
@@ -842,7 +845,7 @@
             </div>
             <h4 id="facturacionItemEditTitle" class="global-shortcut-confirm__title">Corregir item antes de reenviar</h4>
             <p class="global-shortcut-confirm__message">
-                Ajusta solo el precio del item y guarda los cambios para volver a intentar la emision.
+                Ajusta el precio o la descripcion del item y guarda los cambios para volver a intentar la emision.
             </p>
             <form method="POST" action="" id="facturacionItemEditForm" class="global-shortcut-item-edit-form">
                 @csrf
@@ -859,7 +862,6 @@
                 <input type="hidden" id="facturacionEditItemCodigoSin" name="codigo_sin">
                 <input type="hidden" id="facturacionEditItemCodigoProducto" name="codigo_producto">
                 <input type="hidden" id="facturacionEditItemUnidadMedida" name="unidad_medida">
-                <input type="hidden" id="facturacionEditItemDescripcionServicio" name="descripcion_servicio">
                 <div class="global-shortcut-item-edit-summary">
                     <div class="global-shortcut-item-edit-summary__row">
                         <span>Codigo</span>
@@ -891,6 +893,10 @@
                     </div>
                 </div>
                 <div class="global-shortcut-item-edit-grid">
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="descripcion_servicio">
+                        <label for="facturacionEditItemDescripcionServicio">Descripcion del item</label>
+                        <textarea id="facturacionEditItemDescripcionServicio" name="descripcion_servicio" rows="3" maxlength="255" placeholder="Describe el servicio que se enviara a facturacion"></textarea>
+                    </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="precio">
                         <label for="facturacionEditItemPrecio">Precio</label>
                         <input type="number" id="facturacionEditItemPrecio" name="precio" min="0" step="0.01" required>
@@ -3976,6 +3982,7 @@
             const renderFacturacionCartItemHtml = (item) => {
                 const extras = Array.isArray(item && item.servicios_extra) ? item.servicios_extra : [];
                 const visibleExtras = extras.filter((extra) => Number((extra && extra.amount) || 0) > 0);
+                const quantity = Math.max(1, Number((item && item.cantidad) || 1));
                 const recipientHtml = item && item.nombre_destinatario
                     ? `<div class="global-shortcut-cart-item__recipient">Destinatario: ${escapeFacturacionHtml(item.nombre_destinatario)}</div>`
                     : '';
@@ -3988,7 +3995,7 @@
                 return `
                     <article class="global-shortcut-cart-item">
                         <div class="global-shortcut-cart-item__top">
-                            <strong>${escapeFacturacionHtml((item && item.titulo) || 'Item de facturacion')}</strong>
+                            <strong>${escapeFacturacionHtml((item && item.titulo) || 'Item de facturacion')}${quantity > 1 ? ` x${quantity}` : ''}</strong>
                             <span class="global-shortcut-cart-item__amount">${formatFacturacionMoney((item && item.total_linea) || 0)}</span>
                         </div>
                         <div class="global-shortcut-cart-item__meta">
@@ -4012,6 +4019,7 @@
 
                 const items = Array.isArray(cartData.items) ? cartData.items.slice() : [];
                 const orderedItems = items.sort((left, right) => Number((right && right.id) || 0) - Number((left && left.id) || 0));
+                const quantityCount = orderedItems.reduce((sum, item) => sum + Math.max(1, Number((item && item.cantidad) || 1)), 0);
 
                 facturacionShortcutModal.querySelectorAll('.global-shortcut-cart-summary__metric strong').forEach((metric, index) => {
                     if (!(metric instanceof HTMLElement)) {
@@ -4019,7 +4027,7 @@
                     }
 
                     metric.textContent = index === 0
-                        ? String(Number(cartData.cantidad_items || orderedItems.length || 0))
+                        ? String(Number(cartData.cantidad_items || quantityCount || orderedItems.length || 0))
                         : formatFacturacionMoney(cartData.total || 0);
                 });
 
@@ -5372,7 +5380,7 @@
 
                 Object.entries(fieldMap).forEach(([fieldId, value]) => {
                     const input = document.getElementById(fieldId);
-                    if (input instanceof HTMLInputElement) {
+                    if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
                         input.value = value;
                     }
                 });

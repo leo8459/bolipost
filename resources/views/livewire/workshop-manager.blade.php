@@ -49,6 +49,37 @@
         .bp-switch .form-check-label {
             margin-bottom: 0;
         }
+        .bp-admin-table-wrap {
+            border: 1px solid #d7e1ef;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .bp-admin-table {
+            margin-bottom: 0;
+        }
+        .bp-admin-table thead th {
+            background: #eef4fc;
+            color: #1f56a6;
+            font-size: .74rem;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            border-bottom: 1px solid #cfdcf0;
+            padding: .95rem .85rem;
+            white-space: nowrap;
+        }
+        .bp-admin-table tbody td {
+            padding: .9rem .85rem;
+            border-color: #dbe5f1;
+            vertical-align: top;
+        }
+        .bp-admin-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+        .bp-admin-table tbody tr:hover td {
+            background: #f8fbff;
+        }
     </style>
     <div class="page-title mb-4 d-flex justify-content-between align-items-center gap-2">
         <h1 class="h3 mb-0">
@@ -137,53 +168,6 @@
                         <div class="col-12">
                             <div class="alert alert-light border mb-0">
                                 Aun no hay solicitudes de revision registradas.
-                            </div>
-                        </div>
-                    @endforelse
-                </div>
-            </div>
-        </div>
-    @endif
-
-    @if(!$isWorkshopUser && !$showForm && auth()->user()?->role === 'admin')
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h5 class="mb-1">Talleres registrados</h5>
-                        <div class="text-muted small">Listado general de talleres agregados en el sistema.</div>
-                    </div>
-                    <span class="badge bg-primary">{{ $allWorkshopCatalogs->count() }} taller(es)</span>
-                </div>
-
-                <div class="row g-3">
-                    @forelse($allWorkshopCatalogs as $catalog)
-                        <div class="col-12 col-xl-6">
-                            <div class="border rounded-3 p-3 h-100 bg-light">
-                                <div class="d-flex justify-content-between align-items-start gap-2">
-                                    <div>
-                                        <div class="fw-bold">{{ $catalog->nombre }}</div>
-                                        <div class="small text-muted">{{ $catalog->tipo }} | {{ $catalog->location_label ?: 'Ubicacion no registrada' }}</div>
-                                    </div>
-                                    <span class="badge {{ $catalog->activo ? 'bg-success' : 'bg-secondary' }}">
-                                        {{ $catalog->activo ? 'Activo' : 'Inactivo' }}
-                                    </span>
-                                </div>
-
-                                <div class="small mt-3">
-                                    <div><strong>Usuario taller:</strong> {{ $catalog->user?->name ?? 'Sin usuario vinculado' }}</div>
-                                    <div><strong>Email:</strong> {{ $catalog->user?->email ?? 'No registrado' }}</div>
-                                    <div><strong>Celular:</strong> {{ trim((string) ($catalog->celular ?? '')) ?: 'No registrado' }}</div>
-                                    <div><strong>Horario:</strong> {{ $catalog->attention_hours ?: 'No registrado' }}</div>
-                                    <div><strong>Ordenes abiertas:</strong> {{ (int) ($catalog->ordenes_abiertas_count ?? 0) }}</div>
-                                    <div><strong>Total ordenes:</strong> {{ (int) ($catalog->total_ordenes_count ?? 0) }}</div>
-                                </div>
-                            </div>
-                        </div>
-                    @empty
-                        <div class="col-12">
-                            <div class="alert alert-light border mb-0">
-                                Aun no hay talleres registrados.
                             </div>
                         </div>
                     @endforelse
@@ -721,32 +705,93 @@
                                 class="btn btn-sm {{ $tableMode === 'seguimiento' ? 'btn-primary' : 'btn-outline-primary' }}">
                                 Tabla de seguimiento
                             </button>
+                            @if(auth()->user()?->role === 'admin')
+                                <button
+                                    type="button"
+                                    wire:click="showCatalogTable"
+                                    class="btn btn-sm {{ $tableMode === 'talleres' ? 'btn-primary' : 'btn-outline-primary' }}">
+                                    Tabla de talleres
+                                </button>
+                            @endif
                         </div>
-                        <div class="row g-2">
-                            <div class="col-12 col-md-8">
-                                <input type="text" class="form-control" wire:model.live.debounce.350ms="search" placeholder="Buscar por OT, vehiculo, taller, conductor o pieza">
+                        @if($tableMode === 'talleres' && auth()->user()?->role === 'admin')
+                            <div class="d-flex justify-content-between align-items-center gap-2">
+                                <div>
+                                    <h5 class="mb-1">Talleres registrados</h5>
+                                    <div class="text-muted small">Listado general de talleres agregados en el sistema.</div>
+                                </div>
+                                <span class="badge bg-primary">{{ $allWorkshopCatalogs->count() }} taller(es)</span>
                             </div>
-                            <div class="col-12 col-md-4">
-                                <select wire:model.live="statusFilter" class="form-select">
-                                    <option value="">Todos los estados</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_PENDING }}">Pendiente</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_DISPATCHED }}">Despachado a taller</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_DIAGNOSIS }}">Diagnosticado</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_APPROVED }}">Aprobado</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_REPAIR }}">En reparacion</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_READY }}">Listo para recoger</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_DELIVERED }}">Entregado</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_CLOSED }}">Cerrado</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_REJECTED }}">Rechazado</option>
-                                    <option value="{{ \App\Models\Workshop::STATUS_CANCELLED }}">Cancelado</option>
-                                </select>
+                        @else
+                            <div class="row g-2">
+                                <div class="col-12 col-md-8">
+                                    <input type="text" class="form-control" wire:model.live.debounce.350ms="search" placeholder="Buscar por OT, vehiculo, taller, conductor o pieza">
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <select wire:model.live="statusFilter" class="form-select">
+                                        <option value="">Todos los estados</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_PENDING }}">Pendiente</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_DISPATCHED }}">Despachado a taller</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_DIAGNOSIS }}">Diagnosticado</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_APPROVED }}">Aprobado</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_REPAIR }}">En reparacion</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_READY }}">Listo para recoger</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_DELIVERED }}">Entregado</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_CLOSED }}">Cerrado</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_REJECTED }}">Rechazado</option>
+                                        <option value="{{ \App\Models\Workshop::STATUS_CANCELLED }}">Cancelado</option>
+                                    </select>
+                                </div>
                             </div>
-                        </div>
+                        @endif
                     </div>
-                    <div class="table-responsive">
-                        @if($tableMode === 'seguimiento')
-                            <table class="table table-hover mb-0 align-middle">
-                                <thead class="table-light">
+                    <div class="table-responsive bp-admin-table-wrap">
+                        @if($tableMode === 'talleres' && auth()->user()?->role === 'admin')
+                            <table class="table table-hover align-middle bp-admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>Taller</th>
+                                        <th>Tipo</th>
+                                        <th>Ubicacion</th>
+                                        <th>Usuario taller</th>
+                                        <th>Email</th>
+                                        <th>Celular</th>
+                                        <th>Horario</th>
+                                        <th>Ordenes abiertas</th>
+                                        <th>Total ordenes</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($allWorkshopCatalogs as $catalog)
+                                        <tr>
+                                            <td class="fw-semibold">{{ $catalog->nombre }}</td>
+                                            <td>{{ $catalog->tipo ?: 'Sin tipo' }}</td>
+                                            <td>{{ $catalog->location_label ?: 'Ubicacion no registrada' }}</td>
+                                            <td>{{ $catalog->user?->name ?? 'Sin usuario vinculado' }}</td>
+                                            <td>{{ $catalog->user?->email ?? 'No registrado' }}</td>
+                                            <td>{{ trim((string) ($catalog->celular ?? '')) ?: 'No registrado' }}</td>
+                                            <td>{{ $catalog->attention_hours ?: 'No registrado' }}</td>
+                                            <td>{{ (int) ($catalog->ordenes_abiertas_count ?? 0) }}</td>
+                                            <td>{{ (int) ($catalog->total_ordenes_count ?? 0) }}</td>
+                                            <td>
+                                                <span class="badge {{ $catalog->activo ? 'bg-success' : 'bg-secondary' }}">
+                                                    {{ $catalog->activo ? 'Activo' : 'Inactivo' }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="10" class="text-center py-4 text-muted">
+                                                Aun no hay talleres registrados.
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        @elseif($tableMode === 'seguimiento')
+                            <table class="table table-hover align-middle bp-admin-table">
+                                <thead>
                                     <tr>
                                         <th>OT</th>
                                         <th>Vehiculo</th>
@@ -788,8 +833,8 @@
                                 </tbody>
                             </table>
                         @else
-                            <table class="table table-hover mb-0 align-middle">
-                                <thead class="table-light">
+                            <table class="table table-hover align-middle bp-admin-table">
+                                <thead>
                                     <tr>
                                         <th>OT</th>
                                         <th>Vehiculo</th>
@@ -877,7 +922,7 @@
         <div class="mt-3">
             @if(!$isWorkshopUser && $tableMode === 'seguimiento')
                 {{ $trackingWorkshops->links() }}
-            @else
+            @elseif($tableMode !== 'talleres')
                 {{ $workshops->links() }}
             @endif
         </div>

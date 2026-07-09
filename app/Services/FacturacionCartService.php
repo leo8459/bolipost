@@ -486,37 +486,38 @@ class FacturacionCartService
     {
         $this->assertFacturacionPermission($user);
 
-        $montoBase = round((float) ($concepto->precio_base ?? 0), 2);
+        $ctx = $this->getRemoteContextForUser($user);
+        $draft = $ctx['draft'] ?? null;
+        $existingItem = $this->findEquivalentConceptoDraftItem($draft, $concepto);
+
+        if ($existingItem) {
+            $cantidadActual = max(1, (int) data_get($existingItem, 'cantidad', 1));
+            $montoBase = round((float) data_get($existingItem, 'monto_base', $concepto->precio_base ?? 0), 2);
+            $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+            $nuevaCantidad = $cantidadActual + 1;
+
+            return $this->updateDraftItem(
+                $user,
+                (int) data_get($existingItem, 'id'),
+                $this->buildDraftItemUpdatePayload(
+                    $existingItem,
+                    [
+                        'cantidad' => $nuevaCantidad,
+                        'monto_base' => $montoBase,
+                        'monto_extras' => $montoExtras,
+                        'total_linea' => round(($montoBase + $montoExtras) * $nuevaCantidad, 2),
+                    ]
+                )
+            );
+        }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
             $this->originUserPayload($user),
             $this->originSucursalPayload($user),
-            [
-                'origen_tipo' => ConceptoFacturacion::class,
-                'origen_id' => (int) $concepto->id,
-                'codigo' => (string) ($concepto->codigo ?? ''),
-                'titulo' => (string) ($concepto->nombre ?? 'Cobro adicional'),
-                'nombre_servicio' => (string) ($concepto->nombre ?? 'COBRO ADICIONAL'),
-                'nombre_destinatario' => '',
-                'servicios_extra' => [],
-                'resumen_origen' => [
-                    'codigo' => (string) ($concepto->codigo ?? ''),
-                    'contenido' => 'COBRO ADICIONAL',
-                    'peso' => 0,
-                    'destinatario' => '',
-                    'direccion' => '',
-                    'ciudad' => '',
-                    'actividad_economica' => (string) ($concepto->actividad_economica ?? ''),
-                    'codigo_sin' => (string) ($concepto->codigo_sin ?? ''),
-                    'codigo_producto' => (string) ($concepto->codigo ?? ''),
-                    'descripcion_servicio' => (string) ($concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'),
-                    'unidad_medida' => (int) ($concepto->unidad_medida ?? 58),
-                ],
-                'cantidad' => 1,
-                'monto_base' => $montoBase,
-                'monto_extras' => 0,
-                'total_linea' => $montoBase,
-            ]
+            $this->buildConceptoDraftPayload(
+                $concepto,
+                $this->resolveConceptoDraftOriginId($draft, $concepto)
+            )
         ));
 
         $cart = $this->toCart(data_get($body, 'cart'));
@@ -1443,6 +1444,146 @@ class FacturacionCartService
         return (object) $data;
     }
 
+    private function buildConceptoDraftPayload(ConceptoFacturacion $concepto, ?int $originId = null): array
+    {
+        $montoBase = round((float) ($concepto->precio_base ?? 0), 2);
+        $resolvedOriginId = $originId !== null && $originId > 0
+            ? $originId
+            : (int) $concepto->id;
+
+        return [
+            'origen_tipo' => ConceptoFacturacion::class,
+            'origen_id' => $resolvedOriginId,
+            'codigo' => (string) ($concepto->codigo ?? ''),
+            'titulo' => (string) ($concepto->nombre ?? 'Cobro adicional'),
+            'nombre_servicio' => (string) ($concepto->nombre ?? 'COBRO ADICIONAL'),
+            'nombre_destinatario' => '',
+            'servicios_extra' => [],
+            'resumen_origen' => [
+                'codigo' => (string) ($concepto->codigo ?? ''),
+                'contenido' => 'COBRO ADICIONAL',
+                'peso' => 0,
+                'destinatario' => '',
+                'direccion' => '',
+                'ciudad' => '',
+                'actividad_economica' => (string) ($concepto->actividad_economica ?? ''),
+                'codigo_sin' => (string) ($concepto->codigo_sin ?? ''),
+                'codigo_producto' => (string) ($concepto->codigo ?? ''),
+                'descripcion_servicio' => (string) ($concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'),
+                'unidad_medida' => (int) ($concepto->unidad_medida ?? 58),
+                'concepto_facturacion_id' => (int) $concepto->id,
+            ],
+            'cantidad' => 1,
+            'monto_base' => $montoBase,
+            'monto_extras' => 0,
+            'total_linea' => $montoBase,
+        ];
+    }
+
+    private function findEquivalentConceptoDraftItem(?object $draft, ConceptoFacturacion $concepto): ?object
+    {
+        if (!$draft) {
+            return null;
+        }
+
+        $expectedPayload = $this->buildConceptoDraftPayload($concepto);
+        $expectedResumen = $this->normalizeFacturacionResumenOrigen($expectedPayload['resumen_origen'] ?? []);
+        $expectedMontoBase = round((float) ($expectedPayload['monto_base'] ?? 0), 2);
+
+        return collect($draft->items ?? [])
+            ->first(function ($item) use ($concepto, $expectedPayload, $expectedResumen, $expectedMontoBase) {
+                $itemConceptoId = (int) data_get(
+                    $item,
+                    'resumen_origen.concepto_facturacion_id',
+                    data_get($item, 'origen_id', 0)
+                );
+
+                return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
+                    && $itemConceptoId === (int) $concepto->id
+                    && trim((string) data_get($item, 'codigo', '')) === trim((string) ($expectedPayload['codigo'] ?? ''))
+                    && trim((string) data_get($item, 'titulo', '')) === trim((string) ($expectedPayload['titulo'] ?? ''))
+                    && trim((string) data_get($item, 'nombre_servicio', '')) === trim((string) ($expectedPayload['nombre_servicio'] ?? ''))
+                    && round((float) data_get($item, 'monto_base', 0), 2) === $expectedMontoBase
+                    && $this->normalizeFacturacionResumenOrigen((array) data_get($item, 'resumen_origen', [])) === $expectedResumen;
+            });
+    }
+
+    private function resolveConceptoDraftOriginId(?object $draft, ConceptoFacturacion $concepto): int
+    {
+        if (!$draft) {
+            return (int) $concepto->id;
+        }
+
+        $sameConceptItems = collect($draft->items ?? [])
+            ->filter(function ($item) use ($concepto) {
+                if (ltrim((string) data_get($item, 'origen_tipo', ''), '\\') !== ltrim(ConceptoFacturacion::class, '\\')) {
+                    return false;
+                }
+
+                $itemConceptoId = (int) data_get(
+                    $item,
+                    'resumen_origen.concepto_facturacion_id',
+                    data_get($item, 'origen_id', 0)
+                );
+
+                return $itemConceptoId === (int) $concepto->id;
+            })
+            ->values();
+
+        if ($sameConceptItems->isEmpty()) {
+            return (int) $concepto->id;
+        }
+
+        $maxOriginId = $sameConceptItems
+            ->map(fn ($item) => (int) data_get($item, 'origen_id', 0))
+            ->max();
+
+        return max((int) $concepto->id, $maxOriginId) + 1;
+    }
+
+    private function buildDraftItemUpdatePayload(object $item, array $overrides = []): array
+    {
+        $resumen = (array) data_get($item, 'resumen_origen', []);
+        $base = round((float) ($overrides['monto_base'] ?? data_get($item, 'monto_base', data_get($item, 'precio', 0))), 2);
+        $extras = round((float) ($overrides['monto_extras'] ?? data_get($item, 'monto_extras', 0)), 2);
+        $cantidad = max(1, (int) ($overrides['cantidad'] ?? data_get($item, 'cantidad', 1)));
+
+        return array_merge([
+            'codigo' => trim((string) data_get($item, 'codigo', '')),
+            'titulo' => trim((string) data_get($item, 'titulo', '')),
+            'nombre_servicio' => trim((string) data_get($item, 'nombre_servicio', '')),
+            'nombre_destinatario' => trim((string) data_get($item, 'nombre_destinatario', '')),
+            'contenido' => trim((string) ($resumen['contenido'] ?? '')),
+            'direccion' => trim((string) ($resumen['direccion'] ?? '')),
+            'ciudad' => trim((string) ($resumen['ciudad'] ?? '')),
+            'peso' => (float) ($resumen['peso'] ?? 0),
+            'precio' => $base,
+            'monto_base' => $base,
+            'monto_extras' => $extras,
+            'cantidad' => $cantidad,
+            'total_linea' => round(($base + $extras) * $cantidad, 2),
+            'actividad_economica' => trim((string) ($resumen['actividad_economica'] ?? '')),
+            'codigo_sin' => trim((string) ($resumen['codigo_sin'] ?? '')),
+            'codigo_producto' => trim((string) ($resumen['codigo_producto'] ?? '')),
+            'descripcion_servicio' => trim((string) ($resumen['descripcion_servicio'] ?? '')),
+            'unidad_medida' => (int) ($resumen['unidad_medida'] ?? 58),
+        ], $overrides);
+    }
+
+    private function normalizeFacturacionResumenOrigen(array $resumen): array
+    {
+        $normalized = $resumen;
+        ksort($normalized);
+
+        return array_map(function ($value) {
+            if (is_numeric($value)) {
+                return round((float) $value, 2);
+            }
+
+            return is_string($value) ? trim($value) : $value;
+        }, $normalized);
+    }
+
     private function originUserPayload(User $user): array
     {
         $alias = trim((string) ($user->alias ?? ''));
@@ -1789,7 +1930,8 @@ class FacturacionCartService
         }
 
         if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\')) {
-            $concepto = ConceptoFacturacion::query()->find($origenId);
+            $conceptoId = (int) data_get($item, 'resumen_origen.concepto_facturacion_id', $origenId);
+            $concepto = ConceptoFacturacion::query()->find($conceptoId);
             if (!$concepto) {
                 return null;
             }

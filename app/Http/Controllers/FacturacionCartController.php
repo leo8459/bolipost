@@ -993,6 +993,7 @@ class FacturacionCartController extends Controller
                     'nombre_servicio' => (string) data_get($item, 'nombre_servicio', ''),
                     'nombre_destinatario' => (string) data_get($item, 'nombre_destinatario', ''),
                     'resumen_origen' => (array) data_get($item, 'resumen_origen', []),
+                    'cantidad' => max(1, (int) data_get($item, 'cantidad', 1)),
                     'monto_base' => (float) data_get($item, 'monto_base', data_get($item, 'precio', data_get($item, 'total_linea', 0))),
                     'monto_extras' => (float) data_get($item, 'monto_extras', 0),
                     'total_linea' => (float) data_get($item, 'total_linea', 0),
@@ -1009,7 +1010,7 @@ class FacturacionCartController extends Controller
             'estado_emision' => (string) data_get($cart, 'estado_emision', ''),
             'codigo_orden' => (string) data_get($cart, 'codigo_orden', ''),
             'canal_emision' => (string) data_get($cart, 'canal_emision', ''),
-            'cantidad_items' => (int) (data_get($cart, 'cantidad_items') ?? count($items)),
+            'cantidad_items' => (int) collect($items)->sum(fn ($item) => max(1, (int) ($item['cantidad'] ?? 1))),
             'total' => (float) data_get($cart, 'total', 0),
             'items' => $items,
         ];

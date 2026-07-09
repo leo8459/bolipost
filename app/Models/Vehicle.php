@@ -26,6 +26,8 @@ class Vehicle extends Model
         'vehicle_class_id',
         'maintenance_form_type',
         'modelo',
+        'chasis',
+        'motor',
         'tipo_combustible',
         'color',
         'anio',

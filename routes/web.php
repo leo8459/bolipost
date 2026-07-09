@@ -69,6 +69,7 @@ use App\Http\Controllers\Web\VehicleMaintenanceReportController;
 use App\Http\Controllers\Web\VehicleLogOdometerController;
 use App\Http\Controllers\Web\VehicleLogStagePhotoController;
 use App\Http\Controllers\Web\WorkshopLocationReportController;
+use App\Http\Controllers\Web\WorkshopActaReportController;
 use App\Livewire\FuelLogManager;
 use App\Livewire\MapTracker;
 use App\Livewire\MaintenanceAlertManager;
@@ -522,6 +523,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::view('/livewire/workshops', 'livewire.pages.workshops')->name('livewire.workshops');
     Route::get('/workshops/location-report/pdf', [WorkshopLocationReportController::class, 'exportPdf'])
         ->name('workshops.location-report.pdf');
+    Route::get('/workshops/{workshop}/acta', [WorkshopActaReportController::class, 'show'])
+        ->name('workshops.acta');
+    Route::post('/workshops/{workshop}/acta', [WorkshopActaReportController::class, 'storeVehicleIdentifiers'])
+        ->name('workshops.acta.store');
     Route::get('/maintenance-logs/{maintenanceLog}/comprobante', [MaintenanceFileController::class, 'comprobante'])
         ->name('maintenance-logs.comprobante');
     Route::get('/maintenance-appointments/{maintenanceAppointment}/evidence', [MaintenanceFileController::class, 'appointmentEvidence'])

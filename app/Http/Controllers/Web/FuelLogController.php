@@ -539,7 +539,7 @@ class FuelLogController extends Controller
 
         $query = VehicleLog::query()
             ->active()
-            ->with(['vehicle.brand', 'driver', 'fuelLog'])
+            ->with(['vehicle.brand', 'driver', 'fuelLog.invoice'])
             ->orderBy('fecha')
             ->orderBy('id');
 
@@ -585,7 +585,7 @@ class FuelLogController extends Controller
                     ->filter(fn (string $name) => $name !== '')
                     ->unique()
                     ->values();
-                $rowChunks = $rows->chunk(12)->values();
+                $rowChunks = $rows->chunk(8)->values();
 
                 return [
                     'vehicle' => $vehicle,
@@ -847,6 +847,8 @@ class FuelLogController extends Controller
         $precio = $normalizeNumber($queryPrecio);
         if ($cantidad && $precio) {
             $data['details'][] = [
+                'codigo' => '',
+                'descripcion' => '',
                 'cantidad' => $cantidad,
                 'precio_unitario' => $precio,
                 'subtotal' => round($cantidad * $precio, 2),
@@ -917,6 +919,12 @@ class FuelLogController extends Controller
                         }
 
                         $data['details'][] = [
+                            'codigo' => (string) (data_get($row, 'codigoProducto')
+                                ?? data_get($row, 'codigo')
+                                ?? ''),
+                            'descripcion' => (string) (data_get($row, 'descripcion')
+                                ?? data_get($row, 'descripcionProducto')
+                                ?? ''),
                             'cantidad' => $cantidadRow ?: 1,
                             'precio_unitario' => $precioRow ?: ($subtotalRow ?: 0),
                             'subtotal' => $subtotalRow ?: (($cantidadRow ?: 1) * ($precioRow ?: 0)),
@@ -932,6 +940,15 @@ class FuelLogController extends Controller
             }
             if (!$data['cantidad'] && !empty($data['details'])) {
                 $data['cantidad'] = (float) ($data['details'][0]['cantidad'] ?? 0);
+            }
+            if (empty($data['precio_unitario']) && !empty($data['details'])) {
+                $data['precio_unitario'] = (float) ($data['details'][0]['precio_unitario'] ?? 0);
+            }
+            if (empty($data['producto_codigo']) && !empty($data['details'])) {
+                $data['producto_codigo'] = (string) ($data['details'][0]['codigo'] ?? '');
+            }
+            if (empty($data['producto_descripcion']) && !empty($data['details'])) {
+                $data['producto_descripcion'] = (string) ($data['details'][0]['descripcion'] ?? '');
             }
             $data['galones'] = $data['cantidad'] ?? null;
             $data['precio_galon'] = $data['precio_unitario'] ?? null;

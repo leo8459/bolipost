@@ -113,6 +113,47 @@
         @endif
     </div>
 
+    @unless($showForm)
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                <div>
+                    <strong><i class="fas fa-history me-2 text-primary"></i>Historial de asignaciones de un vehiculo</strong>
+                    <div class="small text-muted">Genera el reporte por fecha y hora para revisar quien tuvo asignado cada vehiculo.</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ route('vehicle-assignments.report.pdf') }}" target="_blank" class="row g-3 align-items-end">
+                    <input type="hidden" name="group_by" value="vehicle">
+                    <input type="hidden" name="status" value="all">
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-bold">Vehiculo</label>
+                        <select name="vehicle_id" class="form-control assignment-form-select" required>
+                            <option value="">Seleccionar vehiculo</option>
+                            @foreach($reportVehicles as $vehicle)
+                                <option value="{{ $vehicle->id }}">
+                                    {{ $vehicle->placa ?: 'S/PLACA' }} | {{ $vehicle->vehicleClass?->nombre ?? ($vehicle->marca ?: 'Vehiculo') }} {{ $vehicle->modelo ? '- ' . $vehicle->modelo : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-3 col-lg-2">
+                        <label class="form-label fw-bold">Desde</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ now()->startOfMonth()->toDateString() }}" required>
+                    </div>
+                    <div class="col-12 col-md-3 col-lg-2">
+                        <label class="form-label fw-bold">Hasta</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ now()->toDateString() }}" required>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <button type="submit" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-file-pdf me-2"></i>Generar historial
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endunless
+
     @if (session()->has('message'))
         <div class="alert alert-success alert-dismissible fade show js-auto-dismiss-alert" data-auto-dismiss="4000" role="alert">
             {{ session('message') }}
@@ -180,27 +221,25 @@
                             @error('tipo_asignacion') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-bold">Fecha Inicio <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold">Fecha y hora Inicio <span class="text-danger">*</span></label>
                             <input
-                                type="date"
+                                type="datetime-local"
                                 wire:model="fecha_inicio"
                                 class="form-control @error('fecha_inicio') is-invalid @enderror"
-                                required
-                                @if(!$isEdit) min="{{ now()->toDateString() }}" @endif>
+                                required>
                             @error('fecha_inicio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-bold">
-                                Fecha Fin
+                                Fecha y hora Fin
                                 @if($tipo_asignacion === 'Temporal')
                                     <span class="text-danger">*</span>
                                 @endif
                             </label>
                             <input
-                                type="date"
+                                type="datetime-local"
                                 wire:model="fecha_fin"
                                 class="form-control @error('fecha_fin') is-invalid @enderror"
-                                min="{{ $fecha_inicio ?: now()->toDateString() }}"
                                 @if($tipo_asignacion === 'Temporal') required @endif>
                             @error('fecha_fin') <div class="invalid-feedback">{{ $message }}</div> @enderror
                             @if($tipo_asignacion === 'Temporal')
@@ -296,7 +335,7 @@
                                             </div>
                                         </td>
                                         <td>{{ $assignment->tipo_asignacion }}</td>
-                                        <td>{{ optional($assignment->fecha_inicio)->format('d/m/Y') }}</td>
+                                        <td>{{ optional($assignment->fecha_inicio)->format('d/m/Y H:i') }}</td>
                                         <td>
                                             <span class="badge {{ $assignment->activo ? 'bg-success' : 'bg-danger' }}">
                                                 {{ $assignment->activo ? 'Activo' : 'Inactivo' }}

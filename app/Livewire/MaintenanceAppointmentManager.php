@@ -62,6 +62,7 @@ class MaintenanceAppointmentManager extends Component
     public ?string $editingFormUrl = null;
     public ?string $editingOriginLabel = null;
     public bool $editingRequiresAgencyForm = false;
+    public bool $isSaving = false;
 
     public function mount(): void
     {
@@ -208,6 +209,13 @@ class MaintenanceAppointmentManager extends Component
 
     public function save()
     {
+        if ($this->isSaving) {
+            return;
+        }
+
+        $this->isSaving = true;
+
+        try {
         $this->validate();
         $this->validate([
             'formulario_documento_file' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,webp',
@@ -271,6 +279,27 @@ class MaintenanceAppointmentManager extends Component
                 session()->flash('message', 'Cita de mantenimiento actualizada correctamente.');
             }
         } else {
+            $appointment = $this->findDuplicatePendingAppointment();
+            if ($appointment) {
+                $appointment->update([
+                    'driver_id' => $this->driver_id,
+                    'tipo_mantenimiento_id' => $this->tipo_mantenimiento_id,
+                    'fecha_programada' => $this->fecha_programada,
+                    'solicitud_fecha' => now(),
+                    'requested_by_user_id' => auth()->id(),
+                    'origen_solicitud' => 'web_agencia',
+                    'es_accidente' => $this->es_accidente,
+                    'formulario_documento_path' => $storedFormPath,
+                    'estado' => MaintenanceAppointment::STATUS_PENDING,
+                    'activo' => true,
+                ]);
+                $this->syncRequestAlert($appointment);
+                $this->syncProgrammedAlert($appointment);
+                session()->flash('message', 'La solicitud pendiente ya existia y fue actualizada en lugar de duplicarse.');
+                $this->resetForm();
+                return;
+            }
+
             $appointment = MaintenanceAppointment::create([
                 'vehicle_id' => $this->vehicle_id,
                 'driver_id' => $this->driver_id,
@@ -290,6 +319,9 @@ class MaintenanceAppointmentManager extends Component
         }
 
         $this->resetForm();
+        } finally {
+            $this->isSaving = false;
+        }
     }
 
     public function edit(MaintenanceAppointment $appointment)
@@ -593,10 +625,22 @@ class MaintenanceAppointmentManager extends Component
             return;
         }
 
+        $appointment->loadMissing([
+            'vehicle:id,placa,kilometraje_actual,kilometraje_inicial,kilometraje',
+            'driver:id,nombre',
+            'requestedBy:id,name',
+            'tipoMantenimiento:id,nombre,cada_km,intervalo_km,intervalo_km_init,intervalo_km_fh',
+        ]);
+
         $typeName = (string) ($appointment->tipoMantenimiento?->nombre ?? 'mantenimiento');
         $plate = (string) ($appointment->vehicle?->placa ?? 'N/A');
         $driverName = (string) ($appointment->driver?->nombre ?? $appointment->requestedBy?->name ?? 'Conductor');
         $message = "Solicitud de {$typeName} para vehiculo {$plate} por {$driverName}.";
+        $currentKm = $this->resolveVehicleCurrentKilometraje($appointment->vehicle);
+        $requestedSnapshot = $this->buildRequestedAlertKilometrageSnapshot(
+            $appointment->vehicle,
+            $appointment->tipoMantenimiento
+        );
 
         if ($appointment->estado === MaintenanceAppointment::STATUS_PENDING) {
             MaintenanceAlert::query()->updateOrCreate(
@@ -612,6 +656,9 @@ class MaintenanceAppointmentManager extends Component
                     'status' => MaintenanceAlert::STATUS_REQUESTED,
                     'fecha_resolucion' => null,
                     'usuario_id' => null,
+                    'kilometraje_actual' => $currentKm,
+                    'kilometraje_objetivo' => $requestedSnapshot['target_km'],
+                    'faltante_km' => $requestedSnapshot['remaining_km'],
                 ]
             );
             return;
@@ -708,6 +755,83 @@ class MaintenanceAppointmentManager extends Component
             'approved_at' => now(),
             'approved_by_user_id' => auth()->id(),
         ];
+    }
+
+    private function resolveVehicleCurrentKilometraje(?Vehicle $vehicle): ?float
+    {
+        if (!$vehicle) {
+            return null;
+        }
+
+        $current = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
+
+        return is_numeric($current) ? (float) $current : null;
+    }
+
+    /**
+     * @return array{target_km: ?float, remaining_km: ?float}
+     */
+    private function buildRequestedAlertKilometrageSnapshot(?Vehicle $vehicle, ?MaintenanceType $type): array
+    {
+        $currentKm = $this->resolveVehicleCurrentKilometraje($vehicle);
+        if ($currentKm === null || !$type) {
+            return ['target_km' => null, 'remaining_km' => null];
+        }
+
+        $interval = null;
+        if ($type->cada_km !== null) {
+            $interval = (float) $type->cada_km;
+        } elseif ($type->intervalo_km_init !== null) {
+            $interval = (float) $type->intervalo_km_init;
+        } elseif ($type->intervalo_km !== null) {
+            $interval = (float) $type->intervalo_km;
+        } elseif ($type->intervalo_km_fh !== null) {
+            $interval = (float) $type->intervalo_km_fh;
+        }
+
+        if ($interval !== null && $interval > 0) {
+            return [
+                'target_km' => $currentKm + $interval,
+                'remaining_km' => $interval,
+            ];
+        }
+
+        return [
+            'target_km' => $currentKm,
+            'remaining_km' => 0.0,
+        ];
+    }
+
+    private function findDuplicatePendingAppointment(): ?MaintenanceAppointment
+    {
+        $scheduledAt = Carbon::createFromFormat('Y-m-d\TH:i', $this->fecha_programada, config('app.timezone'));
+
+        return MaintenanceAppointment::query()
+            ->when(Schema::hasColumn('maintenance_appointments', 'activo'), fn ($query) => $query->where('activo', true))
+            ->where('estado', MaintenanceAppointment::STATUS_PENDING)
+            ->where('vehicle_id', (int) $this->vehicle_id)
+            ->where(function ($query) {
+                if ($this->driver_id) {
+                    $query->where('driver_id', (int) $this->driver_id);
+                } else {
+                    $query->whereNull('driver_id');
+                }
+            })
+            ->where(function ($query) {
+                if ($this->tipo_mantenimiento_id) {
+                    $query->where('tipo_mantenimiento_id', (int) $this->tipo_mantenimiento_id);
+                } else {
+                    $query->whereNull('tipo_mantenimiento_id');
+                }
+            })
+            ->where('es_accidente', $this->es_accidente)
+            ->where('origen_solicitud', 'web_agencia')
+            ->whereBetween('fecha_programada', [
+                $scheduledAt->copy()->subMinute(),
+                $scheduledAt->copy()->addMinute(),
+            ])
+            ->orderByDesc('id')
+            ->first();
     }
 
     private function normalizeDate(?string $value): ?string

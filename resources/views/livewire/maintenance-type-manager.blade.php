@@ -148,6 +148,22 @@
                             </select>
                             @error('maintenance_form_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
+                        <div class="col-12 col-md-6">
+                            <label for="categoria" class="form-label fw-bold">Categoria <span class="text-danger">*</span></label>
+                            <select id="categoria" wire:model.live="categoria" class="form-control bp-select-like-vehicle @error('categoria') is-invalid @enderror" required>
+                                @foreach($maintenanceCategories as $category)
+                                    <option value="{{ $category }}">
+                                        {{ $category === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE ? 'Accidente / Correctivo' : 'Programado por KM' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('categoria') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <div class="form-text">
+                                {{ $categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE
+                                    ? 'Este tipo no se programa por kilometraje; se usa para eventos correctivos o accidentes.'
+                                    : 'Este tipo genera mantenimiento programable por kilometraje.' }}
+                            </div>
+                        </div>
                         <div class="col-12 col-lg-8">
                             <label for="selected_vehicle_ids" class="form-label fw-bold">{{ $maintenance_form_type === 'moto' ? 'Motos especificas para este mantenimiento' : 'Vehiculos especificos para este mantenimiento' }}</label>
                             <div class="row g-2">
@@ -178,9 +194,15 @@
                             @error('selected_vehicle_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-lg-4 d-flex align-items-end">
-                            <div class="form-check bp-switch mb-2">
-                                <input type="checkbox" id="es_preventivo" wire:model="es_preventivo" class="form-check-input">
-                                <label class="form-check-label fw-bold" for="es_preventivo">Es mantenimiento preventivo</label>
+                            <div class="w-100 border rounded-3 px-3 py-2 bg-light">
+                                <div class="small text-muted text-uppercase fw-bold mb-1">Impacto del tipo</div>
+                                @if($categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)
+                                    <span class="badge bg-warning text-dark">Accidente / correctivo</span>
+                                    <div class="small text-muted mt-2">Este tipo descuenta estrellas y no usa ciclo por KM.</div>
+                                @else
+                                    <span class="badge bg-success">Preventivo programado</span>
+                                    <div class="small text-muted mt-2">Este tipo puede generar alertas y programacion por kilometraje.</div>
+                                @endif
                             </div>
                         </div>
                         <div class="col-12">
@@ -199,46 +221,59 @@
                                 <div class="small text-success mt-2">Al guardar, todos estos vehiculos recibiran este mantenimiento.</div>
                             @endif
                         </div>
-                        <div class="col-12 col-md-3">
-                            <label for="cada_km" class="form-label fw-bold">Cada Cuantos KM</label>
-                            <div class="input-group">
-                                <input type="number" id="cada_km" wire:model="cada_km"
-                                       class="form-control @error('cada_km') is-invalid @enderror"
-                                       placeholder="2000" min="1">
-                                <span class="input-group-text">KM</span>
+                        <div class="col-12">
+                            <div class="border rounded-3 p-3 {{ $categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE ? 'bg-light' : 'bg-white' }}">
+                                <div class="fw-bold mb-3">Configuracion por kilometraje</div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-3">
+                                        <label for="cada_km" class="form-label fw-bold">Cada Cuantos KM</label>
+                                        <div class="input-group">
+                                            <input type="number" id="cada_km" wire:model="cada_km"
+                                                   class="form-control @error('cada_km') is-invalid @enderror"
+                                                   placeholder="2000" min="1"
+                                                   @disabled($categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)>
+                                            <span class="input-group-text">KM</span>
+                                        </div>
+                                        @error('cada_km') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                                        <div class="form-text">
+                                            {{ $categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE ? 'No aplica para accidentes o correctivos.' : 'Define el ciclo: 2000, 4000, 6000...' }}
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-md-3">
+                                        <label for="intervalo_km_init" class="form-label fw-bold">KM Inicio</label>
+                                        <div class="input-group">
+                                            <input type="number" id="intervalo_km_init" wire:model="intervalo_km_init"
+                                                   class="form-control @error('intervalo_km_init') is-invalid @enderror"
+                                                   placeholder="5000"
+                                                   @disabled($categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)>
+                                            <span class="input-group-text">KM</span>
+                                        </div>
+                                        @error('intervalo_km_init') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                                    </div>
+                                    <div class="col-12 col-md-3">
+                                        <label for="intervalo_km_fh" class="form-label fw-bold">KM Fin</label>
+                                        <div class="input-group">
+                                            <input type="number" id="intervalo_km_fh" wire:model="intervalo_km_fh"
+                                                   class="form-control @error('intervalo_km_fh') is-invalid @enderror"
+                                                   placeholder="7000"
+                                                   @disabled($categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)>
+                                            <span class="input-group-text">KM</span>
+                                        </div>
+                                        @error('intervalo_km_fh') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                                    </div>
+                                    <div class="col-12 col-md-3">
+                                        <label for="km_alerta_previa" class="form-label fw-bold">Alerta Previa</label>
+                                        <div class="input-group">
+                                            <input type="number" id="km_alerta_previa" wire:model="km_alerta_previa"
+                                                   class="form-control @error('km_alerta_previa') is-invalid @enderror"
+                                                   placeholder="15"
+                                                   @disabled($categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)>
+                                            <span class="input-group-text">KM</span>
+                                        </div>
+                                        @error('km_alerta_previa') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                                    </div>
+                                </div>
                             </div>
-                            @error('cada_km') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
-                            <div class="form-text">Define el ciclo: 2000, 4000, 6000...</div>
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label for="intervalo_km_init" class="form-label fw-bold">KM Inicio</label>
-                            <div class="input-group">
-                                <input type="number" id="intervalo_km_init" wire:model="intervalo_km_init"
-                                       class="form-control @error('intervalo_km_init') is-invalid @enderror"
-                                       placeholder="5000">
-                                <span class="input-group-text">KM</span>
-                            </div>
-                            @error('intervalo_km_init') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label for="intervalo_km_fh" class="form-label fw-bold">KM Fin</label>
-                            <div class="input-group">
-                                <input type="number" id="intervalo_km_fh" wire:model="intervalo_km_fh"
-                                       class="form-control @error('intervalo_km_fh') is-invalid @enderror"
-                                       placeholder="7000">
-                                <span class="input-group-text">KM</span>
-                            </div>
-                            @error('intervalo_km_fh') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label for="km_alerta_previa" class="form-label fw-bold">Alerta Previa</label>
-                            <div class="input-group">
-                                <input type="number" id="km_alerta_previa" wire:model="km_alerta_previa"
-                                       class="form-control @error('km_alerta_previa') is-invalid @enderror"
-                                       placeholder="15">
-                                <span class="input-group-text">KM</span>
-                            </div>
-                            @error('km_alerta_previa') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12">
                             <label for="descripcion" class="form-label fw-bold">Descripcion</label>
@@ -274,6 +309,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Nombre</th>
+                                <th>Categoria</th>
                                 <th>Tipo</th>
                                 <th>Impacto incentivo</th>
                                 <th>Vehiculos asignados</th>
@@ -288,6 +324,11 @@
                             @forelse ($types as $type)
                                 <tr>
                                     <td class="fw-bold">{{ $type->nombre }}</td>
+                                    <td>
+                                        <span class="badge {{ $type->categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE ? 'bg-warning text-dark' : 'bg-primary' }}">
+                                            {{ $type->categoria_label }}
+                                        </span>
+                                    </td>
                                     <td>{{ $type->maintenance_form_type_label ?? 'Vehiculo' }}</td>
                                     <td>
                                         <span class="badge {{ ($type->es_preventivo ?? false) ? 'bg-success' : 'bg-warning text-dark' }}">
@@ -313,15 +354,27 @@
                                         @endif
                                     </td>
                                     <td>
-                                        <span class="badge bg-primary">{{ $type->cada_km ?? $type->intervalo_km ?? $type->intervalo_km_init ?? 'N/A' }} KM</span>
+                                        @if($type->categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)
+                                            <span class="text-muted small">No aplica</span>
+                                        @else
+                                            <span class="badge bg-primary">{{ $type->cada_km ?? $type->intervalo_km ?? $type->intervalo_km_init ?? 'N/A' }} KM</span>
+                                        @endif
                                     </td>
                                     <td>
-                                        <span class="badge bg-info text-dark">
-                                            {{ $type->intervalo_km_init ?? $type->intervalo_km ?? 'N/A' }} - {{ $type->intervalo_km_fh ?? $type->intervalo_km ?? 'N/A' }}
-                                        </span>
+                                        @if($type->categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)
+                                            <span class="text-muted small">No aplica</span>
+                                        @else
+                                            <span class="badge bg-info text-dark">
+                                                {{ $type->intervalo_km_init ?? $type->intervalo_km ?? 'N/A' }} - {{ $type->intervalo_km_fh ?? $type->intervalo_km ?? 'N/A' }}
+                                            </span>
+                                        @endif
                                     </td>
                                     <td>
-                                        <span class="badge bg-warning text-dark">{{ $type->km_alerta_previa ?? 15 }} KM</span>
+                                        @if($type->categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)
+                                            <span class="text-muted small">No aplica</span>
+                                        @else
+                                            <span class="badge bg-warning text-dark">{{ $type->km_alerta_previa ?? 15 }} KM</span>
+                                        @endif
                                     </td>
                                     <td><small class="text-muted">{{ Str::limit($type->descripcion, 60) }}</small></td>
                                     <td class="text-end px-4">
@@ -336,7 +389,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-4 text-muted">No hay registros disponibles.</td>
+                                    <td colspan="10" class="text-center py-4 text-muted">No hay registros disponibles.</td>
                                 </tr>
                             @endforelse
                         </tbody>

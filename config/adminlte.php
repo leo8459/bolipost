@@ -857,12 +857,12 @@ return [
                     'icon' => 'fas fa-tools',
                     'submenu' => [
                         [
-                            'text' => 'Tipos',
+                            'text' => 'Programacion de mantenimientos',
                             'url' => '/livewire/maintenance-types',
                             'icon' => 'fas fa-list',
                         ],
                         [
-                            'text' => 'Citas',
+                            'text' => 'Solicitud de mantenimiento',
                             'url' => '/livewire/maintenance-appointments',
                             'icon' => 'fas fa-calendar-plus',
                         ],

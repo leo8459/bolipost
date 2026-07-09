@@ -187,6 +187,8 @@
                         <div class="profile-field"><span class="profile-label">Placa</span><span class="profile-value">{{ $assignedVehicle->placa ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Marca</span><span class="profile-value">{{ $assignedVehicle->brand?->nombre ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Modelo</span><span class="profile-value">{{ $assignedVehicle->modelo ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">Chasis</span><span class="profile-value">{{ $assignedVehicle->chasis ?? '-' }}</span></div>
+                        <div class="profile-field"><span class="profile-label">Motor</span><span class="profile-value">{{ $assignedVehicle->motor ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Formulario</span><span class="profile-value">{{ $assignedVehicle->maintenance_form_type_label ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Combustible</span><span class="profile-value">{{ $assignedVehicle->tipo_combustible ?? '-' }}</span></div>
                         <div class="profile-field"><span class="profile-label">Color</span><span class="profile-value">{{ $assignedVehicle->color ?? '-' }}</span></div>
@@ -283,6 +285,16 @@
                             <label class="form-label fw-bold">Modelo *</label>
                             <input type="text" wire:model="modelo" class="form-control vehicle-form-field @error('modelo') is-invalid @enderror" required>
                             @error('modelo') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Chasis</label>
+                            <input type="text" wire:model="chasis" class="form-control vehicle-form-field @error('chasis') is-invalid @enderror" placeholder="Ej. LDSDS777DS8D">
+                            @error('chasis') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Motor</label>
+                            <input type="text" wire:model="motor" class="form-control vehicle-form-field @error('motor') is-invalid @enderror" placeholder="Ej. LDSDS777DS8D">
+                            @error('motor') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Tipo Combustible</label>
@@ -472,6 +484,8 @@
                                     <th>Placa</th>
                                     <th>Marca</th>
                                     <th>Modelo</th>
+                                    <th>Chasis</th>
+                                    <th>Motor</th>
                                     <th>Clase</th>
                                     <th>Formulario</th>
                                     <th>Tacometro</th>
@@ -489,6 +503,8 @@
                                         <td>{{ $vehicle->placa }}</td>
                                         <td>{{ $vehicle->brand?->nombre ?? $vehicle->marca ?? '-' }}</td>
                                         <td>{{ $vehicle->modelo }}</td>
+                                        <td>{{ $vehicle->chasis ?? '-' }}</td>
+                                        <td>{{ $vehicle->motor ?? '-' }}</td>
                                         <td>{{ $vehicle->vehicleClass?->nombre ?? '-' }}</td>
                                         <td>{{ $vehicle->maintenance_form_type_label ?? '-' }}</td>
                                         <td>

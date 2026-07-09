@@ -249,6 +249,18 @@
             margin-top: 8px;
         }
 
+        .vehicle-location-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .vehicle-location-row .vehicle-location-picker-btn {
+            min-width: 170px;
+            white-space: nowrap;
+        }
+
         .odometro-thumb {
             width: 50px;
             height: 50px;
@@ -345,6 +357,15 @@
                 left: 8px;
                 transform: none;
                 width: auto;
+            }
+
+            .vehicle-location-row {
+                grid-template-columns: 1fr;
+            }
+
+            .vehicle-location-row .vehicle-location-picker-btn {
+                width: 100%;
+                min-width: 0;
             }
         }
     </style>
@@ -476,9 +497,9 @@
                                 </div>
                                 <div class="row g-3 mb-3">
 
-                                    <div class="col-12 col-md-6">
+                                    <div class="col-12">
                                         <label for="recorrido_destino" class="form-label fw-bold">Recorrido Destino <span class="text-danger">*</span></label>
-                                        <div class="input-group">
+                                        <div class="vehicle-location-row">
                                             <input type="text" id="recorrido_destino" wire:model="recorrido_destino" class="form-control @error('recorrido_destino') is-invalid @enderror" required>
                                             <button
                                                 type="button"
@@ -498,14 +519,6 @@
                                             </div>
                                         </div>
                                         @error('recorrido_destino') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                                    </div>
-                                    <div class="col-12 col-md-6 d-flex align-items-center">
-                                        <div class="form-check bp-switch">
-                                            <input class="form-check-input" type="checkbox" id="abastecimiento" wire:model="abastecimiento_combustible">
-                                            <label class="form-check-label" for="abastecimiento">
-                                                Abastecimiento combustible?
-                                            </label>
-                                        </div>
                                     </div>
                                 </div>
 
