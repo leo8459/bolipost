@@ -1,9 +1,18 @@
 ﻿@extends('adminlte::page')
 
-@section('title', 'Mis ventas')
+@section('title', ($pageContext['page_title'] ?? 'Mis ventas'))
 
 @section('content')
     @php
+        $pageContext = array_merge([
+            'page_title' => 'Mis ventas',
+            'panel_title' => 'Historial de ventas',
+            'panel_subtitle' => 'Detalle de emisiones registradas para tu cuenta.',
+            'filter_route' => 'mis-ventas.index',
+            'export_route' => 'mis-ventas.export.pdf',
+            'show_cashier_column' => false,
+            'scope' => 'own',
+        ], $pageContext ?? []);
         $facturacionFeedback = session('facturacion_feedback');
         $cajaEstado = strtoupper(trim((string) data_get($cajaContext ?? [], 'estado', 'SIN_APERTURA')));
         $isCajaAbierta = in_array($cajaEstado, ['ABIERTA', 'ABIERTO'], true);
@@ -48,14 +57,6 @@
                 'meta' => '',
                 'params' => array_merge($baseFilterParams, ['estado' => 'all', 'estado_emision' => 'RECHAZADA']),
                 'active' => $filters['estado'] === 'all' && $filters['estado_emision'] === 'RECHAZADA',
-                'accent' => false,
-            ],
-            [
-                'label' => 'Borradores',
-                'value' => number_format($summary['totalBorradores']),
-                'meta' => '',
-                'params' => array_merge($baseFilterParams, ['estado' => 'borrador', 'estado_emision' => 'all']),
-                'active' => $filters['estado'] === 'borrador' && $filters['estado_emision'] === 'all',
                 'accent' => false,
             ],
             [
@@ -106,8 +107,11 @@
                     data-confirm-cta="Si, cerrar caja"
                     data-processing-title="Cerrando caja"
                     data-processing-text="Estamos cerrando la caja diaria, espera un momento..."
+                    data-requires-close-amount="true"
+                    data-close-amount-suggested="{{ number_format((float) ($summary['montoTotal'] ?? 0), 2, '.', '') }}"
                 >
                     @csrf
+                    <input type="hidden" name="monto_cierre_declarado" value="{{ number_format((float) ($summary['montoTotal'] ?? 0), 2, '.', '') }}" data-caja-close-amount-hidden>
                     <button type="submit" class="btn btn-outline-danger">
                         <i class="fas fa-door-closed mr-1"></i> Cerrar caja
                     </button>
@@ -141,7 +145,7 @@
             </div>
         </div>
         <div class="card-body">
-            <form method="GET" action="{{ route('mis-ventas.index') }}" id="ventasFiltersForm">
+            <form method="GET" action="{{ route($pageContext['filter_route']) }}" id="ventasFiltersForm">
                 <div class="row">
                     <div class="col-xl-4 col-lg-6 mb-3">
                         <label class="ventas-label">Buscar</label>
@@ -153,7 +157,6 @@
                             <option value="all" {{ $filters['estado'] === 'all' ? 'selected' : '' }}>Todos</option>
                             <option value="emitido" {{ $filters['estado'] === 'emitido' ? 'selected' : '' }}>Emitido</option>
                             <option value="pendiente_pago" {{ $filters['estado'] === 'pendiente_pago' ? 'selected' : '' }}>Pendiente QR</option>
-                            <option value="borrador" {{ $filters['estado'] === 'borrador' ? 'selected' : '' }}>Borrador</option>
                         </select>
                     </div>
                     <div class="col-xl-2 col-lg-3 col-md-4 mb-3">
@@ -187,10 +190,19 @@
                 </div>
 
                 <div class="d-flex flex-wrap">
-                    <a href="{{ route('mis-ventas.export.pdf', request()->query()) }}" target="_blank" rel="noopener" class="btn btn-outline-primary mr-2 mb-2">
+                    @if(($pageContext['scope'] ?? 'own') === 'own' && auth()->user()?->can('ventas-sucursal.index'))
+                        <a href="{{ route('ventas-sucursal.index') }}" class="btn btn-outline-info mr-2 mb-2">
+                            <i class="fas fa-store mr-1"></i> Ventas sucursal
+                        </a>
+                    @elseif(($pageContext['scope'] ?? 'own') === 'branch' && auth()->user()?->can('feature.dashboard.facturacion'))
+                        <a href="{{ route('mis-ventas.index') }}" class="btn btn-outline-info mr-2 mb-2">
+                            <i class="fas fa-user mr-1"></i> Mis ventas
+                        </a>
+                    @endif
+                    <a href="{{ route($pageContext['export_route'], request()->query()) }}" target="_blank" rel="noopener" class="btn btn-outline-primary mr-2 mb-2">
                         <i class="fas fa-file-pdf mr-1"></i> Reporte PDF
                     </a>
-                    <a href="{{ route('mis-ventas.index') }}" class="btn btn-outline-secondary mb-2">
+                    <a href="{{ route($pageContext['filter_route']) }}" class="btn btn-outline-secondary mb-2">
                         <i class="fas fa-undo mr-1"></i> Reiniciar
                     </a>
                 </div>
@@ -198,10 +210,39 @@
         </div>
     </div>
 
+    @if(($pageContext['scope'] ?? 'own') === 'branch' && collect($branchCashierSummary ?? [])->isNotEmpty())
+        <div class="card ventas-panel mb-4">
+            <div class="card-header ventas-panel__header">
+                <div>
+                    <strong>Cajeros de la sucursal</strong>
+                    <div class="text-muted small">Resumen de ventas agrupadas por usuario facturador de tu sucursal.</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    @foreach(collect($branchCashierSummary)->take(6) as $cashier)
+                        <div class="col-xl-4 col-md-6 mb-3">
+                            <div class="ventas-branch-cashier-card">
+                                <div class="ventas-branch-cashier-card__name">{{ $cashier['nombre'] }}</div>
+                                @if(($cashier['email'] ?? '') !== '')
+                                    <div class="ventas-branch-cashier-card__meta">{{ $cashier['email'] }}</div>
+                                @endif
+                                <div class="ventas-branch-cashier-card__stats">
+                                    <span>{{ $cashier['cantidad_ventas'] }} venta(s)</span>
+                                    <strong>Bs {{ number_format((float) $cashier['total_vendido'], 2) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="ventas-summary-grid">
         @foreach($summaryCards as $card)
             <a
-                href="{{ route('mis-ventas.index', $card['params']) }}"
+                href="{{ route($pageContext['filter_route'], $card['params']) }}"
                 class="ventas-stat-card {{ $card['accent'] ? 'ventas-stat-card--accent' : '' }} {{ $card['active'] ? 'ventas-stat-card--active' : '' }}"
             >
                 <div class="ventas-stat-card__label">{{ $card['label'] }}</div>
@@ -216,8 +257,8 @@
     <div class="card ventas-panel">
         <div class="card-header ventas-panel__header d-flex justify-content-between align-items-center">
             <div>
-                <strong>Historial de ventas</strong>
-                <div class="text-muted small">Detalle de emisiones registradas para tu cuenta.</div>
+                <strong>{{ $pageContext['panel_title'] }}</strong>
+                <div class="text-muted small">{{ $pageContext['panel_subtitle'] }}</div>
             </div>
             <div class="text-right">
                 <div class="ventas-table-count">{{ $carts->total() }} registros</div>
@@ -234,10 +275,13 @@
                             <th class="text-center">N°</th>
                             <th>Fecha</th>
                             <th>Codigo orden</th>
+                            @if($pageContext['show_cashier_column'])
+                                <th>Cajero</th>
+                            @endif
                             <th>Cliente</th>
                             <th>Facturacion</th>
                             <th>Estado</th>
-                            <th class="text-center">Items</th>
+                            <th class="text-center">Detalle</th>
                             <th class="text-right">Total</th>
                             <th class="text-center">Acciones</th>
                         </tr>
@@ -253,6 +297,25 @@
                                     ->map(fn ($item) => is_array($item) ? (object) $item : $item)
                                     ->filter(fn ($item) => is_object($item))
                                     ->values();
+
+                                $packageCodes = $cartItems
+                                    ->map(function ($item) {
+                                        return trim((string) (
+                                            data_get($item, 'codigo')
+                                            ?: data_get($item, 'codigo_paquete')
+                                            ?: data_get($item, 'resumen_origen.codigo')
+                                            ?: data_get($item, 'resumen_origen.codigo_paquete')
+                                        ));
+                                    })
+                                    ->filter()
+                                    ->unique()
+                                    ->values();
+                                $packageItemsCount = $packageCodes->count();
+                                $serviceItemsCount = max(0, $cartItems->count() - $packageItemsCount);
+                                $itemsBreakdown = collect([
+                                    $packageItemsCount > 0 ? $packageItemsCount . ' paquete' . ($packageItemsCount === 1 ? '' : 's') : null,
+                                    $serviceItemsCount > 0 ? $serviceItemsCount . ' servicio' . ($serviceItemsCount === 1 ? '' : 's') : null,
+                                ])->filter()->implode(' + ');
 
                                 $respuesta = (array) data_get($cart, 'respuesta_emision', []);
                                 $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
@@ -274,6 +337,7 @@
                                 $esOficialMeta = (bool) data_get($cart, 'es_oficial', false);
                                 $estadoSufeRaw = strtoupper(trim((string) data_get($cart, 'respuesta_emision.estadoSufe', data_get($cart, 'estado_sufe', ''))));
                                 $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', '')));
+                                $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
                                 $isOficial = $esOficialMeta
                                     || str_starts_with($codigoOrden, 'OFI-')
                                     || strtoupper($razonSocial ?? '') === 'ENVIO OFICIAL'
@@ -287,11 +351,12 @@
                                         $canalEmision = 'factura_electronica';
                                     }
                                 }
+                                $isQrPayment = $metodoPago === 'qr' || trim((string) data_get($cart, 'qr_transaction_id', '')) !== '';
 
-                                $canalBadgeLabel = $canalEmision === 'qr'
-                                    ? 'QR'
+                                $canalBadgeLabel = $isQrPayment
+                                    ? 'Pago QR'
                                     : ($canalEmision === 'oficial' ? 'Registro oficial' : 'Factura electronica');
-                                $canalBadgeClass = $canalEmision === 'qr'
+                                $canalBadgeClass = $isQrPayment
                                     ? 'ventas-channel-chip--qr'
                                     : 'ventas-channel-chip--factura';
                                 $estadoCart = (string) data_get($cart, 'estado', '');
@@ -306,6 +371,8 @@
                                 $itemsCountApi = (int) data_get($cart, 'items_count', 0);
                                 $fechaRaw = data_get($cart, 'emitido_en') ?: data_get($cart, 'created_at');
                                 $fecha = null;
+                                $showConsultAction = $cartId > 0 && ($referenciaConsulta !== '' || $isQrPayment || $facturaEstado === 'PENDIENTE');
+                                $consultActionLabel = 'Consultar';
 
                                 if ($fechaRaw instanceof \Carbon\CarbonInterface) {
                                     $fecha = $fechaRaw;
@@ -315,6 +382,22 @@
                                     } catch (\Throwable $e) {
                                         $fecha = null;
                                     }
+                                }
+
+                                if ($isQrPayment) {
+                                    if ($estadoPago === 'pendiente') {
+                                        $consultActionLabel = 'Actualizar pago';
+                                    } elseif ($estadoPago === 'cancelado') {
+                                        $consultActionLabel = 'Revisar pago';
+                                    } elseif ($facturaEstado === 'FACTURADA') {
+                                        $consultActionLabel = 'Consultar';
+                                    } elseif (in_array($facturaEstado, ['PENDIENTE', 'NO_APLICA', 'ERROR', 'RECHAZADA'], true)) {
+                                        $consultActionLabel = 'Actualizar factura';
+                                    } else {
+                                        $consultActionLabel = 'Consultar';
+                                    }
+                                } elseif ($facturaEstado === 'PENDIENTE') {
+                                    $consultActionLabel = 'Actualizar estado';
                                 }
                             @endphp
                             <tr>
@@ -336,6 +419,12 @@
                                         <div class="ventas-table__secondary">{{ $referenciaLabel }}: {{ $referenciaConsulta }}</div>
                                     @endif
                                 </td>
+                                @if($pageContext['show_cashier_column'])
+                                    <td>
+                                        <div class="ventas-table__primary">{{ trim((string) data_get($cart, 'origen_usuario_nombre', 'Sin usuario')) }}</div>
+                                        <div class="ventas-table__secondary">{{ trim((string) data_get($cart, 'origen_usuario_email', '')) }}</div>
+                                    </td>
+                                @endif
                                 <td>
                                     <div class="ventas-table__primary">{{ $razonSocial !== '' ? $razonSocial : 'SIN NOMBRE' }}</div>
                                     <div class="ventas-table__secondary">{{ $isOficial ? 'Registro interno' : ucfirst(str_replace('_', ' ', $modalidadFacturacion)) }}</div>
@@ -344,12 +433,20 @@
                                     </div>
                                 </td>
                                 <td>
-                                    @if($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pagado')
-                                        <span class="ventas-status-chip ventas-status-chip--success">PAGADO QR</span>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
-                                        <span class="ventas-status-chip ventas-status-chip--danger">QR RECHAZADO</span>
-                                    @elseif($canalEmision === 'qr' && $facturaEstado === 'NO_APLICA')
-                                        <span class="ventas-status-chip ventas-status-chip--warning">QR PENDIENTE</span>
+                                    @if($isQrPayment && $facturaEstado === 'FACTURADA')
+                                        <span class="ventas-status-chip ventas-status-chip--success">QR PAGADO Y FACTURADO</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'PENDIENTE')
+                                        <span class="ventas-status-chip ventas-status-chip--warning">QR PAGADO - FACTURA EN PROCESO</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'RECHAZADA')
+                                        <span class="ventas-status-chip ventas-status-chip--danger">FACTURA RECHAZADA</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'ERROR')
+                                        <span class="ventas-status-chip ventas-status-chip--dark">ERROR DE FACTURA</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pagado')
+                                        <span class="ventas-status-chip ventas-status-chip--success">QR PAGADO</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
+                                        <span class="ventas-status-chip ventas-status-chip--danger">QR NO PAGADO / CANCELADO</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA')
+                                        <span class="ventas-status-chip ventas-status-chip--warning">QR PENDIENTE DE PAGO</span>
                                     @elseif($facturaEstado === 'FACTURADA')
                                         <span class="ventas-status-chip ventas-status-chip--success">FACTURADA</span>
                                     @elseif($facturaEstado === 'PENDIENTE')
@@ -370,9 +467,17 @@
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Si fue por contingencia, usa actualizar estado hasta que llegue la factura.
                                         </div>
-                                    @elseif($canalEmision === 'qr')
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pendiente')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
-                                            El QR solo confirma pago; no genera factura fiscal automatica.
+                                            Si el cliente cerró la ventana o no completó el pago, la venta seguirá pendiente hasta volver a consultar.
+                                        </div>
+                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            El intento de pago QR no se concretó. Puedes generar un nuevo QR o dejar la venta sin cobrar.
+                                        </div>
+                                    @elseif($isQrPayment && $facturaEstado === 'PENDIENTE')
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            El pago QR ya fue confirmado y la factura se encuentra en proceso ante SEFE.
                                         </div>
                                     @endif
                                 </td>
@@ -380,23 +485,34 @@
                                     <span class="ventas-status-chip {{ $estadoCart === 'emitido' ? 'ventas-status-chip--primary' : ($estadoCart === 'pendiente_pago' ? 'ventas-status-chip--warning' : 'ventas-status-chip--muted') }}">
                                         {{ strtoupper($estadoCart !== '' ? $estadoCart : 'sin estado') }}
                                     </span>
-                                    @if($estadoCart === 'pendiente_pago' && $canalEmision === 'qr')
+                                    @if($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'pendiente')
                                         <div class="ventas-table__secondary mt-1">Pago QR pendiente de confirmacion.</div>
+                                    @elseif($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'cancelado')
+                                        <div class="ventas-table__secondary mt-1">El QR fue cerrado, cancelado o no completado.</div>
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    @if($cartItems->isNotEmpty())
-                                        <button
-                                            type="button"
-                                            class="ventas-count-pill ventas-count-pill--button"
-                                            data-toggle="modal"
-                                            data-target="#ventasItemsModal-{{ $cartId }}"
-                                            aria-label="Ver {{ $cartItems->count() }} items de la venta {{ $codigoOrden !== '' ? $codigoOrden : $cartId }}"
-                                        >
-                                            {{ $cartItems->count() }}
-                                        </button>
+                                    @if($cartItems->isNotEmpty() || $itemsCountApi > 0)
+                                        <div class="ventas-items-cell">
+                                            <button
+                                                type="button"
+                                                class="ventas-count-pill ventas-count-pill--button"
+                                                data-toggle="modal"
+                                                data-target="#ventasItemsModal-{{ $cartId }}"
+                                                data-ventas-detail-trigger="true"
+                                                data-detail-url="{{ route('mis-ventas.detail', ['cart' => $cartId, 'source_user_id' => data_get($cart, 'origen_usuario_id'), 'scope' => $pageContext['scope']]) }}"
+                                                aria-label="Ver {{ $cartItems->count() }} items de la venta {{ $codigoOrden !== '' ? $codigoOrden : $cartId }}"
+                                            >
+                                                {{ $itemsCountApi > 0 ? $itemsCountApi : $cartItems->count() }}
+                                            </button>
+                                            @if($itemsBreakdown !== '')
+                                                <div class="ventas-table__secondary mt-1">{{ $itemsBreakdown }}</div>
+                                            @endif
+                                        </div>
                                     @else
-                                        <span class="ventas-count-pill">{{ $itemsCountApi > 0 ? $itemsCountApi : 0 }}</span>
+                                        <div class="ventas-items-cell">
+                                            <span class="ventas-count-pill">{{ $itemsCountApi > 0 ? $itemsCountApi : 0 }}</span>
+                                        </div>
                                     @endif
                                 </td>
                                 <td class="text-right">
@@ -404,12 +520,12 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex flex-wrap justify-content-center">
-                                        @if($cartId > 0 && ($referenciaConsulta !== '' || $canalEmision === 'qr' || $facturaEstado === 'PENDIENTE'))
+                                        @if($showConsultAction && ($pageContext['scope'] ?? 'own') !== 'branch')
                                             <form
                                                 method="POST"
                                                 action="{{ route('facturacion.cart.consultar') }}"
                                                 class="mr-2 mb-2"
-                                                @if($facturaEstado === 'PENDIENTE' || $canalEmision === 'qr')
+                                                @if($facturaEstado === 'PENDIENTE' || $isQrPayment)
                                                     data-pending-consult="true"
                                                 @endif
                                             >
@@ -417,20 +533,20 @@
                                                 <input type="hidden" name="cart_id" value="{{ $cartId }}">
                                                 <input type="hidden" name="codigo_seguimiento" value="{{ $referenciaConsulta }}">
                                                 <button type="submit" class="btn btn-xs btn-outline-secondary">
-                                                    {{ $canalEmision === 'qr' ? 'Actualizar pago' : ($facturaEstado === 'PENDIENTE' ? 'Actualizar estado' : 'Consultar') }}
+                                                    {{ $consultActionLabel }}
                                                 </button>
                                             </form>
                                         @endif
                                         @if($pdfUrl !== '')
                                             <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary mr-2 mb-2">PDF original</a>
                                         @endif
-                                        <a href="{{ route('mis-ventas.ticket', $cartId) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-dark mb-2">Ticket</a>
+                                        <a href="{{ route('mis-ventas.ticket', ['cart' => $cartId, 'source_user_id' => data_get($cart, 'origen_usuario_id'), 'scope' => $pageContext['scope']]) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-dark mb-2">Ticket</a>
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center py-5 text-muted">No se encontraron ventas con los filtros aplicados.</td>
+                                <td colspan="{{ $pageContext['show_cashier_column'] ? 10 : 9 }}" class="text-center py-5 text-muted">No se encontraron ventas con los filtros aplicados.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -465,19 +581,41 @@
                 ->map(fn ($item) => is_array($item) ? (object) $item : $item)
                 ->filter(fn ($item) => is_object($item))
                 ->values();
+            $packageCodes = $cartItems
+                ->map(function ($item) {
+                    return trim((string) (
+                        data_get($item, 'codigo')
+                        ?: data_get($item, 'codigo_paquete')
+                        ?: data_get($item, 'resumen_origen.codigo')
+                        ?: data_get($item, 'resumen_origen.codigo_paquete')
+                    ));
+                })
+                ->filter()
+                ->unique()
+                ->values();
+            $packageItemsCount = $packageCodes->count();
+            $serviceItemsCount = max(0, $cartItems->count() - $packageItemsCount);
+            $itemsBreakdown = collect([
+                $packageItemsCount > 0 ? $packageItemsCount . ' paquete' . ($packageItemsCount === 1 ? '' : 's') : null,
+                $serviceItemsCount > 0 ? $serviceItemsCount . ' servicio' . ($serviceItemsCount === 1 ? '' : 's') : null,
+            ])->filter()->implode(' + ');
             $cartId = (int) data_get($cart, 'id', 0);
             $codigoOrden = trim((string) data_get($cart, 'codigo_orden', ''));
             $totalCart = (float) data_get($cart, 'total', 0);
+            $modalItemsCount = max((int) data_get($cart, 'items_count', 0), $cartItems->count());
         @endphp
-        @if($cartItems->isNotEmpty())
+        @if($cartItems->isNotEmpty() || data_get($cart, 'items_count', 0) > 0)
             <div class="modal fade ventas-items-modal" id="ventasItemsModal-{{ $cartId }}" tabindex="-1" role="dialog" aria-labelledby="ventasItemsModalLabel-{{ $cartId }}" aria-hidden="true">
                 <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
                     <div class="modal-content">
                         <div class="modal-header ventas-items-modal__header">
                             <div>
-                                <h5 class="modal-title" id="ventasItemsModalLabel-{{ $cartId }}">Detalle de items</h5>
+                                <h5 class="modal-title" id="ventasItemsModalLabel-{{ $cartId }}">Detalle de venta</h5>
                                 <div class="ventas-items-modal__subtitle">
-                                    Venta {{ $codigoOrden !== '' ? $codigoOrden : ('#' . $cartId) }} · {{ $cartItems->count() }} item(s)
+                                    Venta {{ $codigoOrden !== '' ? $codigoOrden : ('#' . $cartId) }} · {{ $modalItemsCount }} concepto(s)
+                                    @if($itemsBreakdown !== '')
+                                        · {{ $itemsBreakdown }}
+                                    @endif
                                 </div>
                             </div>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
@@ -485,11 +623,16 @@
                             </button>
                         </div>
                         <div class="modal-body p-0">
-                            <div class="table-responsive">
-                                <table class="table ventas-items-table mb-0">
+                            <div class="ventas-items-modal__loading" {{ $cartItems->isNotEmpty() ? 'hidden' : '' }}>
+                                Cargando detalle de la venta...
+                            </div>
+                            <div class="ventas-items-modal__error" hidden></div>
+                            <div class="table-responsive" {{ $cartItems->isEmpty() ? 'hidden' : '' }}>
+                                <table class="table ventas-items-table mb-0" data-ventas-items-table="true">
                                     <thead>
                                         <tr>
-                                            <th>Codigo</th>
+                                            <th>Tipo</th>
+                                            <th>Codigo / referencia</th>
                                             <th>Detalle</th>
                                             <th class="text-center">Cant.</th>
                                             <th class="text-right">Base</th>
@@ -497,7 +640,7 @@
                                             <th class="text-right">Total</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody data-ventas-items-body="true">
                                         @foreach($cartItems as $item)
                                             @php
                                                 $item = is_array($item) ? (object) $item : $item;
@@ -507,15 +650,27 @@
                                                 $itemTitulo = trim((string) data_get($item, 'titulo', ''));
                                                 $itemServicio = trim((string) data_get($item, 'nombre_servicio', ''));
                                                 $itemDestinatario = trim((string) data_get($item, 'nombre_destinatario', ''));
+                                                $itemResumenCodigo = trim((string) data_get($item, 'resumen_origen.codigo', data_get($item, 'resumen_origen.codigo_paquete', '')));
                                                 $itemCantidad = (int) data_get($item, 'cantidad', 0);
                                                 $itemMontoBase = (float) data_get($item, 'monto_base', 0);
                                                 $itemMontoExtras = (float) data_get($item, 'monto_extras', 0);
                                                 $itemTotalLinea = (float) data_get($item, 'total_linea', 0);
+                                                $itemHasPackageCode = $itemCodigo !== '' || $itemResumenCodigo !== '';
+                                                $itemTipoLabel = $itemHasPackageCode ? 'Paquete' : 'Servicio';
+                                                $itemReferencia = $itemCodigo !== ''
+                                                    ? $itemCodigo
+                                                    : ($itemResumenCodigo !== '' ? $itemResumenCodigo : 'Sin codigo de paquete');
                                             @endphp
                                             <tr>
                                                 <td>
-                                                    <div class="ventas-table__primary">{{ $itemCodigo !== '' ? $itemCodigo : ('Item #' . $itemId) }}</div>
+                                                    <div class="ventas-item-kind">{{ $itemTipoLabel }}</div>
                                                     <div class="ventas-table__secondary">{{ $itemOrigenTipo !== '' ? $itemOrigenTipo : 'Sin origen' }}</div>
+                                                </td>
+                                                <td>
+                                                    <div class="ventas-table__primary">{{ $itemReferencia }}</div>
+                                                    @if($itemHasPackageCode && $itemResumenCodigo !== '' && $itemResumenCodigo !== $itemCodigo)
+                                                        <div class="ventas-table__secondary">Origen: {{ $itemResumenCodigo }}</div>
+                                                    @endif
                                                 </td>
                                                 <td>
                                                     <div class="ventas-table__primary">{{ $itemTitulo !== '' ? $itemTitulo : 'Sin titulo' }}</div>
@@ -535,7 +690,7 @@
                             </div>
                         </div>
                         <div class="modal-footer ventas-items-modal__footer">
-                            <div class="ventas-items-modal__summary">
+                            <div class="ventas-items-modal__summary" data-ventas-items-summary="true">
                                 Total venta: Bs {{ number_format($totalCart, 2) }}
                             </div>
                             <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cerrar</button>
@@ -554,6 +709,11 @@
             <h4 id="ventasCajaConfirmTitle" class="ventas-confirm-modal__title">Confirmar accion</h4>
             <p class="ventas-confirm-modal__message" id="ventasCajaConfirmMessage">Esta accion actualizara el estado de la caja diaria.</p>
             <div class="ventas-confirm-modal__detail" id="ventasCajaConfirmDetail" hidden></div>
+            <div class="ventas-confirm-modal__field" id="ventasCajaCloseAmountField" hidden>
+                <label for="ventasCajaCloseAmountInput" class="ventas-confirm-modal__label">Monto de cierre declarado</label>
+                <input type="number" min="0" step="0.01" id="ventasCajaCloseAmountInput" class="form-control ventas-confirm-modal__input" inputmode="decimal">
+                <small class="ventas-confirm-modal__hint">Puedes ajustarlo antes de confirmar el cierre.</small>
+            </div>
             <div class="ventas-confirm-modal__actions">
                 <button type="button" class="btn btn-light" id="ventasCajaConfirmCancel">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="ventasCajaConfirmAccept">Confirmar</button>
@@ -848,6 +1008,41 @@
             font-size: 1.05rem;
         }
 
+        .ventas-branch-cashier-card {
+            height: 100%;
+            padding: 1rem 1.05rem;
+            border: 1px solid rgba(32, 83, 154, 0.12);
+            border-radius: 18px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            box-shadow: 0 10px 24px rgba(15, 28, 52, 0.05);
+        }
+
+        .ventas-branch-cashier-card__name {
+            color: #173b73;
+            font-weight: 800;
+        }
+
+        .ventas-branch-cashier-card__meta {
+            margin-top: .2rem;
+            color: #74839b;
+            font-size: .85rem;
+        }
+
+        .ventas-branch-cashier-card__stats {
+            margin-top: .75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+            color: #4f6280;
+            font-size: .92rem;
+        }
+
+        .ventas-branch-cashier-card__stats strong {
+            color: #173b73;
+            font-size: 1rem;
+        }
+
         .ventas-count-pill {
             display: inline-flex;
             align-items: center;
@@ -873,6 +1068,13 @@
             box-shadow: 0 8px 20px rgba(32, 83, 154, 0.16);
             transform: translateY(-1px);
             outline: none;
+        }
+
+        .ventas-items-cell {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: .2rem;
         }
 
         .ventas-status-chip {
@@ -934,6 +1136,17 @@
             font-size: .85rem;
         }
 
+        .ventas-items-modal__loading,
+        .ventas-items-modal__error {
+            padding: 1rem 1.25rem;
+            color: #5d7396;
+            font-size: .92rem;
+        }
+
+        .ventas-items-modal__error {
+            color: #b02a37;
+        }
+
         .ventas-items-table thead th {
             background: #f7f9fc;
             color: #38557f;
@@ -950,6 +1163,18 @@
             border-top: 1px solid rgba(32, 83, 154, 0.08);
             padding-top: .9rem;
             padding-bottom: .9rem;
+        }
+
+        .ventas-item-kind {
+            display: inline-flex;
+            align-items: center;
+            padding: .28rem .58rem;
+            border-radius: 999px;
+            background: rgba(32, 83, 154, 0.08);
+            color: #20539a;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .02em;
         }
 
         .ventas-items-table__qty {
@@ -1076,6 +1301,32 @@
             margin-top: 1.2rem;
         }
 
+        .ventas-confirm-modal__field {
+            margin-top: .9rem;
+            text-align: left;
+        }
+
+        .ventas-confirm-modal__label {
+            display: block;
+            margin-bottom: .45rem;
+            font-size: .86rem;
+            font-weight: 700;
+            color: #284572;
+        }
+
+        .ventas-confirm-modal__input {
+            min-height: 44px;
+            border-radius: 12px;
+            border-color: #cfdcf4;
+        }
+
+        .ventas-confirm-modal__hint {
+            display: block;
+            margin-top: .45rem;
+            color: #667c9e;
+            font-size: .84rem;
+        }
+
         .ventas-processing-overlay {
             display: flex;
             align-items: center;
@@ -1163,10 +1414,13 @@
             const form = document.getElementById('ventasFiltersForm');
             const pendingConsultForms = Array.from(document.querySelectorAll('form[data-pending-consult="true"]'));
             const cajaForms = Array.from(document.querySelectorAll('.ventas-caja-confirm-form'));
+            const detailTriggers = Array.from(document.querySelectorAll('[data-ventas-detail-trigger="true"]'));
             const cajaConfirmModal = document.getElementById('ventasCajaConfirmModal');
             const cajaConfirmTitle = document.getElementById('ventasCajaConfirmTitle');
             const cajaConfirmMessage = document.getElementById('ventasCajaConfirmMessage');
             const cajaConfirmDetail = document.getElementById('ventasCajaConfirmDetail');
+            const cajaCloseAmountField = document.getElementById('ventasCajaCloseAmountField');
+            const cajaCloseAmountInput = document.getElementById('ventasCajaCloseAmountInput');
             const cajaConfirmCancel = document.getElementById('ventasCajaConfirmCancel');
             const cajaConfirmAccept = document.getElementById('ventasCajaConfirmAccept');
             const cajaProcessingOverlay = document.getElementById('ventasCajaProcessingOverlay');
@@ -1181,6 +1435,134 @@
 
             let searchTimer = null;
             let isSubmitting = false;
+            const detailCache = new Map();
+
+            const escapeHtml = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            const classifyItem = (item) => {
+                const code = String(item.codigo || item.resumen_origen?.codigo || item.resumen_origen?.codigo_paquete || '').trim();
+
+                return {
+                    kind: code !== '' ? 'Paquete' : 'Servicio',
+                    reference: code !== '' ? code : 'Sin codigo de paquete',
+                };
+            };
+
+            const renderDetailRows = (items) => items.map((item) => {
+                const kind = classifyItem(item);
+                const itemTitle = String(item.titulo || 'Sin titulo').trim();
+                const itemService = String(item.nombre_servicio || '').trim();
+                const itemDest = String(item.nombre_destinatario || '').trim();
+                const itemOrigin = String(item.origen_tipo || '').trim();
+                const base = Number(item.monto_base || 0).toFixed(2);
+                const extras = Number(item.monto_extras || 0).toFixed(2);
+                const total = Number(item.total_linea || 0).toFixed(2);
+                const qty = Number(item.cantidad || 0);
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="ventas-item-kind">${escapeHtml(kind.kind)}</div>
+                            <div class="ventas-table__secondary">${escapeHtml(itemOrigin || 'Sin origen')}</div>
+                        </td>
+                        <td>
+                            <div class="ventas-table__primary">${escapeHtml(kind.reference)}</div>
+                        </td>
+                        <td>
+                            <div class="ventas-table__primary">${escapeHtml(itemTitle)}</div>
+                            <div class="ventas-table__secondary">${escapeHtml(itemService || 'Sin servicio registrado')}</div>
+                            <div class="ventas-table__secondary">${escapeHtml(itemDest || 'Sin destinatario')}</div>
+                        </td>
+                        <td class="text-center">
+                            <span class="ventas-items-table__qty">${escapeHtml(qty)}</span>
+                        </td>
+                        <td class="text-right">Bs ${base}</td>
+                        <td class="text-right">Bs ${extras}</td>
+                        <td class="text-right ventas-items-table__total">Bs ${total}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const hydrateDetailModal = async (trigger) => {
+                const targetSelector = trigger.getAttribute('data-target');
+                const detailUrl = trigger.getAttribute('data-detail-url');
+                const modal = targetSelector ? document.querySelector(targetSelector) : null;
+                if (!modal || !detailUrl) {
+                    return;
+                }
+
+                const loadingNode = modal.querySelector('.ventas-items-modal__loading');
+                const errorNode = modal.querySelector('.ventas-items-modal__error');
+                const tableWrap = modal.querySelector('.table-responsive');
+                const tbody = modal.querySelector('[data-ventas-items-body="true"]');
+                const summary = modal.querySelector('[data-ventas-items-summary="true"]');
+
+                if (!tbody || !tableWrap) {
+                    return;
+                }
+
+                if (detailCache.has(detailUrl)) {
+                    const cached = detailCache.get(detailUrl);
+                    tbody.innerHTML = renderDetailRows(cached.items || []);
+                    if (summary) {
+                        summary.textContent = `Total venta: Bs ${Number(cached.cart?.total || 0).toFixed(2)}`;
+                    }
+                    if (loadingNode) {
+                        loadingNode.hidden = true;
+                    }
+                    if (errorNode) {
+                        errorNode.hidden = true;
+                        errorNode.textContent = '';
+                    }
+                    tableWrap.hidden = false;
+                    return;
+                }
+
+                if (loadingNode) {
+                    loadingNode.hidden = false;
+                }
+                if (errorNode) {
+                    errorNode.hidden = true;
+                    errorNode.textContent = '';
+                }
+                tableWrap.hidden = true;
+
+                try {
+                    const response = await fetch(detailUrl, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                    });
+
+                    const payload = await response.json();
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'No se pudo cargar el detalle.');
+                    }
+
+                    detailCache.set(detailUrl, payload);
+                    tbody.innerHTML = renderDetailRows(payload.items || []);
+                    if (summary) {
+                        summary.textContent = `Total venta: Bs ${Number(payload.cart?.total || 0).toFixed(2)}`;
+                    }
+                    tableWrap.hidden = false;
+                } catch (error) {
+                    if (errorNode) {
+                        errorNode.hidden = false;
+                        errorNode.textContent = error instanceof Error ? error.message : 'No se pudo cargar el detalle de la venta.';
+                    }
+                } finally {
+                    if (loadingNode) {
+                        loadingNode.hidden = true;
+                    }
+                }
+            };
 
             const submitFilters = () => {
                 if (isSubmitting) {
@@ -1210,6 +1592,12 @@
                 });
             });
 
+            detailTriggers.forEach((trigger) => {
+                trigger.addEventListener('click', function () {
+                    hydrateDetailModal(trigger);
+                });
+            });
+
             const openCajaConfirm = (targetForm) => {
                 if (!(targetForm instanceof HTMLFormElement) || !cajaConfirmModal) {
                     targetForm?.submit();
@@ -1236,6 +1624,16 @@
                     || targetForm.dataset.confirmCta
                     || 'Confirmar'
                 );
+                const requiresCloseAmount = String(
+                    targetForm.getAttribute('data-requires-close-amount')
+                    || targetForm.dataset.requiresCloseAmount
+                    || ''
+                ) === 'true';
+                const suggestedCloseAmount = String(
+                    targetForm.getAttribute('data-close-amount-suggested')
+                    || targetForm.dataset.closeAmountSuggested
+                    || '0.00'
+                );
 
                 pendingCajaForm = targetForm;
                 if (cajaConfirmTitle) {
@@ -1251,9 +1649,23 @@
                 if (cajaConfirmAccept) {
                     cajaConfirmAccept.textContent = confirmCta;
                 }
+                if (cajaCloseAmountField) {
+                    cajaCloseAmountField.hidden = !requiresCloseAmount;
+                }
+                if (cajaCloseAmountInput) {
+                    cajaCloseAmountInput.value = suggestedCloseAmount;
+                }
 
                 cajaConfirmModal.setAttribute('aria-hidden', 'false');
-                window.setTimeout(() => cajaConfirmAccept?.focus(), 30);
+                window.setTimeout(() => {
+                    if (requiresCloseAmount && cajaCloseAmountInput) {
+                        cajaCloseAmountInput.focus();
+                        cajaCloseAmountInput.select();
+                        return;
+                    }
+
+                    cajaConfirmAccept?.focus();
+                }, 30);
             };
 
             const closeCajaConfirm = () => {
@@ -1262,6 +1674,9 @@
                     return;
                 }
                 cajaConfirmModal.setAttribute('aria-hidden', 'true');
+                if (cajaCloseAmountField) {
+                    cajaCloseAmountField.hidden = true;
+                }
             };
 
             const setCajaProcessing = (active, targetForm = null) => {
@@ -1336,6 +1751,20 @@
                 if (!(pendingCajaForm instanceof HTMLFormElement)) {
                     closeCajaConfirm();
                     return;
+                }
+
+                if (cajaCloseAmountField && !cajaCloseAmountField.hidden) {
+                    const hiddenInput = pendingCajaForm.querySelector('[data-caja-close-amount-hidden]');
+                    const enteredValue = cajaCloseAmountInput ? cajaCloseAmountInput.value.trim() : '';
+
+                    if (enteredValue === '' || Number.isNaN(Number(enteredValue)) || Number(enteredValue) < 0) {
+                        cajaCloseAmountInput?.focus();
+                        return;
+                    }
+
+                    if (hiddenInput instanceof HTMLInputElement) {
+                        hiddenInput.value = Number(enteredValue).toFixed(2);
+                    }
                 }
 
                 const targetForm = pendingCajaForm;

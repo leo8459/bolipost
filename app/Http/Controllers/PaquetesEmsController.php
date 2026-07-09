@@ -21,6 +21,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -31,6 +32,9 @@ class PaquetesEmsController extends Controller
     private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
     private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 295;
+    private const EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO = 297;
+    private const EVENTO_ID_CERTI_RECIBIDO_OFICINA_ENTREGA = 172;
     private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
 
     private const CIUDADES_BOLIVIA = [
@@ -119,10 +123,8 @@ class PaquetesEmsController extends Controller
         ]);
 
         return view('paquetes_ems.solicitud-create', [
-            'destinos' => Destino::query()->orderBy('nombre_destino')->get(),
-            'servicioExtras' => ServicioExtra::query()
-                ->orderBy('id')
-                ->get(['id', 'nombre', 'descripcion']),
+            'destinos' => $this->cachedDestinos(),
+            'servicioExtras' => $this->cachedServicioExtras(),
             'ciudades' => self::CIUDADES_BOLIVIA,
             'canUseFacturacionShortcut' => $this->canUseFacturacionShortcut(Auth::user()),
         ]);
@@ -461,6 +463,22 @@ class PaquetesEmsController extends Controller
         return (bool) ($user && method_exists($user, 'can') && $user->can('feature.dashboard.facturacion'));
     }
 
+    private function cachedDestinos()
+    {
+        return Cache::remember('lookup:paquetes-ems:destinos', now()->addMinutes(30), function () {
+            return Destino::query()->orderBy('nombre_destino')->get();
+        });
+    }
+
+    private function cachedServicioExtras()
+    {
+        return Cache::remember('lookup:paquetes-ems:servicio-extras', now()->addMinutes(30), function () {
+            return ServicioExtra::query()
+                ->orderBy('id')
+                ->get(['id', 'nombre', 'descripcion']);
+        });
+    }
+
     public function ticketSolicitud(Request $request, SolicitudCliente $solicitud)
     {
         $this->authorizeAnyPermission($request, [
@@ -539,6 +557,541 @@ class PaquetesEmsController extends Controller
     public function ventanilla()
     {
         return view('paquetes_ems.ventanilla');
+    }
+
+    public function encargado(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'paquetes-ems.encargado',
+        ]);
+
+        $search = trim((string) $request->query('q', ''));
+        $servicio = trim((string) $request->query('servicio', ''));
+        $fechaDesde = trim((string) $request->query('from', ''));
+        $fechaHasta = trim((string) $request->query('to', ''));
+
+        $servicios = collect(['CONTRATO', 'EMS', 'CERTI', 'ORDI', 'SOLICITUD']);
+        $user = $request->user();
+
+        $emsQuery = PaqueteEms::query()
+            ->leftJoin('paquetes_ems_formulario as formulario', 'formulario.paquete_ems_id', '=', 'paquetes_ems.id')
+            ->leftJoin('estados as estados', 'estados.id', '=', 'paquetes_ems.estado_id')
+            ->select([
+                'paquetes_ems.id',
+                DB::raw("coalesce(paquetes_ems.codigo::text, '') as codigo"),
+                DB::raw("coalesce(paquetes_ems.cod_especial::text, '') as cod_especial"),
+                DB::raw("coalesce(paquetes_ems.origen::text, '') as origen"),
+                DB::raw("coalesce(paquetes_ems.ciudad::text, '') as ciudad"),
+                DB::raw("coalesce(paquetes_ems.nombre_destinatario::text, '') as nombre_destinatario"),
+                DB::raw("coalesce(paquetes_ems.telefono_destinatario::text, '') as telefono_destinatario"),
+                'paquetes_ems.peso',
+                'paquetes_ems.precio',
+                'paquetes_ems.created_at',
+                DB::raw("'EMS' as servicio"),
+                DB::raw("coalesce(nullif(trim(formulario.tipo_correspondencia), ''), nullif(trim(formulario.servicio_especial), ''), nullif(trim(paquetes_ems.tipo_correspondencia), ''), nullif(trim(paquetes_ems.servicio_especial), ''), '-') as servicio_especial"),
+                DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+            ])
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('paquetes_ems.codigo', 'ILIKE', "%{$search}%")
+                        ->orWhere('paquetes_ems.cod_especial', 'ILIKE', "%{$search}%");
+                });
+            })
+            ->when($fechaDesde !== '', function ($query) use ($fechaDesde) {
+                $query->whereDate('paquetes_ems.created_at', '>=', $fechaDesde);
+            })
+            ->when($fechaHasta !== '', function ($query) use ($fechaHasta) {
+                $query->whereDate('paquetes_ems.created_at', '<=', $fechaHasta);
+            });
+
+        $contratosQuery = RecojoContrato::query()
+            ->leftJoin('estados as estados', 'estados.id', '=', 'paquetes_contrato.estados_id')
+            ->leftJoin('empresa as empresa_directa', 'empresa_directa.id', '=', 'paquetes_contrato.empresa_id')
+            ->leftJoin('users as usuario_registro', 'usuario_registro.id', '=', 'paquetes_contrato.user_id')
+            ->leftJoin('empresa as empresa_usuario', 'empresa_usuario.id', '=', 'usuario_registro.empresa_id')
+            ->select([
+                'paquetes_contrato.id',
+                DB::raw("coalesce(paquetes_contrato.codigo::text, '') as codigo"),
+                DB::raw("coalesce(paquetes_contrato.cod_especial::text, '') as cod_especial"),
+                DB::raw("coalesce(paquetes_contrato.origen::text, '') as origen"),
+                DB::raw("coalesce(paquetes_contrato.destino::text, '') as ciudad"),
+                DB::raw("coalesce(paquetes_contrato.nombre_d::text, '') as nombre_destinatario"),
+                DB::raw("coalesce(paquetes_contrato.telefono_d::text, '') as telefono_destinatario"),
+                'paquetes_contrato.peso',
+                'paquetes_contrato.precio',
+                'paquetes_contrato.created_at',
+                DB::raw("'CONTRATO' as servicio"),
+                DB::raw("coalesce(nullif(trim(empresa_directa.nombre), ''), nullif(trim(empresa_usuario.nombre), ''), nullif(trim(paquetes_contrato.contenido), ''), '-') as servicio_especial"),
+                DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+            ])
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('paquetes_contrato.codigo', 'ILIKE', "%{$search}%")
+                        ->orWhere('paquetes_contrato.cod_especial', 'ILIKE', "%{$search}%");
+                });
+            })
+            ->when($fechaDesde !== '', function ($query) use ($fechaDesde) {
+                $query->whereDate('paquetes_contrato.created_at', '>=', $fechaDesde);
+            })
+            ->when($fechaHasta !== '', function ($query) use ($fechaHasta) {
+                $query->whereDate('paquetes_contrato.created_at', '<=', $fechaHasta);
+            });
+
+        $certiQuery = PaqueteCerti::query()
+            ->leftJoin('estados as estados', 'estados.id', '=', 'paquetes_certi.fk_estado')
+            ->select([
+                'paquetes_certi.id',
+                DB::raw("coalesce(paquetes_certi.codigo::text, '') as codigo"),
+                DB::raw("coalesce(paquetes_certi.cod_especial::text, '') as cod_especial"),
+                DB::raw("'-' as origen"),
+                DB::raw("coalesce(paquetes_certi.cuidad::text, '') as ciudad"),
+                DB::raw("coalesce(paquetes_certi.destinatario::text, '') as nombre_destinatario"),
+                DB::raw("coalesce(paquetes_certi.telefono::text, '') as telefono_destinatario"),
+                'paquetes_certi.peso',
+                'paquetes_certi.precio',
+                'paquetes_certi.created_at',
+                DB::raw("'CERTI' as servicio"),
+                DB::raw("coalesce(nullif(trim(paquetes_certi.tipo), ''), '-') as servicio_especial"),
+                DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+            ])
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('paquetes_certi.codigo', 'ILIKE', "%{$search}%")
+                        ->orWhere('paquetes_certi.cod_especial', 'ILIKE', "%{$search}%");
+                });
+            })
+            ->when($fechaDesde !== '', function ($query) use ($fechaDesde) {
+                $query->whereDate('paquetes_certi.created_at', '>=', $fechaDesde);
+            })
+            ->when($fechaHasta !== '', function ($query) use ($fechaHasta) {
+                $query->whereDate('paquetes_certi.created_at', '<=', $fechaHasta);
+            });
+
+        $ordiQuery = PaqueteOrdi::query()
+            ->leftJoin('estados as estados', 'estados.id', '=', 'paquetes_ordi.fk_estado')
+            ->select([
+                'paquetes_ordi.id',
+                DB::raw("coalesce(paquetes_ordi.codigo::text, '') as codigo"),
+                DB::raw("coalesce(paquetes_ordi.cod_especial::text, '') as cod_especial"),
+                DB::raw("'-' as origen"),
+                DB::raw("coalesce(paquetes_ordi.ciudad::text, '') as ciudad"),
+                DB::raw("coalesce(paquetes_ordi.destinatario::text, '') as nombre_destinatario"),
+                DB::raw("coalesce(paquetes_ordi.telefono::text, '') as telefono_destinatario"),
+                'paquetes_ordi.peso',
+                'paquetes_ordi.precio',
+                'paquetes_ordi.created_at',
+                DB::raw("'ORDI' as servicio"),
+                DB::raw("coalesce(nullif(trim(paquetes_ordi.observaciones), ''), nullif(trim(paquetes_ordi.aduana), ''), '-') as servicio_especial"),
+                DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+            ])
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('paquetes_ordi.codigo', 'ILIKE', "%{$search}%")
+                        ->orWhere('paquetes_ordi.cod_especial', 'ILIKE', "%{$search}%");
+                });
+            })
+            ->when($fechaDesde !== '', function ($query) use ($fechaDesde) {
+                $query->whereDate('paquetes_ordi.created_at', '>=', $fechaDesde);
+            })
+            ->when($fechaHasta !== '', function ($query) use ($fechaHasta) {
+                $query->whereDate('paquetes_ordi.created_at', '<=', $fechaHasta);
+            });
+
+        $solicitudesQuery = SolicitudCliente::query()
+            ->leftJoin('estados as estados', 'estados.id', '=', 'solicitud_clientes.estado_id')
+            ->select([
+                'solicitud_clientes.id',
+                DB::raw("coalesce(nullif(trim(solicitud_clientes.codigo_solicitud), ''), nullif(trim(solicitud_clientes.barcode), ''), 'SIN CODIGO') as codigo"),
+                DB::raw("coalesce(solicitud_clientes.cod_especial::text, '') as cod_especial"),
+                DB::raw("coalesce(solicitud_clientes.origen::text, '') as origen"),
+                DB::raw("coalesce(solicitud_clientes.ciudad::text, '') as ciudad"),
+                DB::raw("coalesce(solicitud_clientes.nombre_destinatario::text, '') as nombre_destinatario"),
+                DB::raw("coalesce(solicitud_clientes.telefono_destinatario::text, '') as telefono_destinatario"),
+                'solicitud_clientes.peso',
+                'solicitud_clientes.precio',
+                'solicitud_clientes.created_at',
+                DB::raw("'SOLICITUD' as servicio"),
+                DB::raw("coalesce(nullif(trim(solicitud_clientes.servicio_especial), ''), nullif(trim(solicitud_clientes.observacion), ''), '-') as servicio_especial"),
+                DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+            ])
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('solicitud_clientes.codigo_solicitud', 'ILIKE', "%{$search}%")
+                        ->orWhere('solicitud_clientes.barcode', 'ILIKE', "%{$search}%")
+                        ->orWhere('solicitud_clientes.cod_especial', 'ILIKE', "%{$search}%");
+                });
+            })
+            ->when($fechaDesde !== '', function ($query) use ($fechaDesde) {
+                $query->whereDate('solicitud_clientes.created_at', '>=', $fechaDesde);
+            })
+            ->when($fechaHasta !== '', function ($query) use ($fechaHasta) {
+                $query->whereDate('solicitud_clientes.created_at', '<=', $fechaHasta);
+            });
+
+        $union = $emsQuery
+            ->unionAll($contratosQuery)
+            ->unionAll($certiQuery)
+            ->unionAll($ordiQuery)
+            ->unionAll($solicitudesQuery);
+
+        $paquetes = DB::query()
+            ->fromSub($union, 'encargado_paquetes')
+            ->when($servicio !== '', function ($query) use ($servicio) {
+                $query->where('servicio', mb_strtoupper($servicio));
+            })
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('paquetes_ems.encargado', [
+            'paquetes' => $paquetes,
+            'servicios' => $servicios,
+            'search' => $search,
+            'servicio' => $servicio,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
+            'canCancelEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.cancel'),
+            'canReturnOriginEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.returnorigin'),
+            'canReturnDestinationEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.returndestination'),
+            'canReturnWindowEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.returnwindow'),
+            'canUpdateWeightEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.updateweight'),
+        ]);
+    }
+
+    public function cancelarEnvioEncargado(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.encargado.cancel',
+        ]);
+
+        $data = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+            'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
+            'q' => ['nullable', 'string'],
+            'from' => ['nullable', 'string'],
+            'to' => ['nullable', 'string'],
+        ]);
+
+        $id = (int) $data['id'];
+        $servicio = mb_strtoupper(trim((string) $data['servicio']));
+        $actorUserId = (int) optional($request->user())->id;
+        $actorName = $this->resolveActorDisplayName($request);
+        $estadoCanceladoId = $this->findEstadoIdByNombre('CANCELADO');
+        $updated = 0;
+
+        if ($estadoCanceladoId <= 0) {
+            return redirect()
+                ->route('paquetes-ems.encargado', array_filter([
+                    'servicio' => $request->input('current_servicio'),
+                    'q' => $request->input('q'),
+                    'from' => $request->input('from'),
+                    'to' => $request->input('to'),
+                    'page' => $request->input('page'),
+                ]))
+                ->with('error', 'No existe el estado CANCELADO en la tabla estados.');
+        }
+
+        DB::transaction(function () use ($servicio, $id, $actorUserId, $actorName, $estadoCanceladoId, &$updated) {
+            $updated = match ($servicio) {
+                'EMS' => $this->moveEncargadoRecordAndRegisterEvent(
+                    PaqueteEms::query()->whereKey($id)->first(),
+                    'estado_id',
+                    (int) $estadoCanceladoId,
+                    $servicio,
+                    $actorUserId,
+                    'Envio cancelado por ' . $actorName . '.'
+                ),
+                'CONTRATO' => $this->moveEncargadoRecordAndRegisterEvent(
+                    RecojoContrato::query()->whereKey($id)->first(),
+                    'estados_id',
+                    (int) $estadoCanceladoId,
+                    $servicio,
+                    $actorUserId,
+                    'Envio cancelado por ' . $actorName . '.'
+                ),
+                'CERTI' => $this->moveEncargadoRecordAndRegisterEvent(
+                    PaqueteCerti::query()->whereKey($id)->first(),
+                    'fk_estado',
+                    (int) $estadoCanceladoId,
+                    $servicio,
+                    $actorUserId,
+                    'Envio cancelado por ' . $actorName . '.'
+                ),
+                'ORDI' => $this->moveEncargadoRecordAndRegisterEvent(
+                    PaqueteOrdi::query()->whereKey($id)->first(),
+                    'fk_estado',
+                    (int) $estadoCanceladoId,
+                    $servicio,
+                    $actorUserId,
+                    'Envio cancelado por ' . $actorName . '.'
+                ),
+                'SOLICITUD' => $this->moveEncargadoRecordAndRegisterEvent(
+                    SolicitudCliente::query()->whereKey($id)->first(),
+                    'estado_id',
+                    (int) $estadoCanceladoId,
+                    $servicio,
+                    $actorUserId,
+                    'Envio cancelado por ' . $actorName . '.'
+                ),
+                default => 0,
+            };
+        });
+
+        return redirect()
+            ->route('paquetes-ems.encargado', array_filter([
+                'servicio' => $request->input('current_servicio'),
+                'q' => $request->input('q'),
+                'from' => $request->input('from'),
+                'to' => $request->input('to'),
+                'page' => $request->input('page'),
+            ]))
+            ->with(
+                $updated > 0 ? 'success' : 'error',
+                $updated > 0
+                    ? 'El envio fue cancelado y enviado a estado CANCELADO.'
+                    : 'No se pudo cancelar el envio seleccionado.'
+            );
+    }
+
+    public function devolverEnvioEncargado(Request $request)
+    {
+        $data = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+            'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
+            'destino_accion' => ['required', 'string', Rule::in(['origen', 'destino', 'ventanilla'])],
+            'q' => ['nullable', 'string'],
+            'from' => ['nullable', 'string'],
+            'to' => ['nullable', 'string'],
+        ]);
+
+        $id = (int) $data['id'];
+        $servicio = mb_strtoupper(trim((string) $data['servicio']));
+        $destinoAccion = trim((string) $data['destino_accion']);
+
+        $this->authorizeAnyPermission($request, [
+            match ($destinoAccion) {
+                'origen' => 'feature.paquetes-ems.encargado.returnorigin',
+                'destino' => 'feature.paquetes-ems.encargado.returndestination',
+                'ventanilla' => 'feature.paquetes-ems.encargado.returnwindow',
+            },
+        ]);
+
+        $actorUserId = (int) optional($request->user())->id;
+        $actorName = $this->resolveActorDisplayName($request);
+        $updated = 0;
+
+        $estadoAlmacenId = $this->findEstadoIdByNombre('ALMACEN');
+        $estadoRecibidoId = $this->findEstadoIdByNombre('RECIBIDO');
+        $estadoVentanillaId = $this->findEstadoIdByNombre('VENTANILLA');
+
+        if (in_array($servicio, ['EMS', 'CONTRATO', 'SOLICITUD'], true)) {
+            if ($destinoAccion === 'origen' && $estadoAlmacenId <= 0) {
+                return back()->with('error', 'No existe el estado ALMACEN en la tabla estados.');
+            }
+
+            if ($destinoAccion === 'destino' && $estadoRecibidoId <= 0) {
+                return back()->with('error', 'No existe el estado RECIBIDO en la tabla estados.');
+            }
+        }
+
+        if (in_array($servicio, ['CERTI', 'ORDI'], true) && $estadoVentanillaId <= 0) {
+            return back()->with('error', 'No existe el estado VENTANILLA en la tabla estados.');
+        }
+
+        DB::transaction(function () use (
+            $servicio,
+            $destinoAccion,
+            $id,
+            $actorUserId,
+            $estadoAlmacenId,
+            $estadoRecibidoId,
+            $estadoVentanillaId,
+            $actorName,
+            &$updated
+        ) {
+            if ($servicio === 'EMS') {
+                $updated = $destinoAccion === 'origen'
+                    ? $this->moveEncargadoRecordAndRegisterEvent(
+                        PaqueteEms::query()->whereKey($id)->first(),
+                        'estado_id',
+                        (int) $estadoAlmacenId,
+                        $servicio,
+                        $actorUserId,
+                        'Devuelto a almacen origen por ' . $actorName . '.'
+                    )
+                    : $this->moveEncargadoRecordAndRegisterEvent(
+                        PaqueteEms::query()->whereKey($id)->first(),
+                        'estado_id',
+                        (int) $estadoRecibidoId,
+                        $servicio,
+                        $actorUserId,
+                        'Devuelto a almacen destino por ' . $actorName . '.'
+                    );
+
+                return;
+            }
+
+            if ($servicio === 'CONTRATO') {
+                $updated = $destinoAccion === 'origen'
+                    ? $this->moveEncargadoRecordAndRegisterEvent(
+                        RecojoContrato::query()->whereKey($id)->first(),
+                        'estados_id',
+                        (int) $estadoAlmacenId,
+                        $servicio,
+                        $actorUserId,
+                        'Devuelto a almacen origen por ' . $actorName . '.'
+                    )
+                    : $this->moveEncargadoRecordAndRegisterEvent(
+                        RecojoContrato::query()->whereKey($id)->first(),
+                        'estados_id',
+                        (int) $estadoRecibidoId,
+                        $servicio,
+                        $actorUserId,
+                        'Devuelto a almacen destino por ' . $actorName . '.'
+                    );
+
+                return;
+            }
+
+            if ($servicio === 'SOLICITUD') {
+                $updated = $destinoAccion === 'origen'
+                    ? $this->moveEncargadoRecordAndRegisterEvent(
+                        SolicitudCliente::query()->whereKey($id)->first(),
+                        'estado_id',
+                        (int) $estadoAlmacenId,
+                        $servicio,
+                        $actorUserId,
+                        'Devuelto a almacen origen por ' . $actorName . '.'
+                    )
+                    : $this->moveEncargadoRecordAndRegisterEvent(
+                        SolicitudCliente::query()->whereKey($id)->first(),
+                        'estado_id',
+                        (int) $estadoRecibidoId,
+                        $servicio,
+                        $actorUserId,
+                        'Devuelto a almacen destino por ' . $actorName . '.'
+                    );
+
+                return;
+            }
+
+            if ($servicio === 'CERTI') {
+                $updated = $this->moveEncargadoRecordAndRegisterEvent(
+                    PaqueteCerti::query()->whereKey($id)->first(),
+                    'fk_estado',
+                    (int) $estadoVentanillaId,
+                    $servicio,
+                    $actorUserId,
+                    'Envio devuelto a ventanilla por ' . $actorName . '.'
+                );
+
+                return;
+            }
+
+            if ($servicio === 'ORDI') {
+                $updated = $this->moveEncargadoRecordAndRegisterEvent(
+                    PaqueteOrdi::query()->whereKey($id)->first(),
+                    'fk_estado',
+                    (int) $estadoVentanillaId,
+                    $servicio,
+                    $actorUserId,
+                    'Envio devuelto a ventanilla por ' . $actorName . '.'
+                );
+            }
+        });
+
+        return redirect()
+            ->route('paquetes-ems.encargado', array_filter([
+                'servicio' => $request->input('current_servicio'),
+                'q' => $request->input('q'),
+                'from' => $request->input('from'),
+                'to' => $request->input('to'),
+                'page' => $request->input('page'),
+            ]))
+            ->with(
+                $updated > 0 ? 'success' : 'error',
+                $updated > 0
+                    ? $this->successMessageForDevolucion($servicio, $destinoAccion)
+                    : 'No se pudo devolver el envio seleccionado.'
+            );
+    }
+
+    public function actualizarPesoEncargado(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.encargado.updateweight',
+        ]);
+
+        $data = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+            'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
+            'peso' => ['required', 'numeric', 'min:0'],
+            'q' => ['nullable', 'string'],
+            'from' => ['nullable', 'string'],
+            'to' => ['nullable', 'string'],
+        ], [], [
+            'id' => 'registro',
+            'servicio' => 'servicio',
+            'peso' => 'peso',
+        ]);
+
+        $id = (int) $data['id'];
+        $servicio = mb_strtoupper(trim((string) $data['servicio']));
+        $peso = (float) $data['peso'];
+        $actorUserId = (int) optional($request->user())->id;
+        $updated = 0;
+
+        DB::transaction(function () use ($servicio, $id, $peso, $actorUserId, &$updated) {
+            $updated = match ($servicio) {
+                'EMS' => $this->updateEncargadoPesoAndRegisterEvent(
+                    PaqueteEms::query()->whereKey($id)->first(),
+                    $peso,
+                    $servicio,
+                    $actorUserId
+                ),
+                'CONTRATO' => $this->updateEncargadoPesoAndRegisterEvent(
+                    RecojoContrato::query()->whereKey($id)->first(),
+                    $peso,
+                    $servicio,
+                    $actorUserId
+                ),
+                'CERTI' => $this->updateEncargadoPesoAndRegisterEvent(
+                    PaqueteCerti::query()->whereKey($id)->first(),
+                    $peso,
+                    $servicio,
+                    $actorUserId
+                ),
+                'ORDI' => $this->updateEncargadoPesoAndRegisterEvent(
+                    PaqueteOrdi::query()->whereKey($id)->first(),
+                    $peso,
+                    $servicio,
+                    $actorUserId
+                ),
+                'SOLICITUD' => $this->updateEncargadoPesoAndRegisterEvent(
+                    SolicitudCliente::query()->whereKey($id)->first(),
+                    $peso,
+                    $servicio,
+                    $actorUserId
+                ),
+                default => 0,
+            };
+        });
+
+        return redirect()
+            ->route('paquetes-ems.encargado', array_filter([
+                'servicio' => $request->input('current_servicio'),
+                'q' => $request->input('q'),
+                'from' => $request->input('from'),
+                'to' => $request->input('to'),
+                'page' => $request->input('page'),
+            ]))
+            ->with(
+                $updated > 0 ? 'success' : 'error',
+                $updated > 0
+                    ? 'El peso fue actualizado y se registro su evento.'
+                    : 'No se pudo actualizar el peso del envio seleccionado.'
+            );
     }
 
     public function devolucion()
@@ -1764,6 +2317,163 @@ class PaquetesEmsController extends Controller
         return preg_replace('/\s+/', ' ', $value) ?: '';
     }
 
+    private function findEstadoIdByNombre(string $nombre): int
+    {
+        return (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [mb_strtoupper(trim($nombre))])
+            ->value('id') ?? 0);
+    }
+
+    private function moveEncargadoRecordAndRegisterEvent(
+        $record,
+        string $stateColumn,
+        int $targetState,
+        string $servicio,
+        int $userId,
+        int|string $eventReference
+    ): int {
+        if (!$record) {
+            return 0;
+        }
+
+        $record->{$stateColumn} = $targetState;
+        $record->updated_at = now();
+        $saved = $record->save();
+
+        if (!$saved) {
+            return 0;
+        }
+
+        $this->registerEncargadoEvent($servicio, $record, $userId, $eventReference);
+
+        return 1;
+    }
+
+    private function registerEncargadoEvent(string $servicio, $record, int $userId, int|string $eventReference): void
+    {
+        if ($userId <= 0 || !$record) {
+            return;
+        }
+
+        $codigo = $this->resolveCodigoForEncargadoRecord($servicio, $record);
+        if ($codigo === '') {
+            return;
+        }
+
+        $eventoId = is_int($eventReference)
+            ? $eventReference
+            : $this->resolveEventIdByName($eventReference);
+
+        if ($eventoId <= 0) {
+            return;
+        }
+
+        $table = $this->resolveEventTableForEncargadoService($servicio);
+        $payload = [
+            'codigo' => $codigo,
+            'evento_id' => $eventoId,
+            'user_id' => $userId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
+        if ($table === 'eventos_tiktoker') {
+            $payload['cliente_id'] = null;
+        }
+
+        DB::table($table)->insert($payload);
+    }
+
+    private function resolveCodigoForEncargadoRecord(string $servicio, $record): string
+    {
+        if ($servicio === 'SOLICITUD') {
+            return trim((string) ($record->codigo_solicitud ?? $record->barcode ?? ''));
+        }
+
+        return trim((string) ($record->codigo ?? ''));
+    }
+
+    private function resolveEventTableForEncargadoService(string $servicio): string
+    {
+        return match ($servicio) {
+            'EMS' => 'eventos_ems',
+            'CONTRATO' => 'eventos_contrato',
+            'CERTI' => 'eventos_certi',
+            'ORDI' => 'eventos_ordi',
+            'SOLICITUD' => 'eventos_tiktoker',
+            default => 'eventos_ems',
+        };
+    }
+
+    private function resolveEventIdByName(string $nombreEvento): int
+    {
+        $nombreEvento = trim($nombreEvento);
+
+        if ($nombreEvento === '') {
+            return 0;
+        }
+
+        $existingId = (int) (DB::table('eventos')
+            ->whereRaw('trim(upper(nombre_evento)) = ?', [mb_strtoupper($nombreEvento)])
+            ->value('id') ?? 0);
+
+        if ($existingId > 0) {
+            return $existingId;
+        }
+
+        return (int) DB::table('eventos')->insertGetId([
+            'nombre_evento' => $nombreEvento,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function resolveActorDisplayName(Request $request): string
+    {
+        $name = trim((string) optional($request->user())->name);
+
+        return $name !== '' ? $name : 'USUARIO DEL SISTEMA';
+    }
+
+    private function successMessageForDevolucion(string $servicio, string $destinoAccion): string
+    {
+        if (in_array($servicio, ['CERTI', 'ORDI'], true)) {
+            return 'El envio fue devuelto a VENTANILLA y se registro su evento.';
+        }
+
+        return match ($destinoAccion) {
+            'origen' => 'El envio fue devuelto a ALMACEN de origen y se registro su evento.',
+            'destino' => 'El envio fue devuelto a ALMACEN de destino en estado RECIBIDO y se registro su evento.',
+            default => 'El envio fue actualizado y se registro su evento.',
+        };
+    }
+
+    private function updateEncargadoPesoAndRegisterEvent($record, float $peso, string $servicio, int $userId): int
+    {
+        if (!$record) {
+            return 0;
+        }
+
+        $record->peso = $peso;
+        $record->updated_at = now();
+        $saved = $record->save();
+
+        if (!$saved) {
+            return 0;
+        }
+
+        $this->registerEncargadoEvent(
+            $servicio,
+            $record,
+            $userId,
+            $servicio === 'SOLICITUD'
+                ? 'Peso de solicitud actualizado desde encargado.'
+                : 'Peso de envio actualizado desde encargado.'
+        );
+
+        return 1;
+    }
+
     private function registrarEventosTiktoker(iterable $solicitudes, int $userId, int $eventoId): void
     {
         if ($userId <= 0 || $eventoId <= 0) {
@@ -1812,6 +2522,11 @@ class PaquetesEmsController extends Controller
         }
 
         abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
+    }
+
+    private function userCan($user, string $permission): bool
+    {
+        return (bool) ($user && method_exists($user, 'can') && $user->can($permission));
     }
 
     private function nextCorrelativoEmpresa(int $empresaId, string $codigoCliente): int

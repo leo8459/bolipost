@@ -2,30 +2,60 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\BitacoraDepartamentoExport;
 use App\Models\Bitacora;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\User;
+use App\Services\BitacoraFacturaQrService;
 use App\Support\BitacoraCn33Service;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BitacoraController extends Controller
 {
     public function __construct(
-        private readonly BitacoraCn33Service $cn33Service
+        private readonly BitacoraCn33Service $cn33Service,
+        private readonly BitacoraFacturaQrService $facturaQrService
     ) {
     }
 
     public function index(Request $request): View
+    {
+        return view('bitacoras.index', $this->buildIndexData($request));
+    }
+
+    public function exportExcel(Request $request)
+    {
+        $data = $this->buildIndexData($request, false);
+        $filename = 'reporte-bitacoras-departamentos-' . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(new BitacoraDepartamentoExport($this->buildDepartmentReportPayload($data)), $filename);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $data = $this->buildIndexData($request, false);
+        $payload = $this->buildDepartmentReportPayload($data);
+        $pdf = Pdf::loadView('bitacoras.report-departamentos-pdf', $payload)->setPaper('A4', 'landscape');
+
+        return $pdf->download('reporte-bitacoras-departamentos-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    private function buildIndexData(Request $request, bool $paginate = true): array
     {
         $regionalScope = $this->resolveRegionalScopeForUser(Auth::user());
         $q = trim((string) $request->query('q', ''));
@@ -48,20 +78,22 @@ class BitacoraController extends Controller
             ->whereNotNull('peso')
             ->groupBy(DB::raw('trim(upper(cod_especial))'));
 
-        $bitacoras = Bitacora::query()
+        $bitacorasQuery = Bitacora::query()
             ->with([
                 'user:id,name',
-                'paqueteEms:id,codigo,cod_especial,origen',
-                'paqueteContrato:id,codigo,cod_especial,origen',
+                'paqueteEms:id,codigo,cod_especial,origen,ciudad',
+                'paqueteContrato:id,codigo,cod_especial,origen,destino',
                 'paqueteOrdi:id,codigo,cod_especial',
                 'paqueteCerti:id,codigo,cod_especial',
             ])
             ->whereIn('id', $latestIdsQuery)
-            ->orderByDesc('id')
-            ->paginate(15)
-            ->withQueryString();
+            ->orderByDesc('id');
 
-        $codEspecialesPagina = $bitacoras->getCollection()
+        $bitacoras = $paginate
+            ? $bitacorasQuery->paginate(15)->withQueryString()
+            : $bitacorasQuery->get();
+
+        $codEspecialesPagina = collect($bitacoras instanceof \Illuminate\Contracts\Pagination\Paginator ? $bitacoras->getCollection() : $bitacoras)
             ->pluck('cod_especial')
             ->map(fn ($codigo) => strtoupper(trim((string) $codigo)))
             ->filter()
@@ -71,8 +103,8 @@ class BitacoraController extends Controller
         $detallesPorCodEspecial = Bitacora::query()
             ->with([
                 'user:id,name',
-                'paqueteEms:id,codigo,cod_especial,origen',
-                'paqueteContrato:id,codigo,cod_especial,origen',
+                'paqueteEms:id,codigo,cod_especial,origen,ciudad',
+                'paqueteContrato:id,codigo,cod_especial,origen,destino',
                 'paqueteOrdi:id,codigo,cod_especial',
                 'paqueteCerti:id,codigo,cod_especial',
             ])
@@ -100,8 +132,45 @@ class BitacoraController extends Controller
             ->pluck('provincia');
 
         $pendingCn33Alert = $this->cn33Service->getPendingRegistrationAlert(regional: $regionalScope);
+        $reportRows = $this->buildDepartmentReportRows($latestIdsQuery);
+        $reportByOrigin = $reportRows
+            ->groupBy('origen_departamento')
+            ->map(function ($rows, $origin) {
+                return (object) [
+                    'departamento' => $origin,
+                    'total_registros' => (int) $rows->sum('total_registros'),
+                    'total_precio' => round((float) $rows->sum('total_precio'), 2),
+                    'total_peso' => round((float) $rows->sum('total_peso'), 3),
+                ];
+            })
+            ->sortByDesc('total_precio')
+            ->values();
 
-        return view('bitacoras.index', compact(
+        $reportByDestination = $reportRows
+            ->groupBy('destino_departamento')
+            ->map(function ($rows, $destination) {
+                return (object) [
+                    'departamento' => $destination,
+                    'total_registros' => (int) $rows->sum('total_registros'),
+                    'total_precio' => round((float) $rows->sum('total_precio'), 2),
+                    'total_peso' => round((float) $rows->sum('total_peso'), 3),
+                ];
+            })
+            ->sortByDesc('total_precio')
+            ->values();
+
+        $reportByTransportadora = $this->buildTransportadoraRankingRows($latestIdsQuery);
+
+        $reportTotals = [
+            'total_registros' => (int) $reportRows->sum('total_registros'),
+            'total_precio' => round((float) $reportRows->sum('total_precio'), 2),
+            'total_peso' => round((float) $reportRows->sum('total_peso'), 3),
+            'origenes' => $reportByOrigin->count(),
+            'destinos' => $reportByDestination->count(),
+            'transportadoras' => $reportByTransportadora->count(),
+        ];
+
+        return compact(
             'bitacoras',
             'detallesPorCodEspecial',
             'users',
@@ -114,8 +183,72 @@ class BitacoraController extends Controller
             'provincia',
             'regional',
             'origenCn33',
-            'pendingCn33Alert'
-        ));
+            'pendingCn33Alert',
+            'reportRows',
+            'reportByOrigin',
+            'reportByDestination',
+            'reportByTransportadora',
+            'reportTotals'
+        );
+    }
+
+    private function buildDepartmentReportRows($latestIdsQuery)
+    {
+        return Bitacora::query()
+            ->from('bitacoras as b')
+            ->leftJoin('paquetes_ems as pe', 'pe.id', '=', 'b.paquetes_ems_id')
+            ->leftJoin('paquetes_contrato as pc', 'pc.id', '=', 'b.paquetes_contrato_id')
+            ->whereIn('b.id', $latestIdsQuery)
+            ->selectRaw("
+                COALESCE(NULLIF(trim(upper(COALESCE(pe.origen, pc.origen, ''))), ''), 'SIN ORIGEN') as origen_departamento,
+                COALESCE(NULLIF(trim(upper(COALESCE(pe.ciudad, pc.destino, ''))), ''), 'SIN DESTINO') as destino_departamento,
+                COUNT(*) as total_registros,
+                COALESCE(SUM(b.precio_total), 0) as total_precio,
+                COALESCE(SUM(b.peso), 0) as total_peso
+            ")
+            ->groupByRaw("
+                COALESCE(NULLIF(trim(upper(COALESCE(pe.origen, pc.origen, ''))), ''), 'SIN ORIGEN'),
+                COALESCE(NULLIF(trim(upper(COALESCE(pe.ciudad, pc.destino, ''))), ''), 'SIN DESTINO')
+            ")
+            ->orderByDesc('total_precio')
+            ->get();
+    }
+
+    private function buildDepartmentReportPayload(array $data): array
+    {
+        return [
+            'generatedAt' => now(),
+            'filters' => [
+                'q' => (string) ($data['q'] ?? ''),
+                'regional' => (string) ($data['regional'] ?? ''),
+                'user' => optional(collect($data['users'] ?? [])->firstWhere('id', (int) ($data['userId'] ?? 0)))->name,
+                'codEspecial' => (string) ($data['codEspecial'] ?? ''),
+                'provincia' => (string) ($data['provincia'] ?? ''),
+                'origenCn33' => (string) ($data['origenCn33'] ?? ''),
+            ],
+            'reportRows' => $data['reportRows'] ?? collect(),
+            'reportByOrigin' => $data['reportByOrigin'] ?? collect(),
+            'reportByDestination' => $data['reportByDestination'] ?? collect(),
+            'reportByTransportadora' => $data['reportByTransportadora'] ?? collect(),
+            'reportTotals' => $data['reportTotals'] ?? [],
+        ];
+    }
+
+    private function buildTransportadoraRankingRows($latestIdsQuery)
+    {
+        return Bitacora::query()
+            ->from('bitacoras as b')
+            ->whereIn('b.id', $latestIdsQuery)
+            ->selectRaw("
+                COALESCE(NULLIF(trim(upper(COALESCE(b.transportadora, ''))), ''), 'SIN TRANSPORTADORA') as transportadora,
+                COUNT(*) as total_registros,
+                COALESCE(SUM(b.precio_total), 0) as total_precio,
+                COALESCE(SUM(b.peso), 0) as total_peso
+            ")
+            ->groupByRaw("COALESCE(NULLIF(trim(upper(COALESCE(b.transportadora, ''))), ''), 'SIN TRANSPORTADORA')")
+            ->orderByDesc('total_registros')
+            ->orderByDesc('total_precio')
+            ->get();
     }
 
     private function applyBitacoraFilters($query, string $q, int $userId, string $codEspecial, string $provincia, string $regional, string $origenCn33): void
@@ -204,6 +337,92 @@ class BitacoraController extends Controller
         $summary = $this->cn33Service->getDispatchSummary($codEspecial, $regionalScope);
 
         return response()->json($summary);
+    }
+
+    public function extractFacturaQr(Request $request): JsonResponse
+    {
+        @set_time_limit(120);
+
+        $request->validate([
+            'imagen_factura' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
+        ]);
+
+        $file = $request->file('imagen_factura');
+        $startedAt = microtime(true);
+
+        Log::info('Bitacora QR: solicitud recibida.', [
+            'file' => $file?->getClientOriginalName(),
+            'mime' => $file?->getMimeType(),
+            'size' => $file?->getSize(),
+            'user_id' => $request->user()?->id,
+        ]);
+
+        $result = $this->facturaQrService->extractFromUploadedFile($file);
+
+        Log::info('Bitacora QR: solicitud finalizada.', [
+            'success' => (bool) ($result['success'] ?? false),
+            'message' => $result['message'] ?? null,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
+
+        if (!($result['success'] ?? false)) {
+            return response()->json($result, 422);
+        }
+
+        return $this->facturaQrJsonResponse($result);
+    }
+
+    public function extractFacturaQrText(Request $request): JsonResponse
+    {
+        $request->validate([
+            'qr_text' => ['required', 'string', 'max:4096'],
+        ]);
+
+        $startedAt = microtime(true);
+        $qrText = (string) $request->input('qr_text');
+
+        Log::info('Bitacora QR: texto recibido desde camara.', [
+            'user_id' => $request->user()?->id,
+            'qr_preview' => \Illuminate\Support\Str::limit($qrText, 160),
+        ]);
+
+        $result = $this->facturaQrService->extractFromQrText($qrText);
+
+        Log::info('Bitacora QR: texto de camara procesado.', [
+            'success' => (bool) ($result['success'] ?? false),
+            'message' => $result['message'] ?? null,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
+
+        if (!($result['success'] ?? false)) {
+            return response()->json($result, 422);
+        }
+
+        return $this->facturaQrJsonResponse($result);
+    }
+
+    private function facturaQrJsonResponse(array $result): JsonResponse
+    {
+        $invoiceData = $result['invoice_data'] ?? [];
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'] ?? 'QR procesado correctamente.',
+            'data' => [
+                'qr_url' => $result['qr_url'] ?? null,
+                'qr_texto' => $result['qr_text'] ?? null,
+                'factura' => $invoiceData['numero_factura'] ?? null,
+                'precio_total' => $invoiceData['monto_total'] ?? null,
+                'factura_fecha_emision' => $invoiceData['fecha_emision'] ?? null,
+                'factura_nit_emisor' => $invoiceData['nit_emisor'] ?? null,
+                'factura_cuf' => $invoiceData['cuf'] ?? null,
+                'factura_razon_social' => $invoiceData['razon_social_emisor'] ?? null,
+                'factura_cliente' => $invoiceData['nombre_cliente'] ?? null,
+                'factura_direccion' => $invoiceData['direccion_emisor'] ?? null,
+                'qr_datos' => $invoiceData,
+                'verificado' => (bool) ($invoiceData['verified'] ?? false),
+            ],
+        ]);
     }
 
     private function resolveRegionalScopeForUser($user): ?string
@@ -336,16 +555,25 @@ class BitacoraController extends Controller
 
         $data['cod_especial'] = $codEspecial;
         $data['user_id'] = (int) Auth::id();
-        $data['transportadora'] = $this->emptyToNull($data['transportadora'] ?? null);
+        $data['transportadora'] = $this->normalizeUpperOrNull($data['transportadora'] ?? null);
         $data['provincia'] = $this->normalizeUpperOrNull($data['provincia'] ?? null);
         $data['factura'] = $this->emptyToNull($data['factura'] ?? null);
         $data['precio_total'] = $data['precio_total'] ?? ($totales['precio_total'] > 0 ? $totales['precio_total'] : null);
         $data['peso'] = $data['peso'] ?? $totales['peso'];
+        $data['qr_url'] = null;
+        $data['qr_texto'] = null;
+        $data['qr_datos'] = null;
+        $data['factura_fecha_emision'] = null;
+        $data['factura_nit_emisor'] = null;
+        $data['factura_cuf'] = null;
+        $data['factura_razon_social'] = null;
+        $data['factura_cliente'] = null;
+        $data['factura_direccion'] = null;
+        $data['imagen_factura'] = null;
 
         if ($request->hasFile('imagen_factura')) {
-            $data['imagen_factura'] = $request->file('imagen_factura')->store('bitacoras/facturas', 'public');
-        } else {
-            $data['imagen_factura'] = null;
+            $data = $this->mergeQrFacturaData($data, $request->file('imagen_factura'));
+            $data['imagen_factura'] = $this->storeOptimizedFacturaFile($request->file('imagen_factura'));
         }
 
         return $data;
@@ -434,6 +662,15 @@ class BitacoraController extends Controller
                     'factura' => $payload['factura'],
                     'precio_total' => $index === $lastIndex ? $payload['precio_total'] : null,
                     'peso' => $index === $lastIndex ? $payload['peso'] : null,
+                    'qr_url' => $payload['qr_url'] ?? null,
+                    'qr_texto' => $payload['qr_texto'] ?? null,
+                    'qr_datos' => $payload['qr_datos'] ?? null,
+                    'factura_fecha_emision' => $payload['factura_fecha_emision'] ?? null,
+                    'factura_nit_emisor' => $payload['factura_nit_emisor'] ?? null,
+                    'factura_cuf' => $payload['factura_cuf'] ?? null,
+                    'factura_razon_social' => $payload['factura_razon_social'] ?? null,
+                    'factura_cliente' => $payload['factura_cliente'] ?? null,
+                    'factura_direccion' => $payload['factura_direccion'] ?? null,
                 ];
 
                 if (!empty($payload['imagen_factura'])) {
@@ -453,11 +690,25 @@ class BitacoraController extends Controller
         $data = $request->validate(
             [
                 'factura' => ['nullable', 'string', 'max:255'],
+                'qr_url' => ['nullable', 'url', 'max:2048'],
+                'factura_fecha_emision' => ['nullable', 'date'],
+                'factura_nit_emisor' => ['nullable', 'string', 'max:50'],
+                'factura_cuf' => ['nullable', 'string', 'max:255'],
+                'factura_razon_social' => ['nullable', 'string', 'max:255'],
+                'factura_cliente' => ['nullable', 'string', 'max:255'],
+                'factura_direccion' => ['nullable', 'string', 'max:255'],
                 'imagen_factura' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             ],
             [],
             [
                 'factura' => 'factura',
+                'qr_url' => 'url del QR',
+                'factura_fecha_emision' => 'fecha de emision',
+                'factura_nit_emisor' => 'NIT emisor',
+                'factura_cuf' => 'CUF',
+                'factura_razon_social' => 'razon social',
+                'factura_cliente' => 'cliente de factura',
+                'factura_direccion' => 'direccion de factura',
                 'imagen_factura' => 'imagen de factura',
             ]
         );
@@ -469,12 +720,36 @@ class BitacoraController extends Controller
             $updates['factura'] = $factura;
         }
 
+        foreach ([
+            'qr_url',
+            'factura_nit_emisor',
+            'factura_cuf',
+            'factura_razon_social',
+            'factura_cliente',
+            'factura_direccion',
+        ] as $field) {
+            $incoming = $this->emptyToNull($data[$field] ?? null);
+            $current = $this->emptyToNull($bitacora->{$field});
+
+            if ($incoming !== $current) {
+                $updates[$field] = $incoming;
+            }
+        }
+
+        $facturaFecha = $this->normalizeDateTimeOrNull($data['factura_fecha_emision'] ?? null);
+        $facturaFechaActual = $this->normalizeDateTimeOrNull($bitacora->factura_fecha_emision?->format('Y-m-d H:i:s'));
+        if ($facturaFecha !== $facturaFechaActual) {
+            $updates['factura_fecha_emision'] = $facturaFecha;
+        }
+
         if ($request->hasFile('imagen_factura')) {
+            $updates = $this->mergeQrFacturaData($updates, $request->file('imagen_factura'));
+
             if (!empty($bitacora->imagen_factura) && Storage::disk('public')->exists($bitacora->imagen_factura)) {
                 Storage::disk('public')->delete($bitacora->imagen_factura);
             }
 
-            $updates['imagen_factura'] = $request->file('imagen_factura')->store('bitacoras/facturas', 'public');
+            $updates['imagen_factura'] = $this->storeOptimizedFacturaFile($request->file('imagen_factura'));
         }
 
         return $updates;
@@ -529,5 +804,194 @@ class BitacoraController extends Controller
         $text = trim((string) $value);
 
         return $text === '' ? null : strtoupper($text);
+    }
+
+    private function normalizeDateTimeOrNull(mixed $value): ?string
+    {
+        $text = trim((string) $value);
+        if ($text === '') {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($text)->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function mergeQrFacturaData(array $data, UploadedFile $file): array
+    {
+        $result = $this->facturaQrService->extractFromUploadedFile($file);
+        if (!($result['success'] ?? false)) {
+            return $data;
+        }
+
+        $invoiceData = $result['invoice_data'] ?? [];
+
+        $data['qr_url'] = $result['qr_url'] ?? ($data['qr_url'] ?? null);
+        $data['qr_texto'] = $result['qr_text'] ?? ($data['qr_texto'] ?? null);
+        $data['qr_datos'] = $invoiceData;
+        $data['factura'] = $data['factura'] ?? ($invoiceData['numero_factura'] ?? null);
+        $data['precio_total'] = $data['precio_total'] ?? ($invoiceData['monto_total'] ?? null);
+        $data['factura_fecha_emision'] = $data['factura_fecha_emision'] ?? $this->normalizeDateTimeOrNull($invoiceData['fecha_emision'] ?? null);
+        $data['factura_nit_emisor'] = $data['factura_nit_emisor'] ?? ($invoiceData['nit_emisor'] ?? null);
+        $data['factura_cuf'] = $data['factura_cuf'] ?? ($invoiceData['cuf'] ?? null);
+        $data['factura_razon_social'] = $data['factura_razon_social'] ?? ($invoiceData['razon_social_emisor'] ?? null);
+        $data['factura_cliente'] = $data['factura_cliente'] ?? ($invoiceData['nombre_cliente'] ?? null);
+        $data['factura_direccion'] = $data['factura_direccion'] ?? ($invoiceData['direccion_emisor'] ?? null);
+
+        return $data;
+    }
+
+    private function storeOptimizedFacturaFile(UploadedFile $file): string
+    {
+        if (!$this->canOptimizeFacturaImage($file)) {
+            return $file->store('bitacoras/facturas', 'public');
+        }
+
+        $optimized = $this->buildOptimizedFacturaImageBinary($file);
+        if ($optimized === null) {
+            return $file->store('bitacoras/facturas', 'public');
+        }
+
+        $relativePath = 'bitacoras/facturas/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $optimized['extension'];
+        Storage::disk('public')->put($relativePath, $optimized['binary']);
+
+        return $relativePath;
+    }
+
+    private function canOptimizeFacturaImage(UploadedFile $file): bool
+    {
+        $mime = strtolower((string) $file->getMimeType());
+
+        return str_starts_with($mime, 'image/') && function_exists('imagecreatefromstring');
+    }
+
+    private function buildOptimizedFacturaImageBinary(UploadedFile $file): ?array
+    {
+        try {
+            $binary = $file->get();
+            if ($binary === false || $binary === '') {
+                return null;
+            }
+
+            $source = @imagecreatefromstring($binary);
+            if ($source === false) {
+                return null;
+            }
+
+            $imageInfo = @getimagesizefromstring($binary) ?: [];
+            $sourceWidth = (int) ($imageInfo[0] ?? imagesx($source));
+            $sourceHeight = (int) ($imageInfo[1] ?? imagesy($source));
+            if ($sourceWidth <= 0 || $sourceHeight <= 0) {
+                imagedestroy($source);
+
+                return null;
+            }
+
+            [$targetWidth, $targetHeight] = $this->resolveFacturaImageDimensions($sourceWidth, $sourceHeight, 1600);
+            $canvas = imagecreatetruecolor($targetWidth, $targetHeight);
+            $background = imagecolorallocate($canvas, 255, 255, 255);
+            imagefill($canvas, 0, 0, $background);
+            imagecopyresampled($canvas, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
+
+            imagedestroy($source);
+
+            $originalSize = (int) $file->getSize();
+            $candidates = [];
+
+            if (function_exists('imagewebp')) {
+                foreach ([78, 70, 62, 55, 48, 40] as $quality) {
+                    $candidateBinary = $this->encodeGdImage($canvas, 'webp', $quality);
+                    if ($candidateBinary === null) {
+                        continue;
+                    }
+
+                    $candidates[] = [
+                        'binary' => $candidateBinary,
+                        'extension' => 'webp',
+                    ];
+
+                    if (strlen($candidateBinary) < $originalSize) {
+                        imagedestroy($canvas);
+
+                        return [
+                            'binary' => $candidateBinary,
+                            'extension' => 'webp',
+                        ];
+                    }
+                }
+            }
+
+            foreach ([82, 74, 66, 58, 50, 42] as $quality) {
+                $candidateBinary = $this->encodeGdImage($canvas, 'jpeg', $quality);
+                if ($candidateBinary === null) {
+                    continue;
+                }
+
+                $candidates[] = [
+                    'binary' => $candidateBinary,
+                    'extension' => 'jpg',
+                ];
+
+                if (strlen($candidateBinary) < $originalSize) {
+                    imagedestroy($canvas);
+
+                    return [
+                        'binary' => $candidateBinary,
+                        'extension' => 'jpg',
+                    ];
+                }
+            }
+
+            imagedestroy($canvas);
+
+            if ($candidates === []) {
+                return null;
+            }
+
+            usort($candidates, fn (array $a, array $b) => strlen($a['binary']) <=> strlen($b['binary']));
+
+            return $candidates[0];
+        } catch (\Throwable $e) {
+            Log::warning('Bitacora factura: no se pudo optimizar la imagen subida.', [
+                'file' => $file->getClientOriginalName(),
+                'mime' => $file->getMimeType(),
+                'message' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function resolveFacturaImageDimensions(int $width, int $height, int $maxSide): array
+    {
+        if ($width <= $maxSide && $height <= $maxSide) {
+            return [$width, $height];
+        }
+
+        $scale = min($maxSide / $width, $maxSide / $height);
+
+        return [
+            max(1, (int) round($width * $scale)),
+            max(1, (int) round($height * $scale)),
+        ];
+    }
+
+    private function encodeGdImage($image, string $format, int $quality): ?string
+    {
+        ob_start();
+        $success = match ($format) {
+            'webp' => imagewebp($image, null, $quality),
+            default => imagejpeg($image, null, $quality),
+        };
+        $binary = ob_get_clean();
+
+        if (!$success || !is_string($binary) || $binary === '') {
+            return null;
+        }
+
+        return $binary;
     }
 }

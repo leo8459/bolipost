@@ -420,6 +420,12 @@ return [
                     'can' => 'feature.dashboard.facturacion',
                 ],
                 [
+                    'text' => 'Ventas sucursal',
+                    'url' => '/ventas-sucursal',
+                    'icon' => 'fas fa-store',
+                    'can' => 'ventas-sucursal.index',
+                ],
+                [
                     'text' => 'Reporte General',
                     'url' => '/reportes/general',
                     'icon' => 'fas fa-layer-group',
@@ -573,6 +579,12 @@ return [
                     'text' => 'ALMACEN EMS',
                     'url' => 'paquetes-ems/almacen',
                     'icon' => 'fas fa-warehouse',
+                ],
+                [
+                    'text' => 'Encargado',
+                    'url' => 'paquetes-ems/encargado',
+                    'icon' => 'fas fa-user-tie',
+                    'can' => 'paquetes-ems.encargado',
                 ],
                 [
                     'text' => 'VENTANILLA EMS',
@@ -1005,6 +1017,11 @@ return [
                             'text' => 'Servicios Extras',
                             'url' => 'servicio-extras',
                             'icon' => 'fas fa-plus-square',
+                        ],
+                        [
+                            'text' => 'Conceptos Facturables',
+                            'url' => 'conceptos-facturacion',
+                            'icon' => 'fas fa-file-invoice',
                         ],
                         [
                             'text' => 'Origenes',

@@ -9,6 +9,7 @@ use App\Http\Controllers\RoleHasPermissionController;
 use App\Http\Controllers\PlantillaController;
 use App\Http\Controllers\PaquetesEmsController;
 use App\Http\Controllers\PaquetesEmsBoletaController;
+use App\Http\Controllers\ConceptoFacturacionController;
 use App\Http\Controllers\ServicioController;
 use App\Http\Controllers\DestinoController;
 use App\Http\Controllers\PesoController;
@@ -126,6 +127,8 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
     Route::post('/facturacion/cart/caja/cerrar', [FacturacionCartController::class, 'cerrarCaja'])->name('facturacion.cart.caja.cerrar');
     Route::post('/facturacion/cart/consultar', [FacturacionCartController::class, 'consultar'])->name('facturacion.cart.consultar');
     Route::post('/facturacion/cart/emitir', [FacturacionCartController::class, 'emitir'])->name('facturacion.cart.emitir');
+    Route::post('/facturacion/cart/scan-add', [FacturacionCartController::class, 'scanAdd'])->name('facturacion.cart.scan-add');
+    Route::post('/facturacion/cart/conceptos', [FacturacionCartController::class, 'addConcepto'])->name('facturacion.cart.conceptos.store');
     Route::post('/facturacion/cart/clear', [FacturacionCartController::class, 'clear'])->name('facturacion.cart.clear');
     Route::delete('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'removeItem'])->name('facturacion.cart.items.destroy');
   });
@@ -133,6 +136,9 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard');
+Route::get('/inicio', [DashboardController::class, 'welcome'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('home.welcome');
 Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.export.excel');
@@ -199,6 +205,15 @@ Route::get('/mis-ventas', [MisVentasController::class, 'index'])
 Route::get('/mis-ventas/export/pdf', [MisVentasController::class, 'exportPdf'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.export.pdf');
+Route::get('/ventas-sucursal', [MisVentasController::class, 'branchIndex'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('ventas-sucursal.index');
+Route::get('/ventas-sucursal/export/pdf', [MisVentasController::class, 'branchExportPdf'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('ventas-sucursal.export.pdf');
+Route::get('/mis-ventas/{cart}/detail', [MisVentasController::class, 'detail'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('mis-ventas.detail');
 Route::get('/mis-ventas/{cart}/ticket', [MisVentasController::class, 'ticket'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.ticket');
@@ -279,6 +294,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/paquetes-ems/solicitudes/mandar-almacen', [PaquetesEmsController::class, 'sendSolicitudesToAlmacen'])->name('paquetes-ems.solicitudes.send-almacen');
     Route::get('/paquetes-ems/almacen', [PaquetesEmsController::class, 'almacen'])->name('paquetes-ems.almacen');
     Route::get('/paquetes-ems/almacen-admisiones', [PaquetesEmsController::class, 'almacenAdmisiones'])->name('paquetes-ems.almacen-admisiones');
+    Route::get('/paquetes-ems/encargado', [PaquetesEmsController::class, 'encargado'])->name('paquetes-ems.encargado');
+    Route::post('/paquetes-ems/encargado/cancelar-envio', [PaquetesEmsController::class, 'cancelarEnvioEncargado'])->name('paquetes-ems.encargado.cancelar-envio');
+    Route::post('/paquetes-ems/encargado/devolver-envio', [PaquetesEmsController::class, 'devolverEnvioEncargado'])->name('paquetes-ems.encargado.devolver-envio');
+    Route::post('/paquetes-ems/encargado/actualizar-peso', [PaquetesEmsController::class, 'actualizarPesoEncargado'])->name('paquetes-ems.encargado.actualizar-peso');
     Route::get('/paquetes-ems/ventanilla', [PaquetesEmsController::class, 'ventanilla'])->name('paquetes-ems.ventanilla');
     Route::get('/paquetes-ems/devolucion', [PaquetesEmsController::class, 'devolucion'])->name('paquetes-ems.devolucion');
     Route::get('/paquetes-ems/en-transito', [PaquetesEmsController::class, 'enTransito'])->name('paquetes-ems.en-transito');
@@ -305,6 +324,12 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/servicio-extras/{servicioExtra}/edit', [ServicioExtraController::class, 'edit'])->name('servicio-extras.edit');
     Route::put('/servicio-extras/{servicioExtra}', [ServicioExtraController::class, 'update'])->name('servicio-extras.update');
     Route::delete('/servicio-extras/{servicioExtra}', [ServicioExtraController::class, 'destroy'])->name('servicio-extras.destroy');
+    Route::get('/conceptos-facturacion', [ConceptoFacturacionController::class, 'index'])->name('conceptos-facturacion.index');
+    Route::get('/conceptos-facturacion/create', [ConceptoFacturacionController::class, 'create'])->name('conceptos-facturacion.create');
+    Route::post('/conceptos-facturacion', [ConceptoFacturacionController::class, 'store'])->name('conceptos-facturacion.store');
+    Route::get('/conceptos-facturacion/{conceptoFacturacion}/edit', [ConceptoFacturacionController::class, 'edit'])->name('conceptos-facturacion.edit');
+    Route::put('/conceptos-facturacion/{conceptoFacturacion}', [ConceptoFacturacionController::class, 'update'])->name('conceptos-facturacion.update');
+    Route::delete('/conceptos-facturacion/{conceptoFacturacion}', [ConceptoFacturacionController::class, 'destroy'])->name('conceptos-facturacion.destroy');
     Route::get('/sucursales', [SucursalController::class, 'index'])->name('sucursales.index');
     Route::get('/sucursales/create', [SucursalController::class, 'create'])->name('sucursales.create');
     Route::post('/sucursales', [SucursalController::class, 'store'])->name('sucursales.store');
@@ -356,8 +381,12 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::put('/tarifario-tiktoker/{tarifarioTiktoker}', [TarifarioTiktokerController::class, 'update'])->name('tarifario-tiktoker.update');
     Route::delete('/tarifario-tiktoker/{tarifarioTiktoker}', [TarifarioTiktokerController::class, 'destroy'])->name('tarifario-tiktoker.destroy');
     Route::get('/bitacoras', [BitacoraController::class, 'index'])->name('bitacoras.index');
+    Route::get('/bitacoras/export/excel', [BitacoraController::class, 'exportExcel'])->name('bitacoras.export-excel');
+    Route::get('/bitacoras/export/pdf', [BitacoraController::class, 'exportPdf'])->name('bitacoras.export-pdf');
     Route::get('/bitacoras/create', [BitacoraController::class, 'create'])->name('bitacoras.create');
     Route::get('/bitacoras/cn33-summary', [BitacoraController::class, 'cn33Summary'])->name('bitacoras.cn33-summary');
+    Route::post('/bitacoras/extract-factura-qr', [BitacoraController::class, 'extractFacturaQr'])->name('bitacoras.extract-factura-qr');
+    Route::post('/bitacoras/extract-factura-qr-text', [BitacoraController::class, 'extractFacturaQrText'])->name('bitacoras.extract-factura-qr-text');
     Route::post('/bitacoras', [BitacoraController::class, 'store'])->name('bitacoras.store');
     Route::get('/bitacoras/{bitacora}/edit', [BitacoraController::class, 'edit'])->name('bitacoras.edit');
     Route::put('/bitacoras/{bitacora}', [BitacoraController::class, 'update'])->name('bitacoras.update');

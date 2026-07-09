@@ -8,20 +8,6 @@
         background: #fff;
     }
 
-    .bitacora-form-note {
-        background: linear-gradient(135deg, #1b8ea5 0%, #2aa4bb 100%);
-        color: #fff;
-        border: 0;
-        border-radius: 14px;
-        padding: 18px 20px;
-        margin-bottom: 1.25rem;
-        box-shadow: 0 10px 24px rgba(30, 136, 168, 0.16);
-    }
-
-    .bitacora-form-note strong {
-        color: #fff;
-    }
-
     .bitacora-form-shell label {
         font-weight: 800;
         color: #0f172a;
@@ -40,11 +26,6 @@
     .bitacora-form-shell .form-control-file:focus {
         border-color: #20539A;
         box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
-    }
-
-    .bitacora-form-shell .form-control-file {
-        padding: 8px 10px;
-        background: #fff;
     }
 
     .btn-dorado {
@@ -93,44 +74,63 @@
         margin-top: 0.45rem;
         font-size: 0.85rem;
         font-weight: 600;
-    }
-
-    .bitacora-form-helper.is-info {
         color: #20539A;
     }
 
-    .bitacora-form-helper.is-warning {
-        color: #b45309;
+    .text-uppercase-live {
+        text-transform: uppercase;
     }
+
+    .bitacora-photo-card {
+        margin-top: 1rem;
+        padding: 1rem;
+        border: 1px dashed #cbd5e1;
+        border-radius: 14px;
+        background: #f8fbff;
+    }
+
+    .bitacora-photo-preview {
+        display: none;
+        width: 100%;
+        max-width: 340px;
+        max-height: 320px;
+        object-fit: contain;
+        margin-top: 0.9rem;
+        border-radius: 12px;
+        border: 1px solid #d7deea;
+        background: #fff;
+        padding: 0.4rem;
+    }
+
+    .bitacora-photo-preview.is-visible {
+        display: block;
+    }
+
 </style>
 
 <div class="bitacora-form-shell">
         @if (!$editOnlyPhoto)
-            <div class="bitacora-form-note">
+            <div class="alert alert-info">
                 Usuario logueado: <strong>{{ auth()->user()->name ?? 'Usuario del sistema' }}</strong>
                 <br>
-                Escribe el <strong>cod_especial</strong> y el sistema registrara automaticamente una bitacora por cada paquete EMS, contrato y ordinario relacionado.
-                <br>
-                Para <strong>certificados</strong>, puedes ingresar su <strong>cod_especial</strong> o su <strong>codigo</strong> y tambien se registraran en la bitacora.
+                Escribe el <strong>cod_especial</strong> y el sistema registrara automaticamente una bitacora por cada paquete relacionado.
             </div>
 
-            <div class="row">
+            <div class="form-group mb-3">
                 <div class="col-md-12">
-                    <div class="form-group mb-3">
-                        <label for="cod_especial">Cod Especial</label>
-                        <input
-                            type="text"
-                            id="cod_especial"
-                            name="cod_especial"
-                            value="{{ old('cod_especial', $bitacora->cod_especial) }}"
-                            class="form-control @error('cod_especial') is-invalid @enderror"
-                            placeholder="Ej: LPZ00001 o codigo certificado"
-                        >
-                        @error('cod_especial')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                        <small id="cn33-summary-help" class="bitacora-form-helper"></small>
-                    </div>
+                    <label for="cod_especial">Cod Especial</label>
+                    <input
+                        type="text"
+                        id="cod_especial"
+                        name="cod_especial"
+                        value="{{ old('cod_especial', $bitacora->cod_especial) }}"
+                        class="form-control @error('cod_especial') is-invalid @enderror"
+                        placeholder="Ej: LPZ00001 o codigo certificado"
+                    >
+                    @error('cod_especial')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <small id="cn33-summary-help" class="bitacora-form-helper"></small>
                 </div>
             </div>
 
@@ -143,7 +143,8 @@
                             id="transportadora"
                             name="transportadora"
                             value="{{ old('transportadora', $bitacora->transportadora) }}"
-                            class="form-control @error('transportadora') is-invalid @enderror"
+                            class="form-control text-uppercase-live @error('transportadora') is-invalid @enderror"
+                            style="text-transform: uppercase;"
                         >
                         @error('transportadora')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -248,26 +249,46 @@
             </div>
         @endif
 
-        <div class="form-group mb-3">
-            <label for="imagen_factura">Imagen Factura</label>
-            <input
-                type="file"
-                id="imagen_factura"
-                name="imagen_factura"
-                class="form-control-file @error('imagen_factura') is-invalid @enderror"
-                accept=".jpg,.jpeg,.png,.webp,.pdf"
-            >
-            @error('imagen_factura')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-            @enderror
-
-            @if(!empty($bitacora->imagen_factura))
-                <div class="mt-2">
-                    <a href="{{ asset('storage/' . $bitacora->imagen_factura) }}" target="_blank" class="btn btn-sm btn-outline-info">
-                        Ver archivo actual
-                    </a>
-                </div>
-            @endif
+        <div class="bitacora-photo-card">
+            <div class="form-group mb-0">
+                <label for="imagen_factura">Foto o factura</label>
+                <input
+                    type="file"
+                    id="imagen_factura"
+                    name="imagen_factura"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    class="form-control-file @error('imagen_factura') is-invalid @enderror"
+                >
+                @error('imagen_factura')
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                @enderror
+                <small class="bitacora-form-helper">Puedes subir JPG, PNG, WEBP o PDF. Si subes una imagen, el sistema la optimiza para que pese menos antes de guardarla.</small>
+                @php
+                    $existingImageUrl = $bitacora->imagen_factura ? asset('storage/' . $bitacora->imagen_factura) : null;
+                    $existingImageExtension = $bitacora->imagen_factura ? strtolower(pathinfo((string) $bitacora->imagen_factura, PATHINFO_EXTENSION)) : null;
+                    $canPreviewExistingImage = $existingImageUrl && in_array($existingImageExtension, ['jpg', 'jpeg', 'png', 'webp'], true);
+                @endphp
+                @if ($canPreviewExistingImage)
+                    <img
+                        src="{{ $existingImageUrl }}"
+                        alt="Imagen actual de factura"
+                        id="imagen_factura_preview"
+                        class="bitacora-photo-preview is-visible"
+                    >
+                @else
+                    <img
+                        src=""
+                        alt="Previsualizacion de la imagen"
+                        id="imagen_factura_preview"
+                        class="bitacora-photo-preview"
+                    >
+                @endif
+                @if ($existingImageUrl)
+                    <div class="mt-2">
+                        <a href="{{ $existingImageUrl }}" target="_blank" class="btn btn-sm btn-outline-azul">Ver archivo actual</a>
+                    </div>
+                @endif
+            </div>
         </div>
 
     <div class="bitacora-form-footer">
@@ -283,6 +304,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             const codeInput = document.getElementById('cod_especial');
             const weightInput = document.getElementById('peso');
+            const transportadoraInput = document.getElementById('transportadora');
             const helpBox = document.getElementById('cn33-summary-help');
             const endpoint = @json(route('bitacoras.cn33-summary'));
             let debounceTimer = null;
@@ -290,6 +312,27 @@
 
             if (!codeInput || !weightInput || !helpBox) {
                 return;
+            }
+
+            const normalizeUppercaseValue = (input) => {
+                if (!input) {
+                    return;
+                }
+
+                input.value = String(input.value || '').toUpperCase();
+            };
+
+            if (transportadoraInput) {
+                normalizeUppercaseValue(transportadoraInput);
+                transportadoraInput.addEventListener('input', function () {
+                    normalizeUppercaseValue(transportadoraInput);
+                });
+                transportadoraInput.addEventListener('change', function () {
+                    normalizeUppercaseValue(transportadoraInput);
+                });
+                transportadoraInput.addEventListener('blur', function () {
+                    normalizeUppercaseValue(transportadoraInput);
+                });
             }
 
             const setHelp = (message, type = '') => {
@@ -353,3 +396,31 @@
         });
     </script>
 @endif
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const imageInput = document.getElementById('imagen_factura');
+        const imagePreview = document.getElementById('imagen_factura_preview');
+
+        if (!imageInput || !imagePreview) {
+            return;
+        }
+
+        imageInput.addEventListener('change', function (event) {
+            const file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
+            if (!file) {
+                return;
+            }
+
+            if ((file.type || '').toLowerCase() === 'application/pdf') {
+                imagePreview.removeAttribute('src');
+                imagePreview.classList.remove('is-visible');
+                return;
+            }
+
+            const objectUrl = URL.createObjectURL(file);
+            imagePreview.src = objectUrl;
+            imagePreview.classList.add('is-visible');
+        });
+    });
+</script>

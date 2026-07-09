@@ -2096,6 +2096,7 @@ class CarterosController extends Controller
             ->select([
                 'id',
                 'codigo',
+                'cod_especial',
                 'destinatario',
                 'telefono',
                 'cuidad as ciudad',
@@ -2106,7 +2107,10 @@ class CarterosController extends Controller
                 'updated_at',
             ])
             ->when($codigo !== '', function ($query) use ($codigo) {
-                $query->whereRaw('LOWER(codigo) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
+                $query->where(function ($sub) use ($codigo) {
+                    $sub->whereRaw('LOWER(codigo) LIKE ?', ['%' . mb_strtolower($codigo) . '%'])
+                        ->orWhereRaw('LOWER(COALESCE(cod_especial, \'\')) LIKE ?', ['%' . mb_strtolower($codigo) . '%']);
+                });
             })
             ->when($estadoId !== null || $userId !== null, function ($query) use ($certiFilterIds, $estadoId, $userId, $includePackageStateMatches, $deliveryEventCodes) {
                 if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
@@ -2128,6 +2132,7 @@ class CarterosController extends Controller
                     'id' => $item->id,
                     'tipo_paquete' => 'CERTI',
                     'codigo' => $item->codigo,
+                    'codigo_aux' => (string) ($item->cod_especial ?? ''),
                     'origen' => null,
                     'destinatario' => $item->destinatario,
                     'telefono' => $item->telefono,
@@ -2340,7 +2345,14 @@ class CarterosController extends Controller
         $destinationCity = $this->normalizeUserCity((string) $destinationCity);
         if ($destinationCity !== '') {
             $all = $all
-                ->filter(fn ($row) => $this->normalizeUserCity((string) ($row['ciudad'] ?? '')) === $destinationCity)
+                ->filter(function ($row) use ($destinationCity) {
+                    $tipo = mb_strtoupper(trim((string) ($row['tipo_paquete'] ?? '')));
+                    if ($this->distributionTypeIgnoresRestrictions($tipo)) {
+                        return true;
+                    }
+
+                    return $this->normalizeUserCity((string) ($row['ciudad'] ?? '')) === $destinationCity;
+                })
                 ->values();
         }
 
@@ -3590,15 +3602,17 @@ class CarterosController extends Controller
 
         $userCity = $this->normalizeUserCity($userCity);
         $codigo = trim((string) ($row['codigo'] ?? 'SIN CODIGO'));
-        $tipo = trim((string) ($row['tipo'] ?? 'PAQUETE'));
+        $tipo = trim((string) ($row['tipo_paquete'] ?? $row['tipo'] ?? 'PAQUETE'));
         $destino = $this->normalizeUserCity((string) ($row['ciudad'] ?? ''));
         $origen = $this->normalizeUserCity((string) ($row['origen'] ?? ''));
         $estadoId = (int) ($row['estado_id'] ?? 0);
         $estadoAlmacenId = (int) ($distributionStateIds['almacen'] ?? 0);
         $estadoRecibidoId = (int) ($distributionStateIds['recibido'] ?? 0);
-        $ignoresStateRestriction = in_array($tipo, ['CERTI', 'ORDI'], true);
+        if ($this->distributionTypeIgnoresRestrictions($tipo)) {
+            return null;
+        }
 
-        if (! $ignoresStateRestriction && $estadoId !== $estadoAlmacenId && $estadoId !== $estadoRecibidoId) {
+        if ($estadoId !== $estadoAlmacenId && $estadoId !== $estadoRecibidoId) {
             return "El paquete {$codigo} no se encuentra en almacen ni recibido. Revisa los eventos del paquete.";
         }
 
@@ -3606,11 +3620,16 @@ class CarterosController extends Controller
             return "El paquete {$codigo} no se encuentra en almacen para {$userCity}. Su destino es " . ($destino !== '' ? $destino : 'SIN DESTINO') . '. Revisa los eventos del paquete.';
         }
 
-        if (! $ignoresStateRestriction && $estadoId === $estadoAlmacenId && ($origen === '' || $origen !== $destino)) {
+        if ($estadoId === $estadoAlmacenId && ($origen === '' || $origen !== $destino)) {
             return "El paquete {$codigo} no se encuentra en almacen de destino; se encuentra en almacen de origen. Revisa los eventos del paquete.";
         }
 
         return null;
+    }
+
+    private function distributionTypeIgnoresRestrictions(string $tipo): bool
+    {
+        return in_array(mb_strtoupper(trim($tipo)), ['CERTI', 'ORDI'], true);
     }
 
     private function trackingUrlForPackage(string $tipoPaquete, string $codigo): ?string

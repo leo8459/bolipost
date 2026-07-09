@@ -15,6 +15,12 @@
     } catch (\Throwable $e) {
         $facturacionCajaContext = ['estado' => 'SIN_APERTURA', 'mensaje' => 'No se pudo consultar el estado de caja.', 'caja' => []];
     }
+    $facturacionConceptos = $canOpenFacturacionShortcut && \Illuminate\Support\Facades\Schema::hasTable('conceptos_facturacion')
+        ? \App\Models\ConceptoFacturacion::query()->where('activo', true)->orderBy('nombre')->get()
+        : collect();
+    $showFacturaElectronicaButton = \App\Models\AppSetting::getValue('facturacion.show_factura_electronica', '1') === '1';
+    $showQrFacturaButton = \App\Models\AppSetting::getValue('facturacion.show_qr_factura', '1') === '1';
+    $showQrSoloButton = \App\Models\AppSetting::getValue('facturacion.show_qr_solo', '1') === '1';
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
     $facturacionItems = collect($activeFacturacionCart?->items ?? []);
@@ -25,6 +31,32 @@
     $activeInvoiceChannel = (string) ($activeFacturacionCart?->canal_emision ?? 'factura_electronica');
     if (!in_array($activeInvoiceChannel, ['factura_electronica', 'qr'], true)) {
         $activeInvoiceChannel = 'factura_electronica';
+    }
+    $activeAutoEmitInvoice = old('auto_emit_invoice', session('facturacion_qr_auto_emit_invoice'));
+    if ($activeAutoEmitInvoice === null || $activeAutoEmitInvoice === '') {
+        $activeAutoEmitInvoice = $activeInvoiceChannel === 'qr' ? '1' : '1';
+    }
+    $activeAutoEmitInvoice = (string) $activeAutoEmitInvoice;
+    if (!in_array($activeAutoEmitInvoice, ['0', '1'], true)) {
+        $activeAutoEmitInvoice = '1';
+    }
+    $activeInvoiceMode = match (true) {
+        $activeInvoiceChannel === 'qr' && $activeAutoEmitInvoice === '0' => 'qr_solo',
+        $activeInvoiceChannel === 'qr' => 'qr_factura',
+        default => 'factura_electronica',
+    };
+    $availableInvoiceModes = collect([
+        'factura_electronica' => $showFacturaElectronicaButton,
+        'qr_factura' => $showQrFacturaButton,
+        'qr_solo' => $showQrSoloButton,
+    ])->filter()->keys()->values();
+    if (!$availableInvoiceModes->contains($activeInvoiceMode) && $availableInvoiceModes->isNotEmpty()) {
+        $activeInvoiceMode = (string) $availableInvoiceModes->first();
+        [$activeInvoiceChannel, $activeAutoEmitInvoice] = match ($activeInvoiceMode) {
+            'qr_factura' => ['qr', '1'],
+            'qr_solo' => ['qr', '0'],
+            default => ['factura_electronica', '1'],
+        };
     }
     $activeDocumentType = (string) ($activeFacturacionCart?->tipo_documento ?? '');
     $defaultBillingEmail = 'safe@correos.gob.bo';
@@ -44,6 +76,11 @@
         'codigo' => 'Codigo de producto',
         'descripcion' => 'Descripcion del servicio',
         'unidadMedida' => 'Unidad de medida',
+        'montoBase' => 'Precio',
+        'monto_base' => 'Precio',
+        'precio' => 'Precio',
+        'totalLinea' => 'Precio',
+        'total_linea' => 'Precio',
     ];
     $draftEmissionIssues = collect(\Illuminate\Support\Arr::dot($draftEmissionErrors))
         ->map(function ($messages, $path) use ($facturacionItemsForValidation, $validationFieldLabels) {
@@ -80,6 +117,8 @@
     $shouldRenderShortcutFeedback = is_array($facturacionFeedback) && !$isCajaShortcutFeedback;
     $shouldOpenShortcutWithFeedback = $shouldRenderShortcutFeedback && $facturacionFeedbackAction !== 'consultar';
     $shouldOpenConsultFeedbackModal = is_array($facturacionFeedback) && $facturacionFeedbackAction === 'consultar';
+    $shouldOpenFacturacionScanner = (bool) session('facturacion_scanner_open') || old('scan_code') !== null;
+    $shouldOpenFacturacionAddPanel = $shouldOpenFacturacionScanner;
     $isRejectedDraft = $activeFacturacionCart && ($activeFacturacionCart->estado_emision ?? null) === 'RECHAZADA';
     $lastEmissionReason = (string) ($resultadoEmision['razon'] ?? '');
     $lastEmissionAttempts = (int) ($resultadoEmision['_meta']['intentos'] ?? 0);
@@ -99,13 +138,17 @@
     $emitActionLabel = $isQrFlowShortcut
         ? ($draftEstado === 'pendiente_pago' && !empty($activeFacturacionCart?->qr_transaction_id)
             ? 'Reabrir QR vigente'
-            : ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR' : 'Generar QR de cobro'))
+            : ($activeInvoiceMode === 'qr_factura'
+                ? ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR y facturar' : 'Generar QR y facturar')
+                : ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR' : 'Generar QR de cobro')))
         : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir factura electronica');
     $emitConfirmTitle = $isQrFlowShortcut
-        ? 'Preparar cobro QR'
+        ? ($activeInvoiceMode === 'qr_factura' ? 'Preparar QR + factura' : 'Preparar cobro QR')
         : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir factura');
     $emitConfirmMessage = $isQrFlowShortcut
-        ? 'Se generara o reutilizara un QR de cobro para esta venta.'
+        ? ($activeInvoiceMode === 'qr_factura'
+            ? 'Se generara o reutilizara un QR de cobro y, cuando el pago se confirme, se continuara con la factura electronica.'
+            : 'Se generara o reutilizara un QR de cobro para esta venta.')
         : 'La venta se enviara al flujo de facturacion electronica.';
     $emitConfirmNote = $isQrFlowShortcut
         ? 'El pago QR no sumara a caja. Solo quedara como cobro referencial hasta que el proveedor confirme el pago.'
@@ -256,6 +299,7 @@
                                     data-item-direccion="{{ (string) data_get($issueItem->resumen_origen, 'direccion', '') }}"
                                     data-item-ciudad="{{ (string) data_get($issueItem->resumen_origen, 'ciudad', '') }}"
                                     data-item-peso="{{ (string) data_get($issueItem->resumen_origen, 'peso', '') }}"
+                                    data-item-precio="{{ number_format((float) (data_get($issueItem, 'monto_base') ?? data_get($issueItem, 'precio') ?? data_get($issueItem, 'total_linea', 0)), 2, '.', '') }}"
                                     data-item-actividad-economica="{{ (string) data_get($issueItem->resumen_origen, 'actividad_economica', '') }}"
                                     data-item-codigo-sin="{{ (string) data_get($issueItem->resumen_origen, 'codigo_sin', '') }}"
                                     data-item-codigo-producto="{{ (string) data_get($issueItem->resumen_origen, 'codigo_producto', '') }}"
@@ -282,34 +326,63 @@
                 @method('PUT')
                 <input type="hidden" name="modalidad_facturacion" id="facturacionBillingModeInput" value="con_datos">
                 <input type="hidden" name="canal_emision" id="facturacionInvoiceChannelInput" value="{{ $activeInvoiceChannel }}">
+                <input type="hidden" id="facturacionAutoEmitInvoiceInput" value="{{ $activeAutoEmitInvoice }}">
                 <input type="hidden" name="tipo_documento" id="facturacionBillingDocumentTypeHidden" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}">
 
                 <div class="global-shortcut-selector-block">
                     <div class="global-shortcut-selector-group">
-                        <span class="global-shortcut-selector-label">Facturacion</span>
-                        <div class="global-shortcut-choice-row" role="tablist" aria-label="Flujo de Facturacion">
-                            <button type="button" class="global-shortcut-choice-btn is-active" disabled aria-disabled="true">
-                                Con documento
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Emision</span>
-                        <div class="global-shortcut-choice-row" role="tablist" aria-label="Tipo de salida de factura">
-                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
-                                Factura electronica
+                        <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel" role="tablist" aria-label="Tipo de salida de factura">
+                            @if($showFacturaElectronicaButton)
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
+                                <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M7 3.75h7.5L19.25 8.5V19a1.25 1.25 0 0 1-1.25 1.25H7A1.25 1.25 0 0 1 5.75 19V5A1.25 1.25 0 0 1 7 3.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                        <path d="M14.5 3.75V8.5h4.75" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                        <path d="M8.75 12h6.5M8.75 15.25h6.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                    </svg>
+                                </span>
+                                <span class="global-shortcut-choice-btn__content">
+                                    <span class="global-shortcut-choice-btn__title">Factura electronica</span>
+                                    <span class="global-shortcut-choice-btn__meta">Emision fiscal</span>
+                                </span>
                             </button>
-                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'qr') is-active @endif" data-invoice-channel-choice="qr" @disabled(!$isCajaAbierta)>
-                                QR
+                            @endif
+                            @if($showQrFacturaButton)
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_factura') is-active @endif" data-invoice-channel-choice="qr_factura" @disabled(!$isCajaAbierta)>
+                                <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M4.75 4.75h5.5v5.5h-5.5zM13.75 4.75h5.5v5.5h-5.5zM4.75 13.75h5.5v5.5h-5.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                        <path d="M15 13.75h1.5v1.5H15zM18 16.25h1.25v3H16.5V18h1.5v-1.75ZM13.75 18h1.75v1.25h-1.75z" fill="currentColor"/>
+                                    </svg>
+                                </span>
+                                <span class="global-shortcut-choice-btn__content">
+                                    <span class="global-shortcut-choice-btn__title">QR + factura</span>
+                                    <span class="global-shortcut-choice-btn__meta">Cobro y luego fiscal</span>
+                                </span>
                             </button>
+                            @endif
+                            @if($showQrSoloButton)
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_solo') is-active @endif" data-invoice-channel-choice="qr_solo" @disabled(!$isCajaAbierta)>
+                                <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M4.75 4.75h5.5v5.5h-5.5zM13.75 4.75h5.5v5.5h-5.5zM4.75 13.75h5.5v5.5h-5.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                        <path d="M15 13.75h1.5v1.5H15zM18 16.25h1.25v3H16.5V18h1.5v-1.75ZM13.75 18h1.75v1.25h-1.75z" fill="currentColor"/>
+                                    </svg>
+                                </span>
+                                <span class="global-shortcut-choice-btn__content">
+                                    <span class="global-shortcut-choice-btn__title">QR solo pago</span>
+                                    <span class="global-shortcut-choice-btn__meta">Cobro sin factura</span>
+                                </span>
+                            </button>
+                            @endif
                         </div>
                     </div>
                 </div>
 
                 <div class="global-shortcut-billing-inline__grid" id="facturacionBillingFields">
                     <div class="global-shortcut-field">
-                        <label for="facturacionBillingDocumentNumber">Numero</label>
+                        <label for="facturacionBillingDocumentNumber">Numero de documento</label>
                         <input
                             type="text"
                             id="facturacionBillingDocumentNumber"
@@ -397,19 +470,21 @@
                 <div class="global-shortcut-cart-block__head">
                     <strong>Detalle de venta</strong>
                     <div class="global-shortcut-cart-block__actions">
-                        @if ($facturacionItems->isNotEmpty())
+                        @if ($activeFacturacionCart)
                             <form
                                 method="POST"
                                 action="{{ route('facturacion.cart.clear') }}"
                                 class="global-shortcut-confirm-form"
-                                data-confirm-title="Vaciar carrito"
-                                data-confirm-message="Se eliminaran todos los items del borrador de Facturacion. Puedes volver a agregarlos despues si hace falta."
+                                data-confirm-title="{{ $facturacionItems->isNotEmpty() ? 'Vaciar carrito' : 'Eliminar borrador' }}"
+                                data-confirm-message="{{ $facturacionItems->isNotEmpty()
+                                    ? 'Se eliminaran todos los items del borrador de Facturacion. Puedes volver a agregarlos despues si hace falta.'
+                                    : 'Se eliminara el borrador actual de Facturacion para que puedas empezar de nuevo o cerrar caja.' }}"
                                 data-confirm-note="Se conservaran intactos los registros operativos. Solo se limpiara el borrador actual del carrito."
-                                data-confirm-cta="Si, vaciar"
+                                data-confirm-cta="{{ $facturacionItems->isNotEmpty() ? 'Si, vaciar' : 'Si, eliminar' }}"
                             >
                                 @csrf
                                 <button type="submit" class="global-shortcut-link-btn">
-                                    Vaciar carrito
+                                    {{ $facturacionItems->isNotEmpty() ? 'Vaciar carrito' : 'Eliminar borrador' }}
                                 </button>
                             </form>
                         @endif
@@ -421,8 +496,8 @@
                         <div class="global-shortcut-cart-empty__icon" aria-hidden="true">
                             <i class="fas fa-shopping-basket"></i>
                         </div>
-                        <strong>Carrito vacio</strong>
-                        <p>No agregaste items para Facturacion.</p>
+                        <strong>{{ $activeFacturacionCart ? 'Borrador sin items' : 'Carrito vacio' }}</strong>
+                        <p>{{ $activeFacturacionCart ? 'Este borrador sigue activo aunque ya no tenga items. Puedes eliminarlo si ya no lo necesitas.' : 'No agregaste items para Facturacion.' }}</p>
                     </div>
                 @else
                     <div class="global-shortcut-cart-list">
@@ -468,6 +543,7 @@
                                         data-item-direccion="{{ (string) data_get($item->resumen_origen, 'direccion', '') }}"
                                         data-item-ciudad="{{ (string) data_get($item->resumen_origen, 'ciudad', '') }}"
                                         data-item-peso="{{ (string) data_get($item->resumen_origen, 'peso', '') }}"
+                                        data-item-precio="{{ number_format((float) (data_get($item, 'monto_base') ?? data_get($item, 'precio') ?? data_get($item, 'total_linea', 0)), 2, '.', '') }}"
                                         data-item-actividad-economica="{{ (string) data_get($item->resumen_origen, 'actividad_economica', '') }}"
                                         data-item-codigo-sin="{{ (string) data_get($item->resumen_origen, 'codigo_sin', '') }}"
                                         data-item-codigo-producto="{{ (string) data_get($item->resumen_origen, 'codigo_producto', '') }}"
@@ -497,6 +573,89 @@
                     </div>
                 @endif
             </div>
+
+            <details class="global-shortcut-scan-panel global-shortcut-scan-panel--entry" @if($shouldOpenFacturacionAddPanel) open @endif>
+                <summary class="global-shortcut-scan-panel__summary">
+                    <span class="global-shortcut-scan-panel__summary-main">
+                        <span class="global-shortcut-scan-panel__summary-icon" aria-hidden="true">
+                            <i class="fas fa-plus"></i>
+                        </span>
+                        <span class="global-shortcut-scan-panel__summary-copy">
+                            <span class="global-shortcut-scan-panel__title">Agregar item</span>
+                        </span>
+                    </span>
+                </summary>
+                <div class="global-shortcut-scan-panel__body">
+                    <div class="global-shortcut-add-compact">
+                        <section class="global-shortcut-add-compact__section">
+                            <label for="facturacionScanCode" class="global-shortcut-add-compact__label">Codigo</label>
+                    <form
+                        method="POST"
+                        action="{{ route('facturacion.cart.scan-add') }}"
+                        class="global-shortcut-scan-form"
+                        id="facturacionScanForm"
+                        data-processing-pill="Carrito en actualizacion"
+                        data-processing-title="Agregando al carrito"
+                        data-processing-text="Estamos agregando el paquete al carrito, espera un momento..."
+                    >
+                        @csrf
+                        <div class="global-shortcut-scan-form__row">
+                            <input
+                                type="text"
+                                name="scan_code"
+                                id="facturacionScanCode"
+                                value="{{ old('scan_code') }}"
+                                placeholder="Escanea aqui el codigo"
+                                autocomplete="off"
+                                autocapitalize="characters"
+                                spellcheck="false"
+                                @disabled(!$isCajaAbierta)
+                            >
+                            <button type="submit" class="global-shortcut-secondary-btn" @disabled(!$isCajaAbierta)>
+                                Agregar
+                            </button>
+                        </div>
+                    </form>
+                        </section>
+
+                        @if ($facturacionConceptos->isNotEmpty())
+                            <section class="global-shortcut-add-compact__section">
+                                <label for="facturacionConceptoSelect" class="global-shortcut-add-compact__label">Cobro extra</label>
+                        <form
+                            method="POST"
+                            action="{{ route('facturacion.cart.conceptos.store') }}"
+                            class="global-shortcut-scan-form"
+                            id="facturacionConceptoForm"
+                            data-processing-pill="Carrito en actualizacion"
+                            data-processing-title="Agregando cobro"
+                            data-processing-text="Estamos agregando el cobro adicional al carrito, espera un momento..."
+                        >
+                            @csrf
+                            <input type="hidden" name="concepto_facturacion_id" id="facturacionConceptoHidden" value="">
+                            <div class="global-shortcut-field global-shortcut-field--full" style="margin-bottom: 0;">
+                                <select
+                                    id="facturacionConceptoSelect"
+                                    @disabled(!$isCajaAbierta)
+                                >
+                                    <option value="">Selecciona un concepto facturable</option>
+                                    @foreach ($facturacionConceptos as $conceptoFacturable)
+                                        <option value="{{ $conceptoFacturable->id }}">
+                                            {{ $conceptoFacturable->nombre }} | {{ $conceptoFacturable->codigo }} | Bs {{ number_format((float) $conceptoFacturable->precio_base, 2) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="global-shortcut-scan-form__row global-shortcut-scan-form__row--select">
+                                <button type="submit" class="global-shortcut-secondary-btn" @disabled(!$isCajaAbierta)>
+                                    Agregar cobro
+                                </button>
+                            </div>
+                        </form>
+                            </section>
+                        @endif
+                    </div>
+                </div>
+            </details>
 
             </div>
 
@@ -542,6 +701,7 @@
                                 @csrf
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
                                 <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
+                                <input type="hidden" name="auto_emit_invoice" value="{{ $activeAutoEmitInvoice }}" data-emit-sync-field="auto_emit_invoice">
                                 <input type="hidden" name="tipo_documento" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}" data-emit-sync-field="tipo_documento">
                                 <input type="hidden" name="numero_documento" value="{{ (string) ($activeFacturacionCart?->numero_documento ?? '') }}" data-emit-sync-field="numero_documento">
                                 <input type="hidden" name="complemento_documento" value="{{ (string) ($activeFacturacionCart?->complemento_documento ?? '') }}" data-emit-sync-field="complemento_documento">
@@ -573,6 +733,7 @@
                                 @csrf
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
                                 <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
+                                <input type="hidden" name="auto_emit_invoice" value="{{ $activeAutoEmitInvoice }}" data-emit-sync-field="auto_emit_invoice">
                                 <input type="hidden" name="tipo_documento" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}" data-emit-sync-field="tipo_documento">
                                 <input type="hidden" name="numero_documento" value="{{ (string) ($activeFacturacionCart?->numero_documento ?? '') }}" data-emit-sync-field="numero_documento">
                                 <input type="hidden" name="complemento_documento" value="{{ (string) ($activeFacturacionCart?->complemento_documento ?? '') }}" data-emit-sync-field="complemento_documento">
@@ -681,64 +842,58 @@
             </div>
             <h4 id="facturacionItemEditTitle" class="global-shortcut-confirm__title">Corregir item antes de reenviar</h4>
             <p class="global-shortcut-confirm__message">
-                Ajusta los datos observados y guarda el item para volver a intentar la emision.
+                Ajusta solo el precio del item y guarda los cambios para volver a intentar la emision.
             </p>
             <form method="POST" action="" id="facturacionItemEditForm" class="global-shortcut-item-edit-form">
                 @csrf
                 @method('PUT')
-                <div class="global-shortcut-item-edit-alert is-hidden" id="facturacionItemEditAlert" aria-live="polite"></div>
+                <input type="hidden" id="facturacionEditItemCodigo" name="codigo" required>
+                <input type="hidden" id="facturacionEditItemTitulo" name="titulo" required>
+                <input type="hidden" id="facturacionEditItemServicio" name="nombre_servicio">
+                <input type="hidden" id="facturacionEditItemDestinatario" name="nombre_destinatario">
+                <input type="hidden" id="facturacionEditItemContenido" name="contenido">
+                <input type="hidden" id="facturacionEditItemDireccion" name="direccion">
+                <input type="hidden" id="facturacionEditItemCiudad" name="ciudad">
+                <input type="hidden" id="facturacionEditItemPeso" name="peso">
+                <input type="hidden" id="facturacionEditItemActividadEconomica" name="actividad_economica">
+                <input type="hidden" id="facturacionEditItemCodigoSin" name="codigo_sin">
+                <input type="hidden" id="facturacionEditItemCodigoProducto" name="codigo_producto">
+                <input type="hidden" id="facturacionEditItemUnidadMedida" name="unidad_medida">
+                <input type="hidden" id="facturacionEditItemDescripcionServicio" name="descripcion_servicio">
+                <div class="global-shortcut-item-edit-summary">
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Codigo</span>
+                        <strong id="facturacionEditItemCodigoResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Titulo</span>
+                        <strong id="facturacionEditItemTituloResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Servicio</span>
+                        <strong id="facturacionEditItemServicioResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Destinatario</span>
+                        <strong id="facturacionEditItemDestinatarioResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Contenido</span>
+                        <strong id="facturacionEditItemContenidoResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Direccion</span>
+                        <strong id="facturacionEditItemDireccionResumen">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Ciudad</span>
+                        <strong id="facturacionEditItemCiudadResumen">-</strong>
+                    </div>
+                </div>
                 <div class="global-shortcut-item-edit-grid">
-                    <div class="global-shortcut-field" data-edit-field-key="codigo_item">
-                        <label for="facturacionEditItemCodigo">Codigo de item</label>
-                        <input type="text" id="facturacionEditItemCodigo" name="codigo" required>
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="peso">
-                        <label for="facturacionEditItemPeso">Peso</label>
-                        <input type="number" id="facturacionEditItemPeso" name="peso" min="0" step="0.001" placeholder="Ej. 0.100">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="titulo">
-                        <label for="facturacionEditItemTitulo">Titulo</label>
-                        <input type="text" id="facturacionEditItemTitulo" name="titulo" required>
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="nombre_servicio">
-                        <label for="facturacionEditItemServicio">Servicio</label>
-                        <input type="text" id="facturacionEditItemServicio" name="nombre_servicio">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="nombre_destinatario">
-                        <label for="facturacionEditItemDestinatario">Destinatario</label>
-                        <input type="text" id="facturacionEditItemDestinatario" name="nombre_destinatario">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="contenido">
-                        <label for="facturacionEditItemContenido">Contenido</label>
-                        <input type="text" id="facturacionEditItemContenido" name="contenido">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="direccion">
-                        <label for="facturacionEditItemDireccion">Direccion</label>
-                        <input type="text" id="facturacionEditItemDireccion" name="direccion">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="ciudad">
-                        <label for="facturacionEditItemCiudad">Ciudad</label>
-                        <input type="text" id="facturacionEditItemCiudad" name="ciudad">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="actividadEconomica">
-                        <label for="facturacionEditItemActividadEconomica">Actividad economica</label>
-                        <input type="text" id="facturacionEditItemActividadEconomica" name="actividad_economica" maxlength="6" placeholder="6 caracteres">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="codigoSin">
-                        <label for="facturacionEditItemCodigoSin">Codigo SIN</label>
-                        <input type="text" id="facturacionEditItemCodigoSin" name="codigo_sin">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="codigo">
-                        <label for="facturacionEditItemCodigoProducto">Codigo de producto</label>
-                        <input type="text" id="facturacionEditItemCodigoProducto" name="codigo_producto">
-                    </div>
-                    <div class="global-shortcut-field" data-edit-field-key="unidadMedida">
-                        <label for="facturacionEditItemUnidadMedida">Unidad de medida</label>
-                        <input type="number" id="facturacionEditItemUnidadMedida" name="unidad_medida" min="1" step="1">
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="descripcion">
-                        <label for="facturacionEditItemDescripcionServicio">Descripcion del servicio</label>
-                        <input type="text" id="facturacionEditItemDescripcionServicio" name="descripcion_servicio">
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="precio">
+                        <label for="facturacionEditItemPrecio">Precio</label>
+                        <input type="number" id="facturacionEditItemPrecio" name="precio" min="0" step="0.01" required>
                     </div>
                 </div>
                 <div class="global-shortcut-confirm__actions">
@@ -790,46 +945,22 @@
         </div>
     </div>
 
-    @if ($shouldOpenConsultFeedbackModal)
-        <div class="facturacion-result-modal" id="facturacionResultModal" aria-hidden="true" role="dialog" aria-modal="true">
-            <div class="facturacion-result-modal__backdrop" data-close-facturacion-result="true"></div>
-            <div class="facturacion-result-modal__panel" role="document">
-                <button type="button" class="facturacion-result-modal__close" id="facturacionResultModalClose" aria-label="Cerrar resultado">x</button>
-                <div class="facturacion-result-modal__icon facturacion-result-modal__icon--{{ $facturacionFeedback['type'] ?? 'info' }}">
-                    <i class="fas @if(($facturacionFeedback['type'] ?? '') === 'success') fa-check-circle @elseif(($facturacionFeedback['type'] ?? '') === 'warning') fa-exclamation-triangle @elseif(($facturacionFeedback['type'] ?? '') === 'error') fa-times-circle @else fa-info-circle @endif"></i>
-                </div>
-                <h4 class="facturacion-result-modal__title">{{ $facturacionFeedback['title'] ?? 'Resultado de consulta' }}</h4>
-                <p class="facturacion-result-modal__message">{{ $facturacionFeedback['message'] ?? '' }}</p>
-                @if (!empty($facturacionFeedback['meta']) && is_array($facturacionFeedback['meta']))
-                    <div class="facturacion-result-modal__meta-grid">
-                        @foreach ($facturacionFeedback['meta'] as $metaItem)
-                            @php
-                                $metaLabel = trim((string) ($metaItem['label'] ?? 'Dato'));
-                                $metaValue = trim((string) ($metaItem['value'] ?? ''));
-                                $metaType = trim((string) ($metaItem['type'] ?? 'text'));
-                            @endphp
-                            @if ($metaValue !== '')
-                                <div class="facturacion-result-modal__meta-card">
-                                    <span class="facturacion-result-modal__meta-label">{{ $metaLabel }}</span>
-                                    @if ($metaType === 'link')
-                                        <a href="{{ $metaValue }}" target="_blank" rel="noopener" class="facturacion-result-modal__meta-link">Abrir documento</a>
-                                    @else
-                                        <strong class="facturacion-result-modal__meta-value">{{ $metaValue }}</strong>
-                                    @endif
-                                </div>
-                            @endif
-                        @endforeach
-                    </div>
-                @endif
-                @if (!empty($facturacionFeedback['detail']))
-                    <div class="facturacion-result-modal__detail">{{ $facturacionFeedback['detail'] }}</div>
-                @endif
-                <div class="facturacion-result-modal__actions">
-                    <button type="button" class="global-shortcut-primary-btn" id="facturacionResultModalAccept">Entendido</button>
-                </div>
+    <div class="facturacion-result-modal" id="facturacionResultModal" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="facturacion-result-modal__backdrop" data-close-facturacion-result="true"></div>
+        <div class="facturacion-result-modal__panel" role="document">
+            <button type="button" class="facturacion-result-modal__close" id="facturacionResultModalClose" aria-label="Cerrar resultado">x</button>
+            <div class="facturacion-result-modal__icon facturacion-result-modal__icon--{{ $facturacionFeedback['type'] ?? 'info' }}" id="facturacionResultModalIcon">
+                <i class="fas @if(($facturacionFeedback['type'] ?? '') === 'success') fa-check-circle @elseif(($facturacionFeedback['type'] ?? '') === 'warning') fa-exclamation-triangle @elseif(($facturacionFeedback['type'] ?? '') === 'error') fa-times-circle @else fa-info-circle @endif" id="facturacionResultModalIconGlyph"></i>
+            </div>
+            <h4 class="facturacion-result-modal__title" id="facturacionResultModalTitle">{{ $facturacionFeedback['title'] ?? 'Resultado de facturacion' }}</h4>
+            <p class="facturacion-result-modal__message" id="facturacionResultModalMessage">{{ $facturacionFeedback['message'] ?? '' }}</p>
+            <div class="facturacion-result-modal__meta-grid{{ empty($facturacionFeedback['meta']) ? ' is-hidden' : '' }}" id="facturacionResultModalMeta"></div>
+            <div class="facturacion-result-modal__detail{{ empty($facturacionFeedback['detail']) ? ' is-hidden' : '' }}" id="facturacionResultModalDetail">{{ $facturacionFeedback['detail'] ?? '' }}</div>
+            <div class="facturacion-result-modal__actions">
+                <button type="button" class="global-shortcut-primary-btn" id="facturacionResultModalAccept">Entendido</button>
             </div>
         </div>
-    @endif
+    </div>
 
     @php
         $initialQrImage = '';
@@ -891,7 +1022,8 @@
                 <form method="POST" action="{{ route('facturacion.cart.consultar') }}" class="facturacion-qr-viewer__actions">
                     @csrf
                     <input type="hidden" name="cart_id" id="facturacionQrViewerCartId" value="{{ $initialQrCartId }}">
-                    <button type="submit" class="global-shortcut-primary-btn">Actualizar pago</button>
+                    <input type="hidden" name="auto_emit_invoice" id="facturacionQrViewerAutoEmitInvoice" value="{{ $activeAutoEmitInvoice }}">
+                    <button type="submit" class="global-shortcut-primary-btn">Actualizar pago/factura</button>
                 </form>
             </div>
         </div>
@@ -1285,6 +1417,7 @@
             padding: 13px 14px;
             border-radius: 16px;
             border: 1px solid transparent;
+            position: relative;
         }
         .global-shortcut-feedback--success {
             background: #edf9f1;
@@ -1342,6 +1475,29 @@
             font-size: .82rem;
             line-height: 1.45;
             opacity: .92;
+        }
+        .global-shortcut-feedback__close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .74);
+            color: currentColor;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform .18s ease, background .18s ease, opacity .18s ease;
+        }
+        .global-shortcut-feedback__close:hover,
+        .global-shortcut-feedback__close:focus {
+            background: rgba(255, 255, 255, .94);
+            opacity: 1;
+            outline: none;
+            transform: scale(1.04);
         }
         .global-shortcut-edit-hint {
             margin-bottom: 12px;
@@ -1923,7 +2079,7 @@
         }
         .global-shortcut-selector-block {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: 1fr;
             gap: 16px;
             margin-bottom: 16px;
         }
@@ -1942,35 +2098,91 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
         }
+        .global-shortcut-choice-row--single {
+            grid-template-columns: 1fr;
+        }
         .global-shortcut-choice-row--triple {
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
+        .global-shortcut-choice-row--invoice-channel {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            align-items: stretch;
+            width: 100%;
+            max-width: 100%;
+        }
         .global-shortcut-choice-btn {
-            min-height: 46px;
-            border-radius: 12px;
-            border: 1px solid #d8e4f3;
-            background: #f8fbff;
+            min-height: 64px;
+            border-radius: 16px;
+            border: 1px solid #d6e2f2;
+            background: linear-gradient(180deg, #fbfdff 0%, #f2f7fd 100%);
             color: #20539a;
             font-size: .85rem;
             font-weight: 700;
             line-height: 1.2;
-            text-align: center;
-            padding: 8px 10px;
+            text-align: left;
+            padding: 12px 14px;
             white-space: normal;
             word-break: keep-all;
-            transition: border-color .16s ease, box-shadow .16s ease, background .16s ease, transform .16s ease;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75);
+            transition: border-color .16s ease, box-shadow .16s ease, background .16s ease, transform .16s ease, color .16s ease;
+        }
+        .global-shortcut-choice-btn__icon {
+            width: 38px;
+            height: 38px;
+            flex: 0 0 38px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(32, 83, 154, .08);
+            color: currentColor;
+        }
+        .global-shortcut-choice-btn__icon svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+        .global-shortcut-choice-btn__content {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 2px;
+        }
+        .global-shortcut-choice-btn__title {
+            display: block;
+            font-size: .98rem;
+            line-height: 1.08;
+        }
+        .global-shortcut-choice-btn__meta {
+            display: block;
+            font-size: .72rem;
+            font-weight: 700;
+            line-height: 1.1;
+            opacity: .72;
+            letter-spacing: .01em;
         }
         .global-shortcut-choice-btn:hover,
         .global-shortcut-choice-btn:focus {
             outline: none;
             transform: translateY(-1px);
             border-color: #aac4e8;
+            box-shadow: 0 10px 22px rgba(32, 83, 154, .12);
         }
         .global-shortcut-choice-btn.is-active {
             background: linear-gradient(135deg, #20539a 0%, #0f3f78 100%);
             border-color: #0f3f78;
             color: #fff;
-            box-shadow: none;
+            box-shadow: 0 12px 26px rgba(15, 63, 120, .22);
+        }
+        .global-shortcut-choice-btn.is-active .global-shortcut-choice-btn__icon {
+            background: rgba(255, 255, 255, .16);
         }
         .global-shortcut-anonymous-note {
             margin-bottom: 12px;
@@ -2007,6 +2219,110 @@
         .global-shortcut-anonymous-note.is-hidden,
         .global-shortcut-sin-cliente.is-hidden {
             display: none;
+        }
+        .global-shortcut-scan-panel {
+            margin-top: 16px;
+            border: 1px solid #e2eaf5;
+            border-radius: 14px;
+            background: #fff;
+            overflow: hidden;
+        }
+        .global-shortcut-scan-panel[open] {
+            border-color: #cfddee;
+            box-shadow: 0 8px 20px rgba(17, 47, 92, .06);
+        }
+        .global-shortcut-scan-panel__summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 13px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .global-shortcut-scan-panel__summary::-webkit-details-marker {
+            display: none;
+        }
+        .global-shortcut-scan-panel__summary-main {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+        .global-shortcut-scan-panel__summary-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            background: #edf4fc;
+            color: #20539a;
+            box-shadow: inset 0 0 0 1px rgba(32, 83, 154, .08);
+        }
+        .global-shortcut-scan-panel__summary-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+        .global-shortcut-scan-panel__title {
+            color: #173962;
+            font-size: .92rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+        .global-shortcut-scan-panel__body {
+            padding: 0 16px 14px;
+            border-top: 1px solid #e7eff8;
+        }
+        .global-shortcut-scan-panel--entry .global-shortcut-scan-panel__summary {
+            padding-bottom: 13px;
+        }
+        .global-shortcut-add-compact {
+            display: grid;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .global-shortcut-add-compact__section {
+            display: grid;
+            gap: 8px;
+        }
+        .global-shortcut-add-compact__label {
+            color: #5b6f8e;
+            font-size: .79rem;
+            font-weight: 700;
+        }
+        .global-shortcut-scan-form {
+            margin-top: 0;
+        }
+        .global-shortcut-scan-form__row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: center;
+        }
+        .global-shortcut-scan-form__row input {
+            width: 100%;
+            min-height: 46px;
+            border-radius: 12px;
+            border: 1px solid #d6e3f3;
+            background: #fff;
+            color: #173962;
+            font-size: .95rem;
+            padding: 0 14px;
+        }
+        .global-shortcut-scan-form__row input:focus {
+            outline: none;
+            border-color: #8eb2e2;
+            box-shadow: 0 0 0 3px rgba(32, 83, 154, .12);
+        }
+        .global-shortcut-scan-form__row--select {
+            grid-template-columns: auto;
+            justify-content: end;
+            margin-top: 10px;
         }
         .global-shortcut-field--full {
             grid-column: 1 / -1;
@@ -2133,6 +2449,9 @@
             color: #6f8098;
             font-size: .82rem;
             line-height: 1.45;
+        }
+        .global-shortcut-cart-empty .global-shortcut-secondary-btn {
+            margin-top: 4px;
         }
         .global-shortcut-cart-list {
             max-height: none;
@@ -2518,14 +2837,17 @@
         .global-shortcut-confirm__panel {
             position: relative;
             width: min(420px, calc(100vw - 26px));
+            max-height: calc(100vh - 28px);
             padding: 0;
             border-radius: 24px;
             background: #ffffff;
             border: 1px solid rgba(32, 83, 154, .12);
             box-shadow: 0 18px 36px rgba(8, 24, 50, .2);
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
             transform: translateY(10px) scale(.97);
             transition: transform .2s ease;
+            scrollbar-gutter: stable;
         }
         .global-shortcut-confirm__panel--wide {
             width: min(620px, calc(100vw - 26px));
@@ -2670,6 +2992,7 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
             margin-top: 18px;
+            align-content: start;
         }
         .global-shortcut-item-edit-grid .global-shortcut-field.is-hidden {
             display: none;
@@ -2693,22 +3016,30 @@
                 justify-content: center;
             }
             .global-shortcut-modal__panel {
-                width: calc(100vw - 18px);
-                margin: 0 9px 9px;
-                border-radius: 18px;
-                max-height: calc(100vh - 18px);
+                width: calc(100vw - 12px);
+                margin: 0 6px 6px;
+                border-radius: 20px 20px 16px 16px;
+                max-height: calc(100vh - 12px);
             }
             .global-shortcut-modal__body {
-                padding: 16px 16px 10px;
+                padding: 16px 14px 10px;
             }
             .global-shortcut-modal__head {
                 gap: 10px;
+                align-items: center;
             }
             .global-shortcut-modal__title {
                 font-size: 1.18rem;
             }
             .global-shortcut-selector-block {
                 grid-template-columns: 1fr;
+            }
+            .global-shortcut-choice-row {
+                grid-template-columns: 1fr;
+            }
+            .global-shortcut-choice-row--invoice-channel {
+                grid-template-columns: 1fr;
+                max-width: none;
             }
             .global-shortcut-workflow-board__hero,
             .global-shortcut-workflow-board__grid,
@@ -2729,11 +3060,27 @@
             .global-shortcut-billing-inline__grid {
                 grid-template-columns: 1fr;
             }
+            .global-shortcut-scan-panel__summary {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .global-shortcut-scan-form__row {
+                grid-template-columns: 1fr;
+            }
             .global-shortcut-field--full {
                 grid-column: auto;
             }
+            .global-shortcut-field-head {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .global-shortcut-email-toggle {
+                white-space: normal;
+                line-height: 1.35;
+            }
             .global-shortcut-confirm__panel {
                 width: calc(100vw - 18px);
+                max-height: calc(100vh - 18px);
                 border-radius: 20px;
             }
             .global-shortcut-confirm__panel--wide {
@@ -2757,6 +3104,10 @@
             .global-shortcut-confirm__actions {
                 grid-template-columns: 1fr;
                 padding: 0 16px 16px;
+                position: sticky;
+                bottom: 0;
+                margin-top: 14px;
+                background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #ffffff 18%, #ffffff 100%);
             }
             .global-shortcut-item-edit-form {
                 padding: 0 16px 16px;
@@ -2786,8 +3137,25 @@
             .facturacion-result-modal__meta-grid {
                 grid-template-columns: 1fr;
             }
+            .global-shortcut-modal__panel {
+                width: calc(100vw - 8px);
+                margin: 0 4px 4px;
+                max-height: calc(100vh - 8px);
+            }
+            .global-shortcut-confirm__panel {
+                width: calc(100vw - 8px);
+                max-height: calc(100vh - 8px);
+                border-radius: 18px;
+            }
+            .global-shortcut-confirm__panel--wide {
+                width: calc(100vw - 8px);
+            }
             .global-shortcut-selector-block {
                 grid-template-columns: 1fr;
+            }
+            .global-shortcut-choice-row--invoice-channel {
+                grid-template-columns: 1fr;
+                max-width: none;
             }
             .global-shortcut-choice-row--triple {
                 grid-template-columns: 1fr;
@@ -2804,10 +3172,58 @@
             .global-shortcut-choice-btn {
                 min-height: 44px;
                 font-size: .8rem;
-                padding: 7px 8px;
+                padding: 9px 10px;
+                gap: 8px;
+            }
+            .global-shortcut-choice-btn__icon {
+                width: 32px;
+                height: 32px;
+                flex-basis: 32px;
+                border-radius: 10px;
+            }
+            .global-shortcut-choice-btn__title {
+                font-size: .88rem;
+            }
+            .global-shortcut-choice-btn__meta {
+                font-size: .66rem;
+            }
+            .global-shortcut-scan-panel__summary-main {
+                gap: 10px;
+            }
+            .global-shortcut-scan-panel__summary-icon {
+                width: 38px;
+                height: 38px;
+                border-radius: 12px;
+            }
+            .global-shortcut-scan-panel__title {
+                font-size: .92rem;
             }
             .global-shortcut-cart-summary {
                 grid-template-columns: 1fr;
+            }
+            .global-shortcut-confirm__header {
+                padding: 16px 14px 10px;
+            }
+            .global-shortcut-confirm__title {
+                padding: 14px 14px 0;
+                font-size: 1.03rem;
+            }
+            .global-shortcut-confirm__message {
+                padding: 0 14px;
+                font-size: .88rem;
+                line-height: 1.45;
+            }
+            .global-shortcut-item-edit-form {
+                padding: 0 14px 14px;
+            }
+            .global-shortcut-item-edit-grid {
+                gap: 10px;
+            }
+            .global-shortcut-confirm__actions {
+                padding: 0 14px 14px;
+            }
+            .global-shortcut-confirm__btn {
+                min-height: 44px;
             }
             .global-shortcut-turno-row {
                 flex-direction: column;
@@ -2891,14 +3307,22 @@
             const facturacionItemEditModal = document.getElementById('facturacionItemEditModal');
             const facturacionItemEditForm = document.getElementById('facturacionItemEditForm');
             const facturacionItemEditCancel = document.getElementById('facturacionItemEditCancel');
-            const facturacionItemEditButtons = document.querySelectorAll('[data-edit-facturacion-item="true"]');
+            let facturacionItemEditButtons = [];
             const facturacionItemEditSubmit = document.getElementById('facturacionItemEditSubmit');
-            const facturacionItemEditAlert = document.getElementById('facturacionItemEditAlert');
             const facturacionItemEditFields = document.querySelectorAll('[data-edit-field-key]');
             const facturacionBillingInlineForm = document.getElementById('facturacionBillingInlineForm');
             const facturacionBillingModeInput = document.getElementById('facturacionBillingModeInput');
             const facturacionInvoiceChannelInput = document.getElementById('facturacionInvoiceChannelInput');
+            const facturacionAutoEmitInvoiceInput = document.getElementById('facturacionAutoEmitInvoiceInput');
             const facturacionBillingFields = document.getElementById('facturacionBillingFields');
+            let facturacionScanForm = document.getElementById('facturacionScanForm');
+            let facturacionScanCodeInput = document.getElementById('facturacionScanCode');
+            let facturacionScanPanel = facturacionScanForm
+                ? facturacionScanForm.closest('.global-shortcut-scan-panel')
+                : null;
+            let facturacionConceptoForm = document.getElementById('facturacionConceptoForm');
+            let facturacionConceptoSelect = document.getElementById('facturacionConceptoSelect');
+            let facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
 
             if (facturacionActionConfirmEyebrow) {
                 facturacionActionConfirmEyebrow.textContent = FACTURACION_CONFIRM_DEFAULTS.eyebrow;
@@ -2929,30 +3353,37 @@
             const facturacionQrViewerImage = document.getElementById('facturacionQrViewerImage');
             const facturacionQrViewerEmpty = document.getElementById('facturacionQrViewerEmpty');
             const facturacionQrViewerCartId = document.getElementById('facturacionQrViewerCartId');
+            const facturacionQrViewerAutoEmitInvoice = document.getElementById('facturacionQrViewerAutoEmitInvoice');
             const facturacionResultModal = document.getElementById('facturacionResultModal');
             const facturacionResultModalClose = document.getElementById('facturacionResultModalClose');
             const facturacionResultModalAccept = document.getElementById('facturacionResultModalAccept');
+            const facturacionResultModalIcon = document.getElementById('facturacionResultModalIcon');
+            const facturacionResultModalIconGlyph = document.getElementById('facturacionResultModalIconGlyph');
+            const facturacionResultModalTitle = document.getElementById('facturacionResultModalTitle');
+            const facturacionResultModalMessage = document.getElementById('facturacionResultModalMessage');
+            const facturacionResultModalMeta = document.getElementById('facturacionResultModalMeta');
+            const facturacionResultModalDetail = document.getElementById('facturacionResultModalDetail');
             const invoiceChannelButtons = document.querySelectorAll('[data-invoice-channel-choice]');
-            const confirmForms = document.querySelectorAll('.global-shortcut-confirm-form');
             const facturacionFlashFeedback = @json($facturacionFeedback);
             const facturacionDownloadPdf = @json($facturacionDownloadPdf);
             const facturacionQrData = @json($facturacionQrData);
             const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
-            const facturacionFieldNames = {
-                actividadEconomica: 'Actividad economica',
-                codigoSin: 'Codigo SIN',
-                codigo: 'Codigo de producto',
-                descripcion: 'Descripcion del servicio',
-                unidadMedida: 'Unidad de medida',
-            };
-            const facturacionFieldFocusMap = {
-                actividadEconomica: 'facturacionEditItemActividadEconomica',
-                codigoSin: 'facturacionEditItemCodigoSin',
-                codigo: 'facturacionEditItemCodigoProducto',
-                descripcion: 'facturacionEditItemDescripcionServicio',
-                unidadMedida: 'facturacionEditItemUnidadMedida',
-            };
-
+            const facturacionConsultarRoute = @json(route('facturacion.cart.consultar'));
+            const facturacionInitialFeedbackKey = facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object'
+                ? JSON.stringify({
+                    action: String(facturacionFlashFeedback.action || ''),
+                    title: String(facturacionFlashFeedback.title || ''),
+                    message: String(facturacionFlashFeedback.message || ''),
+                    detail: String(facturacionFlashFeedback.detail || ''),
+                })
+                : '';
+            const facturacionInitialQrKey = facturacionQrData && typeof facturacionQrData === 'object'
+                ? JSON.stringify({
+                    transaction_id: String(facturacionQrData.transaction_id || ''),
+                    internal_code: String(facturacionQrData.internal_code || ''),
+                    payment_status: String(facturacionQrData.payment_status || ''),
+                })
+                : '';
             if (!facturacionShortcutModal || !openFacturacionShortcutBtn || !closeFacturacionShortcutBtn) {
                 return;
             }
@@ -2960,11 +3391,36 @@
             let facturacionShortcutLastFocus = null;
             let pendingConfirmForm = null;
             let isFacturacionSubmitting = false;
+            let facturacionQrPollingTimer = null;
+            let facturacionQrPollingRequest = null;
+            let facturacionQrPollingErrorCount = 0;
+            let facturacionDraftAutosaveEnabled = @json($hasActiveFacturacionItems);
+            let facturacionProcessingPreviewTimer = null;
+            let facturacionPendingEmitPollTimer = null;
+            let facturacionPendingEmitState = null;
+            let facturacionCurrentResultKey = facturacionInitialFeedbackKey;
+            let facturacionCurrentQrKey = facturacionInitialQrKey;
             const FACTURACION_PROCESSING_DEFAULTS = {
                 pill: 'Facturacion en curso',
                 title: 'Emitiendo factura',
                 text: 'Procesando emision, espera un momento...',
             };
+            const FACTURACION_CART_PROCESSING_DEFAULTS = {
+                pill: 'Carrito en actualizacion',
+                title: 'Actualizando carrito',
+                text: 'Estamos guardando los cambios en tu carrito, espera un momento...',
+            };
+            const FACTURACION_QR_POLL_INTERVAL_MS = 5000;
+            const FACTURACION_EMIT_PREVIEW_DELAY_MS = 7000;
+            const FACTURACION_EMIT_FINAL_WAIT_ATTEMPTS = 4;
+            const FACTURACION_EMIT_FINAL_WAIT_INTERVAL_MS = 2200;
+            const FACTURACION_BACKGROUND_POLL_INTERVAL_MS = 8000;
+            const FACTURACION_BACKGROUND_POLL_MAX_DURATION_MS = 120000;
+            const FACTURACION_PENDING_STORAGE_KEY = 'facturacion-pending-emit';
+            const FACTURACION_INVOICE_MODE_STORAGE_KEY = 'facturacion-invoice-mode';
+            const FACTURACION_RESULT_MODAL_DISMISSED_PREFIX = 'facturacion-result-dismissed:';
+            const FACTURACION_QR_VIEWER_DISMISSED_PREFIX = 'facturacion-qr-dismissed:';
+            const FACTURACION_QR_FINAL_STATUSES = ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed', 'cancelado', 'cancelled', 'rejected', 'failed', 'expired'];
 
             const resolveProcessingCopy = (form = null) => {
                 if (!(form instanceof HTMLFormElement)) {
@@ -2986,6 +3442,17 @@
                         pill: 'Caja diaria',
                         title: 'Cerrando caja',
                         text: 'Estamos cerrando la caja diaria, espera un momento...',
+                    };
+                }
+
+                if (action.includes('/facturacion/cart/')
+                    && !action.includes('/facturacion/cart/emitir')
+                    && !action.includes('/facturacion/cart/caja/')
+                    && !action.includes('/facturacion/cart/consultar')) {
+                    return {
+                        pill: String(form.dataset.processingPill || FACTURACION_CART_PROCESSING_DEFAULTS.pill),
+                        title: String(form.dataset.processingTitle || FACTURACION_CART_PROCESSING_DEFAULTS.title),
+                        text: String(form.dataset.processingText || FACTURACION_CART_PROCESSING_DEFAULTS.text),
                     };
                 }
 
@@ -3033,7 +3500,7 @@
                     ? resolveProcessingCopy(form)
                     : FACTURACION_PROCESSING_DEFAULTS;
 
-                confirmForms.forEach((candidate) => {
+                document.querySelectorAll('.global-shortcut-confirm-form').forEach((candidate) => {
                     const submitButton = candidate.querySelector('button[type="submit"]');
                     candidate.classList.toggle('is-submitting', active && candidate === form);
 
@@ -3061,6 +3528,11 @@
                     facturacionActionConfirmCancel.disabled = active;
                 }
 
+                if (!active && facturacionProcessingPreviewTimer) {
+                    window.clearTimeout(facturacionProcessingPreviewTimer);
+                    facturacionProcessingPreviewTimer = null;
+                }
+
                 setFacturacionProcessingOverlay(active, {
                     pill: processingCopy.pill,
                     title: processingCopy.title,
@@ -3082,6 +3554,570 @@
                 return 'data:image/png;base64,' + imageValue;
             };
 
+            const bindFacturacionConfirmForms = () => {
+                document.querySelectorAll('.global-shortcut-confirm-form').forEach((form) => {
+                    if (!(form instanceof HTMLFormElement) || form.dataset.facturacionBound === 'true') {
+                        return;
+                    }
+
+                    form.dataset.facturacionBound = 'true';
+                    form.addEventListener('submit', function (event) {
+                        if (isFacturacionSubmitting) {
+                            event.preventDefault();
+                            return;
+                        }
+
+                        event.preventDefault();
+                        openFacturacionActionConfirm(form);
+                    });
+                });
+            };
+
+            const bindFacturacionItemEditButtons = () => {
+                facturacionItemEditButtons = Array.from(document.querySelectorAll('[data-edit-facturacion-item="true"]'));
+
+                facturacionItemEditButtons.forEach((button) => {
+                    if (!(button instanceof HTMLButtonElement) || button.dataset.facturacionBound === 'true') {
+                        return;
+                    }
+
+                    button.dataset.facturacionBound = 'true';
+                    button.addEventListener('click', function () {
+                        openFacturacionItemEditModal(button);
+                    });
+                });
+            };
+
+            const refreshFacturacionActionElements = () => {
+                facturacionScanForm = document.getElementById('facturacionScanForm');
+                facturacionScanCodeInput = document.getElementById('facturacionScanCode');
+                facturacionScanPanel = facturacionScanForm
+                    ? facturacionScanForm.closest('.global-shortcut-scan-panel')
+                    : null;
+                facturacionConceptoForm = document.getElementById('facturacionConceptoForm');
+                facturacionConceptoSelect = document.getElementById('facturacionConceptoSelect');
+                facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
+            };
+
+            const submitFacturacionScanForm = async (form) => {
+                if (!(form instanceof HTMLFormElement)) {
+                    return;
+                }
+
+                refreshFacturacionActionElements();
+
+                const scanInput = form.querySelector('#facturacionScanCode');
+                const scanPanel = form.closest('.global-shortcut-scan-panel');
+
+                if (isFacturacionSubmitting) {
+                    return;
+                }
+
+                setFacturacionSubmittingState(form, true);
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                const formData = new FormData(form);
+                const scanSubmitButton = form.querySelector('button[type="submit"]');
+                if (scanSubmitButton instanceof HTMLButtonElement) {
+                    scanSubmitButton.dataset.originalText = scanSubmitButton.dataset.originalText || scanSubmitButton.textContent.trim();
+                    scanSubmitButton.disabled = true;
+                    scanSubmitButton.textContent = 'Agregando...';
+                }
+                if (scanInput instanceof HTMLInputElement) {
+                    scanInput.disabled = true;
+                }
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                        body: formData,
+                        credentials: 'include',
+                    });
+                    const data = await response.json().catch(() => null);
+                    if (!response.ok || !data || data.ok === false) {
+                        const message = data && data.feedback && data.feedback.detail
+                            ? data.feedback.detail
+                            : 'No se pudo agregar el paquete al carrito.';
+                        throw new Error(message);
+                    }
+
+                    if (data.feedback) {
+                        renderFacturacionShortcutFeedback(data.feedback);
+                        renderFacturacionResultModal(data.feedback);
+                    }
+
+                    if (data.cart) {
+                        applyFacturacionCartPayloadToUi(data.cart);
+                    }
+
+                    const syncOk = await syncFacturacionShortcutAfterMutation();
+                    if (!syncOk) {
+                        window.location.reload();
+                        return;
+                    }
+                    facturacionDraftAutosaveEnabled = true;
+                    if (typeof setAutosaveState === 'function') {
+                        setAutosaveState('is-saved', 'Cambios guardados. Ya puedes seguir agregando o emitir.');
+                    }
+
+                    form.reset();
+                    if (scanPanel instanceof HTMLDetailsElement) {
+                        scanPanel.open = true;
+                    }
+                    if (scanInput instanceof HTMLInputElement) {
+                        window.setTimeout(() => {
+                            scanInput.focus();
+                            scanInput.select();
+                        }, 50);
+                    }
+                } catch (error) {
+                    renderFacturacionShortcutFeedback({
+                        type: 'warning',
+                        title: 'No se pudo agregar el codigo',
+                        message: 'El escaneo no pudo agregarse al carrito de Facturacion.',
+                        detail: error instanceof Error ? error.message : 'Ocurrio un error inesperado.',
+                        action: 'scan_add',
+                    });
+                } finally {
+                    setFacturacionSubmittingState(null, false);
+                    if (scanSubmitButton instanceof HTMLButtonElement) {
+                        scanSubmitButton.disabled = false;
+                        scanSubmitButton.textContent = scanSubmitButton.dataset.originalText || 'Agregar';
+                    }
+                    if (scanInput instanceof HTMLInputElement) {
+                        scanInput.disabled = false;
+                    }
+                }
+            };
+
+            const bindFacturacionScanForm = () => {
+                refreshFacturacionActionElements();
+                if (!(facturacionScanForm instanceof HTMLFormElement) || facturacionScanForm.dataset.facturacionBound === 'true') {
+                    return;
+                }
+
+                facturacionScanForm.dataset.facturacionBound = 'true';
+                facturacionScanForm.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+                    await submitFacturacionScanForm(event.currentTarget);
+                });
+            };
+
+            const bindFacturacionConceptoForm = () => {
+                refreshFacturacionActionElements();
+                if (!(facturacionConceptoForm instanceof HTMLFormElement) || facturacionConceptoForm.dataset.facturacionBound === 'true') {
+                    return;
+                }
+
+                facturacionConceptoForm.dataset.facturacionBound = 'true';
+
+                if (facturacionConceptoSelect instanceof HTMLSelectElement && facturacionConceptoHidden instanceof HTMLInputElement) {
+                    facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
+                    facturacionConceptoSelect.addEventListener('change', function () {
+                        facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
+                    });
+                }
+
+                facturacionConceptoForm.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+
+                    if (isFacturacionSubmitting) {
+                        return;
+                    }
+
+                    if (!(facturacionConceptoSelect instanceof HTMLSelectElement) || !facturacionConceptoSelect.value) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'Selecciona un concepto',
+                            message: 'Debes elegir un concepto facturable antes de agregarlo.',
+                            detail: 'Elige el cobro extra que corresponde a esta venta.',
+                            action: 'concepto_add',
+                        });
+                        return;
+                    }
+
+                    setFacturacionSubmittingState(facturacionConceptoForm, true);
+
+                    const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                    const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                    if (facturacionConceptoHidden instanceof HTMLInputElement && facturacionConceptoSelect instanceof HTMLSelectElement) {
+                        facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
+                    }
+                    const formData = new FormData(facturacionConceptoForm);
+                    const conceptoSubmitButton = facturacionConceptoForm.querySelector('button[type="submit"]');
+                    if (conceptoSubmitButton instanceof HTMLButtonElement) {
+                        conceptoSubmitButton.dataset.originalText = conceptoSubmitButton.dataset.originalText || conceptoSubmitButton.textContent.trim();
+                        conceptoSubmitButton.disabled = true;
+                        conceptoSubmitButton.textContent = 'Agregando...';
+                    }
+                    facturacionConceptoSelect.disabled = true;
+
+                    try {
+                        const response = await fetch(facturacionConceptoForm.action, {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                            },
+                            body: formData,
+                            credentials: 'include',
+                        });
+
+                        const responseText = await response.text();
+                        let data = null;
+
+                        try {
+                            data = responseText ? JSON.parse(responseText) : null;
+                        } catch (parseError) {
+                            data = null;
+                        }
+
+                        if (!response.ok || !data || data.ok === false) {
+                            const rawSnippet = String(responseText || '')
+                                .replace(/<[^>]+>/g, ' ')
+                                .replace(/\s+/g, ' ')
+                                .trim()
+                                .slice(0, 220);
+                            const message = data && data.feedback && data.feedback.detail
+                                ? data.feedback.detail
+                                : (rawSnippet || 'No se pudo agregar el cobro al carrito.');
+                            throw new Error(message);
+                        }
+
+                        if (data.feedback) {
+                            renderFacturacionShortcutFeedback(data.feedback);
+                            renderFacturacionResultModal(data.feedback);
+                        }
+
+                        await syncFacturacionShortcutAfterMutation();
+                        facturacionDraftAutosaveEnabled = true;
+                        if (typeof setAutosaveState === 'function') {
+                            setAutosaveState('is-saved', 'Cobro agregado. Puedes editar el precio en el carrito.');
+                        }
+
+                        facturacionConceptoForm.reset();
+                    } catch (error) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'No se pudo agregar el cobro',
+                            message: 'El concepto facturable no pudo agregarse al carrito.',
+                            detail: error instanceof Error ? error.message : 'Ocurrio un error inesperado.',
+                            action: 'concepto_add',
+                        });
+                    } finally {
+                        setFacturacionSubmittingState(null, false);
+                        if (conceptoSubmitButton instanceof HTMLButtonElement) {
+                            conceptoSubmitButton.disabled = false;
+                            conceptoSubmitButton.textContent = conceptoSubmitButton.dataset.originalText || 'Agregar cobro';
+                        }
+                        if (facturacionConceptoSelect instanceof HTMLSelectElement) {
+                            facturacionConceptoSelect.disabled = false;
+                        }
+                    }
+                });
+            };
+
+            const syncFacturacionShortcutSectionsFromDocument = (sourceDoc) => {
+                if (!(sourceDoc instanceof Document)) {
+                    return;
+                }
+
+                const replaceSection = (selector) => {
+                    const current = document.querySelector(selector);
+                    const incoming = sourceDoc.querySelector(selector);
+
+                    if (current instanceof HTMLElement && incoming instanceof HTMLElement) {
+                        current.replaceWith(incoming.cloneNode(true));
+                    }
+                };
+
+                replaceSection('.global-shortcut-cart-summary');
+                replaceSection('.global-shortcut-cart-block');
+                replaceSection('.global-shortcut-scan-panel--entry');
+                replaceSection('.global-shortcut-footer-action');
+                replaceSection('.global-shortcut-edit-hint');
+                replaceSection('.global-shortcut-issue-box');
+
+                const currentBadge = openFacturacionShortcutBtn
+                    ? openFacturacionShortcutBtn.querySelector('.global-facturacion-fab__badge')
+                    : null;
+                const incomingBadge = sourceDoc.querySelector('#openFacturacionShortcut .global-facturacion-fab__badge');
+
+                if (currentBadge instanceof HTMLElement) {
+                    currentBadge.remove();
+                }
+
+                if (incomingBadge instanceof HTMLElement && openFacturacionShortcutBtn instanceof HTMLElement) {
+                    openFacturacionShortcutBtn.appendChild(incomingBadge.cloneNode(true));
+                }
+
+                bindFacturacionConfirmForms();
+                bindFacturacionItemEditButtons();
+                bindFacturacionScanForm();
+                bindFacturacionConceptoForm();
+            };
+
+            const fetchAndSyncFacturacionShortcutSections = async () => {
+                const response = await fetch(window.location.href, {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'text/html',
+                    },
+                    credentials: 'include',
+                });
+
+                if (!response.ok) {
+                    throw new Error('No se pudo sincronizar el carrito actual.');
+                }
+
+                const html = await response.text();
+                const parser = new DOMParser();
+                const sourceDoc = parser.parseFromString(html, 'text/html');
+                syncFacturacionShortcutSectionsFromDocument(sourceDoc);
+            };
+
+            const syncFacturacionShortcutAfterMutation = async () => {
+                try {
+                    await fetchAndSyncFacturacionShortcutSections();
+                    return true;
+                } catch (error) {
+                    window.setTimeout(() => {
+                        window.location.reload();
+                    }, 120);
+
+                    return false;
+                }
+            };
+
+            window.syncFacturacionShortcutSections = async () => {
+                await fetchAndSyncFacturacionShortcutSections();
+            };
+
+            const facturacionDestroyItemRouteTemplate = @json(route('facturacion.cart.items.destroy', ['itemId' => '__ITEM__']));
+            const facturacionClearCartRoute = @json(route('facturacion.cart.clear'));
+
+            const escapeFacturacionHtml = (value) => {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            };
+
+            const formatFacturacionMoney = (value) => {
+                return 'Bs ' + Number(value || 0).toFixed(2);
+            };
+
+            const buildFacturacionDeleteFormHtml = (itemId) => {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const action = String(facturacionDestroyItemRouteTemplate).replace('__ITEM__', String(itemId || '0'));
+
+                return `
+                    <form
+                        method="POST"
+                        action="${escapeFacturacionHtml(action)}"
+                        class="global-shortcut-confirm-form"
+                        data-confirm-title="Quitar item"
+                        data-confirm-message="Este item se quitara del borrador de Facturacion. No afectara ninguna factura final."
+                        data-confirm-note="Si fue un error, luego puedes volver a agregarlo desde la operacion correspondiente."
+                        data-confirm-cta="Si, quitar"
+                    >
+                        <input type="hidden" name="_token" value="${escapeFacturacionHtml(csrfToken)}">
+                        <input type="hidden" name="_method" value="DELETE">
+                        <button type="submit" class="global-shortcut-link-btn global-shortcut-link-btn--danger">Quitar</button>
+                    </form>
+                `;
+            };
+
+            const buildFacturacionEditButtonHtml = (item) => {
+                const resumen = item && typeof item.resumen_origen === 'object' && item.resumen_origen ? item.resumen_origen : {};
+                const priceValue = Number(
+                    (item && item.monto_base)
+                    ?? (item && item.precio)
+                    ?? (item && item.total_linea)
+                    ?? 0
+                ).toFixed(2);
+
+                return `
+                    <button
+                        type="button"
+                        class="global-shortcut-link-btn"
+                        data-edit-facturacion-item="true"
+                        data-item-id="${escapeFacturacionHtml(item && item.id ? item.id : '')}"
+                        data-item-codigo="${escapeFacturacionHtml(item && item.codigo ? item.codigo : '')}"
+                        data-item-titulo="${escapeFacturacionHtml(item && item.titulo ? item.titulo : '')}"
+                        data-item-servicio="${escapeFacturacionHtml(item && item.nombre_servicio ? item.nombre_servicio : '')}"
+                        data-item-destinatario="${escapeFacturacionHtml(item && item.nombre_destinatario ? item.nombre_destinatario : '')}"
+                        data-item-contenido="${escapeFacturacionHtml(resumen.contenido || '')}"
+                        data-item-direccion="${escapeFacturacionHtml(resumen.direccion || '')}"
+                        data-item-ciudad="${escapeFacturacionHtml(resumen.ciudad || '')}"
+                        data-item-peso="${escapeFacturacionHtml(resumen.peso || '')}"
+                        data-item-precio="${escapeFacturacionHtml(priceValue)}"
+                        data-item-actividad-economica="${escapeFacturacionHtml(resumen.actividad_economica || '')}"
+                        data-item-codigo-sin="${escapeFacturacionHtml(resumen.codigo_sin || '')}"
+                        data-item-codigo-producto="${escapeFacturacionHtml(resumen.codigo_producto || '')}"
+                        data-item-descripcion-servicio="${escapeFacturacionHtml(resumen.descripcion_servicio || '')}"
+                        data-item-unidad-medida="${escapeFacturacionHtml(resumen.unidad_medida || '')}"
+                    >
+                        Editar
+                    </button>
+                `;
+            };
+
+            const renderFacturacionCartItemHtml = (item) => {
+                const extras = Array.isArray(item && item.servicios_extra) ? item.servicios_extra : [];
+                const visibleExtras = extras.filter((extra) => Number((extra && extra.amount) || 0) > 0);
+                const recipientHtml = item && item.nombre_destinatario
+                    ? `<div class="global-shortcut-cart-item__recipient">Destinatario: ${escapeFacturacionHtml(item.nombre_destinatario)}</div>`
+                    : '';
+                const extrasHtml = visibleExtras.length > 0
+                    ? `<div class="global-shortcut-cart-item__extras">${visibleExtras.map((extra) => `
+                        <span class="global-shortcut-chip">${escapeFacturacionHtml((extra && extra.name) || 'Extra')} | ${formatFacturacionMoney((extra && extra.amount) || 0)}</span>
+                    `).join('')}</div>`
+                    : '';
+
+                return `
+                    <article class="global-shortcut-cart-item">
+                        <div class="global-shortcut-cart-item__top">
+                            <strong>${escapeFacturacionHtml((item && item.titulo) || 'Item de facturacion')}</strong>
+                            <span class="global-shortcut-cart-item__amount">${formatFacturacionMoney((item && item.total_linea) || 0)}</span>
+                        </div>
+                        <div class="global-shortcut-cart-item__meta">
+                            <span>${escapeFacturacionHtml((item && item.codigo) || 'Sin codigo')}</span>
+                            <span>${escapeFacturacionHtml((item && item.nombre_servicio) || 'Servicio no identificado')}</span>
+                        </div>
+                        ${recipientHtml}
+                        ${extrasHtml}
+                        <div class="global-shortcut-cart-item__actions">
+                            ${buildFacturacionEditButtonHtml(item)}
+                            ${buildFacturacionDeleteFormHtml(item && item.id ? item.id : 0)}
+                        </div>
+                    </article>
+                `;
+            };
+
+            const applyFacturacionCartPayloadToUi = (cartData) => {
+                if (!cartData || typeof cartData !== 'object' || !(facturacionShortcutModal instanceof HTMLElement)) {
+                    return;
+                }
+
+                const items = Array.isArray(cartData.items) ? cartData.items.slice() : [];
+                const orderedItems = items.sort((left, right) => Number((right && right.id) || 0) - Number((left && left.id) || 0));
+
+                facturacionShortcutModal.querySelectorAll('.global-shortcut-cart-summary__metric strong').forEach((metric, index) => {
+                    if (!(metric instanceof HTMLElement)) {
+                        return;
+                    }
+
+                    metric.textContent = index === 0
+                        ? String(Number(cartData.cantidad_items || orderedItems.length || 0))
+                        : formatFacturacionMoney(cartData.total || 0);
+                });
+
+                const cartBlock = facturacionShortcutModal.querySelector('.global-shortcut-cart-block');
+                if (!(cartBlock instanceof HTMLElement)) {
+                    return;
+                }
+
+                cartBlock.querySelector('.global-shortcut-cart-list')?.remove();
+                cartBlock.querySelector('.global-shortcut-cart-empty')?.remove();
+
+                const actionsWrap = cartBlock.querySelector('.global-shortcut-cart-block__actions');
+                if (actionsWrap instanceof HTMLElement) {
+                    actionsWrap.innerHTML = orderedItems.length > 0 ? `
+                        <form
+                            method="POST"
+                            action="${escapeFacturacionHtml(facturacionClearCartRoute)}"
+                            class="global-shortcut-confirm-form"
+                            data-confirm-title="Vaciar carrito"
+                            data-confirm-message="Se eliminaran todos los items del borrador de Facturacion. Puedes volver a agregarlos despues si hace falta."
+                            data-confirm-note="Se conservaran intactos los registros operativos. Solo se limpiara el borrador actual del carrito."
+                            data-confirm-cta="Si, vaciar"
+                        >
+                            <input type="hidden" name="_token" value="${escapeFacturacionHtml(document.querySelector('meta[name="csrf-token"]')?.content || '')}">
+                            <button type="submit" class="global-shortcut-link-btn">Vaciar carrito</button>
+                        </form>
+                    ` : '';
+                }
+
+                if (orderedItems.length === 0) {
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'global-shortcut-cart-empty';
+                    emptyState.innerHTML = `
+                        <div class="global-shortcut-cart-empty__icon" aria-hidden="true">
+                            <i class="fas fa-shopping-basket"></i>
+                        </div>
+                        <strong>Borrador sin items</strong>
+                        <p>Este borrador sigue activo aunque ya no tenga items. Puedes eliminarlo si ya no lo necesitas.</p>
+                    `;
+                    cartBlock.appendChild(emptyState);
+                } else {
+                    const list = document.createElement('div');
+                    list.className = 'global-shortcut-cart-list';
+                    list.innerHTML = orderedItems.map((item) => renderFacturacionCartItemHtml(item)).join('');
+                    cartBlock.appendChild(list);
+                }
+
+                bindFacturacionConfirmForms();
+                bindFacturacionItemEditButtons();
+            };
+
+            const submitFacturacionCartMutationForm = async (form) => {
+                if (!(form instanceof HTMLFormElement)) {
+                    return false;
+                }
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: new FormData(form),
+                    credentials: 'include',
+                });
+
+                const data = await response.json().catch(() => null);
+                if (!response.ok || !data || data.ok === false) {
+                    const message = data && data.feedback && data.feedback.detail
+                        ? data.feedback.detail
+                        : 'No se pudo actualizar el carrito.';
+                    throw new Error(message);
+                }
+
+                if (data.feedback) {
+                    renderFacturacionShortcutFeedback(data.feedback);
+                }
+
+                await syncFacturacionShortcutAfterMutation();
+
+                const hasBadge = openFacturacionShortcutBtn
+                    && openFacturacionShortcutBtn.querySelector('.global-facturacion-fab__badge');
+                facturacionDraftAutosaveEnabled = !!hasBadge;
+                if (typeof setAutosaveState === 'function') {
+                    setAutosaveState(
+                        'is-saved',
+                        facturacionDraftAutosaveEnabled
+                            ? 'Cambios guardados. Ya puedes seguir agregando o emitir.'
+                            : 'Sin borrador activo. Agrega un item para iniciar una nueva facturacion.'
+                    );
+                }
+
+                return true;
+            };
+
             const renderFacturacionShortcutFeedback = (feedback) => {
                 if (!feedback || typeof feedback !== 'object') {
                     return;
@@ -3100,6 +4136,9 @@
                 alertBox.className = 'global-shortcut-feedback global-shortcut-feedback--' + String(feedback.type || 'info');
                 alertBox.id = 'facturacionFeedbackAlert';
                 alertBox.innerHTML = `
+                    <button type="button" class="global-shortcut-feedback__close" aria-label="Cerrar aviso">
+                        <i class="fas fa-times"></i>
+                    </button>
                     <div class="global-shortcut-feedback__icon">
                         <i class="fas ${String(feedback.type || '') === 'success' ? 'fa-check-circle' : String(feedback.type || '') === 'warning' ? 'fa-exclamation-triangle' : String(feedback.type || '') === 'error' ? 'fa-times-circle' : 'fa-info-circle'}"></i>
                     </div>
@@ -3111,12 +4150,133 @@
                 `;
 
                 modalBody.insertBefore(alertBox, modalBody.firstChild);
+
+                const dismissAlert = () => {
+                    if (!alertBox.isConnected || alertBox.classList.contains('is-dismissing')) {
+                        return;
+                    }
+
+                    alertBox.classList.add('is-dismissing');
+                    window.setTimeout(() => {
+                        if (alertBox.isConnected) {
+                            alertBox.remove();
+                        }
+                    }, 260);
+                };
+
+                const closeButton = alertBox.querySelector('.global-shortcut-feedback__close');
+                if (closeButton instanceof HTMLButtonElement) {
+                    closeButton.addEventListener('click', dismissAlert);
+                }
+
+                window.setTimeout(dismissAlert, 3000);
+            };
+
+            const renderFacturacionResultModal = (feedback) => {
+                if (!feedback || typeof feedback !== 'object') {
+                    return;
+                }
+
+                facturacionCurrentResultKey = JSON.stringify({
+                    title: String(feedback.title || ''),
+                    message: String(feedback.message || ''),
+                    detail: String(feedback.detail || ''),
+                    meta: Array.isArray(feedback.meta)
+                        ? feedback.meta.map((item) => ({
+                            label: String(item && item.label ? item.label : ''),
+                            value: String(item && item.value ? item.value : ''),
+                        }))
+                        : [],
+                });
+
+                const feedbackType = String(feedback.type || 'info');
+                const iconClass = feedbackType === 'success'
+                    ? 'fa-check-circle'
+                    : feedbackType === 'warning'
+                        ? 'fa-exclamation-triangle'
+                        : feedbackType === 'error'
+                            ? 'fa-times-circle'
+                            : 'fa-info-circle';
+
+                if (facturacionResultModalIcon instanceof HTMLElement) {
+                    facturacionResultModalIcon.className = 'facturacion-result-modal__icon facturacion-result-modal__icon--' + feedbackType;
+                }
+
+                if (facturacionResultModalIconGlyph instanceof HTMLElement) {
+                    facturacionResultModalIconGlyph.className = 'fas ' + iconClass;
+                }
+
+                if (facturacionResultModalTitle instanceof HTMLElement) {
+                    facturacionResultModalTitle.textContent = String(feedback.title || 'Resultado de facturacion');
+                }
+
+                if (facturacionResultModalMessage instanceof HTMLElement) {
+                    facturacionResultModalMessage.textContent = String(feedback.message || '');
+                }
+
+                if (facturacionResultModalMeta instanceof HTMLElement) {
+                    const metaItems = Array.isArray(feedback.meta) ? feedback.meta : [];
+                    facturacionResultModalMeta.innerHTML = '';
+
+                    metaItems.forEach((metaItem) => {
+                        if (!metaItem || typeof metaItem !== 'object') {
+                            return;
+                        }
+
+                        const metaLabel = String(metaItem.label || 'Dato').trim();
+                        const metaValue = String(metaItem.value || '').trim();
+                        const metaType = String(metaItem.type || 'text').trim();
+
+                        if (metaValue === '') {
+                            return;
+                        }
+
+                        const metaCard = document.createElement('div');
+                        metaCard.className = 'facturacion-result-modal__meta-card';
+
+                        const labelEl = document.createElement('span');
+                        labelEl.className = 'facturacion-result-modal__meta-label';
+                        labelEl.textContent = metaLabel;
+                        metaCard.appendChild(labelEl);
+
+                        if (metaType === 'link') {
+                            const linkEl = document.createElement('a');
+                            linkEl.href = metaValue;
+                            linkEl.target = '_blank';
+                            linkEl.rel = 'noopener';
+                            linkEl.className = 'facturacion-result-modal__meta-link';
+                            linkEl.textContent = 'Abrir documento';
+                            metaCard.appendChild(linkEl);
+                        } else {
+                            const valueEl = document.createElement('strong');
+                            valueEl.className = 'facturacion-result-modal__meta-value';
+                            valueEl.textContent = metaValue;
+                            metaCard.appendChild(valueEl);
+                        }
+
+                        facturacionResultModalMeta.appendChild(metaCard);
+                    });
+
+                    facturacionResultModalMeta.classList.toggle('is-hidden', facturacionResultModalMeta.children.length === 0);
+                }
+
+                if (facturacionResultModalDetail instanceof HTMLElement) {
+                    const detailText = String(feedback.detail || '').trim();
+                    facturacionResultModalDetail.textContent = detailText;
+                    facturacionResultModalDetail.classList.toggle('is-hidden', detailText === '');
+                }
             };
 
             const updateFacturacionQrViewer = (qrData = null, cartData = null) => {
                 if (!qrData || typeof qrData !== 'object') {
                     return;
                 }
+
+                facturacionCurrentQrKey = JSON.stringify({
+                    transaction_id: String(qrData.transaction_id || ''),
+                    internal_code: String(qrData.internal_code || (cartData && cartData.codigo_orden) || ''),
+                    payment_status: String(qrData.payment_status || ''),
+                });
 
                 const paymentStatus = String(qrData.payment_status || 'holding').trim().toUpperCase();
                 const transactionId = String(qrData.transaction_id || '').trim();
@@ -3140,6 +4300,9 @@
                 }
                 if (facturacionQrViewerCartId instanceof HTMLInputElement) {
                     facturacionQrViewerCartId.value = String((cartData && cartData.id) || facturacionQrViewerCartId.value || '');
+                }
+                if (facturacionQrViewerAutoEmitInvoice instanceof HTMLInputElement && cartData && Object.prototype.hasOwnProperty.call(cartData, 'auto_emit_invoice')) {
+                    facturacionQrViewerAutoEmitInvoice.value = String(cartData.auto_emit_invoice || '') === '0' ? '0' : '1';
                 }
 
                 if (imageSrc !== '') {
@@ -3173,17 +4336,137 @@
                     if (!window.sessionStorage.getItem(downloadKey)) {
                         window.sessionStorage.setItem(downloadKey, '1');
                         window.setTimeout(() => {
-                            const tempLink = document.createElement('a');
-                            tempLink.href = downloadPdf.url;
-                            tempLink.target = '_blank';
-                            tempLink.rel = 'noopener noreferrer';
-                            tempLink.click();
+                            triggerFacturacionPdfDownload(downloadPdf.url, downloadPdf.filename || '');
                         }, 180);
                     }
                 } catch (error) {
                     window.setTimeout(() => {
-                        window.open(downloadPdf.url, '_blank', 'noopener');
+                        triggerFacturacionPdfDownload(downloadPdf.url, downloadPdf.filename || '');
                     }, 180);
+                }
+            };
+
+            const resolveFacturacionPdfFilename = (url, explicitFilename = '') => {
+                const cleanExplicit = String(explicitFilename || '').trim();
+                if (cleanExplicit !== '') {
+                    return cleanExplicit.toLowerCase().endsWith('.pdf') ? cleanExplicit : cleanExplicit + '.pdf';
+                }
+
+                try {
+                    const parsedUrl = new URL(String(url || ''), window.location.origin);
+                    const pathname = String(parsedUrl.pathname || '');
+                    const basename = pathname.split('/').filter(Boolean).pop() || 'factura-electronica.pdf';
+                    return basename.toLowerCase().endsWith('.pdf') ? basename : basename + '.pdf';
+                } catch (error) {
+                    return 'factura-electronica.pdf';
+                }
+            };
+
+            const triggerFacturacionPdfDownload = async (url, explicitFilename = '') => {
+                const filename = resolveFacturacionPdfFilename(url, explicitFilename);
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        credentials: 'include',
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('No se pudo descargar el PDF.');
+                    }
+
+                    const blob = await response.blob();
+                    const objectUrl = window.URL.createObjectURL(blob);
+                    const tempLink = document.createElement('a');
+                    tempLink.href = objectUrl;
+                    tempLink.download = filename;
+                    tempLink.rel = 'noopener noreferrer';
+                    document.body.appendChild(tempLink);
+                    tempLink.click();
+                    tempLink.remove();
+                    window.setTimeout(() => {
+                        window.URL.revokeObjectURL(objectUrl);
+                    }, 1200);
+                    return;
+                } catch (error) {
+                    const tempLink = document.createElement('a');
+                    tempLink.href = url;
+                    tempLink.download = filename;
+                    tempLink.rel = 'noopener noreferrer';
+                    document.body.appendChild(tempLink);
+                    tempLink.click();
+                    tempLink.remove();
+                }
+            };
+
+            const resetFacturacionShortcutDraftUi = () => {
+                facturacionDraftAutosaveEnabled = false;
+                storeInvoiceMode('');
+                const fabBadge = openFacturacionShortcutBtn
+                    ? openFacturacionShortcutBtn.querySelector('.global-facturacion-fab__badge')
+                    : null;
+                if (fabBadge instanceof HTMLElement) {
+                    fabBadge.remove();
+                }
+
+                document.querySelectorAll('.global-shortcut-cart-summary__metric strong').forEach((metric, index) => {
+                    if (!(metric instanceof HTMLElement)) {
+                        return;
+                    }
+
+                    metric.textContent = index === 0 ? '0' : 'Bs 0.00';
+                });
+
+                const cartBlock = facturacionShortcutModal.querySelector('.global-shortcut-cart-block');
+                if (cartBlock instanceof HTMLElement) {
+                    const actionsWrap = cartBlock.querySelector('.global-shortcut-cart-block__actions');
+                    if (actionsWrap instanceof HTMLElement) {
+                        actionsWrap.innerHTML = '';
+                    }
+
+                    const currentList = cartBlock.querySelector('.global-shortcut-cart-list');
+                    if (currentList instanceof HTMLElement) {
+                        currentList.remove();
+                    }
+
+                    let emptyState = cartBlock.querySelector('.global-shortcut-cart-empty');
+                    if (!(emptyState instanceof HTMLElement)) {
+                        emptyState = document.createElement('div');
+                        emptyState.className = 'global-shortcut-cart-empty';
+                        emptyState.innerHTML = `
+                            <div class="global-shortcut-cart-empty__icon" aria-hidden="true">
+                                <i class="fas fa-shopping-basket"></i>
+                            </div>
+                            <strong>Carrito vacio</strong>
+                            <p>No agregaste items para Facturacion.</p>
+                        `;
+                        cartBlock.appendChild(emptyState);
+                    }
+                }
+
+                facturacionShortcutModal.querySelectorAll('.global-shortcut-edit-hint, .global-shortcut-issue-box').forEach((element) => {
+                    if (element instanceof HTMLElement) {
+                        element.remove();
+                    }
+                });
+
+                facturacionShortcutModal.querySelectorAll('.global-shortcut-confirm-form, .global-shortcut-emit-btn').forEach((element) => {
+                    if (element instanceof HTMLFormElement) {
+                        const action = String(element.getAttribute('action') || '');
+                        if (action.includes('/facturacion/cart/emitir') || action.includes('/facturacion/cart/clear')) {
+                            element.remove();
+                        }
+                    } else if (element instanceof HTMLButtonElement && element.classList.contains('global-shortcut-emit-btn')) {
+                        element.disabled = true;
+                        element.setAttribute('aria-disabled', 'true');
+                        element.textContent = 'Carrito vacio';
+                    }
+                });
+
+                if (facturacionAutosaveState) {
+                    facturacionAutosaveState.classList.remove('is-saving', 'is-error');
+                    facturacionAutosaveState.classList.add('is-saved');
+                    facturacionAutosaveState.textContent = 'Venta finalizada. Agrega otro item para iniciar una nueva facturacion.';
                 }
             };
 
@@ -3195,6 +4478,11 @@
                 const tokenMeta = document.querySelector('meta[name="csrf-token"]');
                 const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
                 const formData = new FormData(form);
+                const autoEmitInvoice = String(formData.get('auto_emit_invoice') || '') === '0' ? '0' : '1';
+
+                if (facturacionQrViewerAutoEmitInvoice instanceof HTMLInputElement) {
+                    facturacionQrViewerAutoEmitInvoice.value = autoEmitInvoice;
+                }
 
                 const response = await fetch(form.action, {
                     method: 'POST',
@@ -3222,10 +4510,592 @@
                 }
                 if (data.qr_data) {
                     updateFacturacionQrViewer(data.qr_data, data.cart || null);
+                    if (data.cart && String(data.cart.canal_emision || '').toLowerCase() === 'qr') {
+                        resetFacturacionShortcutDraftUi();
+                    }
                     openFacturacionQrViewer();
                 }
 
                 return true;
+            };
+
+            const submitFacturacionEmitForm = async (form) => {
+                if (!(form instanceof HTMLFormElement)) {
+                    return false;
+                }
+
+                const emitChannelInput = form.querySelector('input[name="canal_emision"]');
+                const emitChannel = String(emitChannelInput instanceof HTMLInputElement ? emitChannelInput.value : '').toLowerCase();
+
+                if (emitChannel === 'qr') {
+                    return submitQrEmitForm(form);
+                }
+
+                const previewCopy = resolveProcessingCopy(form);
+                if (facturacionProcessingPreviewTimer) {
+                    window.clearTimeout(facturacionProcessingPreviewTimer);
+                }
+                facturacionProcessingPreviewTimer = window.setTimeout(() => {
+                    setFacturacionProcessingOverlay(true, {
+                        pill: previewCopy.pill,
+                        title: 'La emision sigue en proceso',
+                        text: 'Puedes cerrar esta vista. La factura seguira procesandose y se descargara cuando el sistema responda.',
+                        previewMode: true,
+                    });
+                }, FACTURACION_EMIT_PREVIEW_DELAY_MS);
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                const formData = new FormData(form);
+
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: formData,
+                });
+
+                const data = await response.json().catch(() => null);
+                if (!response.ok || !data || data.ok === false) {
+                    const errorMessage = data && data.feedback && data.feedback.detail
+                        ? data.feedback.detail
+                        : 'No se pudo emitir la factura electronica.';
+                    throw new Error(errorMessage);
+                }
+
+                const shouldWaitForFacturaResult = !data.download_pdf
+                    && !data.qr_data
+                    && data.cart
+                    && String(data.cart.canal_emision || '').toLowerCase() !== 'qr'
+                    && ['PENDIENTE', 'PROCESADA', ''].includes(String(data.cart.estado_emision || '').trim().toUpperCase());
+
+                const finalData = shouldWaitForFacturaResult
+                    ? await waitForFacturaEmitResult(data.cart.id, data)
+                    : data;
+
+                if (finalData.feedback) {
+                    renderFacturacionShortcutFeedback(finalData.feedback);
+                    renderFacturacionResultModal(finalData.feedback);
+                }
+                if (finalData.download_pdf) {
+                    handleFacturacionDownloadPdf(finalData.download_pdf);
+                }
+                if (finalData.qr_data) {
+                    updateFacturacionQrViewer(finalData.qr_data, finalData.cart || null);
+                    openFacturacionQrViewer();
+                    return true;
+                }
+
+                if (shouldKeepFacturaPolling(finalData)) {
+                    startFacturaBackgroundTracking(finalData);
+                } else {
+                    clearFacturaBackgroundTracking();
+                }
+
+                if (finalData.cart) {
+                    resetFacturacionShortcutDraftUi();
+                }
+
+                openFacturacionResultModal();
+                return true;
+            };
+
+            const waitForFacturaEmitResult = async (cartId, fallbackData) => {
+                const resolvedCartId = Number(cartId || 0);
+                if (!Number.isFinite(resolvedCartId) || resolvedCartId <= 0) {
+                    return fallbackData;
+                }
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+
+                for (let attempt = 0; attempt < FACTURACION_EMIT_FINAL_WAIT_ATTEMPTS; attempt += 1) {
+                    await new Promise((resolve) => window.setTimeout(resolve, FACTURACION_EMIT_FINAL_WAIT_INTERVAL_MS));
+
+                    const consultFormData = new FormData();
+                    consultFormData.set('_token', csrfToken);
+                    consultFormData.set('cart_id', String(resolvedCartId));
+
+                    let response;
+                    let data;
+
+                    try {
+                        response = await fetch(facturacionConsultarRoute, {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                            },
+                            body: consultFormData,
+                        });
+                        data = await response.json().catch(() => null);
+                    } catch (error) {
+                        continue;
+                    }
+
+                    if (!response.ok || !data || data.ok === false) {
+                        continue;
+                    }
+
+                    const emissionStatus = String((data.cart && data.cart.estado_emision) || '').trim().toUpperCase();
+                    const hasPdf = !!data.download_pdf;
+                    const isFinal = hasPdf || ['FACTURADA', 'RECHAZADA', 'ERROR'].includes(emissionStatus);
+
+                    if (isFinal) {
+                        return data;
+                    }
+                }
+
+                return fallbackData;
+            };
+
+            const shouldKeepFacturaPolling = (data) => {
+                if (!data || typeof data !== 'object' || !data.cart) {
+                    return false;
+                }
+
+                if (data.download_pdf || data.qr_data) {
+                    return false;
+                }
+
+                if (String(data.cart.canal_emision || '').toLowerCase() === 'qr') {
+                    return false;
+                }
+
+                const emissionStatus = String(data.cart.estado_emision || '').trim().toUpperCase();
+                return ['PENDIENTE', 'PROCESADA', ''].includes(emissionStatus);
+            };
+
+            const isQrPaymentConfirmed = (data) => {
+                if (!data || typeof data !== 'object') {
+                    return false;
+                }
+
+                const paymentStatus = String(
+                    (data.qr_data && data.qr_data.payment_status)
+                    || (data.cart && data.cart.estado_pago)
+                    || ''
+                ).trim().toLowerCase();
+
+                return ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'].includes(paymentStatus);
+            };
+
+            const shouldAutoEmitQrInvoice = (data) => {
+                if (data && data.cart && Object.prototype.hasOwnProperty.call(data.cart, 'auto_emit_invoice')) {
+                    return String(data.cart.auto_emit_invoice || '') !== '0';
+                }
+
+                if (facturacionQrViewerAutoEmitInvoice instanceof HTMLInputElement) {
+                    return String(facturacionQrViewerAutoEmitInvoice.value || '') !== '0';
+                }
+
+                return true;
+            };
+
+            const readStoredInvoiceMode = () => {
+                try {
+                    return String(window.sessionStorage.getItem(FACTURACION_INVOICE_MODE_STORAGE_KEY) || '').trim().toLowerCase();
+                } catch (error) {
+                    return '';
+                }
+            };
+
+            const storeInvoiceMode = (mode) => {
+                try {
+                    if (!mode) {
+                        window.sessionStorage.removeItem(FACTURACION_INVOICE_MODE_STORAGE_KEY);
+                        return;
+                    }
+
+                    window.sessionStorage.setItem(FACTURACION_INVOICE_MODE_STORAGE_KEY, String(mode));
+                } catch (error) {
+                    // Ignora errores de storage.
+                }
+            };
+
+            const continueAutomaticQrFacturaFlow = (data) => {
+                if (!shouldAutoEmitQrInvoice(data)) {
+                    closeFacturacionQrViewer();
+
+                    const qrOnlyFeedback = data && data.feedback ? data.feedback : {
+                        type: 'success',
+                        title: 'Pago QR confirmado',
+                        message: 'El cobro QR fue confirmado correctamente.',
+                        detail: 'La venta quedo registrada como pago QR sin factura electronica automatica.',
+                    };
+
+                    renderFacturacionShortcutFeedback(qrOnlyFeedback);
+                    if (data && data.cart) {
+                        resetFacturacionShortcutDraftUi();
+                    }
+                    if (facturacionShortcutModal instanceof HTMLElement && !facturacionShortcutModal.classList.contains('is-open')) {
+                        openFacturacionShortcutModal();
+                    }
+                    renderFacturacionResultModal(qrOnlyFeedback);
+                    openFacturacionResultModal();
+                    return true;
+                }
+
+                closeFacturacionQrViewer();
+
+                renderFacturacionShortcutFeedback({
+                    type: 'success',
+                    title: 'QR pagado',
+                    message: 'El pago QR fue confirmado automaticamente.',
+                    detail: 'Continuamos con la solicitud de factura electronica.',
+                });
+
+                if (shouldKeepFacturaPolling(data)) {
+                    setFacturacionProcessingOverlay(true, {
+                        pill: 'FACTURACION EN CURSO',
+                        title: 'Solicitando factura',
+                        text: 'El pago ya fue confirmado. Estamos continuando con la facturacion electronica.',
+                        previewMode: false,
+                    });
+
+                    startFacturaBackgroundTracking(data, null, {
+                        feedback: {
+                            type: 'info',
+                            title: 'Solicitando factura',
+                            message: 'El QR fue pagado y la factura electronica se esta procesando automaticamente.',
+                            detail: 'Puedes seguir trabajando. El sistema consultara la respuesta hasta descargar el PDF o mostrar el estado final.',
+                        },
+                    });
+                    return true;
+                }
+
+                if (data.feedback) {
+                    renderFacturacionShortcutFeedback(data.feedback);
+                }
+
+                if (data.download_pdf) {
+                    handleFacturacionDownloadPdf(data.download_pdf);
+                }
+
+                if (data.cart) {
+                    resetFacturacionShortcutDraftUi();
+                }
+
+                if (facturacionShortcutModal instanceof HTMLElement && !facturacionShortcutModal.classList.contains('is-open')) {
+                    openFacturacionShortcutModal();
+                }
+
+                if (data.feedback) {
+                    renderFacturacionResultModal(data.feedback);
+                    openFacturacionResultModal();
+                }
+
+                return true;
+            };
+
+            const persistFacturaPendingState = () => {
+                if (!facturacionPendingEmitState) {
+                    return;
+                }
+
+                try {
+                    window.sessionStorage.setItem(FACTURACION_PENDING_STORAGE_KEY, JSON.stringify(facturacionPendingEmitState));
+                } catch (error) {
+                    // Ignora errores de storage y continua con el seguimiento en memoria.
+                }
+            };
+
+            const clearFacturaPendingStorage = () => {
+                try {
+                    window.sessionStorage.removeItem(FACTURACION_PENDING_STORAGE_KEY);
+                } catch (error) {
+                    // Ignora errores de storage.
+                }
+            };
+
+            const clearFacturaBackgroundTracking = () => {
+                if (facturacionPendingEmitPollTimer) {
+                    window.clearTimeout(facturacionPendingEmitPollTimer);
+                    facturacionPendingEmitPollTimer = null;
+                }
+
+                facturacionPendingEmitState = null;
+                clearFacturaPendingStorage();
+                setFacturacionProcessingOverlay(false, {
+                    pill: '',
+                    title: '',
+                    text: '',
+                    previewMode: false,
+                });
+            };
+
+            const readFacturaPendingStorage = () => {
+                try {
+                    const rawValue = window.sessionStorage.getItem(FACTURACION_PENDING_STORAGE_KEY);
+                    if (!rawValue) {
+                        return null;
+                    }
+
+                    const parsed = JSON.parse(rawValue);
+                    return parsed && typeof parsed === 'object' ? parsed : null;
+                } catch (error) {
+                    return null;
+                }
+            };
+
+            const fetchFacturaConsultData = async (cartId) => {
+                const resolvedCartId = Number(cartId || 0);
+                if (!Number.isFinite(resolvedCartId) || resolvedCartId <= 0) {
+                    return null;
+                }
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                const consultFormData = new FormData();
+                consultFormData.set('_token', csrfToken);
+                consultFormData.set('cart_id', String(resolvedCartId));
+
+                const response = await fetch(facturacionConsultarRoute, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: consultFormData,
+                });
+
+                const data = await response.json().catch(() => null);
+                if (!response.ok || !data || data.ok === false) {
+                    throw new Error(data && data.feedback && data.feedback.detail
+                        ? data.feedback.detail
+                        : 'No se pudo consultar el estado de la factura.');
+                }
+
+                return data;
+            };
+
+            const handleFacturaBackgroundResolved = (data) => {
+                clearFacturaBackgroundTracking();
+                setFacturacionProcessingOverlay(false, {
+                    pill: '',
+                    title: '',
+                    text: '',
+                    previewMode: false,
+                });
+
+                if (data.feedback) {
+                    renderFacturacionShortcutFeedback(data.feedback);
+                    renderFacturacionResultModal(data.feedback);
+                }
+
+                if (data.download_pdf) {
+                    handleFacturacionDownloadPdf(data.download_pdf);
+                }
+
+                if (data.cart) {
+                    resetFacturacionShortcutDraftUi();
+                }
+
+                if (facturacionShortcutModal instanceof HTMLElement && !facturacionShortcutModal.classList.contains('is-open')) {
+                    openFacturacionShortcutModal();
+                }
+
+                openFacturacionResultModal();
+            };
+
+            const pollFacturaBackgroundStatus = async () => {
+                if (!facturacionPendingEmitState) {
+                    return;
+                }
+
+                const elapsedMs = Date.now() - Number(facturacionPendingEmitState.startedAt || Date.now());
+                if (elapsedMs >= FACTURACION_BACKGROUND_POLL_MAX_DURATION_MS) {
+                    renderFacturacionShortcutFeedback({
+                        type: 'info',
+                        title: 'Factura aun en proceso',
+                        message: 'Seguimos esperando la respuesta final de facturacion.',
+                        detail: 'La venta ya fue enviada. Puedes continuar trabajando y usar "Actualizar estado" si el comprobante tarda mas de lo habitual.',
+                    });
+                    clearFacturaBackgroundTracking();
+                    return;
+                }
+
+                try {
+                    const data = await fetchFacturaConsultData(facturacionPendingEmitState.cartId);
+                    if (shouldKeepFacturaPolling(data)) {
+                        facturacionPendingEmitState.lastCheckedAt = Date.now();
+                        persistFacturaPendingState();
+                        facturacionPendingEmitPollTimer = window.setTimeout(pollFacturaBackgroundStatus, FACTURACION_BACKGROUND_POLL_INTERVAL_MS);
+                        return;
+                    }
+
+                    handleFacturaBackgroundResolved(data);
+                } catch (error) {
+                    facturacionPendingEmitState.lastCheckedAt = Date.now();
+                    persistFacturaPendingState();
+                    facturacionPendingEmitPollTimer = window.setTimeout(pollFacturaBackgroundStatus, FACTURACION_BACKGROUND_POLL_INTERVAL_MS);
+                }
+            };
+
+            const startFacturaBackgroundTracking = (data, restoredState = null, options = {}) => {
+                const cartId = Number(restoredState && restoredState.cartId ? restoredState.cartId : data && data.cart ? data.cart.id : 0);
+                if (!Number.isFinite(cartId) || cartId <= 0) {
+                    return;
+                }
+
+                if (facturacionPendingEmitPollTimer) {
+                    window.clearTimeout(facturacionPendingEmitPollTimer);
+                    facturacionPendingEmitPollTimer = null;
+                }
+
+                facturacionPendingEmitState = {
+                    cartId,
+                    startedAt: Number(restoredState && restoredState.startedAt ? restoredState.startedAt : Date.now()),
+                    lastCheckedAt: Date.now(),
+                };
+                persistFacturaPendingState();
+
+                renderFacturacionShortcutFeedback(options.feedback || {
+                    type: 'info',
+                    title: 'Factura en proceso',
+                    message: 'La venta fue enviada correctamente. Seguiremos consultando el resultado automaticamente.',
+                    detail: 'Puedes continuar con otra venta. El PDF se descargara apenas Facturacion lo devuelva.',
+                });
+
+                facturacionPendingEmitPollTimer = window.setTimeout(pollFacturaBackgroundStatus, FACTURACION_BACKGROUND_POLL_INTERVAL_MS);
+            };
+
+            const restoreFacturaBackgroundTracking = () => {
+                const storedState = readFacturaPendingStorage();
+                if (!storedState || !storedState.cartId) {
+                    return;
+                }
+
+                const elapsedMs = Date.now() - Number(storedState.startedAt || Date.now());
+                if (elapsedMs >= FACTURACION_BACKGROUND_POLL_MAX_DURATION_MS) {
+                    clearFacturaBackgroundTracking();
+                    return;
+                }
+
+                startFacturaBackgroundTracking(null, storedState);
+            };
+
+            const scheduleFacturacionQrPolling = (delayMs = FACTURACION_QR_POLL_INTERVAL_MS) => {
+                if (!(facturacionQrViewer instanceof HTMLElement) || !facturacionQrViewer.classList.contains('is-open')) {
+                    return;
+                }
+
+                if (!(facturacionQrViewerCartId instanceof HTMLInputElement) || String(facturacionQrViewerCartId.value || '').trim() === '') {
+                    return;
+                }
+
+                if (facturacionQrPollingTimer) {
+                    window.clearTimeout(facturacionQrPollingTimer);
+                }
+
+                facturacionQrPollingTimer = window.setTimeout(() => {
+                    pollFacturacionQrStatus();
+                }, delayMs);
+            };
+
+            const pollFacturacionQrStatus = async () => {
+                if (!(facturacionQrViewer instanceof HTMLElement) || !facturacionQrViewer.classList.contains('is-open')) {
+                    return;
+                }
+
+                if (!(facturacionQrViewerCartId instanceof HTMLInputElement) || facturacionQrPollingRequest) {
+                    return;
+                }
+
+                const cartId = String(facturacionQrViewerCartId.value || '').trim();
+                if (cartId === '') {
+                    return;
+                }
+
+                const manualForm = facturacionQrViewer.querySelector('form.facturacion-qr-viewer__actions');
+                if (!(manualForm instanceof HTMLFormElement)) {
+                    return;
+                }
+
+                const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                const formData = new FormData(manualForm);
+                formData.set('cart_id', cartId);
+
+                facturacionQrPollingRequest = fetch(manualForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: formData,
+                });
+
+                try {
+                    const response = await facturacionQrPollingRequest;
+                    const data = await response.json().catch(() => null);
+
+                    if (!response.ok || !data || data.ok === false) {
+                        throw new Error(data && data.feedback && data.feedback.detail ? data.feedback.detail : 'No se pudo actualizar el estado del QR.');
+                    }
+
+                    if (data.qr_data) {
+                        updateFacturacionQrViewer(data.qr_data, data.cart || null);
+                    }
+                    if (data.download_pdf) {
+                        handleFacturacionDownloadPdf(data.download_pdf);
+                    }
+                    facturacionQrPollingErrorCount = 0;
+
+                    const paymentStatus = String(
+                        (data.qr_data && data.qr_data.payment_status)
+                        || (data.cart && data.cart.estado_pago)
+                        || ''
+                    ).trim().toLowerCase();
+                    const emissionStatus = String(
+                        (data.cart && data.cart.estado_emision)
+                        || ''
+                    ).trim().toUpperCase();
+                    const shouldCloseQrViewer = FACTURACION_QR_FINAL_STATUSES.includes(paymentStatus)
+                        || ['PENDIENTE', 'FACTURADA', 'RECHAZADA', 'ERROR'].includes(emissionStatus)
+                        || !!data.download_pdf;
+
+                    if (shouldCloseQrViewer) {
+                        if (isQrPaymentConfirmed(data)) {
+                            continueAutomaticQrFacturaFlow(data);
+                            return;
+                        }
+
+                        closeFacturacionQrViewer();
+                        if (data.feedback) {
+                            renderFacturacionShortcutFeedback(data.feedback);
+                        }
+                        if (facturacionShortcutModal instanceof HTMLElement && !facturacionShortcutModal.classList.contains('is-open')) {
+                            openFacturacionShortcutModal();
+                        }
+                        return;
+                    }
+
+                    scheduleFacturacionQrPolling();
+                } catch (error) {
+                    facturacionQrPollingErrorCount += 1;
+
+                    if (facturacionQrPollingErrorCount >= 2) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'No se pudo actualizar el QR',
+                            message: 'El estado del pago no pudo consultarse automaticamente.',
+                            detail: error instanceof Error && error.message
+                                ? error.message
+                                : 'Revisa la conexion con el servicio de facturacion y vuelve a intentar.',
+                        });
+                    }
+
+                    scheduleFacturacionQrPolling(7000);
+                } finally {
+                    facturacionQrPollingRequest = null;
+                }
             };
 
             const resolveScopedBillingForm = (contextElement) => {
@@ -3250,11 +5120,12 @@
                 const panel = scopedBillingForm.closest('.global-shortcut-modal__panel');
                 const scopedConfirmForms = panel instanceof HTMLElement
                     ? panel.querySelectorAll('.global-shortcut-confirm-form')
-                    : confirmForms;
+                    : document.querySelectorAll('.global-shortcut-confirm-form');
 
                 const billingData = {
                     modalidad_facturacion: 'con_datos',
                     canal_emision: 'factura_electronica',
+                    auto_emit_invoice: '1',
                     tipo_documento: '',
                     numero_documento: '',
                     complemento_documento: '',
@@ -3264,6 +5135,7 @@
 
                 const formFieldMap = {
                     canal_emision: 'input[name="canal_emision"]',
+                    auto_emit_invoice: '#facturacionAutoEmitInvoiceInput',
                     tipo_documento: 'input[name="tipo_documento"]',
                     numero_documento: 'input[name="numero_documento"]',
                     complemento_documento: 'input[name="complemento_documento"]',
@@ -3281,6 +5153,7 @@
                 billingData.canal_emision = String(billingData.canal_emision || 'factura_electronica').toLowerCase() === 'qr'
                     ? 'qr'
                     : 'factura_electronica';
+                billingData.auto_emit_invoice = String(billingData.auto_emit_invoice || '') === '0' ? '0' : '1';
 
                 scopedConfirmForms.forEach((form) => {
                     if (!(form instanceof HTMLFormElement)) {
@@ -3300,11 +5173,15 @@
                         field.value = billingData[syncField];
                     });
                 });
+
+                if (facturacionQrViewerAutoEmitInvoice instanceof HTMLInputElement) {
+                    facturacionQrViewerAutoEmitInvoice.value = billingData.auto_emit_invoice;
+                }
             };
 
             if (facturacionProcessingState instanceof HTMLElement) {
                 facturacionProcessingState.addEventListener('click', function () {
-                    if (facturacionProcessingState.dataset.previewMode !== 'true' || isFacturacionSubmitting) {
+                    if (facturacionProcessingState.dataset.previewMode !== 'true') {
                         return;
                     }
 
@@ -3325,8 +5202,28 @@
                 openFacturacionShortcutBtn.setAttribute('aria-expanded', 'true');
 
                 window.setTimeout(() => {
+                    if (facturacionScanPanel instanceof HTMLDetailsElement && facturacionScanPanel.open && facturacionScanCodeInput instanceof HTMLInputElement) {
+                        facturacionScanCodeInput.focus();
+                        facturacionScanCodeInput.select();
+                        return;
+                    }
+
                     closeFacturacionShortcutBtn.focus();
                 }, 30);
+            };
+
+            const openFacturacionAddPanel = () => {
+                const addPanel = facturacionShortcutModal.querySelector('.global-shortcut-scan-panel--entry');
+                if (addPanel instanceof HTMLDetailsElement) {
+                    addPanel.open = true;
+                    window.setTimeout(() => {
+                        addPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        if (facturacionScanCodeInput instanceof HTMLInputElement && !facturacionScanCodeInput.disabled) {
+                            facturacionScanCodeInput.focus();
+                            facturacionScanCodeInput.select();
+                        }
+                    }, 50);
+                }
             };
 
             const closeFacturacionShortcutModal = () => {
@@ -3344,22 +5241,42 @@
                 if (!facturacionQrViewer) {
                     return;
                 }
+                if (isFacturacionQrViewerDismissed(facturacionCurrentQrKey)) {
+                    return;
+                }
                 facturacionQrViewer.classList.add('is-open');
                 facturacionQrViewer.setAttribute('aria-hidden', 'false');
                 document.body.classList.add('global-shortcut-open');
+                scheduleFacturacionQrPolling(2500);
             };
 
             const closeFacturacionQrViewer = () => {
                 if (!facturacionQrViewer) {
                     return;
                 }
+                if (facturacionQrPollingTimer) {
+                    window.clearTimeout(facturacionQrPollingTimer);
+                    facturacionQrPollingTimer = null;
+                }
+                facturacionQrPollingErrorCount = 0;
                 facturacionQrViewer.classList.remove('is-open');
                 facturacionQrViewer.setAttribute('aria-hidden', 'true');
                 document.body.classList.remove('global-shortcut-open');
+
+                if (facturacionCurrentQrKey !== '') {
+                    try {
+                        window.sessionStorage.setItem(FACTURACION_QR_VIEWER_DISMISSED_PREFIX + facturacionCurrentQrKey, '1');
+                    } catch (error) {
+                        // Ignora errores de storage.
+                    }
+                }
             };
 
             const openFacturacionResultModal = () => {
                 if (!facturacionResultModal) {
+                    return;
+                }
+                if (isFacturacionResultDismissed(facturacionCurrentResultKey)) {
                     return;
                 }
                 facturacionResultModal.classList.add('is-open');
@@ -3380,6 +5297,38 @@
                 facturacionResultModal.classList.remove('is-open');
                 facturacionResultModal.setAttribute('aria-hidden', 'true');
                 document.body.classList.remove('global-shortcut-open');
+
+                if (facturacionCurrentResultKey !== '') {
+                    try {
+                        window.sessionStorage.setItem(FACTURACION_RESULT_MODAL_DISMISSED_PREFIX + facturacionCurrentResultKey, '1');
+                    } catch (error) {
+                        // Ignora errores de storage.
+                    }
+                }
+            };
+
+            const isFacturacionResultDismissed = (resultKey) => {
+                if (!resultKey) {
+                    return false;
+                }
+
+                try {
+                    return window.sessionStorage.getItem(FACTURACION_RESULT_MODAL_DISMISSED_PREFIX + resultKey) === '1';
+                } catch (error) {
+                    return false;
+                }
+            };
+
+            const isFacturacionQrViewerDismissed = (qrKey) => {
+                if (!qrKey) {
+                    return false;
+                }
+
+                try {
+                    return window.sessionStorage.getItem(FACTURACION_QR_VIEWER_DISMISSED_PREFIX + qrKey) === '1';
+                } catch (error) {
+                    return false;
+                }
             };
 
             const openFacturacionItemEditModal = (trigger) => {
@@ -3403,26 +5352,23 @@
                     facturacionEditItemDireccion: trigger.dataset.itemDireccion || '',
                     facturacionEditItemCiudad: trigger.dataset.itemCiudad || '',
                     facturacionEditItemPeso: trigger.dataset.itemPeso || '',
+                    facturacionEditItemPrecio: trigger.dataset.itemPrecio || '',
                     facturacionEditItemActividadEconomica: trigger.dataset.itemActividadEconomica || '',
                     facturacionEditItemCodigoSin: trigger.dataset.itemCodigoSin || '',
                     facturacionEditItemCodigoProducto: trigger.dataset.itemCodigoProducto || '',
-                    facturacionEditItemDescripcionServicio: trigger.dataset.itemDescripcionServicio || '',
                     facturacionEditItemUnidadMedida: trigger.dataset.itemUnidadMedida || '',
+                    facturacionEditItemDescripcionServicio: trigger.dataset.itemDescripcionServicio || '',
                 };
 
-                const focusField = trigger.dataset.focusField || '';
-                const focusFieldId = facturacionFieldFocusMap[focusField] || 'facturacionEditItemCodigo';
-                const focusFieldName = facturacionFieldNames[focusField] || '';
-
-                if (facturacionItemEditAlert instanceof HTMLElement) {
-                    if (focusFieldName !== '') {
-                        facturacionItemEditAlert.textContent = 'Campo observado: ' + focusFieldName + '. Corrigelo y guarda el item antes de reenviar.';
-                        facturacionItemEditAlert.classList.remove('is-hidden');
-                    } else {
-                        facturacionItemEditAlert.textContent = '';
-                        facturacionItemEditAlert.classList.add('is-hidden');
-                    }
-                }
+                const summaryMap = {
+                    facturacionEditItemCodigoResumen: trigger.dataset.itemCodigo || '',
+                    facturacionEditItemTituloResumen: trigger.dataset.itemTitulo || '',
+                    facturacionEditItemServicioResumen: trigger.dataset.itemServicio || '',
+                    facturacionEditItemDestinatarioResumen: trigger.dataset.itemDestinatario || '',
+                    facturacionEditItemContenidoResumen: trigger.dataset.itemContenido || '',
+                    facturacionEditItemDireccionResumen: trigger.dataset.itemDireccion || '',
+                    facturacionEditItemCiudadResumen: trigger.dataset.itemCiudad || '',
+                };
 
                 Object.entries(fieldMap).forEach(([fieldId, value]) => {
                     const input = document.getElementById(fieldId);
@@ -3431,15 +5377,10 @@
                     }
                 });
 
-                facturacionItemEditFields.forEach((field) => {
-                    if (!(field instanceof HTMLElement)) {
-                        return;
-                    }
-
-                    if (focusField !== '') {
-                        field.classList.toggle('is-hidden', field.dataset.editFieldKey !== focusField);
-                    } else {
-                        field.classList.remove('is-hidden');
+                Object.entries(summaryMap).forEach(([fieldId, value]) => {
+                    const summary = document.getElementById(fieldId);
+                    if (summary instanceof HTMLElement) {
+                        summary.textContent = value || '-';
                     }
                 });
 
@@ -3447,10 +5388,10 @@
                 facturacionItemEditModal.setAttribute('aria-hidden', 'false');
 
                 window.setTimeout(() => {
-                    const firstField = document.getElementById(focusFieldId);
-                    if (firstField instanceof HTMLInputElement) {
-                        firstField.focus();
-                        firstField.select();
+                    const priceField = document.getElementById('facturacionEditItemPrecio');
+                    if (priceField instanceof HTMLInputElement) {
+                        priceField.focus();
+                        priceField.select();
                     }
                 }, 30);
             };
@@ -3462,17 +5403,6 @@
 
                 facturacionItemEditModal.classList.remove('is-open');
                 facturacionItemEditModal.setAttribute('aria-hidden', 'true');
-
-                if (facturacionItemEditAlert instanceof HTMLElement) {
-                    facturacionItemEditAlert.textContent = '';
-                    facturacionItemEditAlert.classList.add('is-hidden');
-                }
-
-                facturacionItemEditFields.forEach((field) => {
-                    if (field instanceof HTMLElement) {
-                        field.classList.remove('is-hidden');
-                    }
-                });
             };
 
             const openFacturacionActionConfirm = (form) => {
@@ -3482,10 +5412,6 @@
                 }
 
                 pendingConfirmForm = form;
-                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || FACTURACION_CONFIRM_DEFAULTS.title;
-                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || FACTURACION_CONFIRM_DEFAULTS.message;
-                facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || 'Confirmar accion';
-                facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || 'Esta accion actualizara tu borrador de Facturacion.';
                 facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || FACTURACION_CONFIRM_DEFAULTS.title;
                 facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || FACTURACION_CONFIRM_DEFAULTS.message;
                 if (facturacionActionConfirmNote && facturacionActionConfirmNoteBox) {
@@ -3531,38 +5457,105 @@
                 const target = event.target;
                 if (target instanceof HTMLElement && target.dataset.closeFacturacionModal === 'true') {
                     closeFacturacionShortcutModal();
+                    return;
+                }
+
+                const openAddPanelTrigger = target instanceof HTMLElement
+                    ? target.closest('[data-open-facturacion-add-panel="true"]')
+                    : null;
+                if (openAddPanelTrigger instanceof HTMLElement) {
+                    openFacturacionAddPanel();
                 }
             });
 
-            confirmForms.forEach((form) => {
-                form.addEventListener('submit', function (event) {
-                    if (isFacturacionSubmitting) {
-                        event.preventDefault();
-                        return;
-                    }
-
-                    event.preventDefault();
-                    openFacturacionActionConfirm(form);
-                });
-            });
-
-            facturacionItemEditButtons.forEach((button) => {
-                button.addEventListener('click', function () {
-                    openFacturacionItemEditModal(button);
-                });
-            });
+            bindFacturacionConfirmForms();
+            bindFacturacionItemEditButtons();
 
             if (facturacionItemEditCancel) {
                 facturacionItemEditCancel.addEventListener('click', closeFacturacionItemEditModal);
             }
 
             if (facturacionItemEditForm) {
-                facturacionItemEditForm.addEventListener('submit', function () {
+                facturacionItemEditForm.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+
                     if (facturacionItemEditSubmit instanceof HTMLButtonElement) {
                         facturacionItemEditSubmit.disabled = true;
                         facturacionItemEditSubmit.textContent = 'Guardando...';
                     }
+
+                    const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                    const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+
+                    try {
+                        const response = await fetch(facturacionItemEditForm.action, {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                            },
+                            body: new FormData(facturacionItemEditForm),
+                            credentials: 'include',
+                        });
+
+                        const data = await response.json().catch(() => null);
+                        if (!response.ok || !data || data.ok === false) {
+                            const message = data && data.feedback && data.feedback.detail
+                                ? data.feedback.detail
+                                : 'No se pudo actualizar el item.';
+                            throw new Error(message);
+                        }
+
+                        if (data.feedback) {
+                            renderFacturacionShortcutFeedback(data.feedback);
+                            renderFacturacionResultModal(data.feedback);
+                        }
+
+                        await syncFacturacionShortcutAfterMutation();
+                        closeFacturacionItemEditModal();
+                        facturacionDraftAutosaveEnabled = true;
+                        if (typeof setAutosaveState === 'function') {
+                            setAutosaveState('is-saved', 'Cambios guardados. Ya puedes reenviar.');
+                        }
+                    } catch (error) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'error',
+                            title: 'No se pudo actualizar el item',
+                            message: 'La correccion no pudo guardarse.',
+                            detail: String(error && error.message ? error.message : 'Ocurrio un error inesperado.'),
+                        });
+                    } finally {
+                        if (facturacionItemEditSubmit instanceof HTMLButtonElement) {
+                            facturacionItemEditSubmit.disabled = false;
+                            facturacionItemEditSubmit.textContent = 'Guardar cambios';
+                        }
+                    }
                 });
+            }
+
+            bindFacturacionScanForm();
+            bindFacturacionConceptoForm();
+
+            if (!window.__facturacionDelegatedScanBinding) {
+                window.__facturacionDelegatedScanBinding = true;
+
+                document.addEventListener('submit', function (event) {
+                    const form = event.target instanceof HTMLFormElement
+                        ? event.target
+                        : null;
+
+                    if (!form || form.id !== 'facturacionScanForm' || form.dataset.facturacionDelegatedRunning === 'true') {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    form.dataset.facturacionDelegatedRunning = 'true';
+                    submitFacturacionScanForm(form)
+                        .finally(() => {
+                            delete form.dataset.facturacionDelegatedRunning;
+                        });
+                }, true);
             }
 
             if (facturacionItemEditModal) {
@@ -3591,9 +5584,20 @@
                 }
             }
 
-            if (facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object' && facturacionFlashFeedback.action === 'consultar') {
+            if (facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object') {
+                renderFacturacionResultModal(facturacionFlashFeedback);
+            }
+
+            if (
+                facturacionFlashFeedback
+                && typeof facturacionFlashFeedback === 'object'
+                && facturacionFlashFeedback.action === 'consultar'
+                && !isFacturacionResultDismissed(facturacionInitialFeedbackKey)
+            ) {
                 openFacturacionResultModal();
             }
+
+            restoreFacturaBackgroundTracking();
 
             if (facturacionDownloadPdf && typeof facturacionDownloadPdf === 'object' && facturacionDownloadPdf.url) {
                 const downloadKey = 'facturacion-pdf:' + (facturacionDownloadPdf.key || facturacionDownloadPdf.url);
@@ -3602,21 +5606,22 @@
                     if (!window.sessionStorage.getItem(downloadKey)) {
                         window.sessionStorage.setItem(downloadKey, '1');
                         window.setTimeout(() => {
-                            const tempLink = document.createElement('a');
-                            tempLink.href = facturacionDownloadPdf.url;
-                            tempLink.target = '_blank';
-                            tempLink.rel = 'noopener noreferrer';
-                            tempLink.click();
+                            triggerFacturacionPdfDownload(facturacionDownloadPdf.url, facturacionDownloadPdf.filename || '');
                         }, 180);
                     }
                 } catch (error) {
                     window.setTimeout(() => {
-                        window.open(facturacionDownloadPdf.url, '_blank', 'noopener');
+                        triggerFacturacionPdfDownload(facturacionDownloadPdf.url, facturacionDownloadPdf.filename || '');
                     }, 180);
                 }
             }
 
-            if (facturacionQrData && typeof facturacionQrData === 'object' && (facturacionQrData.image_data || facturacionQrData.transaction_id)) {
+            if (
+                facturacionQrData
+                && typeof facturacionQrData === 'object'
+                && (facturacionQrData.image_data || facturacionQrData.transaction_id)
+                && !isFacturacionQrViewerDismissed(facturacionInitialQrKey)
+            ) {
                 openFacturacionQrViewer();
             }
 
@@ -3632,6 +5637,33 @@
                     if (target.matches('[data-close-facturacion-qr]')) {
                         closeFacturacionQrViewer();
                     }
+                });
+            }
+            const facturacionQrViewerManualForm = facturacionQrViewer
+                ? facturacionQrViewer.querySelector('form.facturacion-qr-viewer__actions')
+                : null;
+            if (facturacionQrViewerManualForm instanceof HTMLFormElement) {
+                facturacionQrViewerManualForm.addEventListener('submit', function (event) {
+                    event.preventDefault();
+
+                    if (facturacionQrPollingTimer) {
+                        window.clearTimeout(facturacionQrPollingTimer);
+                        facturacionQrPollingTimer = null;
+                    }
+
+                    pollFacturacionQrStatus();
+                });
+            }
+            if (facturacionScanPanel instanceof HTMLDetailsElement && facturacionScanCodeInput instanceof HTMLInputElement) {
+                facturacionScanPanel.addEventListener('toggle', function () {
+                    if (!facturacionScanPanel.open) {
+                        return;
+                    }
+
+                    window.setTimeout(() => {
+                        facturacionScanCodeInput.focus();
+                        facturacionScanCodeInput.select();
+                    }, 40);
                 });
             }
             if (facturacionResultModalClose) {
@@ -3681,6 +5713,11 @@
                         return Promise.resolve(false);
                     }
 
+                    if (!facturacionDraftAutosaveEnabled) {
+                        setAutosaveState('is-saved', 'Sin borrador activo. Agrega un item para iniciar una nueva facturacion.');
+                        return Promise.resolve(true);
+                    }
+
                     const formData = new FormData(targetForm);
                     setAutosaveState('is-saving', 'Guardando cambios...');
 
@@ -3692,11 +5729,19 @@
                         },
                         body: formData,
                     })
-                        .then((response) => {
+                        .then((response) => response.json().catch(() => ({})).then((data) => ({ response, data })))
+                        .then(({ response, data }) => {
                             if (!response.ok) {
                                 throw new Error('No se pudo guardar');
                             }
 
+                            if (data && data.draft_missing) {
+                                facturacionDraftAutosaveEnabled = false;
+                                setAutosaveState('is-saved', 'Sin borrador activo. Agrega un item para iniciar una nueva facturacion.');
+                                return true;
+                            }
+
+                            facturacionDraftAutosaveEnabled = true;
                             setAutosaveState('is-saved', 'Cambios guardados. Ya puedes reenviar.');
                             return true;
                         })
@@ -3919,21 +5964,44 @@
                     const initialChannel = String(facturacionInvoiceChannelInput.value || 'factura_electronica').toLowerCase();
                     facturacionInvoiceChannelInput.value = initialChannel === 'qr' ? 'qr' : 'factura_electronica';
                 }
+                if (facturacionAutoEmitInvoiceInput) {
+                    facturacionAutoEmitInvoiceInput.value = String(facturacionAutoEmitInvoiceInput.value || '') === '0' ? '0' : '1';
+                }
+                const storedInvoiceMode = readStoredInvoiceMode();
+                if (['factura_electronica', 'qr_factura', 'qr_solo'].includes(storedInvoiceMode)) {
+                    if (facturacionInvoiceChannelInput instanceof HTMLInputElement) {
+                        facturacionInvoiceChannelInput.value = storedInvoiceMode === 'factura_electronica' ? 'factura_electronica' : 'qr';
+                    }
+                    if (facturacionAutoEmitInvoiceInput instanceof HTMLInputElement) {
+                        facturacionAutoEmitInvoiceInput.value = storedInvoiceMode === 'qr_solo' ? '0' : '1';
+                    }
+                    invoiceChannelButtons.forEach((candidate) => {
+                        if (candidate instanceof HTMLElement) {
+                            candidate.classList.toggle('is-active', String(candidate.dataset.invoiceChannelChoice || '').toLowerCase() === storedInvoiceMode);
+                        }
+                    });
+                }
 
                 invoiceChannelButtons.forEach((button) => {
                     if (!(button instanceof HTMLButtonElement)) {
                         return;
                     }
                     button.addEventListener('click', function () {
-                        const channel = String(button.dataset.invoiceChannelChoice || '').toLowerCase();
-                        if (!['factura_electronica', 'qr'].includes(channel)) {
+                        const mode = String(button.dataset.invoiceChannelChoice || '').toLowerCase();
+                        if (!['factura_electronica', 'qr_factura', 'qr_solo'].includes(mode)) {
                             return;
                         }
+                        const channel = mode === 'factura_electronica' ? 'factura_electronica' : 'qr';
+                        const autoEmitInvoice = mode === 'qr_solo' ? '0' : '1';
+                        storeInvoiceMode(mode);
 
                         const panel = button.closest('.global-shortcut-modal__panel');
                         const scopedInput = panel instanceof HTMLElement
                             ? panel.querySelector('#facturacionInvoiceChannelInput')
                             : facturacionInvoiceChannelInput;
+                        const scopedAutoEmitInput = panel instanceof HTMLElement
+                            ? panel.querySelector('#facturacionAutoEmitInvoiceInput')
+                            : facturacionAutoEmitInvoiceInput;
                         const scopedButtons = panel instanceof HTMLElement
                             ? panel.querySelectorAll('[data-invoice-channel-choice]')
                             : invoiceChannelButtons;
@@ -3943,6 +6011,9 @@
 
                         if (scopedInput instanceof HTMLInputElement) {
                             scopedInput.value = channel;
+                        }
+                        if (scopedAutoEmitInput instanceof HTMLInputElement) {
+                            scopedAutoEmitInput.value = autoEmitInvoice;
                         }
 
                         scopedButtons.forEach((candidate) => {
@@ -3993,18 +6064,35 @@
                         }
                     }
 
-                    const emitChannelInput = form.querySelector('input[name="canal_emision"]');
-                    const emitChannel = String(emitChannelInput instanceof HTMLInputElement ? emitChannelInput.value : '').toLowerCase();
-                    const isQrEmit = emitChannel === 'qr' && String(form.getAttribute('action') || '').includes('/facturacion/cart/emitir');
+                    const isEmitAction = String(form.getAttribute('action') || '').includes('/facturacion/cart/emitir');
+                    const isCartMutationAction = String(form.getAttribute('action') || '').includes('/facturacion/cart/clear')
+                        || String(form.getAttribute('action') || '').includes('/facturacion/cart/items/');
 
-                    if (isQrEmit) {
+                    if (isEmitAction) {
                         try {
-                            await submitQrEmitForm(form);
+                            await submitFacturacionEmitForm(form);
                         } catch (error) {
                             renderFacturacionShortcutFeedback({
                                 type: 'error',
-                                title: 'No se pudo generar el QR',
-                                message: 'La venta no pudo completar el flujo QR.',
+                                title: 'No se pudo completar la emision',
+                                message: 'La venta no pudo completar el flujo de facturacion.',
+                                detail: String(error && error.message ? error.message : 'Ocurrio un error inesperado.'),
+                            });
+                        } finally {
+                            setFacturacionSubmittingState(null, false);
+                        }
+
+                        return;
+                    }
+
+                    if (isCartMutationAction) {
+                        try {
+                            await submitFacturacionCartMutationForm(form);
+                        } catch (error) {
+                            renderFacturacionShortcutFeedback({
+                                type: 'warning',
+                                title: 'No se pudo actualizar el carrito',
+                                message: 'La accion no pudo completarse.',
                                 detail: String(error && error.message ? error.message : 'Ocurrio un error inesperado.'),
                             });
                         } finally {
@@ -4054,6 +6142,7 @@
 
             window.addEventListener('pageshow', function () {
                 setFacturacionSubmittingState(null, false);
+                restoreFacturaBackgroundTracking();
             });
         });
     </script>

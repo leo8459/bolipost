@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\ConceptoFacturacion;
 use App\Models\PaqueteCerti;
+use App\Models\PaqueteInt;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
+use App\Models\Recojo;
 use App\Models\Servicio;
 use App\Models\SolicitudCliente;
 use App\Models\User;
@@ -12,7 +15,9 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class FacturacionCartService
 {
@@ -63,10 +68,19 @@ class FacturacionCartService
 
     public function abrirCaja(User $user): array
     {
-        $body = $this->request('POST', '/caja/abrir', array_merge(
+        $payload = array_merge(
             $this->originUserPayload($user),
             $this->originSucursalPayload($user)
-        ));
+        );
+        Log::info('FacturacionCartService abrirCaja request', [
+            'user_id' => $user->id,
+            'payload' => $payload,
+        ]);
+        $body = $this->request('POST', '/caja/abrir', $payload);
+        Log::info('FacturacionCartService abrirCaja response', [
+            'user_id' => $user->id,
+            'body' => $body,
+        ]);
 
         return [
             'estado' => strtoupper(trim((string) (data_get($body, 'estado') ?? data_get($body, 'data.estado') ?? 'ABIERTA'))),
@@ -75,9 +89,12 @@ class FacturacionCartService
         ];
     }
 
-    public function cerrarCaja(User $user): array
+    public function cerrarCaja(User $user, float $montoCierreDeclarado): array
     {
         $body = $this->request('POST', '/caja/cerrar', array_merge(
+            [
+                'monto_cierre_declarado' => round($montoCierreDeclarado, 2),
+            ],
             $this->originUserPayload($user),
             $this->originSucursalPayload($user)
         ));
@@ -110,9 +127,12 @@ class FacturacionCartService
         ];
     }
 
-    public function updateDraftBillingData(User $user, array $payload): object
+    public function updateDraftBillingData(User $user, array $payload, ?int $cartId = null): ?object
     {
         $payload = $this->withMotivoFromCanalEmision($payload);
+        if ($cartId !== null && $cartId > 0) {
+            $payload['cart_id'] = $cartId;
+        }
 
         $body = $this->request('PUT', '/cart/billing', array_merge(
             $payload,
@@ -121,7 +141,7 @@ class FacturacionCartService
         ));
 
         $cart = $this->toCart(data_get($body, 'cart'));
-        if (!$cart) {
+        if (!$cart && !data_get($body, 'draft_missing', false)) {
             throw new \RuntimeException('No se pudo actualizar datos de facturacion remotos.');
         }
         return $cart;
@@ -139,8 +159,7 @@ class FacturacionCartService
         );
         $montoBase = round((float) ($paquete->precio ?? 0), 2);
         $resumenOrigen = $this->buildPaqueteEmsResumenOrigen($paquete, $servicio);
-
-        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+        $payload = array_merge(
             $this->originUserPayload($user),
             $this->originSucursalPayload($user),
             [
@@ -156,7 +175,9 @@ class FacturacionCartService
             'monto_base' => $montoBase,
             'monto_extras' => 0,
             'total_linea' => $montoBase,
-        ]));
+        ]);
+
+        $body = $this->request('POST', '/cart/items/upsert', $payload);
 
         $cart = $this->toCart(data_get($body, 'cart'));
         if (!$cart) {
@@ -185,6 +206,13 @@ class FacturacionCartService
         if ($fallbackEmail === '' || !filter_var($fallbackEmail, FILTER_VALIDATE_EMAIL)) {
             $fallbackEmail = 'sincorreo@agbc.bo';
         }
+        $telefonoSucursal = preg_replace('/\D+/', '', (string) ($user->sucursal?->telefono ?? '')) ?? '';
+        if (strlen($telefonoSucursal) > 8) {
+            $telefonoSucursal = substr($telefonoSucursal, 0, 8);
+        }
+        if (strlen($telefonoSucursal) < 7) {
+            $telefonoSucursal = '2222222';
+        }
 
         $payload = array_merge(
             [
@@ -202,11 +230,10 @@ class FacturacionCartService
                 'origenSucursal' => [
                     'id' => (string) $user->sucursal?->puntoVenta,
                     'codigo' => (string) $user->sucursal?->codigoSucursal,
-                    'nombre' => (string) ($user->sucursal?->nombre ?? $user->sucursal?->descripcion ?? ''),
+                    'nombre' => (string) ($user->sucursal?->nombre ?? $user->sucursal?->descripcion ?? $user->sucursal?->municipio ?? ''),
                 ],
-                'municipio' => 'LA PAZ',
-                'departamento' => 'LA PAZ',
-                'telefono' => '2222222',
+                'municipio' => (string) ($user->sucursal?->municipio ?? 'LA PAZ'),
+                'telefono' => $telefonoSucursal,
                 'documentoSector' => (int) config('services.facturacion_bridge.documento_sector', 1),
                 'codigoCliente' => null,
                 'razonSocial' => 'ENVIO OFICIAL',
@@ -334,6 +361,289 @@ class FacturacionCartService
             throw new \RuntimeException('No se pudo guardar item remoto.');
         }
         return $cart;
+    }
+
+    public function addPaqueteInt(User $user, PaqueteInt $paquete): object
+    {
+        $this->assertFacturacionPermission($user);
+
+        $paquete->loadMissing('servicio');
+        $servicioInternacional = $this->resolveServicioInternacional();
+        $servicioFiscal = $this->resolveFiscalServicio($servicioInternacional, $paquete->servicio, $this->resolveAnyServicioWithFiscalData());
+        $servicioPresentacion = $servicioInternacional ?: $paquete->servicio ?: $servicioFiscal;
+        $peso = $this->toFloatNumber($paquete->peso ?? 0);
+        $montoBase = round($this->toFloatNumber($paquete->precio ?? 0), 2);
+        $codigo = (string) ($paquete->codigo ?? '');
+        if (trim($codigo) === '') {
+            $codigo = (string) ($paquete->cod_especial ?? '');
+        }
+        $tituloServicio = (string) (
+            $servicioPresentacion->nombre_servicio
+            ?? $servicioFiscal->nombre_servicio
+            ?? 'INTERNACIONAL'
+        );
+        $descripcionServicio = (string) (
+            $servicioPresentacion->descripcion
+            ?? $servicioFiscal->descripcion
+            ?? $servicioPresentacion->nombre_servicio
+            ?? $servicioFiscal->nombre_servicio
+            ?? 'ENVIOS DE PAQUETERIA INTERNACIONAL'
+        );
+
+        $payload = array_merge(
+            $this->originUserPayload($user),
+            $this->originSucursalPayload($user),
+            [
+                'origen_tipo' => PaqueteInt::class,
+                'origen_id' => (int) $paquete->id,
+                'codigo' => $codigo,
+                'titulo' => $tituloServicio,
+                'nombre_servicio' => $tituloServicio,
+                'nombre_destinatario' => (string) ($paquete->destino ?? ''),
+                'servicios_extra' => [],
+                'resumen_origen' => [
+                    'codigo' => $codigo,
+                    'contenido' => 'INTERNO',
+                    'peso' => $peso,
+                    'destinatario' => (string) ($paquete->destino ?? ''),
+                    'direccion' => (string) ($paquete->destino ?? ''),
+                    'ciudad' => (string) ($paquete->destino ?? ''),
+                    'actividad_economica' => (string) ($servicioFiscal->actividadEconomica ?? $servicioPresentacion->actividadEconomica ?? ''),
+                    'codigo_sin' => (string) ($servicioFiscal->codigoSin ?? $servicioPresentacion->codigoSin ?? ''),
+                    'codigo_producto' => (string) ($servicioFiscal->codigo ?? $servicioPresentacion->codigo ?? $codigo),
+                    'descripcion_servicio' => $descripcionServicio,
+                    'unidad_medida' => $servicioFiscal->unidadMedida ?? $servicioPresentacion->unidadMedida ?? 58,
+                ],
+                'cantidad' => 1,
+                'monto_base' => $montoBase,
+                'monto_extras' => 0,
+                'total_linea' => $montoBase,
+            ]
+        );
+
+        $body = $this->request('POST', '/cart/items/upsert', $payload);
+
+        $cart = $this->toCart(data_get($body, 'cart'));
+        if (!$cart) {
+            throw new \RuntimeException('No se pudo guardar item remoto.');
+        }
+
+        return $cart;
+    }
+
+    public function addPaqueteContrato(User $user, Recojo $paquete): object
+    {
+        $this->assertFacturacionPermission($user);
+
+        $servicio = $this->resolveFiscalServicio(
+            $this->resolveModuloServicio('CONTRATOS'),
+            $this->resolveModuloServicio('ORDINARIAS'),
+            $this->resolveModuloServicio('CERTIFICADAS')
+        );
+        $montoBase = round($this->toFloatNumber($paquete->precio ?? 0), 2);
+        $peso = $this->toFloatNumber($paquete->peso ?? 0);
+
+        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+            $this->originUserPayload($user),
+            $this->originSucursalPayload($user),
+            [
+                'origen_tipo' => Recojo::class,
+                'origen_id' => (int) $paquete->id,
+                'codigo' => (string) ($paquete->codigo ?? ''),
+                'titulo' => (string) ($servicio->nombre_servicio ?? 'Paquete contrato'),
+                'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'PAQUETE CONTRATO'),
+                'nombre_destinatario' => (string) ($paquete->nombre_d ?? ''),
+                'servicios_extra' => [],
+                'resumen_origen' => [
+                    'codigo' => (string) ($paquete->codigo ?? ''),
+                    'contenido' => (string) ($paquete->contenido ?? 'CONTRATO'),
+                    'peso' => $peso,
+                    'destinatario' => (string) ($paquete->nombre_d ?? ''),
+                    'direccion' => (string) ($paquete->direccion_d ?? ''),
+                    'ciudad' => (string) ($paquete->destino ?? ''),
+                    'actividad_economica' => (string) ($servicio->actividadEconomica ?? ''),
+                    'codigo_sin' => (string) ($servicio->codigoSin ?? ''),
+                    'codigo_producto' => (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
+                    'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? 'PAQUETE CONTRATO'),
+                    'unidad_medida' => $servicio->unidadMedida ?? 58,
+                ],
+                'cantidad' => max(1, (int) ($paquete->cantidad ?? 1)),
+                'monto_base' => $montoBase,
+                'monto_extras' => 0,
+                'total_linea' => $montoBase,
+            ]
+        ));
+
+        $cart = $this->toCart(data_get($body, 'cart'));
+        if (!$cart) {
+            throw new \RuntimeException('No se pudo guardar item remoto.');
+        }
+
+        return $cart;
+    }
+
+    public function addConceptoFacturacion(User $user, ConceptoFacturacion $concepto): object
+    {
+        $this->assertFacturacionPermission($user);
+
+        $montoBase = round((float) ($concepto->precio_base ?? 0), 2);
+
+        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+            $this->originUserPayload($user),
+            $this->originSucursalPayload($user),
+            [
+                'origen_tipo' => ConceptoFacturacion::class,
+                'origen_id' => (int) $concepto->id,
+                'codigo' => (string) ($concepto->codigo ?? ''),
+                'titulo' => (string) ($concepto->nombre ?? 'Cobro adicional'),
+                'nombre_servicio' => (string) ($concepto->nombre ?? 'COBRO ADICIONAL'),
+                'nombre_destinatario' => '',
+                'servicios_extra' => [],
+                'resumen_origen' => [
+                    'codigo' => (string) ($concepto->codigo ?? ''),
+                    'contenido' => 'COBRO ADICIONAL',
+                    'peso' => 0,
+                    'destinatario' => '',
+                    'direccion' => '',
+                    'ciudad' => '',
+                    'actividad_economica' => (string) ($concepto->actividad_economica ?? ''),
+                    'codigo_sin' => (string) ($concepto->codigo_sin ?? ''),
+                    'codigo_producto' => (string) ($concepto->codigo ?? ''),
+                    'descripcion_servicio' => (string) ($concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'),
+                    'unidad_medida' => (int) ($concepto->unidad_medida ?? 58),
+                ],
+                'cantidad' => 1,
+                'monto_base' => $montoBase,
+                'monto_extras' => 0,
+                'total_linea' => $montoBase,
+            ]
+        ));
+
+        $cart = $this->toCart(data_get($body, 'cart'));
+        if (!$cart) {
+            throw new \RuntimeException('No se pudo guardar el concepto facturable en el carrito.');
+        }
+
+        return $cart;
+    }
+
+    public function addScannedItemByCode(User $user, string $codigo): array
+    {
+        $this->assertFacturacionPermission($user);
+
+        $codigoNormalizado = strtoupper(trim($codigo));
+        if ($codigoNormalizado === '') {
+            throw new \RuntimeException('Ingresa un codigo valido para escanear.');
+        }
+
+        $matches = collect();
+
+        $contrato = Recojo::query()
+            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+            ->first();
+        if ($contrato) {
+            $matches->push([
+                'type' => 'contrato',
+                'label' => 'Paquete Contrato',
+                'record' => $contrato,
+            ]);
+        }
+
+        $ordinario = PaqueteOrdi::query()
+            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+            ->first();
+        if ($ordinario) {
+            $matches->push([
+                'type' => 'ordinario',
+                'label' => 'Paquete Ordinario',
+                'record' => $ordinario,
+            ]);
+        }
+
+        $certificado = PaqueteCerti::query()
+            ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+            ->first();
+        if ($certificado) {
+            $matches->push([
+                'type' => 'certificado',
+                'label' => 'Paquete Certificado',
+                'record' => $certificado,
+            ]);
+        }
+
+        $interno = PaqueteInt::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado]);
+            })
+            ->first();
+        if ($interno) {
+            $matches->push([
+                'type' => 'interno',
+                'label' => 'Paquete Interno',
+                'record' => $interno,
+            ]);
+        }
+
+        $ems = PaqueteEms::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado]);
+            })
+            ->first();
+        if ($ems) {
+            $matches->push([
+                'type' => 'ems',
+                'label' => 'Paquete EMS',
+                'record' => $ems,
+            ]);
+        }
+
+        $solicitudEms = SolicitudCliente::query()
+            ->where(function ($query) use ($codigoNormalizado) {
+                $query->whereRaw('trim(upper(COALESCE(codigo_solicitud, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(barcode, \'\'))) = trim(upper(?))', [$codigoNormalizado])
+                    ->orWhereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = trim(upper(?))', [$codigoNormalizado]);
+            })
+            ->first();
+        if ($solicitudEms) {
+            $matches->push([
+                'type' => 'solicitud_ems',
+                'label' => 'Solicitud EMS',
+                'record' => $solicitudEms,
+            ]);
+        }
+
+        if ($matches->isEmpty()) {
+            throw new \RuntimeException('No se encontro ningun paquete de Contratos, Ordinarios, Certificados, Internos, EMS o Solicitudes EMS con ese codigo.');
+        }
+
+        if ($matches->count() > 1) {
+            $labels = $matches->pluck('label')->implode(', ');
+            throw new \RuntimeException('El codigo existe en varios modulos (' . $labels . '). Revisa el registro antes de agregarlo al carrito.');
+        }
+
+        $match = $matches->first();
+        $record = $match['record'];
+
+        $cart = match ($match['type']) {
+            'contrato' => $this->addPaqueteContrato($user, $record),
+            'ordinario' => $this->addPaqueteOrdi($user, $record),
+            'certificado' => $this->addPaqueteCerti($user, $record),
+            'interno' => $this->addPaqueteInt($user, $record),
+            'ems' => $this->addPaqueteEms($user, $record),
+            'solicitud_ems' => $this->addSolicitudEms($user, $record),
+            default => throw new \RuntimeException('El codigo escaneado no tiene un modulo compatible con Facturacion.'),
+        };
+
+        return [
+            'cart' => $cart,
+            'item' => [
+                'type' => (string) $match['type'],
+                'label' => (string) $match['label'],
+                'code' => (string) ($record->codigo ?? $codigoNormalizado),
+            ],
+        ];
     }
 
     public function addSolicitudEms(User $user, SolicitudCliente $solicitud): object
@@ -488,11 +798,20 @@ class FacturacionCartService
         return $this->toCart(data_get($body, 'cart'));
     }
 
-    public function emitirBorrador(User $user, array $overrides = []): array
+    public function emitirBorrador(User $user, array $overrides = [], ?int $cartId = null): array
     {
-        $ctx = $this->getRemoteContextForUser($user);
-        $this->ensureDraftItemsFiscalDataSynced($user, $ctx['draft'] ?? null);
-        $this->ensureDraftSucursalSynced($user);
+        if ($cartId !== null && $cartId > 0) {
+            $targetCart = $this->fetchVentaById($user, $cartId);
+            $this->ensureDraftItemsFiscalDataSynced($user, $targetCart);
+        } else {
+            $ctx = $this->getRemoteContextForUser($user);
+            $this->ensureDraftItemsFiscalDataSynced($user, $ctx['draft'] ?? null);
+            $this->ensureDraftSucursalSynced($user);
+        }
+
+        if ($cartId !== null && $cartId > 0) {
+            $overrides['cart_id'] = $cartId;
+        }
 
         $body = $this->request('POST', '/cart/emitir', array_merge(
             $overrides,
@@ -503,18 +822,27 @@ class FacturacionCartService
         if (!$cart) {
             throw new \RuntimeException((string) data_get($body, 'respuesta.mensaje', 'No se pudo emitir.'));
         }
+        if ($cartId !== null && $cartId > 0 && (int) ($cart->id ?? 0) !== $cartId) {
+            throw new \RuntimeException('La API de facturacion devolvio una venta distinta a la solicitada para emitir.');
+        }
         return ['carrito' => $cart, 'payload' => [], 'respuesta' => (array) data_get($body, 'respuesta', [])];
     }
 
-    public function consultarEstadoEmision(User $user, ?int $cartId = null): array
+    public function consultarEstadoEmision(
+        User $user,
+        ?int $cartId = null,
+        bool $autoEmitInvoice = false,
+        bool $allowPendingRetry = true
+    ): array
     {
         $payload = [
             'origen_usuario_id' => (string) $user->id,
             'cart_id' => $cartId,
+            'auto_emit_invoice' => $autoEmitInvoice,
         ];
 
         $body = $this->request('POST', '/cart/consultar', $payload);
-        [$body, $cart] = $this->retryPendingQrConsultIfNeeded($payload, $body);
+        [$body, $cart] = $this->retryPendingQrConsultIfNeeded($payload, $body, $allowPendingRetry);
 
         if (!$cart) {
             $cart = $this->toCart(data_get($body, 'cart'));
@@ -524,11 +852,48 @@ class FacturacionCartService
             throw new \RuntimeException((string) data_get($body, 'respuesta.mensaje', 'No se pudo consultar.'));
         }
 
-        return ['carrito' => $cart, 'respuesta' => (array) data_get($body, 'respuesta', [])];
+        $respuesta = (array) data_get($body, 'respuesta', []);
+
+        if ($this->shouldAutoEmitPaidQrInvoice($cart, $respuesta, $autoEmitInvoice)) {
+            $attemptStatus = $this->resolveAutoEmitAttemptStatus($cart);
+            if ($attemptStatus === 'cooldown' || $attemptStatus === 'locked') {
+                $respuesta['auto_factura_pending'] = true;
+
+                return ['carrito' => $cart, 'respuesta' => $respuesta];
+            }
+
+            try {
+                $this->markAutoEmitAttemptCooldown($cart, 120);
+                $invoiceResult = $this->emitFacturaForPaidQrCart($user, $cart);
+                $this->markAutoEmitAttemptCooldown($invoiceResult['carrito'] ?? $cart, 300);
+
+                return [
+                    'carrito' => $invoiceResult['carrito'],
+                    'respuesta' => (array) ($invoiceResult['respuesta'] ?? []),
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo emitir automaticamente la factura despues del pago QR.', [
+                    'user_id' => $user->id,
+                    'cart_id' => $cart->id ?? null,
+                    'codigo_orden' => $cart->codigo_orden ?? null,
+                    'message' => $e->getMessage(),
+                ]);
+
+                $respuesta['auto_factura_error'] = trim($e->getMessage());
+            } finally {
+                $this->releaseAutoEmitLock($cart);
+            }
+        }
+
+        return ['carrito' => $cart, 'respuesta' => $respuesta];
     }
 
-    private function retryPendingQrConsultIfNeeded(array $payload, array $body): array
+    private function retryPendingQrConsultIfNeeded(array $payload, array $body, bool $allowPendingRetry = true): array
     {
+        if (!$allowPendingRetry) {
+            return [$body, $this->toCart(data_get($body, 'cart'))];
+        }
+
         $cart = $this->toCart(data_get($body, 'cart'));
         if (!$this->shouldRetryPendingQrConsult($cart, (array) data_get($body, 'respuesta', []))) {
             return [$body, $cart];
@@ -574,6 +939,153 @@ class FacturacionCartService
         }
 
         return in_array($paymentStatus, ['', 'holding', 'pending', 'pendiente'], true);
+    }
+
+    private function shouldAutoEmitPaidQrInvoice(?object $cart, array $respuesta, bool $autoEmitInvoice): bool
+    {
+        if (!$autoEmitInvoice || !$cart) {
+            return false;
+        }
+
+        $canalEmision = strtolower(trim((string) ($cart->canal_emision ?? '')));
+        $estadoEmision = strtoupper(trim((string) ($cart->estado_emision ?? '')));
+        $estadoPago = strtolower(trim((string) (
+            $cart->estado_pago
+            ?? data_get($respuesta, 'estado_pago')
+            ?? data_get($respuesta, 'payment_status')
+            ?? data_get($respuesta, 'items.0.payment_status')
+            ?? ''
+        )));
+
+        if ($canalEmision !== 'qr') {
+            return false;
+        }
+
+        if (!in_array($estadoPago, ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'], true)) {
+            return false;
+        }
+
+        $codigoSeguimientoFiscal = trim((string) (
+            $cart->codigo_seguimiento_fiscal
+            ?? $cart->codigo_seguimiento
+            ?? data_get($respuesta, 'codigoSeguimiento')
+            ?? ''
+        ));
+        $numeroFactura = trim((string) (
+            data_get($cart, 'respuesta_emision.factura.nroFactura')
+            ?? data_get($cart, 'respuesta_emision.factura.numeroFactura')
+            ?? data_get($respuesta, 'factura.nroFactura')
+            ?? data_get($respuesta, 'factura.numeroFactura')
+            ?? data_get($respuesta, 'nroFactura')
+            ?? data_get($respuesta, 'numeroFactura')
+            ?? ''
+        ));
+
+        if ($codigoSeguimientoFiscal !== '' || $numeroFactura !== '') {
+            return false;
+        }
+
+        return in_array($estadoEmision, ['', 'NO_APLICA'], true);
+    }
+
+    private function resolveAutoEmitAttemptStatus(object $cart): string
+    {
+        $cartId = (int) ($cart->id ?? 0);
+        if ($cartId <= 0) {
+            return 'invalid';
+        }
+
+        if (Cache::has($this->autoEmitCooldownKey($cartId))) {
+            return 'cooldown';
+        }
+
+        $lock = Cache::lock($this->autoEmitLockKey($cartId), 30);
+        if (!$lock->get()) {
+            return 'locked';
+        }
+
+        return 'acquired';
+    }
+
+    private function releaseAutoEmitLock(object $cart): void
+    {
+        $cartId = (int) ($cart->id ?? 0);
+        if ($cartId <= 0) {
+            return;
+        }
+
+        try {
+            Cache::lock($this->autoEmitLockKey($cartId), 30)->forceRelease();
+        } catch (\Throwable) {
+            // Si el driver no soporta locks distribuidos, no bloqueamos el flujo.
+        }
+    }
+
+    private function markAutoEmitAttemptCooldown(object $cart, int $seconds): void
+    {
+        $cartId = (int) ($cart->id ?? 0);
+        if ($cartId <= 0 || $seconds <= 0) {
+            return;
+        }
+
+        Cache::put($this->autoEmitCooldownKey($cartId), now()->timestamp, now()->addSeconds($seconds));
+    }
+
+    private function autoEmitLockKey(int $cartId): string
+    {
+        return 'facturacion:qr:auto-emit:lock:' . $cartId;
+    }
+
+    private function autoEmitCooldownKey(int $cartId): string
+    {
+        return 'facturacion:qr:auto-emit:cooldown:' . $cartId;
+    }
+
+    private function emitFacturaForPaidQrCart(User $user, object $cart): array
+    {
+        $targetCartId = (int) ($cart->id ?? 0);
+        if ($targetCartId <= 0) {
+            throw new \RuntimeException('La venta QR pagada no tiene cart_id valido para facturar automaticamente.');
+        }
+
+        $targetCart = $this->fetchVentaById($user, $targetCartId);
+        if (!$targetCart) {
+            throw new \RuntimeException('La venta QR pagada ya no se encontro en el bridge de facturacion.');
+        }
+
+        if (strtolower(trim((string) ($targetCart->metodo_pago ?? ''))) !== 'qr') {
+            throw new \RuntimeException('La venta pagada ya no figura como cobro QR en el bridge.');
+        }
+
+        $billingSnapshot = $this->buildFacturaElectronicaBillingSnapshot($targetCart);
+
+        Log::debug('Pago QR confirmado; iniciando emision automatica de factura electronica.', [
+            'user_id' => $user->id,
+            'cart_id' => $targetCart->id ?? null,
+            'codigo_orden' => $targetCart->codigo_orden ?? null,
+        ]);
+
+        return $this->emitirBorrador($user, $billingSnapshot, $targetCartId);
+    }
+
+    private function buildFacturaElectronicaBillingSnapshot(object $cart): array
+    {
+        return array_filter([
+            'modalidad_facturacion' => (string) ($cart->modalidad_facturacion ?? 'con_datos'),
+            'canal_emision' => 'factura_electronica',
+            'tipo_documento' => $this->nullableString($cart->tipo_documento ?? null),
+            'numero_documento' => $this->nullableString($cart->numero_documento ?? null),
+            'complemento_documento' => $this->nullableString($cart->complemento_documento ?? null),
+            'razon_social' => $this->nullableString($cart->razon_social ?? null),
+            'correo_facturacion' => $this->nullableString($cart->correo_facturacion ?? ($cart->correo ?? null)),
+        ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        $normalized = trim((string) $value);
+
+        return $normalized !== '' ? $normalized : null;
     }
 
     private function pendingQrConsultDelaySeconds(object $cart): int
@@ -820,6 +1332,13 @@ class FacturacionCartService
             $response->throw();
         } catch (RequestException $e) {
             $body = $this->decodeJsonBody($response);
+            Log::warning('FacturacionCartService request failed', [
+                'method' => strtoupper($method),
+                'path' => $path,
+                'payload' => $payload,
+                'status' => $response->status(),
+                'body' => $body ?: trim((string) $response->body()),
+            ]);
             $msg = is_array($body)
                 ? (string) ($body['message'] ?? $body['mensaje'] ?? $this->firstValidationError($body) ?? 'Error remoto')
                 : trim((string) $response->body());
@@ -953,7 +1472,9 @@ class FacturacionCartService
 
         $codigoSucursal = trim((string) $sucursal->codigoSucursal);
         $puntoVenta = trim((string) $sucursal->puntoVenta);
-        $nombreSucursal = trim((string) ($sucursal->nombre ?? $sucursal->descripcion ?? ''));
+        $nombreSucursal = trim((string) ($sucursal->nombre ?? $sucursal->descripcion ?? $sucursal->municipio ?? ''));
+        $municipio = trim((string) ($sucursal->municipio ?? ''));
+        $departamento = trim((string) ($sucursal->departamento ?? $municipio));
 
         if ($codigoSucursal === '' || $puntoVenta === '') {
             throw new \RuntimeException('La sucursal asignada no tiene codigoSucursal/puntoVenta validos.');
@@ -964,12 +1485,15 @@ class FacturacionCartService
             'origen_sucursal_id' => $puntoVenta,
             'origen_sucursal_codigo' => $codigoSucursal,
             'origen_sucursal_nombre' => $nombreSucursal,
+            'origen_sucursal_municipio' => $municipio !== '' ? $municipio : null,
             // Claves requeridas por endpoints de caja en API facturacion
             'codigo_sucursal' => $codigoSucursal,
             'punto_venta' => $puntoVenta,
+            'municipio' => $municipio !== '' ? $municipio : null,
             // Compatibilidad adicional por si el backend valida en camelCase
             'codigoSucursal' => $codigoSucursal,
             'puntoVenta' => $puntoVenta,
+            'municipioSucursal' => $municipio !== '' ? $municipio : null,
         ];
     }
 
@@ -1109,6 +1633,16 @@ class FacturacionCartService
         return $fallback ?: $servicio;
     }
 
+    private function resolveServicioInternacional(): ?Servicio
+    {
+        return Servicio::query()
+            ->where(function ($query) {
+                $query->whereRaw('trim(upper(nombre_servicio)) = trim(upper(?))', ['INTERNACIONAL'])
+                    ->orWhereRaw('trim(upper(codigo)) = trim(upper(?))', ['SRVI-001']);
+            })
+            ->first();
+    }
+
     private function resolveAnyServicioWithFiscalData(): ?Servicio
     {
         return Servicio::query()
@@ -1218,6 +1752,14 @@ class FacturacionCartService
             );
         }
 
+        if ($origenTipo === ltrim(PaqueteInt::class, '\\')) {
+            $paquete = PaqueteInt::query()->with('servicio')->find($origenId);
+            return $this->resolveFiscalServicio(
+                $paquete?->servicio,
+                $this->resolveAnyServicioWithFiscalData()
+            );
+        }
+
         if ($origenTipo === ltrim(PaqueteOrdi::class, '\\')) {
             $paquete = PaqueteOrdi::query()->with('servicio')->find($origenId);
             return $this->resolveFiscalServicio(
@@ -1234,8 +1776,32 @@ class FacturacionCartService
             }
         }
 
+        if ($origenTipo === ltrim(Recojo::class, '\\')) {
+            return $this->resolveFiscalServicio(
+                $this->resolveModuloServicio('CONTRATOS'),
+                $this->resolveModuloServicio('ORDINARIAS'),
+                $this->resolveModuloServicio('CERTIFICADAS')
+            );
+        }
+
         if ($origenTipo === ltrim(SolicitudCliente::class, '\\')) {
             return $this->resolveFiscalServicio($this->resolveModuloServicio('EMS'));
+        }
+
+        if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\')) {
+            $concepto = ConceptoFacturacion::query()->find($origenId);
+            if (!$concepto) {
+                return null;
+            }
+
+            return new Servicio([
+                'nombre_servicio' => (string) ($concepto->nombre ?? ''),
+                'actividadEconomica' => (string) ($concepto->actividad_economica ?? ''),
+                'codigoSin' => (string) ($concepto->codigo_sin ?? ''),
+                'codigo' => (string) ($concepto->codigo ?? ''),
+                'descripcion' => (string) ($concepto->descripcion ?? $concepto->nombre ?? ''),
+                'unidadMedida' => (int) ($concepto->unidad_medida ?? 58),
+            ]);
         }
 
         return null;

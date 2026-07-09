@@ -128,6 +128,85 @@
             background: #fff;
         }
 
+        .users-group-card {
+            border: 1px solid #dbe4f1;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #fff;
+            box-shadow: 0 8px 20px rgba(32, 83, 154, 0.06);
+        }
+
+        .users-group-card + .users-group-card {
+            margin-top: 14px;
+        }
+
+        .users-group-card__head {
+            padding: 14px 16px;
+            background: linear-gradient(90deg, rgba(32, 83, 154, 0.08), rgba(42, 102, 184, 0.04));
+            border-bottom: 1px solid #e3ebf5;
+        }
+
+        .users-group-card__title {
+            color: var(--azul);
+            font-size: 1rem;
+            font-weight: 900;
+            margin: 0;
+        }
+
+        .users-group-card__meta {
+            color: var(--muted);
+            font-size: 0.82rem;
+            margin-top: 4px;
+        }
+
+        .users-group-list {
+            padding: 0;
+            margin: 0;
+            list-style: none;
+        }
+
+        .users-group-list__item {
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1.2fr);
+            gap: 14px;
+            padding: 14px 16px;
+            border-top: 1px solid #eef2f7;
+            align-items: center;
+        }
+
+        .users-group-list__item:first-child {
+            border-top: 0;
+        }
+
+        .users-group-user strong {
+            display: block;
+            color: #22344d;
+            font-size: 0.95rem;
+        }
+
+        .users-group-user span,
+        .users-group-user small,
+        .users-group-roles small {
+            color: var(--muted);
+        }
+
+        .users-group-roles {
+            text-align: right;
+        }
+
+        .users-group-kpi {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            min-height: 34px;
+            border-radius: 999px;
+            background: rgba(32, 83, 154, 0.12);
+            color: var(--azul);
+            font-weight: 900;
+            padding: 0 10px;
+        }
+
         .users-import-progress {
             display: none;
             margin-top: 10px;
@@ -223,6 +302,15 @@
             .regional-picker-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+
+            .users-group-list__item {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .users-group-roles {
+                text-align: left;
+            }
         }
 
         @media (max-width: 420px) {
@@ -249,6 +337,9 @@
                         style="min-width: 260px;"
                     >
                     <button wire:click="searchUsers" class="btn btn-outline-light2" type="button">Buscar</button>
+                    <button wire:click="toggleGroupByBillingSucursal" class="btn btn-outline-light2" type="button">
+                        {{ $groupByBillingSucursal ? 'Ver lista normal' : 'Agrupar por sucursal facturacion' }}
+                    </button>
                     <a href="{{ route('users.excel') }}" class="btn btn-success">Excel</a>
                     <a href="{{ route('users.pdf') }}" class="btn btn-danger">PDF</a>
                     <a href="{{ route('users.template-excel') }}" class="btn btn-info">Plantilla</a>
@@ -312,15 +403,65 @@
                     <div class="users-muted">
                         @if($searchQuery !== '')
                             Resultado para: <strong>{{ $searchQuery }}</strong>
+                            @if($groupByBillingSucursal)
+                                <span class="ml-2">| Vista agrupada por sucursal de facturacion</span>
+                            @endif
                         @else
-                            Mostrando todos los usuarios
+                            {{ $groupByBillingSucursal ? 'Mostrando usuarios agrupados por sucursal de facturacion' : 'Mostrando todos los usuarios' }}
                         @endif
                     </div>
                     <div class="users-muted small">
-                        Total: <strong>{{ $users->total() }}</strong>
+                        Total: <strong>{{ $groupByBillingSucursal ? $groupedUsers->sum(fn ($group) => $group['users']->count()) : $users->total() }}</strong>
                     </div>
                 </div>
 
+                @if($groupByBillingSucursal)
+                    <div class="mb-3 users-muted small">
+                        Sucursales encontradas: <strong>{{ $groupedUsers->count() }}</strong>
+                    </div>
+
+                    @forelse ($groupedUsers as $group)
+                        <section class="users-group-card">
+                            <div class="users-group-card__head d-flex justify-content-between align-items-start" style="gap: 12px;">
+                                <div>
+                                    <h5 class="users-group-card__title">{{ $group['label'] }}</h5>
+                                    <div class="users-group-card__meta">{{ $group['meta'] !== '' ? $group['meta'] : 'Sin detalle adicional.' }}</div>
+                                </div>
+                                <span class="users-group-kpi">{{ $group['users']->count() }}</span>
+                            </div>
+                            <ul class="users-group-list">
+                                @foreach ($group['users'] as $user)
+                                    <li class="users-group-list__item">
+                                        <div class="users-group-user">
+                                            <strong>{{ $user->name }}</strong>
+                                            <span>{{ $user->email }}</span><br>
+                                            <small>Alias: {{ $user->alias ?: '-' }}</small>
+                                        </div>
+                                        <div class="users-group-user">
+                                            <small>Regional</small>
+                                            <strong>{{ $user->regionalesTexto() ?: '-' }}</strong>
+                                        </div>
+                                        <div class="users-group-user">
+                                            <small>Estado</small><br>
+                                            <span class="badge {{ $user->trashed() ? 'badge-danger' : 'badge-success' }}">
+                                                {{ $user->trashed() ? 'Inactivo' : 'Activo' }}
+                                            </span>
+                                        </div>
+                                        <div class="users-group-roles">
+                                            @forelse ($user->roles as $role)
+                                                <span class="badge-role">{{ $role->name }}</span>
+                                            @empty
+                                                <small>Sin rol</small>
+                                            @endforelse
+                                        </div>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </section>
+                    @empty
+                        <div class="text-center py-4 users-muted">No se encontraron usuarios para agrupar.</div>
+                    @endforelse
+                @else
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -402,7 +543,7 @@
                                                         wire:click="openPasswordModal({{ $user->id }})"
                                                         class="btn btn-sm btn-info"
                                                         type="button"
-                                                        title="Cambiar contrasena"
+                                                        title="Cambiar contraseña"
                                                     >
                                                         <i class="fa fa-key"></i>
                                                     </button>
@@ -433,6 +574,7 @@
                 <div class="d-flex justify-content-end mt-3">
                     {{ $users->links() }}
                 </div>
+                @endif
             </div>
         </div>
     </div>
@@ -469,8 +611,8 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Alias de acceso *</label>
-                                    <input type="text" wire:model.defer="alias" class="form-control" placeholder="Ej: juan_perez" required>
-                                    <small class="text-muted">Solo letras, numeros, guion y guion bajo.</small>
+                                    <input type="text" wire:model.defer="alias" class="form-control" placeholder="Ej: juan.perez+lp" required>
+                                    <small class="text-muted">Se permiten caracteres especiales. Evita solo duplicados.</small>
                                     @error('alias') <small class="text-danger d-block">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -479,8 +621,8 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>{{ $editingId ? 'Nueva contrasena (opcional)' : 'Contrasena' }}</label>
-                                    <input type="password" wire:model.defer="password" class="form-control" placeholder="Contrasena">
+                                    <label>{{ $editingId ? 'Nueva contraseña (opcional)' : 'Contraseña' }}</label>
+                                    <input type="password" wire:model.defer="password" class="form-control" placeholder="Contraseña">
                                     @error('password') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -586,14 +728,14 @@
             <div class="modal-content">
                 <form wire:submit.prevent="updatePassword">
                     <div class="modal-header">
-                        <h5 class="modal-title">Cambiar contrasena</h5>
+                        <h5 class="modal-title">Cambiar contraseña</h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group mb-0">
-                            <label>Nueva contrasena</label>
+                            <label>Nueva contraseña</label>
                             <input type="password" wire:model.defer="newPassword" class="form-control" placeholder="Minimo 8 caracteres">
                             @error('newPassword') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>

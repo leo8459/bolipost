@@ -7,6 +7,7 @@ use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Spatie\Permission\Models\Role;
@@ -17,6 +18,7 @@ class Users extends Component
 
     public $search = '';
     public $searchQuery = '';
+    public $groupByBillingSucursal = false;
 
     public $editingId = null;
     public $name = '';
@@ -77,13 +79,15 @@ class Users extends Component
     {
         if ($this->editingId) {
             $this->authorizePermission('users.update');
+            $this->alias = $this->normalizeAlias($this->alias);
             $this->validate($this->updateRules());
+            $this->ensureAliasIsAvailable($this->alias, (int) $this->editingId);
 
             $user = User::query()->findOrFail((int) $this->editingId);
             $ciValue = trim((string) $this->ci);
             $regionales = $this->normalizeRegionalesSeleccionadas();
             $user->name = trim($this->name);
-            $user->alias = strtolower(trim((string) $this->alias));
+            $user->alias = $this->alias;
             $user->email = trim($this->email);
             $user->ciudad = $regionales[0] ?? '';
             $user->regionales = $regionales;
@@ -102,13 +106,15 @@ class Users extends Component
             session()->flash('success', 'Usuario actualizado correctamente.');
         } else {
             $this->authorizePermission('users.store');
+            $this->alias = $this->normalizeAlias($this->alias);
             $this->validate($this->createRules());
+            $this->ensureAliasIsAvailable($this->alias);
 
             $user = new User();
             $ciValue = trim((string) $this->ci);
             $regionales = $this->normalizeRegionalesSeleccionadas();
             $user->name = trim($this->name);
-            $user->alias = strtolower(trim((string) $this->alias));
+            $user->alias = $this->alias;
             $user->email = trim($this->email);
             $user->password = Hash::make($this->password);
             $user->ciudad = $regionales[0] ?? '';
@@ -204,13 +210,19 @@ class Users extends Component
         $this->newPassword = '';
     }
 
+    public function toggleGroupByBillingSucursal(): void
+    {
+        $this->groupByBillingSucursal = ! $this->groupByBillingSucursal;
+        $this->resetPage();
+    }
+
     protected function createRules(): array
     {
         $regionales = $this->regionalesDisponibles();
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')],
+            'alias' => ['required', 'string', 'max:255', Rule::unique('users', 'alias')],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'min:8'],
             'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
@@ -229,7 +241,7 @@ class Users extends Component
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')->ignore((int) $this->editingId)],
+            'alias' => ['required', 'string', 'max:255', Rule::unique('users', 'alias')->ignore((int) $this->editingId)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore((int) $this->editingId)],
             'password' => ['nullable', 'string', 'min:8'],
             'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
@@ -302,11 +314,39 @@ class Users extends Component
         return ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
     }
 
+    protected function normalizeAlias($alias): string
+    {
+        return strtolower(trim((string) $alias));
+    }
+
+    protected function ensureAliasIsAvailable(string $alias, ?int $ignoreUserId = null): void
+    {
+        if ($this->isAliasAvailable($alias, $ignoreUserId)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'alias' => 'El alias ya esta registrado. Debe ser unico.',
+        ]);
+    }
+
+    protected function isAliasAvailable(string $alias, ?int $ignoreUserId = null): bool
+    {
+        if ($alias === '') {
+            return true;
+        }
+
+        return ! User::withTrashed()
+            ->when($ignoreUserId, fn ($query) => $query->where('id', '!=', $ignoreUserId))
+            ->whereRaw('LOWER(alias) = ?', [$alias])
+            ->exists();
+    }
+
     public function render()
     {
         $q = trim((string) $this->searchQuery);
 
-        $users = User::withTrashed()
+        $baseQuery = User::withTrashed()
             ->with(['empresa', 'sucursal', 'roles'])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($inner) use ($q) {
@@ -325,12 +365,39 @@ class Users extends Component
                                 ->orWhere('telefono', 'like', '%'.$q.'%');
                         });
                 });
-            })
-            ->orderByDesc('id')
-            ->paginate(10);
+            });
+
+        $groupedUsers = collect();
+
+        if ($this->groupByBillingSucursal) {
+            $groupedUsers = (clone $baseQuery)
+                ->whereNotNull('sucursal_id')
+                ->orderByRaw('CASE WHEN sucursal_id IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('sucursal_id')
+                ->orderBy('name')
+                ->get()
+                ->groupBy(fn (User $user) => (string) $user->sucursal_id)
+                ->map(function ($items, $groupKey) {
+                    $firstUser = $items->first();
+                    $sucursal = $firstUser?->sucursal;
+
+                    return [
+                        'key' => (string) $groupKey,
+                        'label' => 'Suc. ' . $sucursal->codigoSucursal . ' / PV ' . $sucursal->puntoVenta . ' - ' . $sucursal->municipio,
+                        'meta' => trim(collect([$sucursal->departamento, $sucursal->telefono ? 'Tel. ' . $sucursal->telefono : null])->filter()->implode(' | ')),
+                        'users' => $items->values(),
+                    ];
+                })
+                ->values();
+        }
+
+        $users = $this->groupByBillingSucursal
+            ? $baseQuery->orderByDesc('id')->paginate(10, ['*'], 'page', 1)
+            : $baseQuery->orderByDesc('id')->paginate(10);
 
         return view('livewire.users', [
             'users' => $users,
+            'groupedUsers' => $groupedUsers,
             'roles' => Role::query()->orderBy('name')->get(),
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
             'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),

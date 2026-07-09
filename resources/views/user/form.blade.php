@@ -26,13 +26,13 @@
                 name="alias"
                 value="{{ old('alias', $user->alias ?? '') }}"
                 class="form-control @error('alias') is-invalid @enderror"
-                placeholder="Ej: juan_perez"
+                placeholder="Ej: juan.perez+lp"
                 required
             >
             @error('alias')
                 <div class="invalid-feedback">{{ $message }}</div>
             @enderror
-            <small class="text-muted">Solo letras, numeros, guion y guion bajo.</small>
+            <small class="text-muted">Se permiten caracteres especiales. Evita solo duplicados.</small>
         </div>
 
         {{-- Email --}}

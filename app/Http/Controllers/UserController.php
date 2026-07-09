@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -42,9 +43,11 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        $normalizedAlias = $this->normalizeAlias($request->input('alias'));
+
         $request->validate([
             'name' => 'required|string|max:255',
-            'alias' => 'required|string|max:255|alpha_dash|unique:users,alias',
+            'alias' => 'required|string|max:255|unique:users,alias',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8',
             'ciudad' => 'required|string|max:255',
@@ -55,9 +58,11 @@ class UserController extends Controller
             'roles.*' => 'integer|exists:roles,id',
         ]);
 
+        $this->ensureAliasIsAvailable($normalizedAlias);
+
         $user = new User();
         $user->name = $request->name;
-        $user->alias = strtolower(trim((string) $request->alias));
+        $user->alias = $normalizedAlias;
         $user->email = $request->email;
         $user->password = bcrypt($request->password);
         $user->ciudad = strtoupper(trim((string) $request->ciudad));
@@ -95,9 +100,11 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        $normalizedAlias = $this->normalizeAlias($request->input('alias'));
+
         $request->validate([
             'name' => 'required|string|max:255',
-            'alias' => 'required|string|max:255|alpha_dash|unique:users,alias,' . $user->id,
+            'alias' => 'required|string|max:255|unique:users,alias,' . $user->id,
             'email' => 'required|email|unique:users,email,' . $user->id,
             'ciudad' => 'required|string|max:255',
             'ci' => 'nullable|string|max:255',
@@ -108,8 +115,10 @@ class UserController extends Controller
             'password' => 'nullable|min:8',
         ]);
 
+        $this->ensureAliasIsAvailable($normalizedAlias, $user->id);
+
         $user->name = $request->name;
-        $user->alias = strtolower(trim((string) $request->alias));
+        $user->alias = $normalizedAlias;
         $user->email = $request->email;
         $user->ciudad = strtoupper(trim((string) $request->ciudad));
         $user->regionales = [$user->ciudad];
@@ -208,7 +217,7 @@ class UserController extends Controller
         $sheet->fromArray($headers, null, 'A1');
         $sheet->fromArray([
             'Juan Perez',
-            'juan_perez',
+            'juan.perez+lp',
             'juan.perez@correo.com',
             '12345678',
             'LA PAZ',
@@ -314,6 +323,7 @@ class UserController extends Controller
             $errors = [];
             $created = 0;
             $updated = 0;
+            $duplicateAliases = $this->collectDuplicateAliasesFromRows($rows);
 
             foreach ($rows as $rowNumber => $row) {
                 if ($rowNumber === 1) {
@@ -336,10 +346,24 @@ class UserController extends Controller
                     continue;
                 }
 
+                if ($payload['alias'] !== '' && isset($duplicateAliases[$payload['alias']])) {
+                    $errors[] = 'Fila ' . $rowNumber . ': el alias "' . $payload['alias'] . '" esta repetido en el Excel en las filas ' . implode(', ', $duplicateAliases[$payload['alias']]) . '. No se importo ni se actualizo esta fila.';
+                    continue;
+                }
+
+                $existingAliasUser = User::withTrashed()
+                    ->whereRaw('LOWER(alias) = ?', [$payload['alias']])
+                    ->first();
+
+                if ($existingAliasUser) {
+                    $errors[] = 'Fila ' . $rowNumber . ': el alias "' . $payload['alias'] . '" ya existe en el sistema. No se registro ni se actualizo esta fila.';
+                    continue;
+                }
+
                 $existingUser = User::withTrashed()->whereRaw('LOWER(email) = ?', [$payload['email']])->first();
                 $validator = Validator::make($payload, [
                     'name' => ['required', 'string', 'max:255'],
-                    'alias' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'alias')->ignore(optional($existingUser)->id)],
+                    'alias' => ['required', 'string', 'max:255', Rule::unique('users', 'alias')],
                     'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore(optional($existingUser)->id)],
                     'password' => ['required', 'string', 'min:8'],
                     'ciudad' => ['required', 'string', 'max:255'],
@@ -433,6 +457,73 @@ class UserController extends Controller
         }, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+
+    private function normalizeAlias($alias): string
+    {
+        return strtolower(trim((string) $alias));
+    }
+
+    private function ensureAliasIsAvailable(string $alias, ?int $ignoreUserId = null): void
+    {
+        if ($this->isAliasAvailable($alias, $ignoreUserId)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'alias' => 'El alias ya esta registrado. Debe ser unico.',
+        ]);
+    }
+
+    private function isAliasAvailable(string $alias, ?int $ignoreUserId = null): bool
+    {
+        if ($alias === '') {
+            return true;
+        }
+
+        return ! User::withTrashed()
+            ->when($ignoreUserId, fn ($query) => $query->where('id', '!=', $ignoreUserId))
+            ->whereRaw('LOWER(alias) = ?', [$alias])
+            ->exists();
+    }
+
+    private function collectDuplicateAliasesFromRows(array $rows): array
+    {
+        $aliasRows = [];
+
+        foreach ($rows as $rowNumber => $row) {
+            if ($rowNumber === 1) {
+                continue;
+            }
+
+            $alias = $this->normalizeAlias($row['B'] ?? '');
+
+            if ($alias === '') {
+                continue;
+            }
+
+            $payload = [
+                trim((string) ($row['A'] ?? '')),
+                $alias,
+                strtolower(trim((string) ($row['C'] ?? ''))),
+                trim((string) ($row['D'] ?? '')),
+                trim((string) ($row['E'] ?? '')),
+                trim((string) ($row['F'] ?? '')),
+                trim((string) ($row['G'] ?? '')),
+                trim((string) ($row['H'] ?? '')),
+                trim((string) ($row['I'] ?? '')),
+            ];
+
+            if (collect($payload)->filter(fn ($value) => $value !== '')->isEmpty()) {
+                continue;
+            }
+
+            $aliasRows[$alias][] = $rowNumber;
+        }
+
+        return collect($aliasRows)
+            ->filter(fn (array $rowNumbers) => count($rowNumbers) > 1)
+            ->all();
     }
 }
 

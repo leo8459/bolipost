@@ -123,6 +123,17 @@ class DashboardController extends Controller
         return view('dashboard', $data);
     }
 
+    public function welcome(Request $request)
+    {
+        $authUser = Auth::user();
+
+        $data = $this->userHasRole($authUser, 'empresa')
+            ? []
+            : $this->buildDashboardData($request);
+
+        return view('home.welcome', $data);
+    }
+
     public function entregas(Request $request)
     {
         return view('entregas', $this->buildEntregasData($request));
@@ -522,6 +533,13 @@ class DashboardController extends Controller
         }
 
         return null;
+    }
+
+    private function userHasRole($user, string $role): bool
+    {
+        return $user
+            && method_exists($user, 'hasRole')
+            && $user->hasRole($role);
     }
 
     private function buildRegionalPendingAlert(string $userCity): array
@@ -1418,7 +1436,7 @@ class DashboardController extends Controller
                         : 0;
                 }
 
-                $detalleTransito = $this->buildDepartamentoTransitoDetails($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId);
+                $detalleTransito = $this->buildDepartamentoTransitoDetails($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId, $departamento);
                 $transito = (int) array_sum($detalleTransito['totales']);
                 $cumplimiento = $total > 0 ? round(($entregados * 100) / $total, 1) : 0.0;
                 $topEntregador = $this->buildTopEntregadorDepartamento($modulosSeleccionados, $from, $to, $aliases);
@@ -1439,8 +1457,10 @@ class DashboardController extends Controller
                     'entregados_detalle' => $detalleEntregados['rows'],
                     'transito_por_modulo' => $detalleTransito['totales'],
                     'transito_detalle' => $detalleTransito['rows'],
+                    'transito_grupos' => $detalleTransito['grupos'],
                     'pendientes_por_modulo' => $detallePendientes['totales'],
                     'pendientes_detalle' => $detallePendientes['rows'],
+                    'pendientes_grupos' => $detallePendientes['grupos'],
                 ];
             });
 
@@ -1628,25 +1648,64 @@ class DashboardController extends Controller
             $rows = $rows->concat($moduleRows);
         }
 
+        $mappedRows = $rows
+            ->sortByDesc(fn ($row) => (string) ($row->creado_at ?? ''))
+            ->values()
+            ->map(fn ($row) => [
+                'modulo' => (string) ($row->modulo ?? ''),
+                'codigo' => (string) ($row->codigo ?? ''),
+                'estado' => (string) ($row->estado ?? ''),
+                'origen' => (string) ($row->origen ?? ''),
+                'destino' => (string) ($row->destino ?? ''),
+                'destinatario' => (string) ($row->destinatario ?? ''),
+                'creado_at' => (string) ($row->creado_at ?? ''),
+            ]);
+
+        $grupos = $mappedRows
+            ->groupBy(fn (array $row) => strtoupper(trim($row['estado'] !== '' ? $row['estado'] : 'SIN ESTADO')))
+            ->map(function ($items, $estado) {
+                $items = collect($items)->values();
+                $modulos = $items
+                    ->groupBy('modulo')
+                    ->map(fn ($moduleItems) => $moduleItems->count())
+                    ->sortKeys()
+                    ->all();
+                $fechas = $items
+                    ->pluck('creado_at')
+                    ->filter()
+                    ->values();
+
+                return [
+                    'estado' => (string) $estado,
+                    'total' => (int) $items->count(),
+                    'modulos' => $modulos,
+                    'modulos_label' => collect($modulos)
+                        ->map(fn ($total, $modulo) => $modulo . ': ' . $total)
+                        ->implode(' | '),
+                    'fecha_min' => (string) ($fechas->min() ?? ''),
+                    'fecha_max' => (string) ($fechas->max() ?? ''),
+                    'paquetes' => $items->all(),
+                ];
+            })
+            ->sortByDesc(function (array $grupo) {
+                return sprintf(
+                    '%08d-%s-%s',
+                    (int) ($grupo['total'] ?? 0),
+                    (string) ($grupo['fecha_max'] ?? ''),
+                    (string) ($grupo['estado'] ?? '')
+                );
+            })
+            ->values()
+            ->all();
+
         return [
             'totales' => $totales,
-            'rows' => $rows
-                ->sortByDesc(fn ($row) => (string) ($row->creado_at ?? ''))
-                ->values()
-                ->map(fn ($row) => [
-                    'modulo' => (string) ($row->modulo ?? ''),
-                    'codigo' => (string) ($row->codigo ?? ''),
-                    'estado' => (string) ($row->estado ?? ''),
-                    'origen' => (string) ($row->origen ?? ''),
-                    'destino' => (string) ($row->destino ?? ''),
-                    'destinatario' => (string) ($row->destinatario ?? ''),
-                    'creado_at' => (string) ($row->creado_at ?? ''),
-                ])
-                ->all(),
+            'rows' => $mappedRows->all(),
+            'grupos' => $grupos,
         ];
     }
 
-    private function buildDepartamentoTransitoDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoTransitoId): array
+    private function buildDepartamentoTransitoDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoTransitoId, string $departamento): array
     {
         $totales = [
             'EMS' => 0,
@@ -1674,6 +1733,7 @@ class DashboardController extends Controller
                 ->select([
                     DB::raw("'" . $label . "' as modulo"),
                     't.codigo as codigo',
+                    DB::raw("coalesce(nullif(trim(coalesce(t.cod_especial::text, '')), ''), 'SIN CODIGO ESPECIAL') as cod_especial"),
                     DB::raw("coalesce(e.nombre_estado, 'SIN ESTADO') as estado"),
                     DB::raw($identityColumns['origen'] . ' as origen'),
                     DB::raw($identityColumns['destino'] . ' as destino'),
@@ -1690,22 +1750,92 @@ class DashboardController extends Controller
             $rows = $rows->concat($moduleRows);
         }
 
-        return [
-            'totales' => $totales,
-            'rows' => $rows
-                ->sortByDesc(fn ($row) => (string) ($row->creado_at ?? ''))
-                ->values()
-                ->map(fn ($row) => [
+        $mappedRows = $rows
+            ->sortByDesc(fn ($row) => (string) ($row->creado_at ?? ''))
+            ->values()
+            ->map(function ($row) use ($departamento) {
+                $origen = (string) ($row->origen ?? '');
+
+                return [
                     'modulo' => (string) ($row->modulo ?? ''),
                     'codigo' => (string) ($row->codigo ?? ''),
+                    'cod_especial' => (string) ($row->cod_especial ?? 'SIN CODIGO ESPECIAL'),
                     'estado' => (string) ($row->estado ?? ''),
-                    'origen' => (string) ($row->origen ?? ''),
+                    'origen' => $origen,
+                    'origen_grupo' => $this->normalizeDepartamentoDesdeOrigen($origen, $departamento),
                     'destino' => (string) ($row->destino ?? ''),
                     'destinatario' => (string) ($row->destinatario ?? ''),
                     'creado_at' => (string) ($row->creado_at ?? ''),
-                ])
-                ->all(),
+                ];
+            });
+
+        $grupos = $mappedRows
+            ->groupBy(function (array $row) {
+                return strtoupper(trim($row['origen_grupo'] . '|' . $row['cod_especial']));
+            })
+            ->map(function ($items) {
+                $items = collect($items)->values();
+                $primero = $items->first();
+                $modulos = $items
+                    ->groupBy('modulo')
+                    ->map(fn ($moduleItems) => $moduleItems->count())
+                    ->sortKeys()
+                    ->all();
+                $fechas = $items
+                    ->pluck('creado_at')
+                    ->filter()
+                    ->values();
+
+                return [
+                    'origen' => (string) ($primero['origen_grupo'] ?? '-'),
+                    'cod_especial' => (string) ($primero['cod_especial'] ?? 'SIN CODIGO ESPECIAL'),
+                    'total' => (int) $items->count(),
+                    'modulos' => $modulos,
+                    'modulos_label' => collect($modulos)
+                        ->map(fn ($total, $modulo) => $modulo . ': ' . $total)
+                        ->implode(' | '),
+                    'fecha_min' => (string) ($fechas->min() ?? ''),
+                    'fecha_max' => (string) ($fechas->max() ?? ''),
+                    'paquetes' => $items->all(),
+                ];
+            })
+            ->sortByDesc(function (array $grupo) {
+                return sprintf(
+                    '%08d-%s-%s',
+                    (int) ($grupo['total'] ?? 0),
+                    (string) ($grupo['fecha_max'] ?? ''),
+                    (string) ($grupo['cod_especial'] ?? '')
+                );
+            })
+            ->values()
+            ->all();
+
+        return [
+            'totales' => $totales,
+            'rows' => $mappedRows->all(),
+            'grupos' => $grupos,
         ];
+    }
+
+    private function normalizeDepartamentoDesdeOrigen(string $origen, string $fallbackDepartamento = ''): string
+    {
+        $normalized = strtoupper(trim($origen));
+
+        if ($normalized !== '') {
+            foreach ($this->departamentoAliasMap() as $departamento => $aliases) {
+                $normalizedAliases = collect($aliases)
+                    ->map(fn ($alias) => strtoupper(trim((string) $alias)))
+                    ->all();
+
+                if (in_array($normalized, $normalizedAliases, true)) {
+                    return $departamento;
+                }
+            }
+        }
+
+        $fallback = strtoupper(trim($fallbackDepartamento));
+
+        return $fallback !== '' ? $fallback : ($normalized !== '' ? $normalized : '-');
     }
 
     private function packageIdentityColumns(string $moduloKey, array $config): array

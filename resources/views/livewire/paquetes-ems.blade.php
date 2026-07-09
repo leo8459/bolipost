@@ -1051,6 +1051,11 @@
                             @endif
                             <div class="header-actions-group">
                                 @if ($this->isAdmision)
+                                    @if ($canEmsAdmisionCreate)
+                                    <button class="btn btn-dorado" type="button" wire:click="openPaqueteIntModal">
+                                        Anadir paquete INT
+                                    </button>
+                                    @endif
                                     @if ($canEmsAssign)
                                     <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
                                         GENERADOS EL DIA DE HOY
@@ -1077,7 +1082,7 @@
                                     </button>
                                     @endif
                                     @if ($canEmsSendVentanilla)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosVentanillaEms">
+                                    <button class="btn btn-outline-light2" type="button" wire:click="openVentanillaPesoModal">
                                         Enviar a ventanilla EMS
                                     </button>
                                     @endif
@@ -1584,7 +1589,7 @@
                     @if ($this->canSelect)
                         @php
                             $seleccionadosTotal = ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
-                                ? (count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes))
+                                ? (count($selectedPaquetes) + count($selectedPaquetesInt) + count($selectedContratos) + count($selectedSolicitudes))
                                 : count($selectedPaquetes);
                         @endphp
                         <div class="muted small">
@@ -1599,13 +1604,14 @@
                 </div>
 
                 @php
-                    $seleccionadosTotalGlobal = (count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes));
+                    $seleccionadosTotalGlobal = (count($selectedPaquetes) + count($selectedPaquetesInt) + count($selectedContratos) + count($selectedSolicitudes));
                 @endphp
                 @if ($this->canUseSelectedPreview && $seleccionadosTotalGlobal > 0)
                     <div class="prelist-shell mb-3">
                         @php
                             $selectedPreviewBase = collect($selectedPreviewRows ?? collect());
                             $selectedPreviewEms = $selectedPreviewBase->where('tipo', 'EMS')->count();
+                            $selectedPreviewInt = $selectedPreviewBase->where('tipo', 'INT')->count();
                             $selectedPreviewContratos = $selectedPreviewBase->where('tipo', 'CONTRATO')->count();
                             $selectedPreviewSolicitudes = $selectedPreviewBase->where('tipo', 'SOLICITUD')->count();
                             $selectedPreviewFiltered = $selectedPreviewBase;
@@ -1638,6 +1644,7 @@
                         </div>
                         <div class="prelist-kpis">
                             <span class="prelist-kpi">EMS: <strong>{{ $selectedPreviewEms }}</strong></span>
+                            <span class="prelist-kpi">INT: <strong>{{ $selectedPreviewInt }}</strong></span>
                             <span class="prelist-kpi">CONTRATO: <strong>{{ $selectedPreviewContratos }}</strong></span>
                             <span class="prelist-kpi">SOLICITUD: <strong>{{ $selectedPreviewSolicitudes }}</strong></span>
                         </div>
@@ -1646,6 +1653,7 @@
                                 <select wire:model.live="selectedPreviewType" class="form-control" style="max-width: 230px;">
                                     <option value="TODOS">Todos</option>
                                     <option value="EMS">EMS</option>
+                                    <option value="INT">INT</option>
                                     <option value="CONTRATO">Contrato</option>
                                     <option value="SOLICITUD">Solicitud</option>
                                 </select>
@@ -1799,6 +1807,8 @@
                                             <td>
                                                 @if (($row->record_type ?? '') === 'EMS')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes" wire:key="check-almacen-ems-{{ $row->record_id }}">
+                                                @elseif (($row->record_type ?? '') === 'INT')
+                                                    <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetesInt" wire:key="check-almacen-int-{{ $row->record_id }}">
                                                 @elseif (($row->record_type ?? '') === 'CONTRATO')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedContratos" wire:key="check-almacen-contrato-{{ $row->record_id }}">
                                                 @else
@@ -1825,10 +1835,12 @@
                                         @endif
                                         <td class="action-cell">
                                             <div class="action-stack">
+                                            @if (($row->record_type ?? '') !== 'INT')
                                             @include('partials.rastreo-eventos-button', [
                                                 'tipo' => strtolower((string) ($row->record_type ?? 'EMS')),
                                                 'codigo' => $row->codigo,
                                             ])
+                                            @endif
                                             @if (($row->record_type ?? '') === 'EMS')
                                                 @if ($this->isAlmacenEms || $this->isTransitoEms)
                                                     @if ($canEmsEdit)
@@ -1857,22 +1869,22 @@
                                                     </button>
                                                     @endif
                                                 @endif
+                                            @elseif (($row->record_type ?? '') === 'CONTRATO')
+                                                <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
+                                                   target="_blank"
+                                                   class="btn btn-sm btn-outline-azul action-btn"
+                                                   title="Reimprimir rotulo">
+                                                    <i class="fas fa-print"></i>
+                                                </a>
+                                            @elseif (($row->record_type ?? '') === 'SOLICITUD')
+                                                <a href="{{ route('paquetes-ems.solicitudes.ticket', $row->record_id) }}"
+                                                   target="_blank"
+                                                   class="btn btn-sm btn-outline-azul action-btn"
+                                                   title="Imprimir ticket de solicitud">
+                                                    <i class="fas fa-print"></i>
+                                                </a>
                                             @else
-                                                @if (($row->record_type ?? '') === 'CONTRATO')
-                                                    <a href="{{ route('paquetes-contrato.reporte', $row->record_id, false) }}"
-                                                       target="_blank"
-                                                       class="btn btn-sm btn-outline-azul action-btn"
-                                                       title="Reimprimir rotulo">
-                                                        <i class="fas fa-print"></i>
-                                                    </a>
-                                                @else
-                                                    <a href="{{ route('paquetes-ems.solicitudes.ticket', $row->record_id) }}"
-                                                       target="_blank"
-                                                       class="btn btn-sm btn-outline-azul action-btn"
-                                                       title="Imprimir ticket de solicitud">
-                                                        <i class="fas fa-print"></i>
-                                                    </a>
-                                                @endif
+                                                <span class="badge badge-warning">INT</span>
                                             @endif
                                             </div>
                                         </td>
@@ -1886,6 +1898,10 @@
                                     </tr>
                                 @endforelse
                             @else
+                                @php
+                                    $hayPaquetesAdmision = $paquetes->count() > 0;
+                                    $hayPaquetesIntAdmision = $paquetesIntAdmision->count() > 0;
+                                @endphp
                                 @forelse ($paquetes as $paquete)
                                     @php
                                         $formulario = $paquete->formulario;
@@ -1947,13 +1963,45 @@
                                         </td>
                                     </tr>
                                 @empty
+                                @endforelse
+
+                                @foreach ($paquetesIntAdmision as $paqueteInt)
+                                    <tr>
+                                        @if ($this->canSelect)
+                                            <td></td>
+                                        @endif
+                                        <td><span class="pill-id">{{ $paqueteInt->codigo }}</span></td>
+                                        <td>INT</td>
+                                        <td>-</td>
+                                        <td>{{ optional($paqueteInt->servicio)->nombre_servicio ?? '-' }}</td>
+                                        <td>{{ $paqueteInt->destino ?: '-' }}</td>
+                                        <td>PAQUETE INTERNACIONAL</td>
+                                        <td>1</td>
+                                        <td>{{ number_format((float) $paqueteInt->peso, 3) }}</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>{{ $paqueteInt->origen ?: '-' }}</td>
+                                        <td>{{ optional($paqueteInt->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                        <td class="action-cell">
+                                            <div class="action-stack">
+                                                <span class="badge badge-warning">INT</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+
+                                @if (!$hayPaquetesAdmision && !$hayPaquetesIntAdmision)
                                     <tr>
                                         <td colspan="{{ $this->canSelect ? 18 : 17 }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
                                     </tr>
-                                @endforelse
+                                @endif
                             @endif
                         </tbody>
                     </table>
@@ -2617,6 +2665,13 @@
     <div class="modal fade" id="regionalModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
+                @php
+                    $regionalPesoPendiente = collect($regionalPesoZeroItems ?? [])->contains(function ($item) use ($regionalPesoInputs) {
+                        $key = (string) ($item['key'] ?? '');
+                        $value = trim((string) ($regionalPesoInputs[$key] ?? ''));
+                        return $key === '' || !is_numeric(str_replace(',', '.', $value)) || (float) str_replace(',', '.', $value) <= 0;
+                    });
+                @endphp
                 <div class="modal-header">
                     <h5 class="modal-title">Enviar a regional</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -2731,13 +2786,18 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsSendRegional && !empty($regionalPesoZeroItems))
+                    <button type="button" class="btn btn-outline-success" wire:click="guardarPesosPendientesSeleccionados">
+                        Guardar pesos
+                    </button>
+                    @endif
                     @if ($canEmsSendRegional)
                     <button type="button" class="btn btn-outline-primary" wire:click="toggleRegionalIntSection">
                         {{ $showRegionalIntSection ? 'Ocultar INT' : 'Anadir INT' }}
                     </button>
                     @endif
                     @if ($canEmsSendRegional)
-                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosRegional">
+                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosRegional" @disabled($regionalPesoPendiente)>
                         Confirmar y generar manifiesto
                     </button>
                     @endif
@@ -2749,6 +2809,13 @@
     <div class="modal fade" id="regionalContratoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog">
             <div class="modal-content">
+                @php
+                    $regionalContratoPesoPendiente = collect($regionalPesoZeroItems ?? [])->contains(function ($item) use ($regionalPesoInputs) {
+                        $key = (string) ($item['key'] ?? '');
+                        $value = trim((string) ($regionalPesoInputs[$key] ?? ''));
+                        return $key === '' || !is_numeric(str_replace(',', '.', $value)) || (float) str_replace(',', '.', $value) <= 0;
+                    });
+                @endphp
                 <div class="modal-header">
                     <h5 class="modal-title">Enviar contratos a regional</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -2807,9 +2874,81 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsSendRegional && !empty($regionalPesoZeroItems))
+                    <button type="button" class="btn btn-outline-success" wire:click="guardarPesosPendientesSeleccionados">
+                        Guardar pesos
+                    </button>
+                    @endif
                     @if ($canEmsSendRegional)
-                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosContratosRegional">
+                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosContratosRegional" @disabled($regionalContratoPesoPendiente)>
                         Confirmar y generar manifiesto
+                    </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="ventanillaPesoModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                @php
+                    $ventanillaPesoPendiente = collect($regionalPesoZeroItems ?? [])->contains(function ($item) use ($regionalPesoInputs) {
+                        $key = (string) ($item['key'] ?? '');
+                        $value = trim((string) ($regionalPesoInputs[$key] ?? ''));
+                        return $key === '' || !is_numeric(str_replace(',', '.', $value)) || (float) str_replace(',', '.', $value) <= 0;
+                    });
+                @endphp
+                <div class="modal-header">
+                    <h5 class="modal-title">Enviar a ventanilla EMS</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <strong>Hay registros seleccionados sin peso.</strong>
+                        Completa el peso de todos para poder enviarlos a ventanilla.
+                    </div>
+
+                    <div class="section-block mb-0">
+                        <div class="section-title">Registros pendientes de peso</div>
+                        @forelse ($regionalPesoZeroItems as $item)
+                            <div class="border rounded p-3 mb-2">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                    <div>
+                                        <strong>{{ $item['codigo'] ?? 'SIN CODIGO' }}</strong>
+                                        <span class="text-muted">| Tipo: {{ strtoupper($item['type'] ?? '-') }}</span>
+                                    </div>
+                                    <div class="small text-muted">
+                                        Peso actual: {{ number_format((float) ($item['peso'] ?? 0), 3) }} Kg
+                                    </div>
+                                </div>
+                                <x-peso-qz-field
+                                    :model="'regionalPesoInputs.' . ($item['key'] ?? '')"
+                                    :input-id="'ventanilla-peso-' . ($item['key'] ?? '')"
+                                    min="0.001"
+                                    :required="true"
+                                    :use-scale="true"
+                                    :show-clear="true"
+                                    label="Nuevo peso"
+                                />
+                            </div>
+                        @empty
+                            <div class="text-muted">No hay registros pendientes de peso.</div>
+                        @endforelse
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canEmsSendVentanilla && !empty($regionalPesoZeroItems))
+                    <button type="button" class="btn btn-outline-success" wire:click="guardarPesosPendientesSeleccionados">
+                        Guardar pesos
+                    </button>
+                    @endif
+                    @if ($canEmsSendVentanilla)
+                    <button type="button" class="btn btn-primary" wire:click="mandarSeleccionadosVentanillaEms" @disabled($ventanillaPesoPendiente)>
+                        Guardar pesos y enviar
                     </button>
                     @endif
                 </div>
@@ -2999,6 +3138,63 @@
                         Generar envio oficial
                     </button>
                     @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="paqueteIntModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Anadir paquete INT</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Codigo</label>
+                        <input type="text" class="form-control text-uppercase" wire:model.defer="paqueteIntCodigo" placeholder="Ej: INT001">
+                        @error('paqueteIntCodigo') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group">
+                        <label>Origen (automatico del usuario)</label>
+                        <input type="text" class="form-control" wire:model="paqueteIntOrigen" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Destino</label>
+                        <input type="text" class="form-control text-uppercase" wire:model.defer="paqueteIntDestino" placeholder="Escriba el destino">
+                        @error('paqueteIntDestino') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-group">
+                        <label>Tramo</label>
+                        <select class="form-control" wire:model.defer="paqueteIntTramo">
+                            <option value="">Seleccione...</option>
+                            @foreach($departamentos as $departamento)
+                                <option value="{{ $departamento }}">{{ $departamento }}</option>
+                            @endforeach
+                        </select>
+                        @error('paqueteIntTramo') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Peso</label>
+                            <input type="number" step="0.001" min="0.001" class="form-control" wire:model.defer="paqueteIntPeso">
+                            @error('paqueteIntPeso') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Precio</label>
+                            <input type="number" step="0.01" min="0" class="form-control" wire:model.defer="paqueteIntPrecio">
+                            @error('paqueteIntPrecio') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" wire:click="registrarPaqueteInt">
+                        Guardar paquete INT
+                    </button>
                 </div>
             </div>
         </div>
@@ -3390,12 +3586,16 @@
             closeRegionalModal: '#regionalModal',
             openRegionalContratoModal: '#regionalContratoModal',
             closeRegionalContratoModal: '#regionalContratoModal',
+            openVentanillaPesoModal: '#ventanillaPesoModal',
+            closeVentanillaPesoModal: '#ventanillaPesoModal',
             openRegionalMismatchModal: '#regionalMismatchModal',
             closeRegionalMismatchModal: '#regionalMismatchModal',
             openContratoRegistrarModal: '#contratoRegistrarModal',
             closeContratoRegistrarModal: '#contratoRegistrarModal',
             openEnvioOficialModal: '#envioOficialModal',
             closeEnvioOficialModal: '#envioOficialModal',
+            openPaqueteIntModal: '#paqueteIntModal',
+            closePaqueteIntModal: '#paqueteIntModal',
             openContratoPesoModal: '#contratoPesoModal',
             closeContratoPesoModal: '#contratoPesoModal',
             openTiktokerPesoModal: '#tiktokerPesoModal',
