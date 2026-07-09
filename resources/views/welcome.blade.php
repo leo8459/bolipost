@@ -73,12 +73,8 @@
                     </div>
                 </div>
 
-                <div class="hero-figure reveal" id="heroFigure">
-                    <video class="hero-video" autoplay muted loop playsinline preload="metadata"
-                        poster="{{ asset('images/MONITO.png') }}">
-                        <source src="{{ asset('videos/empresa-presentacion.mp4') }}" type="video/mp4">
-                        Tu navegador no soporta la reproduccion de video.
-                    </video>
+                <div class="hero-figure" id="heroFigure">
+                    <img class="hero-img reveal" src="{{ asset('images/MONITO.png') }}" alt="Operador TrackingBO">
                 </div>
             </div>
         </section>

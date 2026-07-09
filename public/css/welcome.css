@@ -430,16 +430,6 @@ body.has-loading-modal {
   animation: floaty 4.2s ease-in-out infinite;
 }
 
-.hero-video {
-  width: min(440px, 100%);
-  display: block;
-  margin: 0 0 0 auto;
-  border-radius: 28px;
-  background: #0b1f3a;
-  box-shadow: 0 24px 40px rgba(8,20,40,.26);
-  object-fit: cover;
-}
-
 .hero-grid > div:first-child {
   max-width: 620px;
 }
@@ -1405,7 +1395,6 @@ body.has-loading-modal {
     gap: 1.1rem;
   }
   .hero-img { width: min(360px, 100%); }
-  .hero-video { width: min(380px, 100%); }
 }
 
 @media (max-width: 1024px) {
@@ -1417,10 +1406,6 @@ body.has-loading-modal {
   .hero-img {
     margin: .3rem auto 0;
     width: min(360px, 90%);
-  }
-  .hero-video {
-    margin: .3rem auto 0;
-    width: min(380px, 90%);
   }
   .band-grid { grid-template-columns: 1fr 1fr; padding: .8rem 0; }
   .flow::before { display: none; }

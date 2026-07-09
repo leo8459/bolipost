@@ -31,12 +31,12 @@
             <div class="card-body">
                 <form method="GET" action="{{ route('performance.index') }}">
                     <div class="row">
-                        <div class="col-lg-3 mb-3">
+                        <div class="col-lg-3 mb-2">
                             <label class="font-weight-bold">Buscar</label>
                             <input type="text" name="q" value="{{ $filters['q'] }}" class="form-control"
                                 placeholder="Codigo, actor, evento, origen o destino">
                         </div>
-                        <div class="col-lg-2 mb-3">
+                        <div class="col-lg-2 mb-2">
                             <label class="font-weight-bold">Anio desde</label>
                             <select name="from_year" class="form-control">
                                 @foreach($yearOptions as $yearOption)
@@ -44,7 +44,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-lg-2 mb-3">
+                        <div class="col-lg-2 mb-2">
                             <label class="font-weight-bold">Mes desde</label>
                             <select name="from_month" class="form-control">
                                 @foreach($monthOptions as $monthValue => $monthLabel)
@@ -52,7 +52,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-lg-2 mb-3">
+                        <div class="col-lg-2 mb-2">
                             <label class="font-weight-bold">Anio hasta</label>
                             <select name="to_year" class="form-control">
                                 @foreach($yearOptions as $yearOption)
@@ -60,7 +60,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-lg-1 mb-3">
+                        <div class="col-lg-1 mb-2">
                             <label class="font-weight-bold">Mes hasta</label>
                             <select name="to_month" class="form-control">
                                 @foreach($monthOptions as $monthValue => $monthLabel)
@@ -68,7 +68,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-lg-2 mb-3">
+                        <div class="col-lg-2 mb-2">
                             <label class="font-weight-bold">Servicio</label>
                             <select name="servicio" class="form-control">
                                 <option value="">Todos</option>
@@ -77,7 +77,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-lg-3 mb-3">
+                        <div class="col-lg-3 mb-2">
                             <label class="font-weight-bold">Evento</label>
                             <select name="evento_id" class="form-control">
                                 <option value="0">Todos</option>
@@ -91,7 +91,7 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-lg-4 mb-3">
+                        <div class="col-lg-4 mb-2">
                             <label class="font-weight-bold">Origen</label>
                             <select name="origen" class="form-control">
                                 <option value="">Todos</option>
@@ -100,7 +100,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-lg-4 mb-3">
+                        <div class="col-lg-4 mb-2">
                             <label class="font-weight-bold">Destino</label>
                             <select name="destino" class="form-control">
                                 <option value="">Todos</option>
@@ -109,7 +109,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-lg-2 mb-3">
+                        <div class="col-lg-2 mb-2">
                             <label class="font-weight-bold">Filas detalle</label>
                             <select name="per_page" class="form-control">
                                 @foreach([25, 50, 100, 150] as $pageSize)
@@ -117,7 +117,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-lg-2 mb-3 d-flex align-items-end">
+                        <div class="col-lg-2 mb-2 d-flex align-items-end">
                             <div class="w-100 d-flex flex-wrap">
                                 <button type="submit" class="btn btn-primary mr-2 mb-2 flex-fill">
                                     <i class="fas fa-search mr-1"></i> Buscar
@@ -139,7 +139,7 @@
         </section>
 
         <div class="row">
-            <div class="col-lg-3 mb-4">
+            <div class="col-lg-3 mb-2">
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Registros encontrados</div>
@@ -147,7 +147,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-3 mb-4">
+            <div class="col-lg-3 mb-2">
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Origenes visibles</div>
@@ -155,7 +155,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-3 mb-4">
+            <div class="col-lg-3 mb-2">
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Destinos visibles</div>
@@ -163,7 +163,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-3 mb-4">
+            <div class="col-lg-3 mb-2">
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Eventos en tabla</div>
@@ -173,13 +173,28 @@
             </div>
         </div>
 
-        <section class="card border-0 shadow-sm mb-4">
+        <section class="card border-0 shadow-sm mb-2">
             <div class="card-header performance-header">
                 <div>
                     <h3 class="mb-1">Tabla consolidada</h3>
                     <small>Vista tipo QCS por origen, destino, anio, mes y conteo de eventos.</small>
                 </div>
             </div>
+            @if(count($eventLegend) > 0)
+                <div class="performance-legend-bar">
+                    <details class="performance-legend-details">
+                        <summary>Ver referencia de columnas</summary>
+                        <div class="performance-legend-grid">
+                            @foreach($eventLegend as $legendItem)
+                                <span class="performance-legend-chip" title="{{ $legendItem['label'] }}">
+                                    <strong>{{ $legendItem['key'] }}</strong>
+                                    <span>{{ $legendItem['label'] }}</span>
+                                </span>
+                            @endforeach
+                        </div>
+                    </details>
+                </div>
+            @endif
             <div class="card-body p-0">
                 <div class="table-responsive performance-table-wrap">
                     <table class="table table-sm table-bordered table-hover mb-0 performance-matrix">
@@ -189,8 +204,15 @@
                                 <th>Destino</th>
                                 <th>Anio</th>
                                 <th>Mes</th>
-                                @forelse($eventColumns as $eventColumn)
-                                    <th>{{ $eventColumn }}</th>
+                                @forelse($eventColumns as $eventIndex => $eventColumn)
+                                    <th class="performance-event-head">
+                                        <span class="performance-event-key"
+                                            data-toggle="tooltip"
+                                            data-placement="top"
+                                            title="{{ $eventColumn }}">
+                                            {{ $eventLegend[$eventIndex]['key'] ?? $eventColumn }}
+                                        </span>
+                                    </th>
                                 @empty
                                     <th>Sin eventos</th>
                                 @endforelse
@@ -233,13 +255,19 @@
             </div>
         </section>
 
-        <section class="card border-0 shadow-sm">
+        <section class="card border-0 shadow-sm performance-detail-card">
             <div class="card-header performance-header">
-                <div>
+                <div class="d-flex justify-content-between align-items-center w-100">
+                    <div>
                     <h3 class="mb-1">Detalle de registros</h3>
                     <small>Eventos encontrados segun la busqueda actual.</small>
+                    </div>
+                    <button class="btn btn-light btn-sm performance-toggle" type="button" data-toggle="collapse" data-target="#performanceDetailBody" aria-expanded="false" aria-controls="performanceDetailBody">
+                        Ver detalle
+                    </button>
                 </div>
             </div>
+            <div id="performanceDetailBody" class="collapse">
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-sm table-striped table-hover mb-0">
@@ -279,6 +307,7 @@
                     {{ $details->links() }}
                 </div>
             @endif
+            </div>
         </section>
     </div>
 @stop
@@ -289,6 +318,7 @@
             background: linear-gradient(90deg, #0f4c81, #1f6aa6);
             color: #fff;
             border-bottom: 0;
+            padding: 0.65rem 1rem;
         }
 
         .performance-header small,
@@ -296,30 +326,54 @@
             color: #fff;
         }
 
+        .performance-qcs .card-body {
+            padding: 0.65rem 0.8rem;
+        }
+
+        .performance-qcs label {
+            margin-bottom: 0.22rem;
+            font-size: 0.78rem;
+        }
+
+        .performance-qcs .form-control {
+            height: calc(1.72rem + 2px);
+            padding: 0.14rem 0.45rem;
+            font-size: 0.8rem;
+        }
+
+        .performance-qcs .btn {
+            padding: 0.3rem 0.55rem;
+            font-size: 0.8rem;
+        }
+
         .performance-filters-note {
             display: flex;
             flex-wrap: wrap;
             gap: 0.6rem;
-            margin-top: 0.4rem;
+            margin-top: 0.15rem;
         }
 
         .performance-chip {
             display: inline-flex;
             align-items: center;
-            padding: 0.45rem 0.8rem;
+            padding: 0.28rem 0.62rem;
             border-radius: 999px;
             background: #eef4ff;
             color: #20539a;
-            font-size: 0.82rem;
+            font-size: 0.76rem;
         }
 
         .performance-stat {
             border-radius: 18px;
         }
 
+        .performance-stat .card-body {
+            padding: 0.55rem 0.85rem;
+        }
+
         .performance-stat-label {
             color: #5b6d86;
-            font-size: 0.82rem;
+            font-size: 0.72rem;
             text-transform: uppercase;
             font-weight: 700;
             letter-spacing: 0.04em;
@@ -327,13 +381,66 @@
 
         .performance-stat-value {
             color: #163b6d;
-            font-size: 2rem;
+            font-size: 1.2rem;
             font-weight: 800;
-            margin-top: 0.35rem;
+            margin-top: 0.05rem;
+            line-height: 1.05;
         }
 
         .performance-table-wrap {
-            max-height: 580px;
+            max-height: calc(100vh - 330px);
+            min-height: 280px;
+        }
+
+        .performance-legend-bar {
+            padding: 0.3rem 0.7rem 0;
+            background: #f7faff;
+            border-bottom: 1px solid #dbe6f5;
+        }
+
+        .performance-legend-details summary {
+            cursor: pointer;
+            color: #1c4f92;
+            font-size: 0.72rem;
+            font-weight: 700;
+            outline: none;
+        }
+
+        .performance-legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.3rem;
+            padding: 0.45rem 0 0.35rem;
+        }
+
+        .performance-legend-chip {
+            display: flex;
+            align-items: center;
+            gap: 0.42rem;
+            padding: 0.22rem 0.38rem;
+            border: 1px solid #d6e2f1;
+            border-radius: 8px;
+            background: #fff;
+            font-size: 0.68rem;
+            color: #27476c;
+        }
+
+        .performance-legend-chip strong {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 1.35rem;
+            height: 1.35rem;
+            border-radius: 999px;
+            background: #eaf2ff;
+            color: #17498b;
+            font-size: 0.68rem;
+        }
+
+        .performance-legend-chip span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .performance-matrix thead th {
@@ -347,12 +454,78 @@
 
         .performance-matrix td,
         .performance-matrix th {
-            font-size: 0.83rem;
+            font-size: 0.68rem;
             vertical-align: middle;
+            padding: 0.14rem 0.24rem;
         }
 
         .performance-matrix tfoot th {
             background: #f7f9fc;
         }
+
+        .performance-event-head {
+            text-align: center;
+        }
+
+        .performance-event-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.15rem;
+            min-height: 1.15rem;
+            border-radius: 999px;
+            background: #eaf2ff;
+            color: #17498b;
+            font-weight: 700;
+            cursor: help;
+            line-height: 1;
+        }
+
+        .performance-qcs .table-sm th,
+        .performance-qcs .table-sm td {
+            padding: 0.16rem 0.28rem;
+            font-size: 0.69rem;
+        }
+
+        .performance-header h3 {
+            font-size: 0.95rem;
+        }
+
+        .performance-header small {
+            font-size: 0.74rem;
+        }
+
+        .performance-detail-card .card-footer {
+            padding: 0.35rem 0.65rem;
+        }
+
+        .performance-toggle {
+            white-space: nowrap;
+        }
+
+        @media (min-width: 1200px) {
+            .performance-qcs {
+                zoom: 0.88;
+            }
+        }
+
+        @media (min-width: 1500px) {
+            .performance-qcs {
+                zoom: 0.82;
+            }
+        }
     </style>
+@stop
+
+@section('js')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.jQuery && typeof window.jQuery.fn.tooltip === 'function') {
+                window.jQuery('[data-toggle="tooltip"]').tooltip({
+                    container: 'body',
+                    trigger: 'hover focus click'
+                });
+            }
+        });
+    </script>
 @stop

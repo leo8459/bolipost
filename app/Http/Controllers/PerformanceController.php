@@ -108,6 +108,7 @@ class PerformanceController extends Controller
             ->get();
 
         [$matrixRows, $eventColumns, $matrixTotals] = $this->buildMatrix($matrixSource);
+        $eventLegend = $this->buildEventLegend($eventColumns);
 
         $details = (clone $filteredBaseQuery)
             ->orderByDesc('created_at')
@@ -130,6 +131,7 @@ class PerformanceController extends Controller
             'destinationOptions' => $this->destinationOptions(),
             'eventOptions' => Evento::query()->orderBy('nombre_evento')->get(['id', 'nombre_evento']),
             'yearOptions' => $this->yearOptions(),
+            'eventLegend' => $eventLegend,
             'matrixRows' => $matrixRows,
             'eventColumns' => $eventColumns,
             'matrixTotals' => $matrixTotals,
@@ -156,6 +158,7 @@ class PerformanceController extends Controller
             ->get();
 
         [$matrixRows, $eventColumns, $matrixTotals] = $this->buildMatrix($matrixSource);
+        $eventLegend = $this->buildEventLegend($eventColumns);
 
         $details = (clone $filteredBaseQuery)
             ->orderByDesc('created_at')
@@ -166,6 +169,7 @@ class PerformanceController extends Controller
             'generatedAt' => now(),
             'filters' => $filters,
             'filterSummary' => $this->buildFilterSummary($filters),
+            'eventLegend' => $eventLegend,
             'matrixRows' => $matrixRows,
             'eventColumns' => $eventColumns,
             'matrixTotals' => $matrixTotals,
@@ -608,5 +612,32 @@ class PerformanceController extends Controller
         }
 
         return "(CASE " . implode(' ', $cases) . " ELSE {$normalized} END)";
+    }
+
+    private function buildEventLegend(array $eventColumns): array
+    {
+        $legend = [];
+
+        foreach (array_values($eventColumns) as $index => $eventName) {
+            $legend[] = [
+                'key' => $this->alphabetKey($index),
+                'label' => (string) $eventName,
+            ];
+        }
+
+        return $legend;
+    }
+
+    private function alphabetKey(int $index): string
+    {
+        $index = max(0, $index);
+        $result = '';
+
+        do {
+            $result = chr(65 + ($index % 26)) . $result;
+            $index = intdiv($index, 26) - 1;
+        } while ($index >= 0);
+
+        return $result;
     }
 }
