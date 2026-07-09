@@ -7,6 +7,7 @@ use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Spatie\Permission\Models\Role;
@@ -78,13 +79,15 @@ class Users extends Component
     {
         if ($this->editingId) {
             $this->authorizePermission('users.update');
+            $this->alias = $this->normalizeAlias($this->alias);
             $this->validate($this->updateRules());
+            $this->ensureAliasIsAvailable($this->alias, (int) $this->editingId);
 
             $user = User::query()->findOrFail((int) $this->editingId);
             $ciValue = trim((string) $this->ci);
             $regionales = $this->normalizeRegionalesSeleccionadas();
             $user->name = trim($this->name);
-            $user->alias = strtolower(trim((string) $this->alias));
+            $user->alias = $this->alias;
             $user->email = trim($this->email);
             $user->ciudad = $regionales[0] ?? '';
             $user->regionales = $regionales;
@@ -103,13 +106,15 @@ class Users extends Component
             session()->flash('success', 'Usuario actualizado correctamente.');
         } else {
             $this->authorizePermission('users.store');
+            $this->alias = $this->normalizeAlias($this->alias);
             $this->validate($this->createRules());
+            $this->ensureAliasIsAvailable($this->alias);
 
             $user = new User();
             $ciValue = trim((string) $this->ci);
             $regionales = $this->normalizeRegionalesSeleccionadas();
             $user->name = trim($this->name);
-            $user->alias = strtolower(trim((string) $this->alias));
+            $user->alias = $this->alias;
             $user->email = trim($this->email);
             $user->password = Hash::make($this->password);
             $user->ciudad = $regionales[0] ?? '';
@@ -307,6 +312,34 @@ class Users extends Component
     protected function regionalesDisponibles(): array
     {
         return ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
+    }
+
+    protected function normalizeAlias($alias): string
+    {
+        return strtolower(trim((string) $alias));
+    }
+
+    protected function ensureAliasIsAvailable(string $alias, ?int $ignoreUserId = null): void
+    {
+        if ($this->isAliasAvailable($alias, $ignoreUserId)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'alias' => 'El alias ya esta registrado. Debe ser unico.',
+        ]);
+    }
+
+    protected function isAliasAvailable(string $alias, ?int $ignoreUserId = null): bool
+    {
+        if ($alias === '') {
+            return true;
+        }
+
+        return ! User::withTrashed()
+            ->when($ignoreUserId, fn ($query) => $query->where('id', '!=', $ignoreUserId))
+            ->whereRaw('LOWER(alias) = ?', [$alias])
+            ->exists();
     }
 
     public function render()
