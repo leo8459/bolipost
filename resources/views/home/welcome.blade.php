@@ -31,7 +31,7 @@
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body p-4 p-lg-5">
                 <div class="row align-items-center">
-                    <div class="{{ $isEmpresaUser ? 'col-12' : 'col-lg-8 mb-4 mb-lg-0' }}">
+                    <div class="col-lg-7 mb-4 mb-lg-0">
                         <span class="welcome-badge">Inicio</span>
                         <h2 class="welcome-title mt-3">Tu jornada empieza aqui</h2>
                         <p class="welcome-copy mb-0">
@@ -39,15 +39,38 @@
                             o entrar directamente a los modulos que mas uses en tu flujo diario.
                         </p>
                     </div>
-                    @unless($isEmpresaUser)
-                    <div class="col-lg-4">
+                    @if($isEmpresaUser)
+                    <div class="col-lg-5">
+                        <div class="welcome-video-copy">
+                            <h3 class="welcome-video-title mb-2">Video guia del modulo</h3>
+                            <p class="welcome-video-text mb-3">
+                                Conoce de forma visual el flujo de registro y gestion dentro de la plataforma.
+                                Este material te ayudara a comprender los pasos principales y agilizar el uso del sistema.
+                            </p>
+                        </div>
+                        <div class="welcome-media">
+                            <video class="welcome-video" autoplay muted loop playsinline controls preload="metadata"
+                                poster="{{ asset('images/MONITO.png') }}">
+                                <source src="{{ asset('videos/empresa-presentacion.mp4') }}" type="video/mp4">
+                                Tu navegador no soporta la reproduccion de video.
+                            </video>
+                        </div>
+                        <div class="welcome-manual mb-3">
+                            <a href="{{ asset('manuales/manual-de-usuario.pdf') }}" class="btn btn-outline-primary btn-block"
+                                download="manual-de-usuario.pdf" target="_blank" rel="noopener">
+                                Manual de Usuario
+                            </a>
+                        </div>
+                    </div>
+                    @else
+                    <div class="col-lg-5">
                         <div class="welcome-actions">
                             <a href="{{ route('dashboard') }}" class="btn btn-primary btn-block mb-2">Abrir dashboard</a>
                             <a href="{{ route('carteros.distribucion') }}" class="btn btn-outline-secondary btn-block mb-2">Ir a distribucion</a>
                             <a href="{{ route('bitacoras.create') }}" class="btn btn-outline-secondary btn-block">Registrar bitacora</a>
                         </div>
                     </div>
-                    @endunless
+                    @endif
                 </div>
             </div>
         </div>
@@ -90,6 +113,49 @@
             min-height: 46px;
             border-radius: 12px;
             font-weight: 700;
+        }
+
+        .welcome-manual .btn {
+            min-height: 46px;
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
+        .welcome-media {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .welcome-video-copy {
+            max-width: 420px;
+            margin: 0 auto 0.9rem;
+        }
+
+        .welcome-video-title {
+            color: #163b6d;
+            font-size: 1.05rem;
+            font-weight: 800;
+        }
+
+        .welcome-video-text {
+            color: #5a6c86;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .welcome-video {
+            width: 100%;
+            max-width: 420px;
+            border-radius: 18px;
+            background: #0f2748;
+            box-shadow: 0 16px 38px rgba(18, 47, 89, 0.18);
+        }
+
+        @media (max-width: 991.98px) {
+            .welcome-video {
+                max-width: 100%;
+            }
         }
     </style>
 @stop

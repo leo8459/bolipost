@@ -14,18 +14,41 @@ class VehicleMaintenanceReportController extends Controller
         $vehicle->load([
             'brand:id,nombre',
             'vehicleClass:id,nombre',
+            'assignments' => fn ($query) => $query
+                ->with([
+                    'driver.user.sucursal:id,municipio,departamento',
+                ])
+                ->where('activo', true)
+                ->orderByDesc('fecha_inicio')
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id'),
             'maintenanceLogs' => fn ($query) => $query
                 ->with('maintenanceType:id,nombre')
                 ->orderByDesc('fecha')
                 ->orderByDesc('id'),
         ]);
 
+        $currentAssignment = $vehicle->assignments->first();
+        $assignedDriver = $currentAssignment?->driver;
+        $assignedUser = $assignedDriver?->user;
+        $regional = trim((string) ($assignedUser?->regionalesTexto() ?? ''));
+
+        if ($regional === '') {
+            $regional = trim(collect([
+                $assignedUser?->sucursal?->departamento,
+                $assignedUser?->sucursal?->municipio,
+            ])->filter()->implode(' - '));
+        }
+
         $pdf = Pdf::loadView('reports.vehicle-maintenance-history', [
             'vehicle' => $vehicle,
             'maintenanceLogs' => $vehicle->maintenanceLogs,
+            'currentAssignment' => $currentAssignment,
+            'assignedDriver' => $assignedDriver,
+            'regional' => $regional !== '' ? $regional : null,
             'generatedAt' => now(),
             'generatedBy' => $request->user(),
-        ])->setPaper('letter', 'portrait');
+        ])->setPaper('letter', 'landscape');
 
         $filename = sprintf(
             'mantenimientos-%s.pdf',

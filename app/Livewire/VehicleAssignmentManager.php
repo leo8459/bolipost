@@ -61,7 +61,7 @@ class VehicleAssignmentManager extends Component
     public function mount(): void
     {
         abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion']), 403);
-        $this->fecha_inicio = now()->toDateString();
+        $this->fecha_inicio = $this->formatForDateTimeInput(now());
     }
 
     public function render()
@@ -106,9 +106,6 @@ class VehicleAssignmentManager extends Component
             ->orderBy('nombre')
             ->get();
 
-        $assignmentDate = $this->resolveAssignmentDate();
-        $editingId = $this->editingId;
-
         $vehiclesQuery = Vehicle::query()
             ->where('activo', true)
             ->operationallyAvailable();
@@ -141,7 +138,7 @@ class VehicleAssignmentManager extends Component
             'activeAssignmentsByDriver' => $this->activeAssignmentsIndexedBy('driver_id'),
             'activeAssignmentsByVehicle' => $this->activeAssignmentsIndexedBy('vehicle_id'),
             'reportDrivers' => Driver::query()->orderBy('nombre')->get(),
-            'reportVehicles' => Vehicle::query()->orderBy('placa')->get(),
+            'reportVehicles' => Vehicle::query()->with('vehicleClass')->orderBy('placa')->get(),
         ]);
     }
 
@@ -246,8 +243,8 @@ class VehicleAssignmentManager extends Component
 
         if ($this->tipo_asignacion === 'Temporal' && filled($this->fecha_fin)) {
             try {
-                if (Carbon::parse((string) $this->fecha_fin)->lt(now()->startOfDay())) {
-                    $this->addError('fecha_fin', 'La fecha fin de una asignacion temporal no puede ser anterior a hoy.');
+                if (Carbon::parse((string) $this->fecha_fin)->lt(now())) {
+                    $this->addError('fecha_fin', 'La fecha fin de una asignacion temporal no puede ser anterior a la hora actual.');
                     return;
                 }
             } catch (\Throwable) {
@@ -324,8 +321,8 @@ class VehicleAssignmentManager extends Component
         $this->driver_id = $assignment->driver_id ?? 0;
         $this->vehicle_id = $assignment->vehicle_id ?? 0;
         $this->tipo_asignacion = $assignment->tipo_asignacion;
-        $this->fecha_inicio = $assignment->fecha_inicio?->toDateString() ?? now()->toDateString();
-        $this->fecha_fin = $assignment->fecha_fin?->toDateString();
+        $this->fecha_inicio = $this->formatForDateTimeInput($assignment->fecha_inicio);
+        $this->fecha_fin = $this->formatForDateTimeInput($assignment->fecha_fin);
         $this->activo = (bool) $assignment->activo;
         $this->showForm = true;
     }
@@ -340,7 +337,7 @@ class VehicleAssignmentManager extends Component
 
         $assignment->update([
             'activo' => false,
-            'fecha_fin' => $assignment->fecha_fin?->toDateString() ?: now()->toDateString(),
+            'fecha_fin' => $assignment->fecha_fin?->toDateTimeString() ?: now()->toDateTimeString(),
         ]);
         if ($vehicleId) {
             $this->syncOpenWorkshopsResponsibleDriverForVehicle($vehicleId);
@@ -358,7 +355,7 @@ class VehicleAssignmentManager extends Component
 
         $this->driver_id = (int) $assignment->driver_id;
         $this->vehicle_id = (int) $assignment->vehicle_id;
-        $this->fecha_inicio = now()->toDateString();
+        $this->fecha_inicio = $this->formatForDateTimeInput(now());
         $this->fecha_fin = null;
         $this->tipo_asignacion = (string) ($assignment->tipo_asignacion ?: 'Fijo');
         $this->activo = true;
@@ -395,7 +392,7 @@ class VehicleAssignmentManager extends Component
 
         $assignment->update([
             'activo' => false,
-            'fecha_fin' => now()->toDateString(),
+            'fecha_fin' => now()->toDateTimeString(),
         ]);
         if ($vehicleId) {
             $this->syncOpenWorkshopsResponsibleDriverForVehicle($vehicleId);
@@ -409,7 +406,7 @@ class VehicleAssignmentManager extends Component
         $this->driver_id = 0;
         $this->vehicle_id = 0;
         $this->tipo_asignacion = 'Fijo';
-        $this->fecha_inicio = now()->toDateString();
+        $this->fecha_inicio = $this->formatForDateTimeInput(now());
         $this->fecha_fin = null;
         $this->activo = true;
         $this->isEdit = false;
@@ -435,19 +432,44 @@ class VehicleAssignmentManager extends Component
             'driver_id' => $this->driver_id,
             'vehicle_id' => $this->vehicle_id,
             'tipo_asignacion' => $this->tipo_asignacion,
-            'fecha_inicio' => $this->fecha_inicio,
-            'fecha_fin' => $this->fecha_fin,
+            'fecha_inicio' => $this->normalizeDateTimeForStorage($this->fecha_inicio),
+            'fecha_fin' => $this->normalizeDateTimeForStorage($this->fecha_fin),
             'activo' => $this->activo,
         ];
 
         if ($this->isEdit && $this->editingId) {
             $assignment = VehicleAssignment::find($this->editingId);
             if ($assignment) {
-                $assignment->update($payload);
-                if ($assignment->vehicle_id) {
-                    $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
+                $identityChanged = (int) ($assignment->driver_id ?? 0) !== (int) $payload['driver_id']
+                    || (int) ($assignment->vehicle_id ?? 0) !== (int) $payload['vehicle_id'];
+
+                if ($payload['activo'] && ($identityChanged || $this->reactivatingAssignment)) {
+                    $affectedVehicleIds = collect([
+                        $assignment->vehicle_id ? (int) $assignment->vehicle_id : null,
+                        (int) $payload['vehicle_id'],
+                    ])->filter()->unique()->values();
+
+                    if (!$this->reactivatingAssignment) {
+                        $assignment->update([
+                            'activo' => false,
+                            'fecha_fin' => $payload['fecha_inicio'] ?: now()->toDateTimeString(),
+                        ]);
+                    }
+
+                    VehicleAssignment::create($payload);
+
+                    foreach ($affectedVehicleIds as $vehicleId) {
+                        $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $vehicleId);
+                    }
+
+                    session()->flash('message', $successMessage ?: 'Asignacion historica cerrada y nueva asignacion creada correctamente.');
+                } else {
+                    $assignment->update($payload);
+                    if ($assignment->vehicle_id) {
+                        $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
+                    }
+                    session()->flash('message', $successMessage ?: 'Asignacion actualizada correctamente.');
                 }
-                session()->flash('message', $successMessage ?: 'Asignacion actualizada correctamente.');
             }
         } else {
             $assignment = VehicleAssignment::create($payload);
@@ -475,7 +497,7 @@ class VehicleAssignmentManager extends Component
             return;
         }
 
-        $effectiveEndDate = $this->resolveAssignmentDate();
+        $effectiveEndDate = $this->resolveAssignmentDateTime();
 
         $affectedVehicleIds = VehicleAssignment::query()
             ->whereIn('id', $assignmentIds->all())
@@ -621,7 +643,7 @@ class VehicleAssignmentManager extends Component
             return collect();
         }
 
-        $assignmentDate = $this->resolveAssignmentDate();
+        $assignmentDateTime = $this->resolveAssignmentDateTime();
 
         return VehicleAssignment::query()
             ->with(['driver', 'vehicle'])
@@ -629,11 +651,11 @@ class VehicleAssignmentManager extends Component
             ->whereNotNull('vehicle_id')
             ->whereNotNull('driver_id')
             ->when($this->editingId, fn($q) => $q->where('id', '!=', $this->editingId))
-            ->where(function ($q) use ($assignmentDate) {
-                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $assignmentDate);
+            ->where(function ($q) use ($assignmentDateTime) {
+                $q->whereNull('fecha_inicio')->orWhere('fecha_inicio', '<=', $assignmentDateTime);
             })
-            ->where(function ($q) use ($assignmentDate) {
-                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $assignmentDate);
+            ->where(function ($q) use ($assignmentDateTime) {
+                $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $assignmentDateTime);
             })
             ->get()
             ->keyBy($column);
@@ -641,28 +663,28 @@ class VehicleAssignmentManager extends Component
 
     private function applyAssignmentOverlapFilter($query, ?string $startDate, ?string $endDate): void
     {
-        $newStart = $this->normalizeDateForQuery($startDate) ?? now()->toDateString();
-        $newEnd = $this->normalizeDateForQuery($endDate);
+        $newStart = $this->normalizeDateTimeForQuery($startDate) ?? now()->toDateTimeString();
+        $newEnd = $this->normalizeDateTimeForQuery($endDate);
 
         if ($newEnd) {
             $query->where(function ($q) use ($newEnd) {
-                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $newEnd);
+                $q->whereNull('fecha_inicio')->orWhere('fecha_inicio', '<=', $newEnd);
             });
         }
 
         $query->where(function ($q) use ($newStart) {
-            $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $newStart);
+            $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $newStart);
         });
     }
 
-    private function normalizeDateForQuery(?string $date): ?string
+    private function normalizeDateTimeForQuery(?string $date): ?string
     {
         if (!filled($date)) {
             return null;
         }
 
         try {
-            return Carbon::parse((string) $date)->toDateString();
+            return Carbon::parse((string) $date)->toDateTimeString();
         } catch (\Throwable) {
             return null;
         }
@@ -699,14 +721,40 @@ class VehicleAssignmentManager extends Component
             ->whereNotNull('driver_id');
     }
 
-    private function resolveAssignmentDate(): string
+    private function resolveAssignmentDateTime(): string
     {
         try {
             return filled($this->fecha_inicio)
-                ? Carbon::parse($this->fecha_inicio)->toDateString()
-                : now()->toDateString();
+                ? Carbon::parse($this->fecha_inicio)->toDateTimeString()
+                : now()->toDateTimeString();
         } catch (\Throwable) {
-            return now()->toDateString();
+            return now()->toDateTimeString();
+        }
+    }
+
+    private function formatForDateTimeInput($value): string
+    {
+        if (!$value) {
+            return '';
+        }
+
+        try {
+            return Carbon::parse($value)->format('Y-m-d\TH:i');
+        } catch (\Throwable) {
+            return '';
+        }
+    }
+
+    private function normalizeDateTimeForStorage(?string $value): ?string
+    {
+        if (!filled($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $value)->toDateTimeString();
+        } catch (\Throwable) {
+            return null;
         }
     }
 
@@ -739,7 +787,7 @@ class VehicleAssignmentManager extends Component
             ->where('activo', true)
             ->where('tipo_asignacion', 'Temporal')
             ->whereNotNull('fecha_fin')
-            ->whereDate('fecha_fin', '<', now()->toDateString())
+            ->where('fecha_fin', '<', now())
             ->get();
 
         if ($expired->isEmpty()) {
@@ -807,15 +855,15 @@ class VehicleAssignmentManager extends Component
             ->orderByDesc('id')
             ->get()
             ->first(function (VehicleAssignment $assignment) {
-                $today = now()->toDateString();
-                $starts = $assignment->fecha_inicio?->toDateString();
-                $ends = $assignment->fecha_fin?->toDateString();
+                $now = now()->toDateTimeString();
+                $starts = $assignment->fecha_inicio?->toDateTimeString();
+                $ends = $assignment->fecha_fin?->toDateTimeString();
 
-                if ($starts && $starts > $today) {
+                if ($starts && $starts > $now) {
                     return false;
                 }
 
-                if ($ends && $ends < $today) {
+                if ($ends && $ends < $now) {
                     return false;
                 }
 

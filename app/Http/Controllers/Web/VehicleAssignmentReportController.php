@@ -43,10 +43,10 @@ class VehicleAssignmentReportController extends Controller
             ->when($status === 'active', fn ($q) => $q->where('activo', true))
             ->when($status === 'inactive', fn ($q) => $q->where('activo', false))
             ->where(function ($q) use ($to) {
-                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $to->toDateString());
+                $q->whereNull('fecha_inicio')->orWhere('fecha_inicio', '<=', $to);
             })
             ->where(function ($q) use ($from) {
-                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $from->toDateString());
+                $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $from);
             })
             ->orderBy('fecha_inicio')
             ->orderBy('id');

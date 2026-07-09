@@ -211,6 +211,229 @@
             font-weight: 700;
         }
 
+        .report-shell {
+            margin-top: 18px;
+            display: grid;
+            gap: 18px;
+        }
+        .report-hero {
+            position: relative;
+            overflow: hidden;
+            border-radius: 24px;
+            padding: 24px;
+            background:
+                radial-gradient(circle at top right, rgba(255, 199, 67, .25), transparent 30%),
+                linear-gradient(135deg, #0f2348 0%, #1f4c97 58%, #7fa8e8 100%);
+            color: #fff;
+            box-shadow: 0 18px 40px rgba(15, 35, 72, .18);
+        }
+        .report-hero::after {
+            content: "";
+            position: absolute;
+            right: -60px;
+            bottom: -60px;
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.08);
+        }
+        .report-eyebrow {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .24em;
+            font-weight: 700;
+            opacity: .8;
+            margin-bottom: 8px;
+        }
+        .report-title {
+            font-size: clamp(1.7rem, 3vw, 2.4rem);
+            line-height: 1.05;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+        .report-subtitle {
+            max-width: 720px;
+            color: rgba(255,255,255,.86);
+            font-size: 14px;
+        }
+        .report-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 8px 14px;
+            background: rgba(255,255,255,.12);
+            border: 1px solid rgba(255,255,255,.14);
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .report-toolbar {
+            background: #fff;
+            border: 1px solid #e4e9f3;
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 8px 22px rgba(18, 40, 77, .06);
+        }
+        .report-toolbar-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .16em;
+            font-weight: 800;
+            color: #5a739e;
+            margin-bottom: 12px;
+        }
+        .report-download-btn {
+            border-radius: 14px;
+            min-height: 46px;
+            font-weight: 800;
+        }
+        .report-stats {
+            display: grid;
+            grid-template-columns: 1.35fr repeat(3, minmax(0, 1fr));
+            gap: 16px;
+        }
+        .report-stat-card {
+            background: #fff;
+            border: 1px solid #e5ebf4;
+            border-radius: 22px;
+            padding: 20px;
+            box-shadow: 0 8px 24px rgba(15, 35, 72, .05);
+        }
+        .report-stat-card.is-highlight {
+            background: linear-gradient(135deg, #fff8e6 0%, #ffffff 100%);
+            border-color: #f4d78f;
+        }
+        .report-stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .14em;
+            font-weight: 800;
+            color: #6f81a1;
+            margin-bottom: 8px;
+        }
+        .report-stat-value {
+            font-size: clamp(1.8rem, 3vw, 2.6rem);
+            line-height: 1;
+            font-weight: 800;
+            color: #17345f;
+        }
+        .report-stat-text {
+            font-size: 15px;
+            font-weight: 700;
+            color: #17345f;
+        }
+        .report-stat-meta {
+            color: #6d7f9d;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+        .report-table-card {
+            background: #fff;
+            border: 1px solid #e5ebf4;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 10px 28px rgba(15, 35, 72, .05);
+        }
+        .report-table-head {
+            padding: 18px 20px;
+            border-bottom: 1px solid #e8edf5;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            background: linear-gradient(180deg, #fbfcfe 0%, #f3f6fb 100%);
+        }
+        .report-table-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #17345f;
+            margin: 0;
+        }
+        .report-table-subtitle {
+            margin: 4px 0 0;
+            color: #6d7f9d;
+            font-size: 13px;
+        }
+        .report-count-badge {
+            border-radius: 999px;
+            padding: 8px 14px;
+            background: #eef3fb;
+            color: #244a87;
+            font-size: 13px;
+            font-weight: 800;
+        }
+        .report-table {
+            margin: 0;
+        }
+        .report-table thead th {
+            border: 0;
+            border-bottom: 1px solid #e8edf5;
+            background: #f8faff;
+            color: #335487;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 15px 18px;
+        }
+        .report-table tbody td {
+            padding: 18px;
+            vertical-align: top;
+            border-color: #edf1f7;
+        }
+        .report-row-driver {
+            min-width: 220px;
+        }
+        .report-driver-name {
+            font-size: 18px;
+            font-weight: 800;
+            color: #17345f;
+            margin-bottom: 4px;
+        }
+        .report-driver-meta {
+            color: #7a8ba6;
+            font-size: 13px;
+        }
+        .report-stars {
+            color: #ffb400;
+            font-size: 20px;
+            line-height: 1;
+            letter-spacing: .08em;
+            margin-bottom: 6px;
+        }
+        .report-summary-box {
+            border-radius: 16px;
+            background: #f7f9fd;
+            border: 1px solid #e8edf5;
+            padding: 12px 14px;
+        }
+        .report-summary-line {
+            font-size: 13px;
+            color: #405372;
+        }
+        .report-summary-line strong {
+            color: #18365f;
+        }
+        .report-view-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #d7e2f2;
+            color: #1f4c97;
+            background: #fff;
+            transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+        }
+        .report-view-btn:hover {
+            transform: translateY(-1px);
+            border-color: #8aa7d8;
+            box-shadow: 0 10px 20px rgba(31, 76, 151, .12);
+            color: #163f81;
+        }
+
         .incentive-detail-overlay {
             position: fixed;
             inset: 0;
@@ -253,6 +476,9 @@
             }
             .incentive-driver {
                 font-size: 24px;
+            }
+            .report-stats {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -380,85 +606,96 @@
                 @endforelse
             </div>
         @else
-            <div class="row g-3 mt-2 mb-3">
-                <div class="col-12 col-md-4">
-                    <label class="form-label fw-bold">Fecha desde</label>
-                    <input type="date" wire:model.live="date_from" class="form-control">
-                </div>
-                <div class="col-12 col-md-4">
-                    <label class="form-label fw-bold">Fecha hasta</label>
-                    <input type="date" wire:model.live="date_to" class="form-control">
-                </div>
-                <div class="col-12 col-md-4 d-flex align-items-end">
-                    <div class="form-check bp-switch">
-                        <input type="checkbox" id="onlyPerfect" wire:model.live="onlyPerfect" class="form-check-input">
-                        <label for="onlyPerfect" class="form-check-label fw-bold">Mostrar solo quienes mantienen {{ $maxStars }} estrellas</label>
+            <div class="report-shell">
+                <div class="report-hero">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 position-relative" style="z-index:1;">
+                        <div>
+                            <div class="report-eyebrow">Resumen ejecutivo</div>
+                            <div class="report-title">Reporte de incentivos por mantenimiento</div>
+                            <div class="report-subtitle">
+                                Visualiza cumplimiento preventivo, descuentos de estrellas y rendimiento del equipo en un solo panel, con un formato más claro para seguimiento y cierre mensual.
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <span class="report-pill"><i class="fas fa-calendar-alt"></i>{{ $periodLabel }}</span>
+                            <span class="report-pill"><i class="fas fa-star"></i>{{ $perfectCount }} con puntaje completo</span>
+                        </div>
                     </div>
                 </div>
-                <div class="col-12 col-md-4 d-flex align-items-end">
-                    <a
-                        class="btn btn-outline-primary w-100"
-                        href="{{ route('maintenance-incentives.export.pdf', ['date_from' => $date_from, 'date_to' => $date_to, 'search' => $search, 'status' => $statusFilter, 'perfect' => $onlyPerfect ? 1 : 0]) }}"
-                        target="_blank"
-                    >
-                        <i class="fas fa-file-pdf me-2"></i>Descargar reporte PDF
-                    </a>
-                </div>
-            </div>
 
-            <div class="card shadow-sm border-0 mb-3">
-                <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
-                    <div>
-                        <div class="text-muted small">Mejor conductor del periodo</div>
-                        <div class="fs-5 fw-bold">
-                            {{ $bestDriver?->driver?->nombre ?? 'Sin datos para ranking' }}
+                <div class="report-toolbar">
+                    <div class="report-toolbar-title">Configuracion del reporte</div>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold">Fecha desde</label>
+                            <input type="date" wire:model.live="date_from" class="form-control">
                         </div>
-                        <div class="small text-muted">
-                            Periodo evaluado: {{ $periodLabel }}
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold">Fecha hasta</label>
+                            <input type="date" wire:model.live="date_to" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="form-check bp-switch mb-3">
+                                <input type="checkbox" id="onlyPerfect" wire:model.live="onlyPerfect" class="form-check-input">
+                                <label for="onlyPerfect" class="form-check-label fw-bold">Mostrar solo quienes mantienen {{ $maxStars }} estrellas</label>
+                            </div>
+                            <a
+                                class="btn btn-primary report-download-btn w-100"
+                                href="{{ route('maintenance-incentives.export.pdf', ['date_from' => $date_from, 'date_to' => $date_to, 'search' => $search, 'status' => $statusFilter, 'perfect' => $onlyPerfect ? 1 : 0]) }}"
+                                target="_blank"
+                            >
+                                <i class="fas fa-file-pdf me-2"></i>Descargar reporte PDF
+                            </a>
                         </div>
                     </div>
-                    <div class="text-end">
-                        <div class="text-warning fw-bold fs-5">
+                </div>
+
+                <div class="report-stats">
+                    <div class="report-stat-card is-highlight">
+                        <div class="report-stat-label">Mejor conductor del periodo</div>
+                        <div class="report-stat-text">{{ $bestDriver?->driver?->nombre ?? 'Sin datos para ranking' }}</div>
+                        <div class="report-stars mt-3">
                             @if($bestDriver)
                                 {{ str_repeat('★', (int) $bestDriver->stars_end) }}{{ str_repeat('☆', max($maxStars - (int) $bestDriver->stars_end, 0)) }}
                             @else
                                 -
                             @endif
                         </div>
-                        <div class="small text-muted">
+                        <div class="report-stat-meta">
                             @if($bestDriver)
-                                {{ (int) $bestDriver->preventive_requests }} preventivos cumplidos
+                                {{ (int) $bestDriver->preventive_requests }} preventivos cumplidos durante {{ $periodLabel }}.
                             @else
-                                Sin registros
+                                No hay suficientes registros para generar el ranking.
                             @endif
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-md-6">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <div class="text-muted small">Conductores con puntaje completo</div>
-                            <div class="fs-3 fw-bold text-success">{{ $perfectCount }}</div>
-                        </div>
+                    <div class="report-stat-card">
+                        <div class="report-stat-label">Conductores evaluados</div>
+                        <div class="report-stat-value">{{ $reports->count() }}</div>
+                        <div class="report-stat-meta">Total incluidos en el corte actual.</div>
+                    </div>
+                    <div class="report-stat-card">
+                        <div class="report-stat-label">Puntaje completo</div>
+                        <div class="report-stat-value text-success">{{ $perfectCount }}</div>
+                        <div class="report-stat-meta">Mantienen las {{ $maxStars }} estrellas.</div>
+                    </div>
+                    <div class="report-stat-card">
+                        <div class="report-stat-label">Con descuento</div>
+                        <div class="report-stat-value text-danger">{{ $discountedCount }}</div>
+                        <div class="report-stat-meta">Tuvieron observaciones o descuentos.</div>
                     </div>
                 </div>
-                <div class="col-12 col-md-6">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <div class="text-muted small">Conductores con descuento</div>
-                            <div class="fs-3 fw-bold text-danger">{{ $discountedCount }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <div class="card shadow-sm">
-                <div class="card-body p-0">
+                <div class="report-table-card">
+                    <div class="report-table-head">
+                        <div>
+                            <h3 class="report-table-title">Detalle por conductor</h3>
+                            <p class="report-table-subtitle">Lectura consolidada del rendimiento, descuento de estrellas y cumplimiento preventivo.</p>
+                        </div>
+                        <span class="report-count-badge">{{ $reports->count() }} registro(s)</span>
+                    </div>
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
+                        <table class="table report-table align-middle">
                             <thead class="table-light">
                                 <tr>
                                     <th>Conductor</th>
@@ -478,24 +715,27 @@
                                         $statusClass = $starsEnd === $maxStars ? 'bg-success' : ($starsEnd >= max($maxStars - 1, 1) ? 'bg-warning text-dark' : 'bg-danger');
                                     @endphp
                                     <tr>
-                                        <td>
-                                            <div class="fw-bold">{{ $report->driver?->nombre ?? 'Sin conductor' }}</div>
-                                            <div class="small text-muted">Inicio con {{ $report->stars_start }} estrella(s)</div>
+                                        <td class="report-row-driver">
+                                            <div class="report-driver-name">{{ $report->driver?->nombre ?? 'Sin conductor' }}</div>
+                                            <div class="report-driver-meta">Inicio con {{ $report->stars_start }} estrella(s)</div>
                                         </td>
                                         <td style="min-width: 170px;">
-                                            <div class="fw-bold fs-5 text-warning">{{ str_repeat('★', $starsEnd) }}{{ str_repeat('☆', max($maxStars - $starsEnd, 0)) }}</div>
-                                            <div class="small text-muted">{{ $starsEnd }} de {{ $maxStars }} estrellas</div>
+                                            <div class="report-stars">{{ str_repeat('★', $starsEnd) }}{{ str_repeat('☆', max($maxStars - $starsEnd, 0)) }}</div>
+                                            <div class="report-driver-meta">{{ $starsEnd }} de {{ $maxStars }} estrellas</div>
                                         </td>
                                         <td><span class="badge {{ $statusClass }}">{{ $statusLabel }}</span></td>
                                         <td style="min-width: 280px;">
-                                            <div class="small"><strong>{{ $discounts }}</strong> mantenimiento(s) le descontaron estrellas.</div>
-                                            <div class="small text-muted">Preventivos sin descuento: {{ $preventives }}.</div>
-                                            <div class="small text-muted">Total revisado en el periodo: {{ $report->total_requests }}.</div>
+                                            <div class="report-summary-box">
+                                                <div class="report-summary-line"><strong>{{ $discounts }}</strong> mantenimiento(s) le descontaron estrellas.</div>
+                                                <div class="report-summary-line">Preventivos sin descuento: <strong>{{ $preventives }}</strong>.</div>
+                                                <div class="report-summary-line">Total revisado en el periodo: <strong>{{ $report->total_requests }}</strong>.</div>
+                                            </div>
                                         </td>
                                         <td class="text-end">
                                             <a
                                                 href="{{ route('livewire.maintenance-incentives', array_merge(request()->query(), ['detail_driver_id' => $report->driver_id])) }}"
-                                                class="btn btn-outline-primary btn-sm"
+                                                class="report-view-btn"
+                                                title="Ver detalle de {{ $report->driver?->nombre ?? 'conductor' }}"
                                             ><i class="fas fa-eye"></i></a>
                                         </td>
                                     </tr>

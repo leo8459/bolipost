@@ -55,7 +55,7 @@
     </div>
 
     <div class="summary">
-        Este reporte incluye asignaciones cuyo periodo se cruza con el rango seleccionado, aunque hayan iniciado antes o finalicen despues.
+        Este reporte incluye asignaciones cuyo periodo se cruza con el rango seleccionado, mostrando fecha y hora de cada movimiento.
     </div>
 
     @if($assignments->isEmpty())
@@ -101,8 +101,8 @@
                                 </span>
                             </td>
                             <td>{{ $assignment->tipo_asignacion ?: 'Fijo' }}</td>
-                            <td>{{ optional($assignment->fecha_inicio)->format('d/m/Y') ?? '-' }}</td>
-                            <td>{{ optional($assignment->fecha_fin)->format('d/m/Y') ?? 'Indefinido' }}</td>
+                            <td>{{ optional($assignment->fecha_inicio)->format('d/m/Y H:i') ?? '-' }}</td>
+                            <td>{{ optional($assignment->fecha_fin)->format('d/m/Y H:i') ?? 'Indefinido' }}</td>
                             <td>
                                 @if($assignment->activo)
                                     <span class="badge badge-green">Activo</span>

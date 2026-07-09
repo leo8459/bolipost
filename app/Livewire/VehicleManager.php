@@ -61,6 +61,8 @@ class VehicleManager extends Component
     #[Validate('required|string|max:50')]
     public string $modelo = '';
 
+    public string $chasis = '';
+    public string $motor = '';
     public string $tipo_combustible = '';
     public string $maintenance_form_type = 'vehiculo';
     public string $color = '';
@@ -112,6 +114,8 @@ class VehicleManager extends Component
             $query->where(function ($q) use ($search) {
                 $q->where('placa', 'like', "%{$search}%")
                     ->orWhere('modelo', 'like', "%{$search}%")
+                    ->orWhere('chasis', 'like', "%{$search}%")
+                    ->orWhere('motor', 'like', "%{$search}%")
                     ->orWhere('tipo_combustible', 'like', "%{$search}%")
                     ->orWhere('color', 'like', "%{$search}%")
                     ->orWhereRaw('CAST(anio AS TEXT) ILIKE ?', ["%{$search}%"])
@@ -200,6 +204,16 @@ class VehicleManager extends Component
     public function updatedModelo(string $value): void
     {
         $this->modelo = $this->sanitizeText($value);
+    }
+
+    public function updatedChasis(string $value): void
+    {
+        $this->chasis = mb_strtoupper($this->sanitizeVehicleCode($value));
+    }
+
+    public function updatedMotor(string $value): void
+    {
+        $this->motor = mb_strtoupper($this->sanitizeVehicleCode($value));
     }
 
     public function updatedColor(string $value): void
@@ -320,6 +334,8 @@ class VehicleManager extends Component
 
         $this->placa = mb_strtoupper($this->sanitizePlate($this->placa));
         $this->modelo = $this->sanitizeText($this->modelo);
+        $this->chasis = mb_strtoupper($this->sanitizeVehicleCode($this->chasis));
+        $this->motor = mb_strtoupper($this->sanitizeVehicleCode($this->motor));
         $this->color = $this->sanitizeText($this->color);
 
         $this->validate(
@@ -333,6 +349,8 @@ class VehicleManager extends Component
                 ],
                 'marca_id' => 'required|integer|min:1|exists:vehicle_brands,id',
                 'modelo' => ['required', 'string', 'max:50', 'regex:/^[\pL\pN\s\-\/\.\(\)]+$/u'],
+                'chasis' => ['nullable', 'string', 'max:80', 'regex:/^[A-Z0-9\-\/\.]+$/'],
+                'motor' => ['nullable', 'string', 'max:80', 'regex:/^[A-Z0-9\-\/\.]+$/'],
                 'tipo_combustible' => ['required', 'string', Rule::in(self::FUEL_TYPES)],
                 'maintenance_form_type' => ['required', 'string', Rule::in(self::MAINTENANCE_FORM_TYPES)],
                 'color' => ['required', 'string', 'max:50', Rule::in($this->availableVehicleColors())],
@@ -354,6 +372,10 @@ class VehicleManager extends Component
                 'modelo.string' => 'El modelo debe ser texto.',
                 'modelo.max' => 'El modelo no debe superar :max caracteres.',
                 'modelo.regex' => 'El modelo contiene caracteres no permitidos.',
+                'chasis.max' => 'El chasis no debe superar :max caracteres.',
+                'chasis.regex' => 'El chasis solo puede contener letras, numeros, guiones, puntos o barras.',
+                'motor.max' => 'El motor no debe superar :max caracteres.',
+                'motor.regex' => 'El motor solo puede contener letras, numeros, guiones, puntos o barras.',
                 'tipo_combustible.required' => 'El tipo de combustible es obligatorio.',
                 'tipo_combustible.string' => 'El tipo de combustible debe ser texto.',
                 'tipo_combustible.in' => 'El tipo de combustible seleccionado no es valido.',
@@ -388,6 +410,8 @@ class VehicleManager extends Component
             'vehicle_class_id' => $this->resolveVehicleClassId(),
             'maintenance_form_type' => $this->maintenance_form_type,
             'modelo' => $this->modelo,
+            'chasis' => $this->chasis !== '' ? $this->chasis : null,
+            'motor' => $this->motor !== '' ? $this->motor : null,
             'tipo_combustible' => $this->tipo_combustible,
             'color' => $this->color,
             'anio' => $this->anio,
@@ -502,6 +526,8 @@ class VehicleManager extends Component
         $this->placa = $vehicle->placa;
         $this->marca_id = (int) ($vehicle->marca_id ?? 0);
         $this->modelo = $vehicle->modelo;
+        $this->chasis = (string) ($vehicle->chasis ?? '');
+        $this->motor = (string) ($vehicle->motor ?? '');
         $this->tipo_combustible = (string) ($vehicle->tipo_combustible ?? '');
         $this->maintenance_form_type = (string) ($vehicle->maintenance_form_type ?: 'vehiculo');
         $this->color = (string) ($vehicle->color ?? '');
@@ -554,6 +580,8 @@ class VehicleManager extends Component
         $this->placa = '';
         $this->marca_id = 0;
         $this->modelo = '';
+        $this->chasis = '';
+        $this->motor = '';
         $this->tipo_combustible = '';
         $this->maintenance_form_type = 'vehiculo';
         $this->color = '';
@@ -969,6 +997,13 @@ class VehicleManager extends Component
         $clean = preg_replace('/[^\pL\pN\s\-\/\.]/u', '', $clean) ?? $clean;
         $clean = preg_replace('/\s+/', ' ', trim($clean)) ?? $clean;
         return $clean;
+    }
+
+    private function sanitizeVehicleCode(?string $value): string
+    {
+        $clean = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{200D}]/u', '', (string) $value) ?? '';
+        $clean = preg_replace('/[^A-Za-z0-9\-\/\.]/', '', $clean) ?? $clean;
+        return trim($clean);
     }
 
     private function isKilometrajeEditLocked(): bool

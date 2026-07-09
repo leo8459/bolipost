@@ -85,6 +85,23 @@ class FuelScrapeApiController extends Controller
             $firstDetail = $data['details'][0];
         }
 
+        $details = [];
+        if (!empty($data['details']) && is_array($data['details'])) {
+            foreach ($data['details'] as $detail) {
+                if (!is_array($detail)) {
+                    continue;
+                }
+
+                $details[] = [
+                    'codigo' => (string) ($detail['codigo'] ?? $detail['codigoProducto'] ?? ''),
+                    'descripcion' => (string) ($detail['descripcion'] ?? $detail['descripcionProducto'] ?? ''),
+                    'cantidad' => $detail['cantidad'] ?? $detail['cantidadProducto'] ?? $detail['litros'] ?? $detail['galones'] ?? null,
+                    'precio_unitario' => $detail['precio_unitario'] ?? $detail['precioUnitario'] ?? $detail['precio'] ?? null,
+                    'subtotal' => $detail['subtotal'] ?? $detail['subTotal'] ?? null,
+                ];
+            }
+        }
+
         $gasStation = is_array($data['gas_station'] ?? null) ? $data['gas_station'] : [];
         $gasStationId = (int) ($data['gas_station_id'] ?? 0);
         $resolvedStation = null;
@@ -108,6 +125,9 @@ class FuelScrapeApiController extends Controller
                 ?? $data['precioUnitario']
                 ?? $data['precio']
                 ?? ($firstDetail['precio_unitario'] ?? $firstDetail['precioUnitario'] ?? $firstDetail['precio'] ?? null),
+            'producto_codigo' => (string) ($data['producto_codigo'] ?? $firstDetail['codigo'] ?? $firstDetail['codigoProducto'] ?? ''),
+            'producto_descripcion' => (string) ($data['producto_descripcion'] ?? $firstDetail['descripcion'] ?? $firstDetail['descripcionProducto'] ?? ''),
+            'details' => $details,
             'gas_station' => [
                 'nit_emisor' => (string) ($gasStation['nit_emisor'] ?? $data['nit_emisor'] ?? $data['nitEmisor'] ?? $resolvedStation?->nit_emisor ?? ''),
                 'razon_social' => (string) ($gasStation['razon_social'] ?? $data['razon_social_emisor'] ?? $data['razonSocialEmisor'] ?? $resolvedStation?->razon_social ?? $resolvedStation?->nombre ?? ''),
