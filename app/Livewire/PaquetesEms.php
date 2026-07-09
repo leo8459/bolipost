@@ -2654,21 +2654,41 @@ class PaquetesEms extends Component
                 $this->saveRemitenteData();
                 $this->linkPreregistroToPaquete($paquete, (int) $user->id);
                 $this->registerAdmisionEvento($paquete, (int) $user->id);
+            });
 
-                if ($this->isCreateEms && $this->canUseFacturacionShortcut($user)) {
+            $facturacionSyncOk = false;
+            $facturacionSyncError = null;
+
+            if ($this->isCreateEms && $this->canUseFacturacionShortcut($user)) {
+                try {
                     if ($this->isOficialShipment()) {
                         app(FacturacionCartService::class)->registerPaqueteEmsOficial($user, $paquete);
                     } else {
                         app(FacturacionCartService::class)->addPaqueteEms($user, $paquete);
                     }
+
+                    $facturacionSyncOk = true;
+                } catch (\Throwable $e) {
+                    $facturacionSyncError = $e->getMessage();
+
+                    logger()->warning('No se pudo sincronizar la admision EMS con facturacion, pero la admision ya fue guardada.', [
+                        'user_id' => $user->id,
+                        'paquete_id' => $paquete?->id,
+                        'codigo' => $paquete?->codigo,
+                        'oficial' => $this->isOficialShipment(),
+                        'message' => $e->getMessage(),
+                    ]);
                 }
-            });
+            }
 
             session()->flash('success', 'Paquete creado correctamente.');
+            if ($facturacionSyncError !== null) {
+                session()->flash('warning', 'La admision se guardo correctamente, pero no se pudo sincronizar con Facturacion: ' . $facturacionSyncError);
+            }
             $this->showPaqueteConfirmModal = false;
             $this->dispatch('closePaqueteConfirm');
             $this->dispatch('closePaqueteModal');
-            if ($this->isCreateEms && $this->canUseFacturacionShortcut($user)) {
+            if ($facturacionSyncOk) {
                 $this->dispatch('facturacionCartSyncNeeded');
             }
             if ($this->isCreateEms) {
