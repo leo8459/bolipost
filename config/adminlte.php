@@ -921,6 +921,11 @@ return [
             'icon' => 'fas fa-calendar-alt',
             'submenu' => [
                 [
+                    'text' => 'Performance',
+                    'url' => 'performance',
+                    'icon' => 'fas fa-chart-bar',
+                ],
+                [
                     'text' => 'Eventos SIOP',
                     'url' => 'eventos-siop',
                     'icon' => 'fas fa-layer-group',
