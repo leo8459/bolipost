@@ -6,7 +6,7 @@
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
         <div>
             <h1 class="mb-1">Performance</h1>
-            <small class="text-muted">Consulta tipo QCS para revisar eventos por origen, destino y estado operativo.</small>
+            <small class="text-muted">Consulta tipo Correos de Bolivia para revisar eventos por origen, destino y estado operativo.</small>
         </div>
         <div class="mt-3 mt-lg-0 d-flex flex-wrap">
             <a href="{{ route('performance.export.excel', request()->query()) }}" class="btn btn-success mr-2 mb-2">
@@ -25,7 +25,7 @@
             <div class="card-header performance-header">
                 <div>
                     <h3 class="mb-1">Busqueda de eventos</h3>
-                    <small>Filtra por anio, origen, destino, servicio y evento para generar tu tabla.</small>
+                    <small>Filtra por año, origen, destino, servicio y evento para generar tu tabla.</small>
                 </div>
             </div>
             <div class="card-body">
@@ -37,7 +37,7 @@
                                 placeholder="Codigo, actor, evento, origen o destino">
                         </div>
                         <div class="col-lg-2 mb-2">
-                            <label class="font-weight-bold">Anio desde</label>
+                            <label class="font-weight-bold">Año desde</label>
                             <select name="from_year" class="form-control">
                                 @foreach($yearOptions as $yearOption)
                                     <option value="{{ $yearOption }}" @selected((int) $filters['from_year'] === (int) $yearOption)>{{ $yearOption }}</option>
@@ -53,7 +53,7 @@
                             </select>
                         </div>
                         <div class="col-lg-2 mb-2">
-                            <label class="font-weight-bold">Anio hasta</label>
+                            <label class="font-weight-bold">Año hasta</label>
                             <select name="to_year" class="form-control">
                                 @foreach($yearOptions as $yearOption)
                                     <option value="{{ $yearOption }}" @selected((int) $filters['to_year'] === (int) $yearOption)>{{ $yearOption }}</option>
@@ -177,7 +177,7 @@
             <div class="card-header performance-header">
                 <div>
                     <h3 class="mb-1">Tabla consolidada</h3>
-                    <small>Vista tipo QCS por origen, destino, anio, mes y conteo de eventos.</small>
+                    <small>Vista tipo Correos de Bolivia por origen, destino, año, mes y conteo de eventos.</small>
                 </div>
             </div>
             @if(count($eventLegend) > 0)
@@ -202,13 +202,15 @@
                             <tr>
                                 <th>Origen</th>
                                 <th>Destino</th>
-                                <th>Anio</th>
+                                <th>Año</th>
                                 <th>Mes</th>
                                 @forelse($eventColumns as $eventIndex => $eventColumn)
                                     <th class="performance-event-head">
                                         <span class="performance-event-key"
                                             data-toggle="tooltip"
                                             data-placement="top"
+                                            data-trigger="hover click"
+                                            data-html="true"
                                             title="{{ $eventColumn }}">
                                             {{ $eventLegend[$eventIndex]['key'] ?? $eventColumn }}
                                         </span>
@@ -471,14 +473,23 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 1.15rem;
-            min-height: 1.15rem;
+            min-width: 1.28rem;
+            min-height: 1.28rem;
             border-radius: 999px;
             background: #eaf2ff;
             color: #17498b;
             font-weight: 700;
             cursor: help;
             line-height: 1;
+            border: 1px solid #c8daf7;
+            transition: all 0.15s ease;
+        }
+
+        .performance-event-key:hover,
+        .performance-event-key:focus {
+            background: #17498b;
+            color: #fff;
+            border-color: #17498b;
         }
 
         .performance-qcs .table-sm th,
@@ -503,6 +514,27 @@
             white-space: nowrap;
         }
 
+        .tooltip.show {
+            opacity: 1;
+        }
+
+        .tooltip .tooltip-inner {
+            max-width: 320px;
+            padding: 0.45rem 0.6rem;
+            background: #173f74;
+            color: #fff;
+            font-size: 0.76rem;
+            line-height: 1.35;
+            text-align: left;
+            border-radius: 8px;
+            box-shadow: 0 8px 18px rgba(15, 45, 82, 0.22);
+        }
+
+        .bs-tooltip-top .arrow::before,
+        .bs-tooltip-auto[x-placement^="top"] .arrow::before {
+            border-top-color: #173f74;
+        }
+
         @media (min-width: 1200px) {
             .performance-qcs {
                 zoom: 0.88;
@@ -523,7 +555,8 @@
             if (window.jQuery && typeof window.jQuery.fn.tooltip === 'function') {
                 window.jQuery('[data-toggle="tooltip"]').tooltip({
                     container: 'body',
-                    trigger: 'hover focus click'
+                    trigger: 'hover focus click',
+                    animation: false
                 });
             }
         });

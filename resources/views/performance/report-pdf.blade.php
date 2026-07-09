@@ -108,7 +108,7 @@
             <tr>
                 <th>Origen</th>
                 <th>Destino</th>
-                <th>Anio</th>
+                <th>Año</th>
                 <th>Mes</th>
                 @foreach($eventColumns as $eventColumn)
                     <th>{{ $eventColumn }}</th>

@@ -437,7 +437,7 @@ class PerformanceController extends Controller
     private function buildMatrix(Collection $aggregatedRows): array
     {
         $eventColumns = $aggregatedRows
-            ->groupBy(fn (object $row) => (string) $row->evento_nombre)
+            ->groupBy(fn (object $row) => $this->normalizeEventLabel((string) $row->evento_nombre))
             ->map(fn (Collection $rows) => (int) $rows->sum('total'))
             ->sortDesc()
             ->keys()
@@ -447,7 +447,7 @@ class PerformanceController extends Controller
             ->all();
 
         $hasOtherBucket = $aggregatedRows
-            ->pluck('evento_nombre')
+            ->map(fn (object $row) => $this->normalizeEventLabel((string) $row->evento_nombre))
             ->filter(fn ($name) => trim((string) $name) !== '' && ! in_array((string) $name, $eventColumns, true))
             ->isNotEmpty();
 
@@ -467,7 +467,7 @@ class PerformanceController extends Controller
                 $counts = array_fill_keys($eventColumns, 0);
 
                 foreach ($rows as $row) {
-                    $eventName = (string) $row->evento_nombre;
+                    $eventName = $this->normalizeEventLabel((string) $row->evento_nombre);
                     $columnKey = in_array($eventName, $eventColumns, true) ? $eventName : 'OTROS';
 
                     if (! array_key_exists($columnKey, $counts)) {
@@ -639,5 +639,17 @@ class PerformanceController extends Controller
         } while ($index >= 0);
 
         return $result;
+    }
+
+    private function normalizeEventLabel(string $eventName): string
+    {
+        $value = trim($eventName);
+        $normalized = mb_strtoupper($value, 'UTF-8');
+
+        if (str_starts_with($normalized, 'PAQUETE EN CAMINO PARA ENTREGA FISICA')) {
+            return 'Paquete en camino para entrega fisica.';
+        }
+
+        return $value;
     }
 }
