@@ -18,6 +18,9 @@
     $facturacionConceptos = $canOpenFacturacionShortcut && \Illuminate\Support\Facades\Schema::hasTable('conceptos_facturacion')
         ? \App\Models\ConceptoFacturacion::query()->where('activo', true)->orderBy('nombre')->get()
         : collect();
+    $showFacturaElectronicaButton = \App\Models\AppSetting::getValue('facturacion.show_factura_electronica', '1') === '1';
+    $showQrFacturaButton = \App\Models\AppSetting::getValue('facturacion.show_qr_factura', '1') === '1';
+    $showQrSoloButton = \App\Models\AppSetting::getValue('facturacion.show_qr_solo', '1') === '1';
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
     $facturacionItems = collect($activeFacturacionCart?->items ?? []);
@@ -42,6 +45,19 @@
         $activeInvoiceChannel === 'qr' => 'qr_factura',
         default => 'factura_electronica',
     };
+    $availableInvoiceModes = collect([
+        'factura_electronica' => $showFacturaElectronicaButton,
+        'qr_factura' => $showQrFacturaButton,
+        'qr_solo' => $showQrSoloButton,
+    ])->filter()->keys()->values();
+    if (!$availableInvoiceModes->contains($activeInvoiceMode) && $availableInvoiceModes->isNotEmpty()) {
+        $activeInvoiceMode = (string) $availableInvoiceModes->first();
+        [$activeInvoiceChannel, $activeAutoEmitInvoice] = match ($activeInvoiceMode) {
+            'qr_factura' => ['qr', '1'],
+            'qr_solo' => ['qr', '0'],
+            default => ['factura_electronica', '1'],
+        };
+    }
     $activeDocumentType = (string) ($activeFacturacionCart?->tipo_documento ?? '');
     $defaultBillingEmail = 'safe@correos.gob.bo';
     $storedBillingEmail = trim((string) ($activeFacturacionCart?->correo_facturacion ?? ''));
@@ -317,6 +333,7 @@
                     <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Emision</span>
                         <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel" role="tablist" aria-label="Tipo de salida de factura">
+                            @if($showFacturaElectronicaButton)
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">
@@ -330,6 +347,8 @@
                                     <span class="global-shortcut-choice-btn__meta">Emision fiscal</span>
                                 </span>
                             </button>
+                            @endif
+                            @if($showQrFacturaButton)
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_factura') is-active @endif" data-invoice-channel-choice="qr_factura" @disabled(!$isCajaAbierta)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">
@@ -342,6 +361,8 @@
                                     <span class="global-shortcut-choice-btn__meta">Cobro y luego fiscal</span>
                                 </span>
                             </button>
+                            @endif
+                            @if($showQrSoloButton)
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_solo') is-active @endif" data-invoice-channel-choice="qr_solo" @disabled(!$isCajaAbierta)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">
@@ -354,6 +375,7 @@
                                     <span class="global-shortcut-choice-btn__meta">Cobro sin factura</span>
                                 </span>
                             </button>
+                            @endif
                         </div>
                     </div>
                 </div>
