@@ -496,7 +496,7 @@ class FacturacionCartService
             $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
             $nuevaCantidad = $cantidadActual + 1;
 
-            return $this->updateDraftItem(
+            $cart = $this->updateDraftItem(
                 $user,
                 (int) data_get($existingItem, 'id'),
                 $this->buildDraftItemUpdatePayload(
@@ -509,6 +509,8 @@ class FacturacionCartService
                     ]
                 )
             );
+
+            return $this->normalizeDraftCodesAfterMutation($user, $cart);
         }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
@@ -525,7 +527,7 @@ class FacturacionCartService
             throw new \RuntimeException('No se pudo guardar el concepto facturable en el carrito.');
         }
 
-        return $cart;
+        return $this->normalizeDraftCodesAfterMutation($user, $cart);
     }
 
     public function addScannedItemByCode(User $user, string $codigo): array
@@ -774,7 +776,7 @@ class FacturacionCartService
         return $this->toCart(data_get($body, 'cart'));
     }
 
-    public function updateDraftItem(User $user, int $itemId, array $payload): object
+    public function updateDraftItem(User $user, int $itemId, array $payload, bool $normalizeCodes = true): object
     {
         try {
             $body = $this->request('PUT', '/cart/items/' . $itemId, array_merge($payload, [
@@ -790,7 +792,11 @@ class FacturacionCartService
         if (!$cart) {
             throw new \RuntimeException('No se pudo actualizar item remoto.');
         }
-        return $cart;
+        if (!$normalizeCodes) {
+            return $cart;
+        }
+
+        return $this->normalizeDraftCodesAfterMutation($user, $cart);
     }
 
     public function clearDraftCart(User $user): ?object
@@ -2037,7 +2043,8 @@ class FacturacionCartService
                             (int) data_get($item, 'id'),
                             $this->buildDraftItemUpdatePayload($item, [
                                 'codigo' => $expectedCode,
-                            ])
+                            ]),
+                            false
                         );
                         $changed = true;
                     } catch (\Throwable) {
@@ -2047,6 +2054,21 @@ class FacturacionCartService
             });
 
         return $changed;
+    }
+
+    private function normalizeDraftCodesAfterMutation(User $user, ?object $cart): object
+    {
+        if (!$cart) {
+            throw new \RuntimeException('No se pudo normalizar el carrito remoto.');
+        }
+
+        if (!$this->ensureDraftItemCodesUnique($user, $cart)) {
+            return $cart;
+        }
+
+        $refreshed = $this->fetchVentaById($user, (int) ($cart->id ?? 0));
+
+        return $refreshed ?: $cart;
     }
 
     private function buildAlternateDraftItemCode(string $baseCode, int $position): string
