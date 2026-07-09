@@ -838,6 +838,7 @@ class FacturacionCartService
         $payload = [
             'origen_usuario_id' => (string) $user->id,
             'cart_id' => $cartId,
+            'auto_emit_invoice' => $autoEmitInvoice,
         ];
 
         $body = $this->request('POST', '/cart/consultar', $payload);

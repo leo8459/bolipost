@@ -311,6 +311,9 @@ class FacturacionCartController extends Controller
             'razon_social' => ['nullable', 'string', 'max:255'],
             'correo_facturacion' => ['nullable', 'email', 'max:50'],
         ]);
+        $autoEmitInvoice = $request->has('auto_emit_invoice')
+            ? $request->boolean('auto_emit_invoice')
+            : strtolower((string) ($billingSnapshot['canal_emision'] ?? 'factura_electronica')) !== 'qr';
 
         $billingSnapshot = array_filter($billingSnapshot, static fn ($value) => $value !== null);
         if ($billingSnapshot !== []) {
@@ -394,7 +397,9 @@ class FacturacionCartController extends Controller
                     'has_image_data' => !empty($qrPayload['image_data']),
                 ]);
 
-                $redirect->with('facturacion_qr_data', $qrPayload);
+                $redirect
+                    ->with('facturacion_qr_data', $qrPayload)
+                    ->with('facturacion_qr_auto_emit_invoice', $autoEmitInvoice ? '1' : '0');
             }
 
             $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
@@ -413,6 +418,7 @@ class FacturacionCartController extends Controller
                     'feedback' => $feedback,
                     'qr_data' => $qrPayload,
                     'download_pdf' => $downloadPdf,
+                    'auto_emit_invoice' => $autoEmitInvoice ? '1' : '0',
                     'cart' => [
                         'id' => data_get($resultado, 'carrito.id'),
                         'estado' => data_get($resultado, 'carrito.estado'),
@@ -421,6 +427,7 @@ class FacturacionCartController extends Controller
                         'codigo_orden' => data_get($resultado, 'carrito.codigo_orden'),
                         'qr_transaction_id' => data_get($resultado, 'carrito.qr_transaction_id'),
                         'canal_emision' => data_get($resultado, 'carrito.canal_emision'),
+                        'auto_emit_invoice' => $autoEmitInvoice ? '1' : '0',
                     ],
                 ]);
             }
@@ -477,7 +484,9 @@ class FacturacionCartController extends Controller
                     'has_image_data' => !empty($qrPayload['image_data']),
                 ]);
 
-                $redirect->with('facturacion_qr_data', $qrPayload);
+                $redirect
+                    ->with('facturacion_qr_data', $qrPayload)
+                    ->with('facturacion_qr_auto_emit_invoice', $autoEmitInvoice ? '1' : '0');
             }
 
             $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
@@ -496,6 +505,7 @@ class FacturacionCartController extends Controller
                     'feedback' => $feedback,
                     'qr_data' => $qrPayload,
                     'download_pdf' => $downloadPdf,
+                    'auto_emit_invoice' => $autoEmitInvoice ? '1' : '0',
                     'cart' => [
                         'id' => data_get($resultado, 'carrito.id'),
                         'estado' => data_get($resultado, 'carrito.estado'),
@@ -504,6 +514,7 @@ class FacturacionCartController extends Controller
                         'codigo_orden' => data_get($resultado, 'carrito.codigo_orden'),
                         'qr_transaction_id' => data_get($resultado, 'carrito.qr_transaction_id'),
                         'canal_emision' => data_get($resultado, 'carrito.canal_emision'),
+                        'auto_emit_invoice' => $autoEmitInvoice ? '1' : '0',
                     ],
                 ]);
             }

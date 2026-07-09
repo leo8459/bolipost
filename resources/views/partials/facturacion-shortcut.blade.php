@@ -29,7 +29,19 @@
     if (!in_array($activeInvoiceChannel, ['factura_electronica', 'qr'], true)) {
         $activeInvoiceChannel = 'factura_electronica';
     }
-    $activeInvoiceChannel = 'factura_electronica';
+    $activeAutoEmitInvoice = old('auto_emit_invoice', session('facturacion_qr_auto_emit_invoice'));
+    if ($activeAutoEmitInvoice === null || $activeAutoEmitInvoice === '') {
+        $activeAutoEmitInvoice = $activeInvoiceChannel === 'qr' ? '1' : '1';
+    }
+    $activeAutoEmitInvoice = (string) $activeAutoEmitInvoice;
+    if (!in_array($activeAutoEmitInvoice, ['0', '1'], true)) {
+        $activeAutoEmitInvoice = '1';
+    }
+    $activeInvoiceMode = match (true) {
+        $activeInvoiceChannel === 'qr' && $activeAutoEmitInvoice === '0' => 'qr_solo',
+        $activeInvoiceChannel === 'qr' => 'qr_factura',
+        default => 'factura_electronica',
+    };
     $activeDocumentType = (string) ($activeFacturacionCart?->tipo_documento ?? '');
     $defaultBillingEmail = 'safe@correos.gob.bo';
     $storedBillingEmail = trim((string) ($activeFacturacionCart?->correo_facturacion ?? ''));
@@ -110,13 +122,17 @@
     $emitActionLabel = $isQrFlowShortcut
         ? ($draftEstado === 'pendiente_pago' && !empty($activeFacturacionCart?->qr_transaction_id)
             ? 'Reabrir QR vigente'
-            : ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR' : 'Generar QR de cobro'))
+            : ($activeInvoiceMode === 'qr_factura'
+                ? ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR y facturar' : 'Generar QR y facturar')
+                : ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR' : 'Generar QR de cobro')))
         : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir factura electronica');
     $emitConfirmTitle = $isQrFlowShortcut
-        ? 'Preparar cobro QR'
+        ? ($activeInvoiceMode === 'qr_factura' ? 'Preparar QR + factura' : 'Preparar cobro QR')
         : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir factura');
     $emitConfirmMessage = $isQrFlowShortcut
-        ? 'Se generara o reutilizara un QR de cobro para esta venta.'
+        ? ($activeInvoiceMode === 'qr_factura'
+            ? 'Se generara o reutilizara un QR de cobro y, cuando el pago se confirme, se continuara con la factura electronica.'
+            : 'Se generara o reutilizara un QR de cobro para esta venta.')
         : 'La venta se enviara al flujo de facturacion electronica.';
     $emitConfirmNote = $isQrFlowShortcut
         ? 'El pago QR no sumara a caja. Solo quedara como cobro referencial hasta que el proveedor confirme el pago.'
@@ -294,13 +310,14 @@
                 @method('PUT')
                 <input type="hidden" name="modalidad_facturacion" id="facturacionBillingModeInput" value="con_datos">
                 <input type="hidden" name="canal_emision" id="facturacionInvoiceChannelInput" value="{{ $activeInvoiceChannel }}">
+                <input type="hidden" id="facturacionAutoEmitInvoiceInput" value="{{ $activeAutoEmitInvoice }}">
                 <input type="hidden" name="tipo_documento" id="facturacionBillingDocumentTypeHidden" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}">
 
                 <div class="global-shortcut-selector-block">
                     <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Emision</span>
                         <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel" role="tablist" aria-label="Tipo de salida de factura">
-                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">
                                         <path d="M7 3.75h7.5L19.25 8.5V19a1.25 1.25 0 0 1-1.25 1.25H7A1.25 1.25 0 0 1 5.75 19V5A1.25 1.25 0 0 1 7 3.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -313,7 +330,7 @@
                                     <span class="global-shortcut-choice-btn__meta">Emision fiscal</span>
                                 </span>
                             </button>
-                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceChannel === 'qr') is-active @endif" data-invoice-channel-choice="qr" @disabled(!$isCajaAbierta) hidden aria-hidden="true">
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_factura') is-active @endif" data-invoice-channel-choice="qr_factura" @disabled(!$isCajaAbierta)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">
                                         <path d="M4.75 4.75h5.5v5.5h-5.5zM13.75 4.75h5.5v5.5h-5.5zM4.75 13.75h5.5v5.5h-5.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -321,8 +338,20 @@
                                     </svg>
                                 </span>
                                 <span class="global-shortcut-choice-btn__content">
-                                    <span class="global-shortcut-choice-btn__title">QR</span>
-                                    <span class="global-shortcut-choice-btn__meta">Cobro referencial</span>
+                                    <span class="global-shortcut-choice-btn__title">QR + factura</span>
+                                    <span class="global-shortcut-choice-btn__meta">Cobro y luego fiscal</span>
+                                </span>
+                            </button>
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_solo') is-active @endif" data-invoice-channel-choice="qr_solo" @disabled(!$isCajaAbierta)>
+                                <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M4.75 4.75h5.5v5.5h-5.5zM13.75 4.75h5.5v5.5h-5.5zM4.75 13.75h5.5v5.5h-5.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                        <path d="M15 13.75h1.5v1.5H15zM18 16.25h1.25v3H16.5V18h1.5v-1.75ZM13.75 18h1.75v1.25h-1.75z" fill="currentColor"/>
+                                    </svg>
+                                </span>
+                                <span class="global-shortcut-choice-btn__content">
+                                    <span class="global-shortcut-choice-btn__title">QR solo pago</span>
+                                    <span class="global-shortcut-choice-btn__meta">Cobro sin factura</span>
                                 </span>
                             </button>
                         </div>
@@ -650,6 +679,7 @@
                                 @csrf
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
                                 <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
+                                <input type="hidden" name="auto_emit_invoice" value="{{ $activeAutoEmitInvoice }}" data-emit-sync-field="auto_emit_invoice">
                                 <input type="hidden" name="tipo_documento" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}" data-emit-sync-field="tipo_documento">
                                 <input type="hidden" name="numero_documento" value="{{ (string) ($activeFacturacionCart?->numero_documento ?? '') }}" data-emit-sync-field="numero_documento">
                                 <input type="hidden" name="complemento_documento" value="{{ (string) ($activeFacturacionCart?->complemento_documento ?? '') }}" data-emit-sync-field="complemento_documento">
@@ -681,6 +711,7 @@
                                 @csrf
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
                                 <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
+                                <input type="hidden" name="auto_emit_invoice" value="{{ $activeAutoEmitInvoice }}" data-emit-sync-field="auto_emit_invoice">
                                 <input type="hidden" name="tipo_documento" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}" data-emit-sync-field="tipo_documento">
                                 <input type="hidden" name="numero_documento" value="{{ (string) ($activeFacturacionCart?->numero_documento ?? '') }}" data-emit-sync-field="numero_documento">
                                 <input type="hidden" name="complemento_documento" value="{{ (string) ($activeFacturacionCart?->complemento_documento ?? '') }}" data-emit-sync-field="complemento_documento">
@@ -969,7 +1000,7 @@
                 <form method="POST" action="{{ route('facturacion.cart.consultar') }}" class="facturacion-qr-viewer__actions">
                     @csrf
                     <input type="hidden" name="cart_id" id="facturacionQrViewerCartId" value="{{ $initialQrCartId }}">
-                    <input type="hidden" name="auto_emit_invoice" value="1">
+                    <input type="hidden" name="auto_emit_invoice" id="facturacionQrViewerAutoEmitInvoice" value="{{ $activeAutoEmitInvoice }}">
                     <button type="submit" class="global-shortcut-primary-btn">Actualizar pago/factura</button>
                 </form>
             </div>
@@ -2052,7 +2083,7 @@
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
         .global-shortcut-choice-row--invoice-channel {
-            grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             align-items: stretch;
             width: 100%;
             max-width: 100%;
@@ -2985,7 +3016,7 @@
                 grid-template-columns: 1fr;
             }
             .global-shortcut-choice-row--invoice-channel {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: 1fr;
                 max-width: none;
             }
             .global-shortcut-workflow-board__hero,
@@ -3101,7 +3132,7 @@
                 grid-template-columns: 1fr;
             }
             .global-shortcut-choice-row--invoice-channel {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: 1fr;
                 max-width: none;
             }
             .global-shortcut-choice-row--triple {
@@ -3260,6 +3291,7 @@
             const facturacionBillingInlineForm = document.getElementById('facturacionBillingInlineForm');
             const facturacionBillingModeInput = document.getElementById('facturacionBillingModeInput');
             const facturacionInvoiceChannelInput = document.getElementById('facturacionInvoiceChannelInput');
+            const facturacionAutoEmitInvoiceInput = document.getElementById('facturacionAutoEmitInvoiceInput');
             const facturacionBillingFields = document.getElementById('facturacionBillingFields');
             let facturacionScanForm = document.getElementById('facturacionScanForm');
             let facturacionScanCodeInput = document.getElementById('facturacionScanCode');
@@ -3299,6 +3331,7 @@
             const facturacionQrViewerImage = document.getElementById('facturacionQrViewerImage');
             const facturacionQrViewerEmpty = document.getElementById('facturacionQrViewerEmpty');
             const facturacionQrViewerCartId = document.getElementById('facturacionQrViewerCartId');
+            const facturacionQrViewerAutoEmitInvoice = document.getElementById('facturacionQrViewerAutoEmitInvoice');
             const facturacionResultModal = document.getElementById('facturacionResultModal');
             const facturacionResultModalClose = document.getElementById('facturacionResultModalClose');
             const facturacionResultModalAccept = document.getElementById('facturacionResultModalAccept');
@@ -3362,6 +3395,7 @@
             const FACTURACION_BACKGROUND_POLL_INTERVAL_MS = 8000;
             const FACTURACION_BACKGROUND_POLL_MAX_DURATION_MS = 120000;
             const FACTURACION_PENDING_STORAGE_KEY = 'facturacion-pending-emit';
+            const FACTURACION_INVOICE_MODE_STORAGE_KEY = 'facturacion-invoice-mode';
             const FACTURACION_RESULT_MODAL_DISMISSED_PREFIX = 'facturacion-result-dismissed:';
             const FACTURACION_QR_VIEWER_DISMISSED_PREFIX = 'facturacion-qr-dismissed:';
             const FACTURACION_QR_FINAL_STATUSES = ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed', 'cancelado', 'cancelled', 'rejected', 'failed', 'expired'];
@@ -4245,6 +4279,9 @@
                 if (facturacionQrViewerCartId instanceof HTMLInputElement) {
                     facturacionQrViewerCartId.value = String((cartData && cartData.id) || facturacionQrViewerCartId.value || '');
                 }
+                if (facturacionQrViewerAutoEmitInvoice instanceof HTMLInputElement && cartData && Object.prototype.hasOwnProperty.call(cartData, 'auto_emit_invoice')) {
+                    facturacionQrViewerAutoEmitInvoice.value = String(cartData.auto_emit_invoice || '') === '0' ? '0' : '1';
+                }
 
                 if (imageSrc !== '') {
                     if (facturacionQrViewerImage instanceof HTMLImageElement) {
@@ -4342,6 +4379,7 @@
 
             const resetFacturacionShortcutDraftUi = () => {
                 facturacionDraftAutosaveEnabled = false;
+                storeInvoiceMode('');
                 const fabBadge = openFacturacionShortcutBtn
                     ? openFacturacionShortcutBtn.querySelector('.global-facturacion-fab__badge')
                     : null;
@@ -4418,6 +4456,11 @@
                 const tokenMeta = document.querySelector('meta[name="csrf-token"]');
                 const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
                 const formData = new FormData(form);
+                const autoEmitInvoice = String(formData.get('auto_emit_invoice') || '') === '0' ? '0' : '1';
+
+                if (facturacionQrViewerAutoEmitInvoice instanceof HTMLInputElement) {
+                    facturacionQrViewerAutoEmitInvoice.value = autoEmitInvoice;
+                }
 
                 const response = await fetch(form.action, {
                     method: 'POST',
@@ -4619,7 +4662,62 @@
                 return ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'].includes(paymentStatus);
             };
 
+            const shouldAutoEmitQrInvoice = (data) => {
+                if (data && data.cart && Object.prototype.hasOwnProperty.call(data.cart, 'auto_emit_invoice')) {
+                    return String(data.cart.auto_emit_invoice || '') !== '0';
+                }
+
+                if (facturacionQrViewerAutoEmitInvoice instanceof HTMLInputElement) {
+                    return String(facturacionQrViewerAutoEmitInvoice.value || '') !== '0';
+                }
+
+                return true;
+            };
+
+            const readStoredInvoiceMode = () => {
+                try {
+                    return String(window.sessionStorage.getItem(FACTURACION_INVOICE_MODE_STORAGE_KEY) || '').trim().toLowerCase();
+                } catch (error) {
+                    return '';
+                }
+            };
+
+            const storeInvoiceMode = (mode) => {
+                try {
+                    if (!mode) {
+                        window.sessionStorage.removeItem(FACTURACION_INVOICE_MODE_STORAGE_KEY);
+                        return;
+                    }
+
+                    window.sessionStorage.setItem(FACTURACION_INVOICE_MODE_STORAGE_KEY, String(mode));
+                } catch (error) {
+                    // Ignora errores de storage.
+                }
+            };
+
             const continueAutomaticQrFacturaFlow = (data) => {
+                if (!shouldAutoEmitQrInvoice(data)) {
+                    closeFacturacionQrViewer();
+
+                    const qrOnlyFeedback = data && data.feedback ? data.feedback : {
+                        type: 'success',
+                        title: 'Pago QR confirmado',
+                        message: 'El cobro QR fue confirmado correctamente.',
+                        detail: 'La venta quedo registrada como pago QR sin factura electronica automatica.',
+                    };
+
+                    renderFacturacionShortcutFeedback(qrOnlyFeedback);
+                    if (data && data.cart) {
+                        resetFacturacionShortcutDraftUi();
+                    }
+                    if (facturacionShortcutModal instanceof HTMLElement && !facturacionShortcutModal.classList.contains('is-open')) {
+                        openFacturacionShortcutModal();
+                    }
+                    renderFacturacionResultModal(qrOnlyFeedback);
+                    openFacturacionResultModal();
+                    return true;
+                }
+
                 closeFacturacionQrViewer();
 
                 renderFacturacionShortcutFeedback({
@@ -5005,6 +5103,7 @@
                 const billingData = {
                     modalidad_facturacion: 'con_datos',
                     canal_emision: 'factura_electronica',
+                    auto_emit_invoice: '1',
                     tipo_documento: '',
                     numero_documento: '',
                     complemento_documento: '',
@@ -5014,6 +5113,7 @@
 
                 const formFieldMap = {
                     canal_emision: 'input[name="canal_emision"]',
+                    auto_emit_invoice: '#facturacionAutoEmitInvoiceInput',
                     tipo_documento: 'input[name="tipo_documento"]',
                     numero_documento: 'input[name="numero_documento"]',
                     complemento_documento: 'input[name="complemento_documento"]',
@@ -5031,6 +5131,7 @@
                 billingData.canal_emision = String(billingData.canal_emision || 'factura_electronica').toLowerCase() === 'qr'
                     ? 'qr'
                     : 'factura_electronica';
+                billingData.auto_emit_invoice = String(billingData.auto_emit_invoice || '') === '0' ? '0' : '1';
 
                 scopedConfirmForms.forEach((form) => {
                     if (!(form instanceof HTMLFormElement)) {
@@ -5050,6 +5151,10 @@
                         field.value = billingData[syncField];
                     });
                 });
+
+                if (facturacionQrViewerAutoEmitInvoice instanceof HTMLInputElement) {
+                    facturacionQrViewerAutoEmitInvoice.value = billingData.auto_emit_invoice;
+                }
             };
 
             if (facturacionProcessingState instanceof HTMLElement) {
@@ -5837,21 +5942,44 @@
                     const initialChannel = String(facturacionInvoiceChannelInput.value || 'factura_electronica').toLowerCase();
                     facturacionInvoiceChannelInput.value = initialChannel === 'qr' ? 'qr' : 'factura_electronica';
                 }
+                if (facturacionAutoEmitInvoiceInput) {
+                    facturacionAutoEmitInvoiceInput.value = String(facturacionAutoEmitInvoiceInput.value || '') === '0' ? '0' : '1';
+                }
+                const storedInvoiceMode = readStoredInvoiceMode();
+                if (['factura_electronica', 'qr_factura', 'qr_solo'].includes(storedInvoiceMode)) {
+                    if (facturacionInvoiceChannelInput instanceof HTMLInputElement) {
+                        facturacionInvoiceChannelInput.value = storedInvoiceMode === 'factura_electronica' ? 'factura_electronica' : 'qr';
+                    }
+                    if (facturacionAutoEmitInvoiceInput instanceof HTMLInputElement) {
+                        facturacionAutoEmitInvoiceInput.value = storedInvoiceMode === 'qr_solo' ? '0' : '1';
+                    }
+                    invoiceChannelButtons.forEach((candidate) => {
+                        if (candidate instanceof HTMLElement) {
+                            candidate.classList.toggle('is-active', String(candidate.dataset.invoiceChannelChoice || '').toLowerCase() === storedInvoiceMode);
+                        }
+                    });
+                }
 
                 invoiceChannelButtons.forEach((button) => {
                     if (!(button instanceof HTMLButtonElement)) {
                         return;
                     }
                     button.addEventListener('click', function () {
-                        const channel = String(button.dataset.invoiceChannelChoice || '').toLowerCase();
-                        if (!['factura_electronica', 'qr'].includes(channel)) {
+                        const mode = String(button.dataset.invoiceChannelChoice || '').toLowerCase();
+                        if (!['factura_electronica', 'qr_factura', 'qr_solo'].includes(mode)) {
                             return;
                         }
+                        const channel = mode === 'factura_electronica' ? 'factura_electronica' : 'qr';
+                        const autoEmitInvoice = mode === 'qr_solo' ? '0' : '1';
+                        storeInvoiceMode(mode);
 
                         const panel = button.closest('.global-shortcut-modal__panel');
                         const scopedInput = panel instanceof HTMLElement
                             ? panel.querySelector('#facturacionInvoiceChannelInput')
                             : facturacionInvoiceChannelInput;
+                        const scopedAutoEmitInput = panel instanceof HTMLElement
+                            ? panel.querySelector('#facturacionAutoEmitInvoiceInput')
+                            : facturacionAutoEmitInvoiceInput;
                         const scopedButtons = panel instanceof HTMLElement
                             ? panel.querySelectorAll('[data-invoice-channel-choice]')
                             : invoiceChannelButtons;
@@ -5861,6 +5989,9 @@
 
                         if (scopedInput instanceof HTMLInputElement) {
                             scopedInput.value = channel;
+                        }
+                        if (scopedAutoEmitInput instanceof HTMLInputElement) {
+                            scopedAutoEmitInput.value = autoEmitInvoice;
                         }
 
                         scopedButtons.forEach((candidate) => {
