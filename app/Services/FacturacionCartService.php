@@ -804,9 +804,11 @@ class FacturacionCartService
         if ($cartId !== null && $cartId > 0) {
             $targetCart = $this->fetchVentaById($user, $cartId);
             $this->ensureDraftItemsFiscalDataSynced($user, $targetCart);
+            $this->ensureDraftItemCodesUnique($user, $targetCart);
         } else {
             $ctx = $this->getRemoteContextForUser($user);
             $this->ensureDraftItemsFiscalDataSynced($user, $ctx['draft'] ?? null);
+            $this->ensureDraftItemCodesUnique($user, $ctx['draft'] ?? null);
             $this->ensureDraftSucursalSynced($user);
         }
 
@@ -1874,6 +1876,84 @@ class FacturacionCartService
         }
 
         return $changed;
+    }
+
+    private function ensureDraftItemCodesUnique(User $user, ?object $draft): bool
+    {
+        if (!$draft || !isset($draft->items)) {
+            return false;
+        }
+
+        $items = collect((array) $draft->items)
+            ->filter(fn ($item) => $item && isset($item->id))
+            ->values();
+
+        if ($items->count() <= 1) {
+            return false;
+        }
+
+        $changed = false;
+
+        $items
+            ->groupBy(function ($item) {
+                $codigo = trim((string) data_get($item, 'codigo', ''));
+
+                return $codigo !== '' ? mb_strtolower($codigo) : '__empty__';
+            })
+            ->each(function ($group, $normalizedCode) use ($user, &$changed) {
+                if ($normalizedCode === '__empty__' || $group->count() <= 1) {
+                    return;
+                }
+
+                $orderedGroup = $group
+                    ->sortBy(fn ($item) => (int) data_get($item, 'id', 0))
+                    ->values();
+
+                $baseCode = trim((string) data_get($orderedGroup->first(), 'codigo', ''));
+                if ($baseCode === '') {
+                    return;
+                }
+
+                foreach ($orderedGroup as $index => $item) {
+                    $expectedCode = $index === 0
+                        ? $baseCode
+                        : $this->buildAlternateDraftItemCode($baseCode, $index + 1);
+                    $currentCode = trim((string) data_get($item, 'codigo', ''));
+
+                    if ($currentCode === $expectedCode) {
+                        continue;
+                    }
+
+                    try {
+                        $this->updateDraftItem(
+                            $user,
+                            (int) data_get($item, 'id'),
+                            $this->buildDraftItemUpdatePayload($item, [
+                                'codigo' => $expectedCode,
+                            ])
+                        );
+                        $changed = true;
+                    } catch (\Throwable) {
+                        // keep flow resilient; item can still be edited manually in UI
+                    }
+                }
+            });
+
+        return $changed;
+    }
+
+    private function buildAlternateDraftItemCode(string $baseCode, int $position): string
+    {
+        $baseCode = trim($baseCode);
+        if ($baseCode === '') {
+            return '';
+        }
+
+        $suffix = '-' . str_pad((string) max(2, $position), 2, '0', STR_PAD_LEFT);
+        $maxBaseLength = max(1, 120 - strlen($suffix));
+        $trimmedBase = substr($baseCode, 0, $maxBaseLength);
+
+        return $trimmedBase . $suffix;
     }
 
     private function resolveServicioForDraftItem(object $item): ?Servicio

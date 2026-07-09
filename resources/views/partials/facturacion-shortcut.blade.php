@@ -845,12 +845,11 @@
             </div>
             <h4 id="facturacionItemEditTitle" class="global-shortcut-confirm__title">Corregir item antes de reenviar</h4>
             <p class="global-shortcut-confirm__message">
-                Ajusta el precio o la descripcion del item y guarda los cambios para volver a intentar la emision.
+                Ajusta el codigo, el precio o la descripcion del item y guarda los cambios para volver a intentar la emision.
             </p>
             <form method="POST" action="" id="facturacionItemEditForm" class="global-shortcut-item-edit-form">
                 @csrf
                 @method('PUT')
-                <input type="hidden" id="facturacionEditItemCodigo" name="codigo" required>
                 <input type="hidden" id="facturacionEditItemTitulo" name="titulo" required>
                 <input type="hidden" id="facturacionEditItemServicio" name="nombre_servicio">
                 <input type="hidden" id="facturacionEditItemDestinatario" name="nombre_destinatario">
@@ -893,6 +892,10 @@
                     </div>
                 </div>
                 <div class="global-shortcut-item-edit-grid">
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="codigo">
+                        <label for="facturacionEditItemCodigo">Codigo del item</label>
+                        <input type="text" id="facturacionEditItemCodigo" name="codigo" maxlength="120" required placeholder="Ingresa un codigo unico para esta linea">
+                    </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="descripcion_servicio">
                         <label for="facturacionEditItemDescripcionServicio">Descripcion del item</label>
                         <textarea id="facturacionEditItemDescripcionServicio" name="descripcion_servicio" rows="3" maxlength="255" placeholder="Describe el servicio que se enviara a facturacion"></textarea>
@@ -5396,10 +5399,10 @@
                 facturacionItemEditModal.setAttribute('aria-hidden', 'false');
 
                 window.setTimeout(() => {
-                    const priceField = document.getElementById('facturacionEditItemPrecio');
-                    if (priceField instanceof HTMLInputElement) {
-                        priceField.focus();
-                        priceField.select();
+                    const codeField = document.getElementById('facturacionEditItemCodigo');
+                    if (codeField instanceof HTMLInputElement) {
+                        codeField.focus();
+                        codeField.select();
                     }
                 }, 30);
             };
