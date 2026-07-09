@@ -52,6 +52,14 @@
                 'accent' => false,
             ],
             [
+                'label' => 'QR facturados',
+                'value' => number_format($summary['qrFacturados'] ?? 0),
+                'meta' => 'Cobro QR convertido a factura',
+                'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'FACTURADA']),
+                'active' => false,
+                'accent' => true,
+            ],
+            [
                 'label' => 'Rechazadas',
                 'value' => number_format($summary['rechazadas']),
                 'meta' => '',
@@ -60,9 +68,9 @@
                 'accent' => false,
             ],
             [
-                'label' => 'Total vendido',
+                'label' => 'Total en caja',
                 'value' => 'Bs ' . number_format($summary['montoTotal'], 2),
-                'meta' => '',
+                'meta' => 'No incluye QR facturado',
                 'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'all']),
                 'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'all',
                 'accent' => true,
@@ -229,8 +237,9 @@
                                 @endif
                                 <div class="ventas-branch-cashier-card__stats">
                                     <span>{{ $cashier['cantidad_ventas'] }} venta(s)</span>
-                                    <strong>Bs {{ number_format((float) $cashier['total_vendido'], 2) }}</strong>
+                                    <strong>Bs {{ number_format((float) $cashier['total_caja'], 2) }}</strong>
                                 </div>
+                                <div class="ventas-branch-cashier-card__meta">Emitido total: Bs {{ number_format((float) $cashier['total_vendido'], 2) }}</div>
                             </div>
                         </div>
                     @endforeach
@@ -345,16 +354,17 @@
                                 if ($canalEmision === '') {
                                     if ($isOficial) {
                                         $canalEmision = 'oficial';
-                                    } elseif (str_starts_with($codigoOrden, 'VQ-')) {
+                                    } elseif (str_starts_with($codigoOrden, 'VQ-') || str_starts_with($codigoOrden, 'VQC-')) {
                                         $canalEmision = 'qr';
                                     } elseif (str_starts_with($codigoOrden, 'VF-')) {
                                         $canalEmision = 'factura_electronica';
                                     }
                                 }
                                 $isQrPayment = $metodoPago === 'qr' || trim((string) data_get($cart, 'qr_transaction_id', '')) !== '';
+                                $isQrFacturado = $isQrPayment && $facturaEstado === 'FACTURADA';
 
                                 $canalBadgeLabel = $isQrPayment
-                                    ? 'Pago QR'
+                                    ? ($facturaEstado === 'FACTURADA' ? 'QR -> Factura electronica' : 'Pago QR')
                                     : ($canalEmision === 'oficial' ? 'Registro oficial' : 'Factura electronica');
                                 $canalBadgeClass = $isQrPayment
                                     ? 'ventas-channel-chip--qr'
@@ -431,6 +441,11 @@
                                     <div class="ventas-table__secondary">
                                         <span class="ventas-channel-chip {{ $canalBadgeClass }}">{{ $canalBadgeLabel }}</span>
                                     </div>
+                                    @if($isQrFacturado)
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            Cobrado por QR y transformado a factura. No suma a caja.
+                                        </div>
+                                    @endif
                                 </td>
                                 <td>
                                     @if($isQrPayment && $facturaEstado === 'FACTURADA')
@@ -517,6 +532,9 @@
                                 </td>
                                 <td class="text-right">
                                     <div class="ventas-table__amount">Bs {{ number_format($totalCart, 2) }}</div>
+                                    @if($isQrFacturado)
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">QR facturado fuera de caja</div>
+                                    @endif
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex flex-wrap justify-content-center">

@@ -1137,10 +1137,7 @@ class FacturacionCartService
         $requestedLimit = (int) ($filters['limite'] ?? (($filters['per_page'] ?? 20) * 10));
         $requestedLimit = max(1, $requestedLimit);
         $limite = min(500, max(50, $requestedLimit));
-        $payload = array_filter([
-            'origen_usuario_email' => trim((string) ($user->email ?? '')) ?: null,
-            'origen_usuario_alias' => trim((string) ($user->alias ?? '')) ?: null,
-            'origen_usuario_carnet' => strtoupper(trim((string) ($user->ci ?? ''))) ?: null,
+        $basePayload = array_filter([
             'fechaInicio' => $filters['from'] ?? null,
             'fechaFin' => $filters['to'] ?? null,
             'q' => trim((string) ($filters['q'] ?? '')) ?: null,
@@ -1148,24 +1145,33 @@ class FacturacionCartService
             'limite' => $limite,
         ], fn ($value) => $value !== null && $value !== '');
 
-        try {
-            $body = $this->request('GET', '/ventas/reportes/kardex-usuarios', $payload);
-        } catch (\RuntimeException $e) {
-            if (!str_starts_with($e->getMessage(), '404')) {
-                throw $e;
-            }
+        $responses = [];
 
-            // Compatibilidad con APIs que exponen el reporte sin el prefijo /ventas.
-            $body = $this->request('GET', '/reportes/kardex-usuarios', $payload);
+        foreach ($this->buildUserIdentityPayloads($user, $basePayload) as $payload) {
+            try {
+                $responses[] = $this->requestKardexVentasEndpoint($payload);
+            } catch (\RuntimeException $e) {
+                if (count($responses) === 0) {
+                    throw $e;
+                }
+            }
         }
 
+        $mergedDetalle = collect($responses)
+            ->flatMap(fn ($body) => (array) data_get($body, 'detalle', []))
+            ->filter(fn ($row) => is_array($row) || is_object($row))
+            ->unique(fn ($row) => $this->kardexVentaRowKey($row))
+            ->values();
+
+        $primaryBody = $responses[0] ?? [];
+
         return [
-            'detalle' => collect((array) data_get($body, 'detalle', []))
-                ->map(fn ($row) => is_array($row) ? (object) $row : null)
+            'detalle' => $mergedDetalle
+                ->map(fn ($row) => is_array($row) ? (object) $row : $row)
                 ->filter()
                 ->values(),
-            'resumen' => (array) data_get($body, 'resumen', []),
-            'filters' => $payload,
+            'resumen' => (array) data_get($primaryBody, 'resumen', []),
+            'filters' => $basePayload,
         ];
     }
 
@@ -1186,26 +1192,23 @@ class FacturacionCartService
 
     public function fetchVentaDetalleByVentaId(User $user, int $ventaId): ?object
     {
-        $payload = array_filter([
-            'origen_usuario_email' => trim((string) ($user->email ?? '')) ?: null,
-            'origen_usuario_alias' => trim((string) ($user->alias ?? '')) ?: null,
-            'origen_usuario_carnet' => strtoupper(trim((string) ($user->ci ?? ''))) ?: null,
-        ], fn ($value) => $value !== null && $value !== '');
+        foreach ($this->buildUserIdentityPayloads($user) as $payload) {
+            try {
+                $body = $this->request('GET', '/ventas/' . $ventaId, $payload);
 
-        try {
-            $body = $this->request('GET', '/ventas/' . $ventaId, $payload);
-        } catch (\RuntimeException $e) {
-            if (str_contains($e->getMessage(), '404')) {
-                return null;
+                if (!is_array($body)) {
+                    continue;
+                }
+
+                return (object) $body;
+            } catch (\RuntimeException $e) {
+                if (!str_contains($e->getMessage(), '404')) {
+                    throw $e;
+                }
             }
-            throw $e;
         }
 
-        if (!is_array($body)) {
-            return null;
-        }
-
-        return (object) $body;
+        return null;
     }
 
     public function consultarVentaSeguimiento(User $user, string $codigoSeguimiento): array
@@ -1215,13 +1218,24 @@ class FacturacionCartService
             throw new \RuntimeException('Codigo de seguimiento vacio.');
         }
 
-        $payload = array_filter([
-            'origen_usuario_email' => trim((string) ($user->email ?? '')) ?: null,
-            'origen_usuario_alias' => trim((string) ($user->alias ?? '')) ?: null,
-            'origen_usuario_carnet' => strtoupper(trim((string) ($user->ci ?? ''))) ?: null,
-        ], fn ($value) => $value !== null && $value !== '');
+        $response = null;
 
-        $response = $this->request('GET', '/ventas/consultar/' . rawurlencode($codigoSeguimiento), $payload);
+        foreach ($this->buildUserIdentityPayloads($user) as $payload) {
+            try {
+                $response = $this->request('GET', '/ventas/consultar/' . rawurlencode($codigoSeguimiento), $payload);
+                break;
+            } catch (\RuntimeException $e) {
+                if (str_contains($e->getMessage(), '404')) {
+                    continue;
+                }
+
+                throw $e;
+            }
+        }
+
+        if (!is_array($response)) {
+            throw new \RuntimeException('No se pudo consultar la venta solicitada.');
+        }
 
         $estadoSufe = strtoupper(trim((string) (
             data_get($response, 'estadoSufe')
@@ -1266,6 +1280,84 @@ class FacturacionCartService
             ],
             'raw' => $response,
         ];
+    }
+
+    private function buildUserIdentityPayloads(User $user, array $basePayload = []): array
+    {
+        $payloads = [];
+        $userId = trim((string) $user->id);
+        $legacyIdentity = array_filter([
+            'origen_usuario_email' => trim((string) ($user->email ?? '')) ?: null,
+            'origen_usuario_alias' => trim((string) ($user->alias ?? '')) ?: null,
+            'origen_usuario_carnet' => strtoupper(trim((string) ($user->ci ?? ''))) ?: null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        if ($userId !== '') {
+            $payloads[] = array_merge($basePayload, [
+                'origen_usuario_id' => $userId,
+            ]);
+        }
+
+        if ($legacyIdentity !== []) {
+            $payloads[] = array_merge($basePayload, $legacyIdentity);
+        }
+
+        if ($payloads === []) {
+            $payloads[] = $basePayload;
+        }
+
+        $uniquePayloads = [];
+        $seen = [];
+
+        foreach ($payloads as $payload) {
+            ksort($payload);
+            $signature = json_encode($payload);
+            if ($signature === false || isset($seen[$signature])) {
+                continue;
+            }
+
+            $seen[$signature] = true;
+            $uniquePayloads[] = $payload;
+        }
+
+        return $uniquePayloads;
+    }
+
+    private function requestKardexVentasEndpoint(array $payload): array
+    {
+        try {
+            return $this->request('GET', '/ventas/reportes/kardex-usuarios', $payload);
+        } catch (\RuntimeException $e) {
+            if (!str_starts_with($e->getMessage(), '404')) {
+                throw $e;
+            }
+
+            return $this->request('GET', '/reportes/kardex-usuarios', $payload);
+        }
+    }
+
+    private function kardexVentaRowKey(array|object $row): string
+    {
+        $candidates = [
+            data_get($row, 'ventaId'),
+            data_get($row, 'venta_id'),
+            data_get($row, 'origenVentaId'),
+            data_get($row, 'origen_venta_id'),
+            data_get($row, 'id'),
+            data_get($row, 'codigoOrden'),
+            data_get($row, 'codigo_orden'),
+            data_get($row, 'codigoSeguimiento'),
+            data_get($row, 'codigo_seguimiento'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $value = trim((string) $candidate);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return md5(json_encode($row));
     }
 
     public function fetchVentasPdf(User $user, array $filters): array
