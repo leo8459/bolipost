@@ -1489,7 +1489,7 @@ class FacturacionCartService
         }
 
         $expectedPayload = $this->buildConceptoDraftPayload($concepto);
-        $expectedResumen = $this->normalizeFacturacionResumenOrigen($expectedPayload['resumen_origen'] ?? []);
+        $expectedResumen = $this->normalizeFacturacionResumenOrigenForMatch($expectedPayload['resumen_origen'] ?? []);
         $expectedMontoBase = round((float) ($expectedPayload['monto_base'] ?? 0), 2);
 
         return collect($draft->items ?? [])
@@ -1506,7 +1506,7 @@ class FacturacionCartService
                     && trim((string) data_get($item, 'titulo', '')) === trim((string) ($expectedPayload['titulo'] ?? ''))
                     && trim((string) data_get($item, 'nombre_servicio', '')) === trim((string) ($expectedPayload['nombre_servicio'] ?? ''))
                     && round((float) data_get($item, 'monto_base', 0), 2) === $expectedMontoBase
-                    && $this->normalizeFacturacionResumenOrigen((array) data_get($item, 'resumen_origen', [])) === $expectedResumen;
+                    && $this->normalizeFacturacionResumenOrigenForMatch((array) data_get($item, 'resumen_origen', [])) === $expectedResumen;
             });
     }
 
@@ -1584,6 +1584,21 @@ class FacturacionCartService
 
             return is_string($value) ? trim($value) : $value;
         }, $normalized);
+    }
+
+    private function normalizeFacturacionResumenOrigenForMatch(array $resumen): array
+    {
+        $normalized = $this->normalizeFacturacionResumenOrigen($resumen);
+
+        return [
+            'codigo' => (string) ($normalized['codigo'] ?? ''),
+            'contenido' => (string) ($normalized['contenido'] ?? ''),
+            'actividad_economica' => (string) ($normalized['actividad_economica'] ?? ''),
+            'codigo_sin' => (string) ($normalized['codigo_sin'] ?? ''),
+            'codigo_producto' => (string) ($normalized['codigo_producto'] ?? ''),
+            'descripcion_servicio' => (string) ($normalized['descripcion_servicio'] ?? ''),
+            'unidad_medida' => (int) ($normalized['unidad_medida'] ?? 0),
+        ];
     }
 
     private function originUserPayload(User $user): array
