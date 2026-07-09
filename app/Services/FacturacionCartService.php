@@ -804,9 +804,11 @@ class FacturacionCartService
         if ($cartId !== null && $cartId > 0) {
             $targetCart = $this->fetchVentaById($user, $cartId);
             $this->ensureDraftItemsFiscalDataSynced($user, $targetCart);
+            $this->ensureDraftItemCodesUnique($user, $targetCart);
         } else {
             $ctx = $this->getRemoteContextForUser($user);
             $this->ensureDraftItemsFiscalDataSynced($user, $ctx['draft'] ?? null);
+            $this->ensureDraftItemCodesUnique($user, $ctx['draft'] ?? null);
             $this->ensureDraftSucursalSynced($user);
         }
 
@@ -1487,7 +1489,7 @@ class FacturacionCartService
         }
 
         $expectedPayload = $this->buildConceptoDraftPayload($concepto);
-        $expectedResumen = $this->normalizeFacturacionResumenOrigen($expectedPayload['resumen_origen'] ?? []);
+        $expectedResumen = $this->normalizeFacturacionResumenOrigenForMatch($expectedPayload['resumen_origen'] ?? []);
         $expectedMontoBase = round((float) ($expectedPayload['monto_base'] ?? 0), 2);
 
         return collect($draft->items ?? [])
@@ -1504,7 +1506,7 @@ class FacturacionCartService
                     && trim((string) data_get($item, 'titulo', '')) === trim((string) ($expectedPayload['titulo'] ?? ''))
                     && trim((string) data_get($item, 'nombre_servicio', '')) === trim((string) ($expectedPayload['nombre_servicio'] ?? ''))
                     && round((float) data_get($item, 'monto_base', 0), 2) === $expectedMontoBase
-                    && $this->normalizeFacturacionResumenOrigen((array) data_get($item, 'resumen_origen', [])) === $expectedResumen;
+                    && $this->normalizeFacturacionResumenOrigenForMatch((array) data_get($item, 'resumen_origen', [])) === $expectedResumen;
             });
     }
 
@@ -1582,6 +1584,21 @@ class FacturacionCartService
 
             return is_string($value) ? trim($value) : $value;
         }, $normalized);
+    }
+
+    private function normalizeFacturacionResumenOrigenForMatch(array $resumen): array
+    {
+        $normalized = $this->normalizeFacturacionResumenOrigen($resumen);
+
+        return [
+            'codigo' => (string) ($normalized['codigo'] ?? ''),
+            'contenido' => (string) ($normalized['contenido'] ?? ''),
+            'actividad_economica' => (string) ($normalized['actividad_economica'] ?? ''),
+            'codigo_sin' => (string) ($normalized['codigo_sin'] ?? ''),
+            'codigo_producto' => (string) ($normalized['codigo_producto'] ?? ''),
+            'descripcion_servicio' => (string) ($normalized['descripcion_servicio'] ?? ''),
+            'unidad_medida' => (int) ($normalized['unidad_medida'] ?? 0),
+        ];
     }
 
     private function originUserPayload(User $user): array
@@ -1874,6 +1891,84 @@ class FacturacionCartService
         }
 
         return $changed;
+    }
+
+    private function ensureDraftItemCodesUnique(User $user, ?object $draft): bool
+    {
+        if (!$draft || !isset($draft->items)) {
+            return false;
+        }
+
+        $items = collect((array) $draft->items)
+            ->filter(fn ($item) => $item && isset($item->id))
+            ->values();
+
+        if ($items->count() <= 1) {
+            return false;
+        }
+
+        $changed = false;
+
+        $items
+            ->groupBy(function ($item) {
+                $codigo = trim((string) data_get($item, 'codigo', ''));
+
+                return $codigo !== '' ? mb_strtolower($codigo) : '__empty__';
+            })
+            ->each(function ($group, $normalizedCode) use ($user, &$changed) {
+                if ($normalizedCode === '__empty__' || $group->count() <= 1) {
+                    return;
+                }
+
+                $orderedGroup = $group
+                    ->sortBy(fn ($item) => (int) data_get($item, 'id', 0))
+                    ->values();
+
+                $baseCode = trim((string) data_get($orderedGroup->first(), 'codigo', ''));
+                if ($baseCode === '') {
+                    return;
+                }
+
+                foreach ($orderedGroup as $index => $item) {
+                    $expectedCode = $index === 0
+                        ? $baseCode
+                        : $this->buildAlternateDraftItemCode($baseCode, $index + 1);
+                    $currentCode = trim((string) data_get($item, 'codigo', ''));
+
+                    if ($currentCode === $expectedCode) {
+                        continue;
+                    }
+
+                    try {
+                        $this->updateDraftItem(
+                            $user,
+                            (int) data_get($item, 'id'),
+                            $this->buildDraftItemUpdatePayload($item, [
+                                'codigo' => $expectedCode,
+                            ])
+                        );
+                        $changed = true;
+                    } catch (\Throwable) {
+                        // keep flow resilient; item can still be edited manually in UI
+                    }
+                }
+            });
+
+        return $changed;
+    }
+
+    private function buildAlternateDraftItemCode(string $baseCode, int $position): string
+    {
+        $baseCode = trim($baseCode);
+        if ($baseCode === '') {
+            return '';
+        }
+
+        $suffix = '-' . str_pad((string) max(2, $position), 2, '0', STR_PAD_LEFT);
+        $maxBaseLength = max(1, 120 - strlen($suffix));
+        $trimmedBase = substr($baseCode, 0, $maxBaseLength);
+
+        return $trimmedBase . $suffix;
     }
 
     private function resolveServicioForDraftItem(object $item): ?Servicio
