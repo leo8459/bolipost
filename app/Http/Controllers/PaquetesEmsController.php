@@ -21,6 +21,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -122,10 +123,8 @@ class PaquetesEmsController extends Controller
         ]);
 
         return view('paquetes_ems.solicitud-create', [
-            'destinos' => Destino::query()->orderBy('nombre_destino')->get(),
-            'servicioExtras' => ServicioExtra::query()
-                ->orderBy('id')
-                ->get(['id', 'nombre', 'descripcion']),
+            'destinos' => $this->cachedDestinos(),
+            'servicioExtras' => $this->cachedServicioExtras(),
             'ciudades' => self::CIUDADES_BOLIVIA,
             'canUseFacturacionShortcut' => $this->canUseFacturacionShortcut(Auth::user()),
         ]);
@@ -462,6 +461,22 @@ class PaquetesEmsController extends Controller
     private function canUseFacturacionShortcut($user): bool
     {
         return (bool) ($user && method_exists($user, 'can') && $user->can('feature.dashboard.facturacion'));
+    }
+
+    private function cachedDestinos()
+    {
+        return Cache::remember('lookup:paquetes-ems:destinos', now()->addMinutes(30), function () {
+            return Destino::query()->orderBy('nombre_destino')->get();
+        });
+    }
+
+    private function cachedServicioExtras()
+    {
+        return Cache::remember('lookup:paquetes-ems:servicio-extras', now()->addMinutes(30), function () {
+            return ServicioExtra::query()
+                ->orderBy('id')
+                ->get(['id', 'nombre', 'descripcion']);
+        });
     }
 
     public function ticketSolicitud(Request $request, SolicitudCliente $solicitud)

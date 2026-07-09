@@ -9,6 +9,7 @@ use App\Models\Empresa as EmpresaModel;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -59,9 +60,11 @@ class Recojo extends Component
         $this->fecha_recojo = '';
         $this->user_id = (string) optional(Auth::user())->id;
         $this->userCity = strtoupper(trim((string) optional(Auth::user())->ciudad));
-        $this->estadoAlmacenId = (int) (EstadoModel::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ALMACEN'])
-            ->value('id') ?? 0);
+        $this->estadoAlmacenId = (int) (Cache::remember('lookup:estados:almacen_id', now()->addMinutes(30), function () {
+            return EstadoModel::query()
+                ->whereRaw('trim(upper(nombre_estado)) = ?', ['ALMACEN'])
+                ->value('id');
+        }) ?? 0);
     }
 
     public function getIsAlmacenModeProperty(): bool
@@ -375,9 +378,11 @@ class Recojo extends Component
         ->orderByDesc('id')
         ->paginate(10);
 
-    return view('livewire.recojo', [
+        return view('livewire.recojo', [
         'recojos' => $recojos,
-        'users' => User::query()->orderBy('name')->get(['id', 'name']),
+        'users' => Cache::remember('lookup:recojo:users:minimal', now()->addMinutes(15), function () {
+            return User::query()->orderBy('name')->get(['id', 'name']);
+        }),
         'canRecojoEdit' => $this->userCan($this->modeFeaturePermission('edit')),
         'canRecojoDelete' => $this->userCan($this->modeFeaturePermission('delete')),
         'canRecojoPrint' => $this->userCan($this->modeFeaturePermission('print')),

@@ -1,8 +1,6 @@
-    php artisan migrate --path=/database/migrations/2026_07_06_120000_add_precio_and_enviado_admision_at_to_paquetes_int_table.php
-    php artisan migrate --path=/database/migrations/2026_07_06_130000_ensure_missing_columns_on_paquetes_int_table.php
-    php artisan migrate --path=/database/migrations/2026_07_06_140000_add_servicio_id_to_paquetes_int_table.php
-    php artisan migrate --path=/database/migrations/2026_07_06_150000_make_cod_especial_nullable_on_paquetes_int_table.php
-    php artisan migrate --path=/database/migrations/2026_07_06_160000_add_estado_id_to_paquetes_int_table.php
+
+
+    php artisan migrate --path=/database/migrations/2026_07_08_160000_add_performance_indexes_to_core_tables.php
 
 +``+--
 

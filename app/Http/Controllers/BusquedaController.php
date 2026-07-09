@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -40,8 +41,8 @@ class BusquedaController extends Controller
         return view('welcome', [
             'captchaPregunta' => $captcha['question'],
             'captchaChallenge' => $captchaPublico['challenge'],
-            'preregistroServicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
-            'preregistroDestinos' => Destino::query()->orderBy('nombre_destino')->get(),
+            'preregistroServicios' => $this->cachedPreregistroServicios(),
+            'preregistroDestinos' => $this->cachedPreregistroDestinos(),
             'preregistroCiudades' => [
                 'LA PAZ',
                 'SANTA CRUZ',
@@ -185,8 +186,8 @@ class BusquedaController extends Controller
             'eventos' => $eventos,
             'ultimoEvento' => $eventos->first(),
             'fuenteTracking' => $resultado['fuente'],
-            'preregistroServicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
-            'preregistroDestinos' => Destino::query()->orderBy('nombre_destino')->get(),
+            'preregistroServicios' => $this->cachedPreregistroServicios(),
+            'preregistroDestinos' => $this->cachedPreregistroDestinos(),
             'preregistroCiudades' => [
                 'LA PAZ',
                 'SANTA CRUZ',
@@ -268,6 +269,20 @@ class BusquedaController extends Controller
         }
 
         return 'Completa la verificacion de seguridad.';
+    }
+
+    private function cachedPreregistroServicios()
+    {
+        return Cache::remember('lookup:preregistro:servicios', now()->addMinutes(30), function () {
+            return Servicio::query()->orderBy('nombre_servicio')->get();
+        });
+    }
+
+    private function cachedPreregistroDestinos()
+    {
+        return Cache::remember('lookup:preregistro:destinos', now()->addMinutes(30), function () {
+            return Destino::query()->orderBy('nombre_destino')->get();
+        });
     }
 
     private function captchaTrackingYaFueVerificado(Request $request): bool
