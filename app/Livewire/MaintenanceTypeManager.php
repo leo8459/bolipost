@@ -26,6 +26,11 @@ class MaintenanceTypeManager extends Component
         'moto',
     ];
 
+    private const MAINTENANCE_CATEGORIES = [
+        MaintenanceType::CATEGORY_PREVENTIVO_KM,
+        MaintenanceType::CATEGORY_ACCIDENTE,
+    ];
+
     //public bool $isEdit = false;
     //public ?int $editingId = null;
     
@@ -37,6 +42,7 @@ class MaintenanceTypeManager extends Component
     public array $selected_vehicle_ids = [];
     public ?string $vehicle_to_add = null;
     public string $maintenance_form_type = 'vehiculo';
+    public string $categoria = MaintenanceType::CATEGORY_PREVENTIVO_KM;
     public bool $es_preventivo = false;
 
     #[Validate('nullable|integer|min:1')]
@@ -74,6 +80,7 @@ class MaintenanceTypeManager extends Component
             $query->where(function ($q) use ($search) {
                 $q->where('nombre', 'like', "%{$search}%")
                     ->orWhere('descripcion', 'like', "%{$search}%")
+                    ->orWhere('categoria', 'like', "%{$search}%")
                     ->orWhereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$search}%"])
                     ->orWhereHas('vehicles', fn ($vehicleQuery) => $vehicleQuery->where('placa', 'like', "%{$search}%"));
 
@@ -107,6 +114,7 @@ class MaintenanceTypeManager extends Component
             'vehicles' => $vehicles,
             'selectedVehicles' => $selectedVehicles,
             'maintenanceFormTypes' => self::MAINTENANCE_FORM_TYPES,
+            'maintenanceCategories' => self::MAINTENANCE_CATEGORIES,
         ]);
     }
 
@@ -141,6 +149,25 @@ class MaintenanceTypeManager extends Component
             ->all();
 
         $this->vehicle_to_add = null;
+    }
+
+    public function updatedCategoria(): void
+    {
+        if (!in_array($this->categoria, self::MAINTENANCE_CATEGORIES, true)) {
+            $this->categoria = MaintenanceType::CATEGORY_PREVENTIVO_KM;
+        }
+
+        $this->es_preventivo = $this->categoria === MaintenanceType::CATEGORY_PREVENTIVO_KM;
+
+        if ($this->categoria !== MaintenanceType::CATEGORY_PREVENTIVO_KM) {
+            $this->cada_km = null;
+            $this->intervalo_km_init = null;
+            $this->intervalo_km_fh = null;
+            $this->km_alerta_previa = 0;
+            $this->resetErrorBag(['cada_km', 'intervalo_km_init', 'intervalo_km_fh', 'km_alerta_previa']);
+        } elseif ($this->km_alerta_previa === null || $this->km_alerta_previa < 0) {
+            $this->km_alerta_previa = 15;
+        }
     }
 
     public function addSelectedVehicle(): void
@@ -229,6 +256,7 @@ class MaintenanceTypeManager extends Component
             [
                 'nombre' => ['required', 'string', 'min:3', 'max:255'],
                 'maintenance_form_type' => ['required', 'string', Rule::in(self::MAINTENANCE_FORM_TYPES)],
+                'categoria' => ['required', 'string', Rule::in(self::MAINTENANCE_CATEGORIES)],
                 'selected_vehicle_ids' => ['nullable', 'array'],
                 'selected_vehicle_ids.*' => ['integer', 'min:1', 'distinct', 'exists:vehicles,id'],
                 'es_preventivo' => ['required', 'boolean'],
@@ -244,6 +272,8 @@ class MaintenanceTypeManager extends Component
                 'nombre.max' => 'El nombre no puede superar los 255 caracteres.',
                 'maintenance_form_type.required' => 'Debe seleccionar el tipo de vehiculo.',
                 'maintenance_form_type.in' => 'El tipo de vehiculo seleccionado no es valido.',
+                'categoria.required' => 'Debe seleccionar la categoria del mantenimiento.',
+                'categoria.in' => 'La categoria del mantenimiento no es valida.',
                 'selected_vehicle_ids.array' => 'La lista de vehiculos seleccionados no es valida.',
                 'selected_vehicle_ids.*.integer' => 'Uno o mas vehiculos seleccionados no son validos.',
                 'selected_vehicle_ids.*.min' => 'Uno o mas vehiculos seleccionados no son validos.',
@@ -294,19 +324,21 @@ class MaintenanceTypeManager extends Component
             }
         }
 
-        if (
-            $this->cada_km === null &&
-            $this->intervalo_km_init === null &&
-            $this->intervalo_km_fh === null
-        ) {
-            $this->addError('cada_km', 'Debe registrar cada cuantos KM o definir un intervalo de KM.');
-            return;
-        }
+        if ($this->categoria === MaintenanceType::CATEGORY_PREVENTIVO_KM) {
+            if (
+                $this->cada_km === null &&
+                $this->intervalo_km_init === null &&
+                $this->intervalo_km_fh === null
+            ) {
+                $this->addError('cada_km', 'Debe registrar cada cuantos KM o definir un intervalo de KM.');
+                return;
+            }
 
-        $referenceKm = $this->cada_km ?? $this->intervalo_km_fh ?? $this->intervalo_km_init;
-        if ($referenceKm !== null && $this->km_alerta_previa !== null && $this->km_alerta_previa > $referenceKm) {
-            $this->addError('km_alerta_previa', 'La alerta previa no puede ser mayor al intervalo definido de KM.');
-            return;
+            $referenceKm = $this->cada_km ?? $this->intervalo_km_fh ?? $this->intervalo_km_init;
+            if ($referenceKm !== null && $this->km_alerta_previa !== null && $this->km_alerta_previa > $referenceKm) {
+                $this->addError('km_alerta_previa', 'La alerta previa no puede ser mayor al intervalo definido de KM.');
+                return;
+            }
         }
 
         $selectedVehicleIds = $selectedVehicleIds->values();
@@ -318,6 +350,7 @@ class MaintenanceTypeManager extends Component
                 $type->update([
                     'nombre' => $this->nombre,
                     'maintenance_form_type' => $this->maintenance_form_type,
+                    'categoria' => $this->categoria,
                     'es_preventivo' => $this->es_preventivo,
                     ...$this->resolveClassPayload(),
                     ...$this->resolveIntervalPayload(),
@@ -331,6 +364,7 @@ class MaintenanceTypeManager extends Component
             $type = MaintenanceType::create([
                 'nombre' => $this->nombre,
                 'maintenance_form_type' => $this->maintenance_form_type,
+                'categoria' => $this->categoria,
                 'es_preventivo' => $this->es_preventivo,
                 ...$this->resolveClassPayload(),
                 ...$this->resolveIntervalPayload(),
@@ -354,11 +388,14 @@ class MaintenanceTypeManager extends Component
         $this->nombre = $type->nombre;
         $this->selected_vehicle_ids = $type->vehicles()->pluck('vehicles.id')->map(fn ($id) => (string) $id)->all();
         $this->maintenance_form_type = (string) ($type->maintenance_form_type ?: 'vehiculo');
+        $this->categoria = (string) ($type->categoria ?: ((bool) ($type->es_preventivo ?? false) ? MaintenanceType::CATEGORY_PREVENTIVO_KM : MaintenanceType::CATEGORY_ACCIDENTE));
         $this->es_preventivo = (bool) ($type->es_preventivo ?? false);
         $this->cada_km = $type->cada_km !== null ? (int) $type->cada_km : null;
         $this->intervalo_km_init = $type->intervalo_km_init ?? $type->intervalo_km;
         $this->intervalo_km_fh = $type->intervalo_km_fh ?? $type->intervalo_km;
-        $this->km_alerta_previa = $type->km_alerta_previa ?? 15;
+        $this->km_alerta_previa = $this->categoria === MaintenanceType::CATEGORY_PREVENTIVO_KM
+            ? ($type->km_alerta_previa ?? 15)
+            : 0;
         $this->descripcion = $type->descripcion;
     }
 
@@ -376,7 +413,8 @@ class MaintenanceTypeManager extends Component
         $this->selected_vehicle_ids = [];
         $this->vehicle_to_add = null;
         $this->maintenance_form_type = 'vehiculo';
-        $this->es_preventivo = false;
+        $this->categoria = MaintenanceType::CATEGORY_PREVENTIVO_KM;
+        $this->es_preventivo = true;
         $this->cada_km = null;
         $this->intervalo_km_init = null;
         $this->intervalo_km_fh = null;
@@ -436,6 +474,24 @@ class MaintenanceTypeManager extends Component
 
     private function resolveIntervalPayload(): array
     {
+        if ($this->categoria !== MaintenanceType::CATEGORY_PREVENTIVO_KM) {
+            $payload = [];
+            if (Schema::hasColumn('maintenance_types', 'cada_km')) {
+                $payload['cada_km'] = null;
+            }
+            if (Schema::hasColumn('maintenance_types', 'intervalo_km_init')) {
+                $payload['intervalo_km_init'] = null;
+            }
+            if (Schema::hasColumn('maintenance_types', 'intervalo_km_fh')) {
+                $payload['intervalo_km_fh'] = null;
+            }
+            if (Schema::hasColumn('maintenance_types', 'intervalo_km')) {
+                $payload['intervalo_km'] = null;
+            }
+
+            return $payload;
+        }
+
         $cadaKm = $this->cada_km;
         if ($cadaKm === null || $cadaKm <= 0) {
             $cadaKm = $this->intervalo_km_init ?? $this->intervalo_km_fh;
@@ -471,7 +527,9 @@ class MaintenanceTypeManager extends Component
         }
 
         return [
-            'km_alerta_previa' => $this->km_alerta_previa ?? 15,
+            'km_alerta_previa' => $this->categoria === MaintenanceType::CATEGORY_PREVENTIVO_KM
+                ? ($this->km_alerta_previa ?? 15)
+                : 0,
         ];
     }
 

@@ -267,8 +267,8 @@
                     </div>
 
                     <div class="d-flex flex-wrap gap-2 border-top pt-3 mt-4">
-                        <button type="submit" class="btn btn-primary px-4">
-                            <i class="fas fa-save me-2"></i>{{ $isEdit ? 'Actualizar Solicitud' : 'Guardar Solicitud' }}
+                        <button type="submit" class="btn btn-primary px-4" wire:loading.attr="disabled" wire:target="save,formulario_documento_file">
+                            <i class="fas fa-save me-2"></i><span wire:loading.remove wire:target="save">{{ $isEdit ? 'Actualizar Solicitud' : 'Guardar Solicitud' }}</span><span wire:loading wire:target="save">Guardando...</span>
                         </button>
                         <button type="button" wire:click="resetForm" class="btn btn-secondary px-4">Volver al listado</button>
                     </div>

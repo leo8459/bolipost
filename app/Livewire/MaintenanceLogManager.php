@@ -89,7 +89,14 @@ class MaintenanceLogManager extends Component
     {
         $query = MaintenanceLog::query()
             ->active()
-            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'maintenanceType'])
+            ->with([
+                'vehicle.brand',
+                'vehicle.vehicleClass',
+                'maintenanceType',
+                'workshops' => fn ($workshopQuery) => $workshopQuery
+                    ->with('workshopCatalog')
+                    ->orderByDesc('id'),
+            ])
             ->orderBy('fecha', 'desc');
 
         $search = trim($this->search);
@@ -121,7 +128,7 @@ class MaintenanceLogManager extends Component
 
         $maintenanceLogs = $this->paginateWithinBounds($query, 10);
         
-        $vehicles = $this->loadAlertVehicles();
+        $vehicles = $this->loadSelectableVehicles();
         $maintenanceTypes = $this->loadMaintenanceTypes();
         $pendingWorkshopRecords = Workshop::query()
             ->with(['vehicle.brand', 'workshopCatalog', 'maintenanceAlert.maintenanceType', 'maintenanceAppointment.tipoMantenimiento', 'maintenanceLog'])
@@ -137,6 +144,9 @@ class MaintenanceLogManager extends Component
             'maintenanceTypes' => $maintenanceTypes,
             'selectedVehicle' => $this->vehicle_id
                 ? Vehicle::query()->with(['brand', 'vehicleClass'])->find((int) $this->vehicle_id)
+                : null,
+            'selectedMaintenanceType' => $this->maintenance_type_id
+                ? $maintenanceTypes->firstWhere('id', (int) $this->maintenance_type_id)
                 : null,
             'pendingWorkshopRecords' => $pendingWorkshopRecords,
         ]);
@@ -211,9 +221,10 @@ class MaintenanceLogManager extends Component
         $currentKm = $vehicle?->kilometraje_actual ?? $vehicle?->kilometraje_inicial ?? $vehicle?->kilometraje;
         if ($currentKm !== null && $this->kilometraje !== null) {
             $isFromAlert = (int) ($this->from_alert_id ?? 0) > 0;
+            $usesKmPlanning = $this->typeUsesKilometrajePlanning($selectedType);
             $isInvalid = $isFromAlert
                 ? ((float) $this->kilometraje < (float) $currentKm)
-                : ($this->tacometro_danado_vehiculo
+                : ((!$usesKmPlanning || $this->tacometro_danado_vehiculo)
                     ? ((float) $this->kilometraje < (float) $currentKm)
                     : ((float) $this->kilometraje <= (float) $currentKm));
 
@@ -226,13 +237,6 @@ class MaintenanceLogManager extends Component
                 );
                 return;
             }
-        }
-
-        $canUseExistingRecordFlow = $this->isEdit && (int) ($this->editingMaintenanceId ?? 0) > 0;
-
-        if (!$canUseExistingRecordFlow && !$this->hasAlertLinkedType() && !$this->hasWorkshopLinkedType()) {
-            $this->addError('maintenance_type_id', 'El mantenimiento debe existir como alerta para el vehiculo seleccionado.');
-            return;
         }
 
         $this->tipo = (string) $selectedType->nombre;
@@ -268,11 +272,15 @@ class MaintenanceLogManager extends Component
 
             $targetByInterval = $intervalo ? ((float) $this->kilometraje + (float) $intervalo) : null;
             $manualFinalKm = $this->intervalo_km_fh !== null ? (float) $this->intervalo_km_fh : null;
-            $targetKm = ($this->manual_proximo_km && $manualFinalKm !== null) ? $manualFinalKm : $targetByInterval;
+            $targetKm = null;
 
-            if ($targetKm !== null && (float) $targetKm <= (float) $this->kilometraje) {
-                $this->addError('intervalo_km_fh', 'El kilometraje final debe ser mayor al kilometraje registrado.');
-                return;
+            if ($this->typeUsesKilometrajePlanning($selectedType)) {
+                $targetKm = ($this->manual_proximo_km && $manualFinalKm !== null) ? $manualFinalKm : $targetByInterval;
+
+                if ($targetKm !== null && (float) $targetKm <= (float) $this->kilometraje) {
+                    $this->addError('intervalo_km_fh', 'El kilometraje final debe ser mayor al kilometraje registrado.');
+                    return;
+                }
             }
 
             $data['proximo_kilometraje'] = $targetKm;
@@ -382,6 +390,7 @@ class MaintenanceLogManager extends Component
     {
         $this->resetForm();
         $this->showForm = true;
+        $this->fecha = now()->toDateString();
     }
 
     public function cancelForm()
@@ -418,6 +427,7 @@ class MaintenanceLogManager extends Component
                 $this->cada_km = null;
                 $this->intervalo_km_init = null;
                 $this->intervalo_km_fh = null;
+                $this->km_alerta_previa = 15;
             }
         }
     }
@@ -463,11 +473,13 @@ class MaintenanceLogManager extends Component
 
     private function loadMaintenanceTypes()
     {
-        if (!$this->vehicle_id) {
-            return collect();
-        }
-
         $select = ['id', 'nombre', 'descripcion'];
+        if (Schema::hasColumn('maintenance_types', 'categoria')) {
+            $select[] = 'categoria';
+        }
+        if (Schema::hasColumn('maintenance_types', 'es_preventivo')) {
+            $select[] = 'es_preventivo';
+        }
 
         if (Schema::hasColumn('maintenance_types', 'intervalo_km_init')) {
             $select[] = 'intervalo_km_init';
@@ -486,82 +498,96 @@ class MaintenanceLogManager extends Component
         }
 
         $query = MaintenanceType::query();
-        $alertTypeIds = MaintenanceAlert::query()
-            ->where('vehicle_id', (int) $this->vehicle_id)
-            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
-            ->whereNotNull('maintenance_type_id')
-            ->pluck('maintenance_type_id')
-            ->unique()
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->toArray();
-        $appointmentTypeIds = MaintenanceAlert::query()
-            ->where('vehicle_id', (int) $this->vehicle_id)
-            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
-            ->whereNull('maintenance_type_id')
-            ->whereNotNull('maintenance_appointment_id')
-            ->with(['maintenanceAppointment:id,tipo_mantenimiento_id'])
-            ->get()
-            ->pluck('maintenanceAppointment.tipo_mantenimiento_id')
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->toArray();
-        $allowedTypeIds = collect(array_merge($alertTypeIds, $appointmentTypeIds))
-            ->unique()
-            ->values()
-            ->all();
-        if (!empty($allowedTypeIds)) {
-            $query->whereIn('id', $allowedTypeIds);
-        } elseif (($this->isEdit || $this->from_alert_id || $this->from_workshop_id) && $this->maintenance_type_id) {
-            $query->whereKey((int) $this->maintenance_type_id);
+        if ($this->isEdit && $this->maintenance_type_id) {
+            $query->where(function ($typeQuery) {
+                $typeQuery->whereKey((int) $this->maintenance_type_id)
+                    ->orWhere(function ($activeQuery) {
+                        $activeQuery->active();
+                    });
+            });
         } else {
+            $query->active();
+        }
+
+        if (!$this->vehicle_id) {
             return collect();
         }
 
         $vehicle = Vehicle::with('vehicleClass')->find((int) $this->vehicle_id);
-        $query->applicableToVehicle($vehicle);
-
-        return $query->orderBy('nombre')->get($select);
-    }
-
-    private function loadAlertVehicles()
-    {
-        $vehicleIds = MaintenanceAlert::query()
-            ->where('status', MaintenanceAlert::STATUS_ACTIVE)
-            ->whereNotNull('vehicle_id')
-            ->pluck('vehicle_id')
-            ->unique()
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->toArray();
-
-        if ($this->vehicle_id && !in_array((int) $this->vehicle_id, $vehicleIds, true)) {
-            $vehicleIds[] = (int) $this->vehicle_id;
-        }
-
-        $workshopVehicleIds = Workshop::query()
-            ->where('estado', Workshop::STATUS_DELIVERED)
-            ->pluck('vehicle_id')
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->toArray();
-
-        $vehicleIds = collect(array_merge($vehicleIds, $workshopVehicleIds))
-            ->unique()
-            ->values()
-            ->all();
-
-        if (empty($vehicleIds)) {
+        if (!$vehicle) {
             return collect();
         }
 
+        $scopedQuery = clone $query;
+        $scopedQuery->applicableToVehicle($vehicle);
+
+        $linkedTypeIds = collect();
+        if ($this->from_alert_id || $this->from_workshop_id) {
+            $alertTypeIds = MaintenanceAlert::query()
+                ->where('vehicle_id', (int) $this->vehicle_id)
+                ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+                ->whereNotNull('maintenance_type_id')
+                ->pluck('maintenance_type_id')
+                ->unique()
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->toArray();
+            $appointmentTypeIds = MaintenanceAlert::query()
+                ->where('vehicle_id', (int) $this->vehicle_id)
+                ->where('status', MaintenanceAlert::STATUS_ACTIVE)
+                ->whereNull('maintenance_type_id')
+                ->whereNotNull('maintenance_appointment_id')
+                ->with(['maintenanceAppointment:id,tipo_mantenimiento_id'])
+                ->get()
+                ->pluck('maintenanceAppointment.tipo_mantenimiento_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->toArray();
+            $linkedTypeIds = collect(array_merge($alertTypeIds, $appointmentTypeIds))
+                ->unique()
+                ->values();
+        }
+
+        if ($linkedTypeIds->isNotEmpty()) {
+            $scopedQuery->where(function ($typeQuery) use ($linkedTypeIds) {
+                $typeQuery->whereIn('id', $linkedTypeIds->all());
+            });
+        } elseif (($this->isEdit || $this->from_alert_id || $this->from_workshop_id) && $this->maintenance_type_id) {
+            $scopedQuery->whereKey((int) $this->maintenance_type_id);
+        }
+
+        $types = $scopedQuery->orderBy('nombre')->get($select);
+        if ($types->isNotEmpty()) {
+            return $types;
+        }
+
+        $vehicleFormType = trim((string) ($vehicle->maintenance_form_type ?: $vehicle->vehicleClass?->maintenance_form_type ?: ''));
+        if ($vehicleFormType !== '' && Schema::hasColumn('maintenance_types', 'maintenance_form_type')) {
+            $fallbackQuery = clone $query;
+            $fallbackQuery->where(function ($typeQuery) use ($vehicleFormType) {
+                $typeQuery->whereNull('maintenance_form_type')
+                    ->orWhere('maintenance_form_type', $vehicleFormType);
+            });
+
+            if ($linkedTypeIds->isNotEmpty()) {
+                $fallbackQuery->whereIn('id', $linkedTypeIds->all());
+            }
+
+            $fallbackTypes = $fallbackQuery->orderBy('nombre')->get($select);
+            if ($fallbackTypes->isNotEmpty()) {
+                return $fallbackTypes;
+            }
+        }
+
+        return collect();
+    }
+
+    private function loadSelectableVehicles()
+    {
         return Vehicle::query()
             ->where('activo', true)
-            ->whereIn('id', $vehicleIds)
             ->orderBy('placa')
             ->get(['id', 'placa']);
     }
@@ -674,6 +700,15 @@ class MaintenanceLogManager extends Component
 
     private function syncTypeIntervals(MaintenanceType $type): void
     {
+        if (!$this->typeUsesKilometrajePlanning($type)) {
+            $this->cada_km = null;
+            $this->intervalo_km_init = null;
+            $this->intervalo_km_fh = null;
+            $this->manual_proximo_km = false;
+            $this->km_alerta_previa = 0;
+            return;
+        }
+
         $init = null;
         $fin = null;
         $cadaKm = null;
@@ -699,6 +734,15 @@ class MaintenanceLogManager extends Component
         $this->intervalo_km_fh = $fin ?? $this->cada_km;
         $this->manual_proximo_km = false;
         $this->km_alerta_previa = $type->km_alerta_previa !== null ? (int) $type->km_alerta_previa : 15;
+    }
+
+    private function typeUsesKilometrajePlanning(MaintenanceType $type): bool
+    {
+        if (method_exists($type, 'isKmBased')) {
+            return $type->isKmBased();
+        }
+
+        return (bool) ($type->es_preventivo ?? false);
     }
 
     private function updateVehicleKilometraje(?int $vehicleId, ?float $kmActual): string

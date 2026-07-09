@@ -5,6 +5,8 @@ namespace App\Livewire;
 use App\Models\MaintenanceAlert;
 use App\Models\MaintenanceAlertUserRead;
 use App\Models\MaintenanceAppointment;
+use App\Models\MaintenanceType;
+use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
 use App\Models\Workshop;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -637,13 +639,21 @@ class MaintenanceAlertManager extends Component
 
         $approvedAppointments = MaintenanceAppointment::query()
             ->active()
-            ->with(['vehicle:id,placa', 'tipoMantenimiento:id,nombre'])
+            ->with([
+                'vehicle:id,placa,kilometraje_actual,kilometraje_inicial,kilometraje',
+                'tipoMantenimiento:id,nombre,cada_km,intervalo_km,intervalo_km_init,intervalo_km_fh',
+            ])
             ->where('estado', MaintenanceAppointment::STATUS_APPROVED)
             ->get();
 
         foreach ($approvedAppointments as $appointment) {
             $typeName = (string) ($appointment->tipoMantenimiento?->nombre ?? 'mantenimiento');
             $plate = (string) ($appointment->vehicle?->placa ?? 'N/A');
+            $currentKm = $this->resolveVehicleCurrentKilometraje($appointment->vehicle);
+            $requestedSnapshot = $this->buildRequestedAlertKilometrageSnapshot(
+                $appointment->vehicle,
+                $appointment->tipoMantenimiento
+            );
 
             MaintenanceAlert::query()->updateOrCreate(
                 [
@@ -658,6 +668,9 @@ class MaintenanceAlertManager extends Component
                     'status' => MaintenanceAlert::STATUS_ACTIVE,
                     'fecha_resolucion' => null,
                     'usuario_id' => null,
+                    'kilometraje_actual' => $currentKm,
+                    'kilometraje_objetivo' => $requestedSnapshot['target_km'],
+                    'faltante_km' => $requestedSnapshot['remaining_km'],
                 ]
             );
         }
@@ -697,6 +710,51 @@ class MaintenanceAlertManager extends Component
                 'usuario_id' => null,
             ]);
         }
+    }
+
+    private function resolveVehicleCurrentKilometraje(?Vehicle $vehicle): ?float
+    {
+        if (!$vehicle) {
+            return null;
+        }
+
+        $current = $vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje;
+
+        return is_numeric($current) ? (float) $current : null;
+    }
+
+    /**
+     * @return array{target_km: ?float, remaining_km: ?float}
+     */
+    private function buildRequestedAlertKilometrageSnapshot(?Vehicle $vehicle, ?MaintenanceType $type): array
+    {
+        $currentKm = $this->resolveVehicleCurrentKilometraje($vehicle);
+        if ($currentKm === null || !$type) {
+            return ['target_km' => null, 'remaining_km' => null];
+        }
+
+        $interval = null;
+        if ($type->cada_km !== null) {
+            $interval = (float) $type->cada_km;
+        } elseif ($type->intervalo_km_init !== null) {
+            $interval = (float) $type->intervalo_km_init;
+        } elseif ($type->intervalo_km !== null) {
+            $interval = (float) $type->intervalo_km;
+        } elseif ($type->intervalo_km_fh !== null) {
+            $interval = (float) $type->intervalo_km_fh;
+        }
+
+        if ($interval !== null && $interval > 0) {
+            return [
+                'target_km' => $currentKm + $interval,
+                'remaining_km' => $interval,
+            ];
+        }
+
+        return [
+            'target_km' => $currentKm,
+            'remaining_km' => 0.0,
+        ];
     }
 
 }

@@ -362,6 +362,11 @@ class WorkshopManager extends Component
         $this->resetPage('trackingPage');
     }
 
+    public function showCatalogTable(): void
+    {
+        $this->tableMode = 'talleres';
+    }
+
     private function paginateWithinBounds($query, int $perPage, string $pageName = 'page')
     {
         $total = (clone $query)->count();

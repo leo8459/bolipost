@@ -15,6 +15,7 @@ use App\Models\VehicleLogStageEvent;
 use App\Models\VehicleOperationAlert;
 use App\Services\FuelInvoiceDocumentService;
 use App\Services\MaintenanceAlertService;
+use App\Support\FuelProductGuard;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -557,6 +558,9 @@ class FuelLogManager extends Component
 
         $this->validate();
         if (!$this->validateTripAndKmRules()) {
+            return;
+        }
+        if (!$this->ensureSiatFuelProductIsGasoline()) {
             return;
         }
         $this->numero_factura = trim($this->numero_factura);
@@ -1663,6 +1667,9 @@ class FuelLogManager extends Component
             }
 
             $this->loadInvoicePreviewFromSiatResponse($factura, 'Verificado');
+            if (!$this->ensureSiatFuelProductIsGasoline()) {
+                return ['ok' => false, 'message' => $this->getErrorBag()->first('qr_url') ?: 'La factura SIAT no corresponde a gasolina.'];
+            }
 
             $message = 'Factura consultada correctamente desde SIAT. El registro quedara como Verificado.';
             session()->flash('message', $message);
@@ -1902,6 +1909,33 @@ class FuelLogManager extends Component
         }
 
         return 'Falta verificar';
+    }
+
+    private function ensureSiatFuelProductIsGasoline(): bool
+    {
+        $isSiatInvoice = $this->isSiatQrPayload($this->qr_url)
+            || $this->isSiatQrPayload($this->scannedInvoiceSourceUrl)
+            || (($this->scannedInvoicePreview['estado'] ?? '') === 'Verificado');
+
+        if (!$isSiatInvoice) {
+            return true;
+        }
+
+        $details = [[
+            'codigo' => (string) ($this->scannedInvoicePreview['producto_codigo'] ?? ''),
+            'descripcion' => (string) ($this->scannedInvoicePreview['producto_descripcion'] ?? ''),
+        ]];
+        $validation = FuelProductGuard::validateSiatDetails($details);
+
+        if ($validation['valid'] ?? false) {
+            return true;
+        }
+
+        $message = (string) ($validation['message'] ?? 'La factura SIAT no corresponde a gasolina.');
+        $this->addError('qr_url', $message);
+        session()->flash('error', $message);
+
+        return false;
     }
 
     private function isSiatQrPayload(?string $payload): bool

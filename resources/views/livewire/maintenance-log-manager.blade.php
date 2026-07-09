@@ -123,9 +123,22 @@
                                 </div>
                             </div>
                         @endif
+                        @if($selectedMaintenanceType)
+                            <div class="col-12">
+                                <div class="alert {{ $selectedMaintenanceType->categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE ? 'alert-warning' : 'alert-info' }} py-2 mb-0">
+                                    <strong>Categoria del mantenimiento:</strong>
+                                    {{ $selectedMaintenanceType->categoria_label }}
+                                    @if($selectedMaintenanceType->categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)
+                                        <span class="d-block small mt-1">Este registro es correctivo y no programa el siguiente mantenimiento por kilometraje.</span>
+                                    @else
+                                        <span class="d-block small mt-1">Este registro utiliza el ciclo de kilometraje definido en el tipo seleccionado.</span>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
                         <div class="col-12 col-md-4">
                             <label for="vehicle_id" class="form-label fw-bold">Vehiculo <span class="text-danger">*</span></label>
-                            <select id="vehicle_id" wire:model="vehicle_id" class="form-select bp-select-like-vehicle @error('vehicle_id') is-invalid @enderror" @disabled((int) ($from_workshop_id ?? 0) > 0) required>
+                            <select id="vehicle_id" wire:model.live="vehicle_id" class="form-select bp-select-like-vehicle @error('vehicle_id') is-invalid @enderror" @disabled((int) ($from_workshop_id ?? 0) > 0) required>
                                 <option value="">Seleccionar vehiculo</option>
                                 @foreach ($vehicles as $vehicle)
                                     <option value="{{ $vehicle->id }}">{{ $vehicle->placa }}</option>
@@ -158,8 +171,14 @@
                         </div>
                         <div class="col-12 col-md-3">
                             <label class="form-label fw-bold">Intervalo KM Fin</label>
-                            <input type="number" class="form-control" wire:model="intervalo_km_fh">
-                            <div class="form-text">Puede ajustar este kilometraje final manualmente.</div>
+                            <input type="number" class="form-control" wire:model="intervalo_km_fh" @disabled($selectedMaintenanceType && $selectedMaintenanceType->categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)>
+                            <div class="form-text">
+                                @if($selectedMaintenanceType && $selectedMaintenanceType->categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)
+                                    No aplica para mantenimientos correctivos o por accidente.
+                                @else
+                                    Puede ajustar este kilometraje final manualmente.
+                                @endif
+                            </div>
                         </div>
                         <div class="col-12 col-md-3">
                             <label class="form-label fw-bold">Alerta Previa (KM)</label>
@@ -178,6 +197,8 @@
                                     Si el tacometro esta dañado, puede conservar el ultimo kilometraje valido.
                                 @elseif((int) ($from_alert_id ?? 0) > 0)
                                     Debe ser igual o mayor al KM actual del vehiculo.
+                                @elseif($selectedMaintenanceType && $selectedMaintenanceType->categoria === \App\Models\MaintenanceType::CATEGORY_ACCIDENTE)
+                                    Puede ser igual o mayor al KM actual del vehiculo.
                                 @else
                                     Debe ser mayor al KM actual del vehiculo.
                                 @endif
@@ -363,6 +384,11 @@
                                         <td class="text-end">BOB{{ number_format($log->costo, 2) }}</td>
                                         <td class="text-center">
                                             <div class="btn-group">
+                                                @if($log->workshops->isNotEmpty())
+                                                    <a href="{{ route('workshops.acta', ['workshop' => $log->workshops->first()->id]) }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success" title="Generar acta de conformidad">
+                                                        <i class="fas fa-file-signature"></i>
+                                                    </a>
+                                                @endif
                                                 <button wire:click="edit({{ $log->id }})" class="btn btn-sm btn-outline-warning">
                                                     <i class="fas fa-edit"></i>
                                                 </button>

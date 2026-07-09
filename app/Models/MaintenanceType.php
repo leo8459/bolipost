@@ -12,12 +12,16 @@ class MaintenanceType extends Model
 {
     use HasFactory;
 
+    public const CATEGORY_PREVENTIVO_KM = 'preventivo_km';
+    public const CATEGORY_ACCIDENTE = 'accidente';
+
     protected $table = 'maintenance_types';
 
     protected $fillable = [
         'nombre',
         'vehicle_class_id',
         'maintenance_form_type',
+        'categoria',
         'es_preventivo',
         'cada_km',
         'intervalo_km',
@@ -38,6 +42,31 @@ class MaintenanceType extends Model
         'km_alerta_previa' => 'integer',
         'activo' => 'boolean',
     ];
+
+    public function getCategoriaAttribute($value): string
+    {
+        $raw = trim((string) $value);
+        if ($raw !== '') {
+            return $raw;
+        }
+
+        return (bool) ($this->attributes['es_preventivo'] ?? false)
+            ? self::CATEGORY_PREVENTIVO_KM
+            : self::CATEGORY_ACCIDENTE;
+    }
+
+    public function getCategoriaLabelAttribute(): string
+    {
+        return match ($this->categoria) {
+            self::CATEGORY_ACCIDENTE => 'Accidente / Correctivo',
+            default => 'Programado por KM',
+        };
+    }
+
+    public function isKmBased(): bool
+    {
+        return $this->categoria === self::CATEGORY_PREVENTIVO_KM;
+    }
 
     public function scopeActive(Builder $query): Builder
     {

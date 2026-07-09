@@ -572,6 +572,8 @@ class AuthTokenController extends Controller
             'placa' => $vehicle->placa,
             'marca' => $vehicle->marca,
             'modelo' => $vehicle->modelo,
+            'chasis' => $vehicle->chasis,
+            'motor' => $vehicle->motor,
             'tipo_combustible' => $vehicle->tipo_combustible,
             'anio' => $vehicle->anio,
             'capacidad_tanque' => $vehicle->capacidad_tanque,

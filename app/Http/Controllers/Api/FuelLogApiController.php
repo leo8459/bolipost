@@ -14,6 +14,7 @@ use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
 use App\Models\VehicleLog;
 use App\Services\FuelInvoiceDocumentService;
+use App\Support\FuelProductGuard;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Cache;
@@ -108,6 +109,7 @@ class FuelLogApiController extends Controller
         ]);
 
         $payload = $this->enrichPayloadFromQr($payload);
+        $this->ensureSiatFuelProductIsGasoline($payload);
         $payload['station'] = (string) ($payload['station'] ?? $payload['station_razon_social'] ?? 'ESTACION NO IDENTIFICADA');
         $payload['date_time'] = (string) ($payload['date_time'] ?? now()->format('Y-m-d H:i:s'));
         $payload['unit_price'] = is_numeric($payload['unit_price'] ?? null) ? (float) $payload['unit_price'] : null;
@@ -1229,6 +1231,20 @@ class FuelLogApiController extends Controller
         $firstDetail = is_array($details) && isset($details[0]) && is_array($details[0])
             ? $details[0]
             : [];
+        $productCode = (string) (
+            $rawData['producto_codigo']
+            ?? $rawData['product_code']
+            ?? $firstDetail['codigo']
+            ?? $firstDetail['codigoProducto']
+            ?? ''
+        );
+        $productDescription = (string) (
+            $rawData['producto_descripcion']
+            ?? $rawData['product_description']
+            ?? $firstDetail['descripcion']
+            ?? $firstDetail['descripcionProducto']
+            ?? ''
+        );
 
         $gasStation = is_array($rawData['gas_station'] ?? null)
             ? $rawData['gas_station']
@@ -1320,8 +1336,62 @@ class FuelLogApiController extends Controller
         if ($customerName !== '') {
             $payload['customer_name'] = $customerName;
         }
+        if ($productCode !== '') {
+            $payload['product_code'] = $productCode;
+        }
+        if ($productDescription !== '') {
+            $payload['product_description'] = $productDescription;
+        }
+        $payload['scraped_payload'] = $rawData;
 
         return $payload;
+    }
+
+    private function ensureSiatFuelProductIsGasoline(array $payload): void
+    {
+        $qrPayload = (string) ($payload['qr_payload'] ?? '');
+        $scrapedPayload = is_array($payload['scraped_payload'] ?? null) ? $payload['scraped_payload'] : [];
+        $hasSiatSource = $this->isSiatQrPayload($qrPayload)
+            || $this->containsSiatProductData($scrapedPayload);
+
+        if (!$hasSiatSource) {
+            return;
+        }
+
+        $details = $this->extractFuelProductDetails($payload, $scrapedPayload);
+        $validation = FuelProductGuard::validateSiatDetails($details);
+
+        if (!($validation['valid'] ?? false)) {
+            throw ValidationException::withMessages([
+                'qr_payload' => (string) ($validation['message'] ?? 'La factura SIAT no corresponde a gasolina.'),
+            ]);
+        }
+    }
+
+    private function extractFuelProductDetails(array $payload, array $scrapedPayload): array
+    {
+        $details = $scrapedPayload['details']
+            ?? $scrapedPayload['detalles']
+            ?? $scrapedPayload['listaDetalle']
+            ?? [];
+
+        if (is_array($details) && !empty($details)) {
+            return array_values(array_filter($details, fn ($detail) => is_array($detail)));
+        }
+
+        return [[
+            'codigo' => (string) ($payload['product_code'] ?? $scrapedPayload['producto_codigo'] ?? ''),
+            'descripcion' => (string) ($payload['product_description'] ?? $scrapedPayload['producto_descripcion'] ?? ''),
+        ]];
+    }
+
+    private function containsSiatProductData(array $scrapedPayload): bool
+    {
+        return !empty($scrapedPayload['producto_codigo'])
+            || !empty($scrapedPayload['producto_descripcion'])
+            || !empty($scrapedPayload['details'])
+            || !empty($scrapedPayload['listaDetalle'])
+            || !empty($scrapedPayload['detalles']);
     }
 
     private function resolveOrCreateGasStation(array $payload): GasStation
