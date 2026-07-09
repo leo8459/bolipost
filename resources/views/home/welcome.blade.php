@@ -39,6 +39,7 @@
                             o entrar directamente a los modulos que mas uses en tu flujo diario.
                         </p>
                     </div>
+                    @if($isEmpresaUser)
                     <div class="col-lg-5">
                         <div class="welcome-video-copy">
                             <h3 class="welcome-video-title mb-2">Video guia del modulo</h3>
@@ -60,14 +61,16 @@
                                 Manual de Usuario
                             </a>
                         </div>
-                        @unless($isEmpresaUser)
+                    </div>
+                    @else
+                    <div class="col-lg-5">
                         <div class="welcome-actions">
                             <a href="{{ route('dashboard') }}" class="btn btn-primary btn-block mb-2">Abrir dashboard</a>
                             <a href="{{ route('carteros.distribucion') }}" class="btn btn-outline-secondary btn-block mb-2">Ir a distribucion</a>
                             <a href="{{ route('bitacoras.create') }}" class="btn btn-outline-secondary btn-block">Registrar bitacora</a>
                         </div>
-                        @endunless
                     </div>
+                    @endif
                 </div>
             </div>
         </div>
