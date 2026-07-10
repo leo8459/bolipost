@@ -112,6 +112,7 @@
     $facturacionFeedback = session('facturacion_feedback');
     $facturacionDownloadPdf = session('facturacion_download_pdf');
     $facturacionQrData = session('facturacion_qr_data');
+    $facturacionQrForceOpen = session('facturacion_qr_force_open');
     $facturacionFeedbackAction = is_array($facturacionFeedback) ? (string) ($facturacionFeedback['action'] ?? '') : '';
     $isCajaShortcutFeedback = in_array($facturacionFeedbackAction, ['caja_abrir', 'caja_cerrar'], true);
     $shouldRenderShortcutFeedback = is_array($facturacionFeedback) && !$isCajaShortcutFeedback;
@@ -123,6 +124,11 @@
     $lastEmissionReason = (string) ($resultadoEmision['razon'] ?? '');
     $lastEmissionAttempts = (int) ($resultadoEmision['_meta']['intentos'] ?? 0);
     $hasActiveFacturacionItems = $facturacionItems->isNotEmpty();
+    $visibleInvoiceModeCount = collect([
+        $showFacturaElectronicaButton,
+        $showQrFacturaButton,
+        $showQrSoloButton,
+    ])->filter()->count();
     $draftEstado = strtolower(trim((string) ($activeFacturacionCart?->estado ?? 'borrador')));
     $draftEstadoPago = strtolower(trim((string) ($activeFacturacionCart?->estado_pago ?? ($activeInvoiceChannel === 'qr' ? 'pendiente' : 'pagado'))));
     $draftEstadoEmision = strtoupper(trim((string) ($activeFacturacionCart?->estado_emision ?? '')));
@@ -332,7 +338,7 @@
                 <div class="global-shortcut-selector-block">
                     <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Emision</span>
-                        <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel" role="tablist" aria-label="Tipo de salida de factura">
+                        <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel {{ $visibleInvoiceModeCount <= 1 ? 'global-shortcut-choice-row--single' : ($visibleInvoiceModeCount === 2 ? 'global-shortcut-choice-row--double' : 'global-shortcut-choice-row--triple') }}" role="tablist" aria-label="Tipo de salida de factura">
                             @if($showFacturaElectronicaButton)
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
@@ -2110,6 +2116,9 @@
         .global-shortcut-choice-row--single {
             grid-template-columns: 1fr;
         }
+        .global-shortcut-choice-row--double {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
         .global-shortcut-choice-row--triple {
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
@@ -2119,7 +2128,14 @@
             width: 100%;
             max-width: 100%;
         }
+        .global-shortcut-choice-row--invoice-channel.global-shortcut-choice-row--double {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .global-shortcut-choice-row--invoice-channel.global-shortcut-choice-row--single {
+            grid-template-columns: 1fr;
+        }
         .global-shortcut-choice-btn {
+            width: 100%;
             min-height: 64px;
             border-radius: 16px;
             border: 1px solid #d6e2f2;
@@ -3376,6 +3392,7 @@
             const facturacionFlashFeedback = @json($facturacionFeedback);
             const facturacionDownloadPdf = @json($facturacionDownloadPdf);
             const facturacionQrData = @json($facturacionQrData);
+            const facturacionQrForceOpen = @json($facturacionQrForceOpen);
             const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
             const facturacionConsultarRoute = @json(route('facturacion.cart.consultar'));
             const facturacionInitialFeedbackKey = facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object'
@@ -5248,12 +5265,19 @@
                 }
             };
 
-            const openFacturacionQrViewer = () => {
+            const openFacturacionQrViewer = (force = false) => {
                 if (!facturacionQrViewer) {
                     return;
                 }
-                if (isFacturacionQrViewerDismissed(facturacionCurrentQrKey)) {
+                if (!force && isFacturacionQrViewerDismissed(facturacionCurrentQrKey)) {
                     return;
+                }
+                if (force && facturacionCurrentQrKey !== '') {
+                    try {
+                        window.sessionStorage.removeItem(FACTURACION_QR_VIEWER_DISMISSED_PREFIX + facturacionCurrentQrKey);
+                    } catch (error) {
+                        // Ignora errores de storage.
+                    }
                 }
                 facturacionQrViewer.classList.add('is-open');
                 facturacionQrViewer.setAttribute('aria-hidden', 'false');
@@ -5631,9 +5655,10 @@
                 facturacionQrData
                 && typeof facturacionQrData === 'object'
                 && (facturacionQrData.image_data || facturacionQrData.transaction_id)
-                && !isFacturacionQrViewerDismissed(facturacionInitialQrKey)
+                && (String(facturacionQrForceOpen || '') === '1' || !isFacturacionQrViewerDismissed(facturacionInitialQrKey))
             ) {
-                openFacturacionQrViewer();
+                updateFacturacionQrViewer(facturacionQrData, null);
+                openFacturacionQrViewer(String(facturacionQrForceOpen || '') === '1');
             }
 
             if (facturacionQrViewerClose) {

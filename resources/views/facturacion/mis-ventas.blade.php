@@ -396,13 +396,13 @@
 
                                 if ($isQrPayment) {
                                     if ($estadoPago === 'pendiente') {
-                                        $consultActionLabel = 'Actualizar pago';
+                                        $consultActionLabel = 'Ver QR';
                                     } elseif ($estadoPago === 'cancelado') {
-                                        $consultActionLabel = 'Revisar pago';
+                                        $consultActionLabel = 'Ver QR';
                                     } elseif ($facturaEstado === 'FACTURADA') {
                                         $consultActionLabel = 'Consultar';
                                     } elseif (in_array($facturaEstado, ['PENDIENTE', 'NO_APLICA', 'ERROR', 'RECHAZADA'], true)) {
-                                        $consultActionLabel = 'Actualizar factura';
+                                        $consultActionLabel = 'Facturar venta';
                                     } else {
                                         $consultActionLabel = 'Consultar';
                                     }
@@ -532,17 +532,22 @@
                                 </td>
                                 <td class="text-right">
                                     <div class="ventas-table__amount">Bs {{ number_format($totalCart, 2) }}</div>
+                                    @if($isQrPayment)
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            Origen de cobro: QR
+                                        </div>
+                                    @endif
                                     @if($isQrFacturado)
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">QR facturado fuera de caja</div>
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    <div class="d-flex flex-wrap justify-content-center">
+                                    <div class="ventas-actions-grid">
                                         @if($showConsultAction && ($pageContext['scope'] ?? 'own') !== 'branch')
                                             <form
                                                 method="POST"
-                                                action="{{ route('facturacion.cart.consultar') }}"
-                                                class="mr-2 mb-2"
+                                                action="{{ $isQrPayment && in_array($estadoPago, ['pendiente', 'cancelado'], true) ? route('facturacion.cart.ver-qr') : route('facturacion.cart.consultar') }}"
+                                                class="ventas-actions-grid__item"
                                                 @if($facturaEstado === 'PENDIENTE' || $isQrPayment)
                                                     data-pending-consult="true"
                                                 @endif
@@ -550,15 +555,17 @@
                                                 @csrf
                                                 <input type="hidden" name="cart_id" value="{{ $cartId }}">
                                                 <input type="hidden" name="codigo_seguimiento" value="{{ $referenciaConsulta }}">
-                                                <button type="submit" class="btn btn-xs btn-outline-secondary">
+                                                @if($isQrPayment && in_array($facturaEstado, ['PENDIENTE', 'NO_APLICA', 'ERROR', 'RECHAZADA'], true))
+                                                    <input type="hidden" name="auto_emit_invoice" value="1">
+                                                @endif
+                                                <button type="submit" class="btn btn-xs btn-outline-secondary btn-block">
                                                     {{ $consultActionLabel }}
                                                 </button>
                                             </form>
                                         @endif
                                         @if($pdfUrl !== '')
-                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary mr-2 mb-2">PDF original</a>
+                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ventas-actions-grid__item">PDF original</a>
                                         @endif
-                                        <a href="{{ route('mis-ventas.ticket', ['cart' => $cartId, 'source_user_id' => data_get($cart, 'origen_usuario_id'), 'scope' => $pageContext['scope']]) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-dark mb-2">Ticket</a>
                                     </div>
                                 </td>
                             </tr>
@@ -1026,6 +1033,26 @@
             font-size: 1.05rem;
         }
 
+        .ventas-actions-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .45rem;
+            align-items: stretch;
+            width: 100%;
+            max-width: 220px;
+            margin: 0 auto;
+        }
+
+        .ventas-actions-grid__item {
+            width: 100%;
+            margin: 0;
+        }
+
+        .ventas-actions-grid .btn {
+            width: 100%;
+            white-space: nowrap;
+        }
+
         .ventas-branch-cashier-card {
             height: 100%;
             padding: 1rem 1.05rem;
@@ -1421,6 +1448,10 @@
             .ventas-table-footer {
                 flex-direction: column;
                 align-items: stretch;
+            }
+
+            .ventas-actions-grid {
+                max-width: 100%;
             }
         }
     </style>

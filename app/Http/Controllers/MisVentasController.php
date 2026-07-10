@@ -972,6 +972,20 @@ class MisVentasController extends Controller
                 'qr_pendiente' => 'QR pendiente',
                 default => $this->labelCanalEmision($canalEmision),
             };
+            $cobroLabel = match ($sectionKey) {
+                'qr_facturado' => 'QR / NO CAJA',
+                'qr_pagado_pendiente_factura' => 'QR / NO CAJA',
+                'qr_cancelado' => 'QR CANCELADO',
+                'qr_pendiente' => 'QR PENDIENTE',
+                default => 'CAJA',
+            };
+            $cobroDetalle = match ($sectionKey) {
+                'qr_facturado' => 'Cobro QR transformado a factura electronica. No suma a caja.',
+                'qr_pagado_pendiente_factura' => 'Cobro QR confirmado. No suma a caja mientras no sea efectivo.',
+                'qr_cancelado' => 'Intento QR no concretado.',
+                'qr_pendiente' => 'Pendiente de pago QR.',
+                default => 'Cobro registrado en caja.',
+            };
 
             $tipoEnvio = $items
                 ->map(fn ($item) => trim((string) data_get($item, 'nombre_servicio', data_get($item, 'titulo', ''))))
@@ -1025,6 +1039,8 @@ class MisVentasController extends Controller
                 'estado_emision' => $estadoEmision,
                 'section_key' => $sectionKey,
                 'emision_label' => $emisionLabel,
+                'cobro_label' => $cobroLabel,
+                'cobro_detalle' => $cobroDetalle,
                 'contabiliza_en_caja' => $contabilizaEnCaja,
                 'cobrada' => in_array($sectionKey, ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'], true),
                 'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',

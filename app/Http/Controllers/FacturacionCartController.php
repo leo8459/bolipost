@@ -532,6 +532,83 @@ class FacturacionCartController extends Controller
         }
     }
 
+    public function verQr(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeFacturacionAccess($user);
+
+        $cartId = $request->integer('cart_id');
+        if ($cartId <= 0) {
+            $feedback = $this->buildRuntimeFeedback('No se indico la venta QR que deseas visualizar.', 'consultar');
+
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'feedback' => $feedback], 422);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        }
+
+        try {
+            $resultado = $service->consultarEstadoEmision($user, $cartId, false, false);
+            $cart = $resultado['carrito'] ?? null;
+            $respuesta = (array) ($resultado['respuesta'] ?? []);
+
+            if (!$cart) {
+                throw new \RuntimeException('No se encontro la venta QR solicitada.');
+            }
+
+            $qrPayload = $this->extractQrSessionData(
+                $respuesta,
+                (string) ($cart->codigo_orden ?? ''),
+                strtolower(trim((string) ($cart->canal_emision ?? ''))) === 'qr'
+            );
+            $shouldOpenQrViewer = $this->shouldShowQrSessionData($qrPayload);
+
+            $feedback = $this->buildBridgeFeedback($respuesta, 'consultar');
+
+            if ($shouldOpenQrViewer) {
+                $feedback = [
+                    'type' => 'info',
+                    'title' => 'QR actualizado',
+                    'message' => 'Se consulto el estado actual del QR y se mostro para continuar con el cobro.',
+                    'detail' => 'Si el cliente paga mientras este visor sigue abierto, continuaremos automaticamente con la factura electronica.',
+                    'action' => 'ver_qr',
+                ];
+            }
+
+            if ($request->expectsJson()) {
+                $cartPayload = $this->buildCartPayload($cart) ?? [];
+                $cartPayload['auto_emit_invoice'] = $shouldOpenQrViewer ? '1' : '0';
+
+                return response()->json([
+                    'ok' => true,
+                    'feedback' => $feedback,
+                    'qr_data' => $qrPayload,
+                    'cart' => $cartPayload,
+                ]);
+            }
+
+            $redirect = back()->with('facturacion_feedback', $feedback);
+
+            if ($shouldOpenQrViewer) {
+                $redirect
+                    ->with('facturacion_qr_data', $qrPayload)
+                    ->with('facturacion_qr_auto_emit_invoice', '1')
+                    ->with('facturacion_qr_force_open', '1');
+            }
+
+            return $redirect;
+        } catch (\RuntimeException $e) {
+            $feedback = $this->buildRuntimeFeedback($e->getMessage(), 'consultar');
+
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'feedback' => $feedback], 422);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        }
+    }
+
     public function abrirCaja(Request $request, FacturacionCartService $service): RedirectResponse
     {
         $user = $request->user();

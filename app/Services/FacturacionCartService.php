@@ -913,10 +913,13 @@ class FacturacionCartService
             return [$body, $cart];
         }
 
-        sleep($delaySeconds);
+        Log::info('Consulta QR diferida para evitar bloqueo del request.', [
+            'cart_id' => $cart->id ?? null,
+            'codigo_orden' => $cart->codigo_orden ?? null,
+            'delay_seconds' => $delaySeconds,
+        ]);
 
-        $retriedBody = $this->request('POST', '/cart/consultar', $payload);
-        return [$retriedBody, $this->toCart(data_get($retriedBody, 'cart'))];
+        return [$body, $cart];
     }
 
     private function shouldRetryPendingQrConsult(?object $cart, array $respuesta): bool
