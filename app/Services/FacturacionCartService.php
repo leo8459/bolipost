@@ -960,6 +960,7 @@ class FacturacionCartService
         }
 
         $canalEmision = strtolower(trim((string) ($cart->canal_emision ?? '')));
+        $metodoPago = strtolower(trim((string) ($cart->metodo_pago ?? '')));
         $estadoEmision = strtoupper(trim((string) ($cart->estado_emision ?? '')));
         $estadoPago = strtolower(trim((string) (
             $cart->estado_pago
@@ -969,7 +970,8 @@ class FacturacionCartService
             ?? ''
         )));
 
-        if ($canalEmision !== 'qr') {
+        $isQrOrigin = $canalEmision === 'qr' || $metodoPago === 'qr';
+        if (!$isQrOrigin) {
             return false;
         }
 
