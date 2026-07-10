@@ -383,7 +383,9 @@
                                 $itemsCountApi = (int) data_get($cart, 'items_count', 0);
                                 $fechaRaw = data_get($cart, 'emitido_en') ?: data_get($cart, 'created_at');
                                 $fecha = null;
-                                $showConsultAction = $cartId > 0 && ($referenciaConsulta !== '' || $isQrPayment || $facturaEstado === 'PENDIENTE');
+                                $showConsultAction = $cartId > 0
+                                    && !($isQrPayment && $estadoPago === 'cancelado')
+                                    && ($referenciaConsulta !== '' || $isQrPayment || $facturaEstado === 'PENDIENTE');
                                 $consultActionLabel = 'Consultar';
 
                                 if ($fechaRaw instanceof \Carbon\CarbonInterface) {
@@ -398,8 +400,6 @@
 
                                 if ($isQrPayment) {
                                     if ($estadoPago === 'pendiente') {
-                                        $consultActionLabel = 'Ver QR';
-                                    } elseif ($estadoPago === 'cancelado') {
                                         $consultActionLabel = 'Ver QR';
                                     } elseif ($facturaEstado === 'FACTURADA') {
                                         $consultActionLabel = 'Consultar';

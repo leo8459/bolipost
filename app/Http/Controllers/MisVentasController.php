@@ -105,7 +105,7 @@ class MisVentasController extends Controller
             'rows' => $rows,
             'totals' => $totals,
             'scope' => $scope,
-        ])->setPaper('a4', 'portrait');
+        ])->setPaper('a4', 'landscape');
 
         $filename = 'kardex-facturacion-' . now()->format('Ymd-His') . '.pdf';
 
@@ -957,6 +957,12 @@ class MisVentasController extends Controller
                 ?? data_get($respuesta, 'consultaSefe.nroFactura')
                 ?? $cart->id
             ));
+            $cuf = trim((string) (
+                data_get($respuesta, 'factura.cuf')
+                ?? data_get($respuesta, 'cuf')
+                ?? data_get($cart, 'cuf')
+                ?? ''
+            ));
             $fecha = $cart->emitido_en ?? $cart->created_at;
             $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', 'factura_electronica')));
             $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
@@ -1044,6 +1050,7 @@ class MisVentasController extends Controller
                 'contabiliza_en_caja' => $contabilizaEnCaja,
                 'cobrada' => in_array($sectionKey, ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'], true),
                 'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',
+                'cuf' => $cuf,
                 'importe_parcial' => round((float) data_get($cart, 'total', 0), 2),
                 'importe_general' => round((float) data_get($cart, 'total', 0), 2),
             ];
