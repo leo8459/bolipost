@@ -364,7 +364,9 @@
                                 $isQrFacturado = $isQrPayment && $facturaEstado === 'FACTURADA';
 
                                 $canalBadgeLabel = $isQrPayment
-                                    ? ($facturaEstado === 'FACTURADA' ? 'QR -> Factura electronica' : 'Pago QR')
+                                    ? ($estadoPago === 'cancelado'
+                                        ? 'QR ANULADO'
+                                        : ($facturaEstado === 'FACTURADA' ? 'QR -> Factura electronica' : 'Pago QR'))
                                     : ($canalEmision === 'oficial' ? 'Registro oficial' : 'Factura electronica');
                                 $canalBadgeClass = $isQrPayment
                                     ? 'ventas-channel-chip--qr'
@@ -459,7 +461,7 @@
                                     @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pagado')
                                         <span class="ventas-status-chip ventas-status-chip--success">QR PAGADO</span>
                                     @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
-                                        <span class="ventas-status-chip ventas-status-chip--danger">QR NO PAGADO / CANCELADO</span>
+                                        <span class="ventas-status-chip ventas-status-chip--danger">QR ANULADO</span>
                                     @elseif($isQrPayment && $facturaEstado === 'NO_APLICA')
                                         <span class="ventas-status-chip ventas-status-chip--warning">QR PENDIENTE DE PAGO</span>
                                     @elseif($facturaEstado === 'FACTURADA')
@@ -497,8 +499,8 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <span class="ventas-status-chip {{ $estadoCart === 'emitido' ? 'ventas-status-chip--primary' : ($estadoCart === 'pendiente_pago' ? 'ventas-status-chip--warning' : 'ventas-status-chip--muted') }}">
-                                        {{ strtoupper($estadoCart !== '' ? $estadoCart : 'sin estado') }}
+                                    <span class="ventas-status-chip {{ $estadoCart === 'emitido' ? 'ventas-status-chip--primary' : ($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'cancelado' ? 'ventas-status-chip--danger' : ($estadoCart === 'pendiente_pago' ? 'ventas-status-chip--warning' : 'ventas-status-chip--muted')) }}">
+                                        {{ $estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'cancelado' ? 'ANULADO' : strtoupper($estadoCart !== '' ? $estadoCart : 'sin estado') }}
                                     </span>
                                     @if($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'pendiente')
                                         <div class="ventas-table__secondary mt-1">Pago QR pendiente de confirmacion.</div>
