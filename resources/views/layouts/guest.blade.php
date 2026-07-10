@@ -5,13 +5,11 @@
 ])
 
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" translate="no" class="notranslate">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        @include('partials.browser-guard')
-
         <title>{{ config('app.name', 'Laravel') }}</title>
 
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-H41CHNHCL0"></script>
@@ -33,7 +31,7 @@
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="font-sans antialiased text-[#041e42] bg-[radial-gradient(circle_at_top,rgba(254,203,52,0.30),transparent_48%),linear-gradient(180deg,#f8fbff_0%,#eef3fb_100%)] notranslate" translate="no">
+    <body class="font-sans antialiased text-[#041e42] bg-[radial-gradient(circle_at_top,rgba(254,203,52,0.30),transparent_48%),linear-gradient(180deg,#f8fbff_0%,#eef3fb_100%)]">
         <div class="min-h-screen flex flex-col justify-center items-center px-4 py-8">
             @if ($showLogo)
                 <div class="mb-5">

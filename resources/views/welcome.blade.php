@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" translate="no" class="notranslate">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    @include('partials.browser-guard')
     <title>TrackingBO | Plataforma Postal</title>
     <meta name="description"
         content="TrackingBO ofrece rastreo postal y gesti&#xF3;n operativa con enfoque empresarial e institucional.">
@@ -22,7 +21,7 @@
     <link rel="stylesheet" href="{{ asset('css/welcome.css') }}">
 </head>
 
-<body class="notranslate" translate="no">
+<body>
     @include('partials.landing-header')
 
     <main>
