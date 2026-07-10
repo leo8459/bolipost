@@ -1016,7 +1016,7 @@
                                         type="text"
                                         class="form-control search-input"
                                         placeholder="{{ $this->isEnTransitoEms ? 'Buscar por codigo, origen, destino...' : 'Buscar en toda la tabla...' }}"
-                                        wire:model.live="search"
+                                        wire:model.defer="search"
                                         wire:keydown.enter.prevent="searchPaquetes(true)"
                                     >
                                     <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes(true)">Buscar</button>

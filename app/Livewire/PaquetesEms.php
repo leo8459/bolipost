@@ -170,6 +170,9 @@ class PaquetesEms extends Component
     public $showRegionalIntSection = false;
     public $regionalIntRows = [];
 
+    protected array $estadoIdCache = [];
+    protected array $eventoIdCache = [];
+
     public $ciudades = [
         'LA PAZ',
         'SANTA CRUZ',
@@ -5461,6 +5464,8 @@ class PaquetesEms extends Component
         $cn38DispatchSummaryRows = collect();
         $ventanillaResumenRows = collect();
         $paquetesIntAdmision = collect();
+        $origenesTransito = [];
+        $destinosTransito = [];
 
         if ($this->isCreateEms) {
             return view('livewire.paquetes-ems', [
@@ -5505,6 +5510,11 @@ class PaquetesEms extends Component
             if ($this->isAlmacenEms) {
                 $ventanillaResumenRows = $this->buildVentanillaResumenRows();
             }
+
+            if ($this->isEnTransitoEms) {
+                $origenesTransito = $this->transitoFilterOptions('origen');
+                $destinosTransito = $this->transitoFilterOptions('destino');
+            }
         } else {
             $paquetes = $this->basePaquetesQuery()
                 ->simplePaginate($this->normalizePerPage($this->perPagePaquetes));
@@ -5512,8 +5522,8 @@ class PaquetesEms extends Component
             if ($this->isAdmision) {
                 $paquetesIntAdmision = PaqueteInt::query()
                     ->whereRaw('trim(upper(origen)) = trim(upper(?))', [$this->resolveLoggedUserOrigin()])
-                    ->when(trim((string) $this->search) !== '', function ($query) {
-                        $search = trim((string) $this->search);
+                    ->when(trim((string) $this->searchQuery) !== '', function ($query) {
+                        $search = trim((string) $this->searchQuery);
                         $query->where(function ($sub) use ($search) {
                             $sub->where('codigo', 'like', '%' . $search . '%')
                                 ->orWhere('destino', 'like', '%' . $search . '%')
@@ -5533,8 +5543,8 @@ class PaquetesEms extends Component
             'cn38DispatchSummaryRows' => $cn38DispatchSummaryRows,
             'ventanillaResumenRows' => $ventanillaResumenRows,
             'contratosAlmacen' => $contratosAlmacen,
-            'origenesTransito' => $this->transitoFilterOptions('origen'),
-            'destinosTransito' => $this->transitoFilterOptions('destino'),
+            'origenesTransito' => $origenesTransito,
+            'destinosTransito' => $destinosTransito,
             'canEmsAssign' => $this->userCan($this->modeFeaturePermission('assign')),
             'canEmsCreate' => $this->userCan($this->modeFeaturePermission('create')),
             'canEmsAdmisionCreate' => $this->userCan($this->modeFeaturePermission('create', 'admision')),
@@ -5585,6 +5595,10 @@ class PaquetesEms extends Component
             ->unique()
             ->values()
             ->all();
+
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
+            return collect();
+        }
 
         $preview = collect();
 
@@ -5679,6 +5693,10 @@ class PaquetesEms extends Component
             ->unique()
             ->values()
             ->all();
+
+        if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
+            return collect();
+        }
 
         $rows = collect();
 
@@ -6240,6 +6258,10 @@ class PaquetesEms extends Component
             ->values()
             ->all();
 
+        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
+            return collect();
+        }
+
         $rows = collect();
 
         if (!empty($idsEms)) {
@@ -6365,9 +6387,29 @@ class PaquetesEms extends Component
         return $nombreTrim;
     }
 
+    protected function searchMeta(string $value): array
+    {
+        $trimmed = trim($value);
+        $upper = strtoupper($trimmed);
+        $compact = preg_replace('/\s+/', '', $upper) ?? '';
+        $isIdentifier = $compact !== ''
+            && strlen($compact) >= 4
+            && preg_match('/^[A-Z0-9-]+$/', $compact) === 1
+            && !str_contains($trimmed, ' ');
+
+        return [
+            'trimmed' => $trimmed,
+            'upper' => $upper,
+            'compact' => $compact,
+            'is_identifier' => $isIdentifier,
+            'prefix_like' => $trimmed . '%',
+        ];
+    }
+
     protected function almacenUnificadoQuery()
     {
         $q = trim((string) $this->searchQuery);
+        $searchMeta = $this->searchMeta($q);
         $userCity = trim((string) optional(Auth::user())->ciudad);
         $estadoSolicitudId = $this->findEstadoId('SOLICITUD');
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
@@ -6878,8 +6920,17 @@ class PaquetesEms extends Component
             ->when($this->isEnTransitoEms && $this->filtroDestinoTransito !== '', function ($query) {
                 $query->whereIn(DB::raw('trim(upper(destino))'), $this->transitoDestinoAliases($this->filtroDestinoTransito));
             })
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($sub) use ($q) {
+            ->when($q !== '', function ($query) use ($q, $searchMeta) {
+                $query->where(function ($sub) use ($q, $searchMeta) {
+                    if ($searchMeta['is_identifier']) {
+                        $prefix = $searchMeta['prefix_like'];
+
+                        $sub->where('codigo', 'ILIKE', $prefix)
+                            ->orWhere('cod_especial', 'ILIKE', $prefix);
+
+                        return;
+                    }
+
                     $sub->where('codigo', 'ILIKE', "%{$q}%")
                         ->orWhere('tipo', 'ILIKE', "%{$q}%")
                         ->orWhere('servicio', 'ILIKE', "%{$q}%")
@@ -7302,6 +7353,7 @@ class PaquetesEms extends Component
     protected function basePaquetesQuery(bool $applyServicioFilter = true): Builder
     {
         $q = trim($this->searchQuery);
+        $searchMeta = $this->searchMeta($q);
         $userCity = $this->currentUserCity();
         $hasGlobalDepartmentAccess = $this->hasGlobalDepartmentAccess();
         $columns = [
@@ -7495,8 +7547,20 @@ class PaquetesEms extends Component
             ->when($applyServicioFilter && $this->filtroServicioId !== '', function ($query) {
                 $query->where('tarifario.servicio_id', (int) $this->filtroServicioId);
             })
-            ->when($q !== '', function ($query) use ($q, $columns) {
-                $query->where(function ($sub) use ($q, $columns) {
+            ->when($q !== '', function ($query) use ($q, $columns, $searchMeta) {
+                $query->where(function ($sub) use ($q, $columns, $searchMeta) {
+                    if ($searchMeta['is_identifier']) {
+                        $prefix = $searchMeta['prefix_like'];
+
+                        $sub->where('paquetes_ems.codigo', 'like', $prefix)
+                            ->orWhere('paquetes_ems.cod_especial', 'like', $prefix)
+                            ->orWhereHas('formulario', function ($formQuery) use ($prefix) {
+                                $formQuery->where('codigo', 'like', $prefix);
+                            });
+
+                        return;
+                    }
+
                     foreach ($columns as $column) {
                         $sub->orWhere('paquetes_ems.' . $column, 'like', "%{$q}%");
                     }
@@ -8198,20 +8262,40 @@ class PaquetesEms extends Component
 
     protected function findEstadoId(string $nombre): ?int
     {
+        $cacheKey = strtoupper(trim($nombre));
+
+        if ($cacheKey === '') {
+            return null;
+        }
+
+        if (array_key_exists($cacheKey, $this->estadoIdCache)) {
+            return $this->estadoIdCache[$cacheKey];
+        }
+
         $id = Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', [strtoupper(trim($nombre))])
+            ->whereRaw('trim(upper(nombre_estado)) = ?', [$cacheKey])
             ->value('id');
 
-        return $id ? (int) $id : null;
+        return $this->estadoIdCache[$cacheKey] = ($id ? (int) $id : null);
     }
 
     protected function findEventoIdByName(string $nombreEvento): ?int
     {
+        $cacheKey = strtoupper(trim($nombreEvento));
+
+        if ($cacheKey === '') {
+            return null;
+        }
+
+        if (array_key_exists($cacheKey, $this->eventoIdCache)) {
+            return $this->eventoIdCache[$cacheKey];
+        }
+
         $id = DB::table('eventos')
-            ->whereRaw('trim(upper(nombre_evento)) = ?', [strtoupper(trim($nombreEvento))])
+            ->whereRaw('trim(upper(nombre_evento)) = ?', [$cacheKey])
             ->value('id');
 
-        return $id ? (int) $id : null;
+        return $this->eventoIdCache[$cacheKey] = ($id ? (int) $id : null);
     }
 
     protected function devolucionEstadoIdsContrato(): array
