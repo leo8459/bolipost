@@ -872,7 +872,6 @@ class FacturacionCartService
             }
 
             try {
-                $this->markAutoEmitAttemptCooldown($cart, 120);
                 $invoiceResult = $this->emitFacturaForPaidQrCart($user, $cart);
                 $this->markAutoEmitAttemptCooldown($invoiceResult['carrito'] ?? $cart, 300);
 
@@ -881,6 +880,7 @@ class FacturacionCartService
                     'respuesta' => (array) ($invoiceResult['respuesta'] ?? []),
                 ];
             } catch (\Throwable $e) {
+                $this->clearAutoEmitAttemptCooldown($cart);
                 Log::warning('No se pudo emitir automaticamente la factura despues del pago QR.', [
                     'user_id' => $user->id,
                     'cart_id' => $cart->id ?? null,
@@ -1043,6 +1043,16 @@ class FacturacionCartService
         }
 
         Cache::put($this->autoEmitCooldownKey($cartId), now()->timestamp, now()->addSeconds($seconds));
+    }
+
+    private function clearAutoEmitAttemptCooldown(object $cart): void
+    {
+        $cartId = (int) ($cart->id ?? 0);
+        if ($cartId <= 0) {
+            return;
+        }
+
+        Cache::forget($this->autoEmitCooldownKey($cartId));
     }
 
     private function autoEmitLockKey(int $cartId): string

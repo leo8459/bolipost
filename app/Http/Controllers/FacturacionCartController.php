@@ -402,7 +402,7 @@ class FacturacionCartController extends Controller
                     ->with('facturacion_qr_auto_emit_invoice', $autoEmitInvoice ? '1' : '0');
             }
 
-            $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
+            $pdfUrl = $this->normalizeSefePublicUrl(trim((string) data_get($respuesta, 'factura.pdfUrl', '')));
             $downloadPdf = null;
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
                 $downloadPdf = [
@@ -489,7 +489,7 @@ class FacturacionCartController extends Controller
                     ->with('facturacion_qr_auto_emit_invoice', $autoEmitInvoice ? '1' : '0');
             }
 
-            $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
+            $pdfUrl = $this->normalizeSefePublicUrl(trim((string) data_get($respuesta, 'factura.pdfUrl', '')));
             $downloadPdf = null;
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
                 $downloadPdf = [
@@ -717,22 +717,23 @@ class FacturacionCartController extends Controller
             ?? data_get($respuesta, 'id')
             ?? ''
         ));
-        $pdfUrl = trim((string) (
+        $pdfUrl = $this->normalizeSefePublicUrl(trim((string) (
             data_get($respuesta, 'factura.pdfUrl')
             ?? data_get($respuesta, 'urlPdf')
             ?? ''
-        ));
+        )));
         $autoFacturaError = trim((string) data_get($respuesta, 'auto_factura_error', ''));
-        $feedbackMeta = $this->buildFeedbackMeta($estado, $numeroFactura, $codigoOrden, $codigoSeguimiento, $pdfUrl);
-
-        $isQrFlow = $estado === 'NO_APLICA'
+        $trackingLabel = $isQrFlow = $estado === 'NO_APLICA'
             || trim((string) (
                 data_get($respuesta, 'transaction_id')
                 ?? data_get($respuesta, 'payment_status')
                 ?? data_get($respuesta, 'qr_url')
                 ?? data_get($respuesta, 'image_data')
                 ?? ''
-            )) !== '';
+            )) !== ''
+                ? 'Referencia QR'
+                : 'Seguimiento';
+        $feedbackMeta = $this->buildFeedbackMeta($estado, $numeroFactura, $codigoOrden, $codigoSeguimiento, $pdfUrl, $trackingLabel);
 
         if ($isQrFlow) {
             if (in_array($estadoPago, ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'], true)) {
@@ -852,7 +853,7 @@ class FacturacionCartController extends Controller
         ];
     }
 
-    private function buildFeedbackMeta(string $estado, string $numeroFactura, string $codigoOrden, string $codigoSeguimiento, string $pdfUrl): array
+    private function buildFeedbackMeta(string $estado, string $numeroFactura, string $codigoOrden, string $codigoSeguimiento, string $pdfUrl, string $trackingLabel = 'Seguimiento'): array
     {
         $meta = [];
 
@@ -866,13 +867,30 @@ class FacturacionCartController extends Controller
             $meta[] = ['label' => 'Orden', 'value' => $codigoOrden];
         }
         if ($codigoSeguimiento !== '') {
-            $meta[] = ['label' => 'Seguimiento', 'value' => $codigoSeguimiento];
+            $meta[] = ['label' => $trackingLabel, 'value' => $codigoSeguimiento];
         }
         if ($pdfUrl !== '') {
             $meta[] = ['label' => 'PDF', 'value' => $pdfUrl, 'type' => 'link'];
         }
 
         return $meta;
+    }
+
+    private function normalizeSefePublicUrl(?string $url): string
+    {
+        $resolvedUrl = trim((string) $url);
+        if ($resolvedUrl === '') {
+            return '';
+        }
+
+        $path = (string) parse_url($resolvedUrl, PHP_URL_PATH);
+        if ($path === '' || !str_starts_with($path, '/public/')) {
+            return $resolvedUrl;
+        }
+
+        $baseUrl = rtrim((string) config('services.facturacion_bridge.sefe_public_base_url', 'https://sefe.agetic.gob.bo'), '/');
+
+        return $baseUrl . $path;
     }
 
     private function extractQrSessionData(array $respuesta, string $defaultInternalCode = '', bool $forceQr = false): ?array

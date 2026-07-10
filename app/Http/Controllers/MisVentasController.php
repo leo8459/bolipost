@@ -523,8 +523,9 @@ class MisVentasController extends Controller
                 ?? data_get($row, 'urlPdf')
                 ?? data_get($row, 'respuesta_emision.factura.pdfUrl')
             ));
+            $pdfUrl = $this->normalizeSefePublicUrl($pdfUrl);
             if ($pdfUrl === '' && $cuf !== '' && $estadoSufe === 'PROCESADA') {
-                $pdfUrl = 'https://sefe.demo.agetic.gob.bo/public/facturas_pdf/' . $cuf . '.pdf';
+                $pdfUrl = $this->sefePublicPdfUrl($cuf);
             }
 
             $createdAt = (string) (
@@ -683,8 +684,9 @@ class MisVentasController extends Controller
             ?? data_get($venta, 'cuf')
         ));
         $pdfUrl = trim((string) data_get($venta, 'seguimiento.urlPdf', ''));
+        $pdfUrl = $this->normalizeSefePublicUrl($pdfUrl);
         if ($pdfUrl === '' && $cuf !== '') {
-            $pdfUrl = 'https://sefe.demo.agetic.gob.bo/public/facturas_pdf/' . $cuf . '.pdf';
+            $pdfUrl = $this->sefePublicPdfUrl($cuf);
         }
 
         $isOficial = $this->isOfficialVentaPayload($venta);
@@ -1130,7 +1132,32 @@ class MisVentasController extends Controller
             'qr_payload' => $qrPayload,
             'qr_image' => $qrImage,
             'cuf' => $cuf,
-            'pdf_url' => trim((string) data_get($respuesta, 'factura.pdfUrl', '')),
+            'pdf_url' => $this->normalizeSefePublicUrl(trim((string) data_get($respuesta, 'factura.pdfUrl', ''))),
         ];
+    }
+
+    private function sefePublicBaseUrl(): string
+    {
+        return rtrim((string) config('services.facturacion_bridge.sefe_public_base_url', 'https://sefe.agetic.gob.bo'), '/');
+    }
+
+    private function sefePublicPdfUrl(string $cuf): string
+    {
+        return $this->sefePublicBaseUrl() . '/public/facturas_pdf/' . ltrim($cuf, '/') . '.pdf';
+    }
+
+    private function normalizeSefePublicUrl(?string $url): string
+    {
+        $resolvedUrl = trim((string) $url);
+        if ($resolvedUrl === '') {
+            return '';
+        }
+
+        $path = (string) parse_url($resolvedUrl, PHP_URL_PATH);
+        if ($path === '' || !str_starts_with($path, '/public/')) {
+            return $resolvedUrl;
+        }
+
+        return $this->sefePublicBaseUrl() . $path;
     }
 }

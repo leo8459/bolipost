@@ -60,6 +60,7 @@ return [
     'facturacion_bridge' => [
         'base_url' => env('FACTURACION_BRIDGE_BASE_URL'),
         'token' => env('FACTURACION_BRIDGE_TOKEN'),
+        'sefe_public_base_url' => env('FACTURACION_BRIDGE_SEFE_PUBLIC_BASE_URL', 'https://sefe.agetic.gob.bo'),
         'nit_emisor' => env('FACTURACION_BRIDGE_NIT_EMISOR'),
         'fallback_email' => env('FACTURACION_BRIDGE_FALLBACK_EMAIL', 'sincorreo@agbc.bo'),
         'metodo_pago' => env('FACTURACION_BRIDGE_METODO_PAGO', 1),
