@@ -4,6 +4,7 @@
 @inject('preloaderHelper', 'JeroenNoten\LaravelAdminLte\Helpers\PreloaderHelper')
 
 @section('adminlte_css')
+    @include('partials.browser-guard')
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-H41CHNHCL0"></script>
     <script>
         window.dataLayer = window.dataLayer || [];

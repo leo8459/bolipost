@@ -345,7 +345,7 @@ return [
         [
             'text' => 'Dir. Operaciones',
             'icon' => 'fas fa-chart-line',
-            'can' => 'admin-only-menu',
+            'can' => 'dashboard.dir-operaciones',
             'submenu' => [
                 [
                     'text' => 'Global Nivel Nacional (Ingreso)',
@@ -367,7 +367,7 @@ return [
         [
             'text' => 'Dir. Comercial',
             'icon' => 'fas fa-bullhorn',
-            'can' => 'admin-only-menu',
+            'can' => 'dashboard.dir-comercial',
             'submenu' => [
                 [
                     'text' => 'Rendimiento Servicios',
@@ -380,30 +380,35 @@ return [
         [
             'text' => 'Dir. Financiera',
             'icon' => 'fas fa-coins',
-            'can' => 'admin-only-menu',
+            'can' => 'dashboard.dir-financiera',
             'submenu' => [
                 [
                     'text' => 'Panel Financiero',
+                    'can' => 'dashboard.financiera.panel',
                     'url' => '/dir-financiera/panel',
                     'icon' => 'fas fa-wallet',
                 ],
                 [
                     'text' => 'Presupuesto Institucional',
+                    'can' => 'dashboard.financiera.presupuesto',
                     'url' => '/dir-financiera/presupuesto',
                     'icon' => 'fas fa-file-invoice-dollar',
                 ],
                 [
                     'text' => 'Ingresos y Egresos',
+                    'can' => 'dashboard.financiera.ingresos-egresos',
                     'url' => '/dir-financiera/ingresos-egresos',
                     'icon' => 'fas fa-exchange-alt',
                 ],
                 [
                     'text' => 'Cuentas por Cobrar',
+                    'can' => 'dashboard.financiera.cuentas-cobrar',
                     'url' => '/dir-financiera/cuentas-cobrar',
                     'icon' => 'fas fa-money-check-alt',
                 ],
                 [
                     'text' => 'Indicadores Financieros',
+                    'can' => 'dashboard.financiera.indicadores',
                     'url' => '/dir-financiera/indicadores',
                     'icon' => 'fas fa-chart-line',
                 ],
