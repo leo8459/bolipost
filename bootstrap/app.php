@@ -52,6 +52,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 ? 'clientes.login'
                 : 'login';
 
+            if ($request->is('paquetes-contrato') || $request->is('paquetes-contrato/*')) {
+                return redirect()
+                    ->guest(route('paquetes-contrato.index', absolute: false))
+                    ->with('status', $message)
+                    ->with('session_expired', true);
+            }
+
             return redirect()
                 ->route($loginRoute)
                 ->with('status', $message)

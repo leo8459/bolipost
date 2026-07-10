@@ -89,7 +89,7 @@ class EventosTabla extends Component
     public function openEditModal(int $id): void
     {
         $this->authorizePermission($this->featurePermission('edit'));
-        $registro = DB::table($this->tableName())->where('id', $id)->first();
+        $registro = $this->scopedTableQuery()->where('id', $id)->first();
 
         if (!$registro) {
             return;
@@ -143,7 +143,12 @@ class EventosTabla extends Component
     public function delete(int $id): void
     {
         $this->authorizePermission($this->featurePermission('delete'));
-        DB::table($this->tableName())->where('id', $id)->delete();
+        $deleted = $this->scopedTableQuery()->where('id', $id)->delete();
+
+        if ($deleted === 0) {
+            abort(403, 'No tienes permiso para eliminar este registro.');
+        }
+
         session()->flash('success', $this->pageConfig()['singular'] . ' eliminado correctamente.');
     }
 
@@ -189,6 +194,8 @@ class EventosTabla extends Component
             default => 'NULL as imagen',
         };
 
+        $empresaId = $this->authenticatedEmpresaId();
+
         $registrosQuery = DB::table($table . ' as t')
             ->leftJoin('eventos as e', 'e.id', '=', 't.evento_id')
             ->leftJoin('users as u', 'u.id', '=', 't.user_id')
@@ -233,6 +240,14 @@ class EventosTabla extends Component
             })
             ->when($this->tipo === 'contrato' && $descripcionEvento !== '', function ($query) use ($descripcionEvento) {
                 $query->where('e.nombre_evento', 'ILIKE', '%' . $descripcionEvento . '%');
+            })
+            ->when($this->tipo === 'contrato' && $empresaId > 0, function ($query) use ($empresaId) {
+                $query->whereExists(function ($subQuery) use ($empresaId) {
+                    $subQuery->selectRaw('1')
+                        ->from('paquetes_contrato as pc')
+                        ->whereColumn('pc.codigo', 't.codigo')
+                        ->where('pc.empresa_id', $empresaId);
+                });
             });
 
         if ($supportsClienteId) {
@@ -269,6 +284,9 @@ class EventosTabla extends Component
                 ->where(function ($query) use ($q) {
                     $query->where('p.codigo', 'ILIKE', '%' . $q . '%')
                         ->orWhere('p.cod_especial', 'ILIKE', '%' . $q . '%');
+                })
+                ->when($empresaId > 0, function ($query) use ($empresaId) {
+                    $query->where('p.empresa_id', $empresaId);
                 })
                 ->orderByRaw('CASE WHEN upper(trim(p.codigo)) = upper(trim(?)) THEN 0 ELSE 1 END', [$q])
                 ->orderByDesc('p.updated_at')
@@ -375,6 +393,28 @@ class EventosTabla extends Component
     private function supportsClienteId(): bool
     {
         return $this->tipo === 'tiktoker';
+    }
+
+    private function scopedTableQuery()
+    {
+        $query = DB::table($this->tableName());
+        $empresaId = $this->authenticatedEmpresaId();
+
+        if ($this->tipo === 'contrato' && $empresaId > 0) {
+            $query->whereExists(function ($subQuery) use ($empresaId) {
+                $subQuery->selectRaw('1')
+                    ->from('paquetes_contrato as pc')
+                    ->whereColumn('pc.codigo', $this->tableName() . '.codigo')
+                    ->where('pc.empresa_id', $empresaId);
+            });
+        }
+
+        return $query;
+    }
+
+    private function authenticatedEmpresaId(): int
+    {
+        return (int) (auth()->user()?->empresa_id ?? 0);
     }
 
     private function authorizePermission(string $permission): void
