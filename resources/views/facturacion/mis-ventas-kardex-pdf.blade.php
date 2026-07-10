@@ -301,14 +301,15 @@
             <thead>
                 <tr>
                     <th style="width: 4%;">Nro.</th>
-                    <th style="width: 10%;">Fecha</th>
-                    <th style="width: 12%;">Orden</th>
-                    <th style="width: 14%;">Cliente</th>
-                    <th style="width: 23%;">Detalle</th>
-                    <th style="width: 17%;">Paquete / codigos</th>
-                    <th style="width: 8%;">Factura</th>
-                    <th style="width: 6%;">Estado</th>
-                    <th style="width: 6%;">Importe</th>
+                    <th style="width: 8%;">Fecha</th>
+                    <th style="width: 10%;">Orden</th>
+                    <th style="width: 12%;">Cliente</th>
+                    <th style="width: 20%;">Detalle</th>
+                    <th style="width: 15%;">Paquete / codigos</th>
+                    <th style="width: 7%;">Factura</th>
+                    <th style="width: 12%;">CUF</th>
+                    <th style="width: 5%;">Estado</th>
+                    <th style="width: 7%;">Importe</th>
                 </tr>
             </thead>
             <tbody>
@@ -326,12 +327,13 @@
                         </td>
                         <td style="white-space: pre-line;">{{ data_get($row, 'codigo_referencia', '-') }}</td>
                         <td class="center">{{ data_get($row, 'numero_factura', '-') }}</td>
+                        <td>{{ data_get($row, 'cuf', '') }}</td>
                         <td class="center">{{ (bool) data_get($row, 'cobrada', false) ? 'Cobrada' : 'Pend.' }}</td>
                         <td class="right">{{ number_format((float) data_get($row, 'importe_general', 0), 2) }}</td>
                     </tr>
                 @endforeach
                 <tr>
-                    <td colspan="8" class="right" style="font-weight: 700;">SUBTOTAL {{ strtoupper($group['nombre']) }}</td>
+                    <td colspan="9" class="right" style="font-weight: 700;">SUBTOTAL {{ strtoupper($group['nombre']) }}</td>
                     <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $group['total'], 2) }}</td>
                 </tr>
             </tbody>

@@ -3,15 +3,16 @@
     <thead>
         <tr>
             <th style="width: 4%;">Nro.</th>
-            <th style="width: 10%;">FECHA</th>
-            <th style="width: 16%;">TIPO DE VENTA / ENVIO</th>
-            <th style="width: 12%;">EMISION</th>
-            <th style="width: 12%;">COBRO</th>
-            <th style="width: 18%;">ORDEN / PAQUETES</th>
-            <th style="width: 11%;">PESO TOTAL</th>
-            <th style="width: 8%;">CANTIDAD</th>
-            <th style="width: 10%;">Nro. FACTURA</th>
-            <th style="width: 9%;">IMPORTE</th>
+            <th style="width: 8%;">FECHA</th>
+            <th style="width: 14%;">TIPO DE VENTA / ENVIO</th>
+            <th style="width: 10%;">EMISION</th>
+            <th style="width: 10%;">COBRO</th>
+            <th style="width: 16%;">ORDEN / PAQUETES</th>
+            <th style="width: 9%;">PESO TOTAL</th>
+            <th style="width: 6%;">CANTIDAD</th>
+            <th style="width: 8%;">Nro. FACTURA</th>
+            <th style="width: 12%;">CUF</th>
+            <th style="width: 7%;">IMPORTE</th>
         </tr>
     </thead>
     <tbody>
@@ -26,11 +27,12 @@
                 <td class="right">{{ number_format((float) $row['peso'], 3) }}</td>
                 <td class="center">{{ $row['cantidad'] }}</td>
                 <td class="center">{{ $row['numero_factura'] }}</td>
+                <td>{{ $row['cuf'] ?? '' }}</td>
                 <td class="right">{{ number_format((float) $row['importe_general'], 2) }}</td>
             </tr>
         @endforeach
         <tr>
-            <td colspan="9" class="right" style="font-weight: 700;">{{ $section['total_label'] }}</td>
+            <td colspan="10" class="right" style="font-weight: 700;">{{ $section['total_label'] }}</td>
             <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $sectionRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
     </tbody>
