@@ -31,7 +31,7 @@ class AuthenticatedSessionController extends Controller
         Auth::guard('cliente')->logout();
         $request->session()->regenerate();
 
-        return redirect()->to($this->firstAuthorizedUrl($request->user()));
+        return redirect()->intended($this->firstAuthorizedUrl($request->user()));
     }
 
     /**
@@ -39,17 +39,21 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        $redirectTo = $this->logoutRedirectUrl($request->user());
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
 
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->guest($redirectTo);
     }
 
     public function destroyViaGet(Request $request): RedirectResponse
     {
+        $redirectTo = $this->logoutRedirectUrl($request->user());
+
         if (Auth::guard('web')->check()) {
             Auth::guard('web')->logout();
         }
@@ -57,7 +61,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->guest($redirectTo);
     }
 
     private function firstAuthorizedUrl(?Authenticatable $user): string
@@ -71,7 +75,27 @@ class AuthenticatedSessionController extends Controller
             return route('livewire.workshops', absolute: false);
         }
 
+        if ($this->isEmpresaUser($user)) {
+            return route('paquetes-contrato.index', absolute: false);
+        }
+
         return route('home.welcome', absolute: false);
+    }
+
+    private function logoutRedirectUrl(?Authenticatable $user): string
+    {
+        if ($this->isEmpresaUser($user)) {
+            return route('paquetes-contrato.index', absolute: false);
+        }
+
+        return route('login', absolute: false);
+    }
+
+    private function isEmpresaUser(?Authenticatable $user): bool
+    {
+        return $user !== null
+            && method_exists($user, 'hasRole')
+            && $user->hasRole('empresa');
     }
 
     /**

@@ -423,7 +423,7 @@ class RecojoController extends Controller
     {
         $user = Auth::user();
         if (!$user) {
-            return redirect()->route('login');
+            return redirect()->guest(route('paquetes-contrato.index', absolute: false));
         }
 
         if (empty($user->empresa_id)) {
@@ -588,7 +588,7 @@ class RecojoController extends Controller
     {
         $user = Auth::user();
         if (!$user) {
-            return redirect()->route('login');
+            return redirect()->guest(route('paquetes-contrato.index', absolute: false));
         }
 
         abort_unless($this->canSubmitContratoCreate($user), 403, 'No tienes permiso para guardar contratos.');
