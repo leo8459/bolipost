@@ -850,6 +850,13 @@ class FacturacionCartService
             'auto_emit_invoice' => $autoEmitInvoice,
         ];
 
+        Log::info('FacturacionCartService consultarEstadoEmision: inicio.', [
+            'user_id' => $user->id,
+            'cart_id' => $cartId,
+            'auto_emit_invoice' => $autoEmitInvoice,
+            'allow_pending_retry' => $allowPendingRetry,
+        ]);
+
         $body = $this->request('POST', '/cart/consultar', $payload);
         [$body, $cart] = $this->retryPendingQrConsultIfNeeded($payload, $body, $allowPendingRetry);
 
@@ -863,9 +870,36 @@ class FacturacionCartService
 
         $respuesta = (array) data_get($body, 'respuesta', []);
 
+        Log::info('FacturacionCartService consultarEstadoEmision: respuesta bridge.', [
+            'user_id' => $user->id,
+            'cart_id' => $cart->id ?? $cartId,
+            'codigo_orden' => $cart->codigo_orden ?? null,
+            'estado_pago' => $cart->estado_pago ?? null,
+            'estado_emision' => $cart->estado_emision ?? null,
+            'qr_transaction_id' => $cart->qr_transaction_id ?? null,
+            'respuesta_estado' => $respuesta['estado'] ?? null,
+            'respuesta_payment_status' => $respuesta['payment_status'] ?? null,
+            'respuesta_codigo_seguimiento' => $respuesta['codigoSeguimiento'] ?? null,
+            'respuesta_numero_factura' => data_get($respuesta, 'factura.nroFactura') ?? data_get($respuesta, 'nroFactura'),
+        ]);
+
         if ($this->shouldAutoEmitPaidQrInvoice($cart, $respuesta, $autoEmitInvoice)) {
+            Log::info('FacturacionCartService consultarEstadoEmision: auto factura QR aplicable.', [
+                'user_id' => $user->id,
+                'cart_id' => $cart->id ?? null,
+                'codigo_orden' => $cart->codigo_orden ?? null,
+                'estado_pago' => $cart->estado_pago ?? data_get($respuesta, 'estado_pago'),
+                'estado_emision' => $cart->estado_emision ?? null,
+                'qr_transaction_id' => $cart->qr_transaction_id ?? null,
+            ]);
             $attemptStatus = $this->resolveAutoEmitAttemptStatus($cart);
             if ($attemptStatus === 'cooldown' || $attemptStatus === 'locked') {
+                Log::info('FacturacionCartService consultarEstadoEmision: auto factura diferida.', [
+                    'user_id' => $user->id,
+                    'cart_id' => $cart->id ?? null,
+                    'codigo_orden' => $cart->codigo_orden ?? null,
+                    'attempt_status' => $attemptStatus,
+                ]);
                 $respuesta['auto_factura_pending'] = true;
 
                 return ['carrito' => $cart, 'respuesta' => $respuesta];
@@ -874,6 +908,16 @@ class FacturacionCartService
             try {
                 $invoiceResult = $this->emitFacturaForPaidQrCart($user, $cart);
                 $this->markAutoEmitAttemptCooldown($invoiceResult['carrito'] ?? $cart, 300);
+
+                Log::info('FacturacionCartService consultarEstadoEmision: auto factura ejecutada.', [
+                    'user_id' => $user->id,
+                    'cart_id' => data_get($invoiceResult, 'carrito.id', $cart->id ?? null),
+                    'codigo_orden' => data_get($invoiceResult, 'carrito.codigo_orden', $cart->codigo_orden ?? null),
+                    'estado_emision' => data_get($invoiceResult, 'carrito.estado_emision'),
+                    'respuesta_estado' => data_get($invoiceResult, 'respuesta.estado'),
+                    'respuesta_codigo_seguimiento' => data_get($invoiceResult, 'respuesta.codigoSeguimiento'),
+                    'respuesta_numero_factura' => data_get($invoiceResult, 'respuesta.factura.nroFactura') ?? data_get($invoiceResult, 'respuesta.nroFactura'),
+                ]);
 
                 return [
                     'carrito' => $invoiceResult['carrito'],
@@ -1087,6 +1131,16 @@ class FacturacionCartService
             'user_id' => $user->id,
             'cart_id' => $targetCart->id ?? null,
             'codigo_orden' => $targetCart->codigo_orden ?? null,
+        ]);
+
+        Log::info('FacturacionCartService emitFacturaForPaidQrCart: reenviando misma venta QR a factura.', [
+            'user_id' => $user->id,
+            'cart_id' => $targetCart->id ?? null,
+            'codigo_orden' => $targetCart->codigo_orden ?? null,
+            'qr_transaction_id' => $targetCart->qr_transaction_id ?? null,
+            'estado_pago' => $targetCart->estado_pago ?? null,
+            'estado_emision' => $targetCart->estado_emision ?? null,
+            'billing_snapshot' => $billingSnapshot,
         ]);
 
         return $this->emitirBorrador($user, $billingSnapshot, $targetCartId);
