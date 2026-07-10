@@ -4,13 +4,14 @@
         <tr>
             <th style="width: 4%;">Nro.</th>
             <th style="width: 10%;">FECHA</th>
-            <th style="width: 18%;">TIPO DE VENTA / ENVIO</th>
-            <th style="width: 14%;">EMISION</th>
-            <th style="width: 19%;">ORDEN / PAQUETES</th>
-            <th style="width: 12%;">PESO TOTAL</th>
+            <th style="width: 16%;">TIPO DE VENTA / ENVIO</th>
+            <th style="width: 12%;">EMISION</th>
+            <th style="width: 12%;">COBRO</th>
+            <th style="width: 18%;">ORDEN / PAQUETES</th>
+            <th style="width: 11%;">PESO TOTAL</th>
             <th style="width: 8%;">CANTIDAD</th>
-            <th style="width: 12%;">Nro. FACTURA</th>
-            <th style="width: 11%;">IMPORTE</th>
+            <th style="width: 10%;">Nro. FACTURA</th>
+            <th style="width: 9%;">IMPORTE</th>
         </tr>
     </thead>
     <tbody>
@@ -20,6 +21,7 @@
                 <td class="center">{{ $row['fecha'] }}</td>
                 <td>{{ $row['tipo_envio'] }}</td>
                 <td>{{ $row['emision_label'] }}</td>
+                <td style="white-space: pre-line;">{{ $row['cobro_label'] }}{{ !empty($row['cobro_detalle']) ? "\n" . $row['cobro_detalle'] : '' }}</td>
                 <td style="white-space: pre-line;">{{ $row['codigo_referencia'] ?? $row['codigo_item'] }}</td>
                 <td class="right">{{ number_format((float) $row['peso'], 3) }}</td>
                 <td class="center">{{ $row['cantidad'] }}</td>
@@ -28,7 +30,7 @@
             </tr>
         @endforeach
         <tr>
-            <td colspan="8" class="right" style="font-weight: 700;">{{ $section['total_label'] }}</td>
+            <td colspan="9" class="right" style="font-weight: 700;">{{ $section['total_label'] }}</td>
             <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $sectionRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
     </tbody>
