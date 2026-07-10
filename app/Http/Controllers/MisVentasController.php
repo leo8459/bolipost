@@ -548,6 +548,12 @@ class MisVentasController extends Controller
             }
             $codigoSeguimientoFiscal = trim((string) data_get($row, 'codigo_seguimiento_fiscal', $codigoSeguimiento));
             $qrTransactionId = trim((string) data_get($row, 'qr_transaction_id', ''));
+            $pesoTotal = round((float) (
+                data_get($row, 'peso_total')
+                ?? data_get($row, 'pesoTotal')
+                ?? data_get($row, 'peso')
+                ?? 0
+            ), 3);
             if ($metodoPago === 'qr') {
                 $emision = [
                     'estado' => strtoupper(trim((string) data_get($row, 'estado_emision', 'NO_APLICA'))),
@@ -583,6 +589,7 @@ class MisVentasController extends Controller
                 'codigo_seguimiento_fiscal' => $codigoSeguimientoFiscal !== '' ? $codigoSeguimientoFiscal : $codigoSeguimiento,
                 'qr_transaction_id' => $qrTransactionId !== '' ? $qrTransactionId : null,
                 'total' => (float) data_get($row, 'total', 0),
+                'peso_total' => $pesoTotal,
                 'items_count' => (int) data_get($row, 'itemsCount', data_get($row, 'cantidadItems', data_get($row, 'cantidad_items', $items->count()))),
                 'items' => $items,
                 'respuesta_emision' => [
@@ -1008,6 +1015,14 @@ class MisVentasController extends Controller
             $codigoOrden = trim((string) data_get($cart, 'codigo_orden', data_get($cart, 'codigo_seguimiento', ''))) ?: '-';
             $codigosPaquete = $this->extractPackageCodesFromItems($items);
             $pesoTotal = (float) $items->sum(fn ($item) => (float) data_get($item, 'resumen_origen.peso', 0));
+            if ($pesoTotal <= 0) {
+                $pesoTotal = round((float) (
+                    data_get($cart, 'peso_total')
+                    ?? data_get($cart, 'pesoTotal')
+                    ?? data_get($cart, 'peso')
+                    ?? 0
+                ), 3);
+            }
             $cantidadTotal = (int) data_get($cart, 'items_count', 0);
             if ($cantidadTotal <= 0) {
                 $cantidadTotal = max(1, $items->count());

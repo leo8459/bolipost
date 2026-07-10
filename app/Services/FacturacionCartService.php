@@ -243,6 +243,7 @@ class FacturacionCartService
                 'metodoPago' => null,
                 'formatoFactura' => null,
                 'montoTotal' => 0,
+                'pesoTotal' => (float) ($resumenOrigen['peso'] ?? 0),
                 'detalle' => [[
                     'actividadEconomica' => (string) ($resumenOrigen['actividad_economica'] ?? ''),
                     'codigoSin' => (string) ($resumenOrigen['codigo_sin'] ?? ''),
@@ -250,6 +251,7 @@ class FacturacionCartService
                     'descripcion' => (string) ($resumenOrigen['descripcion_servicio'] ?? 'Envio oficial'),
                     'unidadMedida' => (int) ($resumenOrigen['unidad_medida'] ?? 58),
                     'precioUnitario' => 0,
+                    'peso' => (float) ($resumenOrigen['peso'] ?? 0),
                     'cantidad' => 1,
                 ]],
             ],
@@ -549,6 +551,8 @@ class FacturacionCartService
                 'type' => 'contrato',
                 'label' => 'Paquete Contrato',
                 'record' => $contrato,
+                'match_source' => 'codigo',
+                'match_priority' => 100,
             ]);
         }
 
@@ -560,6 +564,8 @@ class FacturacionCartService
                 'type' => 'ordinario',
                 'label' => 'Paquete Ordinario',
                 'record' => $ordinario,
+                'match_source' => 'codigo',
+                'match_priority' => 100,
             ]);
         }
 
@@ -571,6 +577,8 @@ class FacturacionCartService
                 'type' => 'certificado',
                 'label' => 'Paquete Certificado',
                 'record' => $certificado,
+                'match_source' => 'codigo',
+                'match_priority' => 100,
             ]);
         }
 
@@ -581,10 +589,15 @@ class FacturacionCartService
             })
             ->first();
         if ($interno) {
+            $internoCodigo = strtoupper(trim((string) ($interno->codigo ?? '')));
+            $internoCodEspecial = strtoupper(trim((string) ($interno->cod_especial ?? '')));
+            $internoMatchSource = $internoCodigo === $codigoNormalizado ? 'codigo' : 'cod_especial';
             $matches->push([
                 'type' => 'interno',
                 'label' => 'Paquete Interno',
                 'record' => $interno,
+                'match_source' => $internoMatchSource,
+                'match_priority' => $internoMatchSource === 'codigo' ? 100 : 50,
             ]);
         }
 
@@ -595,10 +608,15 @@ class FacturacionCartService
             })
             ->first();
         if ($ems) {
+            $emsCodigo = strtoupper(trim((string) ($ems->codigo ?? '')));
+            $emsCodEspecial = strtoupper(trim((string) ($ems->cod_especial ?? '')));
+            $emsMatchSource = $emsCodigo === $codigoNormalizado ? 'codigo' : 'cod_especial';
             $matches->push([
                 'type' => 'ems',
                 'label' => 'Paquete EMS',
                 'record' => $ems,
+                'match_source' => $emsMatchSource,
+                'match_priority' => $emsMatchSource === 'codigo' ? 100 : 50,
             ]);
         }
 
@@ -610,10 +628,18 @@ class FacturacionCartService
             })
             ->first();
         if ($solicitudEms) {
+            $solicitudCodigo = strtoupper(trim((string) ($solicitudEms->codigo_solicitud ?? '')));
+            $solicitudBarcode = strtoupper(trim((string) ($solicitudEms->barcode ?? '')));
+            $solicitudCodEspecial = strtoupper(trim((string) ($solicitudEms->cod_especial ?? '')));
+            $solicitudMatchSource = $solicitudCodigo === $codigoNormalizado
+                ? 'codigo_solicitud'
+                : ($solicitudBarcode === $codigoNormalizado ? 'barcode' : 'cod_especial');
             $matches->push([
                 'type' => 'solicitud_ems',
                 'label' => 'Solicitud EMS',
                 'record' => $solicitudEms,
+                'match_source' => $solicitudMatchSource,
+                'match_priority' => in_array($solicitudMatchSource, ['codigo_solicitud', 'barcode'], true) ? 100 : 50,
             ]);
         }
 
@@ -621,12 +647,27 @@ class FacturacionCartService
             throw new \RuntimeException('No se encontro ningun paquete de Contratos, Ordinarios, Certificados, Internos, EMS o Solicitudes EMS con ese codigo.');
         }
 
-        if ($matches->count() > 1) {
+        $bestPriority = (int) $matches->max('match_priority');
+        $preferredMatches = $matches
+            ->filter(fn ($match) => (int) ($match['match_priority'] ?? 0) === $bestPriority)
+            ->values();
+
+        if ($preferredMatches->count() > 1) {
+            $labels = $preferredMatches
+                ->map(function ($match) {
+                    $source = (string) ($match['match_source'] ?? 'codigo');
+                    return (string) $match['label'] . ' [' . $source . ']';
+                })
+                ->implode(', ');
+            throw new \RuntimeException('El codigo existe en varios modulos (' . $labels . '). Revisa el registro antes de agregarlo al carrito.');
+        }
+
+        if ($preferredMatches->isEmpty()) {
             $labels = $matches->pluck('label')->implode(', ');
             throw new \RuntimeException('El codigo existe en varios modulos (' . $labels . '). Revisa el registro antes de agregarlo al carrito.');
         }
 
-        $match = $matches->first();
+        $match = $preferredMatches->first();
         $record = $match['record'];
 
         $cart = match ($match['type']) {
