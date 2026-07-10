@@ -3234,7 +3234,7 @@ class PaquetesEms extends Component
                 $updated++;
             }
 
-            $paquetesInt = collect($regionalIntRows)->map(function (array $row) use ($manifiesto, $loggedInUserCity) {
+            $paquetesInt = collect($regionalIntRows)->map(function (array $row) use ($manifiesto, $loggedInUserCity, $estadoRegionalId) {
                 return PaqueteInt::create([
                     'cod_especial' => $manifiesto,
                     'codigo' => $row['codigo'],

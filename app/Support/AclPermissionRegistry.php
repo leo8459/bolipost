@@ -573,6 +573,20 @@ class AclPermissionRegistry
             'feature.paquetes-ems.solicitudes.index.print',
             'feature.paquetes-ems.solicitudes.index.create',
         ],
+        'paquetes-ems.encargado.cancelar-envio' => [
+            'paquetes-ems.encargado.cancelar-envio',
+            'feature.paquetes-ems.encargado.cancel',
+        ],
+        'paquetes-ems.encargado.devolver-envio' => [
+            'paquetes-ems.encargado.devolver-envio',
+            'feature.paquetes-ems.encargado.returnorigin',
+            'feature.paquetes-ems.encargado.returndestination',
+            'feature.paquetes-ems.encargado.returnwindow',
+        ],
+        'paquetes-ems.encargado.actualizar-peso' => [
+            'paquetes-ems.encargado.actualizar-peso',
+            'feature.paquetes-ems.encargado.updateweight',
+        ],
         'sacas.index' => [
             'sacas.index',
             'feature.despachos.abiertos.opensacas',
