@@ -75,7 +75,6 @@
                 $departamentoDetalle .= ' - PROVINCIA: ' . strtoupper($provincia);
             }
             $fechaRecojo = optional($contrato->fecha_recojo ?? null)->format('d/m/Y H:i') ?: optional($contrato->created_at ?? null)->format('d/m/Y H:i');
-            $empresaNombre = trim((string) (optional($contrato->empresa)->nombre ?? optional(optional($contrato->user)->empresa)->nombre ?? ''));
             $copias = ['ORIGINAL', 'COPIA 1', 'COPIA 2'];
         @endphp
 
@@ -135,7 +134,8 @@
                                 <td colspan="2" class="long-cell"><span class="section-label">Direccion destinatario</span><span class="long-value">{{ $contrato->direccion_d }}</span></td>
                             </tr>
                             <tr>
-                                <td colspan="2"><span class="section-label">Empresa</span><span class="small-value">{{ $empresaNombre !== '' ? $empresaNombre : '-' }}</span></td>
+                                <td><span class="section-label">Cantidad</span><span class="small-value">{{ $contrato->cantidad ?: '-' }}</span></td>
+                                <td><span class="section-label">Peso</span><span class="small-value">{{ $contrato->peso !== null ? number_format((float) $contrato->peso, 3) . ' kg' : '-' }}</span></td>
                                 <td><span class="section-label">Fecha solicitud</span><span class="small-value">{{ $fechaRecojo ?: '-' }}</span></td>
                                 <td><span class="section-label">Contenido</span><span class="content-value">{{ $contrato->contenido ?: '-' }}</span></td>
                             </tr>

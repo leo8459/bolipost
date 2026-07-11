@@ -407,6 +407,20 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="form-group mb-md-0">
+                                    <label>Cantidad<span class="required-star">*</span></label>
+                                    <input type="number" name="cantidad" class="form-control" value="{{ old('cantidad') }}" min="1" step="1">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-0">
+                                    <label>Peso (opcional)</label>
+                                    <input type="number" name="peso" class="form-control" value="{{ old('peso') }}" min="0" step="0.001" placeholder="0.000">
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="section-block">
@@ -512,6 +526,7 @@
             'telefono_r',
             'contenido',
             'direccion_r',
+            'cantidad',
             'nombre_d',
             'telefono_d',
         ];
@@ -521,6 +536,8 @@
             'telefono_r',
             'contenido',
             'direccion_r',
+            'cantidad',
+            'peso',
             'nombre_d',
             'telefono_d',
             'destino',

@@ -1260,6 +1260,7 @@ class RecojoController extends Controller
             'nombre_r' => 'required|string|max:255',
             'telefono_r' => 'required|string|max:50',
             'contenido' => 'required|string',
+            'cantidad' => 'required|integer|min:1',
             'direccion_r' => 'required|string|max:255',
             'nombre_d' => 'required|string|max:255',
             'telefono_d' => 'required|string|max:50',
@@ -1267,6 +1268,7 @@ class RecojoController extends Controller
             'direccion' => 'required|string|max:255',
             'mapa' => 'nullable|string|max:500',
             'provincia' => 'nullable|string|max:255',
+            'peso' => 'nullable|numeric|min:0',
         ];
     }
 
@@ -1326,14 +1328,14 @@ class RecojoController extends Controller
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
                 'telefono_r' => trim((string) $data['telefono_r']),
                 'contenido' => trim((string) $data['contenido']),
-                'cantidad' => '1',
+                'cantidad' => (string) ((int) $data['cantidad']),
                 'direccion_r' => strtoupper(trim((string) $data['direccion_r'])),
                 'nombre_d' => strtoupper(trim((string) $data['nombre_d'])),
                 'telefono_d' => trim((string) $data['telefono_d']),
                 'direccion_d' => strtoupper(trim((string) $data['direccion'])),
                 'mapa' => !empty($data['mapa']) ? trim((string) $data['mapa']) : null,
                 'provincia' => !empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null,
-                'peso' => 0,
+                'peso' => $data['peso'] ?? 0,
                 'fecha_recojo' => null,
                 'observacion' => null,
                 'justificacion' => null,

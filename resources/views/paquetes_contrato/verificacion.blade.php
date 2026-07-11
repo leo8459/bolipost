@@ -116,7 +116,6 @@
     @php
         $logoPath = public_path('images/AGBClogo1.png');
         $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
-        $empresaNombre = trim((string) (optional($contrato->empresa)->nombre ?? optional(optional($contrato->user)->empresa)->nombre ?? ''));
     @endphp
 
     <main class="panel">
@@ -151,8 +150,12 @@
                     <span class="value">{{ $contrato->destino ?: '-' }}</span>
                 </div>
                 <div class="item">
-                    <span class="label">Empresa</span>
-                    <span class="value">{{ $empresaNombre !== '' ? $empresaNombre : '-' }}</span>
+                    <span class="label">Cantidad</span>
+                    <span class="value">{{ $contrato->cantidad ?: '-' }}</span>
+                </div>
+                <div class="item">
+                    <span class="label">Peso</span>
+                    <span class="value">{{ $contrato->peso !== null ? number_format((float) $contrato->peso, 3) . ' kg' : '-' }}</span>
                 </div>
                 <div class="item">
                     <span class="label">Fecha</span>
