@@ -497,6 +497,25 @@
         </div>
     </div>
 </section>
+
+<div class="modal fade" id="envioFrecuenteSavedModal" tabindex="-1" role="dialog" aria-labelledby="envioFrecuenteSavedModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="envioFrecuenteSavedModalLabel">Envio frecuente guardado</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                Envio frecuente guardado correctamente.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" data-dismiss="modal">Aceptar</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('js')
@@ -506,8 +525,9 @@
         if (!form) return;
 
         const userId = @json((string) (auth()->id() ?? 'guest'));
-        const storageKey = `paquetes_contrato_envios_frecuentes_${userId}`;
+        const storageKeyBase = `paquetes_contrato_envios_frecuentes_${userId}`;
         const statusBox = document.getElementById('envioFrecuenteStatus');
+        const savedModal = document.getElementById('envioFrecuenteSavedModal');
         const saveBtn = document.getElementById('btnGuardarFrecuente');
         const remitenteInput = document.getElementById('nombreRemitenteInput');
         const dropdown = document.getElementById('frecuentesDropdown');
@@ -553,6 +573,14 @@
             setTimeout(() => {
                 statusBox.classList.add('d-none');
             }, 2500);
+        };
+        const showSavedModal = () => {
+            if (!savedModal || typeof window.jQuery === 'undefined') {
+                setStatus('Envio frecuente guardado correctamente.', 'success');
+                return;
+            }
+
+            window.jQuery(savedModal).modal('show');
         };
 
         const getField = (name) => form.querySelector(`[name="${name}"]`);
@@ -661,8 +689,17 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+        const storageKeyForTipo = (tipoEnvio = getTipoEnvio()) => {
+            const normalized = String(tipoEnvio || '').trim().toLowerCase();
+            return normalized !== '' ? `${storageKeyBase}_${normalized}` : '';
+        };
 
-        const getFrecuentes = () => {
+        const getFrecuentes = (tipoEnvio = getTipoEnvio()) => {
+            const storageKey = storageKeyForTipo(tipoEnvio);
+            if (storageKey === '') {
+                return [];
+            }
+
             try {
                 const raw = localStorage.getItem(storageKey);
                 const parsed = raw ? JSON.parse(raw) : [];
@@ -673,7 +710,12 @@
             }
         };
 
-        const saveFrecuentes = (items) => {
+        const saveFrecuentes = (items, tipoEnvio = getTipoEnvio()) => {
+            const storageKey = storageKeyForTipo(tipoEnvio);
+            if (storageKey === '') {
+                return;
+            }
+
             localStorage.setItem(storageKey, JSON.stringify(items));
         };
 
@@ -712,7 +754,13 @@
 
         const showSuggestions = (query) => {
             if (!dropdown || !remitenteInput) return;
-            const frecuentes = getFrecuentes();
+            const tipoEnvio = getTipoEnvio();
+            if (!tipoEnvio) {
+                hideDropdown();
+                return;
+            }
+
+            const frecuentes = getFrecuentes(tipoEnvio);
             const term = String(query || '').trim().toLowerCase();
 
             if (term.length === 0) {
@@ -783,13 +831,18 @@
                     payload[name] = getFieldValue(name);
                 });
 
+                if (!payload.tipo_envio) {
+                    setStatus('Selecciona primero el tipo de envio para guardar el frecuente.', 'warning');
+                    return;
+                }
+
                 if (!payload.nombre_r || !payload.nombre_d) {
                     setStatus('Para guardar envio frecuente, completa nombre de remitente y destinatario.', 'warning');
                     return;
                 }
 
                 try {
-                    const frecuentes = getFrecuentes();
+                    const frecuentes = getFrecuentes(payload.tipo_envio);
                     const key = `${normalizeText(payload.nombre_r)}|${normalizeText(payload.nombre_d)}`;
 
                     const withoutCurrent = frecuentes.filter((item) => {
@@ -798,8 +851,8 @@
                     });
 
                     withoutCurrent.unshift(payload);
-                    saveFrecuentes(withoutCurrent.slice(0, 100));
-                    setStatus('Envio frecuente guardado en cache de esta computadora.', 'success');
+                    saveFrecuentes(withoutCurrent.slice(0, 100), payload.tipo_envio);
+                    showSavedModal();
                 } catch (error) {
                     console.error(error);
                     setStatus('No se pudo guardar el envio frecuente en cache local.', 'danger');
@@ -810,6 +863,10 @@
         tipoEnvioInputs.forEach((input) => {
             input.addEventListener('change', () => {
                 applyTipoEnvio(input.value);
+                hideDropdown();
+                if (remitenteInput) {
+                    showSuggestions(remitenteInput.value);
+                }
             });
         });
 
