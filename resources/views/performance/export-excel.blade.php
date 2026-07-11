@@ -14,7 +14,7 @@
 
     <tr></tr>
     <tr>
-        <td><strong>Origenes</strong></td>
+        <td><strong>Orígenes</strong></td>
         <td>{{ $summary['origenes'] }}</td>
         <td><strong>Destinos</strong></td>
         <td>{{ $summary['destinos'] }}</td>
@@ -57,9 +57,46 @@
 
     <tr></tr>
     <tr>
+        <td colspan="9"><strong>PROMEDIO DE DÍAS ENTRE EVENTOS</strong></td>
+    </tr>
+    <tr>
+        <td><strong>Transiciones</strong></td>
+        <td>{{ $transitionSummary['total_transiciones'] ?? 0 }}</td>
+        <td><strong>Promedio general días</strong></td>
+        <td>{{ number_format((float) ($transitionSummary['promedio_general_dias'] ?? 0), 2) }}</td>
+        <td><strong>Rutas</strong></td>
+        <td>{{ $transitionSummary['rutas'] ?? 0 }}</td>
+    </tr>
+    <tr>
+        <th>Servicio</th>
+        <th>Origen</th>
+        <th>Destino</th>
+        <th>Evento inicial</th>
+        <th>Evento siguiente</th>
+        <th>Casos</th>
+        <th>Promedio días</th>
+        <th>Mínimo</th>
+        <th>Máximo</th>
+    </tr>
+    @foreach($transitionRows as $transitionRow)
+        <tr>
+            <td>{{ $transitionRow['servicio'] }}</td>
+            <td>{{ $transitionRow['origen'] }}</td>
+            <td>{{ $transitionRow['destino'] }}</td>
+            <td>{{ $transitionRow['evento_origen'] }}</td>
+            <td>{{ $transitionRow['evento_destino'] }}</td>
+            <td>{{ (int) $transitionRow['total_transiciones'] }}</td>
+            <td>{{ number_format((float) $transitionRow['promedio_dias'], 2) }}</td>
+            <td>{{ number_format((float) $transitionRow['minimo_dias'], 2) }}</td>
+            <td>{{ number_format((float) $transitionRow['maximo_dias'], 2) }}</td>
+        </tr>
+    @endforeach
+
+    <tr></tr>
+    <tr>
         <th>Fecha</th>
         <th>Servicio</th>
-        <th>Codigo</th>
+        <th>Código</th>
         <th>Evento</th>
         <th>Origen</th>
         <th>Destino</th>

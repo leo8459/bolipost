@@ -96,7 +96,7 @@
     <table class="kpis">
         <tr>
             <td><div class="label">Registros</div><div class="value">{{ number_format($summary['total_registros']) }}</div></td>
-            <td><div class="label">Origenes</div><div class="value">{{ number_format($summary['origenes']) }}</div></td>
+            <td><div class="label">Orígenes</div><div class="value">{{ number_format($summary['origenes']) }}</div></td>
             <td><div class="label">Destinos</div><div class="value">{{ number_format($summary['destinos']) }}</div></td>
             <td><div class="label">Eventos</div><div class="value">{{ number_format($summary['eventos']) }}</div></td>
         </tr>
@@ -145,6 +145,50 @@
                 </tr>
             </tfoot>
         @endif
+    </table>
+
+    <div class="section-title">Promedio de días entre eventos</div>
+    <table class="kpis">
+        <tr>
+            <td><div class="label">Transiciones</div><div class="value">{{ number_format($transitionSummary['total_transiciones'] ?? 0) }}</div></td>
+            <td><div class="label">Promedio General</div><div class="value">{{ number_format((float) ($transitionSummary['promedio_general_dias'] ?? 0), 2) }}</div></td>
+            <td><div class="label">Rutas</div><div class="value">{{ number_format($transitionSummary['rutas'] ?? 0) }}</div></td>
+        </tr>
+    </table>
+
+    <table class="report">
+        <thead>
+            <tr>
+                <th>Servicio</th>
+                <th>Origen</th>
+                <th>Destino</th>
+                <th>Evento inicial</th>
+                <th>Evento siguiente</th>
+                <th>Casos</th>
+                <th>Promedio</th>
+                <th>Mín.</th>
+                <th>Máx.</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($transitionRows as $transitionRow)
+                <tr>
+                    <td>{{ $transitionRow['servicio'] }}</td>
+                    <td>{{ $transitionRow['origen'] }}</td>
+                    <td>{{ $transitionRow['destino'] }}</td>
+                    <td>{{ $transitionRow['evento_origen'] }}</td>
+                    <td>{{ $transitionRow['evento_destino'] }}</td>
+                    <td class="right">{{ (int) $transitionRow['total_transiciones'] }}</td>
+                    <td class="right">{{ number_format((float) $transitionRow['promedio_dias'], 2) }}</td>
+                    <td class="right">{{ number_format((float) $transitionRow['minimo_dias'], 2) }}</td>
+                    <td class="right">{{ number_format((float) $transitionRow['maximo_dias'], 2) }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="9" class="center">No hay suficientes eventos consecutivos.</td>
+                </tr>
+            @endforelse
+        </tbody>
     </table>
 </body>
 </html>

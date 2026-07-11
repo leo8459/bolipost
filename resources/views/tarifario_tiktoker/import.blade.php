@@ -55,17 +55,17 @@
                             </div>
 
                             <div class="alert alert-info">
-                                <p class="mb-2"><strong>Columnas requeridas en el Excel (fila 1):</strong></p>
+                                <p class="mb-2"><strong>Columnas admitidas en el Excel (fila 1):</strong></p>
                                 <code>{{ implode(', ', $columnas) }}</code>
                                 <p class="mt-2 mb-2">
                                     La plantilla incluye las hojas <strong>Origenes</strong> y <strong>Destinos</strong>
                                     para que uses los nombres correctos de los departamentos.
                                 </p>
                                 <p class="mt-2 mb-2">
-                                    <strong>servicio_extra</strong> es opcional y debe coincidir con un nombre de la hoja <strong>ServiciosExtras</strong>.
+                                    <strong>servicio_extra</strong> y <strong>peso3</strong> son opcionales. Si llenas <strong>servicio_extra</strong>, debe coincidir con un nombre de la hoja <strong>ServiciosExtras</strong>.
                                 </p>
                                 <p class="mb-0">
-                                    <strong>tiempo_entrega</strong> se importa en horas.
+                                    <strong>Obligatorios:</strong> origen, destino, peso1, peso2, peso_extra y tiempo_entrega. <strong>tiempo_entrega</strong> se importa en horas.
                                 </p>
                             </div>
 

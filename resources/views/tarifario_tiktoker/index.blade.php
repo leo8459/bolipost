@@ -124,6 +124,7 @@
                                         <th>Servicio Extra</th>
                                         <th>Peso 1<br><small>hasta 2 kg</small></th>
                                         <th>Peso 2<br><small>hasta 5 kg</small></th>
+                                        <th>Peso 3<br><small>opcional</small></th>
                                         <th>Peso Extra<br><small>+ de 5 kg</small></th>
                                         <th>Tiempo Entrega</th>
                                         <th></th>
@@ -138,6 +139,7 @@
                                             <td>{{ $tarifa->servicioExtra?->nombre ?? '-' }}</td>
                                             <td>{{ number_format((float) $tarifa->peso1, 2) }}</td>
                                             <td>{{ number_format((float) $tarifa->peso2, 2) }}</td>
+                                            <td>{{ $tarifa->peso3 !== null ? number_format((float) $tarifa->peso3, 2) : '-' }}</td>
                                             <td>{{ number_format((float) $tarifa->peso_extra, 2) }}</td>
                                             <td>{{ $tarifa->tiempo_entrega }} h</td>
                                             <td>
@@ -160,7 +162,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="9" class="text-center py-4">No hay registros</td>
+                                            <td colspan="10" class="text-center py-4">No hay registros</td>
                                         </tr>
                                     @endforelse
                                 </tbody>

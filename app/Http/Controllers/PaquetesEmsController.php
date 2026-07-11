@@ -14,6 +14,7 @@ use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
+use App\Support\TiktokerTariffPriceCalculator;
 use App\Services\FacturacionCartService;
 use App\Support\SolicitudCode;
 use App\Support\TiktokerEvent;
@@ -27,6 +28,8 @@ use Illuminate\Validation\Rule;
 
 class PaquetesEmsController extends Controller
 {
+    private const SERVICIO_EXTRAS_CACHE_KEY = 'lookup:paquetes-ems:servicio-extras';
+
     private const EVENTO_ID_CONTRATO_CREADO = 318;
     private const EVENTO_ID_CONTRATO_RECIBIDO = 295;
     private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
@@ -472,7 +475,7 @@ class PaquetesEmsController extends Controller
 
     private function cachedServicioExtras()
     {
-        return Cache::remember('lookup:paquetes-ems:servicio-extras', now()->addMinutes(30), function () {
+        return Cache::remember(self::SERVICIO_EXTRAS_CACHE_KEY, now()->addMinutes(30), function () {
             return ServicioExtra::query()
                 ->orderBy('id')
                 ->get(['id', 'nombre', 'descripcion']);
@@ -2269,20 +2272,7 @@ class PaquetesEmsController extends Controller
 
     private function calculatePrecioTiktoker(TarifarioTiktoker $tarifario, float $peso, bool $pagoDestinatario = false): float
     {
-        if ($peso <= 2.000) {
-            $precioBase = (float) $tarifario->peso1;
-        } elseif ($peso <= 5.000) {
-            $precioBase = (float) $tarifario->peso2;
-        } else {
-            $bloquesExtra = (int) ceil($peso - 5);
-            $precioBase = (float) $tarifario->peso2 + ($bloquesExtra * (float) $tarifario->peso_extra);
-        }
-
-        if ($pagoDestinatario) {
-            $precioBase += 2.50;
-        }
-
-        return round($precioBase, 2);
+        return TiktokerTariffPriceCalculator::calculate($tarifario, $peso, $pagoDestinatario);
     }
 
     private function nullableTrim(?string $value): ?string

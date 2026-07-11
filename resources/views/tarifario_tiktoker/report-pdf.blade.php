@@ -133,12 +133,13 @@
                 <thead>
                     <tr>
                         <th style="width: 20%;">Destino</th>
-                        <th style="width: 25%;">Servicio extra</th>
+                        <th style="width: 20%;">Servicio extra</th>
                         <th style="width: 11%;">Peso 1 <span class="head-note">hasta 2 kg</span></th>
                         <th style="width: 11%;">Peso 2 <span class="head-note">hasta 5 kg</span></th>
+                        <th style="width: 10%;">Peso 3 <span class="head-note">opcional</span></th>
                         <th style="width: 11%;">Peso extra <span class="head-note">+ de 5 kg</span></th>
                         <th style="width: 10%;">Entrega</th>
-                        <th style="width: 12%;">Referencia <span class="head-note">5 kg + 1 kg extra</span></th>
+                        <th style="width: 7%;">Referencia <span class="head-note">5 kg + 1 kg extra</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -148,6 +149,7 @@
                             <td>{{ $item->servicioExtra?->nombre ?? 'General' }}</td>
                             <td class="text-right">{{ number_format((float) $item->peso1, 2, '.', ',') }}</td>
                             <td class="text-right">{{ number_format((float) $item->peso2, 2, '.', ',') }}</td>
+                            <td class="text-right">{{ $item->peso3 !== null ? number_format((float) $item->peso3, 2, '.', ',') : '-' }}</td>
                             <td class="text-right">{{ number_format((float) $item->peso_extra, 2, '.', ',') }}</td>
                             <td class="text-center">{{ (int) $item->tiempo_entrega }} h</td>
                             <td class="text-right">{{ number_format((float) $item->peso2 + (float) $item->peso_extra, 2, '.', ',') }}</td>

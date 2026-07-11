@@ -37,6 +37,16 @@ class TarifarioTiktokerController extends Controller
         'servicio_extra',
         'peso1',
         'peso2',
+        'peso3',
+        'peso_extra',
+        'tiempo_entrega',
+    ];
+
+    private const REQUIRED_IMPORT_COLUMNS = [
+        'origen',
+        'destino',
+        'peso1',
+        'peso2',
         'peso_extra',
         'tiempo_entrega',
     ];
@@ -101,9 +111,9 @@ class TarifarioTiktokerController extends Controller
             $summarySheet = $spreadsheet->getActiveSheet();
             $summarySheet->setTitle('Resumen');
 
-            $summarySheet->mergeCells('A1:G1');
+            $summarySheet->mergeCells('A1:H1');
             $summarySheet->setCellValue('A1', 'REPORTE TARIFARIO TIKTOKER');
-            $summarySheet->mergeCells('A2:G2');
+            $summarySheet->mergeCells('A2:H2');
             $summarySheet->setCellValue('A2', 'Generado el ' . now()->format('d/m/Y H:i'));
 
             $summarySheet->fromArray([
@@ -113,7 +123,7 @@ class TarifarioTiktokerController extends Controller
             ], null, 'A4');
 
             $summarySheet->fromArray([
-                ['Departamento', 'Cantidad registros', 'Peso 1 promedio (hasta 2 kg)', 'Peso 2 promedio (hasta 5 kg)', 'Peso extra promedio (+ de 5 kg)', 'Tiempo promedio (h)', 'Servicios distintos'],
+                ['Departamento', 'Cantidad registros', 'Peso 1 promedio (hasta 2 kg)', 'Peso 2 promedio (hasta 5 kg)', 'Peso 3 promedio (opcional)', 'Peso extra promedio (+ de 5 kg)', 'Tiempo promedio (h)', 'Servicios distintos'],
             ], null, 'A8');
 
             $summaryRow = 9;
@@ -123,6 +133,7 @@ class TarifarioTiktokerController extends Controller
                     $items->count(),
                     round((float) $items->avg('peso1'), 2),
                     round((float) $items->avg('peso2'), 2),
+                    round((float) $items->avg('peso3'), 2),
                     round((float) $items->avg('peso_extra'), 2),
                     round((float) $items->avg('tiempo_entrega'), 0),
                     $items->map(fn ($item) => optional($item->servicioExtra)->nombre)->filter()->unique()->count(),
@@ -130,17 +141,17 @@ class TarifarioTiktokerController extends Controller
                 $summaryRow++;
             }
 
-            $this->styleExcelReportSheet($summarySheet, 'A1:G2', 'A8:G8', max(8, $summaryRow - 1));
+            $this->styleExcelReportSheet($summarySheet, 'A1:H2', 'A8:H8', max(8, $summaryRow - 1));
             $summarySheet->getColumnDimension('A')->setWidth(24);
             $summarySheet->getColumnDimension('B')->setWidth(18);
-            foreach (['C', 'D', 'E'] as $column) {
+            foreach (['C', 'D', 'E', 'F'] as $column) {
                 $summarySheet->getColumnDimension($column)->setWidth(24);
             }
-            foreach (['F', 'G'] as $column) {
+            foreach (['G', 'H'] as $column) {
                 $summarySheet->getColumnDimension($column)->setWidth(18);
             }
-            $summarySheet->getStyle('C9:F' . max(9, $summaryRow - 1))->getNumberFormat()->setFormatCode('#,##0.00');
-            $summarySheet->getStyle('A8:G8')->getAlignment()->setWrapText(true);
+            $summarySheet->getStyle('C9:G' . max(9, $summaryRow - 1))->getNumberFormat()->setFormatCode('#,##0.00');
+            $summarySheet->getStyle('A8:H8')->getAlignment()->setWrapText(true);
             $summarySheet->freezePane('A9');
 
             $sheetIndex = 1;
@@ -148,12 +159,12 @@ class TarifarioTiktokerController extends Controller
                 $sheet = $spreadsheet->createSheet($sheetIndex++);
                 $sheet->setTitle($this->sheetTitleForDepartment($department, $sheetIndex - 1));
 
-                $sheet->mergeCells('A1:G1');
+                $sheet->mergeCells('A1:H1');
                 $sheet->setCellValue('A1', 'TARIFARIO TIKTOKER - ' . $department);
-                $sheet->mergeCells('A2:G2');
+                $sheet->mergeCells('A2:H2');
                 $sheet->setCellValue('A2', 'Registros: ' . $items->count());
                 $sheet->fromArray([
-                    ['Destino', 'Servicio extra', 'Peso 1 (hasta 2 kg)', 'Peso 2 (hasta 5 kg)', 'Peso extra (+ de 5 kg)', 'Tiempo entrega (h)', 'Referencia 5 kg + 1 kg extra'],
+                    ['Destino', 'Servicio extra', 'Peso 1 (hasta 2 kg)', 'Peso 2 (hasta 5 kg)', 'Peso 3 (opcional)', 'Peso extra (+ de 5 kg)', 'Tiempo entrega (h)', 'Referencia 5 kg + 1 kg extra'],
                 ], null, 'A4');
 
                 $row = 5;
@@ -163,6 +174,7 @@ class TarifarioTiktokerController extends Controller
                         (string) (optional($item->servicioExtra)->nombre ?? 'General'),
                         (float) $item->peso1,
                         (float) $item->peso2,
+                        $item->peso3 !== null ? (float) $item->peso3 : null,
                         (float) $item->peso_extra,
                         (int) $item->tiempo_entrega,
                         (float) $item->peso2 + (float) $item->peso_extra,
@@ -171,14 +183,14 @@ class TarifarioTiktokerController extends Controller
                 }
 
                 $lastRow = max(4, $row - 1);
-                $this->styleExcelReportSheet($sheet, 'A1:G2', 'A4:G4', $lastRow);
-                $sheet->setAutoFilter("A4:G{$lastRow}");
+                $this->styleExcelReportSheet($sheet, 'A1:H2', 'A4:H4', $lastRow);
+                $sheet->setAutoFilter("A4:H{$lastRow}");
                 $sheet->freezePane('A5');
-                foreach (['A' => 22, 'B' => 28, 'C' => 20, 'D' => 20, 'E' => 22, 'F' => 18, 'G' => 24] as $column => $width) {
+                foreach (['A' => 22, 'B' => 28, 'C' => 20, 'D' => 20, 'E' => 20, 'F' => 22, 'G' => 18, 'H' => 24] as $column => $width) {
                     $sheet->getColumnDimension($column)->setWidth($width);
                 }
-                $sheet->getStyle('A4:G4')->getAlignment()->setWrapText(true);
-                $sheet->getStyle("C5:G{$lastRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+                $sheet->getStyle('A4:H4')->getAlignment()->setWrapText(true);
+                $sheet->getStyle("C5:H{$lastRow}")->getNumberFormat()->setFormatCode('#,##0.00');
             }
 
             $spreadsheet->setActiveSheetIndex(0);
@@ -294,7 +306,7 @@ class TarifarioTiktokerController extends Controller
         }
 
         $header = array_map(fn ($value) => $this->normalizeHeader($value), array_shift($rows));
-        $missing = array_values(array_diff(self::IMPORT_COLUMNS, $header));
+        $missing = array_values(array_diff(self::REQUIRED_IMPORT_COLUMNS, $header));
 
         if ($missing !== []) {
             return back()
@@ -330,6 +342,7 @@ class TarifarioTiktokerController extends Controller
                 'servicio_extra_id' => $servicioExtraNombre === '' ? null : ($servicioExtraMap[$servicioExtraNombre] ?? null),
                 'peso1' => $this->parseDecimal($data['peso1'] ?? null),
                 'peso2' => $this->parseDecimal($data['peso2'] ?? null),
+                'peso3' => array_key_exists('peso3', $data) ? $this->parseDecimal($data['peso3']) : null,
                 'peso_extra' => $this->parseDecimal($data['peso_extra'] ?? null),
                 'tiempo_entrega' => $this->parseInteger($data['tiempo_entrega'] ?? null),
             ];
@@ -342,7 +355,6 @@ class TarifarioTiktokerController extends Controller
             }
 
             $validated = $validator->validated();
-            $validated['peso3'] = $validated['peso2'];
             $validRows[] = $validated;
         }
 
@@ -400,7 +412,7 @@ class TarifarioTiktokerController extends Controller
             $sheet->setTitle('TarifarioTiktoker');
             $sheet->fromArray(self::IMPORT_COLUMNS, null, 'A1');
 
-            $sheet->getStyle('A1:G1')->applyFromArray([
+            $sheet->getStyle('A1:H1')->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF20539A']],
                 'alignment' => [
@@ -416,14 +428,14 @@ class TarifarioTiktokerController extends Controller
             ]);
 
             $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:G1');
+            $sheet->setAutoFilter('A1:H1');
 
-            foreach (['A' => 24, 'B' => 24, 'C' => 22, 'D' => 16, 'E' => 16, 'F' => 18, 'G' => 16] as $column => $width) {
+            foreach (['A' => 24, 'B' => 24, 'C' => 22, 'D' => 16, 'E' => 16, 'F' => 16, 'G' => 18, 'H' => 16] as $column => $width) {
                 $sheet->getColumnDimension($column)->setWidth($width);
             }
 
-            $sheet->getStyle('D2:F5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('G2:G5000')->getNumberFormat()->setFormatCode('0');
+            $sheet->getStyle('D2:G5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('H2:H5000')->getNumberFormat()->setFormatCode('0');
 
             $sheetOrigenes = $spreadsheet->createSheet();
             $sheetOrigenes->setTitle('Origenes');
@@ -460,9 +472,9 @@ class TarifarioTiktokerController extends Controller
             $sheetInstrucciones->setCellValue('A1', 'INSTRUCCIONES DE USO');
             $sheetInstrucciones->setCellValue('A3', '1) No cambies los nombres de columnas en la hoja TarifarioTiktoker.');
             $sheetInstrucciones->setCellValue('A4', '2) Usa los nombres de departamento de las hojas Origenes y Destinos.');
-            $sheetInstrucciones->setCellValue('A5', '3) servicio_extra puede quedar vacio o usar un nombre de la hoja ServiciosExtras.');
+            $sheetInstrucciones->setCellValue('A5', '3) servicio_extra y peso3 pueden quedar vacios.');
             $sheetInstrucciones->setCellValue('A6', '4) origen y destino deben escribirse exactamente como en las listas.');
-            $sheetInstrucciones->setCellValue('A7', '5) peso1 es el precio hasta 2 kg, peso2 hasta 5 kg y peso_extra se suma por cada kg o fraccion adicional despues de 5 kg.');
+            $sheetInstrucciones->setCellValue('A7', '5) peso1 es el precio hasta 2 kg, peso2 hasta 5 kg, peso3 es opcional y peso_extra se suma por cada kg o fraccion adicional despues de 5 kg.');
             $sheetInstrucciones->setCellValue('A8', '6) tiempo_entrega se registra en horas.');
             $sheetInstrucciones->getStyle('A1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 14],
@@ -485,10 +497,7 @@ class TarifarioTiktokerController extends Controller
 
     private function validateData(Request $request): array
     {
-        $validated = $request->validate($this->validationRules());
-        $validated['peso3'] = $validated['peso2'];
-
-        return $validated;
+        return $request->validate($this->validationRules());
     }
 
     private function validationRules(): array
@@ -499,6 +508,7 @@ class TarifarioTiktokerController extends Controller
             'servicio_extra_id' => ['nullable', 'integer', Rule::exists('servicio_extras', 'id')],
             'peso1' => ['required', 'numeric', 'min:0'],
             'peso2' => ['required', 'numeric', 'min:0'],
+            'peso3' => ['nullable', 'numeric', 'min:0'],
             'peso_extra' => ['required', 'numeric', 'min:0'],
             'tiempo_entrega' => ['required', 'integer', 'min:0'],
         ];
@@ -543,6 +553,7 @@ class TarifarioTiktokerController extends Controller
                 $query->where(function ($search) use ($q) {
                     $search->whereRaw('CAST(peso1 AS TEXT) ILIKE ?', ["%{$q}%"])
                         ->orWhereRaw('CAST(peso2 AS TEXT) ILIKE ?', ["%{$q}%"])
+                        ->orWhereRaw('CAST(peso3 AS TEXT) ILIKE ?', ["%{$q}%"])
                         ->orWhereRaw('CAST(peso_extra AS TEXT) ILIKE ?', ["%{$q}%"])
                         ->orWhereRaw('CAST(tiempo_entrega AS TEXT) ILIKE ?', ["%{$q}%"])
                         ->orWhereHas('origen', fn ($sub) => $sub->where('nombre_origen', 'ILIKE', "%{$q}%"))

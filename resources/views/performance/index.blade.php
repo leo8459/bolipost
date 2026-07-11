@@ -24,7 +24,7 @@
         <section class="card border-0 shadow-sm mb-4">
             <div class="card-header performance-header">
                 <div>
-                    <h3 class="mb-1">Busqueda de eventos</h3>
+                    <h3 class="mb-1">Búsqueda de eventos</h3>
                     <small>Filtra por año, origen, destino, servicio y evento para generar tu tabla.</small>
                 </div>
             </div>
@@ -34,7 +34,7 @@
                         <div class="col-lg-3 mb-2">
                             <label class="font-weight-bold">Buscar</label>
                             <input type="text" name="q" value="{{ $filters['q'] }}" class="form-control"
-                                placeholder="Codigo, actor, evento, origen o destino">
+                                placeholder="Código, actor, evento, origen o destino">
                         </div>
                         <div class="col-lg-2 mb-2">
                             <label class="font-weight-bold">Año desde</label>
@@ -150,7 +150,7 @@
             <div class="col-lg-3 mb-2">
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
-                        <div class="performance-stat-label">Origenes visibles</div>
+                        <div class="performance-stat-label">Orígenes visibles</div>
                         <div class="performance-stat-value">{{ number_format($summary['origenes']) }}</div>
                     </div>
                 </div>
@@ -257,12 +257,88 @@
             </div>
         </section>
 
+        <div class="row">
+            <div class="col-lg-4 mb-2">
+                <div class="card border-0 shadow-sm h-100 performance-stat">
+                    <div class="card-body">
+                        <div class="performance-stat-label">Transiciones analizadas</div>
+                        <div class="performance-stat-value">{{ number_format($transitionSummary['total_transiciones'] ?? 0) }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 mb-2">
+                <div class="card border-0 shadow-sm h-100 performance-stat">
+                    <div class="card-body">
+                        <div class="performance-stat-label">Promedio general entre eventos</div>
+                        <div class="performance-stat-value">{{ number_format((float) ($transitionSummary['promedio_general_dias'] ?? 0), 2) }} días</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 mb-2">
+                <div class="card border-0 shadow-sm h-100 performance-stat">
+                    <div class="card-body">
+                        <div class="performance-stat-label">Rutas evento a evento</div>
+                        <div class="performance-stat-value">{{ number_format($transitionSummary['rutas'] ?? 0) }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="card border-0 shadow-sm mb-2">
+            <div class="card-header performance-header">
+                <div>
+                    <h3 class="mb-1">Promedio de días entre eventos</h3>
+                    <small>Se calcula por código, tomando el siguiente evento cronológico y promediando los días transcurridos.</small>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive performance-table-wrap performance-transition-wrap">
+                    <table class="table table-sm table-bordered table-hover mb-0 performance-matrix">
+                        <thead>
+                            <tr>
+                                <th>Servicio</th>
+                                <th>Origen</th>
+                                <th>Destino</th>
+                                <th>Evento inicial</th>
+                                <th>Evento siguiente</th>
+                                <th class="text-right">Casos</th>
+                                <th class="text-right">Promedio días</th>
+                                <th class="text-right">Mínimo</th>
+                                <th class="text-right">Máximo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($transitionRows as $transitionRow)
+                                <tr>
+                                    <td>{{ $transitionRow['servicio'] }}</td>
+                                    <td>{{ $transitionRow['origen'] }}</td>
+                                    <td>{{ $transitionRow['destino'] }}</td>
+                                    <td>{{ $transitionRow['evento_origen'] }}</td>
+                                    <td>{{ $transitionRow['evento_destino'] }}</td>
+                                    <td class="text-right">{{ number_format((int) $transitionRow['total_transiciones']) }}</td>
+                                    <td class="text-right font-weight-bold">{{ number_format((float) $transitionRow['promedio_dias'], 2) }}</td>
+                                    <td class="text-right">{{ number_format((float) $transitionRow['minimo_dias'], 2) }}</td>
+                                    <td class="text-right">{{ number_format((float) $transitionRow['maximo_dias'], 2) }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted py-4">
+                                        No hay suficientes eventos consecutivos para calcular promedios.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
         <section class="card border-0 shadow-sm performance-detail-card">
             <div class="card-header performance-header">
                 <div class="d-flex justify-content-between align-items-center w-100">
                     <div>
-                    <h3 class="mb-1">Detalle de registros</h3>
-                    <small>Eventos encontrados segun la busqueda actual.</small>
+                        <h3 class="mb-1">Detalle de registros</h3>
+                        <small>Eventos encontrados según la búsqueda actual.</small>
                     </div>
                     <button class="btn btn-light btn-sm performance-toggle" type="button" data-toggle="collapse" data-target="#performanceDetailBody" aria-expanded="false" aria-controls="performanceDetailBody">
                         Ver detalle
@@ -270,45 +346,45 @@
                 </div>
             </div>
             <div id="performanceDetailBody" class="collapse">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Servicio</th>
-                                <th>Codigo</th>
-                                <th>Evento</th>
-                                <th>Origen</th>
-                                <th>Destino</th>
-                                <th>Actor</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($details as $detail)
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover mb-0">
+                            <thead>
                                 <tr>
-                                    <td>{{ \Illuminate\Support\Carbon::parse($detail->created_at)->format('d/m/Y H:i') }}</td>
-                                    <td>{{ $detail->servicio }}</td>
-                                    <td>{{ $detail->codigo }}</td>
-                                    <td>{{ $detail->evento_nombre }}</td>
-                                    <td>{{ $detail->origen }}</td>
-                                    <td>{{ $detail->destino }}</td>
-                                    <td>{{ $detail->actor_nombre }}</td>
+                                    <th>Fecha</th>
+                                    <th>Servicio</th>
+                                    <th>Código</th>
+                                    <th>Evento</th>
+                                    <th>Origen</th>
+                                    <th>Destino</th>
+                                    <th>Actor</th>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">No hay detalle disponible.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @forelse($details as $detail)
+                                    <tr>
+                                        <td>{{ \Illuminate\Support\Carbon::parse($detail->created_at)->format('d/m/Y H:i') }}</td>
+                                        <td>{{ $detail->servicio }}</td>
+                                        <td>{{ $detail->codigo }}</td>
+                                        <td>{{ $detail->evento_nombre }}</td>
+                                        <td>{{ $detail->origen }}</td>
+                                        <td>{{ $detail->destino }}</td>
+                                        <td>{{ $detail->actor_nombre }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-4">No hay detalle disponible.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-            @if($details instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator || $details instanceof \Illuminate\Pagination\Paginator)
-                <div class="card-footer">
-                    {{ $details->links() }}
-                </div>
-            @endif
+                @if($details instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator || $details instanceof \Illuminate\Pagination\Paginator)
+                    <div class="card-footer">
+                        {{ $details->links() }}
+                    </div>
+                @endif
             </div>
         </section>
     </div>
@@ -392,6 +468,11 @@
         .performance-table-wrap {
             max-height: calc(100vh - 330px);
             min-height: 280px;
+        }
+
+        .performance-transition-wrap {
+            max-height: 420px;
+            min-height: 220px;
         }
 
         .performance-legend-bar {

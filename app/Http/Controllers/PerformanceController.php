@@ -109,6 +109,7 @@ class PerformanceController extends Controller
 
         [$matrixRows, $eventColumns, $matrixTotals] = $this->buildMatrix($matrixSource);
         $eventLegend = $this->buildEventLegend($eventColumns);
+        [$transitionRows, $transitionSummary] = $this->buildTransitionMetrics(clone $filteredBaseQuery);
 
         $details = (clone $filteredBaseQuery)
             ->orderByDesc('created_at')
@@ -135,6 +136,8 @@ class PerformanceController extends Controller
             'matrixRows' => $matrixRows,
             'eventColumns' => $eventColumns,
             'matrixTotals' => $matrixTotals,
+            'transitionRows' => $transitionRows,
+            'transitionSummary' => $transitionSummary,
             'details' => $details,
             'summary' => $summary,
             'filterSummary' => $this->buildFilterSummary($filters),
@@ -159,6 +162,7 @@ class PerformanceController extends Controller
 
         [$matrixRows, $eventColumns, $matrixTotals] = $this->buildMatrix($matrixSource);
         $eventLegend = $this->buildEventLegend($eventColumns);
+        [$transitionRows, $transitionSummary] = $this->buildTransitionMetrics(clone $filteredBaseQuery);
 
         $details = (clone $filteredBaseQuery)
             ->orderByDesc('created_at')
@@ -173,6 +177,8 @@ class PerformanceController extends Controller
             'matrixRows' => $matrixRows,
             'eventColumns' => $eventColumns,
             'matrixTotals' => $matrixTotals,
+            'transitionRows' => $transitionRows,
+            'transitionSummary' => $transitionSummary,
             'details' => $details,
             'summary' => [
                 'total_registros' => (int) $matrixSource->sum('total'),
@@ -507,6 +513,84 @@ class PerformanceController extends Controller
         }
 
         return [$matrixRows, $eventColumns, ['events' => $matrixTotals, 'grand_total' => $grandTotal]];
+    }
+
+    private function buildTransitionMetrics(Builder $filteredBaseQuery): array
+    {
+        $transitionSteps = DB::query()->fromSub(
+            (clone $filteredBaseQuery)->selectRaw("
+                servicio,
+                codigo,
+                origen,
+                destino,
+                evento_nombre,
+                created_at,
+                LEAD(evento_nombre) OVER (
+                    PARTITION BY servicio, codigo
+                    ORDER BY created_at, record_id
+                ) as siguiente_evento,
+                LEAD(created_at) OVER (
+                    PARTITION BY servicio, codigo
+                    ORDER BY created_at, record_id
+                ) as siguiente_fecha
+            "),
+            'transition_steps'
+        );
+
+        $transitionRows = DB::query()
+            ->fromSub($transitionSteps, 'transitions')
+            ->selectRaw("
+                servicio,
+                origen,
+                destino,
+                evento_nombre as evento_origen,
+                siguiente_evento as evento_destino,
+                COUNT(*)::int as total_transiciones,
+                ROUND(AVG(EXTRACT(EPOCH FROM (siguiente_fecha - created_at)) / 86400.0)::numeric, 2) as promedio_dias,
+                ROUND(MIN(EXTRACT(EPOCH FROM (siguiente_fecha - created_at)) / 86400.0)::numeric, 2) as minimo_dias,
+                ROUND(MAX(EXTRACT(EPOCH FROM (siguiente_fecha - created_at)) / 86400.0)::numeric, 2) as maximo_dias
+            ")
+            ->whereNotNull('siguiente_evento')
+            ->whereNotNull('siguiente_fecha')
+            ->whereRaw('siguiente_fecha >= created_at')
+            ->groupBy('servicio', 'origen', 'destino', 'evento_nombre', 'siguiente_evento')
+            ->orderByDesc('total_transiciones')
+            ->orderBy('servicio')
+            ->orderBy('origen')
+            ->orderBy('destino')
+            ->orderBy('evento_nombre')
+            ->orderBy('siguiente_evento')
+            ->get()
+            ->map(function (object $row) {
+                return [
+                    'servicio' => (string) $row->servicio,
+                    'origen' => (string) $row->origen,
+                    'destino' => (string) $row->destino,
+                    'evento_origen' => $this->normalizeEventLabel((string) $row->evento_origen),
+                    'evento_destino' => $this->normalizeEventLabel((string) $row->evento_destino),
+                    'total_transiciones' => (int) $row->total_transiciones,
+                    'promedio_dias' => (float) $row->promedio_dias,
+                    'minimo_dias' => (float) $row->minimo_dias,
+                    'maximo_dias' => (float) $row->maximo_dias,
+                ];
+            })
+            ->values();
+
+        $totalTransitions = (int) $transitionRows->sum('total_transiciones');
+        $weightedAverageDays = $totalTransitions > 0
+            ? round((float) $transitionRows->sum(
+                fn (array $row) => $row['promedio_dias'] * $row['total_transiciones']
+            ) / $totalTransitions, 2)
+            : 0.0;
+
+        return [
+            $transitionRows,
+            [
+                'total_transiciones' => $totalTransitions,
+                'rutas' => $transitionRows->count(),
+                'promedio_general_dias' => $weightedAverageDays,
+            ],
+        ];
     }
 
     private function buildFilterSummary(array $filters): array

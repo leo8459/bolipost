@@ -20,6 +20,7 @@ use App\Models\SolicitudCliente;
 use App\Models\TarifaContrato;
 use App\Models\Tarifario;
 use App\Models\TarifarioTiktoker;
+use App\Support\TiktokerTariffPriceCalculator;
 use App\Support\TiktokerEvent;
 use App\Services\FacturacionCartService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -7636,20 +7637,7 @@ class PaquetesEms extends Component
 
     protected function calculatePrecioTiktokerInterno(TarifarioTiktoker $tarifario, float $peso, bool $pagoDestinatario = false): float
     {
-        if ($peso <= 2.000) {
-            $precioBase = (float) $tarifario->peso1;
-        } elseif ($peso <= 5.000) {
-            $precioBase = (float) $tarifario->peso2;
-        } else {
-            $bloquesExtra = (int) ceil($peso - 5);
-            $precioBase = (float) $tarifario->peso2 + ($bloquesExtra * (float) $tarifario->peso_extra);
-        }
-
-        if ($pagoDestinatario) {
-            $precioBase += 2.50;
-        }
-
-        return round($precioBase, 2);
+        return TiktokerTariffPriceCalculator::calculate($tarifario, $peso, $pagoDestinatario);
     }
 
     protected function setOrigenFromUser()

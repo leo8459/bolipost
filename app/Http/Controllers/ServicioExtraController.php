@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\ServicioExtra;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class ServicioExtraController extends Controller
 {
+    private const PAQUETES_EMS_SERVICIOS_CACHE_KEY = 'lookup:paquetes-ems:servicio-extras';
+
     public function index(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
@@ -37,6 +40,7 @@ class ServicioExtraController extends Controller
     public function store(Request $request)
     {
         ServicioExtra::query()->create($this->validateData($request));
+        Cache::forget(self::PAQUETES_EMS_SERVICIOS_CACHE_KEY);
 
         return redirect()
             ->route('servicio-extras.index')
@@ -53,6 +57,7 @@ class ServicioExtraController extends Controller
     public function update(Request $request, ServicioExtra $servicioExtra)
     {
         $servicioExtra->update($this->validateData($request, $servicioExtra));
+        Cache::forget(self::PAQUETES_EMS_SERVICIOS_CACHE_KEY);
 
         return redirect()
             ->route('servicio-extras.index')
@@ -62,6 +67,7 @@ class ServicioExtraController extends Controller
     public function destroy(ServicioExtra $servicioExtra)
     {
         $servicioExtra->delete();
+        Cache::forget(self::PAQUETES_EMS_SERVICIOS_CACHE_KEY);
 
         return redirect()
             ->route('servicio-extras.index')

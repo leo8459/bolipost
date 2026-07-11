@@ -95,6 +95,16 @@
         <div class="row">
             <div class="col-md-4">
                 <div class="form-group mb-3">
+                    <label for="peso3">Peso 3 (opcional)</label>
+                    <input type="number" step="0.01" min="0" id="peso3" name="peso3" value="{{ old('peso3', $tarifa->peso3 ?? '') }}" class="form-control @error('peso3') is-invalid @enderror">
+                    <small class="form-text text-muted">Este valor es opcional.</small>
+                    @error('peso3')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group mb-3">
                     <label for="tiempo_entrega">Tiempo de entrega (horas)</label>
                     <input type="number" min="0" step="1" id="tiempo_entrega" name="tiempo_entrega" value="{{ old('tiempo_entrega', $tarifa->tiempo_entrega ?? '') }}" class="form-control @error('tiempo_entrega') is-invalid @enderror" required>
                     @error('tiempo_entrega')
