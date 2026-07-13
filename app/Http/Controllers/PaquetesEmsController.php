@@ -139,11 +139,12 @@ class PaquetesEmsController extends Controller
             'paquetes-ems.solicitudes.index',
         ]);
 
+        $search = trim((string) $request->query('q', ''));
         $estadoSolicitudId = (int) (Estado::query()
             ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
             ->value('id') ?? 0);
 
-        $solicitudes = SolicitudCliente::query()
+        $solicitudesQuery = SolicitudCliente::query()
             ->with([
                 'cliente:id,name,email',
                 'estadoRegistro:id,nombre_estado',
@@ -155,12 +156,67 @@ class PaquetesEmsController extends Controller
             }, function ($query) {
                 $query->whereRaw('1 = 0');
             })
+            ->when($search !== '', function ($query) use ($search) {
+                $this->applySolicitudSearch($query, $search);
+            });
+
+        if ($request->expectsJson() || $request->boolean('autocomplete')) {
+            $suggestions = (clone $solicitudesQuery)
+                ->select([
+                    'id',
+                    'codigo_solicitud',
+                    'barcode',
+                    'nombre_remitente',
+                    'nombre_destinatario',
+                    'telefono_destinatario',
+                    'ciudad',
+                    'created_at',
+                ])
+                ->orderByRaw(
+                    "case
+                        when upper(coalesce(codigo_solicitud, '')) = upper(?) then 0
+                        when upper(coalesce(barcode, '')) = upper(?) then 1
+                        else 2
+                    end",
+                    [$search, $search]
+                )
+                ->latest()
+                ->limit(8)
+                ->get()
+                ->map(function (SolicitudCliente $solicitud) {
+                    $codigo = trim((string) ($solicitud->codigo_solicitud ?: $solicitud->barcode ?: ''));
+
+                    return [
+                        'id' => (int) $solicitud->id,
+                        'value' => $codigo,
+                        'label' => trim(collect([
+                            $codigo !== '' ? $codigo : 'SIN CODIGO',
+                            $solicitud->nombre_destinatario ?: null,
+                            $solicitud->telefono_destinatario ?: null,
+                            $solicitud->ciudad ?: null,
+                        ])->filter()->implode(' | ')),
+                        'remitente' => $solicitud->nombre_remitente,
+                        'destinatario' => $solicitud->nombre_destinatario,
+                        'telefono_destinatario' => $solicitud->telefono_destinatario,
+                        'ciudad' => $solicitud->ciudad,
+                        'created_at' => optional($solicitud->created_at)->format('d/m/Y H:i'),
+                    ];
+                })
+                ->values();
+
+            return response()->json([
+                'data' => $suggestions,
+            ]);
+        }
+
+        $solicitudes = $solicitudesQuery
             ->latest()
             ->paginate(20)
             ->withQueryString();
 
         return view('paquetes_ems.solicitudes-index', [
             'solicitudes' => $solicitudes,
+            'search' => $search,
         ]);
     }
 
@@ -361,12 +417,15 @@ class PaquetesEmsController extends Controller
         $estadoSolicitudId = (int) (Estado::query()
             ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
             ->value('id') ?? 0);
+        $estadoAlmacenId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ALMACEN'])
+            ->value('id') ?? 0);
 
-        if ($estadoSolicitudId <= 0) {
+        if ($estadoSolicitudId <= 0 || $estadoAlmacenId <= 0) {
             return redirect()
                 ->back()
                 ->withInput()
-                ->withErrors(['estado' => 'No existe el estado SOLICITUD en la tabla estados.']);
+                ->withErrors(['estado' => 'No existen los estados SOLICITUD o ALMACEN en la tabla estados.']);
         }
 
         $isPuertaAVentanilla = $this->isPuertaAVentanillaService($tarifarioTiktoker->servicioExtra);
@@ -382,7 +441,7 @@ class PaquetesEmsController extends Controller
         }
 
         $payload = [
-            'estado_id' => $estadoSolicitudId,
+            'estado_id' => $estadoAlmacenId,
             'servicio_extra_id' => (int) $data['servicio_extra_id'],
             'origen' => strtoupper(trim((string) $data['origen'])),
             'tipo_correspondencia' => null,
@@ -435,7 +494,7 @@ class PaquetesEmsController extends Controller
             $this->registrarEventosTiktoker(
                 [$solicitud],
                 $actorUserId,
-                TiktokerEvent::resolveId(TiktokerEvent::SOLICITUD_REGISTRADA)
+                TiktokerEvent::resolveId(TiktokerEvent::RECIBIDA_ALMACEN)
             );
         }
 
@@ -448,22 +507,38 @@ class PaquetesEmsController extends Controller
 
                 return redirect()
                     ->route('paquetes-ems.solicitudes.index')
-                    ->with('error', 'La solicitud se guardo, pero no se pudo agregar al carrito de facturacion.');
+                    ->with('error', 'La solicitud se guardo y se mando a ALMACEN, pero no se pudo agregar al carrito de facturacion.');
             }
 
             return redirect()
                 ->route('paquetes-ems.solicitudes.index')
-                ->with('success', 'Solicitud guardada y agregada al carrito de facturacion.')
+                ->with('success', 'Solicitud guardada y mandada a ALMACEN. Tambien se agrego al carrito de facturacion.')
                 ->with('solicitud_ticket_url', route('paquetes-ems.solicitudes.ticket', $solicitud));
         }
 
         return redirect()
-            ->route('paquetes-ems.solicitudes.ticket', $solicitud);
+            ->route('paquetes-ems.solicitudes.index')
+            ->with('success', 'Solicitud guardada y mandada a ALMACEN.')
+            ->with('solicitud_ticket_url', route('paquetes-ems.solicitudes.ticket', $solicitud));
     }
 
     private function canUseFacturacionShortcut($user): bool
     {
         return (bool) ($user && method_exists($user, 'can') && $user->can('feature.dashboard.facturacion'));
+    }
+
+    private function applySolicitudSearch($query, string $search): void
+    {
+        $query->where(function ($sub) use ($search) {
+            $sub->where('codigo_solicitud', 'like', '%' . $search . '%')
+                ->orWhere('barcode', 'like', '%' . $search . '%')
+                ->orWhere('nombre_remitente', 'like', '%' . $search . '%')
+                ->orWhere('nombre_destinatario', 'like', '%' . $search . '%')
+                ->orWhere('telefono_destinatario', 'like', '%' . $search . '%')
+                ->orWhere('telefono_remitente', 'like', '%' . $search . '%')
+                ->orWhere('ciudad', 'like', '%' . $search . '%')
+                ->orWhere('origen', 'like', '%' . $search . '%');
+        });
     }
 
     private function cachedDestinos()
