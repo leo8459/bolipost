@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\FacturacionScanConflictException;
 use App\Models\ConceptoFacturacion;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteInt;
@@ -532,7 +533,7 @@ class FacturacionCartService
         return $this->normalizeDraftCodesAfterMutation($user, $cart);
     }
 
-    public function addScannedItemByCode(User $user, string $codigo): array
+    public function addScannedItemByCode(User $user, string $codigo, ?string $selectedType = null, ?int $selectedRecordId = null): array
     {
         $this->assertFacturacionPermission($user);
 
@@ -652,14 +653,33 @@ class FacturacionCartService
             ->filter(fn ($match) => (int) ($match['match_priority'] ?? 0) === $bestPriority)
             ->values();
 
-        if ($preferredMatches->count() > 1) {
-            $labels = $preferredMatches
-                ->map(function ($match) {
-                    $source = (string) ($match['match_source'] ?? 'codigo');
-                    return (string) $match['label'] . ' [' . $source . ']';
+        $preferredMatches = $this->resolvePreferredScanMatches($preferredMatches, $codigoNormalizado);
+
+        if ($selectedType !== null && $selectedType !== '') {
+            $preferredMatches = $preferredMatches
+                ->filter(function ($match) use ($selectedType, $selectedRecordId) {
+                    if ((string) ($match['type'] ?? '') !== $selectedType) {
+                        return false;
+                    }
+
+                    if ($selectedRecordId !== null && $selectedRecordId > 0) {
+                        return (int) data_get($match, 'record.id', 0) === $selectedRecordId;
+                    }
+
+                    return true;
                 })
-                ->implode(', ');
-            throw new \RuntimeException('El codigo existe en varios modulos (' . $labels . '). Revisa el registro antes de agregarlo al carrito.');
+                ->values();
+        }
+
+        if ($preferredMatches->count() > 1 && $this->shouldOpenScanConflictModal($preferredMatches)) {
+            throw new FacturacionScanConflictException(
+                'El codigo existe en varios modulos. Selecciona el registro correcto antes de agregarlo al carrito.',
+                $this->formatScanConflictMatches($preferredMatches)
+            );
+        }
+
+        if ($preferredMatches->count() > 1) {
+            $preferredMatches = collect([$preferredMatches->first()]);
         }
 
         if ($preferredMatches->isEmpty()) {
@@ -688,6 +708,93 @@ class FacturacionCartService
                 'code' => (string) ($record->codigo ?? $codigoNormalizado),
             ],
         ];
+    }
+
+    private function formatScanConflictMatches(\Illuminate\Support\Collection $matches): array
+    {
+        return $matches
+            ->map(function ($match) {
+                $record = $match['record'] ?? null;
+                $source = (string) ($match['match_source'] ?? 'codigo');
+
+                return [
+                    'type' => (string) ($match['type'] ?? ''),
+                    'label' => (string) ($match['label'] ?? 'Registro'),
+                    'record_id' => (int) data_get($record, 'id', 0),
+                    'match_source' => $source,
+                    'match_source_label' => match ($source) {
+                        'barcode' => 'Barcode',
+                        'codigo_solicitud' => 'Codigo solicitud',
+                        'cod_especial' => 'Codigo especial',
+                        default => 'Codigo',
+                    },
+                    'code' => $this->resolveScanConflictCode($match),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function shouldOpenScanConflictModal(\Illuminate\Support\Collection $matches): bool
+    {
+        if ($matches->count() !== 2) {
+            return false;
+        }
+
+        return $matches->every(fn ($match) => (int) ($match['match_priority'] ?? 0) === 100);
+    }
+
+    private function resolveScanConflictCode(array $match): string
+    {
+        $record = $match['record'] ?? null;
+        $source = (string) ($match['match_source'] ?? 'codigo');
+
+        return trim((string) match ($source) {
+            'barcode' => data_get($record, 'barcode', ''),
+            'codigo_solicitud' => data_get($record, 'codigo_solicitud', ''),
+            'cod_especial' => data_get($record, 'cod_especial', ''),
+            default => data_get($record, 'codigo', ''),
+        });
+    }
+
+    private function resolvePreferredScanMatches(\Illuminate\Support\Collection $matches, string $codigoNormalizado): \Illuminate\Support\Collection
+    {
+        if ($matches->count() <= 1) {
+            return $matches;
+        }
+
+        $types = $matches->pluck('type')->filter()->values()->all();
+        sort($types);
+
+        // Regla operativa:
+        // cuando el mismo codigo "EN..." aparece como EMS e Interno al mismo tiempo,
+        // priorizamos EMS porque es el flujo postal que conserva mejor el detalle
+        // operativo y evita bloquear la facturacion por duplicidad historica.
+        if (
+            str_starts_with($codigoNormalizado, 'EN')
+            && $types === ['ems', 'interno']
+        ) {
+            $emsMatches = $matches
+                ->filter(fn ($match) => (string) ($match['type'] ?? '') === 'ems')
+                ->values();
+
+            if ($emsMatches->isNotEmpty()) {
+                Log::warning('Escaneo con codigo duplicado resuelto priorizando EMS.', [
+                    'codigo' => $codigoNormalizado,
+                    'matches' => $matches->map(fn ($match) => [
+                        'type' => (string) ($match['type'] ?? ''),
+                        'label' => (string) ($match['label'] ?? ''),
+                        'match_source' => (string) ($match['match_source'] ?? ''),
+                        'record_id' => (int) data_get($match, 'record.id', 0),
+                    ])->values()->all(),
+                    'selected_type' => 'ems',
+                ]);
+
+                return $emsMatches;
+            }
+        }
+
+        return $matches;
     }
 
     public function addSolicitudEms(User $user, SolicitudCliente $solicitud): object

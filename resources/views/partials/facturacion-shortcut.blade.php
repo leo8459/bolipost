@@ -608,6 +608,8 @@
                         data-processing-text="Estamos agregando el paquete al carrito, espera un momento..."
                     >
                         @csrf
+                        <input type="hidden" name="selected_match_type" id="facturacionSelectedMatchType" value="">
+                        <input type="hidden" name="selected_match_id" id="facturacionSelectedMatchId" value="">
                         <div class="global-shortcut-scan-form__row">
                             <input
                                 type="text"
@@ -955,6 +957,35 @@
                 </button>
                 <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--danger" id="facturacionActionConfirmAccept">
                     Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        class="global-shortcut-confirm"
+        id="facturacionScanSelectionModal"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="facturacionScanSelectionTitle"
+    >
+        <div class="global-shortcut-confirm__backdrop" data-close-facturacion-scan-select="true"></div>
+        <div class="global-shortcut-confirm__panel global-shortcut-confirm__panel--wide" role="document">
+            <div class="global-shortcut-confirm__header">
+                <div class="global-shortcut-confirm__icon">
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <div class="global-shortcut-confirm__eyebrow">Coincidencias del codigo</div>
+            </div>
+            <h4 id="facturacionScanSelectionTitle" class="global-shortcut-confirm__title">Selecciona el registro correcto</h4>
+            <p class="global-shortcut-confirm__message" id="facturacionScanSelectionMessage">
+                El codigo aparece en varios modulos. Elige cual deseas agregar al carrito.
+            </p>
+            <div class="facturacion-scan-select__list" id="facturacionScanSelectionList"></div>
+            <div class="global-shortcut-confirm__actions">
+                <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--ghost" id="facturacionScanSelectionCancel">
+                    Cancelar
                 </button>
             </div>
         </div>
@@ -1396,6 +1427,69 @@
             display: flex;
             justify-content: center;
             margin-top: 16px;
+        }
+        .facturacion-scan-select__list {
+            display: grid;
+            gap: 12px;
+            padding: 18px 22px 6px;
+        }
+        .facturacion-scan-select__option {
+            width: 100%;
+            text-align: left;
+            border: 1px solid #dbe7f6;
+            border-radius: 18px;
+            background:
+                linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+            padding: 15px 16px;
+            box-shadow: 0 10px 20px rgba(17, 47, 92, .06);
+            transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+        }
+        .facturacion-scan-select__option:hover,
+        .facturacion-scan-select__option:focus {
+            outline: none;
+            transform: translateY(-1px);
+            border-color: #bcd0eb;
+            box-shadow: 0 14px 26px rgba(17, 47, 92, .12);
+        }
+        .facturacion-scan-select__option-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .facturacion-scan-select__option-title {
+            margin: 0;
+            color: #173962;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+        .facturacion-scan-select__option-chip {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 28px;
+            padding: 0 10px;
+            border-radius: 999px;
+            background: #eef4ff;
+            color: #20539a;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .facturacion-scan-select__option-code {
+            margin-top: 8px;
+            color: #35577f;
+            font-size: .89rem;
+            font-weight: 700;
+            word-break: break-word;
+        }
+        .facturacion-scan-select__option-meta {
+            margin-top: 10px;
+            color: #7187a4;
+            font-size: .8rem;
+            line-height: 1.45;
         }
         .global-shortcut-modal__body {
             flex: 1 1 auto;
@@ -3247,6 +3341,9 @@
             .global-shortcut-confirm__actions {
                 padding: 0 14px 14px;
             }
+            .facturacion-scan-select__list {
+                padding: 14px 14px 2px;
+            }
             .global-shortcut-confirm__btn {
                 min-height: 44px;
             }
@@ -3335,6 +3432,11 @@
             let facturacionItemEditButtons = [];
             const facturacionItemEditSubmit = document.getElementById('facturacionItemEditSubmit');
             const facturacionItemEditFields = document.querySelectorAll('[data-edit-field-key]');
+            const facturacionScanSelectionModal = document.getElementById('facturacionScanSelectionModal');
+            const facturacionScanSelectionTitle = document.getElementById('facturacionScanSelectionTitle');
+            const facturacionScanSelectionMessage = document.getElementById('facturacionScanSelectionMessage');
+            const facturacionScanSelectionList = document.getElementById('facturacionScanSelectionList');
+            const facturacionScanSelectionCancel = document.getElementById('facturacionScanSelectionCancel');
             const facturacionBillingInlineForm = document.getElementById('facturacionBillingInlineForm');
             const facturacionBillingModeInput = document.getElementById('facturacionBillingModeInput');
             const facturacionInvoiceChannelInput = document.getElementById('facturacionInvoiceChannelInput');
@@ -3342,6 +3444,8 @@
             const facturacionBillingFields = document.getElementById('facturacionBillingFields');
             let facturacionScanForm = document.getElementById('facturacionScanForm');
             let facturacionScanCodeInput = document.getElementById('facturacionScanCode');
+            let facturacionSelectedMatchTypeInput = document.getElementById('facturacionSelectedMatchType');
+            let facturacionSelectedMatchIdInput = document.getElementById('facturacionSelectedMatchId');
             let facturacionScanPanel = facturacionScanForm
                 ? facturacionScanForm.closest('.global-shortcut-scan-panel')
                 : null;
@@ -3617,6 +3721,8 @@
             const refreshFacturacionActionElements = () => {
                 facturacionScanForm = document.getElementById('facturacionScanForm');
                 facturacionScanCodeInput = document.getElementById('facturacionScanCode');
+                facturacionSelectedMatchTypeInput = document.getElementById('facturacionSelectedMatchType');
+                facturacionSelectedMatchIdInput = document.getElementById('facturacionSelectedMatchId');
                 facturacionScanPanel = facturacionScanForm
                     ? facturacionScanForm.closest('.global-shortcut-scan-panel')
                     : null;
@@ -3625,7 +3731,7 @@
                 facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
             };
 
-            const submitFacturacionScanForm = async (form) => {
+            const submitFacturacionScanForm = async (form, options = {}) => {
                 if (!(form instanceof HTMLFormElement)) {
                     return;
                 }
@@ -3643,6 +3749,9 @@
 
                 const tokenMeta = document.querySelector('meta[name="csrf-token"]');
                 const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
+                if (!options.preserveSelection) {
+                    clearFacturacionScanSelection();
+                }
                 const formData = new FormData(form);
                 const scanSubmitButton = form.querySelector('button[type="submit"]');
                 if (scanSubmitButton instanceof HTMLButtonElement) {
@@ -3667,6 +3776,11 @@
                     });
                     const data = await response.json().catch(() => null);
                     if (!response.ok || !data || data.ok === false) {
+                        if (response.status === 409 && data && data.requires_selection) {
+                            openFacturacionScanSelectionModal(data);
+                            return;
+                        }
+
                         const message = data && data.feedback && data.feedback.detail
                             ? data.feedback.detail
                             : 'No se pudo agregar el paquete al carrito.';
@@ -3692,6 +3806,7 @@
                         setAutosaveState('is-saved', 'Cambios guardados. Ya puedes seguir agregando o emitir.');
                     }
 
+                    clearFacturacionScanSelection();
                     form.reset();
                     if (scanPanel instanceof HTMLDetailsElement) {
                         scanPanel.open = true;
@@ -5440,6 +5555,104 @@
                 facturacionItemEditModal.setAttribute('aria-hidden', 'true');
             };
 
+            const clearFacturacionScanSelection = () => {
+                if (facturacionSelectedMatchTypeInput instanceof HTMLInputElement) {
+                    facturacionSelectedMatchTypeInput.value = '';
+                }
+                if (facturacionSelectedMatchIdInput instanceof HTMLInputElement) {
+                    facturacionSelectedMatchIdInput.value = '';
+                }
+            };
+
+            const closeFacturacionScanSelectionModal = () => {
+                if (!facturacionScanSelectionModal) {
+                    return;
+                }
+
+                facturacionScanSelectionModal.classList.remove('is-open');
+                facturacionScanSelectionModal.setAttribute('aria-hidden', 'true');
+            };
+
+            const openFacturacionScanSelectionModal = (payload) => {
+                if (!facturacionScanSelectionModal || !facturacionScanSelectionList) {
+                    return;
+                }
+
+                const choices = Array.isArray(payload && payload.choices) ? payload.choices : [];
+                facturacionScanSelectionList.innerHTML = '';
+
+                if (facturacionScanSelectionTitle instanceof HTMLElement && payload && payload.feedback) {
+                    facturacionScanSelectionTitle.textContent = String(payload.feedback.title || 'Selecciona el registro correcto');
+                }
+                if (facturacionScanSelectionMessage instanceof HTMLElement && payload && payload.feedback) {
+                    facturacionScanSelectionMessage.textContent = String(payload.feedback.message || 'El codigo aparece en varios modulos. Elige cual deseas agregar al carrito.');
+                }
+
+                choices.forEach((choice, index) => {
+                    if (!choice || typeof choice !== 'object') {
+                        return;
+                    }
+
+                    const optionButton = document.createElement('button');
+                    optionButton.type = 'button';
+                    optionButton.className = 'facturacion-scan-select__option';
+                    optionButton.dataset.matchType = String(choice.type || '');
+                    optionButton.dataset.matchId = String(choice.record_id || '');
+
+                    const head = document.createElement('span');
+                    head.className = 'facturacion-scan-select__option-head';
+
+                    const title = document.createElement('span');
+                    title.className = 'facturacion-scan-select__option-title';
+                    title.textContent = String(choice.label || 'Registro');
+
+                    const chip = document.createElement('span');
+                    chip.className = 'facturacion-scan-select__option-chip';
+                    chip.textContent = String(choice.match_source_label || 'Codigo');
+
+                    const code = document.createElement('span');
+                    code.className = 'facturacion-scan-select__option-code';
+                    code.textContent = String(choice.code || payload.scan_code || '');
+
+                    const meta = document.createElement('span');
+                    meta.className = 'facturacion-scan-select__option-meta';
+                    meta.textContent = 'Se agregara el registro encontrado en ' + String(choice.label || 'el modulo seleccionado') + '.';
+
+                    head.appendChild(title);
+                    head.appendChild(chip);
+                    optionButton.appendChild(head);
+                    optionButton.appendChild(code);
+                    optionButton.appendChild(meta);
+
+                    optionButton.addEventListener('click', async function () {
+                        if (!(facturacionScanForm instanceof HTMLFormElement)) {
+                            return;
+                        }
+
+                        if (facturacionSelectedMatchTypeInput instanceof HTMLInputElement) {
+                            facturacionSelectedMatchTypeInput.value = String(choice.type || '');
+                        }
+                        if (facturacionSelectedMatchIdInput instanceof HTMLInputElement) {
+                            facturacionSelectedMatchIdInput.value = String(choice.record_id || '');
+                        }
+
+                        closeFacturacionScanSelectionModal();
+                        await submitFacturacionScanForm(facturacionScanForm, { preserveSelection: true });
+                    });
+
+                    facturacionScanSelectionList.appendChild(optionButton);
+
+                    if (index === 0) {
+                        window.setTimeout(() => {
+                            optionButton.focus();
+                        }, 30);
+                    }
+                });
+
+                facturacionScanSelectionModal.classList.add('is-open');
+                facturacionScanSelectionModal.setAttribute('aria-hidden', 'false');
+            };
+
             const openFacturacionActionConfirm = (form) => {
                 if (!facturacionActionConfirmModal || !facturacionActionConfirmTitle || !facturacionActionConfirmMessage || !facturacionActionConfirmAccept) {
                     form.submit();
@@ -5598,6 +5811,23 @@
                     const target = event.target;
                     if (target instanceof HTMLElement && target.dataset.closeFacturacionItemEdit === 'true') {
                         closeFacturacionItemEditModal();
+                    }
+                });
+            }
+
+            if (facturacionScanSelectionCancel) {
+                facturacionScanSelectionCancel.addEventListener('click', function () {
+                    clearFacturacionScanSelection();
+                    closeFacturacionScanSelectionModal();
+                });
+            }
+
+            if (facturacionScanSelectionModal) {
+                facturacionScanSelectionModal.addEventListener('click', function (event) {
+                    const target = event.target;
+                    if (target instanceof HTMLElement && target.dataset.closeFacturacionScanSelect === 'true') {
+                        clearFacturacionScanSelection();
+                        closeFacturacionScanSelectionModal();
                     }
                 });
             }
@@ -6155,6 +6385,15 @@
                         return;
                     }
                     closeFacturacionActionConfirm();
+                    return;
+                }
+
+                if (event.key === 'Escape' && facturacionScanSelectionModal && facturacionScanSelectionModal.classList.contains('is-open')) {
+                    if (isFacturacionSubmitting) {
+                        return;
+                    }
+                    clearFacturacionScanSelection();
+                    closeFacturacionScanSelectionModal();
                     return;
                 }
 
