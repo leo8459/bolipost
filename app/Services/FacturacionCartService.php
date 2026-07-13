@@ -653,8 +653,6 @@ class FacturacionCartService
             ->filter(fn ($match) => (int) ($match['match_priority'] ?? 0) === $bestPriority)
             ->values();
 
-        $preferredMatches = $this->resolvePreferredScanMatches($preferredMatches, $codigoNormalizado);
-
         if ($selectedType !== null && $selectedType !== '') {
             $preferredMatches = $preferredMatches
                 ->filter(function ($match) use ($selectedType, $selectedRecordId) {
@@ -671,15 +669,11 @@ class FacturacionCartService
                 ->values();
         }
 
-        if ($preferredMatches->count() > 1 && $this->shouldOpenScanConflictModal($preferredMatches)) {
+        if ($preferredMatches->count() > 1) {
             throw new FacturacionScanConflictException(
                 'El codigo existe en varios modulos. Selecciona el registro correcto antes de agregarlo al carrito.',
                 $this->formatScanConflictMatches($preferredMatches)
             );
-        }
-
-        if ($preferredMatches->count() > 1) {
-            $preferredMatches = collect([$preferredMatches->first()]);
         }
 
         if ($preferredMatches->isEmpty()) {
@@ -735,15 +729,6 @@ class FacturacionCartService
             ->all();
     }
 
-    private function shouldOpenScanConflictModal(\Illuminate\Support\Collection $matches): bool
-    {
-        if ($matches->count() !== 2) {
-            return false;
-        }
-
-        return $matches->every(fn ($match) => (int) ($match['match_priority'] ?? 0) === 100);
-    }
-
     private function resolveScanConflictCode(array $match): string
     {
         $record = $match['record'] ?? null;
@@ -755,46 +740,6 @@ class FacturacionCartService
             'cod_especial' => data_get($record, 'cod_especial', ''),
             default => data_get($record, 'codigo', ''),
         });
-    }
-
-    private function resolvePreferredScanMatches(\Illuminate\Support\Collection $matches, string $codigoNormalizado): \Illuminate\Support\Collection
-    {
-        if ($matches->count() <= 1) {
-            return $matches;
-        }
-
-        $types = $matches->pluck('type')->filter()->values()->all();
-        sort($types);
-
-        // Regla operativa:
-        // cuando el mismo codigo "EN..." aparece como EMS e Interno al mismo tiempo,
-        // priorizamos EMS porque es el flujo postal que conserva mejor el detalle
-        // operativo y evita bloquear la facturacion por duplicidad historica.
-        if (
-            str_starts_with($codigoNormalizado, 'EN')
-            && $types === ['ems', 'interno']
-        ) {
-            $emsMatches = $matches
-                ->filter(fn ($match) => (string) ($match['type'] ?? '') === 'ems')
-                ->values();
-
-            if ($emsMatches->isNotEmpty()) {
-                Log::warning('Escaneo con codigo duplicado resuelto priorizando EMS.', [
-                    'codigo' => $codigoNormalizado,
-                    'matches' => $matches->map(fn ($match) => [
-                        'type' => (string) ($match['type'] ?? ''),
-                        'label' => (string) ($match['label'] ?? ''),
-                        'match_source' => (string) ($match['match_source'] ?? ''),
-                        'record_id' => (int) data_get($match, 'record.id', 0),
-                    ])->values()->all(),
-                    'selected_type' => 'ems',
-                ]);
-
-                return $emsMatches;
-            }
-        }
-
-        return $matches;
     }
 
     public function addSolicitudEms(User $user, SolicitudCliente $solicitud): object

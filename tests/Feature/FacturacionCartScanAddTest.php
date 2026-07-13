@@ -212,9 +212,9 @@ class FacturacionCartScanAddTest extends TestCase
         $this->assertSame(456, $resultado['cart']->id);
     }
 
-    public function test_scan_add_does_not_open_conflict_modal_when_duplicate_is_not_exact_priority(): void
+    public function test_scan_add_opens_conflict_modal_when_duplicate_exists_in_secondary_field(): void
     {
-        $interno = PaqueteInt::query()->create([
+        PaqueteInt::query()->create([
             'codigo' => 'MAIN-0001',
             'cod_especial' => 'SHARED-0001',
         ]);
@@ -229,17 +229,14 @@ class FacturacionCartScanAddTest extends TestCase
             ->with('feature.dashboard.facturacion')
             ->andReturn(true);
 
-        $service = Mockery::mock(FacturacionCartService::class)->makePartial()->shouldAllowMockingProtectedMethods();
-        $service->shouldReceive('addPaqueteInt')
-            ->once()
-            ->withArgs(function ($receivedUser, $receivedPaquete) use ($user, $interno) {
-                return $receivedUser === $user && $receivedPaquete->id === $interno->id;
-            })
-            ->andReturn((object) ['id' => 654]);
+        $service = app(FacturacionCartService::class);
 
-        $resultado = $service->addScannedItemByCode($user, 'SHARED-0001');
-
-        $this->assertSame('interno', $resultado['item']['type']);
-        $this->assertSame(654, $resultado['cart']->id);
+        try {
+            $service->addScannedItemByCode($user, 'SHARED-0001');
+            $this->fail('Expected FacturacionScanConflictException was not thrown.');
+        } catch (FacturacionScanConflictException $e) {
+            $this->assertCount(2, $e->matches());
+            $this->assertSame(['ems', 'interno'], collect($e->matches())->pluck('type')->sort()->values()->all());
+        }
     }
 }

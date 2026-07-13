@@ -9,9 +9,11 @@ use App\Models\Destino;
 use App\Models\Empresa;
 use App\Models\Estado;
 use App\Models\Origen;
+use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteEmsFormulario;
 use App\Models\PaqueteInt;
+use App\Models\PaqueteOrdi;
 use App\Models\Preregistro;
 use App\Models\Recojo as RecojoContrato;
 use App\Models\RemitenteEms;
@@ -1118,12 +1120,12 @@ class PaquetesEms extends Component
             return;
         }
 
-        $codigoExistente = PaqueteInt::query()
-            ->whereRaw('trim(upper(codigo)) = ?', [$codigo])
-            ->exists();
-
-        if ($codigoExistente) {
-            $this->addError('paqueteIntCodigo', 'Ese codigo ya esta registrado en paquetes INT.');
+        $codigoDuplicadoEn = $this->findExistingPackageModuleByCodigo($codigo);
+        if ($codigoDuplicadoEn !== null) {
+            $this->addError(
+                'paqueteIntCodigo',
+                'No pudimos guardar el paquete INT porque el codigo ' . $codigo . ' ya existe en ' . $codigoDuplicadoEn . '.'
+            );
             return;
         }
 
@@ -1156,6 +1158,46 @@ class PaquetesEms extends Component
         $this->dispatch('closePaqueteIntModal');
 
         session()->flash('success', 'Paquete INT registrado correctamente.');
+    }
+
+    protected function findExistingPackageModuleByCodigo(string $codigo): ?string
+    {
+        $codigoNormalizado = strtoupper(trim($codigo));
+        if ($codigoNormalizado === '') {
+            return null;
+        }
+
+        $checks = [
+            'paquetes INT' => fn () => PaqueteInt::query()
+                ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+                ->exists(),
+            'paquetes EMS' => fn () => PaqueteEms::query()
+                ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+                ->exists(),
+            'paquetes Ordinarios' => fn () => PaqueteOrdi::query()
+                ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+                ->exists(),
+            'paquetes Certificados' => fn () => PaqueteCerti::query()
+                ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+                ->exists(),
+            'Contratos' => fn () => RecojoContrato::query()
+                ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
+                ->exists(),
+            'Solicitudes EMS' => fn () => SolicitudCliente::query()
+                ->where(function ($query) use ($codigoNormalizado) {
+                    $query->whereRaw('trim(upper(COALESCE(codigo_solicitud, \'\'))) = ?', [$codigoNormalizado])
+                        ->orWhereRaw('trim(upper(COALESCE(barcode, \'\'))) = ?', [$codigoNormalizado]);
+                })
+                ->exists(),
+        ];
+
+        foreach ($checks as $label => $resolver) {
+            if ($resolver()) {
+                return $label;
+            }
+        }
+
+        return null;
     }
 
     public function guardarEnvioOficial()
