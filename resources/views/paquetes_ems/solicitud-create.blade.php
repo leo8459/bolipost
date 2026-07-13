@@ -149,6 +149,27 @@
             color:var(--muted);
         }
 
+        .solicitud-price-group{
+            display:flex;
+            align-items:stretch;
+        }
+
+        .solicitud-price-prefix{
+            display:inline-flex;
+            align-items:center;
+            padding:0 12px;
+            border:1px solid #d1d5db;
+            border-right:none;
+            border-radius:10px 0 0 10px;
+            background:#eef3ff;
+            color:var(--azul);
+            font-weight:800;
+        }
+
+        .solicitud-price-group .form-control{
+            border-radius:0 10px 10px 0;
+        }
+
         .solicitud-footer{
             padding:0 20px 20px;
             display:flex;
@@ -253,10 +274,10 @@
         <form
             method="POST"
             action="{{ route('paquetes-ems.solicitudes.store') }}"
-            @unless($canUseFacturacionShortcut ?? false) target="_blank" @endunless
         >
             @csrf
             <input type="hidden" name="solicitud_id" id="solicitud_id" value="{{ old('solicitud_id') }}">
+            <input type="hidden" name="precio_referencial" id="precio_referencial" value="{{ old('precio_referencial') }}">
                     <div class="solicitud-panel-body">
                         <div class="solicitud-section">
                     <h5 class="mb-3">Cargar desde codigo de solicitud</h5>
@@ -329,14 +350,17 @@
                         </div>
                         <div class="col-md-3 form-group">
                             <label>Precio</label>
-                            <input
-                                type="text"
-                                id="precio_preview"
-                                value="{{ old('precio') }}"
-                                class="form-control"
-                                placeholder="Se calcula automaticamente"
-                                readonly
-                            >
+                            <div class="solicitud-price-group">
+                                <span class="solicitud-price-prefix">Bs</span>
+                                <input
+                                    type="text"
+                                    id="precio_preview"
+                                    value="{{ old('precio_referencial') }}"
+                                    class="form-control"
+                                    placeholder="0.00"
+                                    readonly
+                                >
+                            </div>
                             <small id="precio_estado" class="form-text text-muted"></small>
                         </div>
                         <div class="col-md-12 form-group mb-0">
@@ -413,7 +437,7 @@
                             Cancelar
                         </a>
                         <button type="submit" class="btn btn-dorado solicitud-submit">
-                    Guardar solicitud
+                    Guardar y mandar a ALMACEN
                 </button>
                     </div>
         </form>
@@ -439,6 +463,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const cantidadInput = document.querySelector('input[name="cantidad"]');
     const pesoInput = document.querySelector('input[name="peso"]');
     const precioInput = document.getElementById('precio_preview');
+    const precioReferencialInput = document.getElementById('precio_referencial');
     const precioEstado = document.getElementById('precio_estado');
     const pagoDestinatarioCheckbox = document.getElementById('pago_destinatario');
     const contenidoInput = document.querySelector('textarea[name="contenido"]');
@@ -600,6 +625,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (precioInput) {
             precioInput.value = '';
         }
+        if (precioReferencialInput) {
+            precioReferencialInput.value = '';
+        }
 
         if (!servicioExtraId || !origen || !destinoId || !peso) {
             setPrecioEstado('Selecciona servicio, origen, destino y peso para calcular el precio.', 'info');
@@ -632,6 +660,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (precioInput) {
                 precioInput.value = payload.precio;
+            }
+            if (precioReferencialInput) {
+                precioReferencialInput.value = payload.precio;
             }
 
             setPrecioEstado('Precio calculado correctamente. Tiempo de entrega: ' + payload.tiempo_entrega + ' horas.', 'success');

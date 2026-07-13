@@ -109,6 +109,54 @@
             padding:16px 20px 20px;
         }
 
+        .solicitudes-search{
+            padding:0 20px 16px;
+        }
+
+        .solicitudes-search-form{
+            display:flex;
+            gap:12px;
+            align-items:flex-end;
+            flex-wrap:wrap;
+        }
+
+        .solicitudes-search-field{
+            flex:1 1 360px;
+        }
+
+        .solicitudes-search-field label{
+            display:block;
+            margin-bottom:6px;
+            color:var(--azul);
+            font-weight:800;
+        }
+
+        .solicitudes-search-field input{
+            width:100%;
+            border:1px solid var(--line);
+            border-radius:12px;
+            padding:11px 14px;
+            outline:none;
+            box-shadow:none;
+        }
+
+        .solicitudes-search-field input:focus{
+            border-color:rgba(32,83,154,.55);
+            box-shadow:0 0 0 4px rgba(32,83,154,.08);
+        }
+
+        .solicitudes-search-actions{
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+        }
+
+        .solicitudes-search-help{
+            margin-top:8px;
+            color:var(--muted);
+            font-size:.9rem;
+        }
+
         .solicitudes-table-card{
             border:1px solid var(--line);
             border-radius:14px;
@@ -183,6 +231,14 @@
                 width:100%;
                 justify-content:center;
             }
+
+            .solicitudes-search-actions{
+                width:100%;
+            }
+
+            .solicitudes-search-actions .btn{
+                width:100%;
+            }
         }
     </style>
 
@@ -211,6 +267,32 @@
                 <div>
                     Total en pagina: <strong>{{ $solicitudes->count() }}</strong>
                 </div>
+            </div>
+
+            <div class="solicitudes-search">
+                <form method="GET" action="{{ route('paquetes-ems.solicitudes.index') }}" class="solicitudes-search-form" id="solicitudesSearchForm" autocomplete="off">
+                    <div class="solicitudes-search-field">
+                        <label for="solicitudesSearchInput">Buscar solicitud</label>
+                        <input
+                            type="text"
+                            id="solicitudesSearchInput"
+                            name="q"
+                            list="solicitudesSearchSuggestions"
+                            value="{{ $search ?? '' }}"
+                            placeholder="Codigo, destinatario, remitente, telefono, origen o destino"
+                        >
+                        <datalist id="solicitudesSearchSuggestions"></datalist>
+                        <div class="solicitudes-search-help">
+                            Escribe al menos 2 caracteres para ver la prelista y selecciona una opcion para filtrar.
+                        </div>
+                    </div>
+                    <div class="solicitudes-search-actions">
+                        <button type="submit" class="btn btn-primary">Buscar</button>
+                        @if (!empty($search))
+                            <a href="{{ route('paquetes-ems.solicitudes.index') }}" class="btn btn-outline-secondary">Limpiar</a>
+                        @endif
+                    </div>
+                </form>
             </div>
 
     @if (session('success'))
@@ -313,13 +395,94 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const ticketUrl = @json($solicitudTicketUrl);
-    if (!ticketUrl) {
+    const searchForm = document.getElementById('solicitudesSearchForm');
+    const searchInput = document.getElementById('solicitudesSearchInput');
+    const datalist = document.getElementById('solicitudesSearchSuggestions');
+    const suggestionsUrl = @json(route('paquetes-ems.solicitudes.index'));
+
+    if (ticketUrl) {
+        window.setTimeout(function () {
+            window.open(ticketUrl, '_blank', 'noopener');
+        }, 150);
+    }
+
+    if (!searchForm || !searchInput || !datalist) {
         return;
     }
 
-    window.setTimeout(function () {
-        window.open(ticketUrl, '_blank', 'noopener');
-    }, 150);
+    let abortController = null;
+    let debounceTimer = null;
+    let lastSuggestionValues = [];
+
+    const renderSuggestions = function (items) {
+        datalist.innerHTML = '';
+        lastSuggestionValues = items.map(function (item) {
+            const option = document.createElement('option');
+            option.value = item.value || '';
+            option.label = item.label || item.value || '';
+            datalist.appendChild(option);
+
+            return (item.value || '').toUpperCase();
+        });
+    };
+
+    const fetchSuggestions = function (term) {
+        if (abortController) {
+            abortController.abort();
+        }
+
+        abortController = new AbortController();
+        const url = new URL(suggestionsUrl, window.location.origin);
+        url.searchParams.set('autocomplete', '1');
+        url.searchParams.set('q', term);
+
+        fetch(url.toString(), {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            signal: abortController.signal,
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('No se pudo cargar la prelista.');
+                }
+
+                return response.json();
+            })
+            .then(function (payload) {
+                renderSuggestions(Array.isArray(payload.data) ? payload.data : []);
+            })
+            .catch(function (error) {
+                if (error.name === 'AbortError') {
+                    return;
+                }
+
+                renderSuggestions([]);
+            });
+    };
+
+    searchInput.addEventListener('input', function () {
+        const term = searchInput.value.trim();
+
+        window.clearTimeout(debounceTimer);
+
+        if (term.length < 2) {
+            renderSuggestions([]);
+            return;
+        }
+
+        debounceTimer = window.setTimeout(function () {
+            fetchSuggestions(term);
+        }, 220);
+    });
+
+    searchInput.addEventListener('change', function () {
+        const normalizedValue = searchInput.value.trim().toUpperCase();
+        if (normalizedValue !== '' && lastSuggestionValues.includes(normalizedValue)) {
+            searchForm.submit();
+        }
+    });
 });
 </script>
 @endsection
