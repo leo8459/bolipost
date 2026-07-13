@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\FacturacionScanConflictException;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteInt;
 use App\Models\SolicitudCliente;
@@ -154,5 +155,91 @@ class FacturacionCartScanAddTest extends TestCase
         $this->assertSame('Paquete Interno', $resultado['item']['label']);
         $this->assertSame('INT-0001', $resultado['item']['code']);
         $this->assertSame(321, $resultado['cart']->id);
+    }
+
+    public function test_scan_add_throws_conflict_with_choices_when_code_exists_in_multiple_modules(): void
+    {
+        PaqueteEms::query()->create([
+            'codigo' => 'DUP-0001',
+        ]);
+
+        PaqueteInt::query()->create([
+            'codigo' => 'DUP-0001',
+        ]);
+
+        $user = Mockery::mock(User::class)->makePartial();
+        $user->shouldReceive('can')
+            ->with('feature.dashboard.facturacion')
+            ->andReturn(true);
+
+        $service = app(FacturacionCartService::class);
+
+        try {
+            $service->addScannedItemByCode($user, 'DUP-0001');
+            $this->fail('Expected FacturacionScanConflictException was not thrown.');
+        } catch (FacturacionScanConflictException $e) {
+            $this->assertCount(2, $e->matches());
+            $this->assertSame(['ems', 'interno'], collect($e->matches())->pluck('type')->sort()->values()->all());
+        }
+    }
+
+    public function test_scan_add_resolves_selected_match_when_user_chooses_one_option(): void
+    {
+        $ems = PaqueteEms::query()->create([
+            'codigo' => 'DUP-0002',
+        ]);
+
+        PaqueteInt::query()->create([
+            'codigo' => 'DUP-0002',
+        ]);
+
+        $user = Mockery::mock(User::class)->makePartial();
+        $user->shouldReceive('can')
+            ->with('feature.dashboard.facturacion')
+            ->andReturn(true);
+
+        $service = Mockery::mock(FacturacionCartService::class)->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('addPaqueteEms')
+            ->once()
+            ->withArgs(function ($receivedUser, $receivedPaquete) use ($user, $ems) {
+                return $receivedUser === $user && $receivedPaquete->id === $ems->id;
+            })
+            ->andReturn((object) ['id' => 456]);
+
+        $resultado = $service->addScannedItemByCode($user, 'DUP-0002', 'ems', $ems->id);
+
+        $this->assertSame('ems', $resultado['item']['type']);
+        $this->assertSame(456, $resultado['cart']->id);
+    }
+
+    public function test_scan_add_does_not_open_conflict_modal_when_duplicate_is_not_exact_priority(): void
+    {
+        $interno = PaqueteInt::query()->create([
+            'codigo' => 'MAIN-0001',
+            'cod_especial' => 'SHARED-0001',
+        ]);
+
+        PaqueteEms::query()->create([
+            'codigo' => 'OTHER-0001',
+            'cod_especial' => 'SHARED-0001',
+        ]);
+
+        $user = Mockery::mock(User::class)->makePartial();
+        $user->shouldReceive('can')
+            ->with('feature.dashboard.facturacion')
+            ->andReturn(true);
+
+        $service = Mockery::mock(FacturacionCartService::class)->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('addPaqueteInt')
+            ->once()
+            ->withArgs(function ($receivedUser, $receivedPaquete) use ($user, $interno) {
+                return $receivedUser === $user && $receivedPaquete->id === $interno->id;
+            })
+            ->andReturn((object) ['id' => 654]);
+
+        $resultado = $service->addScannedItemByCode($user, 'SHARED-0001');
+
+        $this->assertSame('interno', $resultado['item']['type']);
+        $this->assertSame(654, $resultado['cart']->id);
     }
 }

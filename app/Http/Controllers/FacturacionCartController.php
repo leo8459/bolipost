@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\FacturacionScanConflictException;
 use App\Models\ConceptoFacturacion;
 use App\Services\FacturacionCartService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -195,9 +196,16 @@ class FacturacionCartController extends Controller
         try {
             $validated = $request->validate([
                 'scan_code' => ['required', 'string', 'max:120'],
+                'selected_match_type' => ['nullable', 'string', 'in:contrato,ordinario,certificado,interno,ems,solicitud_ems'],
+                'selected_match_id' => ['nullable', 'integer', 'min:1'],
             ]);
 
-            $resultado = $service->addScannedItemByCode($user, (string) $validated['scan_code']);
+            $resultado = $service->addScannedItemByCode(
+                $user,
+                (string) $validated['scan_code'],
+                isset($validated['selected_match_type']) ? (string) $validated['selected_match_type'] : null,
+                isset($validated['selected_match_id']) ? (int) $validated['selected_match_id'] : null
+            );
             $item = (array) ($resultado['item'] ?? []);
             $cart = $resultado['cart'] ?? null;
 
@@ -239,10 +247,40 @@ class FacturacionCartController extends Controller
             }
 
             throw $e;
+        } catch (FacturacionScanConflictException $e) {
+            Log::warning('Escaneo con multiples coincidencias en facturacion.', [
+                'user_id' => $user?->id,
+                'scan_code' => (string) ($validated['scan_code'] ?? ''),
+                'expects_json' => $expectsJson,
+                'matches' => $e->matches(),
+            ]);
+
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'Selecciona el registro correcto',
+                'message' => 'El codigo aparece en varios modulos y necesita una seleccion manual.',
+                'detail' => trim($e->getMessage()),
+                'action' => 'scan_add_select',
+            ];
+
+            if ($expectsJson) {
+                return response()->json([
+                    'ok' => false,
+                    'requires_selection' => true,
+                    'feedback' => $feedback,
+                    'choices' => $e->matches(),
+                    'scan_code' => (string) ($validated['scan_code'] ?? ''),
+                ], 409);
+            }
+
+            return back()
+                ->withInput()
+                ->with('facturacion_feedback', $feedback)
+                ->with('facturacion_scanner_open', true);
         } catch (\RuntimeException $e) {
             Log::warning('No se pudo agregar codigo al carrito de facturacion.', [
                 'user_id' => $user?->id,
-                'scan_code' => (string) $validated['scan_code'],
+                'scan_code' => (string) ($validated['scan_code'] ?? ''),
                 'expects_json' => $expectsJson,
                 'error' => $e->getMessage(),
             ]);
@@ -269,7 +307,7 @@ class FacturacionCartController extends Controller
         } catch (\Throwable $e) {
             Log::error('Error inesperado al agregar codigo al carrito de facturacion.', [
                 'user_id' => $user?->id,
-                'scan_code' => (string) $validated['scan_code'],
+                'scan_code' => (string) ($validated['scan_code'] ?? ''),
                 'expects_json' => $expectsJson,
                 'exception' => $e::class,
                 'message' => $e->getMessage(),
