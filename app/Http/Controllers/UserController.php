@@ -296,7 +296,7 @@ class UserController extends Controller
             ['2) Los campos con * son obligatorios: name, alias, email, password, ciudad y rol.'],
             ['3) Los campos rol, ciudad y empresa_codigo tienen combo box.'],
             ['4) password debe tener al menos 8 caracteres.'],
-            ['5) alias y email no deben repetirse. Si el email existe, se actualiza el usuario.'],
+            ['5) alias y email no deben repetirse. Si ya existen, la fila no se importa.'],
             ['6) empresa_codigo es opcional y usa el codigo_cliente de empresa.'],
             ['7) sucursal_id es opcional y usa el ID de la tabla sucursales.'],
         ], null, 'A1');
@@ -322,7 +322,6 @@ class UserController extends Controller
             $rows = $sheet->toArray(null, true, true, true);
             $errors = [];
             $created = 0;
-            $updated = 0;
             $duplicateAliases = $this->collectDuplicateAliasesFromRows($rows);
 
             foreach ($rows as $rowNumber => $row) {
@@ -347,7 +346,7 @@ class UserController extends Controller
                 }
 
                 if ($payload['alias'] !== '' && isset($duplicateAliases[$payload['alias']])) {
-                    $errors[] = 'Fila ' . $rowNumber . ': el alias "' . $payload['alias'] . '" esta repetido en el Excel en las filas ' . implode(', ', $duplicateAliases[$payload['alias']]) . '. No se importo ni se actualizo esta fila.';
+                    $errors[] = 'Fila ' . $rowNumber . ': el alias "' . $payload['alias'] . '" esta repetido en el Excel en las filas ' . implode(', ', $duplicateAliases[$payload['alias']]) . '. No se importo esta fila.';
                     continue;
                 }
 
@@ -356,15 +355,20 @@ class UserController extends Controller
                     ->first();
 
                 if ($existingAliasUser) {
-                    $errors[] = 'Fila ' . $rowNumber . ': el alias "' . $payload['alias'] . '" ya existe en el sistema. No se registro ni se actualizo esta fila.';
+                    $errors[] = 'Fila ' . $rowNumber . ': el alias "' . $payload['alias'] . '" ya existe en el sistema. No se registro esta fila porque la importacion solo crea usuarios nuevos.';
                     continue;
                 }
 
                 $existingUser = User::withTrashed()->whereRaw('LOWER(email) = ?', [$payload['email']])->first();
+                if ($existingUser) {
+                    $errors[] = 'Fila ' . $rowNumber . ': el email "' . $payload['email'] . '" ya existe en el sistema. No se registro esta fila porque la importacion solo crea usuarios nuevos.';
+                    continue;
+                }
+
                 $validator = Validator::make($payload, [
                     'name' => ['required', 'string', 'max:255'],
                     'alias' => ['required', 'string', 'max:255', Rule::unique('users', 'alias')],
-                    'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore(optional($existingUser)->id)],
+                    'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
                     'password' => ['required', 'string', 'min:8'],
                     'ciudad' => ['required', 'string', 'max:255'],
                     'ci' => ['nullable', 'string', 'max:255'],
@@ -385,7 +389,7 @@ class UserController extends Controller
                         ->value('id');
                 }
 
-                $user = $existingUser ?: new User();
+                $user = new User();
                 $user->name = $payload['name'];
                 $user->alias = $payload['alias'];
                 $user->email = $payload['email'];
@@ -400,12 +404,12 @@ class UserController extends Controller
                 $user->save();
                 $user->syncRoles([$payload['rol']]);
 
-                $existingUser ? $updated++ : $created++;
+                $created++;
             }
 
             $redirect = redirect()
                 ->route('users.index')
-                ->with('success', "Importacion finalizada. Creados: {$created}. Actualizados: {$updated}.");
+                ->with('success', "Importacion finalizada. Creados: {$created}. No se actualizaron usuarios existentes.");
 
             if ($errors !== []) {
                 $redirect->with('warning', 'Algunas filas no se importaron.')

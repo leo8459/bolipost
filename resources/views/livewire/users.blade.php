@@ -62,6 +62,46 @@
             color: #fff;
         }
 
+        .users-filter-toolbar {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .users-filter-btn {
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 800;
+            padding: 8px 12px;
+            transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+        }
+
+        .users-filter-btn:hover {
+            background: rgba(255, 255, 255, 0.14);
+            color: #fff;
+        }
+
+        .users-filter-btn.is-active {
+            background: #fff;
+            color: var(--azul);
+            box-shadow: 0 5px 14px rgba(0, 0, 0, 0.14);
+        }
+
+        .users-company-select {
+            min-width: 280px;
+            border: 0;
+            border-radius: 12px;
+            background: #fff;
+            color: #22344d;
+            font-weight: 700;
+        }
+
         .table thead th {
             background: rgba(32, 83, 154, 0.08);
             color: var(--azul);
@@ -340,6 +380,32 @@
                     <button wire:click="toggleGroupByBillingSucursal" class="btn btn-outline-light2" type="button">
                         {{ $groupByBillingSucursal ? 'Ver lista normal' : 'Agrupar por sucursal facturacion' }}
                     </button>
+                    <div class="users-filter-toolbar">
+                        <button
+                            wire:click="showAllUsers"
+                            class="users-filter-btn {{ ! $showOnlyWithEmpresa ? 'is-active' : '' }}"
+                            type="button"
+                        >
+                            <i class="fas fa-users mr-1"></i> Mostrar usuarios
+                        </button>
+                        <button
+                            wire:click="showEmpresaUsers"
+                            class="users-filter-btn {{ $showOnlyWithEmpresa ? 'is-active' : '' }}"
+                            type="button"
+                        >
+                            <i class="fas fa-building mr-1"></i> Mostrar empresas
+                        </button>
+                    </div>
+                    @if($showOnlyWithEmpresa)
+                        <select wire:model.live="filterEmpresaId" class="form-control users-company-select">
+                            <option value="">Todas las empresas</option>
+                            @foreach($empresas as $empresa)
+                                <option value="{{ $empresa->id }}">
+                                    {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
+                                </option>
+                            @endforeach
+                        </select>
+                    @endif
                     <a href="{{ route('users.excel') }}" class="btn btn-success">Excel</a>
                     <a href="{{ route('users.pdf') }}" class="btn btn-danger">PDF</a>
                     <a href="{{ route('users.template-excel') }}" class="btn btn-info">Plantilla</a>
@@ -373,7 +439,7 @@
                         <div class="flex-grow-1">
                             <label class="mb-1 font-weight-bold">Importar usuarios masivamente</label>
                             <input type="file" name="archivo" class="form-control" accept=".xlsx,.xls,.csv" required>
-                            <small class="text-muted">Usa la plantilla para cargar usuarios. El campo rol viene con combo box.</small>
+                            <small class="text-muted">Usa la plantilla para crear usuarios nuevos. Si el alias o email ya existen, esa fila no se importa.</small>
                             <div class="users-import-progress" id="users-import-progress">
                                 <div class="d-flex justify-content-between small text-muted mb-1">
                                     <span id="users-import-progress-text">Preparando importacion...</span>
@@ -407,7 +473,20 @@
                                 <span class="ml-2">| Vista agrupada por sucursal de facturacion</span>
                             @endif
                         @else
-                            {{ $groupByBillingSucursal ? 'Mostrando usuarios agrupados por sucursal de facturacion' : 'Mostrando todos los usuarios' }}
+                            @if($showOnlyWithEmpresa)
+                                Mostrando usuarios con empresa
+                                @if($filterEmpresaId !== '')
+                                    @php($empresaFiltro = $empresas->firstWhere('id', (int) $filterEmpresaId))
+                                    @if($empresaFiltro)
+                                        : <strong>{{ $empresaFiltro->codigo_cliente }} - {{ $empresaFiltro->nombre }}</strong>
+                                    @endif
+                                @endif
+                                @if($groupByBillingSucursal)
+                                    <span class="ml-2">| Vista agrupada por sucursal de facturacion</span>
+                                @endif
+                            @else
+                                {{ $groupByBillingSucursal ? 'Mostrando usuarios agrupados por sucursal de facturacion' : 'Mostrando todos los usuarios' }}
+                            @endif
                         @endif
                     </div>
                     <div class="users-muted small">

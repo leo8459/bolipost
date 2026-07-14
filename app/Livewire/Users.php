@@ -19,6 +19,8 @@ class Users extends Component
     public $search = '';
     public $searchQuery = '';
     public $groupByBillingSucursal = false;
+    public $showOnlyWithEmpresa = false;
+    public $filterEmpresaId = '';
 
     public $editingId = null;
     public $name = '';
@@ -216,6 +218,25 @@ class Users extends Component
         $this->resetPage();
     }
 
+    public function showAllUsers(): void
+    {
+        $this->showOnlyWithEmpresa = false;
+        $this->filterEmpresaId = '';
+        $this->resetPage();
+    }
+
+    public function showEmpresaUsers(): void
+    {
+        $this->showOnlyWithEmpresa = true;
+        $this->resetPage();
+    }
+
+    public function updatedFilterEmpresaId(): void
+    {
+        $this->showOnlyWithEmpresa = $this->filterEmpresaId !== '' || $this->showOnlyWithEmpresa;
+        $this->resetPage();
+    }
+
     protected function createRules(): array
     {
         $regionales = $this->regionalesDisponibles();
@@ -348,6 +369,8 @@ class Users extends Component
 
         $baseQuery = User::withTrashed()
             ->with(['empresa', 'sucursal', 'roles'])
+            ->when($this->showOnlyWithEmpresa, fn ($query) => $query->whereNotNull('empresa_id'))
+            ->when($this->filterEmpresaId !== '', fn ($query) => $query->where('empresa_id', (int) $this->filterEmpresaId))
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($inner) use ($q) {
                     $inner->where('name', 'like', '%'.$q.'%')
