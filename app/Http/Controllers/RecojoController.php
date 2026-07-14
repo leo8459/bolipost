@@ -433,6 +433,10 @@ class RecojoController extends Controller
                 ->with('error', 'Tu usuario no tiene empresa asignada. Asigna empresa al usuario para generar codigo.');
         }
 
+        $request->merge([
+            'destino' => $this->normalizeDepartamentoContrato((string) $request->input('destino', '')),
+        ]);
+
         $data = $request->validate([
             'nombre_r' => 'required|string|max:255',
             'telefono_r' => 'required|string|max:50',
@@ -477,8 +481,9 @@ class RecojoController extends Controller
         if ($origen === '') {
             $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
         }
+        $origen = $this->normalizeDepartamentoContrato($origen);
 
-        $destino = strtoupper(trim((string) $data['destino']));
+        $destino = $this->normalizeDepartamentoContrato((string) $data['destino']);
         $servicio = $this->normalizeServicioTarifa((string) $data['servicio']);
         $provincia = !empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null;
 
@@ -593,6 +598,10 @@ class RecojoController extends Controller
 
         abort_unless($this->canSubmitContratoCreate($user), 403, 'No tienes permiso para guardar contratos.');
 
+        $request->merge([
+            'destino' => $this->normalizeDepartamentoContrato((string) $request->input('destino', '')),
+        ]);
+
         $data = $request->validate($this->storeRules());
 
         try {
@@ -613,8 +622,10 @@ class RecojoController extends Controller
     public function storePublic(Request $request)
     {
         $request->headers->set('Accept', 'application/json');
+        $payload = $request->all();
+        $payload['destino'] = $this->normalizeDepartamentoContrato((string) ($payload['destino'] ?? ''));
 
-        $validator = Validator::make($request->all(), array_merge($this->storeRules(), [
+        $validator = Validator::make($payload, array_merge($this->storeRules(), [
             'user_id' => 'nullable|integer|exists:users,id',
             'user_email' => 'nullable|email|exists:users,email',
             'user_ci' => 'nullable|string|max:50',
@@ -1324,7 +1335,7 @@ class RecojoController extends Controller
                 'cod_especial' => null,
                 'estados_id' => $estadoSolicitudId,
                 'origen' => $origen,
-                'destino' => strtoupper(trim((string) $data['destino'])),
+                'destino' => $this->normalizeDepartamentoContrato((string) $data['destino']),
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
                 'telefono_r' => trim((string) $data['telefono_r']),
                 'contenido' => trim((string) $data['contenido']),
@@ -1363,10 +1374,32 @@ class RecojoController extends Controller
 
     protected function normalizeApiOrigen(string $origen): string
     {
-        $normalized = strtoupper(trim($origen));
+        return $this->normalizeDepartamentoContrato($origen);
+    }
+
+    protected function normalizeDepartamentoContrato(string $value): string
+    {
+        $normalized = strtoupper(trim($value));
+        $normalized = strtr($normalized, [
+            'Á' => 'A',
+            'É' => 'E',
+            'Í' => 'I',
+            'Ó' => 'O',
+            'Ú' => 'U',
+            'Ñ' => 'N',
+        ]);
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?: '';
 
         if ($normalized === 'BENI' || str_contains($normalized, 'BENI')) {
             return 'TRINIDAD';
+        }
+
+        if ($normalized === 'PANDO' || str_contains($normalized, 'PANDO')) {
+            return 'COBIJA';
+        }
+
+        if ($normalized === 'CHUQUISACA' || str_contains($normalized, 'CHUQUISACA')) {
+            return 'SUCRE';
         }
 
         return $normalized;
