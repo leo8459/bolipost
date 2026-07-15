@@ -120,6 +120,8 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
       Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
     Route::put('/facturacion/cart/billing', [FacturacionCartController::class, 'updateBillingData'])->name('facturacion.cart.billing.update');
     Route::put('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'updateItem'])->name('facturacion.cart.items.update');
+    Route::post('/facturacion/cart/items/{itemId}/explode', [FacturacionCartController::class, 'explodeItem'])->name('facturacion.cart.items.explode');
+    Route::post('/facturacion/cart/items/{itemId}/customize-grouped', [FacturacionCartController::class, 'customizeGroupedItem'])->name('facturacion.cart.items.customize-grouped');
     Route::post('/facturacion/cart/caja/abrir', [FacturacionCartController::class, 'abrirCaja'])->name('facturacion.cart.caja.abrir');
     Route::post('/facturacion/cart/caja/cerrar', [FacturacionCartController::class, 'cerrarCaja'])->name('facturacion.cart.caja.cerrar');
     Route::post('/facturacion/cart/ver-qr', [FacturacionCartController::class, 'verQr'])->name('facturacion.cart.ver-qr');

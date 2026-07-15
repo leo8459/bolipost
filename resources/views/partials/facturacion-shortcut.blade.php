@@ -24,7 +24,20 @@
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
     $facturacionItems = collect($activeFacturacionCart?->items ?? []);
-    $facturacionItemsCount = (int) $facturacionItems->sum(fn ($item) => max(1, (int) data_get($item, 'cantidad', 1)));
+    $facturacionResolveQuantity = function ($item) {
+        $cantidadExplicita = max(1, (int) data_get($item, 'cantidad', 1));
+        $montoBase = round((float) data_get($item, 'monto_base', data_get($item, 'precio', data_get($item, 'total_linea', 0))), 2);
+        $montoExtras = round((float) data_get($item, 'monto_extras', 0), 2);
+        $totalLinea = round((float) data_get($item, 'total_linea', 0), 2);
+        $montoUnitario = round($montoBase + $montoExtras, 2);
+
+        if ($montoUnitario <= 0 || $totalLinea <= 0) {
+            return $cantidadExplicita;
+        }
+
+        return max($cantidadExplicita, (int) round($totalLinea / $montoUnitario), 1);
+    };
+    $facturacionItemsCount = (int) $facturacionItems->sum(fn ($item) => $facturacionResolveQuantity($item));
     $facturacionCartTotal = (float) ($activeFacturacionCart?->total ?? 0);
     $billingDocumentTypes = \App\Models\Cliente::tiposDocumentoIdentidad();
     $activeBillingMode = (string) ($activeFacturacionCart?->modalidad_facturacion ?? 'con_datos');
@@ -306,6 +319,7 @@
                                     data-item-ciudad="{{ (string) data_get($issueItem->resumen_origen, 'ciudad', '') }}"
                                     data-item-peso="{{ (string) data_get($issueItem->resumen_origen, 'peso', '') }}"
                                     data-item-precio="{{ number_format((float) (data_get($issueItem, 'monto_base') ?? data_get($issueItem, 'precio') ?? data_get($issueItem, 'total_linea', 0)), 2, '.', '') }}"
+                                    data-item-cantidad="{{ $facturacionResolveQuantity($issueItem) }}"
                                     data-item-actividad-economica="{{ (string) data_get($issueItem->resumen_origen, 'actividad_economica', '') }}"
                                     data-item-codigo-sin="{{ (string) data_get($issueItem->resumen_origen, 'codigo_sin', '') }}"
                                     data-item-codigo-producto="{{ (string) data_get($issueItem->resumen_origen, 'codigo_producto', '') }}"
@@ -509,17 +523,25 @@
                     <div class="global-shortcut-cart-list">
                         @foreach ($facturacionItems->sortByDesc('id') as $item)
                             @php
-                                $itemCantidad = max(1, (int) data_get($item, 'cantidad', 1));
+                                $itemCantidad = $facturacionResolveQuantity($item);
                             @endphp
                             <article class="global-shortcut-cart-item">
                                 <div class="global-shortcut-cart-item__top">
-                                    <strong>{{ $item->titulo }} @if($itemCantidad > 1) x{{ $itemCantidad }} @endif</strong>
+                                    <strong>{{ $item->titulo }}</strong>
+                                    @if($itemCantidad > 1)
+                                        <span class="global-shortcut-cart-item__quantity">x{{ $itemCantidad }}</span>
+                                    @endif
                                     <span class="global-shortcut-cart-item__amount">Bs {{ number_format((float) $item->total_linea, 2) }}</span>
                                 </div>
                                 <div class="global-shortcut-cart-item__meta">
                                     <span>{{ $item->codigo ?: 'Sin codigo' }}</span>
                                     <span>{{ $item->nombre_servicio ?: 'Servicio no identificado' }}</span>
                                 </div>
+                                @if ($itemCantidad > 1)
+                                    <div class="global-shortcut-cart-item__quantity-note">
+                                        Cantidad en carrito: x{{ $itemCantidad }}
+                                    </div>
+                                @endif
                                 @if (!empty($item->nombre_destinatario))
                                     <div class="global-shortcut-cart-item__recipient">
                                         Destinatario: {{ $item->nombre_destinatario }}
@@ -553,6 +575,7 @@
                                         data-item-ciudad="{{ (string) data_get($item->resumen_origen, 'ciudad', '') }}"
                                         data-item-peso="{{ (string) data_get($item->resumen_origen, 'peso', '') }}"
                                         data-item-precio="{{ number_format((float) (data_get($item, 'monto_base') ?? data_get($item, 'precio') ?? data_get($item, 'total_linea', 0)), 2, '.', '') }}"
+                                        data-item-cantidad="{{ $itemCantidad }}"
                                         data-item-actividad-economica="{{ (string) data_get($item->resumen_origen, 'actividad_economica', '') }}"
                                         data-item-codigo-sin="{{ (string) data_get($item->resumen_origen, 'codigo_sin', '') }}"
                                         data-item-codigo-producto="{{ (string) data_get($item->resumen_origen, 'codigo_producto', '') }}"
@@ -569,9 +592,12 @@
                                         data-confirm-message="Este item se quitara del borrador de Facturacion. No afectara ninguna factura final."
                                         data-confirm-note="Si fue un error, luego puedes volver a agregarlo desde la operacion correspondiente."
                                         data-confirm-cta="Si, quitar"
+                                        data-remove-item-quantity="{{ $itemCantidad }}"
                                     >
                                         @csrf
                                         @method('DELETE')
+                                        <input type="hidden" name="cantidad" value="1">
+                                        <input type="hidden" name="current_quantity" value="{{ $itemCantidad }}">
                                         <button type="submit" class="global-shortcut-link-btn global-shortcut-link-btn--danger">
                                             Quitar
                                         </button>
@@ -643,20 +669,42 @@
                         >
                             @csrf
                             <input type="hidden" name="concepto_facturacion_id" id="facturacionConceptoHidden" value="">
-                            <div class="global-shortcut-field global-shortcut-field--full" style="margin-bottom: 0;">
-                                <select
-                                    id="facturacionConceptoSelect"
-                                    @disabled(!$isCajaAbierta)
-                                >
-                                    <option value="">Selecciona un concepto facturable</option>
-                                    @foreach ($facturacionConceptos as $conceptoFacturable)
-                                        <option value="{{ $conceptoFacturable->id }}">
-                                            {{ $conceptoFacturable->nombre }} | {{ $conceptoFacturable->codigo }} | Bs {{ number_format((float) $conceptoFacturable->precio_base, 2) }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                            <div class="facturacion-concepto-picker">
+                                <div class="global-shortcut-field global-shortcut-field--full facturacion-concepto-picker__select">
+                                    <select
+                                        id="facturacionConceptoSelect"
+                                        @disabled(!$isCajaAbierta)
+                                    >
+                                        <option value="">Selecciona un concepto facturable</option>
+                                        @foreach ($facturacionConceptos as $conceptoFacturable)
+                                            <option value="{{ $conceptoFacturable->id }}">
+                                                {{ $conceptoFacturable->nombre }} | {{ $conceptoFacturable->codigo }} | Bs {{ number_format((float) $conceptoFacturable->precio_base, 2) }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="facturacion-concepto-picker__controls">
+                                    <label for="facturacionConceptoCantidad" class="facturacion-concepto-picker__qty-label">Cantidad</label>
+                                    <input
+                                        type="number"
+                                        name="cantidad"
+                                        id="facturacionConceptoCantidad"
+                                        class="facturacion-concepto-picker__qty-input"
+                                        value="1"
+                                        min="1"
+                                        max="999"
+                                        step="1"
+                                        placeholder="1"
+                                        inputmode="numeric"
+                                        @disabled(!$isCajaAbierta)
+                                    >
+                                    <button type="submit" class="global-shortcut-secondary-btn facturacion-concepto-picker__submit" @disabled(!$isCajaAbierta)>
+                                        Agregar cobro
+                                    </button>
+                                </div>
+                                <p class="facturacion-concepto-picker__hint">Puedes cargar varias unidades del mismo cobro en un solo paso.</p>
                             </div>
-                            <div class="global-shortcut-scan-form__row global-shortcut-scan-form__row--select">
+                            <div class="global-shortcut-scan-form__row global-shortcut-scan-form__row--select facturacion-concepto-picker__legacy-submit" hidden>
                                 <button type="submit" class="global-shortcut-secondary-btn" @disabled(!$isCajaAbierta)>
                                     Agregar cobro
                                 </button>
@@ -852,7 +900,7 @@
                 <div class="global-shortcut-confirm__eyebrow">Correccion de item</div>
             </div>
             <h4 id="facturacionItemEditTitle" class="global-shortcut-confirm__title">Corregir item antes de reenviar</h4>
-            <p class="global-shortcut-confirm__message">
+            <p class="global-shortcut-confirm__message" id="facturacionItemEditMessage">
                 Ajusta el codigo, el precio o la descripcion del item y guarda los cambios para volver a intentar la emision.
             </p>
             <form method="POST" action="" id="facturacionItemEditForm" class="global-shortcut-item-edit-form">
@@ -869,7 +917,11 @@
                 <input type="hidden" id="facturacionEditItemCodigoSin" name="codigo_sin">
                 <input type="hidden" id="facturacionEditItemCodigoProducto" name="codigo_producto">
                 <input type="hidden" id="facturacionEditItemUnidadMedida" name="unidad_medida">
-                <div class="global-shortcut-item-edit-summary">
+                <div class="facturacion-item-edit-hint is-hidden" id="facturacionItemEditSplitHint">
+                    Este item esta agrupado. Si cambias la cantidad a un valor menor que el total, separaremos esa parte en una nueva linea para que puedas darle otro detalle, precio o descripcion.
+                </div>
+                <div class="facturacion-item-edit-batch is-hidden" id="facturacionItemEditBatch"></div>
+                <div class="global-shortcut-item-edit-summary" id="facturacionItemEditSummary">
                     <div class="global-shortcut-item-edit-summary__row">
                         <span>Codigo</span>
                         <strong id="facturacionEditItemCodigoResumen">-</strong>
@@ -894,12 +946,16 @@
                         <span>Direccion</span>
                         <strong id="facturacionEditItemDireccionResumen">-</strong>
                     </div>
-                    <div class="global-shortcut-item-edit-summary__row">
-                        <span>Ciudad</span>
-                        <strong id="facturacionEditItemCiudadResumen">-</strong>
-                    </div>
+                <div class="global-shortcut-item-edit-summary__row">
+                    <span>Ciudad</span>
+                    <strong id="facturacionEditItemCiudadResumen">-</strong>
                 </div>
-                <div class="global-shortcut-item-edit-grid">
+                <div class="global-shortcut-item-edit-summary__row">
+                    <span>Cantidad</span>
+                    <strong id="facturacionEditItemCantidadResumen">1</strong>
+                </div>
+                </div>
+                <div class="global-shortcut-item-edit-grid" id="facturacionItemEditSingleGrid">
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="codigo">
                         <label for="facturacionEditItemCodigo">Codigo del item</label>
                         <input type="text" id="facturacionEditItemCodigo" name="codigo" maxlength="120" required placeholder="Ingresa un codigo unico para esta linea">
@@ -911,6 +967,10 @@
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="precio">
                         <label for="facturacionEditItemPrecio">Precio</label>
                         <input type="number" id="facturacionEditItemPrecio" name="precio" min="0" step="0.01" required>
+                    </div>
+                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="cantidad">
+                        <label for="facturacionEditItemCantidad">Cantidad a editar o separar</label>
+                        <input type="number" id="facturacionEditItemCantidad" name="cantidad" min="1" max="999" step="1" required>
                     </div>
                 </div>
                 <div class="global-shortcut-confirm__actions">
@@ -950,6 +1010,11 @@
                 <p id="facturacionActionConfirmNote">
                     Solo se modificara el borrador actual del carrito.
                 </p>
+            </div>
+            <div class="global-shortcut-confirm__quantity is-hidden" id="facturacionActionConfirmQuantityBox">
+                <label for="facturacionActionConfirmQuantityInput">Cantidad a quitar</label>
+                <input type="number" id="facturacionActionConfirmQuantityInput" min="1" step="1" value="1">
+                <small id="facturacionActionConfirmQuantityHint">Puedes quitar solo una parte del grupo.</small>
             </div>
             <div class="global-shortcut-confirm__actions">
                 <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--ghost" id="facturacionActionConfirmCancel">
@@ -2443,6 +2508,194 @@
             justify-content: end;
             margin-top: 10px;
         }
+        .facturacion-concepto-picker {
+            display: grid;
+            gap: 10px;
+        }
+        .facturacion-concepto-picker__select {
+            margin-bottom: 0 !important;
+        }
+        .facturacion-concepto-picker__controls {
+            display: grid;
+            grid-template-columns: auto 88px minmax(150px, 1fr);
+            align-items: center;
+            gap: 10px;
+        }
+        .facturacion-concepto-picker__qty-label {
+            color: #4f627e;
+            font-size: .8rem;
+            font-weight: 800;
+            letter-spacing: .01em;
+            white-space: nowrap;
+        }
+        .facturacion-concepto-picker__qty-input {
+            width: 100%;
+            min-height: 44px;
+            border-radius: 12px;
+            border: 1px solid #d8e4f3;
+            background: #fbfdff;
+            padding: 10px 12px;
+            color: #18385f;
+            text-align: center;
+            font-weight: 700;
+            transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+        }
+        .facturacion-concepto-picker__qty-input:focus {
+            outline: none;
+            border-color: #7ea7dd;
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(32, 83, 154, .1);
+        }
+        .facturacion-concepto-picker__submit {
+            width: 100%;
+            justify-content: center;
+        }
+        .facturacion-concepto-picker__hint {
+            margin: 0;
+            color: #6c809b;
+            font-size: .76rem;
+            line-height: 1.4;
+        }
+        .facturacion-item-edit-hint {
+            margin-bottom: 14px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid #dbe7f7;
+            background:
+                radial-gradient(circle at top right, rgba(255, 203, 89, 0.16), transparent 32%),
+                linear-gradient(180deg, #f8fbff 0%, #f2f7fe 100%);
+            color: #35547b;
+            font-size: .83rem;
+            line-height: 1.55;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+        }
+        .facturacion-item-edit-hint.is-hidden {
+            display: none;
+        }
+        .facturacion-item-edit-batch {
+            display: grid;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .facturacion-item-edit-batch.is-hidden {
+            display: none;
+        }
+        .facturacion-item-edit-batch__card {
+            position: relative;
+            border: 1px solid #dbe7f7;
+            border-radius: 18px;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(248,251,255,.98) 100%);
+            padding: 14px 14px 12px;
+            display: grid;
+            gap: 12px;
+            box-shadow: 0 14px 28px rgba(20, 59, 108, .06);
+            overflow: hidden;
+        }
+        .facturacion-item-edit-batch__card::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 4px;
+            background: linear-gradient(180deg, #ffbf47 0%, #20539a 100%);
+        }
+        .facturacion-item-edit-batch__head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .facturacion-item-edit-batch__title {
+            color: #22436f;
+            font-size: .92rem;
+            font-weight: 800;
+        }
+        .facturacion-item-edit-batch__eyebrow {
+            display: block;
+            margin-bottom: 4px;
+            color: #6f86a5;
+            font-size: .69rem;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .facturacion-item-edit-batch__badge {
+            color: #20539a;
+            background: linear-gradient(180deg, #edf4ff 0%, #e6f0ff 100%);
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: .72rem;
+            font-weight: 800;
+            border: 1px solid #d7e6fb;
+            white-space: nowrap;
+        }
+        .facturacion-item-edit-batch__grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(130px, .65fr);
+            gap: 12px;
+        }
+        .facturacion-item-edit-batch__grid .global-shortcut-field--description,
+        .facturacion-item-edit-batch__grid .facturacion-item-edit-batch__help,
+        .facturacion-item-edit-batch__grid .facturacion-item-edit-batch__meta {
+            grid-column: 1 / -1;
+        }
+        .facturacion-item-edit-batch__meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .facturacion-item-edit-batch__chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 0 10px;
+            border-radius: 999px;
+            background: #f4f8ff;
+            color: #4f6788;
+            border: 1px solid #deebfb;
+            font-size: .71rem;
+            font-weight: 700;
+        }
+        .facturacion-item-edit-batch__help {
+            margin: -1px 0 0;
+            padding-top: 2px;
+            color: #6c809b;
+            font-size: .74rem;
+            line-height: 1.45;
+        }
+        .global-shortcut-item-edit-summary {
+            margin: 0 0 16px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 1px solid #e2ebf7;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 16px;
+        }
+        .global-shortcut-item-edit-summary.is-hidden {
+            display: none;
+        }
+        .global-shortcut-item-edit-summary__row {
+            display: grid;
+            gap: 2px;
+        }
+        .global-shortcut-item-edit-summary__row span {
+            color: #6f84a0;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+        }
+        .global-shortcut-item-edit-summary__row strong {
+            color: #18385f;
+            font-size: .93rem;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+        .global-shortcut-confirm__btn.is-hidden {
+            display: none;
+        }
         .global-shortcut-field--full {
             grid-column: 1 / -1;
         }
@@ -2487,7 +2740,8 @@
             cursor: not-allowed;
         }
         .global-shortcut-field input,
-        .global-shortcut-field select {
+        .global-shortcut-field select,
+        .global-shortcut-field textarea {
             width: 100%;
             min-height: 44px;
             border-radius: 12px;
@@ -2497,8 +2751,14 @@
             color: #18385f;
             transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
         }
+        .global-shortcut-field textarea {
+            min-height: 96px;
+            resize: vertical;
+            line-height: 1.45;
+        }
         .global-shortcut-field input:focus,
-        .global-shortcut-field select:focus {
+        .global-shortcut-field select:focus,
+        .global-shortcut-field textarea:focus {
             outline: none;
             border-color: #7ea7dd;
             background: #fff;
@@ -2595,6 +2855,20 @@
             font-weight: 800;
             line-height: 1.3;
         }
+        .global-shortcut-cart-item__quantity {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 38px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(25, 85, 156, 0.12);
+            color: #1f4f8f;
+            font-size: .78rem;
+            font-weight: 800;
+            line-height: 1;
+            white-space: nowrap;
+        }
         .global-shortcut-cart-item__amount {
             font-size: .95rem;
             font-weight: 800;
@@ -2609,6 +2883,12 @@
             color: #6f8097;
             font-size: .8rem;
             line-height: 1.45;
+        }
+        .global-shortcut-cart-item__quantity-note {
+            margin-top: 8px;
+            color: #1f4f8f;
+            font-size: .8rem;
+            font-weight: 700;
         }
         .global-shortcut-cart-item__recipient {
             margin-top: 10px;
@@ -3044,6 +3324,40 @@
             line-height: 1.5;
             text-align: left;
         }
+        .global-shortcut-confirm__quantity {
+            margin: 14px 22px 0;
+            display: grid;
+            gap: 8px;
+        }
+        .global-shortcut-confirm__quantity.is-hidden {
+            display: none;
+        }
+        .global-shortcut-confirm__quantity label {
+            color: #4f627e;
+            font-size: .83rem;
+            font-weight: 700;
+        }
+        .global-shortcut-confirm__quantity input {
+            width: 100%;
+            min-height: 44px;
+            border-radius: 12px;
+            border: 1px solid #d8e4f3;
+            background: #fbfdff;
+            padding: 10px 12px;
+            color: #18385f;
+            font-weight: 700;
+        }
+        .global-shortcut-confirm__quantity input:focus {
+            outline: none;
+            border-color: #7ea7dd;
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(32, 83, 154, .1);
+        }
+        .global-shortcut-confirm__quantity small {
+            color: #6c809b;
+            font-size: .76rem;
+            line-height: 1.4;
+        }
         .global-shortcut-confirm__actions {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3112,6 +3426,20 @@
             gap: 14px;
             margin-top: 18px;
             align-content: start;
+        }
+        .global-shortcut-item-edit-grid.is-hidden {
+            display: none;
+        }
+        .global-shortcut-confirm__panel--wide.is-batch-edit .global-shortcut-confirm__title,
+        .global-shortcut-confirm__panel--wide.is-batch-edit .global-shortcut-confirm__message {
+            text-align: left;
+        }
+        .global-shortcut-confirm__panel--wide.is-batch-edit .global-shortcut-confirm__message {
+            margin-top: 8px;
+            font-size: .91rem;
+        }
+        .global-shortcut-confirm__panel--wide.is-batch-edit .global-shortcut-item-edit-form {
+            padding-top: 2px;
         }
         .global-shortcut-item-edit-grid .global-shortcut-field.is-hidden {
             display: none;
@@ -3186,6 +3514,13 @@
             .global-shortcut-scan-form__row {
                 grid-template-columns: 1fr;
             }
+            .facturacion-concepto-picker__controls {
+                grid-template-columns: 1fr;
+                align-items: stretch;
+            }
+            .facturacion-concepto-picker__qty-label {
+                margin-bottom: -2px;
+            }
             .global-shortcut-field--full {
                 grid-column: auto;
             }
@@ -3234,6 +3569,13 @@
             .global-shortcut-item-edit-grid {
                 grid-template-columns: 1fr;
                 gap: 12px;
+            }
+            .global-shortcut-item-edit-summary {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            .facturacion-item-edit-batch__grid {
+                grid-template-columns: 1fr;
             }
             .global-shortcut-footer-action {
                 padding: 10px 16px 16px;
@@ -3416,6 +3758,9 @@
             const facturacionActionConfirmMessage = document.getElementById('facturacionActionConfirmMessage');
             const facturacionActionConfirmNoteBox = document.getElementById('facturacionActionConfirmNoteBox');
             const facturacionActionConfirmNote = document.getElementById('facturacionActionConfirmNote');
+            const facturacionActionConfirmQuantityBox = document.getElementById('facturacionActionConfirmQuantityBox');
+            const facturacionActionConfirmQuantityInput = document.getElementById('facturacionActionConfirmQuantityInput');
+            const facturacionActionConfirmQuantityHint = document.getElementById('facturacionActionConfirmQuantityHint');
             const facturacionActionConfirmIcon = document.getElementById('facturacionActionConfirmIcon');
             const facturacionActionConfirmAccept = document.getElementById('facturacionActionConfirmAccept');
             const facturacionActionConfirmCancel = document.getElementById('facturacionActionConfirmCancel');
@@ -3432,6 +3777,15 @@
             let facturacionItemEditButtons = [];
             const facturacionItemEditSubmit = document.getElementById('facturacionItemEditSubmit');
             const facturacionItemEditFields = document.querySelectorAll('[data-edit-field-key]');
+            const facturacionItemEditTitle = document.getElementById('facturacionItemEditTitle');
+            const facturacionItemEditMessage = document.getElementById('facturacionItemEditMessage');
+            const facturacionItemEditSplitHint = document.getElementById('facturacionItemEditSplitHint');
+            const facturacionItemEditBatch = document.getElementById('facturacionItemEditBatch');
+            const facturacionItemEditSingleGrid = document.getElementById('facturacionItemEditSingleGrid');
+            const facturacionItemEditSummary = document.getElementById('facturacionItemEditSummary');
+            const facturacionItemEditPanel = facturacionItemEditModal
+                ? facturacionItemEditModal.querySelector('.global-shortcut-confirm__panel--wide')
+                : null;
             const facturacionScanSelectionModal = document.getElementById('facturacionScanSelectionModal');
             const facturacionScanSelectionTitle = document.getElementById('facturacionScanSelectionTitle');
             const facturacionScanSelectionMessage = document.getElementById('facturacionScanSelectionMessage');
@@ -3452,6 +3806,7 @@
             let facturacionConceptoForm = document.getElementById('facturacionConceptoForm');
             let facturacionConceptoSelect = document.getElementById('facturacionConceptoSelect');
             let facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
+            let facturacionConceptoCantidad = document.getElementById('facturacionConceptoCantidad');
 
             if (facturacionActionConfirmEyebrow) {
                 facturacionActionConfirmEyebrow.textContent = FACTURACION_CONFIRM_DEFAULTS.eyebrow;
@@ -3498,6 +3853,7 @@
             const facturacionQrData = @json($facturacionQrData);
             const facturacionQrForceOpen = @json($facturacionQrForceOpen);
             const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
+            const facturacionItemCustomizeGroupedRouteTemplate = @json(route('facturacion.cart.items.customize-grouped', ['itemId' => '__ITEM__']));
             const facturacionConsultarRoute = @json(route('facturacion.cart.consultar'));
             const facturacionInitialFeedbackKey = facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object'
                 ? JSON.stringify({
@@ -3729,6 +4085,7 @@
                 facturacionConceptoForm = document.getElementById('facturacionConceptoForm');
                 facturacionConceptoSelect = document.getElementById('facturacionConceptoSelect');
                 facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
+                facturacionConceptoCantidad = document.getElementById('facturacionConceptoCantidad');
             };
 
             const submitFacturacionScanForm = async (form, options = {}) => {
@@ -3865,6 +4222,19 @@
                     });
                 }
 
+                if (facturacionConceptoCantidad instanceof HTMLInputElement) {
+                    facturacionConceptoCantidad.addEventListener('input', function () {
+                        const numericValue = Number.parseInt(facturacionConceptoCantidad.value || '1', 10);
+                        if (!Number.isFinite(numericValue) || numericValue < 1) {
+                            return;
+                        }
+
+                        if (numericValue > 999) {
+                            facturacionConceptoCantidad.value = '999';
+                        }
+                    });
+                }
+
                 facturacionConceptoForm.addEventListener('submit', async function (event) {
                     event.preventDefault();
 
@@ -3883,6 +4253,31 @@
                         return;
                     }
 
+                    if (!(facturacionConceptoCantidad instanceof HTMLInputElement)) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'Cantidad no disponible',
+                            message: 'No se encontro el campo de cantidad para este cobro.',
+                            detail: 'Actualiza la interfaz e intentalo nuevamente.',
+                            action: 'concepto_add',
+                        });
+                        return;
+                    }
+
+                    const cantidadSolicitada = Number.parseInt(facturacionConceptoCantidad.value || '1', 10);
+                    if (!Number.isFinite(cantidadSolicitada) || cantidadSolicitada < 1) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'Cantidad invalida',
+                            message: 'Debes indicar una cantidad valida antes de agregar el cobro.',
+                            detail: 'Ingresa un numero mayor o igual a 1.',
+                            action: 'concepto_add',
+                        });
+                        facturacionConceptoCantidad.focus();
+                        facturacionConceptoCantidad.select();
+                        return;
+                    }
+
                     setFacturacionSubmittingState(facturacionConceptoForm, true);
 
                     const tokenMeta = document.querySelector('meta[name="csrf-token"]');
@@ -3890,6 +4285,7 @@
                     if (facturacionConceptoHidden instanceof HTMLInputElement && facturacionConceptoSelect instanceof HTMLSelectElement) {
                         facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
                     }
+                    facturacionConceptoCantidad.value = String(Math.min(999, Math.max(1, cantidadSolicitada)));
                     const formData = new FormData(facturacionConceptoForm);
                     const conceptoSubmitButton = facturacionConceptoForm.querySelector('button[type="submit"]');
                     if (conceptoSubmitButton instanceof HTMLButtonElement) {
@@ -3898,6 +4294,7 @@
                         conceptoSubmitButton.textContent = 'Agregando...';
                     }
                     facturacionConceptoSelect.disabled = true;
+                    facturacionConceptoCantidad.disabled = true;
 
                     try {
                         const response = await fetch(facturacionConceptoForm.action, {
@@ -3937,6 +4334,10 @@
                             renderFacturacionResultModal(data.feedback);
                         }
 
+                        if (data.cart) {
+                            applyFacturacionCartPayloadToUi(data.cart);
+                        }
+
                         await syncFacturacionShortcutAfterMutation();
                         facturacionDraftAutosaveEnabled = true;
                         if (typeof setAutosaveState === 'function') {
@@ -3944,6 +4345,7 @@
                         }
 
                         facturacionConceptoForm.reset();
+                        facturacionConceptoCantidad.value = '1';
                     } catch (error) {
                         renderFacturacionShortcutFeedback({
                             type: 'warning',
@@ -3960,6 +4362,9 @@
                         }
                         if (facturacionConceptoSelect instanceof HTMLSelectElement) {
                             facturacionConceptoSelect.disabled = false;
+                        }
+                        if (facturacionConceptoCantidad instanceof HTMLInputElement) {
+                            facturacionConceptoCantidad.disabled = false;
                         }
                     }
                 });
@@ -4058,7 +4463,7 @@
                 return 'Bs ' + Number(value || 0).toFixed(2);
             };
 
-            const buildFacturacionDeleteFormHtml = (itemId) => {
+            const buildFacturacionDeleteFormHtml = (itemId, quantityValue = 1) => {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
                 const action = String(facturacionDestroyItemRouteTemplate).replace('__ITEM__', String(itemId || '0'));
 
@@ -4071,9 +4476,12 @@
                         data-confirm-message="Este item se quitara del borrador de Facturacion. No afectara ninguna factura final."
                         data-confirm-note="Si fue un error, luego puedes volver a agregarlo desde la operacion correspondiente."
                         data-confirm-cta="Si, quitar"
+                        data-remove-item-quantity="${escapeFacturacionHtml(quantityValue)}"
                     >
                         <input type="hidden" name="_token" value="${escapeFacturacionHtml(csrfToken)}">
                         <input type="hidden" name="_method" value="DELETE">
+                        <input type="hidden" name="cantidad" value="1">
+                        <input type="hidden" name="current_quantity" value="${escapeFacturacionHtml(quantityValue)}">
                         <button type="submit" class="global-shortcut-link-btn global-shortcut-link-btn--danger">Quitar</button>
                     </form>
                 `;
@@ -4087,6 +4495,7 @@
                     ?? (item && item.total_linea)
                     ?? 0
                 ).toFixed(2);
+                const quantityValue = Math.max(1, Number((item && item.cantidad) || 1));
 
                 return `
                     <button
@@ -4103,6 +4512,7 @@
                         data-item-ciudad="${escapeFacturacionHtml(resumen.ciudad || '')}"
                         data-item-peso="${escapeFacturacionHtml(resumen.peso || '')}"
                         data-item-precio="${escapeFacturacionHtml(priceValue)}"
+                        data-item-cantidad="${escapeFacturacionHtml(quantityValue)}"
                         data-item-actividad-economica="${escapeFacturacionHtml(resumen.actividad_economica || '')}"
                         data-item-codigo-sin="${escapeFacturacionHtml(resumen.codigo_sin || '')}"
                         data-item-codigo-producto="${escapeFacturacionHtml(resumen.codigo_producto || '')}"
@@ -4126,22 +4536,30 @@
                         <span class="global-shortcut-chip">${escapeFacturacionHtml((extra && extra.name) || 'Extra')} | ${formatFacturacionMoney((extra && extra.amount) || 0)}</span>
                     `).join('')}</div>`
                     : '';
+                const quantityBadgeHtml = quantity > 1
+                    ? `<span class="global-shortcut-cart-item__quantity">x${quantity}</span>`
+                    : '';
+                const quantityNoteHtml = quantity > 1
+                    ? `<div class="global-shortcut-cart-item__quantity-note">Cantidad en carrito: x${quantity}</div>`
+                    : '';
 
                 return `
                     <article class="global-shortcut-cart-item">
                         <div class="global-shortcut-cart-item__top">
-                            <strong>${escapeFacturacionHtml((item && item.titulo) || 'Item de facturacion')}${quantity > 1 ? ` x${quantity}` : ''}</strong>
+                            <strong>${escapeFacturacionHtml((item && item.titulo) || 'Item de facturacion')}</strong>
+                            ${quantityBadgeHtml}
                             <span class="global-shortcut-cart-item__amount">${formatFacturacionMoney((item && item.total_linea) || 0)}</span>
                         </div>
                         <div class="global-shortcut-cart-item__meta">
                             <span>${escapeFacturacionHtml((item && item.codigo) || 'Sin codigo')}</span>
                             <span>${escapeFacturacionHtml((item && item.nombre_servicio) || 'Servicio no identificado')}</span>
                         </div>
+                        ${quantityNoteHtml}
                         ${recipientHtml}
                         ${extrasHtml}
                         <div class="global-shortcut-cart-item__actions">
                             ${buildFacturacionEditButtonHtml(item)}
-                            ${buildFacturacionDeleteFormHtml(item && item.id ? item.id : 0)}
+                            ${buildFacturacionDeleteFormHtml(item && item.id ? item.id : 0, quantity)}
                         </div>
                     </article>
                 `;
@@ -5481,6 +5899,100 @@
                 }
             };
 
+            const buildSuggestedGroupedCode = (baseCode, index) => {
+                const cleanBase = String(baseCode || '').trim();
+                if (cleanBase === '') {
+                    return '';
+                }
+
+                return cleanBase.replace(/\.\d+$/, '') + '.' + (index + 1);
+            };
+
+            const renderFacturacionGroupedEditBatch = (trigger, groupedQuantity) => {
+                if (!(facturacionItemEditBatch instanceof HTMLElement)) {
+                    return;
+                }
+
+                const baseCode = String(trigger.dataset.itemCodigo || '').trim();
+                const baseDescription = String(trigger.dataset.itemDescripcionServicio || '').trim();
+                const basePrice = String(trigger.dataset.itemPrecio || '').trim() || '0.00';
+                facturacionItemEditBatch.innerHTML = '';
+
+                for (let index = 0; index < groupedQuantity; index++) {
+                    const card = document.createElement('div');
+                    card.className = 'facturacion-item-edit-batch__card';
+                    card.innerHTML = `
+                        <div class="facturacion-item-edit-batch__head">
+                            <div>
+                                <span class="facturacion-item-edit-batch__eyebrow">Unidad editable</span>
+                                <span class="facturacion-item-edit-batch__title">Espacio ${index + 1}</span>
+                            </div>
+                            <span class="facturacion-item-edit-batch__badge">1 unidad</span>
+                        </div>
+                        <div class="facturacion-item-edit-batch__grid">
+                            <div class="facturacion-item-edit-batch__meta">
+                                <span class="facturacion-item-edit-batch__chip">Codigo base: ${escapeFacturacionHtml(baseCode || 'Sin codigo')}</span>
+                                <span class="facturacion-item-edit-batch__chip">Precio actual: Bs ${escapeFacturacionHtml(basePrice)}</span>
+                            </div>
+                            <div class="global-shortcut-field">
+                                <label>Codigo</label>
+                                <input type="text" name="entries[${index}][codigo]" maxlength="120" value="${escapeFacturacionHtml(baseCode)}" data-base-code="${escapeFacturacionHtml(baseCode)}" data-suggested-code="${escapeFacturacionHtml(buildSuggestedGroupedCode(baseCode, index))}">
+                            </div>
+                            <div class="global-shortcut-field">
+                                <label>Precio</label>
+                                <input type="number" name="entries[${index}][precio]" min="0" step="0.01" value="${escapeFacturacionHtml(basePrice)}" data-base-price="${escapeFacturacionHtml(basePrice)}">
+                            </div>
+                            <div class="global-shortcut-field global-shortcut-field--description">
+                                <label>Descripcion</label>
+                                <textarea name="entries[${index}][descripcion_servicio]" rows="2" maxlength="255">${escapeFacturacionHtml(baseDescription)}</textarea>
+                            </div>
+                            <p class="facturacion-item-edit-batch__help">Si el precio queda igual, el sistema intentara mantener este grupo junto. Si cambias precio o detalle, se individualizara automaticamente.</p>
+                        </div>
+                    `;
+                    facturacionItemEditBatch.appendChild(card);
+                }
+
+                facturacionItemEditBatch.querySelectorAll('.facturacion-item-edit-batch__card').forEach((card) => {
+                    const priceInput = card.querySelector('input[name$="[precio]"]');
+                    const codeInput = card.querySelector('input[name$="[codigo]"]');
+                    const descriptionInput = card.querySelector('textarea[name$="[descripcion_servicio]"]');
+
+                    if (!(priceInput instanceof HTMLInputElement) || !(codeInput instanceof HTMLInputElement)) {
+                        return;
+                    }
+
+                    const syncSuggestedCode = () => {
+                        const basePriceValue = Number.parseFloat(priceInput.dataset.basePrice || '0');
+                        const currentPriceValue = Number.parseFloat(priceInput.value || '0');
+                        const baseDescriptionValue = descriptionInput instanceof HTMLTextAreaElement
+                            ? String(descriptionInput.defaultValue || '').trim()
+                            : '';
+                        const currentDescriptionValue = descriptionInput instanceof HTMLTextAreaElement
+                            ? String(descriptionInput.value || '').trim()
+                            : '';
+                        const hasDescriptionChanges = currentDescriptionValue !== baseDescriptionValue;
+                        const hasPriceChanges = Number.isFinite(basePriceValue)
+                            && Number.isFinite(currentPriceValue)
+                            && Math.abs(basePriceValue - currentPriceValue) > 0.0001;
+                        const shouldSuggestSplitCode = hasPriceChanges || hasDescriptionChanges;
+
+                        if (shouldSuggestSplitCode && codeInput.value.trim() === String(codeInput.dataset.baseCode || '').trim()) {
+                            codeInput.value = String(codeInput.dataset.suggestedCode || codeInput.value || '').trim();
+                        }
+
+                        if (!shouldSuggestSplitCode && codeInput.value.trim() === String(codeInput.dataset.suggestedCode || '').trim()) {
+                            codeInput.value = String(codeInput.dataset.baseCode || '').trim();
+                        }
+                    };
+
+                    priceInput.addEventListener('input', syncSuggestedCode);
+                    if (descriptionInput instanceof HTMLTextAreaElement) {
+                        descriptionInput.addEventListener('input', syncSuggestedCode);
+                    }
+                    syncSuggestedCode();
+                });
+            };
+
             const openFacturacionItemEditModal = (trigger) => {
                 if (!facturacionItemEditModal || !facturacionItemEditForm || !(trigger instanceof HTMLElement)) {
                     return;
@@ -5492,6 +6004,10 @@
                 }
 
                 facturacionItemEditForm.action = facturacionItemUpdateRouteTemplate.replace('__ITEM__', itemId);
+                if (facturacionItemEditForm instanceof HTMLFormElement) {
+                    facturacionItemEditForm.dataset.itemId = itemId;
+                }
+                const groupedQuantity = Math.max(1, Number(trigger.dataset.itemCantidad || '1'));
 
                 const fieldMap = {
                     facturacionEditItemCodigo: trigger.dataset.itemCodigo || '',
@@ -5503,6 +6019,7 @@
                     facturacionEditItemCiudad: trigger.dataset.itemCiudad || '',
                     facturacionEditItemPeso: trigger.dataset.itemPeso || '',
                     facturacionEditItemPrecio: trigger.dataset.itemPrecio || '',
+                    facturacionEditItemCantidad: trigger.dataset.itemCantidad || '1',
                     facturacionEditItemActividadEconomica: trigger.dataset.itemActividadEconomica || '',
                     facturacionEditItemCodigoSin: trigger.dataset.itemCodigoSin || '',
                     facturacionEditItemCodigoProducto: trigger.dataset.itemCodigoProducto || '',
@@ -5518,6 +6035,7 @@
                     facturacionEditItemContenidoResumen: trigger.dataset.itemContenido || '',
                     facturacionEditItemDireccionResumen: trigger.dataset.itemDireccion || '',
                     facturacionEditItemCiudadResumen: trigger.dataset.itemCiudad || '',
+                    facturacionEditItemCantidadResumen: trigger.dataset.itemCantidad || '1',
                 };
 
                 Object.entries(fieldMap).forEach(([fieldId, value]) => {
@@ -5534,6 +6052,44 @@
                     }
                 });
 
+                if (facturacionItemEditTitle instanceof HTMLElement) {
+                    facturacionItemEditTitle.textContent = groupedQuantity > 1
+                        ? 'Editar grupo o separar unidades'
+                        : 'Corregir item antes de reenviar';
+                }
+
+                if (facturacionItemEditMessage instanceof HTMLElement) {
+                    facturacionItemEditMessage.textContent = groupedQuantity > 1
+                        ? 'Este registro representa varias unidades agrupadas. Aqui mismo puedes editar las ' + groupedQuantity + ' unidades de una vez, cada una con su propio codigo, descripcion y precio.'
+                        : 'Ajusta el codigo, el precio o la descripcion del item y guarda los cambios para volver a intentar la emision.';
+                }
+
+                if (facturacionItemEditSplitHint instanceof HTMLElement) {
+                    facturacionItemEditSplitHint.classList.toggle('is-hidden', groupedQuantity <= 1);
+                }
+                if (facturacionItemEditSummary instanceof HTMLElement) {
+                    facturacionItemEditSummary.classList.toggle('is-hidden', groupedQuantity > 1);
+                }
+                if (facturacionItemEditPanel instanceof HTMLElement) {
+                    facturacionItemEditPanel.classList.toggle('is-batch-edit', groupedQuantity > 1);
+                }
+                if (facturacionItemEditBatch instanceof HTMLElement && facturacionItemEditSingleGrid instanceof HTMLElement) {
+                    if (groupedQuantity > 1) {
+                        renderFacturacionGroupedEditBatch(trigger, groupedQuantity);
+                        facturacionItemEditBatch.classList.remove('is-hidden');
+                        facturacionItemEditSingleGrid.classList.add('is-hidden');
+                    } else {
+                        facturacionItemEditBatch.innerHTML = '';
+                        facturacionItemEditBatch.classList.add('is-hidden');
+                        facturacionItemEditSingleGrid.classList.remove('is-hidden');
+                    }
+                }
+                if (facturacionItemEditSubmit instanceof HTMLButtonElement) {
+                    facturacionItemEditSubmit.textContent = groupedQuantity > 1
+                        ? 'Guardar ' + groupedQuantity + ' items'
+                        : 'Guardar item';
+                }
+
                 facturacionItemEditModal.classList.add('is-open');
                 facturacionItemEditModal.setAttribute('aria-hidden', 'false');
 
@@ -5549,6 +6105,26 @@
             const closeFacturacionItemEditModal = () => {
                 if (!facturacionItemEditModal) {
                     return;
+                }
+
+                if (facturacionItemEditForm instanceof HTMLFormElement) {
+                    facturacionItemEditForm.dataset.itemId = '';
+                }
+                if (facturacionItemEditSubmit instanceof HTMLButtonElement) {
+                    facturacionItemEditSubmit.textContent = 'Guardar item';
+                }
+                if (facturacionItemEditBatch instanceof HTMLElement) {
+                    facturacionItemEditBatch.innerHTML = '';
+                    facturacionItemEditBatch.classList.add('is-hidden');
+                }
+                if (facturacionItemEditSingleGrid instanceof HTMLElement) {
+                    facturacionItemEditSingleGrid.classList.remove('is-hidden');
+                }
+                if (facturacionItemEditSummary instanceof HTMLElement) {
+                    facturacionItemEditSummary.classList.remove('is-hidden');
+                }
+                if (facturacionItemEditPanel instanceof HTMLElement) {
+                    facturacionItemEditPanel.classList.remove('is-batch-edit');
                 }
 
                 facturacionItemEditModal.classList.remove('is-open');
@@ -5678,11 +6254,38 @@
                     const iconClass = (form.dataset.confirmIcon || 'fa-circle-check').trim();
                     facturacionActionConfirmIcon.className = 'fas ' + iconClass;
                 }
+                if (facturacionActionConfirmQuantityBox && facturacionActionConfirmQuantityInput) {
+                    const maxQuantity = Math.max(1, Number(form.dataset.removeItemQuantity || '1'));
+                    const quantityField = form.querySelector('input[name="cantidad"]');
+                    const initialQuantity = quantityField instanceof HTMLInputElement
+                        ? Math.max(1, Math.min(maxQuantity, Number(quantityField.value || '1')))
+                        : 1;
+
+                    if (maxQuantity > 1) {
+                        facturacionActionConfirmQuantityBox.classList.remove('is-hidden');
+                        facturacionActionConfirmQuantityInput.min = '1';
+                        facturacionActionConfirmQuantityInput.max = String(maxQuantity);
+                        facturacionActionConfirmQuantityInput.value = String(initialQuantity);
+                        if (facturacionActionConfirmQuantityHint instanceof HTMLElement) {
+                            facturacionActionConfirmQuantityHint.textContent = 'Puedes quitar de 1 a ' + maxQuantity + ' unidades de esta linea.';
+                        }
+                    } else {
+                        facturacionActionConfirmQuantityBox.classList.add('is-hidden');
+                        facturacionActionConfirmQuantityInput.value = '1';
+                        facturacionActionConfirmQuantityInput.removeAttribute('max');
+                    }
+                }
                 facturacionActionConfirmAccept.textContent = form.dataset.confirmCta || 'Confirmar';
                 facturacionActionConfirmModal.classList.add('is-open');
                 facturacionActionConfirmModal.setAttribute('aria-hidden', 'false');
 
                 window.setTimeout(() => {
+                    if (facturacionActionConfirmQuantityBox && !facturacionActionConfirmQuantityBox.classList.contains('is-hidden') && facturacionActionConfirmQuantityInput) {
+                        facturacionActionConfirmQuantityInput.focus();
+                        facturacionActionConfirmQuantityInput.select();
+                        return;
+                    }
+
                     facturacionActionConfirmAccept.focus();
                 }, 30);
             };
@@ -5696,6 +6299,13 @@
 
                 facturacionActionConfirmModal.classList.remove('is-open');
                 facturacionActionConfirmModal.setAttribute('aria-hidden', 'true');
+                if (facturacionActionConfirmQuantityBox) {
+                    facturacionActionConfirmQuantityBox.classList.add('is-hidden');
+                }
+                if (facturacionActionConfirmQuantityInput) {
+                    facturacionActionConfirmQuantityInput.value = '1';
+                    facturacionActionConfirmQuantityInput.removeAttribute('max');
+                }
             };
 
             openFacturacionShortcutBtn.addEventListener('click', openFacturacionShortcutModal);
@@ -5736,14 +6346,36 @@
                     const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
 
                     try {
-                        const response = await fetch(facturacionItemEditForm.action, {
+                        const isBatchMode = facturacionItemEditBatch instanceof HTMLElement
+                            && !facturacionItemEditBatch.classList.contains('is-hidden')
+                            && facturacionItemEditBatch.querySelectorAll('[name^="entries["]').length > 0;
+                        const actionUrl = isBatchMode
+                            ? String(facturacionItemCustomizeGroupedRouteTemplate).replace(
+                                '__ITEM__',
+                                String((facturacionItemEditForm.dataset.itemId || '') || '')
+                            )
+                            : facturacionItemEditForm.action;
+                        const formData = isBatchMode
+                            ? new FormData()
+                            : new FormData(facturacionItemEditForm);
+
+                        if (isBatchMode && facturacionItemEditBatch instanceof HTMLElement) {
+                            facturacionItemEditBatch.querySelectorAll('input, textarea').forEach((field) => {
+                                if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) {
+                                    return;
+                                }
+                                formData.append(field.name, field.value);
+                            });
+                        }
+
+                        const response = await fetch(actionUrl, {
                             method: 'POST',
                             headers: {
                                 'X-Requested-With': 'XMLHttpRequest',
                                 'Accept': 'application/json',
                                 'X-CSRF-TOKEN': csrfToken,
                             },
-                            body: new FormData(facturacionItemEditForm),
+                            body: formData,
                             credentials: 'include',
                         });
 
@@ -5758,6 +6390,10 @@
                         if (data.feedback) {
                             renderFacturacionShortcutFeedback(data.feedback);
                             renderFacturacionResultModal(data.feedback);
+                        }
+
+                        if (data.cart) {
+                            applyFacturacionCartPayloadToUi(data.cart);
                         }
 
                         await syncFacturacionShortcutAfterMutation();
@@ -6315,6 +6951,15 @@
                     }
 
                     const form = pendingConfirmForm;
+                    if (facturacionActionConfirmQuantityBox && !facturacionActionConfirmQuantityBox.classList.contains('is-hidden') && facturacionActionConfirmQuantityInput) {
+                        const quantityField = form.querySelector('input[name="cantidad"]');
+                        const maxQuantity = Math.max(1, Number(form.dataset.removeItemQuantity || '1'));
+                        const resolvedQuantity = Math.max(1, Math.min(maxQuantity, Number(facturacionActionConfirmQuantityInput.value || '1')));
+
+                        if (quantityField instanceof HTMLInputElement) {
+                            quantityField.value = String(resolvedQuantity);
+                        }
+                    }
                     pendingConfirmForm = null;
                     facturacionActionConfirmModal.classList.remove('is-open');
                     facturacionActionConfirmModal.setAttribute('aria-hidden', 'true');

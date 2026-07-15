@@ -178,6 +178,10 @@ class FacturacionCartService
             'total_linea' => $montoBase,
         ]);
 
+        if ($cart = $this->incrementExistingDraftItemByOrigin($user, PaqueteEms::class, (int) $paquete->id, 1)) {
+            return $cart;
+        }
+
         $body = $this->request('POST', '/cart/items/upsert', $payload);
 
         $cart = $this->toCart(data_get($body, 'cart'));
@@ -272,7 +276,7 @@ class FacturacionCartService
 
     private function buildPaqueteEmsResumenOrigen(PaqueteEms $paquete, ?Servicio $servicio): array
     {
-        return [
+        return array_merge([
             'codigo' => (string) ($paquete->codigo ?? ''),
             'contenido' => (string) ($paquete->contenido ?? ''),
             'peso' => (float) ($paquete->peso ?? 0),
@@ -284,7 +288,65 @@ class FacturacionCartService
             'codigo_producto' => (string) ($servicio->codigo ?? ''),
             'descripcion_servicio' => (string) ($servicio->descripcion ?? ''),
             'unidad_medida' => (int) ($servicio->unidadMedida ?? 0),
+        ], $this->buildServicioAnalyticsResumen(
+            $servicio,
+            (string) ($servicio->nombre_servicio ?? 'EMS'),
+            (string) ($paquete->codigo ?? ''),
+            (string) ($servicio->codigo ?? ''),
+            'EMS'
+        ));
+    }
+
+    private function buildServicioAnalyticsResumen(
+        ?Servicio $servicio,
+        ?string $fallbackNombreServicio = null,
+        ?string $codigoPaquete = null,
+        ?string $codigoProductoFiscal = null,
+        ?string $familiaServicio = null
+    ): array {
+        $nombreServicio = $this->normalizeServicioAnalyticsNombre(
+            (string) ($servicio->nombre_servicio ?? $fallbackNombreServicio ?? 'SERVICIO')
+        );
+        $codigoServicio = $this->buildServicioAnalyticsCodigo(
+            $nombreServicio,
+            (string) ($servicio->codigo ?? $codigoProductoFiscal ?? '')
+        );
+        $codigoPaquete = trim((string) $codigoPaquete);
+        $codigoFiscal = trim((string) ($servicio->codigo ?? $codigoProductoFiscal ?? ''));
+
+        return [
+            'codigo_paquete' => $codigoPaquete,
+            'codigo_detalle_enviado' => $codigoPaquete,
+            'codigo_servicio' => $codigoServicio,
+            'servicio_nombre' => $nombreServicio,
+            'servicio_familia' => $this->normalizeServicioAnalyticsNombre(
+                (string) ($familiaServicio ?: $nombreServicio)
+            ),
+            'codigo_producto_fiscal' => $codigoFiscal,
         ];
+    }
+
+    private function normalizeServicioAnalyticsNombre(string $value): string
+    {
+        $normalized = strtoupper(trim($value));
+        $normalized = preg_replace('/[^A-Z0-9]+/', '_', $normalized) ?? '';
+        $normalized = trim($normalized, '_');
+
+        return $normalized !== '' ? $normalized : 'SERVICIO';
+    }
+
+    private function buildServicioAnalyticsCodigo(string $nombreServicio, string $codigoFiscal = ''): string
+    {
+        $nombre = $this->normalizeServicioAnalyticsNombre($nombreServicio);
+        if ($nombre !== '' && $nombre !== 'SERVICIO') {
+            return $nombre;
+        }
+
+        $fiscal = strtoupper(trim($codigoFiscal));
+        $fiscal = preg_replace('/[^A-Z0-9]+/', '_', $fiscal) ?? '';
+        $fiscal = trim($fiscal, '_');
+
+        return $fiscal !== '' ? $fiscal : 'SERVICIO';
     }
 
     private function assertOfficialRegistrationPayload(array $payload): void
@@ -328,6 +390,11 @@ class FacturacionCartService
             ?: $this->resolveModuloServicio('CERTIFICADAS');
         $peso = (float) ($paquete->peso ?? 0);
         $montoBase = $this->resolveCertiMontoBase($paquete);
+        $cantidadInicial = 1;
+
+        if ($cart = $this->incrementExistingDraftItemByOrigin($user, PaqueteCerti::class, (int) $paquete->id, $cantidadInicial)) {
+            return $cart;
+        }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
             $this->originUserPayload($user),
@@ -340,7 +407,7 @@ class FacturacionCartService
             'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'ENVIO CORRESPONDENCIA'),
             'nombre_destinatario' => (string) ($paquete->destinatario ?? ''),
             'servicios_extra' => [],
-            'resumen_origen' => [
+            'resumen_origen' => array_merge([
                 'codigo' => (string) ($paquete->codigo ?? ''),
                 'contenido' => (string) ($paquete->tipo ?? 'CERTIFICADO'),
                 'peso' => $peso,
@@ -352,7 +419,13 @@ class FacturacionCartService
                 'codigo_producto' => (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
                 'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? 'ENVIO CORRESPONDENCIA'),
                 'unidad_medida' => $servicio->unidadMedida ?? 58,
-            ],
+            ], $this->buildServicioAnalyticsResumen(
+                $servicio,
+                (string) ($servicio->nombre_servicio ?? 'CERTIFICADAS'),
+                (string) ($paquete->codigo ?? ''),
+                (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
+                'CERTIFICADAS'
+            )),
             'cantidad' => 1,
             'monto_base' => $montoBase,
             'monto_extras' => 0,
@@ -404,7 +477,7 @@ class FacturacionCartService
                 'nombre_servicio' => $tituloServicio,
                 'nombre_destinatario' => (string) ($paquete->destino ?? ''),
                 'servicios_extra' => [],
-                'resumen_origen' => [
+                'resumen_origen' => array_merge([
                     'codigo' => $codigo,
                     'contenido' => 'INTERNO',
                     'peso' => $peso,
@@ -416,13 +489,23 @@ class FacturacionCartService
                     'codigo_producto' => (string) ($servicioFiscal->codigo ?? $servicioPresentacion->codigo ?? $codigo),
                     'descripcion_servicio' => $descripcionServicio,
                     'unidad_medida' => $servicioFiscal->unidadMedida ?? $servicioPresentacion->unidadMedida ?? 58,
-                ],
+                ], $this->buildServicioAnalyticsResumen(
+                    $servicioPresentacion ?: $servicioFiscal,
+                    $tituloServicio,
+                    $codigo,
+                    (string) ($servicioFiscal->codigo ?? $servicioPresentacion->codigo ?? $codigo),
+                    'INTERNACIONAL'
+                )),
                 'cantidad' => 1,
                 'monto_base' => $montoBase,
                 'monto_extras' => 0,
                 'total_linea' => $montoBase,
             ]
         );
+
+        if ($cart = $this->incrementExistingDraftItemByOrigin($user, PaqueteInt::class, (int) $paquete->id, 1)) {
+            return $cart;
+        }
 
         $body = $this->request('POST', '/cart/items/upsert', $payload);
 
@@ -445,6 +528,11 @@ class FacturacionCartService
         );
         $montoBase = round($this->toFloatNumber($paquete->precio ?? 0), 2);
         $peso = $this->toFloatNumber($paquete->peso ?? 0);
+        $cantidadInicial = max(1, (int) ($paquete->cantidad ?? 1));
+
+        if ($cart = $this->incrementExistingDraftItemByOrigin($user, Recojo::class, (int) $paquete->id, $cantidadInicial)) {
+            return $cart;
+        }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
             $this->originUserPayload($user),
@@ -457,7 +545,7 @@ class FacturacionCartService
                 'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'PAQUETE CONTRATO'),
                 'nombre_destinatario' => (string) ($paquete->nombre_d ?? ''),
                 'servicios_extra' => [],
-                'resumen_origen' => [
+                'resumen_origen' => array_merge([
                     'codigo' => (string) ($paquete->codigo ?? ''),
                     'contenido' => (string) ($paquete->contenido ?? 'CONTRATO'),
                     'peso' => $peso,
@@ -469,8 +557,14 @@ class FacturacionCartService
                     'codigo_producto' => (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
                     'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? 'PAQUETE CONTRATO'),
                     'unidad_medida' => $servicio->unidadMedida ?? 58,
-                ],
-                'cantidad' => max(1, (int) ($paquete->cantidad ?? 1)),
+                ], $this->buildServicioAnalyticsResumen(
+                    $servicio,
+                    (string) ($servicio->nombre_servicio ?? 'CONTRATOS'),
+                    (string) ($paquete->codigo ?? ''),
+                    (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
+                    'CONTRATOS'
+                )),
+                'cantidad' => $cantidadInicial,
                 'monto_base' => $montoBase,
                 'monto_extras' => 0,
                 'total_linea' => $montoBase,
@@ -485,19 +579,20 @@ class FacturacionCartService
         return $cart;
     }
 
-    public function addConceptoFacturacion(User $user, ConceptoFacturacion $concepto): object
+    public function addConceptoFacturacion(User $user, ConceptoFacturacion $concepto, int $cantidad = 1): object
     {
         $this->assertFacturacionPermission($user);
+        $cantidad = max(1, $cantidad);
 
         $ctx = $this->getRemoteContextForUser($user);
         $draft = $ctx['draft'] ?? null;
         $existingItem = $this->findEquivalentConceptoDraftItem($draft, $concepto);
 
         if ($existingItem) {
-            $cantidadActual = max(1, (int) data_get($existingItem, 'cantidad', 1));
+            $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
             $montoBase = round((float) data_get($existingItem, 'monto_base', $concepto->precio_base ?? 0), 2);
             $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
-            $nuevaCantidad = $cantidadActual + 1;
+            $nuevaCantidad = $cantidadActual + $cantidad;
 
             $cart = $this->updateDraftItem(
                 $user,
@@ -521,7 +616,8 @@ class FacturacionCartService
             $this->originSucursalPayload($user),
             $this->buildConceptoDraftPayload(
                 $concepto,
-                $this->resolveConceptoDraftOriginId($draft, $concepto)
+                $this->resolveConceptoDraftOriginId($draft, $concepto),
+                $cantidad
             )
         ));
 
@@ -693,6 +789,7 @@ class FacturacionCartService
             'solicitud_ems' => $this->addSolicitudEms($user, $record),
             default => throw new \RuntimeException('El codigo escaneado no tiene un modulo compatible con Facturacion.'),
         };
+        $cartItem = $this->findDraftItemByOrigin($cart, $record::class, (int) ($record->id ?? 0));
 
         return [
             'cart' => $cart,
@@ -700,6 +797,8 @@ class FacturacionCartService
                 'type' => (string) $match['type'],
                 'label' => (string) $match['label'],
                 'code' => (string) ($record->codigo ?? $codigoNormalizado),
+                'record_id' => (int) ($record->id ?? 0),
+                'cantidad' => max(1, (int) data_get($cartItem, 'cantidad', 1)),
             ],
         ];
     }
@@ -754,6 +853,11 @@ class FacturacionCartService
             ?? 'EMS'
         ));
         $fiscalData = $this->resolveSolicitudEmsFiscalData($nombreServicio);
+        $cantidadInicial = max(1, (int) ($solicitud->cantidad ?? 1));
+
+        if ($cart = $this->incrementExistingDraftItemByOrigin($user, SolicitudCliente::class, (int) $solicitud->id, $cantidadInicial)) {
+            return $cart;
+        }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
             $this->originUserPayload($user),
@@ -766,7 +870,7 @@ class FacturacionCartService
                 'nombre_servicio' => $nombreServicio,
                 'nombre_destinatario' => (string) ($solicitud->nombre_destinatario ?? ''),
                 'servicios_extra' => [],
-                'resumen_origen' => [
+                'resumen_origen' => array_merge([
                     'codigo' => (string) ($solicitud->codigo_solicitud ?? ''),
                     'contenido' => (string) ($solicitud->contenido ?? ''),
                     'peso' => (float) ($solicitud->peso ?? 0),
@@ -778,8 +882,15 @@ class FacturacionCartService
                     'codigo_producto' => $fiscalData['codigo_producto'],
                     'descripcion_servicio' => $fiscalData['descripcion_servicio'],
                     'unidad_medida' => $fiscalData['unidad_medida'],
-                ],
-                'cantidad' => max(1, (int) ($solicitud->cantidad ?? 1)),
+                ], [
+                    'codigo_paquete' => (string) ($solicitud->codigo_solicitud ?? ''),
+                    'codigo_detalle_enviado' => (string) ($solicitud->codigo_solicitud ?? ''),
+                    'codigo_servicio' => $this->buildServicioAnalyticsCodigo($nombreServicio, (string) $fiscalData['codigo_producto']),
+                    'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($nombreServicio),
+                    'servicio_familia' => 'EMS',
+                    'codigo_producto_fiscal' => (string) $fiscalData['codigo_producto'],
+                ]),
+                'cantidad' => $cantidadInicial,
                 'monto_base' => $montoBase,
                 'monto_extras' => 0,
                 'total_linea' => $montoBase,
@@ -818,6 +929,11 @@ class FacturacionCartService
             ?: $this->resolveModuloServicio('ORDINARIAS');
         $peso = $this->toFloatNumber($paquete->peso ?? 0);
         $montoBase = $this->resolveOrdiMontoBase($paquete);
+        $cantidadInicial = 1;
+
+        if ($cart = $this->incrementExistingDraftItemByOrigin($user, PaqueteOrdi::class, (int) $paquete->id, $cantidadInicial)) {
+            return $cart;
+        }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
             $this->originUserPayload($user),
@@ -830,7 +946,7 @@ class FacturacionCartService
             'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'ENVIO CORRESPONDENCIA'),
             'nombre_destinatario' => (string) ($paquete->destinatario ?? ''),
             'servicios_extra' => [],
-            'resumen_origen' => [
+            'resumen_origen' => array_merge([
                 'codigo' => (string) ($paquete->codigo ?? ''),
                 'contenido' => (string) ($paquete->observaciones ?? 'ORDINARIO'),
                 'peso' => $peso,
@@ -842,7 +958,13 @@ class FacturacionCartService
                 'codigo_producto' => (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
                 'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? 'ENVIO CORRESPONDENCIA'),
                 'unidad_medida' => $servicio->unidadMedida ?? 58,
-            ],
+            ], $this->buildServicioAnalyticsResumen(
+                $servicio,
+                (string) ($servicio->nombre_servicio ?? 'ORDINARIAS'),
+                (string) ($paquete->codigo ?? ''),
+                (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
+                'ORDINARIAS'
+            )),
             'cantidad' => 1,
             'monto_base' => $montoBase,
             'monto_extras' => 0,
@@ -856,8 +978,39 @@ class FacturacionCartService
         return $cart;
     }
 
-    public function removeItem(User $user, int $itemId): ?object
+    public function removeItem(User $user, int $itemId, ?int $cantidad = null, ?int $currentQuantity = null): ?object
     {
+        $ctx = $this->getRemoteContextForUser($user);
+        $draft = $ctx['draft'] ?? null;
+        $existingItem = $this->findDraftItemById($draft, $itemId);
+
+        if (!$existingItem) {
+            throw new ModelNotFoundException('Item de facturacion no encontrado.');
+        }
+
+        $effectiveQuantity = max(
+            $this->resolveEffectiveDraftItemQuantity($existingItem),
+            max(1, (int) ($currentQuantity ?? 1))
+        );
+        $requestedQuantity = max(1, min($effectiveQuantity, (int) ($cantidad ?? $effectiveQuantity)));
+
+        if ($requestedQuantity < $effectiveQuantity) {
+            $montoBase = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
+            $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+            $remainingQuantity = max(1, $effectiveQuantity - $requestedQuantity);
+
+            return $this->updateDraftItem(
+                $user,
+                $itemId,
+                $this->buildDraftItemUpdatePayload($existingItem, [
+                    'cantidad' => $remainingQuantity,
+                    'monto_base' => $montoBase,
+                    'monto_extras' => $montoExtras,
+                    'total_linea' => round(($montoBase + $montoExtras) * $remainingQuantity, 2),
+                ])
+            );
+        }
+
         try {
             $body = $this->request('DELETE', '/cart/items/' . $itemId, ['origen_usuario_id' => (string) $user->id]);
         } catch (\RuntimeException $e) {
@@ -890,6 +1043,298 @@ class FacturacionCartService
         }
 
         return $this->normalizeDraftCodesAfterMutation($user, $cart);
+    }
+
+    public function reviseDraftItem(User $user, int $itemId, array $payload): array
+    {
+        $ctx = $this->getRemoteContextForUser($user);
+        $draft = $ctx['draft'] ?? null;
+        $existingItem = $this->findDraftItemById($draft, $itemId);
+
+        if (!$existingItem) {
+            throw new ModelNotFoundException('Item de facturacion no encontrado.');
+        }
+
+        $effectiveQuantity = $this->resolveEffectiveDraftItemQuantity($existingItem);
+        $requestedQuantity = max(1, (int) ($payload['cantidad'] ?? $effectiveQuantity));
+
+        if ($this->shouldSplitDraftItemForIndividualEdit($existingItem, $payload, $effectiveQuantity, $requestedQuantity)) {
+            $cart = $this->splitDraftItemForIndividualEdit($user, $draft, $existingItem, $payload, $effectiveQuantity, $requestedQuantity);
+
+            return [
+                'cart' => $cart,
+                'split' => true,
+                'split_quantity' => $requestedQuantity,
+                'remaining_quantity' => max(0, $effectiveQuantity - $requestedQuantity),
+            ];
+        }
+
+        $cart = $this->updateDraftItem($user, $itemId, $payload);
+
+        return [
+            'cart' => $cart,
+            'split' => false,
+            'split_quantity' => 0,
+            'remaining_quantity' => 0,
+        ];
+    }
+
+    public function explodeDraftItemIntoSingleUnits(User $user, int $itemId): object
+    {
+        $ctx = $this->getRemoteContextForUser($user);
+        $draft = $ctx['draft'] ?? null;
+        $existingItem = $this->findDraftItemById($draft, $itemId);
+
+        if (!$existingItem) {
+            throw new ModelNotFoundException('Item de facturacion no encontrado.');
+        }
+
+        if (ltrim((string) data_get($existingItem, 'origen_tipo', ''), '\\') !== ltrim(ConceptoFacturacion::class, '\\')) {
+            throw new \RuntimeException('Solo los cobros agrupados pueden desglosarse automaticamente por ahora.');
+        }
+
+        $effectiveQuantity = $this->resolveEffectiveDraftItemQuantity($existingItem);
+        if ($effectiveQuantity <= 1) {
+            return $draft ?: throw new \RuntimeException('El item ya esta individualizado.');
+        }
+
+        $currentBase = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
+        $currentExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+        $workingCart = $this->updateDraftItem(
+            $user,
+            (int) data_get($existingItem, 'id'),
+            $this->buildDraftItemUpdatePayload($existingItem, [
+                'cantidad' => 1,
+                'monto_base' => $currentBase,
+                'monto_extras' => $currentExtras,
+                'total_linea' => round($currentBase + $currentExtras, 2),
+            ]),
+            false
+        );
+
+        $conceptoId = (int) data_get(
+            $existingItem,
+            'resumen_origen.concepto_facturacion_id',
+            data_get($existingItem, 'origen_id', 0)
+        );
+        $concepto = ConceptoFacturacion::query()->find($conceptoId);
+
+        for ($position = 2; $position <= $effectiveQuantity; $position++) {
+            $newOriginId = $concepto
+                ? $this->resolveConceptoDraftOriginId($workingCart, $concepto)
+                : ((int) data_get($existingItem, 'origen_id', 0) + $position);
+
+            $uniqueCode = $this->buildSequentialSplitDraftItemCode(
+                (string) data_get($existingItem, 'codigo', ''),
+                $workingCart
+            );
+
+            $createPayload = $this->buildDraftItemCreatePayload($existingItem, [
+                'codigo' => $uniqueCode,
+                'cantidad' => 1,
+                'monto_base' => $currentBase,
+                'precio' => $currentBase,
+                'monto_extras' => $currentExtras,
+            ], $newOriginId);
+
+            $body = $this->request('POST', '/cart/items/upsert', array_merge(
+                $this->originUserPayload($user),
+                $this->originSucursalPayload($user),
+                $createPayload
+            ));
+
+            $workingCart = $this->toCart(data_get($body, 'cart'));
+            if (!$workingCart) {
+                throw new \RuntimeException('No se pudo crear una de las lineas individuales del desglose.');
+            }
+        }
+
+        return $this->normalizeDraftCodesAfterMutation($user, $workingCart);
+    }
+
+    public function customizeGroupedDraftItemUnits(User $user, int $itemId, array $entries): object
+    {
+        $ctx = $this->getRemoteContextForUser($user);
+        $draft = $ctx['draft'] ?? null;
+        $existingItem = $this->findDraftItemById($draft, $itemId);
+
+        if (!$existingItem) {
+            throw new ModelNotFoundException('Item de facturacion no encontrado.');
+        }
+
+        if (ltrim((string) data_get($existingItem, 'origen_tipo', ''), '\\') !== ltrim(ConceptoFacturacion::class, '\\')) {
+            throw new \RuntimeException('Solo los cobros agrupados pueden editarse masivamente por ahora.');
+        }
+
+        $effectiveQuantity = $this->resolveEffectiveDraftItemQuantity($existingItem);
+        if ($effectiveQuantity <= 1) {
+            throw new \RuntimeException('El item ya no esta agrupado.');
+        }
+
+        $entries = collect($entries)
+            ->filter(fn ($entry) => is_array($entry))
+            ->values();
+
+        if ($entries->count() !== $effectiveQuantity) {
+            throw new \RuntimeException('Debes completar exactamente ' . $effectiveQuantity . ' espacios para este item agrupado.');
+        }
+
+        $currentBase = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
+        $currentExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+        $currentDescription = (string) data_get($existingItem, 'resumen_origen.descripcion_servicio', '');
+        $currentCode = (string) data_get($existingItem, 'codigo', '');
+
+        $normalizedEntries = $entries->map(function (array $entry) use ($currentBase, $currentDescription, $currentCode) {
+            return [
+                'codigo' => trim((string) ($entry['codigo'] ?? $currentCode)),
+                'descripcion_servicio' => trim((string) ($entry['descripcion_servicio'] ?? $currentDescription)),
+                'precio' => round((float) ($entry['precio'] ?? $currentBase), 2),
+            ];
+        });
+
+        $changedEntries = $normalizedEntries->filter(function (array $entry) use ($currentBase, $currentDescription, $currentCode) {
+            return trim((string) ($entry['codigo'] ?? $currentCode)) !== $currentCode
+                || trim((string) ($entry['descripcion_servicio'] ?? $currentDescription)) !== $currentDescription
+                || round((float) ($entry['precio'] ?? $currentBase), 2) !== $currentBase;
+        })->values();
+        $unchangedCount = max(0, $effectiveQuantity - $changedEntries->count());
+
+        if ($changedEntries->isEmpty()) {
+            $groupedCart = $this->updateDraftItem(
+                $user,
+                (int) data_get($existingItem, 'id'),
+                $this->buildDraftItemUpdatePayload($existingItem, [
+                    'codigo' => $currentCode,
+                    'cantidad' => $effectiveQuantity,
+                    'precio' => $currentBase,
+                    'monto_base' => $currentBase,
+                    'monto_extras' => $currentExtras,
+                    'total_linea' => round(($currentBase + $currentExtras) * $effectiveQuantity, 2),
+                    'descripcion_servicio' => $currentDescription,
+                ])
+            );
+
+            return $groupedCart;
+        }
+
+        $conceptoId = (int) data_get(
+            $existingItem,
+            'resumen_origen.concepto_facturacion_id',
+            data_get($existingItem, 'origen_id', 0)
+        );
+        $concepto = ConceptoFacturacion::query()->find($conceptoId);
+
+        $workingCart = null;
+        $remainingEntriesToCreate = $changedEntries->values();
+
+        if ($unchangedCount > 0) {
+            $workingCart = $this->updateDraftItem(
+                $user,
+                (int) data_get($existingItem, 'id'),
+                $this->buildDraftItemUpdatePayload($existingItem, [
+                    'codigo' => $currentCode,
+                    'cantidad' => $unchangedCount,
+                    'precio' => $currentBase,
+                    'monto_base' => $currentBase,
+                    'monto_extras' => $currentExtras,
+                    'total_linea' => round(($currentBase + $currentExtras) * $unchangedCount, 2),
+                    'descripcion_servicio' => $currentDescription,
+                ]),
+                false
+            );
+        } else {
+            $firstEntry = (array) $changedEntries->shift();
+            $firstDesiredCode = trim((string) ($firstEntry['codigo'] ?? $currentCode));
+            $firstCode = $this->resolveSeparatedDraftItemCode(
+                $firstDesiredCode !== '' ? $firstDesiredCode : $currentCode,
+                $currentCode,
+                $draft,
+                (int) data_get($existingItem, 'id', 0)
+            );
+
+            $workingCart = $this->updateDraftItem(
+                $user,
+                (int) data_get($existingItem, 'id'),
+                $this->buildDraftItemUpdatePayload($existingItem, [
+                    'codigo' => $firstCode,
+                    'cantidad' => 1,
+                    'precio' => round((float) ($firstEntry['precio'] ?? $currentBase), 2),
+                    'monto_base' => round((float) ($firstEntry['precio'] ?? $currentBase), 2),
+                    'monto_extras' => $currentExtras,
+                    'total_linea' => round((float) ($firstEntry['precio'] ?? $currentBase) + $currentExtras, 2),
+                    'descripcion_servicio' => (string) ($firstEntry['descripcion_servicio'] ?? $currentDescription),
+                ]),
+                false
+            );
+        }
+
+        foreach ($remainingEntriesToCreate as $index => $entry) {
+            $entry = (array) $entry;
+            $newOriginId = $concepto
+                ? $this->resolveConceptoDraftOriginId($workingCart, $concepto)
+                : ((int) data_get($existingItem, 'origen_id', 0) + $index + 1);
+
+            $desiredCode = (string) ($entry['codigo'] ?? $currentCode);
+            $uniqueCode = $this->resolveSeparatedDraftItemCode($desiredCode, $currentCode, $workingCart);
+            $price = round((float) ($entry['precio'] ?? $currentBase), 2);
+
+            $createPayload = $this->buildDraftItemCreatePayload($existingItem, [
+                'codigo' => $uniqueCode,
+                'cantidad' => 1,
+                'precio' => $price,
+                'monto_base' => $price,
+                'monto_extras' => $currentExtras,
+                'descripcion_servicio' => (string) ($entry['descripcion_servicio'] ?? $currentDescription),
+            ], $newOriginId);
+
+            $body = $this->request('POST', '/cart/items/upsert', array_merge(
+                $this->originUserPayload($user),
+                $this->originSucursalPayload($user),
+                $createPayload
+            ));
+
+            $workingCart = $this->toCart(data_get($body, 'cart'));
+            if (!$workingCart) {
+                throw new \RuntimeException('No se pudo guardar una de las lineas individualizadas.');
+            }
+        }
+
+        return $this->normalizeDraftCodesAfterMutation($user, $workingCart);
+    }
+
+    private function resolveSeparatedDraftItemCode(
+        string $desiredCode,
+        string $currentCode,
+        ?object $draft,
+        ?int $excludeItemId = null
+    ): string {
+        $desiredCode = trim($desiredCode);
+        $currentCode = trim($currentCode);
+
+        if ($desiredCode === '') {
+            $desiredCode = $currentCode;
+        }
+
+        if ($desiredCode === '') {
+            return '';
+        }
+
+        if (mb_strtolower($desiredCode) === mb_strtolower($currentCode)) {
+            $candidateDraft = $draft;
+
+            if ($excludeItemId !== null && $draft) {
+                $filteredItems = collect((array) ($draft->items ?? []))
+                    ->reject(fn ($item) => (int) data_get($item, 'id', 0) === $excludeItemId)
+                    ->values()
+                    ->all();
+
+                $candidateDraft = (object) array_merge((array) $draft, ['items' => $filteredItems]);
+            }
+
+            return $this->buildSequentialSplitDraftItemCode($currentCode, $candidateDraft);
+        }
+
+        return $this->resolveUniqueDraftItemCodeForCart($desiredCode, $draft, $excludeItemId);
     }
 
     public function clearDraftCart(User $user): ?object
@@ -1706,12 +2151,13 @@ class FacturacionCartService
         return (object) $data;
     }
 
-    private function buildConceptoDraftPayload(ConceptoFacturacion $concepto, ?int $originId = null): array
+    private function buildConceptoDraftPayload(ConceptoFacturacion $concepto, ?int $originId = null, int $cantidad = 1): array
     {
         $montoBase = round((float) ($concepto->precio_base ?? 0), 2);
         $resolvedOriginId = $originId !== null && $originId > 0
             ? $originId
             : (int) $concepto->id;
+        $cantidad = max(1, $cantidad);
 
         return [
             'origen_tipo' => ConceptoFacturacion::class,
@@ -1734,11 +2180,17 @@ class FacturacionCartService
                 'descripcion_servicio' => (string) ($concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'),
                 'unidad_medida' => (int) ($concepto->unidad_medida ?? 58),
                 'concepto_facturacion_id' => (int) $concepto->id,
+                'codigo_paquete' => (string) ($concepto->codigo ?? ''),
+                'codigo_detalle_enviado' => (string) ($concepto->codigo ?? ''),
+                'codigo_servicio' => $this->buildServicioAnalyticsCodigo((string) ($concepto->nombre ?? 'COBRO ADICIONAL'), (string) ($concepto->codigo ?? '')),
+                'servicio_nombre' => $this->normalizeServicioAnalyticsNombre((string) ($concepto->nombre ?? 'COBRO ADICIONAL')),
+                'servicio_familia' => 'CONCEPTO_FACTURABLE',
+                'codigo_producto_fiscal' => (string) ($concepto->codigo ?? ''),
             ],
-            'cantidad' => 1,
+            'cantidad' => $cantidad,
             'monto_base' => $montoBase,
             'monto_extras' => 0,
-            'total_linea' => $montoBase,
+            'total_linea' => round($montoBase * $cantidad, 2),
         ];
     }
 
@@ -1768,6 +2220,64 @@ class FacturacionCartService
                     && round((float) data_get($item, 'monto_base', 0), 2) === $expectedMontoBase
                     && $this->normalizeFacturacionResumenOrigenForMatch((array) data_get($item, 'resumen_origen', [])) === $expectedResumen;
             });
+    }
+
+    private function findDraftItemByOrigin(?object $draft, string $originType, int $originId): ?object
+    {
+        if (!$draft || $originId <= 0) {
+            return null;
+        }
+
+        return collect($draft->items ?? [])
+            ->first(function ($item) use ($originType, $originId) {
+                return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim($originType, '\\')
+                    && (int) data_get($item, 'origen_id', 0) === $originId;
+            });
+    }
+
+    private function incrementExistingDraftItemByOrigin(User $user, string $originType, int $originId, int $incrementBy = 1): ?object
+    {
+        $incrementBy = max(1, $incrementBy);
+        $ctx = $this->getRemoteContextForUser($user);
+        $draft = $ctx['draft'] ?? null;
+        $existingItem = $this->findDraftItemByOrigin($draft, $originType, $originId);
+
+        if (!$existingItem) {
+            return null;
+        }
+
+        $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
+        $montoBase = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
+        $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+        $nuevaCantidad = $cantidadActual + $incrementBy;
+
+        return $this->updateDraftItem(
+            $user,
+            (int) data_get($existingItem, 'id'),
+            $this->buildDraftItemUpdatePayload($existingItem, [
+                'cantidad' => $nuevaCantidad,
+                'monto_base' => $montoBase,
+                'monto_extras' => $montoExtras,
+                'total_linea' => round(($montoBase + $montoExtras) * $nuevaCantidad, 2),
+            ])
+        );
+    }
+
+    private function resolveEffectiveDraftItemQuantity(object $item): int
+    {
+        $explicitQuantity = max(1, (int) data_get($item, 'cantidad', 1));
+        $montoBase = round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2);
+        $montoExtras = round((float) data_get($item, 'monto_extras', 0), 2);
+        $totalLinea = round((float) data_get($item, 'total_linea', 0), 2);
+        $unitAmount = round($montoBase + $montoExtras, 2);
+
+        if ($unitAmount <= 0 || $totalLinea <= 0) {
+            return $explicitQuantity;
+        }
+
+        $derivedQuantity = (int) round($totalLinea / $unitAmount);
+
+        return max($explicitQuantity, $derivedQuantity, 1);
     }
 
     private function resolveConceptoDraftOriginId(?object $draft, ConceptoFacturacion $concepto): int
@@ -1829,7 +2339,230 @@ class FacturacionCartService
             'codigo_producto' => trim((string) ($resumen['codigo_producto'] ?? '')),
             'descripcion_servicio' => trim((string) ($resumen['descripcion_servicio'] ?? '')),
             'unidad_medida' => (int) ($resumen['unidad_medida'] ?? 58),
+            'codigo_paquete' => trim((string) ($resumen['codigo_paquete'] ?? data_get($item, 'codigo', ''))),
+            'codigo_detalle_enviado' => trim((string) ($resumen['codigo_detalle_enviado'] ?? data_get($item, 'codigo', ''))),
+            'codigo_servicio' => trim((string) ($resumen['codigo_servicio'] ?? '')),
+            'servicio_nombre' => trim((string) ($resumen['servicio_nombre'] ?? data_get($item, 'nombre_servicio', ''))),
+            'servicio_familia' => trim((string) ($resumen['servicio_familia'] ?? '')),
+            'codigo_producto_fiscal' => trim((string) ($resumen['codigo_producto_fiscal'] ?? $resumen['codigo_producto'] ?? '')),
         ], $overrides);
+    }
+
+    private function buildDraftItemCreatePayload(object $item, array $overrides = [], ?int $originIdOverride = null): array
+    {
+        $resumen = (array) data_get($item, 'resumen_origen', []);
+        $base = round((float) ($overrides['monto_base'] ?? data_get($item, 'monto_base', data_get($item, 'precio', 0))), 2);
+        $extras = round((float) ($overrides['monto_extras'] ?? data_get($item, 'monto_extras', 0)), 2);
+        $cantidad = max(1, (int) ($overrides['cantidad'] ?? data_get($item, 'cantidad', 1)));
+
+        $codigo = trim((string) ($overrides['codigo'] ?? data_get($item, 'codigo', '')));
+        $titulo = trim((string) ($overrides['titulo'] ?? data_get($item, 'titulo', '')));
+        $nombreServicio = trim((string) ($overrides['nombre_servicio'] ?? data_get($item, 'nombre_servicio', '')));
+        $nombreDestinatario = trim((string) ($overrides['nombre_destinatario'] ?? data_get($item, 'nombre_destinatario', '')));
+
+        $resumen['contenido'] = trim((string) ($overrides['contenido'] ?? ($resumen['contenido'] ?? '')));
+        $resumen['direccion'] = trim((string) ($overrides['direccion'] ?? ($resumen['direccion'] ?? '')));
+        $resumen['ciudad'] = trim((string) ($overrides['ciudad'] ?? ($resumen['ciudad'] ?? '')));
+        $resumen['peso'] = (float) ($overrides['peso'] ?? ($resumen['peso'] ?? 0));
+        $resumen['actividad_economica'] = trim((string) ($overrides['actividad_economica'] ?? ($resumen['actividad_economica'] ?? '')));
+        $resumen['codigo_sin'] = trim((string) ($overrides['codigo_sin'] ?? ($resumen['codigo_sin'] ?? '')));
+        $resumen['codigo_producto'] = trim((string) ($overrides['codigo_producto'] ?? ($resumen['codigo_producto'] ?? $codigo)));
+        $resumen['descripcion_servicio'] = trim((string) ($overrides['descripcion_servicio'] ?? ($resumen['descripcion_servicio'] ?? '')));
+        $resumen['unidad_medida'] = (int) ($overrides['unidad_medida'] ?? ($resumen['unidad_medida'] ?? 58));
+        $resumen['codigo_paquete'] = trim((string) ($overrides['codigo_paquete'] ?? ($resumen['codigo_paquete'] ?? $codigo)));
+        $resumen['codigo_detalle_enviado'] = trim((string) ($overrides['codigo_detalle_enviado'] ?? ($resumen['codigo_detalle_enviado'] ?? $codigo)));
+        $resumen['codigo_servicio'] = trim((string) ($overrides['codigo_servicio'] ?? ($resumen['codigo_servicio'] ?? '')));
+        $resumen['servicio_nombre'] = trim((string) ($overrides['servicio_nombre'] ?? ($resumen['servicio_nombre'] ?? $nombreServicio)));
+        $resumen['servicio_familia'] = trim((string) ($overrides['servicio_familia'] ?? ($resumen['servicio_familia'] ?? '')));
+        $resumen['codigo_producto_fiscal'] = trim((string) ($overrides['codigo_producto_fiscal'] ?? ($resumen['codigo_producto_fiscal'] ?? $resumen['codigo_producto'] ?? '')));
+        $resumen['codigo'] = $codigo;
+
+        return [
+            'origen_tipo' => ltrim((string) data_get($item, 'origen_tipo', ''), '\\'),
+            'origen_id' => $originIdOverride ?? (int) data_get($item, 'origen_id', 0),
+            'codigo' => $codigo,
+            'titulo' => $titulo,
+            'nombre_servicio' => $nombreServicio,
+            'nombre_destinatario' => $nombreDestinatario,
+            'servicios_extra' => array_values((array) data_get($item, 'servicios_extra', [])),
+            'resumen_origen' => $resumen,
+            'cantidad' => $cantidad,
+            'monto_base' => $base,
+            'monto_extras' => $extras,
+            'total_linea' => round(($base + $extras) * $cantidad, 2),
+        ];
+    }
+
+    private function findDraftItemById(?object $draft, int $itemId): ?object
+    {
+        if (!$draft || $itemId <= 0) {
+            return null;
+        }
+
+        return collect($draft->items ?? [])
+            ->first(fn ($item) => (int) data_get($item, 'id', 0) === $itemId);
+    }
+
+    private function shouldSplitDraftItemForIndividualEdit(object $item, array $payload, int $effectiveQuantity, int $requestedQuantity): bool
+    {
+        if ($effectiveQuantity <= 1) {
+            return false;
+        }
+
+        if (ltrim((string) data_get($item, 'origen_tipo', ''), '\\') !== ltrim(ConceptoFacturacion::class, '\\')) {
+            return false;
+        }
+
+        if ($requestedQuantity >= $effectiveQuantity) {
+            return false;
+        }
+
+        $currentCode = trim((string) data_get($item, 'codigo', ''));
+        $currentDescription = trim((string) data_get($item, 'resumen_origen.descripcion_servicio', data_get($item, 'nombre_servicio', '')));
+        $currentPrice = round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2);
+
+        $newCode = trim((string) ($payload['codigo'] ?? $currentCode));
+        $newDescription = trim((string) ($payload['descripcion_servicio'] ?? $currentDescription));
+        $newPrice = round((float) ($payload['precio'] ?? $currentPrice), 2);
+
+        return $newCode !== $currentCode
+            || $newDescription !== $currentDescription
+            || $newPrice !== $currentPrice
+            || $requestedQuantity !== $effectiveQuantity;
+    }
+
+    private function splitDraftItemForIndividualEdit(
+        User $user,
+        ?object $draft,
+        object $existingItem,
+        array $payload,
+        int $effectiveQuantity,
+        int $requestedQuantity
+    ): object {
+        $splitQuantity = min(max(1, $requestedQuantity), max(1, $effectiveQuantity - 1));
+        $remainingQuantity = max(1, $effectiveQuantity - $splitQuantity);
+
+        $currentBase = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
+        $currentExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+        $updatedExistingCart = $this->updateDraftItem(
+            $user,
+            (int) data_get($existingItem, 'id'),
+            $this->buildDraftItemUpdatePayload($existingItem, [
+                'cantidad' => $remainingQuantity,
+                'monto_base' => $currentBase,
+                'monto_extras' => $currentExtras,
+                'total_linea' => round(($currentBase + $currentExtras) * $remainingQuantity, 2),
+            ]),
+            false
+        );
+
+        $conceptoId = (int) data_get(
+            $existingItem,
+            'resumen_origen.concepto_facturacion_id',
+            data_get($existingItem, 'origen_id', 0)
+        );
+
+        $concepto = ConceptoFacturacion::query()->find($conceptoId);
+        $newOriginId = $concepto
+            ? $this->resolveConceptoDraftOriginId($updatedExistingCart, $concepto)
+            : ((int) data_get($existingItem, 'origen_id', 0) + 1);
+
+        $requestedCode = trim((string) ($payload['codigo'] ?? data_get($existingItem, 'codigo', '')));
+        $uniqueCode = $this->buildSequentialSplitDraftItemCode(
+            $requestedCode !== '' ? $requestedCode : (string) data_get($existingItem, 'codigo', ''),
+            $updatedExistingCart
+        );
+
+        $createPayload = $this->buildDraftItemCreatePayload($existingItem, [
+            'codigo' => $uniqueCode,
+            'titulo' => (string) ($payload['titulo'] ?? data_get($existingItem, 'titulo', '')),
+            'nombre_servicio' => (string) ($payload['nombre_servicio'] ?? data_get($existingItem, 'nombre_servicio', '')),
+            'nombre_destinatario' => (string) ($payload['nombre_destinatario'] ?? data_get($existingItem, 'nombre_destinatario', '')),
+            'contenido' => (string) ($payload['contenido'] ?? data_get($existingItem, 'resumen_origen.contenido', '')),
+            'direccion' => (string) ($payload['direccion'] ?? data_get($existingItem, 'resumen_origen.direccion', '')),
+            'ciudad' => (string) ($payload['ciudad'] ?? data_get($existingItem, 'resumen_origen.ciudad', '')),
+            'peso' => $payload['peso'] ?? data_get($existingItem, 'resumen_origen.peso', 0),
+            'monto_base' => round((float) ($payload['precio'] ?? $currentBase), 2),
+            'precio' => round((float) ($payload['precio'] ?? $currentBase), 2),
+            'monto_extras' => $currentExtras,
+            'cantidad' => $splitQuantity,
+            'actividad_economica' => (string) ($payload['actividad_economica'] ?? data_get($existingItem, 'resumen_origen.actividad_economica', '')),
+            'codigo_sin' => (string) ($payload['codigo_sin'] ?? data_get($existingItem, 'resumen_origen.codigo_sin', '')),
+            'codigo_producto' => (string) ($payload['codigo_producto'] ?? data_get($existingItem, 'resumen_origen.codigo_producto', '')),
+            'descripcion_servicio' => (string) ($payload['descripcion_servicio'] ?? data_get($existingItem, 'resumen_origen.descripcion_servicio', '')),
+            'unidad_medida' => (int) ($payload['unidad_medida'] ?? data_get($existingItem, 'resumen_origen.unidad_medida', 58)),
+        ], $newOriginId);
+
+        $body = $this->request('POST', '/cart/items/upsert', array_merge(
+            $this->originUserPayload($user),
+            $this->originSucursalPayload($user),
+            $createPayload
+        ));
+
+        $cart = $this->toCart(data_get($body, 'cart'));
+        if (!$cart) {
+            throw new \RuntimeException('No se pudo separar el item editado en el carrito.');
+        }
+
+        return $this->normalizeDraftCodesAfterMutation($user, $cart);
+    }
+
+    private function buildSequentialSplitDraftItemCode(string $baseCode, ?object $draft): string
+    {
+        $baseCode = trim($baseCode);
+        if ($baseCode === '') {
+            return '';
+        }
+
+        $normalizedCodes = collect((array) ($draft?->items ?? []))
+            ->map(fn ($item) => mb_strtolower(trim((string) data_get($item, 'codigo', ''))))
+            ->filter()
+            ->values();
+
+        if (!$normalizedCodes->contains(mb_strtolower($baseCode))) {
+            return $baseCode;
+        }
+
+        $prefix = preg_replace('/\.\d+$/', '', $baseCode) ?: $baseCode;
+        $maxSuffix = 0;
+
+        $normalizedCodes->each(function ($code) use ($prefix, &$maxSuffix) {
+            if ($code === mb_strtolower($prefix)) {
+                $maxSuffix = max($maxSuffix, 0);
+                return;
+            }
+
+            $pattern = '/^' . preg_quote(mb_strtolower($prefix), '/') . '\.(\d+)$/';
+            if (preg_match($pattern, $code, $matches)) {
+                $maxSuffix = max($maxSuffix, (int) ($matches[1] ?? 0));
+            }
+        });
+
+        return $prefix . '.' . max(1, $maxSuffix + 1);
+    }
+
+    private function resolveUniqueDraftItemCodeForCart(string $desiredCode, ?object $draft, ?int $excludeItemId = null): string
+    {
+        $desiredCode = trim($desiredCode);
+        if ($desiredCode === '') {
+            return '';
+        }
+
+        $normalizedDesired = mb_strtolower($desiredCode);
+        $exists = collect((array) ($draft?->items ?? []))
+            ->contains(function ($item) use ($normalizedDesired, $excludeItemId) {
+                if ($excludeItemId !== null && (int) data_get($item, 'id', 0) === $excludeItemId) {
+                    return false;
+                }
+
+                return mb_strtolower(trim((string) data_get($item, 'codigo', ''))) === $normalizedDesired;
+            });
+
+        if (!$exists) {
+            return $desiredCode;
+        }
+
+        return $this->buildSequentialSplitDraftItemCode($desiredCode, $draft);
     }
 
     private function normalizeFacturacionResumenOrigen(array $resumen): array
@@ -2140,6 +2873,12 @@ class FacturacionCartService
                 'codigo_producto' => (string) ($servicio->codigo ?? $resumen['codigo_producto'] ?? ($item->codigo ?? '')),
                 'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? $resumen['descripcion_servicio'] ?? ''),
                 'unidad_medida' => (int) ($servicio->unidadMedida ?? 0) > 0 ? (int) $servicio->unidadMedida : 58,
+                'codigo_paquete' => (string) ($resumen['codigo_paquete'] ?? $item->codigo ?? ''),
+                'codigo_detalle_enviado' => (string) ($resumen['codigo_detalle_enviado'] ?? $item->codigo ?? ''),
+                'codigo_servicio' => (string) ($resumen['codigo_servicio'] ?? $this->buildServicioAnalyticsCodigo((string) ($servicio->nombre_servicio ?? $item->nombre_servicio ?? ''), (string) ($servicio->codigo ?? ''))),
+                'servicio_nombre' => (string) ($resumen['servicio_nombre'] ?? $this->normalizeServicioAnalyticsNombre((string) ($servicio->nombre_servicio ?? $item->nombre_servicio ?? ''))),
+                'servicio_familia' => (string) ($resumen['servicio_familia'] ?? $this->normalizeServicioAnalyticsNombre((string) ($servicio->nombre_servicio ?? 'SERVICIO'))),
+                'codigo_producto_fiscal' => (string) ($resumen['codigo_producto_fiscal'] ?? $servicio->codigo ?? $resumen['codigo_producto'] ?? ''),
             ];
 
             try {

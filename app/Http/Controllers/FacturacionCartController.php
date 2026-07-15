@@ -53,14 +53,22 @@ class FacturacionCartController extends Controller
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
+        $validated = $request->validate([
+            'cantidad' => ['nullable', 'integer', 'min:1', 'max:999'],
+            'current_quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
+        ]);
+        $cantidad = isset($validated['cantidad']) ? max(1, (int) $validated['cantidad']) : null;
+        $currentQuantity = isset($validated['current_quantity']) ? max(1, (int) $validated['current_quantity']) : null;
 
         try {
-            $service->removeItem($user, $itemId);
+            $cart = $service->removeItem($user, $itemId, $cantidad, $currentQuantity);
 
             $feedback = [
                 'type' => 'success',
-                'title' => 'Item quitado del carrito',
-                'message' => 'El item fue retirado correctamente.',
+                'title' => 'Item actualizado',
+                'message' => $cantidad !== null && $cantidad > 1
+                    ? 'Se quitaron ' . $cantidad . ' unidades del carrito.'
+                    : 'El item fue retirado correctamente.',
                 'detail' => 'Puedes seguir agregando items o emitir la factura.',
                 'action' => 'remove_item',
             ];
@@ -69,6 +77,7 @@ class FacturacionCartController extends Controller
                 return response()->json([
                     'ok' => true,
                     'feedback' => $feedback,
+                    'cart' => $this->buildCartPayload($cart),
                 ]);
             }
 
@@ -108,6 +117,7 @@ class FacturacionCartController extends Controller
             'ciudad' => ['nullable', 'string', 'max:255'],
             'peso' => ['nullable', 'numeric', 'min:0'],
             'precio' => ['required', 'numeric', 'min:0'],
+            'cantidad' => ['nullable', 'integer', 'min:1', 'max:999'],
             'actividad_economica' => ['nullable', 'string', 'max:6'],
             'codigo_sin' => ['nullable', 'string', 'max:50'],
             'codigo_producto' => ['nullable', 'string', 'max:50'],
@@ -117,23 +127,32 @@ class FacturacionCartController extends Controller
 
         try {
             $payload = $validated;
+            $cantidad = max(1, (int) ($payload['cantidad'] ?? 1));
             $payload['monto_base'] = (float) $payload['precio'];
-            $payload['total_linea'] = (float) $payload['precio'];
+            $payload['cantidad'] = $cantidad;
+            $payload['total_linea'] = round((float) $payload['precio'] * $cantidad, 2);
             $payload['precio'] = (float) $payload['precio'];
 
-            $service->updateDraftItem($user, $itemId, $payload);
+            $resultado = $service->reviseDraftItem($user, $itemId, $payload);
+            $separoLinea = (bool) ($resultado['split'] ?? false);
+            $cantidadSeparada = max(0, (int) ($resultado['split_quantity'] ?? 0));
 
             $feedback = [
                 'type' => 'success',
-                'title' => 'Item actualizado',
-                'message' => 'El item del borrador fue corregido.',
-                'detail' => 'Ya puedes revisar los cambios y reintentar la emision.',
+                'title' => $separoLinea ? 'Item separado y actualizado' : 'Item actualizado',
+                'message' => $separoLinea
+                    ? 'Se creo una linea independiente para este ajuste.'
+                    : 'El item del borrador fue corregido.',
+                'detail' => $separoLinea
+                    ? 'Se separo ' . $cantidadSeparada . ' unidad(es) con el nuevo detalle y el resto quedo agrupado en la linea original.'
+                    : 'Ya puedes revisar los cambios y reintentar la emision.',
             ];
 
             if ($request->expectsJson()) {
                 return response()->json([
                     'ok' => true,
                     'feedback' => $feedback,
+                    'cart' => $this->buildCartPayload($resultado['cart'] ?? null),
                 ]);
             }
 
@@ -187,6 +206,131 @@ class FacturacionCartController extends Controller
         );
     }
 
+    public function explodeItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeFacturacionAccess($user);
+
+        try {
+            $cart = $service->explodeDraftItemIntoSingleUnits($user, $itemId);
+
+            $feedback = [
+                'type' => 'success',
+                'title' => 'Grupo desglosado',
+                'message' => 'El item agrupado se separo en lineas individuales.',
+                'detail' => 'Ahora puedes editar solo las lineas que realmente cambian sin hacerlo una por una desde el grupo.',
+                'action' => 'explode_item',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => true,
+                    'feedback' => $feedback,
+                    'cart' => $this->buildCartPayload($cart),
+                ]);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        } catch (ModelNotFoundException) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No se pudo desglosar',
+                'message' => 'No encontramos el item agrupado que querias separar.',
+                'detail' => 'Actualiza el carrito e intenta nuevamente.',
+                'action' => 'explode_item',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 404);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        } catch (\RuntimeException $e) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No se pudo desglosar',
+                'message' => 'El item no pudo separarse en lineas individuales.',
+                'detail' => trim($e->getMessage()),
+                'action' => 'explode_item',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 422);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        }
+    }
+
+    public function customizeGroupedItem(Request $request, int $itemId, FacturacionCartService $service): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeFacturacionAccess($user);
+
+        $validated = $request->validate([
+            'entries' => ['required', 'array', 'min:2', 'max:50'],
+            'entries.*.codigo' => ['required', 'string', 'max:120'],
+            'entries.*.descripcion_servicio' => ['nullable', 'string', 'max:255'],
+            'entries.*.precio' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        try {
+            $cart = $service->customizeGroupedDraftItemUnits($user, $itemId, (array) ($validated['entries'] ?? []));
+
+            $feedback = [
+                'type' => 'success',
+                'title' => 'Grupo actualizado',
+                'message' => 'Solo se separaron las unidades que realmente cambiaste.',
+                'detail' => 'Las unidades sin cambios se mantienen agrupadas y solo las editadas pasan a su propia linea.',
+                'action' => 'customize_grouped_item',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => true,
+                    'feedback' => $feedback,
+                    'cart' => $this->buildCartPayload($cart),
+                ]);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        } catch (ModelNotFoundException) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No encontramos el grupo',
+                'message' => 'El item agrupado ya no esta disponible.',
+                'detail' => 'Actualiza el carrito e intenta nuevamente.',
+                'action' => 'customize_grouped_item',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'feedback' => $feedback], 404);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        } catch (\RuntimeException $e) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No se pudo individualizar',
+                'message' => 'No logramos guardar todos los espacios del grupo.',
+                'detail' => trim($e->getMessage()),
+                'action' => 'customize_grouped_item',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'feedback' => $feedback], 422);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        }
+    }
+
     public function scanAdd(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
     {
         $user = $request->user();
@@ -208,12 +352,14 @@ class FacturacionCartController extends Controller
             );
             $item = (array) ($resultado['item'] ?? []);
             $cart = $resultado['cart'] ?? null;
+            $cantidadItem = max(1, (int) ($item['cantidad'] ?? 1));
+            $cantidadDetalle = $cantidadItem > 1 ? ' Cantidad actual en carrito: x' . $cantidadItem . '.' : '';
 
             $feedback = [
                 'type' => 'success',
                 'title' => 'Item agregado al carrito',
                 'message' => trim((string) ($item['label'] ?? 'Paquete')) . ' agregado correctamente.',
-                'detail' => 'Codigo detectado: ' . trim((string) ($item['code'] ?? 'SIN CODIGO')) . '. Ya puedes seguir escaneando o emitir la factura.',
+                'detail' => 'Codigo detectado: ' . trim((string) ($item['code'] ?? 'SIN CODIGO')) . '.' . $cantidadDetalle . ' Ya puedes seguir escaneando o emitir la factura.',
                 'action' => 'scan_add',
             ];
 
@@ -1119,6 +1265,11 @@ class FacturacionCartController extends Controller
 
         $items = $itemsCollection
             ->map(function ($item) {
+                $montoBase = (float) data_get($item, 'monto_base', data_get($item, 'precio', data_get($item, 'total_linea', 0)));
+                $montoExtras = (float) data_get($item, 'monto_extras', 0);
+                $totalLinea = (float) data_get($item, 'total_linea', 0);
+                $cantidad = $this->resolveEffectiveCartItemQuantity($item, $montoBase, $montoExtras, $totalLinea);
+
                 return [
                     'id' => data_get($item, 'id'),
                     'codigo' => (string) data_get($item, 'codigo', ''),
@@ -1126,10 +1277,10 @@ class FacturacionCartController extends Controller
                     'nombre_servicio' => (string) data_get($item, 'nombre_servicio', ''),
                     'nombre_destinatario' => (string) data_get($item, 'nombre_destinatario', ''),
                     'resumen_origen' => (array) data_get($item, 'resumen_origen', []),
-                    'cantidad' => max(1, (int) data_get($item, 'cantidad', 1)),
-                    'monto_base' => (float) data_get($item, 'monto_base', data_get($item, 'precio', data_get($item, 'total_linea', 0))),
-                    'monto_extras' => (float) data_get($item, 'monto_extras', 0),
-                    'total_linea' => (float) data_get($item, 'total_linea', 0),
+                    'cantidad' => $cantidad,
+                    'monto_base' => $montoBase,
+                    'monto_extras' => $montoExtras,
+                    'total_linea' => $totalLinea,
                     'servicios_extra' => array_values((array) data_get($item, 'servicios_extra', [])),
                 ];
             })
@@ -1149,6 +1300,20 @@ class FacturacionCartController extends Controller
         ];
     }
 
+    private function resolveEffectiveCartItemQuantity(mixed $item, float $montoBase, float $montoExtras, float $totalLinea): int
+    {
+        $explicitQuantity = max(1, (int) data_get($item, 'cantidad', 1));
+        $unitAmount = round($montoBase + $montoExtras, 2);
+
+        if ($unitAmount <= 0 || $totalLinea <= 0) {
+            return $explicitQuantity;
+        }
+
+        $derivedQuantity = (int) round($totalLinea / $unitAmount);
+
+        return max($explicitQuantity, $derivedQuantity, 1);
+    }
+
     public function addConcepto(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
     {
         $user = $request->user();
@@ -1158,26 +1323,30 @@ class FacturacionCartController extends Controller
         try {
             $validated = $request->validate([
                 'concepto_facturacion_id' => ['required', 'integer', 'exists:conceptos_facturacion,id'],
+                'cantidad' => ['nullable', 'integer', 'min:1', 'max:999'],
             ]);
 
             $concepto = ConceptoFacturacion::query()
                 ->where('activo', true)
                 ->findOrFail((int) $validated['concepto_facturacion_id']);
 
-            $cart = $service->addConceptoFacturacion($user, $concepto);
+            $cantidad = max(1, (int) ($validated['cantidad'] ?? 1));
+            $cart = $service->addConceptoFacturacion($user, $concepto, $cantidad);
             $montoBase = round((float) ($concepto->precio_base ?? 0), 2);
+            $detalleCantidad = $cantidad > 1 ? ' Cantidad agregada: x' . $cantidad . '.' : '';
 
             $feedback = [
                 'type' => 'success',
                 'title' => 'Cobro agregado al carrito',
                 'message' => trim((string) $concepto->nombre) . ' agregado correctamente.',
-                'detail' => 'Precio base aplicado: Bs ' . number_format($montoBase, 2) . '. Si hace falta, puedes editarlo dentro del carrito.',
+                'detail' => 'Precio base aplicado: Bs ' . number_format($montoBase, 2) . '.' . $detalleCantidad . ' Si hace falta, puedes editarlo dentro del carrito.',
                 'action' => 'concepto_add',
             ];
 
             Log::debug('Concepto facturable agregado al carrito.', [
                 'user_id' => $user?->id,
                 'concepto_id' => $concepto->id,
+                'cantidad' => $cantidad,
                 'cart_id' => $cart->id ?? null,
                 'expects_json' => $expectsJson,
             ]);
