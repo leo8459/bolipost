@@ -174,6 +174,9 @@
                             <option value="FACTURADA" {{ $filters['estado_emision'] === 'FACTURADA' ? 'selected' : '' }}>Facturada</option>
                             <option value="PENDIENTE" {{ $filters['estado_emision'] === 'PENDIENTE' ? 'selected' : '' }}>Pendiente</option>
                             <option value="RECHAZADA" {{ $filters['estado_emision'] === 'RECHAZADA' ? 'selected' : '' }}>Rechazada</option>
+                            <option value="ANULADA" {{ $filters['estado_emision'] === 'ANULADA' ? 'selected' : '' }}>Anulada</option>
+                            <option value="PENDIENTE_ANULACION" {{ $filters['estado_emision'] === 'PENDIENTE_ANULACION' ? 'selected' : '' }}>Pendiente anulacion</option>
+                            <option value="ANULACION_OBSERVADA" {{ $filters['estado_emision'] === 'ANULACION_OBSERVADA' ? 'selected' : '' }}>Anulacion observada</option>
                             <option value="NO_APLICA" {{ $filters['estado_emision'] === 'NO_APLICA' ? 'selected' : '' }}>No aplica QR</option>
                             <option value="ERROR" {{ $filters['estado_emision'] === 'ERROR' ? 'selected' : '' }}>Error</option>
                         </select>
@@ -470,6 +473,12 @@
                                         <span class="ventas-status-chip ventas-status-chip--warning">PENDIENTE</span>
                                     @elseif($facturaEstado === 'RECHAZADA')
                                         <span class="ventas-status-chip ventas-status-chip--danger">RECHAZADA</span>
+                                    @elseif($facturaEstado === 'ANULADA')
+                                        <span class="ventas-status-chip ventas-status-chip--danger">ANULADA</span>
+                                    @elseif($facturaEstado === 'PENDIENTE_ANULACION')
+                                        <span class="ventas-status-chip ventas-status-chip--warning">PENDIENTE ANULACION</span>
+                                    @elseif($facturaEstado === 'ANULACION_OBSERVADA')
+                                        <span class="ventas-status-chip ventas-status-chip--danger">ANULACION OBSERVADA</span>
                                     @elseif($facturaEstado === 'NO_APLICA')
                                         <span class="ventas-status-chip ventas-status-chip--muted">NO APLICA</span>
                                     @elseif($facturaEstado === 'ERROR')

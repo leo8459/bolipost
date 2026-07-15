@@ -8,6 +8,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
@@ -18,6 +19,10 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(): View
     {
+        if (session()->has('url.intended') && $this->isUnsafeIntendedUrl((string) session('url.intended'))) {
+            session()->forget('url.intended');
+        }
+
         return view('auth.login');
     }
 
@@ -29,9 +34,33 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
 
         Auth::guard('cliente')->logout();
+        $user = $request->user();
+        $fallbackUrl = $this->firstAuthorizedUrl($user);
+        $rawIntendedUrl = (string) $request->session()->get('url.intended', $fallbackUrl);
+        $intendedUrl = $this->isUnsafeIntendedUrl($rawIntendedUrl) ? $fallbackUrl : $rawIntendedUrl;
+
+        if ($intendedUrl === $fallbackUrl) {
+            $request->session()->forget('url.intended');
+        }
+
+        Log::info('Login autenticado; preparando redireccion del panel interno.', [
+            'user_id' => $user?->id,
+            'alias' => $user?->alias,
+            'role' => $user?->role,
+            'url_intended_original' => $rawIntendedUrl,
+            'url_intended_resuelta' => $intendedUrl,
+            'fallback_url' => $fallbackUrl,
+            'session_id_before_regenerate' => $request->session()->getId(),
+        ]);
+
         $request->session()->regenerate();
 
-        return redirect()->intended($this->firstAuthorizedUrl($request->user()));
+        Log::info('Sesion regenerada despues del login.', [
+            'user_id' => $request->user()?->id,
+            'session_id_after_regenerate' => $request->session()->getId(),
+        ]);
+
+        return redirect()->intended($fallbackUrl);
     }
 
     /**
@@ -46,8 +75,9 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
 
         $request->session()->regenerateToken();
+        $request->session()->forget('url.intended');
 
-        return redirect()->guest($redirectTo);
+        return redirect()->to($redirectTo);
     }
 
     public function destroyViaGet(Request $request): RedirectResponse
@@ -60,8 +90,9 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        $request->session()->forget('url.intended');
 
-        return redirect()->guest($redirectTo);
+        return redirect()->to($redirectTo);
     }
 
     private function firstAuthorizedUrl(?Authenticatable $user): string
@@ -174,5 +205,19 @@ class AuthenticatedSessionController extends Controller
         $name = $route->getName();
 
         return is_string($name) && $name !== '' ? $name : null;
+    }
+
+    private function isUnsafeIntendedUrl(string $url): bool
+    {
+        $normalized = trim($url);
+        if ($normalized === '') {
+            return false;
+        }
+
+        $path = (string) parse_url($normalized, PHP_URL_PATH);
+        $query = (string) parse_url($normalized, PHP_URL_QUERY);
+
+        return trim($path, '/') === 'logout'
+            || str_contains($query, 'motivo=inactividad');
     }
 }

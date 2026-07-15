@@ -174,7 +174,7 @@ class MisVentasController extends Controller
 
         $validated = $request->validate([
             'estado' => ['nullable', 'in:all,borrador,pendiente_pago,emitido'],
-            'estado_emision' => ['nullable', 'in:all,FACTURADA,PENDIENTE,RECHAZADA,ERROR,NO_APLICA'],
+            'estado_emision' => ['nullable', 'in:all,FACTURADA,PENDIENTE,RECHAZADA,ERROR,NO_APLICA,ANULADA,PENDIENTE_ANULACION,ANULACION_OBSERVADA'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
             'q' => ['nullable', 'string', 'max:120'],
@@ -769,6 +769,9 @@ class MisVentasController extends Controller
         return match ($estadoSufe) {
             'FACTURADA' => ['estado' => 'FACTURADA', 'mensaje' => 'Factura emitida correctamente.'],
             'PROCESADA' => ['estado' => 'FACTURADA', 'mensaje' => 'Factura emitida correctamente.'],
+            'ANULADA', 'ANULADO' => ['estado' => 'ANULADA', 'mensaje' => 'Factura anulada correctamente.'],
+            'ANULACION_SOLICITADA' => ['estado' => 'PENDIENTE_ANULACION', 'mensaje' => 'La anulacion fue enviada y espera confirmacion final.'],
+            'ANULACION_OBSERVADA' => ['estado' => 'ANULACION_OBSERVADA', 'mensaje' => 'La anulacion fue observada y requiere revision.'],
             'PENDIENTE' => ['estado' => 'PENDIENTE', 'mensaje' => 'Emision en proceso de confirmacion.'],
             'RECEPCIONADA', 'CONTINGENCIA_CREADA' => ['estado' => 'PENDIENTE', 'mensaje' => 'Emision en proceso de confirmacion.'],
             'REGISTRADA_OFICIAL' => ['estado' => 'SIN ESTADO', 'mensaje' => 'Registro oficial almacenado sin emision electronica.'],
@@ -931,9 +934,14 @@ class MisVentasController extends Controller
 
     private function resolvePdfSectionKey(object|array $cart): string
     {
+        $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', 'NO_APLICA')));
+
+        if (in_array($estadoEmision, ['ANULADA', 'ANULADO'], true)) {
+            return 'factura_anulada';
+        }
+
         if ($this->isQrPaymentRow($cart)) {
             $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
-            $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', 'NO_APLICA')));
 
             if ($estadoPago === 'cancelado') {
                 return 'qr_cancelado';
@@ -951,6 +959,64 @@ class MisVentasController extends Controller
         }
 
         return strtolower(trim((string) data_get($cart, 'canal_emision', 'factura_electronica')));
+    }
+
+    private function resolvePdfEstadoColumn(string $sectionKey, string $estadoEmision, string $estadoPago, string $mensajeEmision): array
+    {
+        $normalizedMessage = trim($mensajeEmision);
+
+        return match ($sectionKey) {
+            'factura_anulada' => [
+                'label' => 'ANULADA',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Factura anulada correctamente.',
+            ],
+            'qr_facturado' => [
+                'label' => 'FACTURADA',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Cobro QR convertido en factura electronica.',
+            ],
+            'qr_pagado_pendiente_factura' => [
+                'label' => 'QR PAGADO',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Cobro QR confirmado. Factura pendiente o en otro estado.',
+            ],
+            'qr_cancelado' => [
+                'label' => 'QR ANULADO',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'El intento de cobro QR no se concreto.',
+            ],
+            'qr_pendiente' => [
+                'label' => 'QR PENDIENTE',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Pendiente de pago QR.',
+            ],
+            default => match ($estadoEmision) {
+                'FACTURADA' => [
+                    'label' => 'EMITIDO',
+                    'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Factura emitida correctamente.',
+                ],
+                'PENDIENTE' => [
+                    'label' => 'PENDIENTE',
+                    'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Emision en proceso de confirmacion.',
+                ],
+                'RECHAZADA' => [
+                    'label' => 'RECHAZADA',
+                    'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'La factura requiere revision.',
+                ],
+                'PENDIENTE_ANULACION' => [
+                    'label' => 'PENDIENTE ANULACION',
+                    'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'La anulacion fue enviada y espera confirmacion final.',
+                ],
+                'ANULACION_OBSERVADA' => [
+                    'label' => 'ANULACION OBSERVADA',
+                    'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'La anulacion fue observada y requiere revision.',
+                ],
+                'ERROR' => [
+                    'label' => 'ERROR',
+                    'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Se registro un error en la emision.',
+                ],
+                default => [
+                    'label' => strtoupper($estadoPago === 'cancelado' ? 'ANULADO' : ($estadoEmision !== '' ? $estadoEmision : 'SIN ESTADO')),
+                    'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Sin observaciones registradas.',
+                ],
+            },
+        };
     }
 
     private function buildPdfRows(Collection $carts): Collection
@@ -977,8 +1043,12 @@ class MisVentasController extends Controller
             $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
             $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
             $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', '')));
+            $mensajeEmision = trim((string) data_get($cart, 'mensaje_emision', ''));
             $contabilizaEnCaja = $metodoPago !== 'qr';
             $sectionKey = $this->resolvePdfSectionKey($cart);
+            $estadoColumn = $this->resolvePdfEstadoColumn($sectionKey, $estadoEmision, $estadoPago, $mensajeEmision);
+            $isAnnulled = $sectionKey === 'factura_anulada';
+            $contabilizaEnCaja = $contabilizaEnCaja && ! $isAnnulled;
 
             $emisionLabel = match ($sectionKey) {
                 'qr_facturado' => 'QR pagado + facturado',
@@ -986,20 +1056,6 @@ class MisVentasController extends Controller
                 'qr_cancelado' => 'QR cancelado',
                 'qr_pendiente' => 'QR pendiente',
                 default => $this->labelCanalEmision($canalEmision),
-            };
-            $cobroLabel = match ($sectionKey) {
-                'qr_facturado' => 'QR / NO CAJA',
-                'qr_pagado_pendiente_factura' => 'QR / NO CAJA',
-                'qr_cancelado' => 'QR CANCELADO',
-                'qr_pendiente' => 'QR PENDIENTE',
-                default => 'CAJA',
-            };
-            $cobroDetalle = match ($sectionKey) {
-                'qr_facturado' => 'Cobro QR transformado a factura electronica. No suma a caja.',
-                'qr_pagado_pendiente_factura' => 'Cobro QR confirmado. No suma a caja mientras no sea efectivo.',
-                'qr_cancelado' => 'Intento QR no concretado.',
-                'qr_pendiente' => 'Pendiente de pago QR.',
-                default => 'Cobro registrado en caja.',
             };
 
             $tipoEnvio = $items
@@ -1062,10 +1118,10 @@ class MisVentasController extends Controller
                 'estado_emision' => $estadoEmision,
                 'section_key' => $sectionKey,
                 'emision_label' => $emisionLabel,
-                'cobro_label' => $cobroLabel,
-                'cobro_detalle' => $cobroDetalle,
+                'estado_label' => $estadoColumn['label'],
+                'estado_detalle' => $estadoColumn['detalle'],
                 'contabiliza_en_caja' => $contabilizaEnCaja,
-                'cobrada' => in_array($sectionKey, ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'], true),
+                'cobrada' => ! $isAnnulled && in_array($sectionKey, ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'], true),
                 'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',
                 'cuf' => $cuf,
                 'importe_parcial' => round((float) data_get($cart, 'total', 0), 2),
