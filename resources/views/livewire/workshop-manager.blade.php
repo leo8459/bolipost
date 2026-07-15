@@ -633,6 +633,21 @@
                                         <button wire:click="edit({{ $workshop->id }})" class="btn btn-sm btn-outline-warning">
                                             <i class="fas fa-edit me-1"></i>Actualizar
                                         </button>
+                                        @if(in_array($workshop->estado, [
+                                            \App\Models\Workshop::STATUS_DISPATCHED,
+                                            \App\Models\Workshop::STATUS_DIAGNOSIS,
+                                            \App\Models\Workshop::STATUS_APPROVED,
+                                            \App\Models\Workshop::STATUS_REPAIR,
+                                            \App\Models\Workshop::STATUS_READY,
+                                        ], true))
+                                            <button
+                                                type="button"
+                                                wire:click="returnVehicleWithoutMaintenance({{ $workshop->id }})"
+                                                onclick="if (!confirm('Confirmar devolucion del vehiculo sin realizar mantenimiento?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
+                                                class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-undo me-1"></i>Devolver vehiculo
+                                            </button>
+                                        @endif
                                     </div>
                                 </div>
                             </div>

@@ -1317,7 +1317,9 @@
                                     @endif
                                     @if(auth()->user()?->role !== 'conductor')
                                     <button wire:click="edit({{ $log->id }})" class="btn btn-sm btn-outline-warning"><i class="fas fa-edit"></i></button>
+                                    @if($this->isAdministrator())
                                     <button wire:click="delete({{ $log->id }})" onclick="return confirm('Confirmar eliminacion?')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                    @endif
                                     @endif
                                 </td>
                             </tr>

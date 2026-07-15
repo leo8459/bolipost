@@ -113,7 +113,7 @@
         @endif
     </div>
 
-    @unless($showForm)
+    @if(!$showForm && $this->isAdministrator())
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
                 <div>
@@ -152,7 +152,7 @@
                 </form>
             </div>
         </div>
-    @endunless
+    @endif
 
     @if (session()->has('message'))
         <div class="alert alert-success alert-dismissible fade show js-auto-dismiss-alert" data-auto-dismiss="4000" role="alert">
@@ -355,10 +355,12 @@
                                             <button wire:click="edit({{ $assignment->id }})" class="btn btn-sm btn-outline-warning">
                                                 <i class="fas fa-edit"></i>
                                             </button>
-                                            <button onclick="confirm('Eliminar asignacion?') || event.stopImmediatePropagation()"
-                                                    wire:click="delete({{ $assignment->id }})" class="btn btn-sm btn-outline-danger">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
+                                            @if($this->isAdministrator())
+                                                <button onclick="confirm('Eliminar asignacion?') || event.stopImmediatePropagation()"
+                                                        wire:click="delete({{ $assignment->id }})" class="btn btn-sm btn-outline-danger">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            @endif
                                         </td>
                                     </tr>
                                 @empty

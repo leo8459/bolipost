@@ -60,7 +60,13 @@ class VehicleAssignmentManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion']), 403);
+        $user = $this->currentUser();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.vehicle-assignments')),
+            403
+        );
         $this->fecha_inicio = $this->formatForDateTimeInput(now());
     }
 
@@ -329,6 +335,11 @@ class VehicleAssignmentManager extends Component
 
     public function delete(VehicleAssignment $assignment): void
     {
+        if (!$this->isAdministrator()) {
+            session()->flash('error', 'Solo los administradores pueden eliminar asignaciones.');
+            return;
+        }
+
         $vehicleId = $assignment->vehicle_id ? (int) $assignment->vehicle_id : null;
         if ($vehicleId && $this->hasOpenWorkshopForVehicle($vehicleId)) {
             session()->flash('error', 'No se puede inactivar la asignacion mientras el vehiculo tenga una orden de taller abierta.');
@@ -914,5 +925,15 @@ class VehicleAssignmentManager extends Component
         $user = Auth::user();
 
         return $user instanceof User ? $user : null;
+    }
+
+    public function isAdministrator(): bool
+    {
+        $user = $this->currentUser();
+
+        return $user !== null && (
+            mb_strtolower(trim((string) ($user->role ?? ''))) === 'admin'
+            || (method_exists($user, 'hasRole') && $user->hasRole('admin'))
+        );
     }
 }

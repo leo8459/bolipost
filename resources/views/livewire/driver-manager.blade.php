@@ -125,7 +125,7 @@
         <h1 class="h3 mb-0">
             <i class="fas fa-users me-2 text-primary"></i>{{ auth()->user()?->role === 'conductor' ? 'Mi Perfil de Conductor' : 'Gestion de Conductores' }}
         </h1>
-        @if(!$showForm && auth()->user()?->role !== 'conductor')
+        @if(!$showForm && auth()->user()?->role !== 'conductor' && !(auth()->user()?->hasRole('regional') || auth()->user()?->role === 'regional'))
             <button type="button" wire:click="create" class="btn btn-primary">
                 <i class="fas fa-plus me-2"></i>Nuevo Conductor
             </button>
@@ -347,10 +347,14 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <select class="form-control driver-form-field" wire:model.live="statusFilter">
-                                <option value="todos">Todos</option>
                                 <option value="activos">Activos</option>
-                                <option value="inactivos">Inactivos</option>
-                                <option value="licencia_vencida">Licencia vencida</option>
+                                @if(auth()->user()?->hasRole('regional') || auth()->user()?->role === 'regional')
+                                    <option value="licencia_vencida">Licencia vencida</option>
+                                @else
+                                    <option value="todos">Todos</option>
+                                    <option value="inactivos">Inactivos</option>
+                                    <option value="licencia_vencida">Licencia vencida</option>
+                                @endif
                             </select>
                         </div>
                     </div>
@@ -411,27 +415,32 @@
                                         @if(auth()->user()?->role !== 'conductor')
                                             <td class="text-center">
                                                 <div class="btn-group">
-                                                    <button type="button" wire:click="edit({{ $driver->id }})" class="btn btn-sm btn-outline-warning">
-                                                        <i class="fas fa-edit"></i>
+                                                    <button type="button" wire:click="view({{ $driver->id }})" class="btn btn-sm btn-outline-primary" title="Ver detalle">
+                                                        <i class="fas fa-eye"></i>
                                                     </button>
-                                                    @if($driver->activo)
-                                                        <button
-                                                            type="button"
-                                                            wire:click="delete({{ $driver->id }})"
-                                                            onclick="if (!confirm('Confirmar eliminacion?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
-                                                            class="btn btn-sm btn-outline-danger"
-                                                        >
-                                                            <i class="fas fa-trash"></i>
+                                                    @if(!(auth()->user()?->hasRole('regional') || auth()->user()?->role === 'regional'))
+                                                        <button type="button" wire:click="edit({{ $driver->id }})" class="btn btn-sm btn-outline-warning">
+                                                            <i class="fas fa-edit"></i>
                                                         </button>
-                                                    @else
-                                                        <button
-                                                            type="button"
-                                                            wire:click="reactivate({{ $driver->id }})"
-                                                            onclick="if (!confirm('Confirmar reactivacion?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
-                                                            class="btn btn-sm btn-outline-success"
-                                                        >
-                                                            <i class="fas fa-power-off"></i>
-                                                        </button>
+                                                        @if($driver->activo)
+                                                            <button
+                                                                type="button"
+                                                                wire:click="delete({{ $driver->id }})"
+                                                                onclick="if (!confirm('Confirmar eliminacion?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
+                                                                class="btn btn-sm btn-outline-danger"
+                                                            >
+                                                                <i class="fas fa-trash"></i>
+                                                            </button>
+                                                        @else
+                                                            <button
+                                                                type="button"
+                                                                wire:click="reactivate({{ $driver->id }})"
+                                                                onclick="if (!confirm('Confirmar reactivacion?')) { event.preventDefault(); event.stopImmediatePropagation(); return false; }"
+                                                                class="btn btn-sm btn-outline-success"
+                                                            >
+                                                                <i class="fas fa-power-off"></i>
+                                                            </button>
+                                                        @endif
                                                     @endif
                                                 </div>
                                             </td>
@@ -457,6 +466,76 @@
         <div class="card shadow-sm">
             <div class="card-body text-muted">
                 Esta vista muestra solo su perfil personal de conductor.
+            </div>
+        </div>
+    @endif
+
+    @if($showDetailModal && $this->viewingDriver)
+        @php
+            $detailDriver = $this->viewingDriver;
+            $detailExpired = $detailDriver->fecha_vencimiento_licencia
+                && $detailDriver->fecha_vencimiento_licencia->toDateString() <= now()->toDateString();
+        @endphp
+        <div class="bp-gestiones-form-overlay">
+            <div class="card shadow-sm mb-4 bp-gestiones-form-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Detalle del Conductor</span>
+                    <button type="button" wire:click="closeDetailModal" class="btn btn-sm btn-light">Cerrar</button>
+                </div>
+                <div class="card-body">
+                    <div class="profile-grid">
+                        <div class="profile-field">
+                            <span class="profile-label">Nombre</span>
+                            <span class="profile-value">{{ $detailDriver->nombre ?? '-' }}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-label">Email</span>
+                            <span class="profile-value">{{ $detailDriver->email ?? $detailDriver->user?->email ?? '-' }}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-label">Telefono</span>
+                            <span class="profile-value">{{ $detailDriver->telefono ?? '-' }}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-label">Licencia</span>
+                            <span class="profile-value">{{ $detailDriver->licencia ?? '-' }}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-label">Tipo Licencia</span>
+                            <span class="profile-value">{{ $detailDriver->tipo_licencia ?? '-' }}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-label">Vencimiento</span>
+                            <span class="profile-value">{{ optional($detailDriver->fecha_vencimiento_licencia)->format('d/m/Y') ?? '-' }}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-label">Estado</span>
+                            <span class="profile-value">{{ $detailExpired ? 'Licencia vencida' : (($detailDriver->activo ?? false) ? 'Activo' : 'Inactivo') }}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-label">Memorandum</span>
+                            <span class="profile-value">
+                                @if($detailDriver->memorandum_path)
+                                    @php
+                                        $detailMemoExt = strtolower(pathinfo((string) $detailDriver->memorandum_path, PATHINFO_EXTENSION));
+                                        $detailMemoKind = $detailMemoExt === 'pdf' ? 'pdf' : 'image';
+                                    @endphp
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-primary driver-view-memorandum-btn"
+                                        data-url="{{ route('drivers.memorandum.download', $detailDriver->id) }}"
+                                        data-kind="{{ $detailMemoKind }}"
+                                        data-name="Memorandum de {{ $detailDriver->nombre }}"
+                                    >
+                                        Ver memorandum
+                                    </button>
+                                @else
+                                    Sin archivo
+                                @endif
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     @endif

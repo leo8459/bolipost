@@ -3,6 +3,8 @@
 namespace App\Livewire;
 
 use App\Models\VehicleBrand;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -52,6 +54,10 @@ class VehicleBrandManager extends Component
 
     public function render()
     {
+        if ($this->isRegionalUser()) {
+            $this->statusFilter = 'activos';
+        }
+
         $query = VehicleBrand::query()->orderBy('nombre');
 
         if ($this->statusFilter === 'activos') {
@@ -84,6 +90,13 @@ class VehicleBrandManager extends Component
 
     public function updatedStatusFilter(string $value): void
     {
+        if ($this->isRegionalUser()) {
+            $this->statusFilter = 'activos';
+            $this->resetPage();
+
+            return;
+        }
+
         if (!in_array($value, ['activos', 'inactivos', 'todos'], true)) {
             $this->statusFilter = 'activos';
         }
@@ -190,5 +203,22 @@ class VehicleBrandManager extends Component
         $clean = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{200D}]/u', '', (string) $value) ?? '';
         $clean = preg_replace('/\s+/', ' ', trim($clean)) ?? $clean;
         return $clean;
+    }
+
+    private function currentUser(): ?User
+    {
+        $user = Auth::user();
+
+        return $user instanceof User ? $user : null;
+    }
+
+    private function isRegionalUser(): bool
+    {
+        $user = $this->currentUser();
+
+        return $user !== null && (
+            mb_strtolower(trim((string) ($user->role ?? ''))) === 'regional'
+            || (method_exists($user, 'hasRole') && $user->hasRole('regional'))
+        );
     }
 }

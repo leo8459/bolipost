@@ -8,7 +8,13 @@ class MapTracker extends Component
 {
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor'], true), 403);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion', 'conductor'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.map')),
+            403
+        );
     }
 
     public function render()

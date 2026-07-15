@@ -122,7 +122,13 @@ class FuelLogManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion', 'conductor'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.fuel-logs')),
+            403
+        );
         $today = now()->toDateString();
         $this->fecha_desde = $today;
         $this->fecha_hasta = $today;
@@ -748,8 +754,8 @@ class FuelLogManager extends Component
 
     public function delete(FuelLog $log)
     {
-        if (auth()->user()?->role === 'conductor') {
-            session()->flash('error', 'No tiene permiso para eliminar vales de combustible.');
+        if (!$this->isAdministrator()) {
+            session()->flash('error', 'Solo el administrador puede eliminar vales de combustible.');
             return;
         }
 
@@ -2900,6 +2906,16 @@ class FuelLogManager extends Component
         }
 
         return empty($parts) ? null : implode(' | ', $parts);
+    }
+
+    public function isAdministrator(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && (
+            mb_strtolower(trim((string) ($user->role ?? ''))) === 'admin'
+            || (method_exists($user, 'hasRole') && $user->hasRole('admin'))
+        );
     }
 
     private function formatDurationHours(int $seconds): string

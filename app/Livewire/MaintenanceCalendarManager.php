@@ -15,7 +15,13 @@ class MaintenanceCalendarManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion', 'conductor'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.maintenance-calendar')),
+            403
+        );
 
         $now = now();
         $this->year = (int) $now->year;

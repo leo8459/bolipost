@@ -733,6 +733,14 @@
                                         <td>{{ $log->package_count ?? 0 }}</td>
                                         <td class="text-center">
                                             <div class="btn-group">
+                                                <button
+                                                    type="button"
+                                                    wire:click="view({{ $log->id }})"
+                                                    class="btn btn-sm btn-outline-primary"
+                                                    title="Ver detalle"
+                                                >
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
                                                 @if((($log->latitud_inicio !== null) && ($log->logitud_inicio !== null)) || (($log->latitud_destino !== null) && ($log->logitud_destino !== null)) || count($log->ruta_json ?? $log->points_json ?? []) > 0)
                                                 <a
                                                     href="{{ route('vehicle-logs.map', $log->id) }}"
@@ -750,7 +758,7 @@
                                                     <i class="fas fa-camera"></i>
                                                 </button>
                                                 @endif
-                                                @if(auth()->user()?->role !== 'conductor')
+                                                @if(auth()->user()?->role !== 'conductor' && !$this->isRegionalUser())
                                                 <button wire:click="edit({{ $log->id }})" class="btn btn-sm btn-outline-warning">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
@@ -787,6 +795,118 @@
             </div>
         </div>
     </div>
+
+    @if($showDetailModal && $this->viewingLog)
+        @php
+            $detailLog = $this->viewingLog;
+            $detailDistance = $detailLog->distance_travelled;
+        @endphp
+        <div class="bp-gestiones-form-overlay">
+            <div class="card shadow-sm mb-4 bp-gestiones-form-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Detalle de Bitacora</span>
+                    <button type="button" wire:click="closeDetailModal" class="btn btn-sm btn-light">Cerrar</button>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <strong>Vehiculo:</strong><br>
+                            <span>{{ $detailLog->vehicle?->bitacora_display_name ?? $detailLog->vehicle?->placa ?? 'N/A' }}</span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <strong>Conductor:</strong><br>
+                            <span>{{ $detailLog->driver?->nombre ?? 'N/A' }}</span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <strong>Fecha:</strong><br>
+                            <span>{{ optional($detailLog->fecha)->format('d/m/Y') ?? '-' }}</span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <strong>Km salida:</strong><br>
+                            <span>{{ $detailLog->kilometraje_salida ?? '-' }}</span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <strong>Km final:</strong><br>
+                            <span>{{ $detailLog->kilometraje_llegada ?? '-' }}</span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <strong>Km recorrido:</strong><br>
+                            <span>{{ $detailDistance !== null ? number_format((float) $detailDistance, 2) : '-' }}</span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <strong>Combustible:</strong><br>
+                            <span>{{ $detailLog->fuel_log_id || $detailLog->abastecimiento_combustible ? 'Si' : 'No' }}</span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <strong>Paquetes entregados:</strong><br>
+                            <span>{{ $detailLog->cantidad_paquetes ?? 0 }}</span>
+                        </div>
+                        <div class="col-12">
+                            <strong>Inicio:</strong><br>
+                            <span>{{ $detailLog->recorrido_inicio ?: '-' }}</span>
+                        </div>
+                        <div class="col-12">
+                            <strong>Destino:</strong><br>
+                            <span>{{ $detailLog->recorrido_destino ?: '-' }}</span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <strong>Coordenadas inicio:</strong><br>
+                            <span>
+                                {{ $detailLog->latitud_inicio !== null && $detailLog->logitud_inicio !== null ? $detailLog->latitud_inicio . ', ' . $detailLog->logitud_inicio : '-' }}
+                            </span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <strong>Coordenadas destino:</strong><br>
+                            <span>
+                                {{ $detailLog->latitud_destino !== null && $detailLog->logitud_destino !== null ? $detailLog->latitud_destino . ', ' . $detailLog->logitud_destino : '-' }}
+                            </span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <strong>Creado:</strong><br>
+                            <span>{{ optional($detailLog->created_at)->format('d/m/Y H:i') ?? '-' }}</span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <strong>Actualizado:</strong><br>
+                            <span>{{ optional($detailLog->updated_at)->format('d/m/Y H:i') ?? '-' }}</span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <strong>Foto de odometro:</strong><br>
+                            <span>{{ $detailLog->odometro_photo_path ? 'Disponible' : 'No registrada' }}</span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <strong>Ruta guardada:</strong><br>
+                            <span>{{ count($detailLog->ruta_json ?? $detailLog->points_json ?? []) > 0 ? 'Disponible' : 'Sin puntos' }}</span>
+                        </div>
+                        @if($detailLog->stageEvents->isNotEmpty())
+                            <div class="col-12">
+                                <strong>Historial de etapas:</strong>
+                                <div class="table-responsive mt-2">
+                                    <table class="table table-sm table-bordered align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Etapa</th>
+                                                <th>Fecha</th>
+                                                <th>Detalle</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($detailLog->stageEvents as $event)
+                                                <tr>
+                                                    <td>{{ $event->stage_name ?? $event->stage ?? '-' }}</td>
+                                                    <td>{{ optional($event->event_at)->format('d/m/Y H:i') ?? optional($event->created_at)->format('d/m/Y H:i') ?? '-' }}</td>
+                                                    <td>{{ $event->description ?? $event->notes ?? $event->message ?? '-' }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
 
 

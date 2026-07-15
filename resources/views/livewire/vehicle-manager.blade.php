@@ -468,10 +468,14 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <select class="form-control vehicle-form-field" wire:model.live="statusFilter">
-                                <option value="todos">Todos</option>
                                 <option value="activos">Activos</option>
-                                <option value="mantenimiento">En mantenimiento</option>
-                                <option value="inactivos">Inactivos</option>
+                                @if(auth()->user()?->hasRole('regional') || auth()->user()?->role === 'regional')
+                                    <option value="mantenimiento">En mantenimiento</option>
+                                @else
+                                    <option value="todos">Todos</option>
+                                    <option value="mantenimiento">En mantenimiento</option>
+                                    <option value="inactivos">Inactivos</option>
+                                @endif
                             </select>
                         </div>
                     </div>

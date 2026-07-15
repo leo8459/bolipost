@@ -47,10 +47,18 @@ class DriverManager extends Component
     public bool $isEdit = false;
     public ?int $editingDriverId = null;
     public bool $showForm = false;
+    public ?int $viewingDriverId = null;
+    public bool $showDetailModal = false;
 
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion', 'conductor'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.drivers')),
+            403
+        );
 
         if (auth()->user()?->role !== 'conductor' && (bool) request()->boolean('create_driver')) {
             $this->resetForm();
@@ -80,6 +88,10 @@ class DriverManager extends Component
     public function render()
     {
         $this->syncExpiredDriverStatuses();
+
+        if ($this->isRegionalUser() && !in_array($this->statusFilter, ['activos', 'licencia_vencida'], true)) {
+            $this->statusFilter = 'activos';
+        }
 
         $query = Driver::query()->with('user')->orderBy('nombre');
         $driverProfile = null;
@@ -136,7 +148,7 @@ class DriverManager extends Component
         $drivers = $query->paginate(10);
         $users = auth()->user()?->role === 'conductor'
             ? collect()
-            : User::all(['id', 'name', 'email']);
+            : $this->availableDriverUsers();
         
         return view('livewire.driver-manager', [
             'drivers' => $drivers,
@@ -154,6 +166,15 @@ class DriverManager extends Component
 
     public function updatedStatusFilter(string $value): void
     {
+        if ($this->isRegionalUser()) {
+            $this->statusFilter = in_array($value, ['activos', 'licencia_vencida'], true)
+                ? $value
+                : 'activos';
+            $this->resetPage();
+
+            return;
+        }
+
         if (!in_array($value, ['activos', 'inactivos', 'licencia_vencida', 'todos'], true)) {
             $this->statusFilter = 'activos';
         }
@@ -211,7 +232,7 @@ class DriverManager extends Component
 
     public function save()
     {
-        if (auth()->user()?->role === 'conductor') {
+        if (auth()->user()?->role === 'conductor' || $this->isRegionalUser()) {
             session()->flash('error', 'Solo puede visualizar su perfil de conductor.');
             return;
         }
@@ -260,6 +281,13 @@ class DriverManager extends Component
                 'activo.boolean' => 'El estado activo no es valido.',
             ]
         );
+
+        $selectedUser = User::query()->find((int) $this->user_id);
+        if (!$selectedUser || !$this->isDriverRoleUser($selectedUser)) {
+            $this->addError('user_id', 'Solo puede seleccionar usuarios con rol de conductor.');
+            session()->flash('error', 'No se pudo registrar: el usuario seleccionado no tiene rol de conductor.');
+            return;
+        }
 
         if (trim($this->memorandum_path) === '' && !$this->memorandum_file) {
             $this->addError('memorandum_file', 'El memorandum es obligatorio.');
@@ -337,7 +365,7 @@ class DriverManager extends Component
 
     public function edit(Driver $driver)
     {
-        if (auth()->user()?->role === 'conductor') {
+        if (auth()->user()?->role === 'conductor' || $this->isRegionalUser()) {
             session()->flash('error', 'Solo puede visualizar su perfil de conductor.');
             return;
         }
@@ -359,7 +387,7 @@ class DriverManager extends Component
 
     public function delete(Driver $driver)
     {
-        if (auth()->user()?->role === 'conductor') {
+        if (auth()->user()?->role === 'conductor' || $this->isRegionalUser()) {
             session()->flash('error', 'Solo puede visualizar su perfil de conductor.');
             return;
         }
@@ -370,7 +398,7 @@ class DriverManager extends Component
 
     public function reactivate(Driver $driver): void
     {
-        if (auth()->user()?->role === 'conductor') {
+        if (auth()->user()?->role === 'conductor' || $this->isRegionalUser()) {
             session()->flash('error', 'Solo puede visualizar su perfil de conductor.');
             return;
         }
@@ -404,7 +432,7 @@ class DriverManager extends Component
 
     public function create()
     {
-        if (auth()->user()?->role === 'conductor') {
+        if (auth()->user()?->role === 'conductor' || $this->isRegionalUser()) {
             session()->flash('error', 'Solo puede visualizar su perfil de conductor.');
             return;
         }
@@ -418,6 +446,18 @@ class DriverManager extends Component
         $this->resetForm();
     }
 
+    public function view(Driver $driver): void
+    {
+        $this->viewingDriverId = (int) $driver->id;
+        $this->showDetailModal = true;
+    }
+
+    public function closeDetailModal(): void
+    {
+        $this->showDetailModal = false;
+        $this->viewingDriverId = null;
+    }
+
     public function updatedUserId($value): void
     {
         if (!$value) {
@@ -425,7 +465,7 @@ class DriverManager extends Component
         }
 
         $user = User::find((int) $value);
-        if (!$user) {
+        if (!$user || !$this->isDriverRoleUser($user)) {
             return;
         }
 
@@ -508,5 +548,50 @@ class DriverManager extends Component
         } catch (\Throwable) {
             return false;
         }
+    }
+
+    private function isRegionalUser(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && (
+            mb_strtolower(trim((string) ($user->role ?? ''))) === 'regional'
+            || (method_exists($user, 'hasRole') && $user->hasRole('regional'))
+        );
+    }
+
+    private function availableDriverUsers()
+    {
+        $query = User::query()
+            ->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'conductor'))
+            ->orderBy('name');
+
+        $users = $query->get(['id', 'name', 'email']);
+
+        if ($this->user_id && !$users->contains('id', $this->user_id)) {
+            $selectedUser = User::query()->find($this->user_id, ['id', 'name', 'email']);
+            if ($selectedUser && $this->isDriverRoleUser($selectedUser)) {
+                $users->push($selectedUser);
+            }
+        }
+
+        return $users;
+    }
+
+    private function isDriverRoleUser(User $user): bool
+    {
+        return mb_strtolower(trim((string) ($user->role ?? ''))) === 'conductor'
+            || (method_exists($user, 'hasRole') && $user->hasRole('conductor'));
+    }
+
+    public function getViewingDriverProperty(): ?Driver
+    {
+        if (!$this->viewingDriverId) {
+            return null;
+        }
+
+        return Driver::query()
+            ->with('user')
+            ->find($this->viewingDriverId);
     }
 }

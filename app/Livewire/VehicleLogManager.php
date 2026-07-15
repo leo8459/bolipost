@@ -66,6 +66,8 @@ class VehicleLogManager extends Component
     public bool $isEdit = false;
     public ?int $editingLogId = null;
     public bool $showForm = false;
+    public ?int $viewingLogId = null;
+    public bool $showDetailModal = false;
     public string $search = '';
     public string $table_view = 'logs';
     public string $operational_alert_status_filter = 'all';
@@ -76,7 +78,13 @@ class VehicleLogManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        $user = $this->currentUser();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion', 'conductor'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.vehicle-logs')),
+            403
+        );
         $today = now()->toDateString();
         $this->fecha_desde = $today;
         $this->fecha_hasta = $today;
@@ -299,7 +307,7 @@ class VehicleLogManager extends Component
 
     public function save(): void
     {
-        if ($this->currentUser()?->role === 'conductor' && $this->isEdit) {
+        if (($this->currentUser()?->role === 'conductor' || $this->isRegionalUser()) && $this->isEdit) {
             session()->flash('error', 'No tiene permiso para editar registros de bitacora.');
             return;
         }
@@ -431,7 +439,7 @@ class VehicleLogManager extends Component
 
     public function edit(VehicleLog $log): void
     {
-        if ($this->currentUser()?->role === 'conductor') {
+        if ($this->currentUser()?->role === 'conductor' || $this->isRegionalUser()) {
             session()->flash('error', 'No tiene permiso para editar registros de bitacora.');
             return;
         }
@@ -468,7 +476,7 @@ class VehicleLogManager extends Component
 
     public function delete(VehicleLog $log): void
     {
-        if ($this->currentUser()?->role === 'conductor') {
+        if ($this->currentUser()?->role === 'conductor' || $this->isRegionalUser()) {
             session()->flash('error', 'No tiene permiso para eliminar registros de bitacora.');
             return;
         }
@@ -513,6 +521,26 @@ class VehicleLogManager extends Component
     public function cancelForm(): void
     {
         $this->resetForm();
+    }
+
+    public function view(VehicleLog $log): void
+    {
+        $user = $this->currentUser();
+        $driverId = (int) ($user?->resolvedDriver()?->id ?? 0);
+
+        if ($user?->role === 'conductor' && $driverId > 0 && (int) $log->drivers_id !== $driverId) {
+            session()->flash('error', 'No tiene permiso para ver este registro de bitacora.');
+            return;
+        }
+
+        $this->viewingLogId = (int) $log->id;
+        $this->showDetailModal = true;
+    }
+
+    public function closeDetailModal(): void
+    {
+        $this->showDetailModal = false;
+        $this->viewingLogId = null;
     }
 
     public function updatedSearch(): void
@@ -1103,6 +1131,27 @@ class VehicleLogManager extends Component
         $user = Auth::user();
 
         return $user instanceof User ? $user : null;
+    }
+
+    public function getViewingLogProperty(): ?VehicleLog
+    {
+        if (!$this->viewingLogId) {
+            return null;
+        }
+
+        return VehicleLog::query()
+            ->with(['vehicle.brand', 'vehicle.vehicleClass', 'driver', 'fuelLog', 'stageEvents'])
+            ->find($this->viewingLogId);
+    }
+
+    private function isRegionalUser(): bool
+    {
+        $user = $this->currentUser();
+
+        return $user !== null && (
+            mb_strtolower(trim((string) ($user->role ?? ''))) === 'regional'
+            || (method_exists($user, 'hasRole') && $user->hasRole('regional'))
+        );
     }
 
     private function resetListPages(): void

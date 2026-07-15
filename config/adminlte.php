@@ -890,6 +890,7 @@ return [
                             'text' => 'Incentivos',
                             'url' => '/livewire/maintenance-incentives',
                             'icon' => 'fas fa-star',
+                            'can' => 'livewire.maintenance-incentives',
                         ],
                         [
                             'text' => 'Talleres',

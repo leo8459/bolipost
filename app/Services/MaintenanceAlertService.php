@@ -6,6 +6,7 @@ use App\Models\MaintenanceAlert;
 use App\Models\MaintenanceLog;
 use App\Models\MaintenanceType;
 use App\Models\Vehicle;
+use App\Models\Workshop;
 use Illuminate\Support\Facades\Schema;
 
 class MaintenanceAlertService
@@ -109,6 +110,10 @@ class MaintenanceAlertService
                 continue;
             }
 
+            if (self::hasOpenWorkshopForType((int) $vehicle->id, (int) $type->id)) {
+                continue;
+            }
+
             $objetivo = (float) $log->proximo_kilometraje;
             $faltante = $objetivo - $kmActual;
             $kmAlerta = (int) ($type->km_alerta_previa ?? 15);
@@ -206,6 +211,10 @@ class MaintenanceAlertService
                 continue;
             }
 
+            if (self::hasOpenWorkshopForType((int) $vehicle->id, (int) $type->id)) {
+                continue;
+            }
+
             $intervalo = $hasCadaKm && $type->cada_km !== null
                 ? (float) $type->cada_km
                 : ($hasInit && $type->intervalo_km_init !== null
@@ -257,5 +266,36 @@ class MaintenanceAlertService
                 ]
             );
         }
+    }
+
+    private static function hasOpenWorkshopForType(int $vehicleId, int $maintenanceTypeId): bool
+    {
+        if ($vehicleId <= 0 || $maintenanceTypeId <= 0 || !Schema::hasTable('workshops')) {
+            return false;
+        }
+
+        return Workshop::query()
+            ->active()
+            ->where('vehicle_id', $vehicleId)
+            ->whereIn('estado', [
+                Workshop::STATUS_PENDING,
+                Workshop::STATUS_DISPATCHED,
+                Workshop::STATUS_DIAGNOSIS,
+                Workshop::STATUS_APPROVED,
+                Workshop::STATUS_REPAIR,
+                Workshop::STATUS_READY,
+            ])
+            ->where(function ($query) use ($maintenanceTypeId) {
+                $query->whereHas('maintenanceAlert', function ($alertQuery) use ($maintenanceTypeId) {
+                    $alertQuery->where('maintenance_type_id', $maintenanceTypeId);
+                });
+
+                if (Schema::hasTable('maintenance_appointments')) {
+                    $query->orWhereHas('maintenanceAppointment', function ($appointmentQuery) use ($maintenanceTypeId) {
+                        $appointmentQuery->where('tipo_mantenimiento_id', $maintenanceTypeId);
+                    });
+                }
+            })
+            ->exists();
     }
 }

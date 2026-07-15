@@ -10,6 +10,7 @@ use App\Models\MaintenanceType;
 use App\Models\VehicleAssignment;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
@@ -66,7 +67,13 @@ class MaintenanceAppointmentManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion']), 403);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.maintenance-appointments')),
+            403
+        );
         $this->fecha_desde = now()->startOfMonth()->toDateString();
         $this->fecha_hasta = now()->toDateString();
     }
@@ -326,6 +333,11 @@ class MaintenanceAppointmentManager extends Component
 
     public function edit(MaintenanceAppointment $appointment)
     {
+        if ($appointment->estado === MaintenanceAppointment::STATUS_PENDING) {
+            session()->flash('error', 'No se puede modificar la solicitud mientras siga pendiente. Primero debe aprobarse.');
+            return;
+        }
+
         $this->isEdit = true;
         $this->editingId = $appointment->id;
         $this->vehicle_id = $appointment->vehicle_id ?? 0;
@@ -353,6 +365,11 @@ class MaintenanceAppointmentManager extends Component
 
     public function delete(MaintenanceAppointment $appointment)
     {
+        if (!$this->isAdministrator()) {
+            session()->flash('error', 'Solo el administrador puede eliminar solicitudes de mantenimiento.');
+            return;
+        }
+
         if (\Illuminate\Support\Facades\Schema::hasTable('maintenance_alerts')) {
             MaintenanceAlert::query()
                 ->where('maintenance_appointment_id', $appointment->id)
@@ -864,5 +881,15 @@ class MaintenanceAppointmentManager extends Component
         }
 
         return $query->paginate($perPage, ['*'], $pageName);
+    }
+
+    public function isAdministrator(): bool
+    {
+        $user = Auth::user();
+
+        return $user !== null && (
+            mb_strtolower(trim((string) ($user->role ?? ''))) === 'admin'
+            || (method_exists($user, 'hasRole') && $user->hasRole('admin'))
+        );
     }
 }

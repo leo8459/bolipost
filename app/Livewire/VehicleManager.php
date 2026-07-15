@@ -88,6 +88,10 @@ class VehicleManager extends Component
 
     public function render()
     {
+        if ($this->isRegionalUser() && !in_array($this->statusFilter, ['activos', 'mantenimiento'], true)) {
+            $this->statusFilter = 'activos';
+        }
+
         $query = Vehicle::query()
             ->with(['brand', 'vehicleClass'])
             ->withCount([
@@ -189,6 +193,15 @@ class VehicleManager extends Component
 
     public function updatedStatusFilter(string $value): void
     {
+        if ($this->isRegionalUser()) {
+            $this->statusFilter = in_array($value, ['activos', 'mantenimiento'], true)
+                ? $value
+                : 'activos';
+            $this->resetPage();
+
+            return;
+        }
+
         if (!in_array($value, ['activos', 'inactivos', 'mantenimiento', 'todos'], true)) {
             $this->statusFilter = 'activos';
         }
@@ -1064,5 +1077,15 @@ class VehicleManager extends Component
         }
 
         return false;
+    }
+
+    private function isRegionalUser(): bool
+    {
+        $user = $this->currentUser();
+
+        return $user !== null && (
+            mb_strtolower(trim((string) ($user->role ?? ''))) === 'regional'
+            || (method_exists($user, 'hasRole') && $user->hasRole('regional'))
+        );
     }
 }

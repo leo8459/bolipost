@@ -412,13 +412,17 @@
                                                 </button>
                                             </div>
                                         @endif
-                                        <button wire:click="edit({{ $appointment->id }})" class="btn btn-sm btn-outline-warning">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        <button onclick="confirm('Eliminar esta cita?') || event.stopImmediatePropagation()"
-                                                wire:click="delete({{ $appointment->id }})" class="btn btn-sm btn-outline-danger">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        @if($appointment->estado !== \App\Models\MaintenanceAppointment::STATUS_PENDING)
+                                            <button wire:click="edit({{ $appointment->id }})" class="btn btn-sm btn-outline-warning">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        @endif
+                                        @if($this->isAdministrator())
+                                            <button onclick="confirm('Eliminar esta cita?') || event.stopImmediatePropagation()"
+                                                    wire:click="delete({{ $appointment->id }})" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty

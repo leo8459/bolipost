@@ -24,7 +24,13 @@ class MaintenanceIncentiveManager extends Component
 
     public function mount(DriverIncentiveService $service, Request $request): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion']), 403);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.maintenance-incentives')),
+            403
+        );
 
         $baseMonth = $service->latestClosedMonth();
         $this->date_from = $baseMonth->copy()->startOfMonth()->toDateString();

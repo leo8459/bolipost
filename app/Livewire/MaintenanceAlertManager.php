@@ -31,7 +31,13 @@ class MaintenanceAlertManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion', 'conductor']), 403);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion', 'conductor'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.maintenance-alerts')),
+            403
+        );
         $this->syncApprovedRequestsIntoAlerts();
         $this->reconcileInWorkshopAlertsWithoutOpenWorkshop();
     }
@@ -102,6 +108,7 @@ class MaintenanceAlertManager extends Component
         }
         $alerts = $this->paginateWithinBounds($query, 12);
         $this->applyReadStateToPaginator($alerts);
+        $this->applyWorkshopStateToPaginator($alerts);
         $pendingCount = $pendingCountQuery->count();
 
         return view('livewire.maintenance-alert-manager', [
@@ -330,7 +337,7 @@ class MaintenanceAlertManager extends Component
             }
 
             $typeName = (string) ($lockedAlert->maintenanceType?->nombre ?? $lockedAlert->tipo);
-            $createdWorkshop = Workshop::query()->create([
+            $createdWorkshop = Workshop::query()->create($this->filterWorkshopAttributes([
                 'vehicle_id' => (int) $lockedAlert->vehicle_id,
                 'driver_id' => (int) $assignedDriverId,
                 'maintenance_appointment_id' => $lockedAlert->maintenance_appointment_id ? (int) $lockedAlert->maintenance_appointment_id : null,
@@ -364,7 +371,7 @@ class MaintenanceAlertManager extends Component
                 'diagnostico' => '',
                 'observaciones' => trim((string) $lockedAlert->mensaje),
                 'activo' => true,
-            ]);
+            ]));
 
             $lockedAlert->update([
                 'status' => MaintenanceAlert::STATUS_REQUESTED,
@@ -654,6 +661,34 @@ class MaintenanceAlertManager extends Component
                 $appointment->vehicle,
                 $appointment->tipoMantenimiento
             );
+            $existingAlert = MaintenanceAlert::query()
+                ->with(['workshops' => function ($query) {
+                    $query->where('activo', true)
+                        ->whereIn('estado', [
+                            Workshop::STATUS_PENDING,
+                            Workshop::STATUS_DISPATCHED,
+                            Workshop::STATUS_DIAGNOSIS,
+                            Workshop::STATUS_APPROVED,
+                            Workshop::STATUS_REPAIR,
+                            Workshop::STATUS_READY,
+                        ]);
+                }])
+                ->where('maintenance_appointment_id', (int) $appointment->id)
+                ->where('tipo', 'Solicitud')
+                ->first();
+
+            $activeWorkshop = $existingAlert?->workshops?->sortByDesc('id')->first();
+            $hasOpenWorkshop = $activeWorkshop !== null;
+            $alertStatus = $hasOpenWorkshop
+                ? MaintenanceAlert::STATUS_IN_WORKSHOP
+                : ($existingAlert?->status === MaintenanceAlert::STATUS_IN_WORKSHOP
+                    ? MaintenanceAlert::STATUS_IN_WORKSHOP
+                    : MaintenanceAlert::STATUS_ACTIVE);
+            $alertRead = $hasOpenWorkshop ? ((bool) ($existingAlert?->leida ?? true)) : ((bool) ($existingAlert?->leida ?? false));
+            $defaultMessage = "Solicitud aprobada: {$typeName} para vehiculo {$plate}. Pendiente de acciones en taller.";
+            $alertMessage = $hasOpenWorkshop
+                ? trim((string) ($existingAlert?->mensaje ?? $defaultMessage))
+                : $defaultMessage;
 
             MaintenanceAlert::query()->updateOrCreate(
                 [
@@ -663,9 +698,9 @@ class MaintenanceAlertManager extends Component
                 [
                     'vehicle_id' => (int) $appointment->vehicle_id,
                     'maintenance_type_id' => $appointment->tipo_mantenimiento_id,
-                    'mensaje' => "Solicitud aprobada: {$typeName} para vehiculo {$plate}. Pendiente de acciones en taller.",
-                    'leida' => false,
-                    'status' => MaintenanceAlert::STATUS_ACTIVE,
+                    'mensaje' => $alertMessage,
+                    'leida' => $alertRead,
+                    'status' => $alertStatus,
                     'fecha_resolucion' => null,
                     'usuario_id' => null,
                     'kilometraje_actual' => $currentKm,
@@ -755,6 +790,50 @@ class MaintenanceAlertManager extends Component
             'target_km' => $currentKm,
             'remaining_km' => 0.0,
         ];
+    }
+
+    private function filterWorkshopAttributes(array $attributes): array
+    {
+        static $columns = null;
+
+        if (!is_array($columns)) {
+            $columns = Schema::hasTable('workshops')
+                ? array_flip(Schema::getColumnListing('workshops'))
+                : [];
+        }
+
+        return array_filter(
+            $attributes,
+            fn ($value, $key) => isset($columns[$key]),
+            ARRAY_FILTER_USE_BOTH
+        );
+    }
+
+    private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): void
+    {
+        $openStates = [
+            Workshop::STATUS_PENDING,
+            Workshop::STATUS_DISPATCHED,
+            Workshop::STATUS_DIAGNOSIS,
+            Workshop::STATUS_APPROVED,
+            Workshop::STATUS_REPAIR,
+            Workshop::STATUS_READY,
+        ];
+
+        $alerts->setCollection(
+            $alerts->getCollection()->map(function (MaintenanceAlert $alert) use ($openStates) {
+                $activeWorkshop = $alert->workshops
+                    ->filter(fn (Workshop $workshop) => (bool) $workshop->activo && in_array($workshop->estado, $openStates, true))
+                    ->sortByDesc('id')
+                    ->first();
+
+                $alert->has_open_workshop = $activeWorkshop !== null;
+                $alert->open_workshop_id = $activeWorkshop?->id;
+                $alert->open_workshop_status = $activeWorkshop?->estado;
+
+                return $alert;
+            })
+        );
     }
 
 }

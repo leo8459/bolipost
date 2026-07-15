@@ -161,27 +161,45 @@
                                     <td>
                                         @php
                                             $isOpen = in_array($alert->status, \App\Models\MaintenanceAlert::openStatuses(), true);
+                                            $hasOpenWorkshop = (bool) ($alert->has_open_workshop ?? false);
+                                            $openWorkshopStatus = $alert->open_workshop_status ?? null;
                                             $isOverdue = $alert->status === \App\Models\MaintenanceAlert::STATUS_ACTIVE && $alert->faltante_km !== null && (float) $alert->faltante_km < 0;
                                             $isPostponed = in_array($alert->status, [\App\Models\MaintenanceAlert::STATUS_ACTIVE, \App\Models\MaintenanceAlert::STATUS_REQUESTED], true) && $alert->postponed_until && $alert->postponed_until->isFuture();
-                                            $badgeClass = match ($alert->status) {
+                                            $badgeClass = $hasOpenWorkshop
+                                                ? match ($openWorkshopStatus) {
+                                                    \App\Models\Workshop::STATUS_PENDING => 'bg-warning text-dark',
+                                                    \App\Models\Workshop::STATUS_DISPATCHED => 'bg-info text-dark',
+                                                    \App\Models\Workshop::STATUS_DIAGNOSIS => 'bg-primary',
+                                                    \App\Models\Workshop::STATUS_APPROVED => 'bg-success',
+                                                    \App\Models\Workshop::STATUS_REPAIR => 'bg-info',
+                                                    \App\Models\Workshop::STATUS_READY => 'bg-success',
+                                                    default => 'bg-secondary',
+                                                }
+                                                : match ($alert->status) {
                                                 \App\Models\MaintenanceAlert::STATUS_IN_WORKSHOP => 'bg-info text-dark',
                                                 \App\Models\MaintenanceAlert::STATUS_REQUESTED => 'bg-warning text-dark',
                                                 \App\Models\MaintenanceAlert::STATUS_RESOLVED => 'bg-success',
                                                 \App\Models\MaintenanceAlert::STATUS_OMITTED => 'bg-secondary',
                                                 default => ($isPostponed ? 'bg-warning text-dark' : 'bg-danger'),
                                             };
-                                            $statusLabel = match ($alert->status) {
+                                            $statusLabel = $hasOpenWorkshop
+                                                ? $openWorkshopStatus
+                                                : match ($alert->status) {
                                                 \App\Models\MaintenanceAlert::STATUS_REQUESTED => 'En revision',
                                                 default => ($alert->status ?? 'Activa'),
                                             };
                                         @endphp
                                         <span class="badge {{ $badgeClass }}">
-                                            {{ $isPostponed ? ('Pospuesta hasta ' . $alert->postponed_until->format('d/m/Y')) : ($isOverdue ? 'Vencida' : $statusLabel) }}
+                                            {{ $hasOpenWorkshop ? $statusLabel : ($isPostponed ? ('Pospuesta hasta ' . $alert->postponed_until->format('d/m/Y')) : ($isOverdue ? 'Vencida' : $statusLabel)) }}
                                         </span>
                                     </td>
                                     <td>{{ optional($alert->created_at)->format('d/m/Y H:i') }}</td>
                                     <td class="text-center">
-                                        @if(auth()->user()?->role !== 'conductor' && in_array($alert->status, [\App\Models\MaintenanceAlert::STATUS_ACTIVE, \App\Models\MaintenanceAlert::STATUS_REQUESTED], true))
+                                        @if(($alert->has_open_workshop ?? false) && !empty($alert->open_workshop_id))
+                                            <a href="{{ route('livewire.workshops', ['edit_workshop_id' => $alert->open_workshop_id]) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i>Ver taller
+                                            </a>
+                                        @elseif(auth()->user()?->role !== 'conductor' && in_array($alert->status, [\App\Models\MaintenanceAlert::STATUS_ACTIVE, \App\Models\MaintenanceAlert::STATUS_REQUESTED], true))
                                             @if(!$alert->leida)
                                                 <button type="button" wire:click="markAsRead({{ $alert->id }})" class="btn btn-sm btn-outline-success">
                                                     <i class="fas fa-check me-1"></i>Leida

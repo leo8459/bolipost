@@ -67,7 +67,13 @@ class MaintenanceLogManager extends Component
 
     public function mount(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['admin', 'recepcion']), 403);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role, ['admin', 'recepcion'], true)
+                || (method_exists($user, 'can') && $user->can('livewire.maintenance-logs')),
+            403
+        );
         // Mostrar historial completo por defecto (sin recorte de fechas).
         $this->date_from = null;
         $this->date_to = null;

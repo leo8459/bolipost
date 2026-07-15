@@ -16,7 +16,7 @@ class VehicleAssignmentReportController extends Controller
 {
     public function exportPdf(Request $request)
     {
-        abort_unless(in_array($this->currentUser()?->role, ['admin', 'recepcion'], true), 403);
+        abort_unless(in_array($this->currentUser()?->role, ['admin'], true), 403);
 
         $payload = $request->validate([
             'date_from' => ['required', 'date'],
