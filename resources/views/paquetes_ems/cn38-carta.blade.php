@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>CN-38 {{ $despacho }}</title>
+    <title>{{ $documentType ?? 'CN-38' }} {{ $despacho }}</title>
     <style>
         @@page {
             size: letter portrait;
@@ -143,14 +143,15 @@
     </style>
 </head>
 <body>
-    @php
+    <?php
         $fecha = $generatedAt instanceof \Carbon\CarbonInterface
             ? $generatedAt
             : \Illuminate\Support\Carbon::parse($generatedAt);
 
         $origenCode = mb_strtoupper(mb_substr((string) $loggedInUserCity, 0, 3));
         $destinoCode = mb_strtoupper(mb_substr((string) $destinationCity, 0, 3));
-    @endphp
+        $documentType = $documentType ?? 'CN-38';
+    ?>
 
     <div class="sheet">
         <div class="top-note">--&gt; AJ</div>
@@ -166,7 +167,7 @@
                     <div>{{ $fecha->format('d/m/Y') }}</div>
                 </td>
                 <td style="width:20%;" class="right-box">
-                    <div>CN-38</div>
+                    <div>{{ $documentType }}</div>
                     <div>Pagina&nbsp;&nbsp;1</div>
                 </td>
             </tr>
@@ -233,12 +234,12 @@
         <table class="list">
             <tbody>
                 @foreach ($rows as $row)
-                    @php
+                    <?php
                         $despachoEtiqueta = strtoupper((string) data_get($row, 'despacho_etiqueta', data_get($row, 'despacho', '-')));
                         $origenAbreviado = mb_strtoupper(mb_substr((string) data_get($row, 'origen', '-'), 0, 3));
                         $destinoAbreviado = mb_strtoupper(mb_substr((string) data_get($row, 'destino', '-'), 0, 3));
                         $pesoTotal = number_format((float) data_get($row, 'peso_total', 0), 1);
-                    @endphp
+                    ?>
                     <tr>
                         <td class="c-despacho">{{ $despachoEtiqueta }}</td>
                         <td class="c-orig">{{ $origenAbreviado }}</td>

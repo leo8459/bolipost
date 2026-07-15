@@ -1113,7 +1113,7 @@
                                     @endif
                                     @if ($canEmsReprintCn33)
                                     <button class="btn btn-outline-light2" type="button" wire:click="toggleCn38Generate">
-                                        Generar CN-38
+                                        Factura BOA
                                     </button>
                                     @endif
                                 @elseif ($this->isVentanillaEms)
@@ -1500,9 +1500,9 @@
 
                 @if ($this->isAlmacenEms && $showCn38Generate && $canEmsReprintCn33)
                     <div class="section-block mb-3">
-                        <div class="section-title">Generar CN-38 desde CN-33</div>
+                        <div class="section-title">Factura BOA desde CN-33</div>
                         @php
-                            $cn38SelectedTotal = count($selectedPaquetes) + count($selectedContratos) + count($selectedSolicitudes);
+                            $cn38SelectedTotal = count($selectedPaquetes) + count($selectedPaquetesInt) + count($selectedContratos) + count($selectedSolicitudes);
                             $cn38DispatchRows = collect($cn38DispatchSummaryRows ?? collect());
                             $cn38TotalPeso = (float) $cn38DispatchRows->sum(fn ($row) => (float) ($row->peso_total ?? 0));
                         @endphp
@@ -1523,7 +1523,7 @@
                                     Autoseleccionar registros
                                 </button>
                                 <button class="btn btn-azul" type="button" wire:click="openCn38PrintOptionsModal">
-                                    Generar PDF CN-38
+                                    Generar PDF Factura BOA
                                 </button>
                                 <button class="btn btn-outline-azul" type="button" wire:click="toggleCn38Generate">
                                     Cerrar
@@ -1543,7 +1543,7 @@
                             <div class="mt-3 border rounded p-3 bg-white">
                                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                                     <div class="font-weight-bold text-primary">
-                                        Prelista CN-38 por CN-33 ({{ $cn38DispatchRows->count() }})
+                                        Prelista Factura BOA por CN-33 ({{ $cn38DispatchRows->count() }})
                                     </div>
                                     <div class="small text-muted">
                                         Aqui solo se muestran numero de despacho CN-33 y peso total.
@@ -2545,7 +2545,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header border-bottom border-dark" style="background: #fff; color: #000;">
-                    <h5 class="modal-title">Elegir impresion para CN-38</h5>
+                    <h5 class="modal-title">Elegir reporte para Factura BOA</h5>
                     <button
                         type="button"
                         class="close text-dark"
@@ -2557,8 +2557,42 @@
                 </div>
                 <div class="modal-body">
                     <p class="mb-3">
-                        Configura el CN-38 antes de imprimir. El formato <strong>LQ-590</strong> usa el diseno optimizado para impresora matricial.
+                        Configura la Factura BOA antes de imprimir y elige el tipo de reporte.
                     </p>
+                    <div class="form-row">
+                        <div class="form-group col-md-4 mb-2">
+                            <label>Cantidad de sacas</label>
+                            <input
+                                type="number"
+                                min="1"
+                                class="form-control"
+                                wire:model.live="cn38BagCount"
+                            >
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        @for ($i = 0; $i < max(1, (int) $cn38BagCount); $i++)
+                            <div class="form-group col-md-4 col-sm-6 mb-2" wire:key="cn38-modal-bag-weight-{{ $i }}">
+                                <label>
+                                    Peso saca {{ str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT) }}
+                                    @if ($i === max(1, (int) $cn38BagCount) - 1)
+                                        (F)
+                                    @endif
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.001"
+                                    class="form-control"
+                                    placeholder="0.000"
+                                    wire:model.live="cn38BagWeights.{{ $i }}"
+                                >
+                            </div>
+                        @endfor
+                    </div>
+                    <small class="text-muted d-block mb-3">
+                        El reporte saldra como {{ strtoupper(trim((string) $cn38Despacho)) ?: 'CN33' }}/0001 y la ultima saca llevara la marca /F.
+                    </small>
                     <div class="form-group">
                         <label>Transporte</label>
                         <select class="form-control" wire:model.live="cn38TransportMode">
@@ -2566,48 +2600,12 @@
                             <option value="AEREO">AEREO</option>
                         </select>
                     </div>
-                    @if (collect($cn38DispatchSummaryRows ?? collect())->count() === 1)
-                        <div class="form-row">
-                            <div class="form-group col-md-4 mb-2">
-                                <label>Cantidad de sacas</label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    class="form-control"
-                                    wire:model.live="cn38BagCount"
-                                >
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            @for ($i = 0; $i < max(1, (int) $cn38BagCount); $i++)
-                                <div class="form-group col-md-4 col-sm-6 mb-2" wire:key="cn38-modal-bag-weight-{{ $i }}">
-                                    <label>
-                                        Peso saca {{ str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT) }}
-                                        @if ($i === max(1, (int) $cn38BagCount) - 1)
-                                            (F)
-                                        @endif
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="0.001"
-                                        class="form-control"
-                                        placeholder="0.000"
-                                        wire:model.live="cn38BagWeights.{{ $i }}"
-                                    >
-                                </div>
-                            @endfor
-                        </div>
-                        <small class="text-muted d-block mb-3">
-                            El reporte saldra como {{ strtoupper(trim((string) $cn38Despacho)) ?: 'CN33' }}/0001 y la ultima saca llevara la marca /F.
-                        </small>
-                    @endif
                     <div class="d-flex flex-column flex-sm-row" style="gap: 10px;">
-                        <button type="button" class="btn btn-outline-dark flex-fill" wire:click="generarCn38Carta">
-                            <i class="fas fa-file-alt mr-1"></i> Tamano carta
+                        <button type="button" class="btn btn-outline-dark flex-fill" wire:click="generarCn38Lq590">
+                            <i class="fas fa-file-alt mr-1"></i> Generar CN-38
                         </button>
-                        <button type="button" class="btn btn-dark flex-fill" wire:click="generarCn38Lq590">
-                            <i class="fas fa-print mr-1"></i> Impresora LQ-590
+                        <button type="button" class="btn btn-dark flex-fill" wire:click="generarCn41Lq590">
+                            <i class="fas fa-file-alt mr-1"></i> Generar CN-41
                         </button>
                     </div>
                 </div>

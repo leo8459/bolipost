@@ -870,6 +870,10 @@
                                     @php
                                         $detalleCodigo = strtoupper(trim((string) $bitacora->cod_especial));
                                         $detallesCodigo = ($detallesPorCodEspecial ?? collect())->get($detalleCodigo, collect());
+                                        $cn33LocationResumen = ($cn33LocationsPorCodEspecial ?? collect())->get($detalleCodigo);
+                                        $cn33PackagesResumen = ($cn33PackagesPorCodEspecial ?? collect())->get($detalleCodigo, collect());
+                                        $totalPaquetesCn33 = $cn33PackagesResumen->count();
+                                        $pesoTotalDetalle = $bitacora->peso ?? optional($cn33LocationResumen)->peso_total;
                                     @endphp
                                     <div class="modal fade bitacora-detail-modal" id="bitacoraDetalleModal{{ $bitacora->id }}" tabindex="-1" aria-hidden="true">
                                         <div class="modal-dialog modal-xl">
@@ -886,6 +890,7 @@
                                                             <div class="bitacora-summary-pill">
                                                                 <div class="label">Registros</div>
                                                                 <div class="value">{{ number_format($detallesCodigo->count()) }}</div>
+                                                                <small class="text-muted">{{ number_format($totalPaquetesCn33) }} paquete(s) CN-33</small>
                                                             </div>
                                                         </div>
                                                         <div class="col-md-3 col-6 mb-2">
@@ -897,7 +902,7 @@
                                                         <div class="col-md-3 col-6 mb-2">
                                                             <div class="bitacora-summary-pill">
                                                                 <div class="label">Peso total</div>
-                                                                <div class="value">{{ $bitacora->peso !== null ? number_format((float) $bitacora->peso, 3) : '-' }}</div>
+                                                                <div class="value">{{ $pesoTotalDetalle !== null ? number_format((float) $pesoTotalDetalle, 3) : '-' }}</div>
                                                             </div>
                                                         </div>
                                                         <div class="col-md-3 col-6 mb-2">
@@ -929,12 +934,30 @@
                                                             </thead>
                                                             <tbody>
                                                                 @forelse($detallesCodigo as $detalle)
+                                                                    @php
+                                                                        $detalleCodigoNormalizado = strtoupper(trim((string) $detalle->cod_especial));
+                                                                        $cn33Location = ($cn33LocationsPorCodEspecial ?? collect())->get($detalleCodigoNormalizado);
+                                                                        $cn33Packages = ($cn33PackagesPorCodEspecial ?? collect())->get($detalleCodigoNormalizado, collect());
+                                                                        $cn33EmsPackages = $cn33Packages->where('tipo', 'EMS')->values();
+                                                                        $cn33ContratoPackages = $cn33Packages->where('tipo', 'CONTRATO')->values();
+                                                                        $cn33OrdinarioPackages = $cn33Packages->where('tipo', 'ORDINARIO')->values();
+                                                                        $cn33CertificadoPackages = $cn33Packages->where('tipo', 'CERTIFICADO')->values();
+                                                                        $detalleOrigenCn33 = $detalle->paqueteEms->origen
+                                                                            ?? $detalle->paqueteContrato->origen
+                                                                            ?? optional($cn33Location)->origen_departamento
+                                                                            ?? '-';
+                                                                        $detallePeso = $detalle->peso ?? optional($cn33Location)->peso_total;
+                                                                    @endphp
                                                                     <tr>
                                                                         <td>{{ $detalle->id }}</td>
                                                                         <td>{{ $detalle->user->name ?? '-' }}</td>
                                                                         <td>
                                                                             @if($detalle->paqueteEms)
                                                                                 #{{ $detalle->paqueteEms->id }} - {{ $detalle->paqueteEms->codigo }}
+                                                                            @elseif($cn33EmsPackages->isNotEmpty())
+                                                                                @foreach($cn33EmsPackages as $paqueteCn33)
+                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ number_format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
+                                                                                @endforeach
                                                                             @else
                                                                                 -
                                                                             @endif
@@ -942,6 +965,10 @@
                                                                         <td>
                                                                             @if($detalle->paqueteContrato)
                                                                                 #{{ $detalle->paqueteContrato->id }} - {{ $detalle->paqueteContrato->codigo }}
+                                                                            @elseif($cn33ContratoPackages->isNotEmpty())
+                                                                                @foreach($cn33ContratoPackages as $paqueteCn33)
+                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ number_format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
+                                                                                @endforeach
                                                                             @else
                                                                                 -
                                                                             @endif
@@ -949,6 +976,10 @@
                                                                         <td>
                                                                             @if($detalle->paqueteOrdi)
                                                                                 #{{ $detalle->paqueteOrdi->id }} - {{ $detalle->paqueteOrdi->codigo }}
+                                                                            @elseif($cn33OrdinarioPackages->isNotEmpty())
+                                                                                @foreach($cn33OrdinarioPackages as $paqueteCn33)
+                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ number_format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
+                                                                                @endforeach
                                                                             @else
                                                                                 -
                                                                             @endif
@@ -956,15 +987,19 @@
                                                                         <td>
                                                                             @if($detalle->paqueteCerti)
                                                                                 #{{ $detalle->paqueteCerti->id }} - {{ $detalle->paqueteCerti->codigo }}
+                                                                            @elseif($cn33CertificadoPackages->isNotEmpty())
+                                                                                @foreach($cn33CertificadoPackages as $paqueteCn33)
+                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ number_format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
+                                                                                @endforeach
                                                                             @else
                                                                                 -
                                                                             @endif
                                                                         </td>
-                                                                        <td>{{ $detalle->paqueteEms->origen ?? $detalle->paqueteContrato->origen ?? '-' }}</td>
+                                                                        <td>{{ $detalleOrigenCn33 }}</td>
                                                                         <td>{{ $detalle->transportadora ? strtoupper((string) $detalle->transportadora) : '-' }}</td>
                                                                         <td>{{ $detalle->factura ?: '-' }}</td>
                                                                         <td>{{ $detalle->precio_total !== null ? number_format((float) $detalle->precio_total, 2) : '-' }}</td>
-                                                                        <td>{{ $detalle->peso !== null ? number_format((float) $detalle->peso, 3) : '-' }}</td>
+                                                                        <td>{{ $detallePeso !== null ? number_format((float) $detallePeso, 3) : '-' }}</td>
                                                                         <td>
                                                                             @if($detalle->imagen_factura)
                                                                                 @php

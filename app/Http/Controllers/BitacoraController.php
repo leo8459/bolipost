@@ -100,6 +100,14 @@ class BitacoraController extends Controller
             ->unique()
             ->values();
 
+        $cn33LocationsPorCodEspecial = $codEspecialesPagina->isNotEmpty()
+            ? $this->buildCn33LocationSubquery()
+                ->whereIn('cod_especial_normalizado', $codEspecialesPagina)
+                ->get()
+                ->keyBy('cod_especial_normalizado')
+            : collect();
+        $cn33PackagesPorCodEspecial = $this->buildCn33PackagesPorCodEspecial($codEspecialesPagina);
+
         $detallesPorCodEspecial = Bitacora::query()
             ->with([
                 'user:id,name',
@@ -188,30 +196,162 @@ class BitacoraController extends Controller
             'reportByOrigin',
             'reportByDestination',
             'reportByTransportadora',
-            'reportTotals'
+            'reportTotals',
+            'cn33LocationsPorCodEspecial',
+            'cn33PackagesPorCodEspecial'
         );
     }
 
     private function buildDepartmentReportRows($latestIdsQuery)
     {
+        $cn33Locations = $this->buildCn33LocationSubquery();
+        $origenExpr = "COALESCE(
+            NULLIF(trim(upper(pe.origen)), ''),
+            NULLIF(trim(upper(pc.origen)), ''),
+            NULLIF(cn33_locations.origen_departamento, ''),
+            'SIN ORIGEN'
+        )";
+        $destinoExpr = "COALESCE(
+            NULLIF(trim(upper(pe.ciudad)), ''),
+            NULLIF(trim(upper(pc.destino)), ''),
+            NULLIF(cn33_locations.destino_departamento, ''),
+            'SIN DESTINO'
+        )";
+
         return Bitacora::query()
             ->from('bitacoras as b')
             ->leftJoin('paquetes_ems as pe', 'pe.id', '=', 'b.paquetes_ems_id')
             ->leftJoin('paquetes_contrato as pc', 'pc.id', '=', 'b.paquetes_contrato_id')
+            ->leftJoinSub($cn33Locations, 'cn33_locations', function ($join) {
+                $join->on('cn33_locations.cod_especial_normalizado', '=', DB::raw('trim(upper(b.cod_especial))'));
+            })
             ->whereIn('b.id', $latestIdsQuery)
             ->selectRaw("
-                COALESCE(NULLIF(trim(upper(COALESCE(pe.origen, pc.origen, ''))), ''), 'SIN ORIGEN') as origen_departamento,
-                COALESCE(NULLIF(trim(upper(COALESCE(pe.ciudad, pc.destino, ''))), ''), 'SIN DESTINO') as destino_departamento,
+                {$origenExpr} as origen_departamento,
+                {$destinoExpr} as destino_departamento,
                 COUNT(*) as total_registros,
                 COALESCE(SUM(b.precio_total), 0) as total_precio,
-                COALESCE(SUM(b.peso), 0) as total_peso
+                COALESCE(SUM(COALESCE(b.peso, cn33_locations.peso_total, 0)), 0) as total_peso
             ")
             ->groupByRaw("
-                COALESCE(NULLIF(trim(upper(COALESCE(pe.origen, pc.origen, ''))), ''), 'SIN ORIGEN'),
-                COALESCE(NULLIF(trim(upper(COALESCE(pe.ciudad, pc.destino, ''))), ''), 'SIN DESTINO')
+                {$origenExpr},
+                {$destinoExpr}
             ")
             ->orderByDesc('total_precio')
             ->get();
+    }
+
+    private function buildCn33LocationSubquery()
+    {
+        $ems = DB::table('paquetes_ems')
+            ->selectRaw("
+                trim(upper(cod_especial)) as cod_especial_normalizado,
+                trim(upper(coalesce(origen, ''))) as origen_departamento,
+                trim(upper(coalesce(ciudad, ''))) as destino_departamento,
+                coalesce(peso, 0) as peso
+            ")
+            ->whereNotNull('cod_especial')
+            ->whereRaw("trim(cod_especial) <> ''");
+
+        $contratos = DB::table('paquetes_contrato')
+            ->selectRaw("
+                trim(upper(cod_especial)) as cod_especial_normalizado,
+                trim(upper(coalesce(origen, ''))) as origen_departamento,
+                trim(upper(coalesce(destino, ''))) as destino_departamento,
+                coalesce(peso, 0) as peso
+            ")
+            ->whereNotNull('cod_especial')
+            ->whereRaw("trim(cod_especial) <> ''");
+
+        $ems->unionAll($contratos);
+
+        return DB::query()
+            ->fromSub($ems, 'cn33_source_locations')
+            ->selectRaw("
+                cod_especial_normalizado,
+                max(nullif(origen_departamento, '')) as origen_departamento,
+                max(nullif(destino_departamento, '')) as destino_departamento,
+                sum(coalesce(peso, 0)) as peso_total
+            ")
+            ->groupBy('cod_especial_normalizado');
+    }
+
+    private function buildCn33PackagesPorCodEspecial($codEspeciales)
+    {
+        $codigos = collect($codEspeciales)
+            ->map(fn ($codigo) => strtoupper(trim((string) $codigo)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($codigos->isEmpty()) {
+            return collect();
+        }
+
+        $ems = DB::table('paquetes_ems')
+            ->whereIn(DB::raw('trim(upper(cod_especial))'), $codigos)
+            ->orderBy('id')
+            ->get(['id', 'codigo', 'cod_especial', 'origen', 'ciudad', 'peso'])
+            ->map(fn ($row) => (object) [
+                'tipo' => 'EMS',
+                'id' => (int) $row->id,
+                'codigo' => (string) ($row->codigo ?? ''),
+                'cod_especial' => strtoupper(trim((string) $row->cod_especial)),
+                'origen' => strtoupper(trim((string) ($row->origen ?? ''))),
+                'destino' => strtoupper(trim((string) ($row->ciudad ?? ''))),
+                'peso' => $row->peso,
+            ]);
+
+        $contratos = DB::table('paquetes_contrato')
+            ->whereIn(DB::raw('trim(upper(cod_especial))'), $codigos)
+            ->orderBy('id')
+            ->get(['id', 'codigo', 'cod_especial', 'origen', 'destino', 'peso'])
+            ->map(fn ($row) => (object) [
+                'tipo' => 'CONTRATO',
+                'id' => (int) $row->id,
+                'codigo' => (string) ($row->codigo ?? ''),
+                'cod_especial' => strtoupper(trim((string) $row->cod_especial)),
+                'origen' => strtoupper(trim((string) ($row->origen ?? ''))),
+                'destino' => strtoupper(trim((string) ($row->destino ?? ''))),
+                'peso' => $row->peso,
+            ]);
+
+        $ordinarios = DB::table('paquetes_ordi')
+            ->whereIn(DB::raw('trim(upper(cod_especial))'), $codigos)
+            ->orderBy('id')
+            ->get(['id', 'codigo', 'cod_especial', 'ciudad', 'peso'])
+            ->map(fn ($row) => (object) [
+                'tipo' => 'ORDINARIO',
+                'id' => (int) $row->id,
+                'codigo' => (string) ($row->codigo ?? ''),
+                'cod_especial' => strtoupper(trim((string) $row->cod_especial)),
+                'origen' => '',
+                'destino' => strtoupper(trim((string) ($row->ciudad ?? ''))),
+                'peso' => $row->peso,
+            ]);
+
+        $certificados = DB::table('paquetes_certi')
+            ->where(function ($query) use ($codigos) {
+                $query->whereIn(DB::raw('trim(upper(cod_especial))'), $codigos)
+                    ->orWhereIn(DB::raw('trim(upper(codigo))'), $codigos);
+            })
+            ->orderBy('id')
+            ->get(['id', 'codigo', 'cod_especial', 'cuidad', 'peso'])
+            ->map(fn ($row) => (object) [
+                'tipo' => 'CERTIFICADO',
+                'id' => (int) $row->id,
+                'codigo' => (string) ($row->codigo ?? ''),
+                'cod_especial' => strtoupper(trim((string) (($row->cod_especial ?? '') ?: ($row->codigo ?? '')))),
+                'origen' => '',
+                'destino' => strtoupper(trim((string) ($row->cuidad ?? ''))),
+                'peso' => $row->peso,
+            ]);
+
+        return $ems
+            ->concat($contratos)
+            ->concat($ordinarios)
+            ->concat($certificados)
+            ->groupBy('cod_especial');
     }
 
     private function buildDepartmentReportPayload(array $data): array
@@ -451,11 +591,11 @@ class BitacoraController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $payload = $this->validateStoreData($request);
-        $createdOrUpdated = $this->storeByCodEspecial($payload);
+        $bitacora = $this->storeManualBitacora($payload);
 
         return redirect()
             ->route('bitacoras.index')
-            ->with('success', $createdOrUpdated . ' bitacora(s) registrada(s) correctamente para el cod_especial ' . $payload['cod_especial'] . '.');
+            ->with('success', 'Bitacora manual registrada correctamente para el cod_especial ' . $bitacora->cod_especial . '.');
     }
 
     public function edit(Bitacora $bitacora): View
@@ -521,6 +661,16 @@ class BitacoraController extends Controller
         $validator->after(function ($validator) use ($request) {
             $codEspecial = strtoupper(trim((string) $request->input('cod_especial')));
             if ($codEspecial === '') {
+                return;
+            }
+
+            $bitacoraExists = Bitacora::query()
+                ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codEspecial])
+                ->exists();
+
+            if ($bitacoraExists) {
+                $validator->errors()->add('cod_especial', 'Ya existe una bitacora registrada para este CN-33.');
+
                 return;
             }
 
@@ -683,6 +833,33 @@ class BitacoraController extends Controller
         });
 
         return $total;
+    }
+
+    private function storeManualBitacora(array $payload): Bitacora
+    {
+        return Bitacora::query()->create([
+            'paquetes_ems_id' => null,
+            'paquetes_contrato_id' => null,
+            'paquetes_ordi_id' => null,
+            'paquetes_certi_id' => null,
+            'user_id' => $payload['user_id'],
+            'cod_especial' => $payload['cod_especial'],
+            'transportadora' => $payload['transportadora'],
+            'provincia' => $payload['provincia'],
+            'factura' => $payload['factura'],
+            'precio_total' => $payload['precio_total'],
+            'peso' => $payload['peso'],
+            'qr_url' => $payload['qr_url'] ?? null,
+            'qr_texto' => $payload['qr_texto'] ?? null,
+            'qr_datos' => $payload['qr_datos'] ?? null,
+            'factura_fecha_emision' => $payload['factura_fecha_emision'] ?? null,
+            'factura_nit_emisor' => $payload['factura_nit_emisor'] ?? null,
+            'factura_cuf' => $payload['factura_cuf'] ?? null,
+            'factura_razon_social' => $payload['factura_razon_social'] ?? null,
+            'factura_cliente' => $payload['factura_cliente'] ?? null,
+            'factura_direccion' => $payload['factura_direccion'] ?? null,
+            'imagen_factura' => $payload['imagen_factura'] ?? null,
+        ]);
     }
 
     private function validateEditData(Request $request, Bitacora $bitacora): array

@@ -2441,25 +2441,35 @@ class PaquetesEms extends Component
 
     public function generarCn38()
     {
-        return $this->generarCn38EnFormato('lq590');
+        return $this->generarCn38EnFormato('lq590', 'CN-38');
     }
 
     public function generarCn38Carta()
     {
-        return $this->generarCn38EnFormato('carta');
+        return $this->generarCn38EnFormato('carta', 'CN-38');
     }
 
     public function generarCn38Lq590()
     {
-        return $this->generarCn38EnFormato('lq590');
+        return $this->generarCn38EnFormato('lq590', 'CN-38');
     }
 
-    protected function generarCn38EnFormato(string $formato)
+    public function generarCn41Lq590()
+    {
+        return $this->generarCn38EnFormato('lq590', 'CN-41');
+    }
+
+    protected function generarCn38EnFormato(string $formato, string $documentType = 'CN-38')
     {
         $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
 
         if (!$this->isAlmacenEms) {
             return;
+        }
+
+        $documentType = strtoupper(trim($documentType));
+        if (!in_array($documentType, ['CN-38', 'CN-41'], true)) {
+            $documentType = 'CN-38';
         }
 
         $idsEms = collect($this->selectedPaquetes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
@@ -2471,7 +2481,7 @@ class PaquetesEms extends Component
 
         if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
             if ($despacho === '') {
-                session()->flash('error', 'Selecciona varios registros o ingresa el despacho CN-33 para generar el CN-38.');
+                session()->flash('error', 'Selecciona varios registros o ingresa el despacho CN-33 para generar el ' . $documentType . '.');
                 return;
             }
 
@@ -2490,7 +2500,7 @@ class PaquetesEms extends Component
 
         $rows = $this->buildCn38PdfDispatchRows($idsEms, $idsInt, $idsContratos, $idsSolicitudes);
         if ($rows->isEmpty()) {
-            session()->flash('error', 'No se pudo construir el reporte CN-38 con los registros seleccionados.');
+            session()->flash('error', 'No se pudo construir el reporte ' . $documentType . ' con los registros seleccionados.');
             return;
         }
 
@@ -2507,7 +2517,7 @@ class PaquetesEms extends Component
             $bagRows = $this->buildCn38BagRows($rows, $despacho);
 
             if ($bagRows === null) {
-                session()->flash('error', 'Completa el peso de todas las sacas para generar el CN-38.');
+                session()->flash('error', 'Completa el peso de todas las sacas para generar el ' . $documentType . '.');
                 return;
             }
 
@@ -2539,23 +2549,24 @@ class PaquetesEms extends Component
                 'totalCantidad' => $totalCantidad,
                 'selectedTransport' => trim((string) $this->cn38TransportMode) !== '' ? trim((string) $this->cn38TransportMode) : 'TERRESTRE',
                 'transportNumber' => 'S/N',
+                'documentType' => $documentType,
             ])->setPaper($formato === 'carta' ? 'letter' : 'a4', 'portrait');
         } catch (\Throwable $exception) {
             report($exception);
 
             $this->cerrarCn38OpcionesImpresion();
-            session()->flash('error', 'No se pudo generar el CN-38. Revisa la plantilla o los datos del despacho e intenta nuevamente.');
+            session()->flash('error', 'No se pudo generar el ' . $documentType . '. Revisa la plantilla o los datos del despacho e intenta nuevamente.');
 
             return;
         }
 
         $this->cerrarCn38OpcionesImpresion();
 
-        session()->flash('success', 'CN-38 generado en formato ' . strtoupper($formato) . ' con ' . $rows->count() . ' despacho(s).');
+        session()->flash('success', $documentType . ' generado en formato ' . strtoupper($formato) . ' con ' . $rows->count() . ' despacho(s).');
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'cn38-' . $despacho . '-' . $formato . '.pdf');
+        }, strtolower(str_replace('-', '', $documentType)) . '-' . $despacho . '-' . $formato . '.pdf');
     }
 
     public function openEditModal($id)

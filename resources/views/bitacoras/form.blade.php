@@ -113,7 +113,7 @@
             <div class="alert alert-info">
                 Usuario logueado: <strong>{{ auth()->user()->name ?? 'Usuario del sistema' }}</strong>
                 <br>
-                Escribe el <strong>cod_especial</strong> y el sistema registrara automaticamente una bitacora por cada paquete relacionado.
+                Escribe el <strong>cod_especial</strong>; el sistema puede cargar datos de apoyo, pero solo se guardara la bitacora manual que registres aqui.
             </div>
 
             <div class="form-group mb-3">
