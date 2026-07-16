@@ -2,7 +2,6 @@
 
 namespace App\Livewire;
 
-use App\Models\Bitacora;
 use App\Models\Cartero;
 use App\Models\CodigoEmpresa;
 use App\Models\Destino;
@@ -3302,15 +3301,6 @@ class PaquetesEms extends Component
                 ]);
             });
 
-            $this->registrarBitacoraPorCodEspecial(
-                $manifiesto,
-                $paquetes,
-                $contratos,
-                $actorUserId,
-                $this->regionalTransportMode,
-                $this->regionalDestino
-            );
-
             $this->registerEventosEms(
                 $paquetes,
                 $actorUserId,
@@ -3534,15 +3524,6 @@ class PaquetesEms extends Component
                 $contrato->save();
                 $updated++;
             }
-
-            $this->registrarBitacoraPorCodEspecial(
-                $manifiesto,
-                collect(),
-                $contratos,
-                $actorUserId,
-                $this->regionalTransportModeContrato,
-                $this->regionalDestinoContrato
-            );
 
             $this->registerEventosContrato(
                 $contratos,
@@ -8684,99 +8665,6 @@ class PaquetesEms extends Component
         }
 
         return $prefix . str_pad((string) ($maxCorrelative + 1), 5, '0', STR_PAD_LEFT);
-    }
-
-    protected function registrarBitacoraPorCodEspecial(
-        string $codEspecial,
-        Collection $paquetes,
-        Collection $contratos,
-        int $userId,
-        ?string $transportadora = null,
-        ?string $provincia = null
-    ): void {
-        $codEspecial = strtoupper(trim($codEspecial));
-        if ($codEspecial === '' || ($paquetes->isEmpty() && $contratos->isEmpty()) || $userId <= 0) {
-            return;
-        }
-
-        $totales = $this->obtenerTotalesPorCodEspecial($codEspecial);
-        $rows = [];
-        $now = now();
-        $transportadora = ($transportadora !== null && trim($transportadora) !== '') ? trim($transportadora) : null;
-        $provincia = ($provincia !== null && trim($provincia) !== '') ? trim($provincia) : null;
-        $precioTotal = $totales['precio_total'] > 0 ? $totales['precio_total'] : null;
-
-        foreach ($paquetes as $paquete) {
-            $rows[] = [
-                'paquetes_ems_id' => (int) $paquete->id,
-                'paquetes_contrato_id' => null,
-                'user_id' => $userId,
-                'cod_especial' => $codEspecial,
-                'transportadora' => $transportadora,
-                'provincia' => $provincia,
-                'factura' => null,
-                'precio_total' => $precioTotal,
-                'peso' => $totales['peso'],
-                'imagen_factura' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }
-
-        foreach ($contratos as $contrato) {
-            $rows[] = [
-                'paquetes_ems_id' => null,
-                'paquetes_contrato_id' => (int) $contrato->id,
-                'user_id' => $userId,
-                'cod_especial' => $codEspecial,
-                'transportadora' => $transportadora,
-                'provincia' => $provincia,
-                'factura' => null,
-                'precio_total' => $precioTotal,
-                'peso' => $totales['peso'],
-                'imagen_factura' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }
-
-        if (!empty($rows)) {
-            Bitacora::query()->insert($rows);
-        }
-    }
-
-    protected function obtenerTotalesPorCodEspecial(string $codEspecial): array
-    {
-        $codigoNormalizado = strtoupper(trim($codEspecial));
-
-        $pesoEms = (float) PaqueteEms::query()
-            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado])
-            ->sum('peso');
-
-        $pesoContrato = (float) RecojoContrato::query()
-            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado])
-            ->sum('peso');
-
-        $precioEms = (float) PaqueteEms::query()
-            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado])
-            ->sum('precio');
-
-        $precioContrato = (float) RecojoContrato::query()
-            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado])
-            ->sum('precio');
-
-        $pesoSolicitud = (float) SolicitudCliente::query()
-            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado])
-            ->sum('peso');
-
-        $precioSolicitud = (float) SolicitudCliente::query()
-            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado])
-            ->sum('precio');
-
-        return [
-            'peso' => round($pesoEms + $pesoContrato + $pesoSolicitud, 3),
-            'precio_total' => round($precioEms + $precioContrato + $precioSolicitud, 2),
-        ];
     }
 
     protected function resolveSpecialCodePrefixForLoggedUser(): string

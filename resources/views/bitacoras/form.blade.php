@@ -294,7 +294,9 @@
     <div class="bitacora-form-footer">
         <div class="bitacora-form-actions">
             <a href="{{ route('bitacoras.index') }}" class="btn btn-outline-azul">Volver</a>
-            <button type="submit" class="btn btn-dorado">Guardar</button>
+            @if ($editOnlyPhoto || auth()->user()?->can('feature.bitacoras.index.save') || auth()->user()?->can('feature.bitacoras.create.save'))
+                <button type="submit" class="btn btn-dorado">Guardar</button>
+            @endif
         </div>
     </div>
 </div>

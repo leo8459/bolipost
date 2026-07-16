@@ -383,7 +383,9 @@
                                 <h3 class="card-title" id="card_title">Administracion de Bitacoras</h3>
                                 <div class="bitacoras-subtitle">Gestiona bitacoras, filtros operativos y evidencias asociadas a paquetes provinciales.</div>
                             </div>
-                            <a href="{{ route('bitacoras.create') }}" class="btn btn-dorado">Crear Nuevo</a>
+                            @can('feature.bitacoras.index.create')
+                                <a href="{{ route('bitacoras.create') }}" class="btn btn-dorado">Crear Nuevo</a>
+                            @endcan
                         </div>
                     </div>
 
@@ -440,11 +442,13 @@
                                         </div>
                                     @endif
                                 </div>
-                                <div class="mt-3 mt-lg-0">
-                                    <a href="{{ route('bitacoras.create') }}" class="btn btn-sm btn-outline-light border">
-                                        Registrar ahora
-                                    </a>
-                                </div>
+                                @can('feature.bitacoras.index.create')
+                                    <div class="mt-3 mt-lg-0">
+                                        <a href="{{ route('bitacoras.create') }}" class="btn btn-sm btn-outline-light border">
+                                            Registrar ahora
+                                        </a>
+                                    </div>
+                                @endcan
                             </div>
                         </div>
 
@@ -492,7 +496,9 @@
                                             </div>
                                         </div>
                                         <div class="modal-footer">
-                                            <a href="{{ route('bitacoras.create') }}" class="btn btn-danger">Registrar bitacora</a>
+                                            @can('feature.bitacoras.index.create')
+                                                <a href="{{ route('bitacoras.create') }}" class="btn btn-danger">Registrar bitacora</a>
+                                            @endcan
                                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                                         </div>
                                     </div>
