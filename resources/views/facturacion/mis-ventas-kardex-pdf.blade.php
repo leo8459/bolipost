@@ -189,8 +189,8 @@
             'total_label' => 'TOTAL FACTURACION ELECTRONICA EN CAJA',
         ],
         'factura_anulada' => [
-            'title' => 'Facturas anuladas',
-            'total_label' => 'TOTAL FACTURAS ANULADAS (NO SUMAN A CAJA)',
+            'title' => 'Ventas anuladas',
+            'total_label' => 'TOTAL VENTAS ANULADAS (NO SUMAN A CAJA)',
         ],
         'qr_facturado' => [
             'title' => 'Pagos QR facturados',
@@ -409,7 +409,7 @@
             <td class="right">Bs {{ number_format((float) $paidRows->filter(fn ($row) => strtolower((string) data_get($row, 'metodo_pago', '')) === 'qr')->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
         <tr>
-            <td class="right">TOTAL FACTURAS ANULADAS</td>
+            <td class="right">TOTAL VENTAS ANULADAS</td>
             <td class="right">Bs {{ number_format((float) $annulledRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
     </table>
