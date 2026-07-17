@@ -118,6 +118,7 @@
     <div class="small" style="margin-top: 8px;">Documento generado por el sistema de bitacora.</div>
 @else
     @php
+<<<<<<< Updated upstream
         $visibleColumns = collect($visibleColumns ?? [
             'fecha',
             'placa',
@@ -138,6 +139,8 @@
         $showKmLlegada = $visibleColumns->contains('kilometraje_llegada');
         $showRecorrido = $visibleColumns->contains('recorrido');
         $showCombustible = $visibleColumns->contains('combustible');
+=======
+>>>>>>> Stashed changes
         $logoPath = public_path('images/AGBClogo1.png');
         $logoData = file_exists($logoPath)
             ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
@@ -160,6 +163,7 @@
                 $vehicleLabel = trim((string) (($group['vehicle']?->brand?->nombre ?? '') . ' ' . ($group['vehicle']?->modelo ?? '')));
             @endphp
             <div class="page">
+<<<<<<< Updated upstream
                 <style>
                     .page {
                         height: 198mm;
@@ -351,12 +355,154 @@
                         </tr>
                     </table>
                 </div>
+=======
+                @php
+                    $displayRows = $rowsChunk->values();
+                    $minimumRows = 10;
+                    $blankRows = max(0, $minimumRows - $displayRows->count());
+                    $vehicleLabel = trim(($group['vehicle']?->brand?->nombre ?? '') . ' ' . ($group['vehicle']?->modelo ?? '')) ?: '-';
+                    $driverLabel = strtoupper((string) ($group['driver']?->nombre ?? 'SIN CONDUCTOR DESIGNADO'));
+                @endphp
+
+                <table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
+                    <tr>
+                        <td style="width:22%; text-align:left; vertical-align:top;">
+                            @if($logoData)
+                                <img src="{{ $logoData }}" alt="Correos de Bolivia" style="max-width:150px; max-height:52px;">
+                            @endif
+                        </td>
+                        <td style="width:56%; text-align:center; vertical-align:bottom;">
+                            <div style="font-size:15px; font-weight:700; text-transform:uppercase; margin-top:22px;">
+                                Formulario de bitácora de control para provisión de combustible
+                            </div>
+                        </td>
+                        <td style="width:22%; text-align:right; vertical-align:top;">
+                            @if($logoData)
+                                <img src="{{ $logoData }}" alt="Correos de Bolivia" style="max-width:150px; max-height:52px;">
+                            @endif
+                        </td>
+                    </tr>
+                </table>
+
+                <table class="legacy-meta" style="margin-bottom:10px;">
+                    <tr>
+                        <td style="width:40%;">
+                            <span class="legacy-label">Conductor:</span>
+                            <div class="legacy-value">{{ $driverLabel }}</div>
+                        </td>
+                        <td style="width:20%;">
+                            <span class="legacy-label">Placa:</span>
+                            <div class="legacy-value">{{ $group['vehicle']?->placa ?? 'SIN PLACA' }}</div>
+                        </td>
+                        <td style="width:40%;">
+                            <span class="legacy-label">Vehículo:</span>
+                            <div class="legacy-value">{{ strtoupper($vehicleLabel) }}</div>
+                        </td>
+                    </tr>
+                </table>
+
+                <table class="legacy-table" style="table-layout:fixed;">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="width:7%;">Fecha</th>
+                            <th rowspan="2" style="width:7%;">Cantidad de litros</th>
+                            <th rowspan="2" style="width:8%;">Numero de factura</th>
+                            <th colspan="2" style="width:20%;">Kilometraje</th>
+                            <th rowspan="2" style="width:9%;">Total recorrido (Km)</th>
+                            <th colspan="2" style="width:26%;">Recorrido</th>
+                            <th rowspan="2" style="width:11%;">Cantidad de guias llevadas y/o recogidas</th>
+                            <th rowspan="2" style="width:7%;">Firma</th>
+                        </tr>
+                        <tr class="subhead">
+                            <th>Salida</th>
+                            <th>Llegada</th>
+                            <th>Inicio</th>
+                            <th>Destino</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($displayRows as $row)
+                            @php
+                                $kmSalida = $row->kilometraje_salida !== null ? (float) $row->kilometraje_salida : null;
+                                $kmLlegada = $row->kilometraje_llegada !== null ? (float) $row->kilometraje_llegada : null;
+                                $kmRecorrido = $row->kilometraje_recorrido !== null
+                                    ? (float) $row->kilometraje_recorrido
+                                    : (($kmSalida !== null && $kmLlegada !== null) ? max(0, $kmLlegada - $kmSalida) : null);
+                                $litros = (float) ($row->fuelLog?->cantidad ?? $row->fuelLog?->galones ?? 0);
+                                $factura = (string) ($row->fuelLog?->invoice?->numero_factura ?? $row->fuelLog?->invoice?->numero ?? '');
+                                $packageCount = max(0, (int) ($row->cantidad_paquetes ?? 0));
+                            @endphp
+                            <tr>
+                                <td>{{ optional($row->fecha)->format('d/m/y') ?? '' }}</td>
+                                <td class="num">{{ $litros > 0 ? number_format($litros, 2) : '' }}</td>
+                                <td>{{ $factura }}</td>
+                                <td class="num">{{ $kmSalida !== null ? number_format($kmSalida, 2) : '' }}</td>
+                                <td class="num">{{ $kmLlegada !== null ? number_format($kmLlegada, 2) : '' }}</td>
+                                <td class="num">{{ $kmRecorrido !== null ? number_format($kmRecorrido, 2) : '0' }}</td>
+                                <td>{{ (string) ($row->recorrido_inicio ?? '') }}</td>
+                                <td>{{ (string) ($row->recorrido_destino ?? '') }}</td>
+                                <td class="text-center">{{ $packageCount > 0 ? $packageCount : '' }}</td>
+                                <td></td>
+                            </tr>
+                        @endforeach
+                        @for($index = 0; $index < $blankRows; $index++)
+                            <tr>
+                                <td>&nbsp;</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td class="num">0</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                        @endfor
+                    </tbody>
+                </table>
+
+                <div style="margin-top:10px; font-size:10px; font-weight:700; text-transform:uppercase;">
+                    Llenado por el conductor designado
+                </div>
+
+                <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+                    <tr>
+                        <td style="width:22%;"></td>
+                        <td style="width:28%;">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <tr>
+                                    <td style="border:1px solid #000; background:#d2d8df; text-align:center; font-weight:700; font-size:10px; padding:6px;">
+                                        Firma y sello del conductor designado
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="border:1px solid #000; height:72px;"></td>
+                                </tr>
+                            </table>
+                        </td>
+                        <td style="width:6%;"></td>
+                        <td style="width:28%;">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <tr>
+                                    <td style="border:1px solid #000; background:#d2d8df; text-align:center; font-weight:700; font-size:10px; padding:6px;">
+                                        Firma y sello del inmediato superior
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="border:1px solid #000; height:72px;"></td>
+                                </tr>
+                            </table>
+                        </td>
+                        <td style="width:16%;"></td>
+                    </tr>
+                </table>
+>>>>>>> Stashed changes
             </div>
         @endforeach
     @empty
         <div class="page">
-            <div class="legacy-title">ANEXO 2</div>
-            <div class="legacy-subtitle">FORMULARIO DE BITACORA DE CONTROL PARA PROVISION DE COMBUSTIBLE</div>
+            <div class="legacy-subtitle">FORMULARIO DE BITÁCORA DE CONTROL PARA PROVISIÓN DE COMBUSTIBLE</div>
             <p>No existen registros para los filtros seleccionados.</p>
         </div>
     @endforelse

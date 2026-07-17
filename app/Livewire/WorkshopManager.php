@@ -14,6 +14,7 @@ use App\Models\Workshop;
 use App\Models\WorkshopCatalog;
 use App\Services\MaintenanceAlertService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -85,6 +86,7 @@ class WorkshopManager extends Component
 
     public function mount(): void
     {
+<<<<<<< Updated upstream
         $user = auth()->user();
 
         abort_unless(
@@ -92,6 +94,9 @@ class WorkshopManager extends Component
                 || (method_exists($user, 'can') && $user->can('livewire.workshops')),
             403
         );
+=======
+        abort_unless($this->userHasAnyRole(['admin', 'recepcion', 'taller']), 403);
+>>>>>>> Stashed changes
         $this->ensurePartRow();
 
         $fromAlertId = (int) request()->query('from_alert_id', 0);
@@ -723,6 +728,7 @@ class WorkshopManager extends Component
             ]))),
         ] + $updates;
 
+<<<<<<< Updated upstream
         $payload = $this->filterWorkshopAttributes($payload);
 
         if ($this->isWorkshopUser()) {
@@ -734,17 +740,36 @@ class WorkshopManager extends Component
                         $query->where('workshop_catalog_id', (int) $workshop->workshop_catalog_id);
                         return;
                     }
+=======
+        $updated = DB::transaction(function () use ($workshop, $payload) {
+            if ($this->isWorkshopUser()) {
+                return Workshop::query()
+                    ->where('id', (int) $workshop->id)
+                    ->where('estado', Workshop::STATUS_PENDING)
+                    ->where(function ($query) use ($workshop) {
+                        if ($workshop->workshop_catalog_id) {
+                            $query->where('workshop_catalog_id', (int) $workshop->workshop_catalog_id);
+                            return;
+                        }
+>>>>>>> Stashed changes
 
-                    $query->whereNull('workshop_catalog_id');
-                })
-                ->update($payload);
-
-            if ($updated === 0) {
-                session()->flash('error', 'La solicitud ya fue tomada por otro taller.');
-                return;
+                        $query->whereNull('workshop_catalog_id');
+                    })
+                    ->lockForUpdate()
+                    ->update($payload);
             }
-        } else {
-            $workshop->update($payload);
+
+            $locked = Workshop::query()->lockForUpdate()->find((int) $workshop->id);
+            if (!$locked) {
+                return 0;
+            }
+            $locked->update($payload);
+            return 1;
+        });
+
+        if ($updated === 0) {
+            session()->flash('error', 'La solicitud ya fue tomada por otro taller.');
+            return;
         }
 
         $this->applyWorkshopStateEffects($workshop->fresh(['maintenanceAlert', 'maintenanceAppointment', 'workshopCatalog']));
@@ -877,6 +902,7 @@ class WorkshopManager extends Component
             return;
         }
 
+<<<<<<< Updated upstream
         if (!empty($validated['maintenance_alert_id'])) {
             $existingOpenForAlert = Workshop::query()
                 ->where('maintenance_alert_id', (int) $validated['maintenance_alert_id'])
@@ -916,6 +942,8 @@ class WorkshopManager extends Component
             }
         }
 
+=======
+>>>>>>> Stashed changes
         $existingWorkshop = $this->isEdit && $this->editingId
             ? Workshop::query()->find($this->editingId)
             : null;
@@ -982,6 +1010,7 @@ class WorkshopManager extends Component
             'activo' => true,
         ];
 
+<<<<<<< Updated upstream
         $payload = $this->filterWorkshopAttributes($payload);
 
         if ($this->isEdit && $this->editingId) {
@@ -997,6 +1026,8 @@ class WorkshopManager extends Component
             ]);
         }
 
+=======
+>>>>>>> Stashed changes
         $changes = collect($this->partChanges)
             ->map(fn (array $row) => [
                 'codigo_pieza_antigua' => trim((string) ($row['codigo_pieza_antigua'] ?? '')),
@@ -1007,9 +1038,55 @@ class WorkshopManager extends Component
             ->filter(fn (array $row) => $row['codigo_pieza_antigua'] !== '' || $row['codigo_pieza_nueva'] !== '' || $row['descripcion'] !== '' || $row['costo'] !== null)
             ->values();
 
-        $workshop->partChanges()->delete();
-        foreach ($changes as $change) {
-            $workshop->partChanges()->create($change);
+        try {
+            $workshop = DB::transaction(function () use ($payload, $changes, $vehicle, $validated) {
+            $existingOpenWorkshop = Workshop::query()
+                ->where('vehicle_id', (int) $vehicle->id)
+                ->whereIn('estado', $this->openStatuses())
+                ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingOpenWorkshop) {
+                throw new \RuntimeException('Este vehiculo ya tiene una orden de taller abierta.');
+            }
+
+            if (!empty($validated['maintenance_alert_id'])) {
+                $existingOpenForAlert = Workshop::query()
+                    ->where('maintenance_alert_id', (int) $validated['maintenance_alert_id'])
+                    ->whereIn('estado', $this->openStatuses())
+                    ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existingOpenForAlert) {
+                    throw new \RuntimeException('Esta alerta ya tiene una orden de taller abierta.');
+                }
+            }
+
+            if ($this->isEdit && $this->editingId) {
+                $workshop = Workshop::query()->lockForUpdate()->findOrFail($this->editingId);
+                $workshop->update($payload);
+            } else {
+                $workshop = Workshop::query()->create($payload);
+            }
+
+            if (!$workshop->order_number) {
+                $workshop->update([
+                    'order_number' => $this->buildOrderNumber($workshop),
+                ]);
+            }
+
+            $workshop->partChanges()->delete();
+            foreach ($changes as $change) {
+                $workshop->partChanges()->create($change);
+            }
+
+                return $workshop;
+            });
+        } catch (\RuntimeException $exception) {
+            $this->addError('vehicle_id', $exception->getMessage());
+            return;
         }
 
         $this->applyWorkshopStateEffects($workshop->fresh(['maintenanceAlert', 'maintenanceAppointment']));
@@ -1397,7 +1474,40 @@ class WorkshopManager extends Component
 
     private function isWorkshopUser(): bool
     {
-        return auth()->user()?->role === 'taller';
+        return $this->userHasAnyRole(['taller']);
+    }
+
+    private function userHasAnyRole(array $roles): bool
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        $normalizedExpected = collect($roles)->map(fn ($role) => mb_strtolower(trim((string) $role)))->filter()->values();
+        $primaryRole = mb_strtolower(trim((string) ($user->role ?? '')));
+        if ($primaryRole !== '' && $normalizedExpected->contains($primaryRole)) {
+            return true;
+        }
+
+        if (method_exists($user, 'hasRole')) {
+            foreach ($normalizedExpected as $expectedRole) {
+                if ($user->hasRole($expectedRole)) {
+                    return true;
+                }
+            }
+        }
+
+        if (method_exists($user, 'getRoleNames')) {
+            $roleNames = collect($user->getRoleNames()->toArray())
+                ->map(fn ($name) => mb_strtolower(trim((string) $name)))
+                ->filter();
+            if ($roleNames->intersect($normalizedExpected)->isNotEmpty()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function workshopCatalogRelationColumns(): array

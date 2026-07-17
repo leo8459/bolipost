@@ -185,8 +185,7 @@ class MaintenanceAlertManager extends Component
     public function markAllAsRead(): void
     {
         $query = MaintenanceAlert::query()
-            ->whereIn('status', MaintenanceAlert::openStatuses())
-            ->where('leida', false);
+            ->whereIn('status', MaintenanceAlert::openStatuses());
 
         if (auth()->user()?->role === 'conductor') {
             $driverId = (int) (auth()->user()?->resolvedDriver()?->id ?? 0);
@@ -205,75 +204,80 @@ class MaintenanceAlertManager extends Component
             $query->whereIn('vehicle_id', $vehicleIds);
         }
 
-        if ($this->usesPerUserReadState()) {
-            $alertIds = $query->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->all();
+        $alertIds = $query->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
-            foreach ($alertIds as $alertId) {
-                MaintenanceAlertUserRead::query()->updateOrCreate(
-                    [
-                        'maintenance_alert_id' => $alertId,
-                        'user_id' => (int) auth()->id(),
-                    ],
-                    [
-                        'read_at' => now(),
-                    ]
-                );
-            }
-        } else {
-            $query->update(['leida' => true]);
+        foreach ($alertIds as $alertId) {
+            MaintenanceAlertUserRead::query()->updateOrCreate(
+                [
+                    'maintenance_alert_id' => $alertId,
+                    'user_id' => (int) auth()->id(),
+                ],
+                [
+                    'read_at' => now(),
+                ]
+            );
         }
         session()->flash('message', 'Alertas pendientes marcadas como leidas.');
     }
 
     public function dispatchToWorkshop(int $alertId)
     {
-        $alert = MaintenanceAlert::query()->with(['vehicle', 'maintenanceType', 'maintenanceAppointment'])->find($alertId);
-        if (!$alert) {
+        $result = DB::transaction(function () use ($alertId) {
+            $alert = MaintenanceAlert::query()
+                ->with(['vehicle', 'maintenanceType', 'maintenanceAppointment'])
+                ->lockForUpdate()
+                ->find($alertId);
+
+            if (!$alert) {
+                return ['type' => 'not_found'];
+            }
+
+            if (!$this->canAccessAlert($alert)) {
+                return ['type' => 'forbidden'];
+            }
+
+            if (auth()->user()?->role === 'conductor') {
+                return ['type' => 'error', 'message' => 'No tiene permiso para despachar vehiculos a taller.'];
+            }
+
+            if (!in_array($alert->status, [MaintenanceAlert::STATUS_ACTIVE, MaintenanceAlert::STATUS_REQUESTED], true)) {
+                return ['type' => 'error', 'message' => 'Solo se puede despachar a taller desde alertas abiertas.'];
+            }
+
+            $existingWorkshop = Workshop::query()
+                ->where('maintenance_alert_id', $alert->id)
+                ->whereIn('estado', $this->openWorkshopStatuses())
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingWorkshop) {
+                $alert->update([
+                    'status' => MaintenanceAlert::STATUS_IN_WORKSHOP,
+                    'leida' => true,
+                ]);
+
+                return ['type' => 'existing', 'workshop_id' => (int) $existingWorkshop->id];
+            }
+
+            return ['type' => 'new', 'alert_id' => (int) $alert->id];
+        });
+
+        if (($result['type'] ?? null) === 'error') {
+            session()->flash('error', (string) ($result['message'] ?? 'No se pudo procesar la alerta.'));
             return;
         }
-
-        if (!$this->canAccessAlert($alert)) {
-            return;
-        }
-
-        if (auth()->user()?->role === 'conductor') {
-            session()->flash('error', 'No tiene permiso para despachar vehiculos a taller.');
-            return;
-        }
-
-        if (!in_array($alert->status, [MaintenanceAlert::STATUS_ACTIVE, MaintenanceAlert::STATUS_REQUESTED], true)) {
-            session()->flash('error', 'Solo se puede despachar a taller desde alertas abiertas.');
-            return;
-        }
-
-        $existingWorkshop = Workshop::query()
-            ->where('maintenance_alert_id', $alert->id)
-            ->whereIn('estado', [
-                Workshop::STATUS_PENDING,
-                Workshop::STATUS_DISPATCHED,
-                Workshop::STATUS_DIAGNOSIS,
-                Workshop::STATUS_APPROVED,
-                Workshop::STATUS_REPAIR,
-                Workshop::STATUS_READY,
-            ])
-            ->first();
-
-        if ($existingWorkshop) {
-            $alert->update([
-                'status' => MaintenanceAlert::STATUS_IN_WORKSHOP,
-                'leida' => true,
-            ]);
-
+        if (($result['type'] ?? null) === 'existing') {
             return redirect()->route('livewire.workshops', [
-                'edit_workshop_id' => $existingWorkshop->id,
+                'edit_workshop_id' => (int) $result['workshop_id'],
             ]);
         }
-
-        return redirect()->route('livewire.workshops', [
-            'from_alert_id' => $alert->id,
-        ]);
+        if (($result['type'] ?? null) === 'new') {
+            return redirect()->route('livewire.workshops', [
+                'from_alert_id' => (int) $result['alert_id'],
+            ]);
+        }
     }
 
     public function requestDiagnosis(int $alertId)
@@ -402,7 +406,7 @@ class MaintenanceAlertManager extends Component
 
     public function resolveAlert(int $alertId): void
     {
-        $alert = MaintenanceAlert::find($alertId);
+        $alert = MaintenanceAlert::query()->lockForUpdate()->find($alertId);
         if (!$alert || !$this->canAccessAlert($alert)) {
             return;
         }
@@ -424,7 +428,7 @@ class MaintenanceAlertManager extends Component
 
     public function postponeAlert(int $alertId): void
     {
-        $alert = MaintenanceAlert::find($alertId);
+        $alert = MaintenanceAlert::query()->lockForUpdate()->find($alertId);
         if (!$alert || !$this->canAccessAlert($alert)) {
             return;
         }
@@ -455,7 +459,7 @@ class MaintenanceAlertManager extends Component
 
     public function omitAlert(int $alertId): void
     {
-        $alert = MaintenanceAlert::find($alertId);
+        $alert = MaintenanceAlert::query()->lockForUpdate()->find($alertId);
         if (!$alert || !$this->canAccessAlert($alert)) {
             return;
         }
@@ -506,16 +510,11 @@ class MaintenanceAlertManager extends Component
 
     private function usesPerUserReadState(): bool
     {
-        return auth()->user()?->role === 'conductor';
+        return true;
     }
 
     private function setAlertReadState(MaintenanceAlert $alert, bool $read): void
     {
-        if (!$this->usesPerUserReadState()) {
-            $alert->update(['leida' => $read]);
-            return;
-        }
-
         $userId = (int) auth()->id();
         if ($read) {
             MaintenanceAlertUserRead::query()->updateOrCreate(
@@ -747,6 +746,7 @@ class MaintenanceAlertManager extends Component
         }
     }
 
+<<<<<<< Updated upstream
     private function resolveVehicleCurrentKilometraje(?Vehicle $vehicle): ?float
     {
         if (!$vehicle) {
@@ -812,6 +812,11 @@ class MaintenanceAlertManager extends Component
     private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): void
     {
         $openStates = [
+=======
+    private function openWorkshopStatuses(): array
+    {
+        return [
+>>>>>>> Stashed changes
             Workshop::STATUS_PENDING,
             Workshop::STATUS_DISPATCHED,
             Workshop::STATUS_DIAGNOSIS,
@@ -819,6 +824,7 @@ class MaintenanceAlertManager extends Component
             Workshop::STATUS_REPAIR,
             Workshop::STATUS_READY,
         ];
+<<<<<<< Updated upstream
 
         $alerts->setCollection(
             $alerts->getCollection()->map(function (MaintenanceAlert $alert) use ($openStates) {
@@ -834,6 +840,8 @@ class MaintenanceAlertManager extends Component
                 return $alert;
             })
         );
+=======
+>>>>>>> Stashed changes
     }
 
 }

@@ -188,6 +188,11 @@ class MobileUtilityController extends Controller
             'point_to_point_segments' => 'nullable|array|max:500',
             'distance_km' => 'nullable|numeric|min:0',
             'distanceKm' => 'nullable|numeric|min:0',
+            'cantidad_paquetes' => 'nullable|integer|min:0',
+            'package_count' => 'nullable|integer|min:0',
+            'packages_count' => 'nullable|integer|min:0',
+            'total_packages' => 'nullable|integer|min:0',
+            'packages_total' => 'nullable|integer|min:0',
             'sent_at' => 'nullable|date',
             'qr_data' => 'nullable',
             'qrData' => 'nullable',
@@ -224,6 +229,14 @@ class MobileUtilityController extends Controller
             $payload['point_to_point_segments'] ?? null
         );
         $distanceKm = $this->asFloat($payload['distance_km'] ?? $payload['distanceKm'] ?? null);
+        $packageCount = max(0, (int) (
+            $payload['cantidad_paquetes']
+                ?? $payload['package_count']
+                ?? $payload['packages_count']
+                ?? $payload['total_packages']
+                ?? $payload['packages_total']
+                ?? 0
+        ));
         $sessionKey = $this->bitacoraSessionCacheKey($resolvedUserId, (int) $payload['vehicle_id'], $sessionId);
         $timelineSanitized = is_array($timeline) ? array_values($timeline) : [];
         $segments = is_array($payload['point_to_point_segments'] ?? null) ? array_values($payload['point_to_point_segments']) : [];
@@ -286,6 +299,7 @@ class MobileUtilityController extends Controller
                 'timeline' => $timelineForPointToPoint,
                 'point_to_point_segments' => $segmentsForPointToPoint,
                 'distance_km' => $distanceKm,
+                'cantidad_paquetes' => $packageCount,
                 'sent_at' => $payload['sent_at'] ?? now()->toIso8601String(),
             ]);
             $pointToPointRequest->setUserResolver(fn () => $request->user());
@@ -363,6 +377,7 @@ class MobileUtilityController extends Controller
                 'responsible_driver_id' => (int) ($payload['responsible_driver_id'] ?? 0) ?: null,
                 'current_driver_id' => (int) ($payload['current_driver_id'] ?? 0) ?: null,
                 'distance_km' => $distanceKm,
+                'cantidad_paquetes' => $packageCount,
                 'timeline_count' => count($timelineSanitized),
                 'timeline' => $timelineSanitized,
                 'point_to_point_segments_count' => count($segments),
@@ -455,6 +470,37 @@ class MobileUtilityController extends Controller
             $driver,
             $session,
         );
+
+        $latestResolved = VehicleOperationAlert::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where('alert_type', (string) $payload['incident_type'])
+            ->where('status', VehicleOperationAlert::STATUS_RESOLVED)
+            ->orderByDesc('resolved_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($latestResolved) {
+            $resolvedMeta = is_array($latestResolved->meta_json) ? $latestResolved->meta_json : [];
+            $suppressedUntilRaw = is_string($resolvedMeta['suppressed_until'] ?? null)
+                ? (string) $resolvedMeta['suppressed_until']
+                : '';
+
+            if ($suppressedUntilRaw !== '') {
+                try {
+                    $suppressedUntil = now()->parse($suppressedUntilRaw);
+                    if ($suppressedUntil->isFuture()) {
+                        return response()->json([
+                            'ok' => true,
+                            'message' => 'Incidente operativo suprimido temporalmente por resolucion web reciente.',
+                            'suppressed_until' => $suppressedUntil->toIso8601String(),
+                            'alert_id' => (int) $latestResolved->id,
+                        ], 200);
+                    }
+                } catch (\Throwable) {
+                    // Si la fecha en meta_json es invalida, se ignora y continua el flujo normal.
+                }
+            }
+        }
 
         $existing = VehicleOperationAlert::query()
             ->where('vehicle_id', $vehicleId)
@@ -1496,6 +1542,9 @@ class MobileUtilityController extends Controller
 
         return $query->get()->map(function (VehicleOperationAlert $alert) use ($userId) {
             $meta = is_array($alert->meta_json) ? $alert->meta_json : [];
+            $alertType = (string) ($alert->alert_type ?? '');
+            $shouldPopup = !in_array($alertType, [VehicleOperationAlert::TYPE_ROUTE_STATUS], true);
+            $requiresWebResolution = !in_array($alertType, [VehicleOperationAlert::TYPE_ROUTE_STATUS], true);
 
             return [
                 'id' => (int) $alert->id,
@@ -1511,8 +1560,8 @@ class MobileUtilityController extends Controller
                 'repeat_every_minutes' => (int) ($meta['repeat_every_minutes'] ?? 0),
                 'repeat_until_resolved' => (bool) ($meta['repeat_until_resolved'] ?? false),
                 'invoice_number' => (string) ($meta['invoice_number'] ?? ''),
-                'should_popup' => true,
-                'requires_web_resolution' => true,
+                'should_popup' => $shouldPopup,
+                'requires_web_resolution' => $requiresWebResolution,
                 'requested_by_user_id' => $userId,
             ];
         });

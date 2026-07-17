@@ -57,10 +57,10 @@ class AuthTokenController extends Controller
         $currentDeviceId = $this->resolveMobileDeviceId($request, $credentials);
         $previousMobileSession = $this->getActiveMobileSession($user->id);
         if ($this->hasAnotherActiveMobileSession($request, $previousMobileSession, $currentDeviceId)) {
-            return response()->json([
-                'message' => 'Esta cuenta ya tiene una sesion activa en otro dispositivo movil.',
-                'session_conflict' => true,
-            ], 409);
+            // Si existe una sesion activa en otro dispositivo, priorizamos el ultimo login.
+            // Esto evita bloqueos operativos cuando el conductor cambia de telefono o reinstala la app.
+            $this->deleteSessionRecord(is_array($previousMobileSession) ? ($previousMobileSession['session_id'] ?? null) : null);
+            $this->forgetActiveMobileSession((int) $user->id, null);
         }
 
         Auth::guard('web')->login($user);
@@ -74,7 +74,7 @@ class AuthTokenController extends Controller
 
         $driver = $user->resolvedDriver();
         $roleId = $this->resolveRoleId($user);
-        $roleName = $user->role;
+        $roleName = $user?->resolvedRoleName();
 
         return response()->json([
             'success' => true,
@@ -99,7 +99,7 @@ class AuthTokenController extends Controller
         $user = $request->user();
         $driver = $user?->resolvedDriver();
         $roleId = $this->resolveRoleId($user);
-        $roleName = $user?->role;
+        $roleName = $user?->resolvedRoleName();
         $incentive = $this->resolveDriverIncentivePayload($driver);
 
         return response()->json([
@@ -726,9 +726,8 @@ class AuthTokenController extends Controller
             return null;
         }
 
-        $explicitRoleId = (int) ($user->role_id ?? 0);
-        if ($explicitRoleId > 0) {
-            return $explicitRoleId;
+        if (method_exists($user, 'resolvedRoleId')) {
+            return $user->resolvedRoleId();
         }
 
         $roleName = (string) ($user->getRoleNames()->first() ?? '');

@@ -994,23 +994,27 @@ class MapController extends Controller
                 default => 'success',
             };
 
-            $desiredAlerts[] = [
-                'vehicle_id' => $vehicleId,
-                'vehicle_log_session_id' => $session?->id,
-                'alert_type' => VehicleOperationAlert::TYPE_ROUTE_STATUS,
-                'severity' => $statusSeverity,
-                'status' => VehicleOperationAlert::STATUS_ACTIVE,
-                'title' => $statusTitle,
-                'message' => sprintf('%s se encuentra en estado %s.', $plate, $currentStatus),
-                'current_stage' => $currentStatus,
-                'last_heartbeat_at' => $heartbeatAt,
-                'detected_at' => now(),
-                'resolved_at' => null,
-                'meta_json' => [
-                    'seconds_since_update' => $secondsSince,
-                    'driver_name' => $driverName,
-                ],
-            ];
+            // INICIO/EN_RUTA/CONTINUAR son estados operativos normales y no deben abrir
+            // alerta operativa emergente para el conductor.
+            if (!in_array($currentStatus, ['INICIO', 'EN_RUTA', 'CONTINUAR'], true)) {
+                $desiredAlerts[] = [
+                    'vehicle_id' => $vehicleId,
+                    'vehicle_log_session_id' => $session?->id,
+                    'alert_type' => VehicleOperationAlert::TYPE_ROUTE_STATUS,
+                    'severity' => $statusSeverity,
+                    'status' => VehicleOperationAlert::STATUS_ACTIVE,
+                    'title' => $statusTitle,
+                    'message' => sprintf('%s se encuentra en estado %s.', $plate, $currentStatus),
+                    'current_stage' => $currentStatus,
+                    'last_heartbeat_at' => $heartbeatAt,
+                    'detected_at' => now(),
+                    'resolved_at' => null,
+                    'meta_json' => [
+                        'seconds_since_update' => $secondsSince,
+                        'driver_name' => $driverName,
+                    ],
+                ];
+            }
 
             if (!$gpsEnabled) {
                 $desiredAlerts[] = [

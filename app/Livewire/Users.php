@@ -41,6 +41,8 @@ class Users extends Component
     public $statusAction = '';
 
     protected $paginationTheme = 'bootstrap';
+    private const ROLE_GUARD_WEB = 'web';
+    private const REQUIRED_WEB_ROLE_NAMES = ['conductor'];
 
     public function searchUsers(): void
     {
@@ -252,7 +254,10 @@ class Users extends Component
             'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
-            'roleIds.*' => ['integer', 'exists:roles,id'],
+            'roleIds.*' => [
+                'integer',
+                Rule::exists('roles', 'id')->where(fn ($query) => $query->where('guard_name', self::ROLE_GUARD_WEB)),
+            ],
         ];
     }
 
@@ -271,7 +276,10 @@ class Users extends Component
             'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
-            'roleIds.*' => ['integer', 'exists:roles,id'],
+            'roleIds.*' => [
+                'integer',
+                Rule::exists('roles', 'id')->where(fn ($query) => $query->where('guard_name', self::ROLE_GUARD_WEB)),
+            ],
         ];
     }
 
@@ -286,7 +294,11 @@ class Users extends Component
             return [];
         }
 
-        return Role::query()->whereIn('id', $roleIds)->pluck('name')->toArray();
+        return Role::query()
+            ->whereIn('id', $roleIds)
+            ->where('guard_name', self::ROLE_GUARD_WEB)
+            ->pluck('name')
+            ->toArray();
     }
 
     protected function resetUserForm(): void
@@ -365,6 +377,8 @@ class Users extends Component
 
     public function render()
     {
+        $this->ensureRequiredWebRoles();
+
         $q = trim((string) $this->searchQuery);
 
         $baseQuery = User::withTrashed()
@@ -420,11 +434,28 @@ class Users extends Component
 
         return view('livewire.users', [
             'users' => $users,
+<<<<<<< Updated upstream
             'groupedUsers' => $groupedUsers,
             'roles' => Role::query()->orderBy('name')->get(),
+=======
+            'roles' => Role::query()->where('guard_name', self::ROLE_GUARD_WEB)->orderBy('name')->get(),
+>>>>>>> Stashed changes
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
             'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
             'regionales' => $this->regionalesDisponibles(),
         ]);
+    }
+
+    protected function ensureRequiredWebRoles(): void
+    {
+        foreach (self::REQUIRED_WEB_ROLE_NAMES as $roleName) {
+            Role::query()->firstOrCreate(
+                [
+                    'name' => $roleName,
+                    'guard_name' => self::ROLE_GUARD_WEB,
+                ],
+                []
+            );
+        }
     }
 }
