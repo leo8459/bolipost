@@ -494,6 +494,7 @@ class FacturacionCartController extends Controller
             'complemento_documento' => ['nullable', 'string', 'max:30'],
             'razon_social' => ['nullable', 'string', 'max:255'],
             'correo_facturacion' => ['nullable', 'email', 'max:50'],
+            'codigo_orden_mode' => ['nullable', 'in:same,new'],
         ]);
         $autoEmitInvoice = $request->has('auto_emit_invoice')
             ? $request->boolean('auto_emit_invoice')
@@ -638,15 +639,26 @@ class FacturacionCartController extends Controller
             $codigoSeguimiento = trim((string) $request->input('codigo_seguimiento', ''));
             $cartId = $request->integer('cart_id') ?: null;
             $autoEmitInvoice = $request->boolean('auto_emit_invoice');
+            $codigoOrdenMode = in_array((string) $request->input('codigo_orden_mode', 'same'), ['same', 'new'], true)
+                ? (string) $request->input('codigo_orden_mode', 'same')
+                : 'same';
+            Log::info('FacturacionCartController consultar accion solicitada.', [
+                'user_id' => $user?->id,
+                'cart_id' => $cartId,
+                'codigo_seguimiento' => $codigoSeguimiento,
+                'auto_emit_invoice' => $autoEmitInvoice,
+                'codigo_orden_mode' => $codigoOrdenMode,
+                'expects_json' => $request->expectsJson(),
+            ]);
             $allowPendingRetry = !$request->expectsJson();
             if ($cartId !== null) {
-                $resultado = $service->consultarEstadoEmision($user, $cartId, $autoEmitInvoice, $allowPendingRetry);
+                $resultado = $service->consultarEstadoEmision($user, $cartId, $autoEmitInvoice, $allowPendingRetry, $codigoOrdenMode);
                 $respuesta = (array) ($resultado['respuesta'] ?? []);
             } elseif ($codigoSeguimiento !== '') {
                 $respuesta = (array) $service->consultarVentaSeguimiento($user, $codigoSeguimiento);
                 $resultado = ['carrito' => null, 'respuesta' => $respuesta];
             } else {
-                $resultado = $service->consultarEstadoEmision($user, null, $autoEmitInvoice, $allowPendingRetry);
+                $resultado = $service->consultarEstadoEmision($user, null, $autoEmitInvoice, $allowPendingRetry, $codigoOrdenMode);
                 $respuesta = (array) ($resultado['respuesta'] ?? []);
             }
 
