@@ -561,6 +561,14 @@ class MisVentasController extends Controller
                 ];
             }
 
+            if ($estadoCart === 'descartado' && strtoupper((string) ($emision['estado'] ?? '')) === 'RECHAZADA') {
+                $estadoCart = 'anulado';
+                $emision = [
+                    'estado' => 'ANULADA',
+                    'mensaje' => trim((string) data_get($row, 'mensaje_emision', '')) ?: 'Venta anulada localmente tras rechazo de factura.',
+                ];
+            }
+
             $resolvedCartId = $origenVentaId > 0 ? $origenVentaId : $ventaId;
 
             return (object) [
@@ -934,9 +942,10 @@ class MisVentasController extends Controller
 
     private function resolvePdfSectionKey(object|array $cart): string
     {
+        $estadoCart = strtolower(trim((string) data_get($cart, 'estado', '')));
         $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', 'NO_APLICA')));
 
-        if (in_array($estadoEmision, ['ANULADA', 'ANULADO'], true)) {
+        if ($estadoCart === 'anulado' || in_array($estadoEmision, ['ANULADA', 'ANULADO'], true)) {
             return 'factura_anulada';
         }
 
@@ -967,8 +976,8 @@ class MisVentasController extends Controller
 
         return match ($sectionKey) {
             'factura_anulada' => [
-                'label' => 'ANULADA',
-                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Factura anulada correctamente.',
+                'label' => 'VENTA ANULADA',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Venta anulada localmente y excluida de caja.',
             ],
             'qr_facturado' => [
                 'label' => 'FACTURADA',
