@@ -68,7 +68,7 @@
 <div class="alert alert-danger d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
     <div>
         <strong>Registrar bitacora de envio nacional.</strong>
-        Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas.
+        Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas desde {{ optional(data_get($pendingCn33Alert, 'alert_start_date'))->format('d/m/Y') ?? '17/07/2026' }}.
         @if((string) data_get($pendingCn33Alert, 'regional', '') !== '')
         Solo se muestran registros de {{ data_get($pendingCn33Alert, 'regional') }}.
         @else
@@ -90,9 +90,11 @@
             </div>
         @endif
     </div>
-    <a href="{{ route('bitacoras.create') }}" class="btn btn-sm btn-outline-dark mt-2 mt-md-0">
-        Registrar bitacora
-    </a>
+    @can('feature.bitacoras.index.create')
+        <a href="{{ route('bitacoras.create') }}" class="btn btn-sm btn-outline-dark mt-2 mt-md-0">
+            Registrar bitacora
+        </a>
+    @endcan
 </div>
 
 @foreach($dashboardPendingCn33Departments as $index => $department)
@@ -139,7 +141,9 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <a href="{{ route('bitacoras.create') }}" class="btn btn-danger">Registrar bitacora</a>
+                    @can('feature.bitacoras.index.create')
+                        <a href="{{ route('bitacoras.create') }}" class="btn btn-danger">Registrar bitacora</a>
+                    @endcan
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                 </div>
             </div>

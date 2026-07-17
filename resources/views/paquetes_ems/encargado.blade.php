@@ -165,11 +165,28 @@
                                     <td>
                                         <div class="ems-tracking-stack">
                                             <span class="ems-status-badge">{{ $paquete->estado_nombre }}</span>
+                                            <div class="ems-date-text">Cartero: {{ $paquete->cartero_nombre ?: 'Sin cartero asignado' }}</div>
                                             <div class="ems-date-text">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</div>
                                         </div>
                                     </td>
                                     <td>
                                         <div class="ems-action-stack">
+                                            @if ($canChangeCarteroEncargado)
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm ems-btn-info ems-action-btn"
+                                                    data-change-cartero
+                                                    data-id="{{ $paquete->id }}"
+                                                    data-servicio="{{ $paquete->servicio }}"
+                                                    data-codigo="{{ $paquete->codigo ?: 'SIN CODIGO' }}"
+                                                    data-cartero="{{ $paquete->cartero_nombre ?: 'Sin cartero asignado' }}"
+                                                    data-cartero-id="{{ (int) ($paquete->cartero_user_id ?? 0) }}"
+                                                >
+                                                    <span>Cambiar cartero</span>
+                                                    <small>Solo de tu ciudad</small>
+                                                </button>
+                                            @endif
+
                                             @if ($canCancelEncargado)
                                                 <form method="POST" action="{{ route('paquetes-ems.encargado.cancelar-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="danger" data-confirm-title="Cancelar envio" data-confirm-message="Se marcara este envio como CANCELADO y se registrara el evento con tu usuario.">
                                                     @csrf
@@ -274,6 +291,44 @@
             </div>
         </div>
     </div>
+
+    <div class="ems-confirm-modal" id="emsChangeCarteroModal" aria-hidden="true">
+        <div class="ems-confirm-modal__backdrop" data-change-cartero-close></div>
+        <form method="POST" action="{{ route('paquetes-ems.encargado.cambiar-cartero') }}" class="ems-confirm-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="emsChangeCarteroTitle">
+            @csrf
+            <input type="hidden" name="id" id="emsChangeCarteroId">
+            <input type="hidden" name="servicio" id="emsChangeCarteroServicio">
+            <input type="hidden" name="current_servicio" value="{{ $servicio }}">
+            <input type="hidden" name="q" value="{{ $search }}">
+            <input type="hidden" name="from" value="{{ $fechaDesde }}">
+            <input type="hidden" name="to" value="{{ $fechaHasta }}">
+            <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+            <div class="ems-confirm-modal__eyebrow">Asignacion</div>
+            <h4 class="ems-confirm-modal__title" id="emsChangeCarteroTitle">Cambiar cartero</h4>
+            <p class="ems-confirm-modal__message">
+                Paquete: <strong id="emsChangeCarteroCodigo">-</strong><br>
+                Cartero actual: <span id="emsChangeCarteroActual">Sin cartero asignado</span>
+            </p>
+            <div class="ems-change-cartero-field">
+                <label for="emsChangeCarteroUser">Nuevo cartero</label>
+                <select name="user_id" id="emsChangeCarteroUser" class="form-control" required @disabled(collect($carterosDisponibles ?? [])->isEmpty())>
+                    <option value="">Seleccione cartero...</option>
+                    @foreach (($carterosDisponibles ?? collect()) as $cartero)
+                        <option value="{{ $cartero->id }}">
+                            {{ $cartero->name }} - {{ $cartero->ciudad ?: 'SIN CIUDAD' }}
+                        </option>
+                    @endforeach
+                </select>
+                @if (collect($carterosDisponibles ?? [])->isEmpty())
+                    <small>No hay carteros disponibles en tu ciudad.</small>
+                @endif
+            </div>
+            <div class="ems-confirm-modal__actions">
+                <button type="button" class="ems-confirm-modal__btn is-secondary" data-change-cartero-close>Volver</button>
+                <button type="submit" class="ems-confirm-modal__btn is-primary" @disabled(collect($carterosDisponibles ?? [])->isEmpty())>Cambiar cartero</button>
+            </div>
+        </form>
+    </div>
 @endsection
 
 @section('css')
@@ -289,7 +344,8 @@
         .ems-status-badge,
         .ems-action-btn,
         .ems-filter-chip,
-        .ems-floating-alert {
+        .ems-floating-alert,
+        .ems-change-cartero-field {
             box-sizing: border-box;
         }
 
@@ -929,6 +985,30 @@
             background: linear-gradient(135deg, #256fd1 0%, #41a0ff 100%);
         }
 
+        .ems-change-cartero-field {
+            margin: 1rem 0 1.1rem;
+        }
+
+        .ems-change-cartero-field label {
+            display: block;
+            margin-bottom: 0.35rem;
+            color: #1f2a44;
+            font-weight: 800;
+        }
+
+        .ems-change-cartero-field .form-control {
+            min-height: 44px;
+            border-radius: 12px;
+            border: 1px solid #d4ddef;
+        }
+
+        .ems-change-cartero-field small {
+            display: block;
+            margin-top: 0.45rem;
+            color: #b91c1c;
+            font-weight: 700;
+        }
+
         @media (max-width: 991.98px) {
             .ems-encargado-total {
                 align-items: flex-start;
@@ -971,6 +1051,14 @@
             const confirmAccept = document.getElementById('emsConfirmAccept');
             const confirmCloseButtons = Array.from(document.querySelectorAll('[data-confirm-close]'));
             const confirmForms = Array.from(document.querySelectorAll('[data-confirm-form]'));
+            const changeCarteroModal = document.getElementById('emsChangeCarteroModal');
+            const changeCarteroButtons = Array.from(document.querySelectorAll('[data-change-cartero]'));
+            const changeCarteroCloseButtons = Array.from(document.querySelectorAll('[data-change-cartero-close]'));
+            const changeCarteroId = document.getElementById('emsChangeCarteroId');
+            const changeCarteroServicio = document.getElementById('emsChangeCarteroServicio');
+            const changeCarteroCodigo = document.getElementById('emsChangeCarteroCodigo');
+            const changeCarteroActual = document.getElementById('emsChangeCarteroActual');
+            const changeCarteroUser = document.getElementById('emsChangeCarteroUser');
             let pendingForm = null;
 
             function closeAlert(card) {
@@ -1053,9 +1141,67 @@
                 });
             }
 
+            function closeChangeCarteroModal() {
+                if (!changeCarteroModal) {
+                    return;
+                }
+
+                changeCarteroModal.classList.remove('is-open');
+                changeCarteroModal.setAttribute('aria-hidden', 'true');
+            }
+
+            function openChangeCarteroModal(button) {
+                if (!changeCarteroModal || !button) {
+                    return;
+                }
+
+                if (changeCarteroId) {
+                    changeCarteroId.value = button.getAttribute('data-id') || '';
+                }
+
+                if (changeCarteroServicio) {
+                    changeCarteroServicio.value = button.getAttribute('data-servicio') || '';
+                }
+
+                if (changeCarteroCodigo) {
+                    changeCarteroCodigo.textContent = button.getAttribute('data-codigo') || '-';
+                }
+
+                if (changeCarteroActual) {
+                    changeCarteroActual.textContent = button.getAttribute('data-cartero') || 'Sin cartero asignado';
+                }
+
+                if (changeCarteroUser) {
+                    const currentCarteroId = String(button.getAttribute('data-cartero-id') || '');
+                    changeCarteroUser.value = '';
+                    Array.from(changeCarteroUser.options).forEach(function (option) {
+                        option.disabled = option.value !== '' && option.value === currentCarteroId;
+                    });
+                }
+
+                changeCarteroModal.classList.add('is-open');
+                changeCarteroModal.setAttribute('aria-hidden', 'false');
+            }
+
+            changeCarteroButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    openChangeCarteroModal(button);
+                });
+            });
+
+            changeCarteroCloseButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    closeChangeCarteroModal();
+                });
+            });
+
             document.addEventListener('keydown', function (event) {
                 if (event.key === 'Escape' && confirmModal && confirmModal.classList.contains('is-open')) {
                     closeConfirmModal();
+                }
+
+                if (event.key === 'Escape' && changeCarteroModal && changeCarteroModal.classList.contains('is-open')) {
+                    closeChangeCarteroModal();
                 }
             });
         });

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CodigoEmpresa;
+use App\Models\Cartero;
 use App\Models\Empresa;
 use App\Models\Estado;
 use App\Models\Origen;
@@ -14,6 +15,7 @@ use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
+use App\Models\User;
 use App\Support\TiktokerTariffPriceCalculator;
 use App\Services\FacturacionCartService;
 use App\Support\SolicitudCode;
@@ -25,6 +27,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class PaquetesEmsController extends Controller
 {
@@ -39,6 +42,13 @@ class PaquetesEmsController extends Controller
     private const EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO = 297;
     private const EVENTO_ID_CERTI_RECIBIDO_OFICINA_ENTREGA = 172;
     private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
+    private const ENCARGADO_CARTERO_ROLES = [
+        'auxiliar_urbano',
+        'auxiliar_urbano_dnd',
+        'auxiliar_7',
+        'cartero_ems',
+        'carteros_ems',
+    ];
 
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
@@ -650,10 +660,14 @@ class PaquetesEmsController extends Controller
 
         $servicios = collect(['CONTRATO', 'EMS', 'CERTI', 'ORDI', 'SOLICITUD']);
         $user = $request->user();
+        $userCity = $this->normalizeEncargadoCity((string) optional($user)->ciudad);
+        $restrictToUserCity = $this->shouldRestrictEncargadoToUserCity($user);
 
         $emsQuery = PaqueteEms::query()
             ->leftJoin('paquetes_ems_formulario as formulario', 'formulario.paquete_ems_id', '=', 'paquetes_ems.id')
             ->leftJoin('estados as estados', 'estados.id', '=', 'paquetes_ems.estado_id')
+            ->leftJoin('cartero as cartero_asignacion', 'cartero_asignacion.id_paquetes_ems', '=', 'paquetes_ems.id')
+            ->leftJoin('users as cartero_user', 'cartero_user.id', '=', 'cartero_asignacion.id_user')
             ->select([
                 'paquetes_ems.id',
                 DB::raw("coalesce(paquetes_ems.codigo::text, '') as codigo"),
@@ -668,6 +682,8 @@ class PaquetesEmsController extends Controller
                 DB::raw("'EMS' as servicio"),
                 DB::raw("coalesce(nullif(trim(formulario.tipo_correspondencia), ''), nullif(trim(formulario.servicio_especial), ''), nullif(trim(paquetes_ems.tipo_correspondencia), ''), nullif(trim(paquetes_ems.servicio_especial), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+                DB::raw('cartero_asignacion.id_user as cartero_user_id'),
+                DB::raw("coalesce(cartero_user.name, '') as cartero_nombre"),
             ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
@@ -687,6 +703,8 @@ class PaquetesEmsController extends Controller
             ->leftJoin('empresa as empresa_directa', 'empresa_directa.id', '=', 'paquetes_contrato.empresa_id')
             ->leftJoin('users as usuario_registro', 'usuario_registro.id', '=', 'paquetes_contrato.user_id')
             ->leftJoin('empresa as empresa_usuario', 'empresa_usuario.id', '=', 'usuario_registro.empresa_id')
+            ->leftJoin('cartero as cartero_asignacion', 'cartero_asignacion.id_paquetes_contrato', '=', 'paquetes_contrato.id')
+            ->leftJoin('users as cartero_user', 'cartero_user.id', '=', 'cartero_asignacion.id_user')
             ->select([
                 'paquetes_contrato.id',
                 DB::raw("coalesce(paquetes_contrato.codigo::text, '') as codigo"),
@@ -701,6 +719,8 @@ class PaquetesEmsController extends Controller
                 DB::raw("'CONTRATO' as servicio"),
                 DB::raw("coalesce(nullif(trim(empresa_directa.nombre), ''), nullif(trim(empresa_usuario.nombre), ''), nullif(trim(paquetes_contrato.contenido), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+                DB::raw('cartero_asignacion.id_user as cartero_user_id'),
+                DB::raw("coalesce(cartero_user.name, '') as cartero_nombre"),
             ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
@@ -717,6 +737,8 @@ class PaquetesEmsController extends Controller
 
         $certiQuery = PaqueteCerti::query()
             ->leftJoin('estados as estados', 'estados.id', '=', 'paquetes_certi.fk_estado')
+            ->leftJoin('cartero as cartero_asignacion', 'cartero_asignacion.id_paquetes_certi', '=', 'paquetes_certi.id')
+            ->leftJoin('users as cartero_user', 'cartero_user.id', '=', 'cartero_asignacion.id_user')
             ->select([
                 'paquetes_certi.id',
                 DB::raw("coalesce(paquetes_certi.codigo::text, '') as codigo"),
@@ -731,6 +753,8 @@ class PaquetesEmsController extends Controller
                 DB::raw("'CERTI' as servicio"),
                 DB::raw("coalesce(nullif(trim(paquetes_certi.tipo), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+                DB::raw('cartero_asignacion.id_user as cartero_user_id'),
+                DB::raw("coalesce(cartero_user.name, '') as cartero_nombre"),
             ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
@@ -747,6 +771,8 @@ class PaquetesEmsController extends Controller
 
         $ordiQuery = PaqueteOrdi::query()
             ->leftJoin('estados as estados', 'estados.id', '=', 'paquetes_ordi.fk_estado')
+            ->leftJoin('cartero as cartero_asignacion', 'cartero_asignacion.id_paquetes_ordi', '=', 'paquetes_ordi.id')
+            ->leftJoin('users as cartero_user', 'cartero_user.id', '=', 'cartero_asignacion.id_user')
             ->select([
                 'paquetes_ordi.id',
                 DB::raw("coalesce(paquetes_ordi.codigo::text, '') as codigo"),
@@ -761,6 +787,8 @@ class PaquetesEmsController extends Controller
                 DB::raw("'ORDI' as servicio"),
                 DB::raw("coalesce(nullif(trim(paquetes_ordi.observaciones), ''), nullif(trim(paquetes_ordi.aduana), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+                DB::raw('cartero_asignacion.id_user as cartero_user_id'),
+                DB::raw("coalesce(cartero_user.name, '') as cartero_nombre"),
             ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
@@ -777,6 +805,8 @@ class PaquetesEmsController extends Controller
 
         $solicitudesQuery = SolicitudCliente::query()
             ->leftJoin('estados as estados', 'estados.id', '=', 'solicitud_clientes.estado_id')
+            ->leftJoin('cartero as cartero_asignacion', 'cartero_asignacion.id_solicitud_cliente', '=', 'solicitud_clientes.id')
+            ->leftJoin('users as cartero_user', 'cartero_user.id', '=', 'cartero_asignacion.id_user')
             ->select([
                 'solicitud_clientes.id',
                 DB::raw("coalesce(nullif(trim(solicitud_clientes.codigo_solicitud), ''), nullif(trim(solicitud_clientes.barcode), ''), 'SIN CODIGO') as codigo"),
@@ -791,6 +821,8 @@ class PaquetesEmsController extends Controller
                 DB::raw("'SOLICITUD' as servicio"),
                 DB::raw("coalesce(nullif(trim(solicitud_clientes.servicio_especial), ''), nullif(trim(solicitud_clientes.observacion), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+                DB::raw('cartero_asignacion.id_user as cartero_user_id'),
+                DB::raw("coalesce(cartero_user.name, '') as cartero_nombre"),
             ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
@@ -817,6 +849,14 @@ class PaquetesEmsController extends Controller
             ->when($servicio !== '', function ($query) use ($servicio) {
                 $query->where('servicio', mb_strtoupper($servicio));
             })
+            ->when($restrictToUserCity, function ($query) use ($userCity) {
+                if ($userCity === '') {
+                    $query->whereRaw('1 = 0');
+                    return;
+                }
+
+                $query->whereRaw("trim(upper(coalesce(ciudad, ''))) = ?", [$userCity]);
+            })
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate(20)
@@ -834,6 +874,9 @@ class PaquetesEmsController extends Controller
             'canReturnDestinationEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.returndestination'),
             'canReturnWindowEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.returnwindow'),
             'canUpdateWeightEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.updateweight'),
+            'canChangeCarteroEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.changecartero')
+                || $this->userCan($user, 'feature.carteros.asignados.change'),
+            'carterosDisponibles' => $this->availableEncargadoCarteroUsersForActor($user),
         ]);
     }
 
@@ -1170,6 +1213,80 @@ class PaquetesEmsController extends Controller
                     ? 'El peso fue actualizado y se registro su evento.'
                     : 'No se pudo actualizar el peso del envio seleccionado.'
             );
+    }
+
+    public function cambiarCarteroEncargado(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.encargado.changecartero',
+            'feature.carteros.asignados.change',
+        ]);
+
+        $data = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+            'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'q' => ['nullable', 'string'],
+            'from' => ['nullable', 'string'],
+            'to' => ['nullable', 'string'],
+        ], [], [
+            'user_id' => 'nuevo cartero',
+        ]);
+
+        $id = (int) $data['id'];
+        $servicio = mb_strtoupper(trim((string) $data['servicio']));
+        $actorUser = $request->user();
+        $actorUserId = (int) optional($actorUser)->id;
+        $newAssignee = User::query()->findOrFail((int) $data['user_id'], ['id', 'name', 'ciudad']);
+
+        if (! $this->encargadoUserHasCarteroRole($newAssignee)) {
+            throw ValidationException::withMessages([
+                'user_id' => 'El usuario seleccionado no tiene un rol habilitado para distribucion.',
+            ]);
+        }
+
+        if (! $this->isSameEncargadoCity($actorUser, $newAssignee)) {
+            throw ValidationException::withMessages([
+                'user_id' => 'Solo puedes cambiar a un cartero de tu mismo departamento.',
+            ]);
+        }
+
+        $record = $this->findEncargadoRecordForService($servicio, $id);
+        if (! $record) {
+            return $this->redirectToEncargadoWithFilters($request)
+                ->with('error', 'No se encontro el envio seleccionado.');
+        }
+
+        $assignment = $this->findOrNewEncargadoCarteroAssignment($servicio, $id);
+        if ((int) ($assignment->id_user ?? 0) === (int) $newAssignee->id) {
+            return $this->redirectToEncargadoWithFilters($request)
+                ->with('error', 'El paquete ya esta asignado a ese cartero.');
+        }
+
+        $previousAssignee = User::query()->find((int) ($assignment->id_user ?? 0), ['id', 'name', 'ciudad']);
+        $eventName = $this->encargadoChangeCarteroEventName($actorUser, $previousAssignee, $newAssignee);
+        $currentState = $this->resolveEncargadoRecordState($servicio, $record);
+        if ((int) ($assignment->id_estados ?? 0) <= 0 && $currentState <= 0) {
+            return $this->redirectToEncargadoWithFilters($request)
+                ->with('error', 'El envio seleccionado no tiene un estado valido para registrar la asignacion.');
+        }
+
+        DB::transaction(function () use ($assignment, $newAssignee, $servicio, $record, $actorUserId, $eventName, $currentState) {
+            $assignment->id_user = (int) $newAssignee->id;
+            if ((int) ($assignment->id_estados ?? 0) <= 0 && $currentState > 0) {
+                $assignment->id_estados = $currentState;
+            }
+            if ((int) ($assignment->id_estado_anterior ?? 0) <= 0 && $currentState > 0) {
+                $assignment->id_estado_anterior = $currentState;
+            }
+            $assignment->updated_at = now();
+            $assignment->save();
+
+            $this->registerEncargadoEvent($servicio, $record, $actorUserId, $eventName);
+        });
+
+        return $this->redirectToEncargadoWithFilters($request)
+            ->with('success', 'Cartero cambiado correctamente.');
     }
 
     public function devolucion()
@@ -2592,6 +2709,129 @@ class PaquetesEmsController extends Controller
     private function userCan($user, string $permission): bool
     {
         return (bool) ($user && method_exists($user, 'can') && $user->can($permission));
+    }
+
+    private function redirectToEncargadoWithFilters(Request $request)
+    {
+        return redirect()->route('paquetes-ems.encargado', array_filter([
+            'servicio' => $request->input('current_servicio'),
+            'q' => $request->input('q'),
+            'from' => $request->input('from'),
+            'to' => $request->input('to'),
+            'page' => $request->input('page'),
+        ]));
+    }
+
+    private function findOrNewEncargadoCarteroAssignment(string $servicio, int $id): Cartero
+    {
+        $column = $this->encargadoCarteroPackageColumn($servicio);
+
+        return Cartero::query()->firstOrNew([$column => $id]);
+    }
+
+    private function encargadoCarteroPackageColumn(string $servicio): string
+    {
+        return match ($servicio) {
+            'EMS' => 'id_paquetes_ems',
+            'CONTRATO' => 'id_paquetes_contrato',
+            'CERTI' => 'id_paquetes_certi',
+            'ORDI' => 'id_paquetes_ordi',
+            'SOLICITUD' => 'id_solicitud_cliente',
+            default => 'id_paquetes_ems',
+        };
+    }
+
+    private function findEncargadoRecordForService(string $servicio, int $id)
+    {
+        return match ($servicio) {
+            'EMS' => PaqueteEms::query()->whereKey($id)->first(),
+            'CONTRATO' => RecojoContrato::query()->whereKey($id)->first(),
+            'CERTI' => PaqueteCerti::query()->whereKey($id)->first(),
+            'ORDI' => PaqueteOrdi::query()->whereKey($id)->first(),
+            'SOLICITUD' => SolicitudCliente::query()->whereKey($id)->first(),
+            default => null,
+        };
+    }
+
+    private function resolveEncargadoRecordState(string $servicio, $record): int
+    {
+        if (! $record) {
+            return 0;
+        }
+
+        return match ($servicio) {
+            'EMS', 'SOLICITUD' => (int) ($record->estado_id ?? 0),
+            'CONTRATO' => (int) ($record->estados_id ?? 0),
+            'CERTI', 'ORDI' => (int) ($record->fk_estado ?? 0),
+            default => 0,
+        };
+    }
+
+    private function encargadoChangeCarteroEventName(?User $actor, ?User $previousAssignee, ?User $newAssignee): string
+    {
+        $actorName = trim((string) ($actor?->name ?? 'SIN USUARIO'));
+        $previousName = trim((string) ($previousAssignee?->name ?? 'SIN CARTERO'));
+        $newName = trim((string) ($newAssignee?->name ?? 'SIN USUARIO'));
+
+        return 'El usuario '
+            . ($actorName !== '' ? $actorName : 'SIN USUARIO')
+            . ' cambio el cartero asignado desde Encargado EMS. Cartero anterior: '
+            . ($previousName !== '' ? $previousName : 'SIN CARTERO')
+            . '. Asigno al cartero: '
+            . ($newName !== '' ? $newName : 'SIN USUARIO')
+            . '.';
+    }
+
+    private function normalizeEncargadoCity(string $city): string
+    {
+        $city = mb_strtoupper(trim($city));
+        $city = preg_replace('/\s+/', ' ', $city) ?? $city;
+
+        return $city;
+    }
+
+    private function isSameEncargadoCity(?User $actor, ?User $assignee): bool
+    {
+        if (! $actor || ! $assignee) {
+            return false;
+        }
+
+        $actorCity = $this->normalizeEncargadoCity((string) ($actor->ciudad ?? ''));
+        $assigneeCity = $this->normalizeEncargadoCity((string) ($assignee->ciudad ?? ''));
+
+        return $actorCity !== '' && $actorCity === $assigneeCity;
+    }
+
+    private function encargadoUserHasCarteroRole(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return $user->roles()
+            ->whereIn(DB::raw('LOWER(name)'), self::ENCARGADO_CARTERO_ROLES)
+            ->exists();
+    }
+
+    private function shouldRestrictEncargadoToUserCity(?User $user): bool
+    {
+        return $this->encargadoUserHasCarteroRole($user);
+    }
+
+    private function availableEncargadoCarteroUsersForActor(?User $actor)
+    {
+        $actorCity = $this->normalizeEncargadoCity((string) optional($actor)->ciudad);
+        if ($actorCity === '') {
+            return collect();
+        }
+
+        return User::query()
+            ->whereHas('roles', function ($query) {
+                $query->whereIn(DB::raw('LOWER(name)'), self::ENCARGADO_CARTERO_ROLES);
+            })
+            ->whereRaw('TRIM(UPPER(ciudad)) = ?', [$actorCity])
+            ->orderBy('name')
+            ->get(['id', 'name', 'ciudad']);
     }
 
     private function nextCorrelativoEmpresa(int $empresaId, string $codigoCliente): int
