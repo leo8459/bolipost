@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 class BitacoraCn33Service
 {
+    private const ALERT_START_DATE = '2026-07-17 00:00:00';
+
     public function getDispatchSummary(string $codEspecial, ?string $regional = null): array
     {
         $codigo = $this->normalizeCode($codEspecial);
@@ -78,6 +80,7 @@ class BitacoraCn33Service
     public function getPendingRegistrationAlert(int $graceHours = 24, int $previewLimit = 5000, ?string $regional = null): array
     {
         $regional = $this->normalizeRegional($regional);
+        $alertStartDate = Carbon::parse(self::ALERT_START_DATE);
         $bitacorasRegistradas = Bitacora::query()
             ->selectRaw('trim(upper(cod_especial)) as cod_especial_normalizado, min(created_at) as bitacora_created_at')
             ->whereNotNull('cod_especial')
@@ -115,6 +118,7 @@ class BitacoraCn33Service
                 count(*) as total_registros
             ')
             ->whereNull('bitacoras_registradas.bitacora_created_at')
+            ->where('cn33_source.created_at', '>=', $alertStartDate)
             ->when($regional !== null, function ($query) use ($regional) {
                 $query->where('cn33_source.regional_normalizada', $regional);
             })
@@ -151,6 +155,7 @@ class BitacoraCn33Service
                 'grace_hours' => $graceHours,
                 'max_days_delay' => 0,
                 'regional' => $regional,
+                'alert_start_date' => $alertStartDate,
                 'rows' => collect(),
             ];
         }
@@ -160,6 +165,7 @@ class BitacoraCn33Service
             'grace_hours' => $graceHours,
             'max_days_delay' => (int) $rows->max('days_delay'),
             'regional' => $regional,
+            'alert_start_date' => $alertStartDate,
             'rows' => $rows,
         ];
     }

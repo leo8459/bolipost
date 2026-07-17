@@ -420,7 +420,7 @@
                             <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
                                 <div>
                                     <strong>Registrar bitacora de envio nacional.</strong>
-                                    Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin registrar en bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas.
+                                    Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin registrar en bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas desde {{ optional(data_get($pendingCn33Alert, 'alert_start_date'))->format('d/m/Y') ?? '17/07/2026' }}.
                                     @if((string) data_get($pendingCn33Alert, 'regional', '') !== '')
                                         Solo se muestran registros de {{ data_get($pendingCn33Alert, 'regional') }}.
                                     @else
@@ -846,21 +846,27 @@
                                                         @endif
                                                     </td>
                                                     <td>
-                                                        <form action="{{ route('bitacoras.destroy', $bitacora) }}" method="POST">
-                                                            <a class="btn btn-sm btn-success" href="{{ route('bitacoras.edit', $bitacora) }}" title="Editar">
-                                                                <i class="fa fa-fw fa-edit"></i>
-                                                            </a>
-                                                            @csrf
-                                                            @method('DELETE')
-                                                            <button
-                                                                type="submit"
-                                                                class="btn btn-danger btn-sm"
-                                                                title="Eliminar"
-                                                                onclick="return confirm('Seguro que deseas eliminar esta bitacora?')"
-                                                            >
-                                                                <i class="fa fa-fw fa-trash"></i>
-                                                            </button>
-                                                        </form>
+                                                        @can('feature.bitacoras.index.delete')
+                                                            <form action="{{ route('bitacoras.destroy', $bitacora) }}" method="POST" class="d-inline">
+                                                        @endcan
+                                                            @can('feature.bitacoras.index.edit')
+                                                                <a class="btn btn-sm btn-success" href="{{ route('bitacoras.edit', $bitacora) }}" title="Editar">
+                                                                    <i class="fa fa-fw fa-edit"></i>
+                                                                </a>
+                                                            @endcan
+                                                            @can('feature.bitacoras.index.delete')
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button
+                                                                    type="submit"
+                                                                    class="btn btn-danger btn-sm"
+                                                                    title="Eliminar"
+                                                                    onclick="return confirm('Seguro que deseas eliminar esta bitacora?')"
+                                                                >
+                                                                    <i class="fa fa-fw fa-trash"></i>
+                                                                </button>
+                                                            </form>
+                                                        @endcan
                                                     </td>
                                                 </tr>
                                             @empty

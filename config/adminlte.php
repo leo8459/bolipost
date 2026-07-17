@@ -463,7 +463,7 @@ return [
             ],
         ],
         [
-            'text' => 'BITACORAS',
+            'text' => 'Factura Tranporte',
             'url' => '/bitacoras',
             'icon' => 'fas fa-book',
         ],

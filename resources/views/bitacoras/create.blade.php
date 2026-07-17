@@ -82,7 +82,7 @@
                     @if(((int) data_get($pendingCn33Alert ?? [], 'count', 0)) > 0)
                         <div class="alert alert-danger">
                             <strong>Registrar bitacora de envio nacional.</strong>
-                            Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 pendientes por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas.
+                            Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 pendientes por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas desde {{ optional(data_get($pendingCn33Alert, 'alert_start_date'))->format('d/m/Y') ?? '17/07/2026' }}.
                             @if((string) data_get($pendingCn33Alert, 'regional', '') !== '')
                                 Solo se muestran registros de {{ data_get($pendingCn33Alert, 'regional') }}.
                             @else
