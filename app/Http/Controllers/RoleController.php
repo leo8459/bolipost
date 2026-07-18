@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Support\AclPermissionRegistry;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
@@ -14,8 +14,8 @@ class RoleController extends Controller
     public function index()
     {
         $roles = Role::query()
+            ->where('guard_name', 'web')
             ->withCount('permissions')
-            ->orderBy('guard_name')
             ->orderBy('name')
             ->paginate(20);
 
@@ -59,35 +59,26 @@ class RoleController extends Controller
     public function create()
     {
         $role = new Role();
-        $guardName = 'web';
-        $permissionGroups = [];
-        $menuPermissionSummary = [];
+        $guardName = $role->guard_name ?: 'web';
+        AclPermissionRegistry::syncPermissions($guardName);
+        $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix($guardName);
+        $menuPermissionSummary = AclPermissionRegistry::menuPermissionSummary($permissionGroups);
         $selectedPermissions = [];
-
-        if ($guardName === 'web') {
-            AclPermissionRegistry::syncPermissions($guardName);
-            $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix($guardName);
-            $menuPermissionSummary = AclPermissionRegistry::menuPermissionSummary($permissionGroups);
-        }
 
         return view('role.create', compact('role', 'permissionGroups', 'menuPermissionSummary', 'selectedPermissions'));
     }
 
     public function store(Request $request)
     {
-        $guardName = $this->normalizeRequestedGuard($request->input('guard_name'));
-        if ($guardName === 'web') {
-            AclPermissionRegistry::syncPermissions($guardName);
-        }
+        AclPermissionRegistry::syncPermissions('web');
 
         $validated = $request->validate([
             'name' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('roles')->where(fn ($query) => $query->where('guard_name', $guardName)),
+                Rule::unique('roles')->where(fn ($query) => $query->where('guard_name', 'web')),
             ],
-            'guard_name' => ['nullable', 'string', Rule::in(['web', 'movil', 'mobile'])],
             'permissions' => 'nullable|array',
             'permissions.*' => 'string|exists:permissions,name',
         ]);
@@ -95,10 +86,10 @@ class RoleController extends Controller
 
         $role = Role::create([
             'name' => $validated['name'],
-            'guard_name' => $guardName,
+            'guard_name' => 'web',
         ]);
 
-        $role->syncPermissions($guardName === 'web' ? $normalizedPermissions : []);
+        $role->syncPermissions($normalizedPermissions);
 
         return redirect()->route('roles.index')
             ->with('success', 'Rol creado correctamente.')
@@ -115,16 +106,17 @@ class RoleController extends Controller
     public function edit($id)
     {
         $role = Role::findOrFail($id);
-        $guardName = $this->normalizeRequestedGuard($role->guard_name);
-        $permissionGroups = [];
-        $menuPermissionSummary = [];
 
-        if ($guardName === 'web') {
-            AclPermissionRegistry::syncPermissions($guardName);
-            $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix($guardName);
-            $menuPermissionSummary = AclPermissionRegistry::menuPermissionSummary($permissionGroups);
+        if ($role->guard_name !== 'web') {
+            return redirect()->route('roles.index')
+                ->with('warning', 'Este modulo solo administra roles internos del guard web.');
         }
 
+        $guardName = $role->guard_name ?: 'web';
+        AclPermissionRegistry::syncPermissions($guardName);
+
+        $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix($guardName);
+        $menuPermissionSummary = AclPermissionRegistry::menuPermissionSummary($permissionGroups);
         $selectedPermissions = $role->permissions()->pluck('name')->all();
 
         return view('role.edit', compact('role', 'permissionGroups', 'menuPermissionSummary', 'selectedPermissions'));
@@ -132,10 +124,12 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role)
     {
-        $guardName = $this->normalizeRequestedGuard($request->input('guard_name', $role->guard_name));
-        if ($guardName === 'web') {
-            AclPermissionRegistry::syncPermissions($guardName);
+        if ($role->guard_name !== 'web') {
+            return redirect()->route('roles.index')
+                ->with('warning', 'Este modulo solo administra roles internos del guard web.');
         }
+
+        AclPermissionRegistry::syncPermissions($role->guard_name ?: 'web');
 
         $validated = $request->validate([
             'name' => [
@@ -143,10 +137,9 @@ class RoleController extends Controller
                 'string',
                 'max:255',
                 Rule::unique('roles')
-                    ->where(fn ($query) => $query->where('guard_name', $guardName))
+                    ->where(fn ($query) => $query->where('guard_name', 'web'))
                     ->ignore($role->id),
             ],
-            'guard_name' => ['nullable', 'string', Rule::in(['web', 'movil', 'mobile'])],
             'permissions' => 'nullable|array',
             'permissions.*' => 'string|exists:permissions,name',
         ]);
@@ -154,10 +147,9 @@ class RoleController extends Controller
 
         $role->update([
             'name' => $validated['name'],
-            'guard_name' => $guardName,
         ]);
 
-        $role->syncPermissions($guardName === 'web' ? $normalizedPermissions : []);
+        $role->syncPermissions($normalizedPermissions);
 
         return redirect()->route('roles.index')
             ->with('success', 'Rol actualizado correctamente.')
@@ -166,26 +158,28 @@ class RoleController extends Controller
 
     public function duplicate(Role $role)
     {
-        $guardName = $this->normalizeRequestedGuard($role->guard_name);
-        if ($guardName === 'web') {
-            AclPermissionRegistry::syncPermissions('web');
+        if ($role->guard_name !== 'web') {
+            return redirect()->route('roles.index')
+                ->with('warning', 'Este modulo solo administra roles internos del guard web.');
         }
+
+        AclPermissionRegistry::syncPermissions($role->guard_name ?: 'web');
 
         $baseName = trim($role->name.' copia');
         $newName = $baseName;
         $suffix = 2;
 
-        while (Role::where('name', $newName)->where('guard_name', $guardName)->exists()) {
+        while (Role::where('name', $newName)->where('guard_name', $role->guard_name ?: 'web')->exists()) {
             $newName = $baseName.' '.$suffix;
             $suffix++;
         }
 
         $newRole = Role::create([
             'name' => $newName,
-            'guard_name' => $guardName,
+            'guard_name' => $role->guard_name ?: 'web',
         ]);
 
-        $newRole->syncPermissions($guardName === 'web' ? $role->permissions()->pluck('name')->all() : []);
+        $newRole->syncPermissions($role->permissions()->pluck('name')->all());
 
         return redirect()->route('roles.edit', $newRole)
             ->with('success', 'Rol duplicado correctamente.');
@@ -194,6 +188,11 @@ class RoleController extends Controller
     public function destroy($id)
     {
         $role = Role::findOrFail($id);
+
+        if ($role->guard_name !== 'web') {
+            return redirect()->route('roles.index')
+                ->with('warning', 'Este modulo solo administra roles internos del guard web.');
+        }
 
         $assignedUsersCount = DB::table(config('permission.table_names.model_has_roles'))
             ->join('users', 'users.id', '=', 'model_has_roles.model_id')
@@ -234,16 +233,5 @@ class RoleController extends Controller
             ->all();
 
         return [$normalizedPermissions, count($normalizedPermissions) !== $submittedCount];
-    }
-
-    private function normalizeRequestedGuard(mixed $guardInput): string
-    {
-        $guard = mb_strtolower(trim((string) ($guardInput ?? 'web')));
-
-        if ($guard === 'movil' || $guard === 'mobile') {
-            return 'movil';
-        }
-
-        return 'web';
     }
 }

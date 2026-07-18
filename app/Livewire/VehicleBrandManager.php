@@ -142,19 +142,6 @@ class VehicleBrandManager extends Component
             'pais_origen' => $this->pais_origen,
         ];
 
-        $duplicateQuery = VehicleBrand::query()
-            ->whereRaw('trim(upper(nombre)) = ?', [mb_strtoupper(trim($this->nombre))])
-            ->whereRaw('trim(upper(pais_origen)) = ?', [mb_strtoupper(trim($this->pais_origen))]);
-
-        if ($this->isEdit && $this->editingBrandId) {
-            $duplicateQuery->where('id', '!=', $this->editingBrandId);
-        }
-
-        if ($duplicateQuery->exists()) {
-            $this->addError('nombre', 'Ya existe una marca con ese nombre y pais de origen.');
-            return;
-        }
-
         if ($this->isEdit && $this->editingBrandId) {
             $brand = VehicleBrand::find($this->editingBrandId);
             if ($brand) {

@@ -1,10 +1,6 @@
 <div class="bp-livewire-skin">
     @include('livewire.partials.button-theme')
     <style>
-        .bp-livewire-skin {
-            font-family: Verdana, Geneva, Tahoma, sans-serif;
-        }
-
         .bp-select-like-vehicle {
             border-radius: 10px;
             min-height: calc(2.35rem + 2px);
@@ -444,17 +440,10 @@
                                         <div class="form-text">El sistema sumara este valor al Km Salida para calcular el kilometraje final.</div>
                                     </div>
                                     <div class="col-12 col-md-6">
-<<<<<<< Updated upstream
                                         <label for="cantidad_paquetes" class="form-label fw-bold">Paquetes entregados</label>
                                         <input type="number" min="0" step="1" id="cantidad_paquetes" wire:model="cantidad_paquetes" class="form-control @error('cantidad_paquetes') is-invalid @enderror">
                                         @error('cantidad_paquetes') <div class="invalid-feedback">{{ $message }}</div> @enderror
                                         <div class="form-text">Registra la cantidad real de paquetes entregados en esta bitacora.</div>
-=======
-                                        <label for="cantidad_paquetes" class="form-label fw-bold">Cantidad de paquetes</label>
-                                        <input type="number" min="0" step="1" id="cantidad_paquetes" wire:model="cantidad_paquetes" class="form-control @error('cantidad_paquetes') is-invalid @enderror">
-                                        @error('cantidad_paquetes') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                                        <div class="form-text">Ingresa cuántos paquetes movio este viaje.</div>
->>>>>>> Stashed changes
                                     </div>
                                 </div>
 

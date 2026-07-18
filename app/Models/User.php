@@ -115,49 +115,16 @@ class User extends Authenticatable
         return $this->hasOne(Driver::class, 'user_id');
     }
 
-    public function resolvedRoleModel(): ?Role
+    public function getRoleAttribute(): ?string
     {
-        $roleName = trim((string) ($this->getRoleNames()->first() ?? ''));
-        if ($roleName !== '') {
-            $role = Role::query()->where('name', $roleName)->first();
-            if ($role) {
-                return $role;
-            }
-        }
-
-        $explicitRoleId = (int) ($this->role_id ?? 0);
-        if ($explicitRoleId > 0) {
-            return Role::query()->find($explicitRoleId);
-        }
-
-        return null;
-    }
-
-    public function resolvedRoleId(): ?int
-    {
-        return $this->resolvedRoleModel()?->id;
-    }
-
-    public function resolvedRoleName(): ?string
-    {
-        $role = $this->resolvedRoleModel();
-        if (!$role) {
-            return null;
-        }
-
-        $roleName = trim((string) ($role->name ?? $role->nombre ?? ''));
+        $roleName = (string) ($this->getRoleNames()->first() ?? '');
         if ($roleName === '') {
             return null;
         }
 
-        $normalized = mb_strtolower($roleName);
+        $normalized = mb_strtolower(trim($roleName));
 
         return self::ROLE_ALIASES[$normalized] ?? $normalized;
-    }
-
-    public function getRoleAttribute(): ?string
-    {
-        return $this->resolvedRoleName();
     }
 
     public function resolvedDriver(): ?Driver

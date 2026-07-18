@@ -299,20 +299,6 @@ class MaintenanceTypeManager extends Component
             ->map(fn ($id) => (int) $id)
             ->unique();
 
-        $duplicateTypeQuery = MaintenanceType::query()
-            ->whereRaw('trim(upper(nombre)) = ?', [mb_strtoupper($this->nombre)])
-            ->whereRaw('trim(upper(maintenance_form_type)) = ?', [mb_strtoupper($this->maintenance_form_type)]);
-
-        if ($this->isEdit && $this->editingId) {
-            $duplicateTypeQuery->where('id', '!=', (int) $this->editingId);
-        }
-
-        if ($duplicateTypeQuery->exists()) {
-            $entityLabel = $this->maintenance_form_type === 'moto' ? 'moto' : 'vehiculo';
-            $this->addError('nombre', "Ya existe un tipo de mantenimiento con ese nombre para {$entityLabel}.");
-            return;
-        }
-
         if ($selectedVehicleIds->isNotEmpty()) {
             $validVehicleCount = Vehicle::query()->whereIn('id', $selectedVehicleIds->all())->count();
             if ($validVehicleCount !== $selectedVehicleIds->count()) {

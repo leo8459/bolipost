@@ -45,11 +45,7 @@ class VehicleLogManager extends Component
     public ?float $kilometraje_recorrido = null;
 
     public ?float $kilometraje_llegada = null;
-<<<<<<< Updated upstream
     public ?int $cantidad_paquetes = null;
-=======
-    public ?int $cantidad_paquetes = 0;
->>>>>>> Stashed changes
 
     #[Validate('required|string|max:255')]
     public string $recorrido_inicio = '';
@@ -301,16 +297,9 @@ class VehicleLogManager extends Component
             return;
         }
 
-        $meta = is_array($alert->meta_json) ? $alert->meta_json : [];
-        $meta['resolved_from_web'] = true;
-        $meta['resolved_from_web_at'] = now()->toIso8601String();
-        $meta['resolved_by_user_id'] = (int) (Auth::id() ?? 0) ?: null;
-        $meta['suppressed_until'] = now()->addHours(6)->toIso8601String();
-
         $alert->update([
             'status' => VehicleOperationAlert::STATUS_RESOLVED,
             'resolved_at' => now(),
-            'meta_json' => $meta,
         ]);
 
         session()->flash('message', 'Alerta operativa marcada como revisada.');
@@ -415,11 +404,7 @@ class VehicleLogManager extends Component
             'kilometraje_salida' => $this->kilometraje_salida,
             'kilometraje_recorrido' => $this->kilometraje_recorrido,
             'kilometraje_llegada' => $this->kilometraje_llegada,
-<<<<<<< Updated upstream
             'cantidad_paquetes' => $this->cantidad_paquetes !== null ? max(0, (int) $this->cantidad_paquetes) : null,
-=======
-            'cantidad_paquetes' => max(0, (int) ($this->cantidad_paquetes ?? 0)),
->>>>>>> Stashed changes
             'recorrido_inicio' => $this->recorrido_inicio,
             'recorrido_destino' => $this->recorrido_destino,
             'abastecimiento_combustible' => $this->resolveAbastecimientoCombustible(),
@@ -473,11 +458,7 @@ class VehicleLogManager extends Component
             : (($this->kilometraje_llegada !== null && $this->kilometraje_salida !== null)
                 ? max(0, $this->kilometraje_llegada - $this->kilometraje_salida)
                 : null);
-<<<<<<< Updated upstream
         $this->cantidad_paquetes = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;
-=======
-        $this->cantidad_paquetes = (int) ($log->cantidad_paquetes ?? 0);
->>>>>>> Stashed changes
         $this->recorrido_inicio = (string) $log->recorrido_inicio;
         $this->recorrido_destino = (string) $log->recorrido_destino;
         $this->latitud_inicio = $log->latitud_inicio !== null ? (float) $log->latitud_inicio : null;
@@ -513,11 +494,7 @@ class VehicleLogManager extends Component
         $this->kilometraje_salida = null;
         $this->kilometraje_recorrido = null;
         $this->kilometraje_llegada = null;
-<<<<<<< Updated upstream
         $this->cantidad_paquetes = null;
-=======
-        $this->cantidad_paquetes = 0;
->>>>>>> Stashed changes
         $this->recorrido_inicio = '';
         $this->recorrido_destino = '';
         $this->latitud_inicio = null;
@@ -1102,15 +1079,9 @@ class VehicleLogManager extends Component
         $items->transform(function ($log) use ($deliveryCounts) {
             $userId = (int) ($log->driver?->user_id ?? 0);
             $date = optional($log->fecha)->format('Y-m-d');
-<<<<<<< Updated upstream
             $derivedCount = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
             $savedCount = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;
             $log->package_count = $savedCount !== null ? $savedCount : $derivedCount;
-=======
-            $savedCount = (int) ($log->cantidad_paquetes ?? 0);
-            $derivedCount = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
-            $log->package_count = $savedCount > 0 ? $savedCount : $derivedCount;
->>>>>>> Stashed changes
 
             return $log;
         });

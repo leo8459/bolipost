@@ -123,14 +123,6 @@
             box-shadow: 0 0 0 .2rem rgba(30, 136, 255, .18);
             outline: 0;
         }
-        .odometro-thumb {
-            width: 50px;
-            height: 50px;
-            object-fit: cover;
-            border-radius: 8px;
-            border: 1px solid #d8e2f4;
-            background: #fff;
-        }
         @media (max-width: 767.98px) {
             .vehicle-confirm-overlay {
                 padding: 12px;
@@ -360,28 +352,6 @@
                             <input type="number" step="0.01" wire:model="capacidad_tanque" class="form-control vehicle-form-field @error('capacidad_tanque') is-invalid @enderror" required min="3" max="150">
                             @error('capacidad_tanque') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
-                        <div class="col-12 col-md-8">
-                            <label class="form-label fw-bold">Foto inicial de kilometraje *</label>
-                            <input
-                                type="file"
-                                wire:model="kilometraje_inicial_photo"
-                                class="form-control vehicle-form-field @error('kilometraje_inicial_photo') is-invalid @enderror"
-                                accept="image/*"
-                                @if(!$isEdit || !$currentKilometrajeInicialPhotoPath) required @endif
-                            >
-                            @error('kilometraje_inicial_photo') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                            <div class="form-text">Formatos de imagen permitidos. Tamano maximo: 5 MB.</div>
-                            <div class="d-flex align-items-center gap-2 mt-2">
-                                @if ($kilometraje_inicial_photo)
-                                    <img src="{{ $kilometraje_inicial_photo->temporaryUrl() }}" alt="Vista previa kilometraje inicial" class="odometro-thumb">
-                                @elseif ($currentKilometrajeInicialPhotoUrl)
-                                    <img src="{{ $currentKilometrajeInicialPhotoUrl }}" alt="Foto actual kilometraje inicial" class="odometro-thumb">
-                                @endif
-                                @if ($kilometraje_inicial_photo || $currentKilometrajeInicialPhotoUrl)
-                                    <span class="small text-muted">Vista previa</span>
-                                @endif
-                            </div>
-                        </div>
                         <div class="col-12 col-md-4">
                             <div class="form-check bp-switch mt-3 mt-md-4 pt-md-2">
                                 <input class="form-check-input" type="checkbox" id="vehiculo_activo" wire:model="activo">
@@ -476,7 +446,7 @@
                             @endif
                         </div>
                         <div class="card-footer d-flex justify-content-end gap-2">
-                            <button type="button" wire:click="cancelMaintenanceBackfill" class="btn btn-outline-secondary">Guardar sin asignar</button>
+                            <button type="button" wire:click="cancelMaintenanceBackfill" class="btn btn-outline-secondary">No asignar</button>
                             <button type="button" wire:click="confirmMaintenanceBackfill" class="btn btn-warning text-dark">Guardar y aplicar seleccionados</button>
                         </div>
                     </div>
@@ -488,15 +458,15 @@
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="p-3 border-bottom">
-                    <div class="row g-2 align-items-end">
-                        <div class="col-12 col-xl-4">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-8">
                             <input
                                 type="text"
                                 class="form-control"
                                 wire:model.live.debounce.350ms="search"
                                 placeholder="Buscar por cualquier campo">
                         </div>
-                        <div class="col-12 col-sm-6 col-xl-2">
+                        <div class="col-12 col-md-4">
                             <select class="form-control vehicle-form-field" wire:model.live="statusFilter">
                                 <option value="activos">Activos</option>
                                 @if(auth()->user()?->hasRole('regional') || auth()->user()?->role === 'regional')
@@ -506,29 +476,6 @@
                                     <option value="mantenimiento">En mantenimiento</option>
                                     <option value="inactivos">Inactivos</option>
                                 @endif
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-xl-2">
-                            <select class="form-control vehicle-form-field" wire:model.live="vehicleTypeFilter">
-                                <option value="">Vehiculos y motos</option>
-                                @foreach($maintenanceFormTypes as $formType)
-                                    <option value="{{ $formType }}">{{ $formType === 'moto' ? 'Moto' : 'Vehiculo' }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-xl-2">
-                            <select class="form-control vehicle-form-field" wire:model.live="fuelTypeFilter">
-                                <option value="">Tipo de gasolina</option>
-                                @foreach($fuelTypes as $fuelType)
-                                    <option value="{{ $fuelType }}">{{ ucfirst($fuelType) }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-xl-2">
-                            <select class="form-control vehicle-form-field" wire:model.live="tacometroFilter">
-                                <option value="todos">Tacometro: Todos</option>
-                                <option value="operativo">Tacometro: OK</option>
-                                <option value="danado">Tacometro: Danado</option>
                             </select>
                         </div>
                     </div>

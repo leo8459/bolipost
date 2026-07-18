@@ -1,10 +1,6 @@
 <div class="bp-livewire-skin">
     @include('livewire.partials.button-theme')
     <style>
-        .bp-livewire-skin {
-            font-family: Verdana, Geneva, Tahoma, sans-serif;
-        }
-
         .bp-select-like-vehicle {
             border-radius: 10px;
             min-height: calc(2.35rem + 2px);
