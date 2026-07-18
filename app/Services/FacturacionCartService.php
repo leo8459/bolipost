@@ -1379,15 +1379,13 @@ class FacturacionCartService
         User $user,
         ?int $cartId = null,
         bool $autoEmitInvoice = false,
-        bool $allowPendingRetry = true,
-        string $codigoOrdenMode = 'same'
+        bool $allowPendingRetry = true
     ): array
     {
         $payload = [
             'origen_usuario_id' => (string) $user->id,
             'cart_id' => $cartId,
             'auto_emit_invoice' => $autoEmitInvoice,
-            'codigo_orden_mode' => in_array($codigoOrdenMode, ['same', 'new'], true) ? $codigoOrdenMode : 'same',
         ];
 
         Log::info('FacturacionCartService consultarEstadoEmision: inicio.', [
@@ -1446,7 +1444,7 @@ class FacturacionCartService
             }
 
             try {
-                $invoiceResult = $this->emitFacturaForPaidQrCart($user, $cart, $payload['codigo_orden_mode'] ?? 'same');
+                $invoiceResult = $this->emitFacturaForPaidQrCart($user, $cart);
                 $this->markAutoEmitAttemptCooldown($invoiceResult['carrito'] ?? $cart, 300);
 
                 Log::info('FacturacionCartService consultarEstadoEmision: auto factura ejecutada.', [
@@ -1540,10 +1538,6 @@ class FacturacionCartService
     private function shouldAutoEmitPaidQrInvoice(?object $cart, array $respuesta, bool $autoEmitInvoice): bool
     {
         if (!$autoEmitInvoice || !$cart) {
-            Log::info('FacturacionCartService shouldAutoEmitPaidQrInvoice: omitido.', [
-                'reason' => !$autoEmitInvoice ? 'auto_emit_disabled' : 'missing_cart',
-                'cart_id' => $cart->id ?? null,
-            ]);
             return false;
         }
 
@@ -1560,23 +1554,10 @@ class FacturacionCartService
 
         $isQrOrigin = $canalEmision === 'qr' || $metodoPago === 'qr';
         if (!$isQrOrigin) {
-            Log::info('FacturacionCartService shouldAutoEmitPaidQrInvoice: omitido.', [
-                'reason' => 'not_qr_origin',
-                'cart_id' => $cart->id ?? null,
-                'canal_emision' => $canalEmision,
-                'metodo_pago' => $metodoPago,
-            ]);
             return false;
         }
 
         if (!in_array($estadoPago, ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'], true)) {
-            Log::info('FacturacionCartService shouldAutoEmitPaidQrInvoice: omitido.', [
-                'reason' => 'payment_not_confirmed',
-                'cart_id' => $cart->id ?? null,
-                'estado_pago' => $estadoPago,
-                'respuesta_estado_pago' => data_get($respuesta, 'estado_pago'),
-                'payment_status' => data_get($respuesta, 'payment_status'),
-            ]);
             return false;
         }
 
@@ -1596,46 +1577,11 @@ class FacturacionCartService
             ?? ''
         ));
 
-        if (in_array($estadoEmision, ['RECHAZADA', 'ERROR'], true)) {
-            Log::info('FacturacionCartService shouldAutoEmitPaidQrInvoice: permitido por reintento.', [
-                'reason' => 'retry_rejected_or_error',
-                'cart_id' => $cart->id ?? null,
-                'estado_emision' => $estadoEmision,
-                'numero_factura' => $numeroFactura,
-                'codigo_seguimiento_fiscal' => $codigoSeguimientoFiscal,
-            ]);
-            return true;
-        }
-
-        if ($numeroFactura !== '') {
-            Log::info('FacturacionCartService shouldAutoEmitPaidQrInvoice: omitido.', [
-                'reason' => 'already_invoiced',
-                'cart_id' => $cart->id ?? null,
-                'numero_factura' => $numeroFactura,
-                'estado_emision' => $estadoEmision,
-            ]);
+        if ($codigoSeguimientoFiscal !== '' || $numeroFactura !== '') {
             return false;
         }
 
-        if ($codigoSeguimientoFiscal !== '') {
-            Log::info('FacturacionCartService shouldAutoEmitPaidQrInvoice: omitido.', [
-                'reason' => 'has_fiscal_tracking',
-                'cart_id' => $cart->id ?? null,
-                'codigo_seguimiento_fiscal' => $codigoSeguimientoFiscal,
-                'estado_emision' => $estadoEmision,
-            ]);
-            return false;
-        }
-
-        $allowed = in_array($estadoEmision, ['', 'NO_APLICA'], true);
-        Log::info('FacturacionCartService shouldAutoEmitPaidQrInvoice: decision final.', [
-            'cart_id' => $cart->id ?? null,
-            'estado_emision' => $estadoEmision,
-            'codigo_seguimiento_fiscal' => $codigoSeguimientoFiscal,
-            'allowed' => $allowed,
-        ]);
-
-        return $allowed;
+        return in_array($estadoEmision, ['', 'NO_APLICA'], true);
     }
 
     private function resolveAutoEmitAttemptStatus(object $cart): string
@@ -1701,7 +1647,7 @@ class FacturacionCartService
         return 'facturacion:qr:auto-emit:cooldown:' . $cartId;
     }
 
-    private function emitFacturaForPaidQrCart(User $user, object $cart, string $codigoOrdenMode = 'same'): array
+    private function emitFacturaForPaidQrCart(User $user, object $cart): array
     {
         $targetCartId = (int) ($cart->id ?? 0);
         if ($targetCartId <= 0) {
@@ -1732,26 +1678,10 @@ class FacturacionCartService
             'qr_transaction_id' => $targetCart->qr_transaction_id ?? null,
             'estado_pago' => $targetCart->estado_pago ?? null,
             'estado_emision' => $targetCart->estado_emision ?? null,
-            'codigo_orden_mode' => $codigoOrdenMode,
             'billing_snapshot' => $billingSnapshot,
         ]);
 
-        $billingSnapshot['codigo_orden_mode'] = in_array($codigoOrdenMode, ['same', 'new'], true) ? $codigoOrdenMode : 'same';
-
-        $result = $this->emitirBorrador($user, $billingSnapshot, $targetCartId);
-
-        Log::info('FacturacionCartService emitFacturaForPaidQrCart: resultado reemision.', [
-            'user_id' => $user->id,
-            'cart_id' => data_get($result, 'carrito.id', $targetCartId),
-            'codigo_orden_original' => $targetCart->codigo_orden ?? null,
-            'codigo_orden_resultado' => data_get($result, 'carrito.codigo_orden'),
-            'estado_emision_resultado' => data_get($result, 'carrito.estado_emision'),
-            'respuesta_estado' => data_get($result, 'respuesta.estado'),
-            'respuesta_codigo_seguimiento' => data_get($result, 'respuesta.codigoSeguimiento'),
-            'codigo_orden_mode' => $codigoOrdenMode,
-        ]);
-
-        return $result;
+        return $this->emitirBorrador($user, $billingSnapshot, $targetCartId);
     }
 
     private function buildFacturaElectronicaBillingSnapshot(object $cart): array

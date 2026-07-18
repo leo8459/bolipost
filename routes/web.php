@@ -61,7 +61,6 @@ use App\Http\Controllers\Web\MaintenanceRequestFormController;
 use App\Http\Controllers\Web\MapController;
 use App\Http\Controllers\Web\QrDecoderController;
 use App\Http\Controllers\AppConfigController;
-use App\Http\Controllers\ExternalApiTokenController;
 use App\Http\Controllers\Web\VehicleLogMapController;
 use App\Http\Controllers\Web\VehicleLogMapPageController;
 use App\Http\Controllers\Web\VehicleAssignmentReportController;
@@ -231,11 +230,6 @@ Route::get('/mis-ventas/{cart}/ticket', [MisVentasController::class, 'ticket'])
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
     Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');
     Route::put('/configuracion/aplicacion', [AppConfigController::class, 'update'])->name('configuracion.aplicacion.update');
-    Route::get('/configuracion/apis', [ExternalApiTokenController::class, 'index'])->name('configuracion.apis.index');
-    Route::post('/configuracion/apis', [ExternalApiTokenController::class, 'store'])->name('configuracion.apis.store');
-    Route::get('/configuracion/apis/manual', [ExternalApiTokenController::class, 'downloadManual'])->name('configuracion.apis.manual');
-    Route::patch('/configuracion/apis/{token}/dar-baja', [ExternalApiTokenController::class, 'deactivate'])->name('configuracion.apis.deactivate');
-    Route::patch('/configuracion/apis/{token}/activar', [ExternalApiTokenController::class, 'activate'])->name('configuracion.apis.activate');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
     Route::get('users/pdf', [UserController::class, 'pdf'])->name('users.pdf');

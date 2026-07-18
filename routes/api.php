@@ -4,7 +4,6 @@ use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\Api\AuthTokenController;
 use App\Http\Controllers\Api\AlertReadApiController;
-use App\Http\Controllers\Api\DireccionDestinoApiController;
 use App\Http\Controllers\Api\EventosSiopApiController;
 use App\Http\Controllers\Api\FuelLogApiController;
 use App\Http\Controllers\Api\FuelScrapeApiController;
@@ -42,23 +41,6 @@ Route::post('/fuel-logs/scrape-from-qr', [FuelScrapeApiController::class, 'scrap
 Route::get('/siop/eventos', [EventosSiopApiController::class, 'index'])
     ->middleware(['siop.api.token', 'throttle:20,1'])
     ->name('api.siop.eventos.index');
-
-Route::middleware(['external.api.jwt', 'throttle:120,1'])->group(function () {
-    Route::get('/direcciones-destino', [DireccionDestinoApiController::class, 'index'])
-        ->name('api.direcciones-destino.index');
-    Route::get('/direcciones-destino/todos', [DireccionDestinoApiController::class, 'todos'])
-        ->name('api.direcciones-destino.todos');
-    Route::get('/direcciones-destino/todo', [DireccionDestinoApiController::class, 'todo'])
-        ->name('api.direcciones-destino.todo');
-    Route::get('/direcciones-destino/cantidad', [DireccionDestinoApiController::class, 'cantidad'])
-        ->name('api.direcciones-destino.cantidad');
-    Route::get('/direcciones-destino/{tipo}/{id}', [DireccionDestinoApiController::class, 'show'])
-        ->whereNumber('id')
-        ->name('api.direcciones-destino.show');
-    Route::match(['put', 'patch', 'post'], '/direcciones-destino/{tipo}/{id}', [DireccionDestinoApiController::class, 'update'])
-        ->whereNumber('id')
-        ->name('api.direcciones-destino.update');
-});
 
 Route::middleware('web')->group(function () {
     Route::post('/mobile/login', [AuthTokenController::class, 'login']);
