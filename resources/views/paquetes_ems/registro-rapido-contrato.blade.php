@@ -275,6 +275,7 @@
                     @php
                         $destinoPrefill = old('destino', '');
                         $provinciaPrefill = strtoupper(trim((string) old('provincia', '')));
+                        $provinciaOrigenPrefill = strtoupper(trim((string) old('provincia_origen', '')));
                         $empresaPrefill = (int) old('empresa_id', 0);
                     @endphp
                     <div class="quick-panel">
@@ -311,6 +312,12 @@
                             <div class="form-group">
                                 <label>Origen (usuario logueado)</label>
                                 <input type="text" id="registroRapidoOrigen" class="form-control origin-input" value="{{ $origen }}" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-2 col-md-4">
+                            <div class="form-group">
+                                <label>Provincia origen (opcional)</label>
+                                <input type="text" name="provincia_origen" id="registroRapidoProvinciaOrigen" class="form-control text-uppercase" value="{{ $provinciaOrigenPrefill }}" placeholder="Escribe provincia origen">
                             </div>
                         </div>
                         <div class="col-lg-2 col-md-4">
@@ -385,6 +392,7 @@
                                     <th>Cantidad</th>
                                     <th>Peso</th>
                                     <th>Origen</th>
+                                    <th>Provincia origen</th>
                                     <th>Destino</th>
                                     <th>Provincia</th>
                                     <th>Empresa</th>
@@ -399,6 +407,7 @@
                                         <td>{{ !empty($item['cantidad']) ? $item['cantidad'] : '-' }}</td>
                                         <td>{{ $item['peso'] ?? '-' }}</td>
                                         <td>{{ $item['origen'] ?? '-' }}</td>
+                                        <td>{{ $item['provincia_origen'] ?? '-' }}</td>
                                         <td>{{ $item['destino'] ?? '-' }}</td>
                                         <td>{{ $item['provincia'] ?? '-' }}</td>
                                         <td>{{ $item['empresa'] ?? '-' }}</td>
@@ -417,7 +426,7 @@
                                     </tr>
                                 @empty
                                     <tr id="registroRapidoListadoEmpty">
-                                        <td colspan="9" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
+                                        <td colspan="10" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -437,6 +446,7 @@
         const pesoInput = document.getElementById('registroRapidoPeso');
         const cantidadInput = document.getElementById('registroRapidoCantidad');
         const origenInput = document.getElementById('registroRapidoOrigen');
+        const provinciaOrigenInput = document.getElementById('registroRapidoProvinciaOrigen');
         const destinoInput = document.getElementById('registroRapidoDestino');
         const provinciaInput = document.getElementById('registroRapidoProvincia');
         const empresaInput = document.getElementById('registroRapidoEmpresa');
@@ -511,7 +521,7 @@
             listBody.innerHTML = '';
 
             if (!prelista.length) {
-                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="9" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
+                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="10" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
                 if (listCount) listCount.textContent = '0';
                 return;
             }
@@ -534,6 +544,7 @@
                     <td>${escapeHtml(item.cantidad || '-')}</td>
                     <td>${escapeHtml(item.peso)}</td>
                     <td>${escapeHtml(item.origen)}</td>
+                    <td>${escapeHtml(item.provincia_origen || '-')}</td>
                     <td>${escapeHtml(item.destino)}</td>
                     <td>${escapeHtml(item.provincia || '-')}</td>
                     <td>${escapeHtml(item.empresa || '-')}</td>
@@ -555,6 +566,7 @@
             const cantidad = String(cantidadInput?.value || '').trim();
             const destino = String(destinoInput.value || '').trim().toUpperCase();
             const origen = String(origenInput.value || '').trim().toUpperCase();
+            const provinciaOrigen = String(provinciaOrigenInput?.value || '').trim().toUpperCase();
             const provincia = String(provinciaInput?.value || '').trim().toUpperCase();
             const empresaIdValue = String(empresaInput?.value || '').trim();
             const empresaId = empresaIdValue !== '' ? Number(empresaIdValue) : null;
@@ -592,6 +604,7 @@
                 cantidad: cantidad,
                 peso: Number(peso).toFixed(3),
                 origen: origen,
+                provincia_origen: provinciaOrigen,
                 destino: destino,
                 provincia: provincia,
                 empresa_id: Number.isFinite(empresaId) ? empresaId : null,
@@ -616,6 +629,9 @@
             pesoInput.value = item.peso;
             if (cantidadInput) {
                     cantidadInput.value = item.cantidad || '';
+            }
+            if (provinciaOrigenInput) {
+                provinciaOrigenInput.value = item.provincia_origen || '';
             }
             destinoInput.value = item.destino;
             renderProvinciaOptions(item.destino, item.provincia || '');
@@ -684,6 +700,7 @@
                             codigo: item.codigo,
                             cantidad: item.cantidad || null,
                             peso: item.peso,
+                            provincia_origen: item.provincia_origen || null,
                             destino: item.destino,
                             provincia: item.provincia || null,
                             empresa_id: item.empresa_id || null,
@@ -725,6 +742,9 @@
                 if (cantidadInput) {
                     cantidadInput.value = '';
                 }
+                if (provinciaOrigenInput) {
+                    provinciaOrigenInput.value = '';
+                }
                 if (provinciaInput) {
                     provinciaInput.value = '';
                 }
@@ -747,6 +767,11 @@
 
         renderPrelista();
         renderProvinciaOptions(destinoInput ? destinoInput.value : '', oldProvincia);
+        if (provinciaOrigenInput) {
+            provinciaOrigenInput.addEventListener('input', function () {
+                this.value = String(this.value || '').toUpperCase();
+            });
+        }
         if (empresaInput && oldEmpresaId > 0) {
             empresaInput.value = String(oldEmpresaId);
         }

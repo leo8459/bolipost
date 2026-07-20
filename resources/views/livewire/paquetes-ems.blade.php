@@ -2706,7 +2706,7 @@
                     @endif
 
                     <div class="form-group">
-                        <label>Ciudad destino regional</label>
+                        <label>Ciudad destino regional<span class="required-star">*</span></label>
                         <select wire:model.defer="regionalDestino" class="form-control">
                             <option value="">Seleccione...</option>
                             @foreach($ciudades as $ciudadOpt)
@@ -2715,7 +2715,11 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Modo de transporte</label>
+                        <label>Provincia (opcional)</label>
+                        <input type="text" wire:model.defer="regionalProvincia" class="form-control text-uppercase" placeholder="Escribe la provincia destino">
+                    </div>
+                    <div class="form-group">
+                        <label>Modo de transporte<span class="required-star">*</span></label>
                         <select wire:model.defer="regionalTransportMode" class="form-control">
                             <option value="TERRESTRE">TERRESTRE</option>
                             <option value="AEREO">AEREO</option>
@@ -2850,7 +2854,7 @@
                     @endif
 
                     <div class="form-group">
-                        <label>Ciudad destino regional</label>
+                        <label>Ciudad destino regional<span class="required-star">*</span></label>
                         <select wire:model.defer="regionalDestinoContrato" class="form-control">
                             <option value="">Seleccione...</option>
                             @foreach($ciudades as $ciudadOpt)
@@ -2859,7 +2863,11 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Modo de transporte</label>
+                        <label>Provincia (opcional)</label>
+                        <input type="text" wire:model.defer="regionalProvinciaContrato" class="form-control text-uppercase" placeholder="Escribe la provincia destino">
+                    </div>
+                    <div class="form-group">
+                        <label>Modo de transporte<span class="required-star">*</span></label>
                         <select wire:model.defer="regionalTransportModeContrato" class="form-control">
                             <option value="TERRESTRE">TERRESTRE</option>
                             <option value="AEREO">AEREO</option>
