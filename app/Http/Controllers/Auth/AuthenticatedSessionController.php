@@ -68,16 +68,12 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-<<<<<<< Updated upstream
         Log::info('Sesion regenerada despues del login.', [
             'user_id' => $request->user()?->id,
             'session_id_after_regenerate' => $request->session()->getId(),
         ]);
 
         return redirect()->intended($fallbackUrl);
-=======
-        return redirect()->to($this->firstAuthorizedUrl($user));
->>>>>>> Stashed changes
     }
 
     /**

@@ -307,7 +307,7 @@ class Recojo extends Component
     $authUser = Auth::user();
     $authUserId = (int) ($authUser?->id ?? 0);
     $authEmpresaId = (int) ($authUser?->empresa_id ?? 0);
-    $hasGlobalDepartmentAccess = (bool) ($authUser?->isSuperAdmin() ?? false);
+    $hasGlobalDepartmentAccess = (bool) ($authUser?->isGlobalDepartmentViewer() ?? false);
 
     $recojos = RecojoModel::query()
         ->with([

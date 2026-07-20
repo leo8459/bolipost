@@ -794,7 +794,7 @@ class PaqueteCerti extends Component
     {
         $q = trim($this->searchQuery);
         $userCity = trim((string) optional(auth()->user())->ciudad);
-        $hasGlobalDepartmentAccess = (bool) optional(auth()->user())->isSuperAdmin();
+        $hasGlobalDepartmentAccess = (bool) optional(auth()->user())->isGlobalDepartmentViewer();
         $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
         $estadoRezagoId = $this->getEstadoIdByNombre(self::ESTADO_REZAGO);
         $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);

@@ -95,7 +95,12 @@
                                     <td>{{ number_format((float) ($c->peso ?? 0), 3) }}</td>
                                     <td>
                                         @if (!empty($c->imagen) && ($canContratoEntregadoExport ?? false))
-                                            <a href="{{ asset('storage/' . $c->imagen) }}" class="btn btn-sm btn-outline-azul" download>Descargar</a>
+                                            <a href="{{ route('delivery-images.show', ['source' => 'contrato', 'id' => $c->id], false) }}"
+                                               class="btn btn-sm btn-outline-azul"
+                                               target="_blank"
+                                               rel="noopener">
+                                                Ver imagen
+                                            </a>
                                         @else
                                             <span class="muted">-</span>
                                         @endif

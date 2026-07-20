@@ -434,12 +434,8 @@ class Users extends Component
 
         return view('livewire.users', [
             'users' => $users,
-<<<<<<< Updated upstream
             'groupedUsers' => $groupedUsers,
-            'roles' => Role::query()->orderBy('name')->get(),
-=======
             'roles' => Role::query()->where('guard_name', self::ROLE_GUARD_WEB)->orderBy('name')->get(),
->>>>>>> Stashed changes
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
             'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
             'regionales' => $this->regionalesDisponibles(),

@@ -14,7 +14,6 @@ class VehicleMaintenanceReportController extends Controller
         $vehicle->load([
             'brand:id,nombre',
             'vehicleClass:id,nombre',
-<<<<<<< Updated upstream
             'assignments' => fn ($query) => $query
                 ->with([
                     'driver.user.sucursal:id,municipio,departamento',
@@ -23,16 +22,12 @@ class VehicleMaintenanceReportController extends Controller
                 ->orderByDesc('fecha_inicio')
                 ->orderByDesc('updated_at')
                 ->orderByDesc('id'),
-=======
-            'assignments.driver:id,nombre',
->>>>>>> Stashed changes
             'maintenanceLogs' => fn ($query) => $query
                 ->with('maintenanceType:id,nombre')
                 ->orderByDesc('fecha')
                 ->orderByDesc('id'),
         ]);
 
-<<<<<<< Updated upstream
         $currentAssignment = $vehicle->assignments->first();
         $assignedDriver = $currentAssignment?->driver;
         $assignedUser = $assignedDriver?->user;
@@ -44,23 +39,6 @@ class VehicleMaintenanceReportController extends Controller
                 $assignedUser?->sucursal?->municipio,
             ])->filter()->implode(' - '));
         }
-=======
-        $currentAssignment = $vehicle->assignments
-            ->filter(function ($assignment) {
-                $today = now()->toDateString();
-
-                return (bool) ($assignment->activo ?? false)
-                    && (!$assignment->fecha_inicio || $assignment->fecha_inicio->toDateString() <= $today)
-                    && (!$assignment->fecha_fin || $assignment->fecha_fin->toDateString() >= $today);
-            })
-            ->sortByDesc(fn ($assignment) => optional($assignment->fecha_inicio)?->timestamp ?? 0)
-            ->sortByDesc('id')
-            ->first();
-
-        $regional = trim((string) ($request->user()?->sucursal?->departamento
-            ?? $request->user()?->ciudad
-            ?? ''));
->>>>>>> Stashed changes
 
         $pdf = Pdf::loadView('reports.vehicle-maintenance-history', [
             'vehicle' => $vehicle,
@@ -70,11 +48,6 @@ class VehicleMaintenanceReportController extends Controller
             'regional' => $regional !== '' ? $regional : null,
             'generatedAt' => now(),
             'generatedBy' => $request->user(),
-<<<<<<< Updated upstream
-=======
-            'currentAssignment' => $currentAssignment,
-            'regional' => $regional !== '' ? $regional : '-',
->>>>>>> Stashed changes
         ])->setPaper('letter', 'landscape');
 
         $filename = sprintf(

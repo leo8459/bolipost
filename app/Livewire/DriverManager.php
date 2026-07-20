@@ -150,11 +150,7 @@ class DriverManager extends Component
         $drivers = $query->paginate(10);
         $users = auth()->user()?->role === 'conductor'
             ? collect()
-<<<<<<< Updated upstream
-            : $this->availableDriverUsers();
-=======
             : $this->resolveSelectableUsers();
->>>>>>> Stashed changes
         
         return view('livewire.driver-manager', [
             'drivers' => $drivers,
@@ -288,16 +284,9 @@ class DriverManager extends Component
             ]
         );
 
-<<<<<<< Updated upstream
-        $selectedUser = User::query()->find((int) $this->user_id);
-        if (!$selectedUser || !$this->isDriverRoleUser($selectedUser)) {
-            $this->addError('user_id', 'Solo puede seleccionar usuarios con rol de conductor.');
-            session()->flash('error', 'No se pudo registrar: el usuario seleccionado no tiene rol de conductor.');
-=======
         if (!$this->isUserSelectableForDriver((int) $this->user_id)) {
             $this->addError('user_id', 'Debe seleccionar un usuario con rol conductor que no este vinculado a otro conductor.');
             session()->flash('error', 'No se pudo registrar: el usuario no tiene rol conductor o ya esta vinculado.');
->>>>>>> Stashed changes
             return;
         }
 
@@ -562,7 +551,6 @@ class DriverManager extends Component
         }
     }
 
-<<<<<<< Updated upstream
     private function isRegionalUser(): bool
     {
         $user = auth()->user();
@@ -571,30 +559,6 @@ class DriverManager extends Component
             mb_strtolower(trim((string) ($user->role ?? ''))) === 'regional'
             || (method_exists($user, 'hasRole') && $user->hasRole('regional'))
         );
-    }
-
-    private function availableDriverUsers()
-    {
-        $query = User::query()
-            ->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'conductor'))
-            ->orderBy('name');
-
-        $users = $query->get(['id', 'name', 'email']);
-
-        if ($this->user_id && !$users->contains('id', $this->user_id)) {
-            $selectedUser = User::query()->find($this->user_id, ['id', 'name', 'email']);
-            if ($selectedUser && $this->isDriverRoleUser($selectedUser)) {
-                $users->push($selectedUser);
-            }
-        }
-
-        return $users;
-    }
-
-    private function isDriverRoleUser(User $user): bool
-    {
-        return mb_strtolower(trim((string) ($user->role ?? ''))) === 'conductor'
-            || (method_exists($user, 'hasRole') && $user->hasRole('conductor'));
     }
 
     public function getViewingDriverProperty(): ?Driver
@@ -606,7 +570,8 @@ class DriverManager extends Component
         return Driver::query()
             ->with('user')
             ->find($this->viewingDriverId);
-=======
+    }
+
     private function resolveSelectableUsers()
     {
         $query = User::query()
@@ -659,6 +624,5 @@ class DriverManager extends Component
             ->where('user_id', $userId)
             ->when($this->isEdit && $this->editingDriverId, fn ($query) => $query->where('id', '!=', $this->editingDriverId))
             ->exists();
->>>>>>> Stashed changes
     }
 }

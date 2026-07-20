@@ -246,11 +246,8 @@ class MaintenanceLogManager extends Component
             }
         }
 
-<<<<<<< Updated upstream
-=======
         $canUseExistingRecordFlow = $this->isEdit && (int) ($this->editingMaintenanceId ?? 0) > 0;
 
->>>>>>> Stashed changes
         $this->tipo = (string) $selectedType->nombre;
         if (trim($this->descripcion) === '') {
             $this->descripcion = (string) ($selectedType->descripcion ?? '');

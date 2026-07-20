@@ -86,17 +86,7 @@ class WorkshopManager extends Component
 
     public function mount(): void
     {
-<<<<<<< Updated upstream
-        $user = auth()->user();
-
-        abort_unless(
-            in_array($user?->role, ['admin', 'recepcion', 'taller'], true)
-                || (method_exists($user, 'can') && $user->can('livewire.workshops')),
-            403
-        );
-=======
         abort_unless($this->userHasAnyRole(['admin', 'recepcion', 'taller']), 403);
->>>>>>> Stashed changes
         $this->ensurePartRow();
 
         $fromAlertId = (int) request()->query('from_alert_id', 0);
@@ -728,19 +718,8 @@ class WorkshopManager extends Component
             ]))),
         ] + $updates;
 
-<<<<<<< Updated upstream
         $payload = $this->filterWorkshopAttributes($payload);
 
-        if ($this->isWorkshopUser()) {
-            $updated = Workshop::query()
-                ->where('id', (int) $workshop->id)
-                ->where('estado', Workshop::STATUS_PENDING)
-                ->where(function ($query) use ($workshop) {
-                    if ($workshop->workshop_catalog_id) {
-                        $query->where('workshop_catalog_id', (int) $workshop->workshop_catalog_id);
-                        return;
-                    }
-=======
         $updated = DB::transaction(function () use ($workshop, $payload) {
             if ($this->isWorkshopUser()) {
                 return Workshop::query()
@@ -751,7 +730,6 @@ class WorkshopManager extends Component
                             $query->where('workshop_catalog_id', (int) $workshop->workshop_catalog_id);
                             return;
                         }
->>>>>>> Stashed changes
 
                         $query->whereNull('workshop_catalog_id');
                     })
@@ -902,48 +880,6 @@ class WorkshopManager extends Component
             return;
         }
 
-<<<<<<< Updated upstream
-        if (!empty($validated['maintenance_alert_id'])) {
-            $existingOpenForAlert = Workshop::query()
-                ->where('maintenance_alert_id', (int) $validated['maintenance_alert_id'])
-                ->whereIn('estado', $this->openStatuses())
-                ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
-                ->first();
-
-            if ($existingOpenForAlert) {
-                $this->addError('maintenance_alert_id', 'Esta alerta ya tiene una orden de taller abierta.');
-                return;
-            }
-        }
-
-        if (!empty($validated['maintenance_appointment_id'])) {
-            $existingOpenForAppointment = Workshop::query()
-                ->where('maintenance_appointment_id', (int) $validated['maintenance_appointment_id'])
-                ->whereIn('estado', $this->openStatuses())
-                ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
-                ->first();
-
-            if ($existingOpenForAppointment) {
-                $this->addError('maintenance_appointment_id', 'Esta solicitud o cita ya tiene una orden de taller abierta.');
-                return;
-            }
-        }
-
-        if (!empty($validated['maintenance_log_id'])) {
-            $existingOpenForLog = Workshop::query()
-                ->where('maintenance_log_id', (int) $validated['maintenance_log_id'])
-                ->whereIn('estado', $this->openStatuses())
-                ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
-                ->first();
-
-            if ($existingOpenForLog) {
-                $this->addError('maintenance_log_id', 'Este registro de mantenimiento ya tiene una orden de taller abierta.');
-                return;
-            }
-        }
-
-=======
->>>>>>> Stashed changes
         $existingWorkshop = $this->isEdit && $this->editingId
             ? Workshop::query()->find($this->editingId)
             : null;
@@ -1010,24 +946,7 @@ class WorkshopManager extends Component
             'activo' => true,
         ];
 
-<<<<<<< Updated upstream
         $payload = $this->filterWorkshopAttributes($payload);
-
-        if ($this->isEdit && $this->editingId) {
-            $workshop = Workshop::query()->findOrFail($this->editingId);
-            $workshop->update($payload);
-        } else {
-            $workshop = Workshop::query()->create($payload);
-        }
-
-        if (!$workshop->order_number) {
-            $workshop->update([
-                'order_number' => $this->buildOrderNumber($workshop),
-            ]);
-        }
-
-=======
->>>>>>> Stashed changes
         $changes = collect($this->partChanges)
             ->map(fn (array $row) => [
                 'codigo_pieza_antigua' => trim((string) ($row['codigo_pieza_antigua'] ?? '')),
@@ -1040,47 +959,73 @@ class WorkshopManager extends Component
 
         try {
             $workshop = DB::transaction(function () use ($payload, $changes, $vehicle, $validated) {
-            $existingOpenWorkshop = Workshop::query()
-                ->where('vehicle_id', (int) $vehicle->id)
-                ->whereIn('estado', $this->openStatuses())
-                ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
-                ->lockForUpdate()
-                ->first();
-
-            if ($existingOpenWorkshop) {
-                throw new \RuntimeException('Este vehiculo ya tiene una orden de taller abierta.');
-            }
-
-            if (!empty($validated['maintenance_alert_id'])) {
-                $existingOpenForAlert = Workshop::query()
-                    ->where('maintenance_alert_id', (int) $validated['maintenance_alert_id'])
+                $existingOpenWorkshop = Workshop::query()
+                    ->where('vehicle_id', (int) $vehicle->id)
                     ->whereIn('estado', $this->openStatuses())
                     ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
                     ->lockForUpdate()
                     ->first();
 
-                if ($existingOpenForAlert) {
-                    throw new \RuntimeException('Esta alerta ya tiene una orden de taller abierta.');
+                if ($existingOpenWorkshop) {
+                    throw new \RuntimeException('Este vehiculo ya tiene una orden de taller abierta.');
                 }
-            }
 
-            if ($this->isEdit && $this->editingId) {
-                $workshop = Workshop::query()->lockForUpdate()->findOrFail($this->editingId);
-                $workshop->update($payload);
-            } else {
-                $workshop = Workshop::query()->create($payload);
-            }
+                if (!empty($validated['maintenance_alert_id'])) {
+                    $existingOpenForAlert = Workshop::query()
+                        ->where('maintenance_alert_id', (int) $validated['maintenance_alert_id'])
+                        ->whereIn('estado', $this->openStatuses())
+                        ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+                        ->lockForUpdate()
+                        ->first();
 
-            if (!$workshop->order_number) {
-                $workshop->update([
-                    'order_number' => $this->buildOrderNumber($workshop),
-                ]);
-            }
+                    if ($existingOpenForAlert) {
+                        throw new \RuntimeException('Esta alerta ya tiene una orden de taller abierta.');
+                    }
+                }
 
-            $workshop->partChanges()->delete();
-            foreach ($changes as $change) {
-                $workshop->partChanges()->create($change);
-            }
+                if (!empty($validated['maintenance_appointment_id'])) {
+                    $existingOpenForAppointment = Workshop::query()
+                        ->where('maintenance_appointment_id', (int) $validated['maintenance_appointment_id'])
+                        ->whereIn('estado', $this->openStatuses())
+                        ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($existingOpenForAppointment) {
+                        throw new \RuntimeException('Esta solicitud o cita ya tiene una orden de taller abierta.');
+                    }
+                }
+
+                if (!empty($validated['maintenance_log_id'])) {
+                    $existingOpenForLog = Workshop::query()
+                        ->where('maintenance_log_id', (int) $validated['maintenance_log_id'])
+                        ->whereIn('estado', $this->openStatuses())
+                        ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($existingOpenForLog) {
+                        throw new \RuntimeException('Este registro de mantenimiento ya tiene una orden de taller abierta.');
+                    }
+                }
+
+                if ($this->isEdit && $this->editingId) {
+                    $workshop = Workshop::query()->lockForUpdate()->findOrFail($this->editingId);
+                    $workshop->update($payload);
+                } else {
+                    $workshop = Workshop::query()->create($payload);
+                }
+
+                if (!$workshop->order_number) {
+                    $workshop->update([
+                        'order_number' => $this->buildOrderNumber($workshop),
+                    ]);
+                }
+
+                $workshop->partChanges()->delete();
+                foreach ($changes as $change) {
+                    $workshop->partChanges()->create($change);
+                }
 
                 return $workshop;
             });

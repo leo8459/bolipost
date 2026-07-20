@@ -571,7 +571,7 @@ class BitacoraController extends Controller
             return null;
         }
 
-        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+        if (method_exists($user, 'isGlobalDepartmentViewer') && $user->isGlobalDepartmentViewer()) {
             return null;
         }
 

@@ -746,7 +746,6 @@ class MaintenanceAlertManager extends Component
         }
     }
 
-<<<<<<< Updated upstream
     private function resolveVehicleCurrentKilometraje(?Vehicle $vehicle): ?float
     {
         if (!$vehicle) {
@@ -809,14 +808,9 @@ class MaintenanceAlertManager extends Component
         );
     }
 
-    private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): void
-    {
-        $openStates = [
-=======
     private function openWorkshopStatuses(): array
     {
         return [
->>>>>>> Stashed changes
             Workshop::STATUS_PENDING,
             Workshop::STATUS_DISPATCHED,
             Workshop::STATUS_DIAGNOSIS,
@@ -824,7 +818,11 @@ class MaintenanceAlertManager extends Component
             Workshop::STATUS_REPAIR,
             Workshop::STATUS_READY,
         ];
-<<<<<<< Updated upstream
+    }
+
+    private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): void
+    {
+        $openStates = $this->openWorkshopStatuses();
 
         $alerts->setCollection(
             $alerts->getCollection()->map(function (MaintenanceAlert $alert) use ($openStates) {
@@ -840,8 +838,6 @@ class MaintenanceAlertManager extends Component
                 return $alert;
             })
         );
-=======
->>>>>>> Stashed changes
     }
 
 }

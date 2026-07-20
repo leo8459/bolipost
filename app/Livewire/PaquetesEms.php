@@ -7629,7 +7629,7 @@ class PaquetesEms extends Component
 
     protected function hasGlobalDepartmentAccess(): bool
     {
-        return (bool) optional(Auth::user())->isSuperAdmin();
+        return (bool) optional(Auth::user())->isGlobalDepartmentViewer();
     }
 
     protected function normalizePerPage($value): int

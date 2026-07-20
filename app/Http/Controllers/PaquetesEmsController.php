@@ -2796,6 +2796,10 @@ class PaquetesEmsController extends Controller
             return false;
         }
 
+        if (method_exists($actor, 'isGlobalDepartmentViewer') && $actor->isGlobalDepartmentViewer()) {
+            return true;
+        }
+
         $actorCity = $this->normalizeEncargadoCity((string) ($actor->ciudad ?? ''));
         $assigneeCity = $this->normalizeEncargadoCity((string) ($assignee->ciudad ?? ''));
 
@@ -2815,13 +2819,20 @@ class PaquetesEmsController extends Controller
 
     private function shouldRestrictEncargadoToUserCity(?User $user): bool
     {
+        if ($user && method_exists($user, 'isGlobalDepartmentViewer') && $user->isGlobalDepartmentViewer()) {
+            return false;
+        }
+
         return $this->encargadoUserHasCarteroRole($user);
     }
 
     private function availableEncargadoCarteroUsersForActor(?User $actor)
     {
+        $hasGlobalDepartmentAccess = $actor
+            && method_exists($actor, 'isGlobalDepartmentViewer')
+            && $actor->isGlobalDepartmentViewer();
         $actorCity = $this->normalizeEncargadoCity((string) optional($actor)->ciudad);
-        if ($actorCity === '') {
+        if (!$hasGlobalDepartmentAccess && $actorCity === '') {
             return collect();
         }
 
@@ -2829,7 +2840,9 @@ class PaquetesEmsController extends Controller
             ->whereHas('roles', function ($query) {
                 $query->whereIn(DB::raw('LOWER(name)'), self::ENCARGADO_CARTERO_ROLES);
             })
-            ->whereRaw('TRIM(UPPER(ciudad)) = ?', [$actorCity])
+            ->when(!$hasGlobalDepartmentAccess, function ($query) use ($actorCity) {
+                $query->whereRaw('TRIM(UPPER(ciudad)) = ?', [$actorCity]);
+            })
             ->orderBy('name')
             ->get(['id', 'name', 'ciudad']);
     }

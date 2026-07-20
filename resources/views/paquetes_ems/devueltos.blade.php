@@ -80,11 +80,12 @@
                                     <td>
                                         @if (!empty($paquete->imagen))
                                             <a
-                                                href="{{ asset('storage/' . $paquete->imagen) }}"
+                                                href="{{ route('delivery-images.show', ['source' => strtolower((string) $paquete->tipo_paquete), 'id' => $paquete->id, 'field' => 'imagen_devolucion'], false) }}"
                                                 class="btn btn-sm btn-outline-primary"
-                                                download
+                                                target="_blank"
+                                                rel="noopener"
                                             >
-                                                Descargar
+                                                Ver imagen
                                             </a>
                                         @else
                                             -

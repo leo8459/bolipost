@@ -28,6 +28,7 @@ use App\Http\Controllers\VentanillaController;
 use App\Http\Controllers\DespachoController;
 use App\Http\Controllers\SacaController;
 use App\Http\Controllers\CarterosController;
+use App\Http\Controllers\DeliveryImageController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\EventoController;
@@ -133,6 +134,15 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
     Route::post('/facturacion/cart/clear', [FacturacionCartController::class, 'clear'])->name('facturacion.cart.clear');
     Route::delete('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'removeItem'])->name('facturacion.cart.items.destroy');
   });
+
+Route::middleware(['auth', 'internal.only'])->get('/imagenes-entrega/{source}/{id}/{field?}', [DeliveryImageController::class, 'show'])
+    ->whereIn('source', ['cartero', 'ems', 'certi', 'ordi', 'contrato', 'solicitud'])
+    ->whereIn('field', ['imagen', 'imagen_devolucion'])
+    ->name('delivery-images.show');
+Route::middleware(['auth', 'internal.only'])->get('/imagenes-entrega-codigo/{source}/{field?}', [DeliveryImageController::class, 'showByCode'])
+    ->whereIn('source', ['ems', 'certi', 'ordi', 'contrato', 'solicitud'])
+    ->whereIn('field', ['imagen', 'imagen_devolucion'])
+    ->name('delivery-images.by-code');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
