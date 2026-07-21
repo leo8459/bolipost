@@ -37,6 +37,10 @@
                             {{ $user->regionalesTexto() ?: '-' }}
                         </div>
                         <div class="form-group">
+                            <strong>Provincia origen:</strong>
+                            {{ $user->provincia_origen ?: '-' }}
+                        </div>
+                        <div class="form-group">
                             <strong>Sucursal:</strong>
                             @if ($user->sucursal)
                                 Sucursal {{ $user->sucursal->codigoSucursal }} - Punto {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}

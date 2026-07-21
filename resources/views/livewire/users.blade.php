@@ -27,6 +27,52 @@
             padding: 18px 20px;
         }
 
+        .users-header--empresa {
+            display: grid;
+            grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+            gap: 22px;
+            align-items: center;
+        }
+
+        .users-title-eyebrow {
+            display: block;
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .users-title-sub {
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.88rem;
+            margin-top: 6px;
+        }
+
+        .users-toolbar {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(220px, 0.8fr) auto auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .users-toolbar-field label {
+            display: block;
+            color: rgba(255, 255, 255, 0.86);
+            font-size: 0.78rem;
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+
+        .users-toolbar-actions,
+        .users-toolbar-reports {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
         .users-search {
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.45);
@@ -149,6 +195,28 @@
 
         .users-muted {
             color: var(--muted);
+        }
+
+        .users-summary-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            border: 1px solid #dbe4f1;
+            border-radius: 12px;
+            background: #fff;
+        }
+
+        .users-summary-title {
+            color: #22344d;
+            font-weight: 900;
+        }
+
+        .users-summary-total {
+            color: var(--azul);
+            font-weight: 900;
         }
 
         .users-user-modal .modal-dialog {
@@ -339,6 +407,14 @@
         }
 
         @media (max-width: 767.98px) {
+            .users-header--empresa {
+                grid-template-columns: 1fr;
+            }
+
+            .users-toolbar {
+                grid-template-columns: 1fr;
+            }
+
             .regional-picker-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -362,57 +438,117 @@
 
     <div class="users-wrap">
         <div class="card users-card">
-            <div class="users-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+            <div class="users-header {{ $empresaMode ? 'users-header--empresa' : 'd-flex flex-column flex-md-row justify-content-between align-items-md-center' }}">
                 <div>
-                    <h4 class="mb-0">Gestion de Usuarios</h4>
+                    @if($empresaMode)
+                        <span class="users-title-eyebrow">Gestion de empresas</span>
+                    @endif
+                    <h4 class="mb-0">{{ $empresaMode ? 'Usuarios con empresa' : 'Gestion de Usuarios' }}</h4>
+                    @if($empresaMode)
+                        <div class="users-title-sub">Total actual: {{ number_format($users->total()) }} usuarios vinculados</div>
+                    @endif
                 </div>
 
-                <div class="d-flex flex-wrap align-items-center mt-3 mt-md-0" style="gap: 8px;">
-                    <input
-                        type="text"
-                        wire:model="search"
-                        wire:keydown.enter="searchUsers"
-                        class="form-control users-search"
-                        placeholder="Buscar por nombre, alias, email, CI, empresa o sucursal"
-                        style="min-width: 260px;"
-                    >
-                    <button wire:click="searchUsers" class="btn btn-outline-light2" type="button">Buscar</button>
-                    <button wire:click="toggleGroupByBillingSucursal" class="btn btn-outline-light2" type="button">
-                        {{ $groupByBillingSucursal ? 'Ver lista normal' : 'Agrupar por sucursal facturacion' }}
-                    </button>
-                    <div class="users-filter-toolbar">
-                        <button
-                            wire:click="showAllUsers"
-                            class="users-filter-btn {{ ! $showOnlyWithEmpresa ? 'is-active' : '' }}"
-                            type="button"
-                        >
-                            <i class="fas fa-users mr-1"></i> Mostrar usuarios
-                        </button>
-                        <button
-                            wire:click="showEmpresaUsers"
-                            class="users-filter-btn {{ $showOnlyWithEmpresa ? 'is-active' : '' }}"
-                            type="button"
-                        >
-                            <i class="fas fa-building mr-1"></i> Mostrar empresas
-                        </button>
+                @php
+                    $reportParams = array_filter([
+                        'empresa_id' => $filterEmpresaId !== '' ? $filterEmpresaId : null,
+                    ], fn ($value) => ! is_null($value) && $value !== '');
+                @endphp
+
+                @if($empresaMode)
+                    <div class="users-toolbar">
+                        <div class="users-toolbar-field">
+                            <label for="empresaUserSearch">Buscar usuario</label>
+                            <input
+                                id="empresaUserSearch"
+                                type="text"
+                                wire:model="search"
+                                wire:keydown.enter="searchUsers"
+                                class="form-control users-search"
+                                placeholder="Nombre, alias, email, CI o empresa"
+                            >
+                        </div>
+
+                        <div class="users-toolbar-field">
+                            <label for="empresaUserCompany">Empresa</label>
+                            <select id="empresaUserCompany" wire:model.live="filterEmpresaId" class="form-control users-company-select">
+                                <option value="">Todas las empresas</option>
+                                @foreach($empresas as $empresa)
+                                    <option value="{{ $empresa->id }}">
+                                        {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="users-toolbar-actions">
+                            <button wire:click="searchUsers" class="btn btn-outline-light2" type="button">
+                                <i class="fas fa-search mr-1"></i> Buscar
+                            </button>
+                            @can('users.create')
+                                <button type="button" class="btn btn-dorado" wire:click="openCreateModal">
+                                    <i class="fas fa-user-plus mr-1"></i> Nuevo usuario empresa
+                                </button>
+                            @endcan
+                        </div>
+
+                        <div class="users-toolbar-reports">
+                            <a href="{{ route('users.empresas.excel', $reportParams) }}" class="btn btn-success">
+                                <i class="fas fa-file-excel mr-1"></i> Excel
+                            </a>
+                            <a href="{{ route('users.empresas.pdf', $reportParams) }}" class="btn btn-danger">
+                                <i class="fas fa-file-pdf mr-1"></i> PDF
+                            </a>
+                        </div>
                     </div>
-                    @if($showOnlyWithEmpresa)
-                        <select wire:model.live="filterEmpresaId" class="form-control users-company-select">
-                            <option value="">Todas las empresas</option>
-                            @foreach($empresas as $empresa)
-                                <option value="{{ $empresa->id }}">
-                                    {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
-                                </option>
-                            @endforeach
-                        </select>
-                    @endif
-                    <a href="{{ route('users.excel') }}" class="btn btn-success">Excel</a>
-                    <a href="{{ route('users.pdf') }}" class="btn btn-danger">PDF</a>
-                    <a href="{{ route('users.template-excel') }}" class="btn btn-info">Plantilla</a>
-                    @can('users.create')
-                        <button type="button" class="btn btn-dorado" wire:click="openCreateModal">Nuevo Usuario</button>
-                    @endcan
-                </div>
+                @else
+                    <div class="d-flex flex-wrap align-items-center mt-3 mt-md-0" style="gap: 8px;">
+                        <input
+                            type="text"
+                            wire:model="search"
+                            wire:keydown.enter="searchUsers"
+                            class="form-control users-search"
+                            placeholder="Buscar por nombre, alias, email, CI, empresa o sucursal"
+                            style="min-width: 260px;"
+                        >
+                        <button wire:click="searchUsers" class="btn btn-outline-light2" type="button">Buscar</button>
+                        <button wire:click="toggleGroupByBillingSucursal" class="btn btn-outline-light2" type="button">
+                            {{ $groupByBillingSucursal ? 'Ver lista normal' : 'Agrupar por sucursal facturacion' }}
+                        </button>
+                        <div class="users-filter-toolbar">
+                            <button
+                                wire:click="showAllUsers"
+                                class="users-filter-btn {{ ! $showOnlyWithEmpresa ? 'is-active' : '' }}"
+                                type="button"
+                            >
+                                <i class="fas fa-users mr-1"></i> Mostrar usuarios
+                            </button>
+                            <button
+                                wire:click="showEmpresaUsers"
+                                class="users-filter-btn {{ $showOnlyWithEmpresa ? 'is-active' : '' }}"
+                                type="button"
+                            >
+                                <i class="fas fa-building mr-1"></i> Mostrar empresas
+                            </button>
+                        </div>
+                        @if($showOnlyWithEmpresa)
+                            <select wire:model.live="filterEmpresaId" class="form-control users-company-select">
+                                <option value="">Todas las empresas</option>
+                                @foreach($empresas as $empresa)
+                                    <option value="{{ $empresa->id }}">
+                                        {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        @endif
+                        <a href="{{ route('users.excel', $reportParams) }}" class="btn btn-success">Excel</a>
+                        <a href="{{ route('users.pdf', $reportParams) }}" class="btn btn-danger">PDF</a>
+                        <a href="{{ route('users.template-excel') }}" class="btn btn-info">Plantilla</a>
+                        @can('users.create')
+                            <button type="button" class="btn btn-dorado" wire:click="openCreateModal">Nuevo Usuario</button>
+                        @endcan
+                    </div>
+                @endif
             </div>
 
             @if (session()->has('success'))
@@ -433,6 +569,7 @@
             @endif
 
             <div class="card-body">
+                @if(! $empresaMode)
                 <div class="users-import-box mb-3">
                     <form method="POST" action="{{ route('users.import') }}" enctype="multipart/form-data" id="users-import-form" class="d-flex flex-column flex-md-row align-items-md-center" style="gap: 10px;">
                         @csrf
@@ -464,32 +601,46 @@
                         </button>
                     </form>
                 </div>
+                @endif
 
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="users-muted">
-                        @if($searchQuery !== '')
-                            Resultado para: <strong>{{ $searchQuery }}</strong>
-                            @if($groupByBillingSucursal)
-                                <span class="ml-2">| Vista agrupada por sucursal de facturacion</span>
-                            @endif
-                        @else
-                            @if($showOnlyWithEmpresa)
-                                Mostrando usuarios con empresa
-                                @if($filterEmpresaId !== '')
+                <div class="{{ $empresaMode ? 'users-summary-bar' : 'd-flex justify-content-between align-items-center mb-3' }}">
+                    <div class="{{ $empresaMode ? '' : 'users-muted' }}">
+                        @if($empresaMode)
+                            <span class="users-summary-title">
+                                @if($searchQuery !== '')
+                                    Resultado de busqueda: "{{ $searchQuery }}"
+                                @elseif($filterEmpresaId !== '')
                                     @php($empresaFiltro = $empresas->firstWhere('id', (int) $filterEmpresaId))
-                                    @if($empresaFiltro)
-                                        : <strong>{{ $empresaFiltro->codigo_cliente }} - {{ $empresaFiltro->nombre }}</strong>
-                                    @endif
+                                    Empresa seleccionada: {{ $empresaFiltro ? $empresaFiltro->codigo_cliente . ' - ' . $empresaFiltro->nombre : 'Sin detalle' }}
+                                @else
+                                    Todos los usuarios con empresa asignada
                                 @endif
+                            </span>
+                        @else
+                            @if($searchQuery !== '')
+                                Resultado para: <strong>{{ $searchQuery }}</strong>
                                 @if($groupByBillingSucursal)
                                     <span class="ml-2">| Vista agrupada por sucursal de facturacion</span>
                                 @endif
                             @else
-                                {{ $groupByBillingSucursal ? 'Mostrando usuarios agrupados por sucursal de facturacion' : 'Mostrando todos los usuarios' }}
+                                @if($showOnlyWithEmpresa)
+                                    Mostrando usuarios con empresa
+                                    @if($filterEmpresaId !== '')
+                                        @php($empresaFiltro = $empresas->firstWhere('id', (int) $filterEmpresaId))
+                                        @if($empresaFiltro)
+                                            : <strong>{{ $empresaFiltro->codigo_cliente }} - {{ $empresaFiltro->nombre }}</strong>
+                                        @endif
+                                    @endif
+                                    @if($groupByBillingSucursal)
+                                        <span class="ml-2">| Vista agrupada por sucursal de facturacion</span>
+                                    @endif
+                                @else
+                                    {{ $groupByBillingSucursal ? 'Mostrando usuarios agrupados por sucursal de facturacion' : 'Mostrando todos los usuarios' }}
+                                @endif
                             @endif
                         @endif
                     </div>
-                    <div class="users-muted small">
+                    <div class="{{ $empresaMode ? 'users-summary-total' : 'users-muted small' }}">
                         Total: <strong>{{ $groupByBillingSucursal ? $groupedUsers->sum(fn ($group) => $group['users']->count()) : $users->total() }}</strong>
                     </div>
                 </div>
@@ -550,7 +701,10 @@
                                 <th>Alias</th>
                                 <th>Email</th>
                                 <th>Regional</th>
-                                <th>Sucursal</th>
+                                <th>Provincia origen</th>
+                                @if(! $empresaMode)
+                                    <th>Sucursal</th>
+                                @endif
                                 <th>Empresa</th>
                                 <th>CI</th>
                                 <th>Estado</th>
@@ -566,13 +720,16 @@
                                     <td><span class="badge badge-primary">{{ $user->alias ?? '-' }}</span></td>
                                     <td>{{ $user->email }}</td>
                                     <td>{{ $user->regionalesTexto() ?: '-' }}</td>
-                                    <td>
-                                        @if ($user->sucursal)
-                                            Suc. {{ $user->sucursal->codigoSucursal }} / PV {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}
-                                        @else
-                                            <span class="users-muted">Sin sucursal</span>
-                                        @endif
-                                    </td>
+                                    <td>{{ $user->provincia_origen ?: '-' }}</td>
+                                    @if(! $empresaMode)
+                                        <td>
+                                            @if ($user->sucursal)
+                                                Suc. {{ $user->sucursal->codigoSucursal }} / PV {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}
+                                            @else
+                                                <span class="users-muted">Sin sucursal</span>
+                                            @endif
+                                        </td>
+                                    @endif
                                     <td>
                                         @if ($user->empresa)
                                             {{ $user->empresa->codigo_cliente }} - {{ $user->empresa->nombre }} ({{ $user->empresa->sigla }})
@@ -587,7 +744,8 @@
                                         </span>
                                     </td>
                                     <td>
-                                        @forelse ($user->roles as $role)
+                                        @php($visibleRoles = $empresaMode ? $user->roles->where('name', 'empresa') : $user->roles)
+                                        @forelse ($visibleRoles as $role)
                                             <span class="badge-role">{{ $role->name }}</span>
                                         @empty
                                             <span class="users-muted">Sin rol</span>
@@ -643,7 +801,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-4 users-muted">No se encontraron usuarios.</td>
+                                    <td colspan="{{ $empresaMode ? 11 : 12 }}" class="text-center py-4 users-muted">No se encontraron usuarios.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -672,15 +830,15 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Nombre completo</label>
-                                    <input type="text" wire:model.defer="name" class="form-control" placeholder="Nombre completo">
+                                    <label>Nombre completo{{ $empresaMode ? ' *' : '' }}</label>
+                                    <input type="text" wire:model.defer="name" class="form-control" placeholder="Nombre completo" @if($empresaMode) required @endif>
                                     @error('name') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Email</label>
-                                    <input type="email" wire:model.defer="email" class="form-control" placeholder="Correo electronico">
+                                    <label>Email{{ $empresaMode ? ' *' : '' }}</label>
+                                    <input type="email" wire:model.defer="email" class="form-control" placeholder="Correo electronico" @if($empresaMode) required @endif>
                                     @error('email') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -700,14 +858,14 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>{{ $editingId ? 'Nueva contraseña (opcional)' : 'Contraseña' }}</label>
-                                    <input type="password" wire:model.defer="password" class="form-control" placeholder="Contraseña">
+                                    <label>{{ $editingId ? 'Nueva contraseña (opcional)' : 'Contraseña *' }}</label>
+                                    <input type="password" wire:model.defer="password" class="form-control" placeholder="Contraseña" @if($empresaMode && ! $editingId) required @endif>
                                     @error('password') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Regional</label>
+                                    <label>Regional{{ $empresaMode ? ' *' : '' }}</label>
                                     <div class="regional-picker">
                                         <div class="regional-picker-grid">
                                         @foreach($regionales as $regional)
@@ -730,6 +888,20 @@
                                     @error('regionalesSeleccionadas.*') <small class="text-danger d-block">{{ $message }}</small> @enderror
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Provincia origen{{ $empresaMode ? ' *' : '' }}</label>
+                                    <input
+                                        type="text"
+                                        wire:model.defer="provincia_origen"
+                                        class="form-control text-uppercase"
+                                        placeholder="Ej: MURILLO"
+                                        @if($empresaMode) required @endif
+                                    >
+                                    <small class="text-muted">Se guardara automaticamente en mayusculas.</small>
+                                    @error('provincia_origen') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
                         </div>
 
                         <div class="row">
@@ -742,9 +914,9 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Empresa (opcional)</label>
-                                    <select wire:model.defer="empresa_id" class="form-control">
-                                        <option value="">Sin empresa</option>
+                                    <label>Empresa{{ $empresaMode ? ' *' : ' (opcional)' }}</label>
+                                    <select wire:model.defer="empresa_id" class="form-control" @if($empresaMode) required @endif>
+                                        <option value="">{{ $empresaMode ? 'Selecciona una empresa' : 'Sin empresa' }}</option>
                                         @foreach($empresas as $empresa)
                                             <option value="{{ $empresa->id }}">
                                                 {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
@@ -754,6 +926,7 @@
                                     @error('empresa_id') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
+                            @if(! $empresaMode)
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Sucursal de facturacion (opcional)</label>
@@ -769,26 +942,34 @@
                                     @error('sucursal_id') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
+                            @endif
                         </div>
 
                         <div class="form-group mb-0">
                             <label>Roles</label>
-                            <div class="row">
-                                @foreach($roles as $role)
-                                    <div class="col-md-4 col-sm-6">
-                                        <div class="form-check">
-                                            <input
-                                                class="form-check-input"
-                                                type="checkbox"
-                                                wire:model.defer="roleIds"
-                                                id="role_{{ $role->id }}"
-                                                value="{{ $role->id }}"
-                                            >
-                                            <label class="form-check-label" for="role_{{ $role->id }}">{{ $role->name }}</label>
+                            @if($empresaMode)
+                                <div>
+                                    <span class="badge-role">empresa</span>
+                                </div>
+                                <small class="text-muted d-block mt-1">Los usuarios creados desde esta vista se registran solo con el rol empresa.</small>
+                            @else
+                                <div class="row">
+                                    @foreach($roles as $role)
+                                        <div class="col-md-4 col-sm-6">
+                                            <div class="form-check">
+                                                <input
+                                                    class="form-check-input"
+                                                    type="checkbox"
+                                                    wire:model.defer="roleIds"
+                                                    id="role_{{ $role->id }}"
+                                                    value="{{ $role->id }}"
+                                                >
+                                                <label class="form-check-label" for="role_{{ $role->id }}">{{ $role->name }}</label>
+                                            </div>
                                         </div>
-                                    </div>
-                                @endforeach
-                            </div>
+                                    @endforeach
+                                </div>
+                            @endif
                             @error('roleIds') <small class="text-danger">{{ $message }}</small> @enderror
                             @error('roleIds.*') <small class="text-danger d-block">{{ $message }}</small> @enderror
                         </div>

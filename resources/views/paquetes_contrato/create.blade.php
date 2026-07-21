@@ -365,6 +365,15 @@
                                     <div class="origin-help">Este dato se toma del origen o departamento del usuario logueado.</div>
                                 </div>
                             </div>
+                            @if(!empty($provinciaOrigen))
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Provincia origen</label>
+                                        <input type="text" class="form-control origin-input" value="{{ $provinciaOrigen }}" readonly>
+                                        <div class="origin-help">Este dato se toma de la provincia origen del usuario logueado.</div>
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                         <div class="row">
                             <div class="col-md-6">
@@ -466,8 +475,8 @@
                         <div class="row" id="provinciaRow">
                             <div class="col-md-4">
                                 <div class="form-group mb-0">
-                                    <label>Provincia (opcional)</label>
-                                    <input type="text" name="provincia" id="provinciaInput" class="form-control" value="{{ old('provincia') }}">
+                                    <label>Provincia<span class="required-star">*</span></label>
+                                    <input type="text" name="provincia" id="provinciaInput" class="form-control text-uppercase" value="{{ old('provincia') }}">
                                 </div>
                             </div>
                             <div class="col-md-8">
@@ -592,6 +601,15 @@
             tipoEnvioInputs.forEach((input) => {
                 input.checked = input.value === value;
             });
+        };
+        const uppercaseInput = (input) => {
+            if (!input) return;
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            input.value = String(input.value || '').toLocaleUpperCase('es-BO');
+            if (typeof start === 'number' && typeof end === 'number') {
+                input.setSelectionRange(start, end);
+            }
         };
         const syncDestinoLockedState = (isLocked) => {
             if (!destinoSelect || !destinoLockedInput) return;
@@ -820,8 +838,13 @@
 
         if (form) {
             form.addEventListener('submit', () => {
+                uppercaseInput(provinciaInput);
                 hideDropdown();
             });
+        }
+
+        if (provinciaInput) {
+            provinciaInput.addEventListener('input', () => uppercaseInput(provinciaInput));
         }
 
         if (saveBtn) {

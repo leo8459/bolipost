@@ -247,6 +247,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::patch('/configuracion/apis/{token}/dar-baja', [ExternalApiTokenController::class, 'deactivate'])->name('configuracion.apis.deactivate');
     Route::patch('/configuracion/apis/{token}/activar', [ExternalApiTokenController::class, 'activate'])->name('configuracion.apis.activate');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/users/empresas', [UserController::class, 'empresas'])->name('users.empresas');
+    Route::get('/users/empresas/excel', [UserController::class, 'empresasExcel'])->name('users.empresas.excel');
+    Route::get('/users/empresas/pdf', [UserController::class, 'empresasPdf'])->name('users.empresas.pdf');
     Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
     Route::get('users/pdf', [UserController::class, 'pdf'])->name('users.pdf');
     Route::get('users/plantilla-excel', [UserController::class, 'templateExcel'])->name('users.template-excel');
