@@ -831,14 +831,14 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Nombre completo{{ $empresaMode ? ' *' : '' }}</label>
-                                    <input type="text" wire:model.defer="name" class="form-control" placeholder="Nombre completo" @if($empresaMode) required @endif>
+                                    <input type="text" wire:model="name" class="form-control" placeholder="Nombre completo" @if($empresaMode) required @endif>
                                     @error('name') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Email{{ $empresaMode ? ' *' : '' }}</label>
-                                    <input type="email" wire:model.defer="email" class="form-control" placeholder="Correo electronico" @if($empresaMode) required @endif>
+                                    <input type="email" wire:model="email" class="form-control" placeholder="Correo electronico" @if($empresaMode) required @endif>
                                     @error('email') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -848,7 +848,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Alias de acceso *</label>
-                                    <input type="text" wire:model.defer="alias" class="form-control" placeholder="Ej: juan.perez+lp" required>
+                                    <input type="text" wire:model="alias" class="form-control" placeholder="Ej: juan.perez+lp" required>
                                     <small class="text-muted">Se permiten caracteres especiales. Evita solo duplicados.</small>
                                     @error('alias') <small class="text-danger d-block">{{ $message }}</small> @enderror
                                 </div>
@@ -859,7 +859,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>{{ $editingId ? 'Nueva contraseña (opcional)' : 'Contraseña *' }}</label>
-                                    <input type="password" wire:model.defer="password" class="form-control" placeholder="Contraseña" @if($empresaMode && ! $editingId) required @endif>
+                                    <input type="password" wire:model="password" class="form-control" placeholder="Contraseña" @if($empresaMode && ! $editingId) required @endif>
                                     @error('password') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -872,7 +872,7 @@
                                             <div class="regional-option">
                                                 <input
                                                     type="checkbox"
-                                                    wire:model.defer="regionalesSeleccionadas"
+                                                    wire:model="regionalesSeleccionadas"
                                                     id="regional_{{ \Illuminate\Support\Str::slug($regional) }}"
                                                     value="{{ $regional }}"
                                                 >
@@ -893,7 +893,7 @@
                                     <label>Provincia origen{{ $empresaMode ? ' *' : '' }}</label>
                                     <input
                                         type="text"
-                                        wire:model.defer="provincia_origen"
+                                        wire:model="provincia_origen"
                                         class="form-control text-uppercase"
                                         placeholder="Ej: MURILLO"
                                         @if($empresaMode) required @endif
@@ -908,14 +908,14 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Carnet de identidad (opcional)</label>
-                                    <input type="text" wire:model.defer="ci" class="form-control" placeholder="CI (opcional)">
+                                    <input type="text" wire:model="ci" class="form-control" placeholder="CI (opcional)">
                                     @error('ci') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Empresa{{ $empresaMode ? ' *' : ' (opcional)' }}</label>
-                                    <select wire:model.defer="empresa_id" class="form-control" @if($empresaMode) required @endif>
+                                    <select wire:model="empresa_id" class="form-control" @if($empresaMode) required @endif>
                                         <option value="">{{ $empresaMode ? 'Selecciona una empresa' : 'Sin empresa' }}</option>
                                         @foreach($empresas as $empresa)
                                             <option value="{{ $empresa->id }}">
@@ -930,7 +930,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Sucursal de facturacion (opcional)</label>
-                                    <select wire:model.defer="sucursal_id" class="form-control">
+                                    <select wire:model="sucursal_id" class="form-control">
                                         <option value="">Sin sucursal</option>
                                         @foreach($sucursales as $sucursal)
                                             <option value="{{ $sucursal->id }}">
@@ -960,7 +960,7 @@
                                                 <input
                                                     class="form-check-input"
                                                     type="checkbox"
-                                                    wire:model.defer="roleIds"
+                                                    wire:model="roleIds"
                                                     id="role_{{ $role->id }}"
                                                     value="{{ $role->id }}"
                                                 >
@@ -996,7 +996,7 @@
                     <div class="modal-body">
                         <div class="form-group mb-0">
                             <label>Nueva contraseña</label>
-                            <input type="password" wire:model.defer="newPassword" class="form-control" placeholder="Minimo 8 caracteres">
+                            <input type="password" wire:model="newPassword" class="form-control" placeholder="Minimo 8 caracteres">
                             @error('newPassword') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>
                     </div>
