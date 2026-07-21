@@ -9,7 +9,6 @@ use App\Models\VehicleAssignment;
 use App\Models\Workshop;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -260,6 +259,10 @@ class VehicleAssignmentManager extends Component
             }
         }
 
+        if (!$this->skipNextReassignCheck && $this->prepareReassignConfirmation()) {
+            return;
+        }
+
         if (!$this->ensureNoActiveAssignmentConflicts()) {
             return;
         }
@@ -376,6 +379,10 @@ class VehicleAssignmentManager extends Component
             return;
         }
 
+        if (!$this->skipNextReassignCheck && $this->prepareReassignConfirmation()) {
+            return;
+        }
+
         if (!$this->ensureNoActiveAssignmentConflicts()) {
             $this->resetForm();
             return;
@@ -432,7 +439,6 @@ class VehicleAssignmentManager extends Component
 
     private function persistAssignment(?string $successMessage = null): void
     {
-        $aborted = false;
         $payload = [
             'driver_id' => $this->driver_id,
             'vehicle_id' => $this->vehicle_id,
@@ -442,6 +448,7 @@ class VehicleAssignmentManager extends Component
             'activo' => $this->activo,
         ];
 
+<<<<<<< HEAD
         try {
             DB::transaction(function () use ($payload, $successMessage, &$aborted) {
                 if ($this->activo) {
@@ -500,6 +507,48 @@ class VehicleAssignmentManager extends Component
 
         if ($aborted) {
             return;
+=======
+        if ($this->isEdit && $this->editingId) {
+            $assignment = VehicleAssignment::find($this->editingId);
+            if ($assignment) {
+                $identityChanged = (int) ($assignment->driver_id ?? 0) !== (int) $payload['driver_id']
+                    || (int) ($assignment->vehicle_id ?? 0) !== (int) $payload['vehicle_id'];
+
+                if ($payload['activo'] && ($identityChanged || $this->reactivatingAssignment)) {
+                    $affectedVehicleIds = collect([
+                        $assignment->vehicle_id ? (int) $assignment->vehicle_id : null,
+                        (int) $payload['vehicle_id'],
+                    ])->filter()->unique()->values();
+
+                    if (!$this->reactivatingAssignment) {
+                        $assignment->update([
+                            'activo' => false,
+                            'fecha_fin' => $payload['fecha_inicio'] ?: now()->toDateTimeString(),
+                        ]);
+                    }
+
+                    VehicleAssignment::create($payload);
+
+                    foreach ($affectedVehicleIds as $vehicleId) {
+                        $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $vehicleId);
+                    }
+
+                    session()->flash('message', $successMessage ?: 'Asignacion historica cerrada y nueva asignacion creada correctamente.');
+                } else {
+                    $assignment->update($payload);
+                    if ($assignment->vehicle_id) {
+                        $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
+                    }
+                    session()->flash('message', $successMessage ?: 'Asignacion actualizada correctamente.');
+                }
+            }
+        } else {
+            $assignment = VehicleAssignment::create($payload);
+            if ($assignment->vehicle_id) {
+                $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
+            }
+            session()->flash('message', $successMessage ?: 'Asignacion creada correctamente.');
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         }
 
         $this->resetForm();

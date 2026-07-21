@@ -9,7 +9,6 @@ use App\Models\MaintenanceAppointment;
 use App\Models\Vehicle;
 use App\Models\Workshop;
 use App\Services\MaintenanceAlertService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -246,8 +245,11 @@ class MaintenanceLogManager extends Component
             }
         }
 
+<<<<<<< HEAD
         $canUseExistingRecordFlow = $this->isEdit && (int) ($this->editingMaintenanceId ?? 0) > 0;
 
+=======
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         $this->tipo = (string) $selectedType->nombre;
         if (trim($this->descripcion) === '') {
             $this->descripcion = (string) ($selectedType->descripcion ?? '');
@@ -295,41 +297,28 @@ class MaintenanceLogManager extends Component
             $data['proximo_kilometraje'] = $targetKm;
         }
 
-        $result = DB::transaction(function () use ($data, $vehicle) {
-            $savedMaintenance = null;
-            $kmUpdateStatus = 'skipped';
+        $savedMaintenance = null;
 
-            if ($this->isEdit && $this->editingMaintenanceId) {
-                $maintenance = MaintenanceLog::query()->lockForUpdate()->find($this->editingMaintenanceId);
-                if ($maintenance) {
-                    $maintenance->update($data);
-                    $savedMaintenance = $maintenance->fresh();
-                }
-            } else {
-                $savedMaintenance = MaintenanceLog::create($data);
-            }
-
-            if ($savedMaintenance) {
+        if ($this->isEdit && $this->editingMaintenanceId) {
+            $maintenance = MaintenanceLog::find($this->editingMaintenanceId);
+            if ($maintenance) {
+                $maintenance->update($data);
+                $savedMaintenance = $maintenance->fresh();
                 $this->markResolvedAlertsAsRead();
                 $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
                 $kmUpdateStatus = $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
-
-                if ((int) ($this->from_workshop_id ?? 0) > 0) {
-                    $this->closeWorkshopAfterMaintenanceRegistration((int) $this->from_workshop_id, (int) $savedMaintenance->id);
-                }
+                session()->flash('message', 'Registro de mantenimiento actualizado correctamente.' . ($kmUpdateStatus === 'same' ? ' El kilometraje se mantuvo igual al anterior.' : ''));
             }
+        } else {
+            $savedMaintenance = MaintenanceLog::create($data);
+            $this->markResolvedAlertsAsRead();
+            $vehicle?->update(['tacometro_danado' => $this->tacometro_danado_vehiculo]);
+            $kmUpdateStatus = $this->updateVehicleKilometraje($this->vehicle_id, $this->kilometraje);
+            session()->flash('message', 'Registro de mantenimiento creado correctamente.' . ($kmUpdateStatus === 'same' ? ' El kilometraje se mantuvo igual al anterior.' : ''));
+        }
 
-            return [
-                'saved' => $savedMaintenance !== null,
-                'km_status' => $kmUpdateStatus,
-            ];
-        });
-
-        if ($result['saved']) {
-            $baseMessage = $this->isEdit
-                ? 'Registro de mantenimiento actualizado correctamente.'
-                : 'Registro de mantenimiento creado correctamente.';
-            session()->flash('message', $baseMessage . (($result['km_status'] === 'same') ? ' El kilometraje se mantuvo igual al anterior.' : ''));
+        if ($savedMaintenance && (int) ($this->from_workshop_id ?? 0) > 0) {
+            $this->closeWorkshopAfterMaintenanceRegistration((int) $this->from_workshop_id, (int) $savedMaintenance->id);
         }
 
         $this->resetForm();

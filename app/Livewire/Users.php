@@ -43,6 +43,7 @@ class Users extends Component
     public $statusAction = '';
 
     protected $paginationTheme = 'bootstrap';
+<<<<<<< HEAD
     private const ROLE_GUARD_WEB = 'web';
     private const EMPRESA_ROLE_NAME = 'empresa';
     private const REQUIRED_WEB_ROLE_NAMES = ['conductor', self::EMPRESA_ROLE_NAME];
@@ -52,6 +53,8 @@ class Users extends Component
         $this->empresaMode = $empresaMode;
         $this->showOnlyWithEmpresa = $empresaMode;
     }
+=======
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 
     public function searchUsers(): void
     {
@@ -276,10 +279,7 @@ class Users extends Component
             'empresa_id' => [$this->empresaMode ? 'required' : 'nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
-            'roleIds.*' => [
-                'integer',
-                Rule::exists('roles', 'id')->where(fn ($query) => $query->where('guard_name', self::ROLE_GUARD_WEB)),
-            ],
+            'roleIds.*' => ['integer', 'exists:roles,id'],
         ];
     }
 
@@ -299,10 +299,7 @@ class Users extends Component
             'empresa_id' => [$this->empresaMode ? 'required' : 'nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
-            'roleIds.*' => [
-                'integer',
-                Rule::exists('roles', 'id')->where(fn ($query) => $query->where('guard_name', self::ROLE_GUARD_WEB)),
-            ],
+            'roleIds.*' => ['integer', 'exists:roles,id'],
         ];
     }
 
@@ -321,11 +318,7 @@ class Users extends Component
             return [];
         }
 
-        return Role::query()
-            ->whereIn('id', $roleIds)
-            ->where('guard_name', self::ROLE_GUARD_WEB)
-            ->pluck('name')
-            ->toArray();
+        return Role::query()->whereIn('id', $roleIds)->pluck('name')->toArray();
     }
 
     protected function resetUserForm(): void
@@ -428,8 +421,6 @@ class Users extends Component
 
     public function render()
     {
-        $this->ensureRequiredWebRoles();
-
         $q = trim((string) $this->searchQuery);
 
         $baseQuery = User::withTrashed()
@@ -487,27 +478,18 @@ class Users extends Component
         return view('livewire.users', [
             'users' => $users,
             'groupedUsers' => $groupedUsers,
+<<<<<<< HEAD
             'roles' => Role::query()
                 ->where('guard_name', self::ROLE_GUARD_WEB)
                 ->when($this->empresaMode, fn ($query) => $query->where('name', self::EMPRESA_ROLE_NAME))
                 ->orderBy('name')
                 ->get(),
+=======
+            'roles' => Role::query()->orderBy('name')->get(),
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
             'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
             'regionales' => $this->regionalesDisponibles(),
         ]);
-    }
-
-    protected function ensureRequiredWebRoles(): void
-    {
-        foreach (self::REQUIRED_WEB_ROLE_NAMES as $roleName) {
-            Role::query()->firstOrCreate(
-                [
-                    'name' => $roleName,
-                    'guard_name' => self::ROLE_GUARD_WEB,
-                ],
-                []
-            );
-        }
     }
 }

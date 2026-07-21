@@ -251,22 +251,6 @@ class MaintenanceAppointmentManager extends Component
             return;
         }
 
-        $duplicateOpenAppointment = MaintenanceAppointment::query()
-            ->active()
-            ->where('vehicle_id', (int) $this->vehicle_id)
-            ->where('tipo_mantenimiento_id', $this->tipo_mantenimiento_id)
-            ->whereIn('estado', [
-                MaintenanceAppointment::STATUS_PENDING,
-                MaintenanceAppointment::STATUS_APPROVED,
-            ])
-            ->when($this->isEdit && $this->editingId, fn ($query) => $query->where('id', '!=', (int) $this->editingId))
-            ->exists();
-
-        if ($duplicateOpenAppointment) {
-            $this->addError('tipo_mantenimiento_id', 'Ya existe una cita abierta para este vehiculo y mantenimiento.');
-            return;
-        }
-
         if ($this->tipo_mantenimiento_id) {
             $allowedType = MaintenanceType::query()
                 ->applicableToVehicle($vehicle)
@@ -499,29 +483,34 @@ class MaintenanceAppointmentManager extends Component
     public function updatedDriverId(): void
     {
         if (!$this->driver_id) {
-            $this->vehicle_id = 0;
             return;
         }
-
-        $today = now()->toDateString();
 
         $assignment = VehicleAssignment::query()
             ->with(['vehicle.vehicleClass'])
             ->where('driver_id', (int) $this->driver_id)
-            ->where('activo', true)
-            ->whereNotNull('vehicle_id')
-            ->where(function ($query) use ($today) {
-                $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
-            })
-            ->where(function ($query) use ($today) {
-                $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+            ->where(function ($query) {
+                $query->where('activo', true)->orWhereNull('activo');
             })
             ->orderByDesc('fecha_inicio')
             ->orderByDesc('id')
-            ->first();
+            ->get()
+            ->first(function (VehicleAssignment $assignment) {
+                $starts = $assignment->fecha_inicio;
+                $ends = $assignment->fecha_fin;
+
+                if ($starts && now()->lt($starts)) {
+                    return false;
+                }
+
+                if ($ends && now()->gt($ends)) {
+                    return false;
+                }
+
+                return true;
+            });
 
         if (!$assignment?->vehicle_id) {
-            $this->vehicle_id = 0;
             return;
         }
 
@@ -546,12 +535,6 @@ class MaintenanceAppointmentManager extends Component
                 $this->tipo_mantenimiento_id = null;
             }
         }
-    }
-
-    public function onDriverChanged($value): void
-    {
-        $this->driver_id = ($value !== null && $value !== '') ? (int) $value : null;
-        $this->updatedDriverId();
     }
 
     public function resolveOriginLabel(MaintenanceAppointment $appointment): string

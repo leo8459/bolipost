@@ -1,10 +1,6 @@
 <div class="bp-livewire-skin">
     @include('livewire.partials.button-theme')
     <style>
-        .bp-livewire-skin {
-            font-family: Verdana, Geneva, Tahoma, sans-serif;
-        }
-
         .maintenance-calendar .calendar-cell {
             min-height: 165px;
             vertical-align: top;

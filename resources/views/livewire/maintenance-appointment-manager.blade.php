@@ -1,10 +1,6 @@
 <div class="bp-livewire-skin">
     @include('livewire.partials.button-theme')
     <style>
-        .bp-livewire-skin {
-            font-family: Verdana, Geneva, Tahoma, sans-serif;
-        }
-
         .bp-select-like-vehicle {
             border-radius: 10px;
             min-height: calc(2.35rem + 2px);
@@ -177,13 +173,13 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Conductor</label>
-                            <select wire:model.live="driver_id" wire:change="onDriverChanged($event.target.value)" class="form-select bp-select-like-vehicle">
+                            <select wire:model="driver_id" class="form-select bp-select-like-vehicle">
                                 <option value="">Seleccionar conductor</option>
                                 @foreach ($drivers as $driver)
                                     <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
                                 @endforeach
                             </select>
-                            <div class="form-text">Al seleccionar conductor, se autocompleta su vehiculo asignado activo.</div>
+                            <div class="form-text">Si el vehiculo tiene una asignacion activa, el conductor se completa automaticamente.</div>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Tipo de Mantenimiento</label>

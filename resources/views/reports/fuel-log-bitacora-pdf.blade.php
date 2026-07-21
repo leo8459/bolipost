@@ -138,11 +138,228 @@
         $showKmLlegada = $visibleColumns->contains('kilometraje_llegada');
         $showRecorrido = $visibleColumns->contains('recorrido');
         $showCombustible = $visibleColumns->contains('combustible');
+<<<<<<< HEAD
+=======
+        $logoPath = public_path('images/AGBClogo1.png');
+        $logoData = file_exists($logoPath)
+            ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
+            : null;
+    @endphp
+    @forelse($groups as $group)
+        @php
+            $chunks = ($group['row_chunks'] ?? collect())->count() > 0 ? $group['row_chunks'] : collect([$group['rows'] ?? collect()]);
+        @endphp
+        @foreach($chunks as $rowsChunk)
+            @php
+                $chunkRows = collect($rowsChunk)->values();
+                $blankRows = max(10 - $chunkRows->count(), 0);
+                $driverNames = collect($group['drivers_used'] ?? [])
+                    ->filter(fn ($name) => trim((string) $name) !== '')
+                    ->implode(', ');
+                $driverLabel = $driverNames !== ''
+                    ? mb_strtoupper($driverNames)
+                    : mb_strtoupper((string) ($group['driver']?->nombre ?? 'SIN CONDUCTOR DESIGNADO'));
+                $vehicleLabel = trim((string) (($group['vehicle']?->brand?->nombre ?? '') . ' ' . ($group['vehicle']?->modelo ?? '')));
+            @endphp
+            <div class="page">
+                <style>
+                    .page {
+                        height: 198mm;
+                        overflow: hidden;
+                        position: relative;
+                    }
+                    .official-wrap {
+                        font-family: Arial, Helvetica, sans-serif;
+                        color: #222;
+                        height: 198mm;
+                        position: relative;
+                    }
+                    .official-top { width: 100%; border-collapse: collapse; margin-bottom: 7px; }
+                    .official-top td { vertical-align: middle; }
+                    .official-brand-left { width: 28%; font-size: 8px; color: #777; line-height: 1.15; }
+                    .official-brand-center { width: 44%; text-align: center; }
+                    .official-brand-right { width: 28%; text-align: right; }
+                    .official-brand-right img { max-width: 132px; max-height: 46px; }
+                    .official-title { text-align: center; font-size: 12px; font-weight: 700; letter-spacing: 0.2px; margin: 6px 0 8px; text-transform: uppercase; }
+                    .official-meta { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+                    .official-meta td { border: 1px solid #8c8c8c; padding: 3px 5px; height: 19px; vertical-align: top; }
+                    .official-meta .field-label { display: block; font-size: 7px; color: #6d6d6d; margin-bottom: 1px; text-transform: uppercase; }
+                    .official-meta .field-value { font-size: 8px; font-weight: 700; text-transform: uppercase; }
+                    .official-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+                    .official-table th,
+                    .official-table td {
+                        border: 1px solid #8c8c8c;
+                        padding: 2px 3px;
+                        vertical-align: middle;
+                        overflow: hidden;
+                    }
+                    .official-table thead th { background: #d9dcdf; text-align: center; text-transform: uppercase; font-size: 7px; line-height: 1.05; }
+                    .official-table thead .subhead th { background: #eceeef; font-size: 7px; }
+                    .official-table tbody td {
+                        height: 9.2mm;
+                        max-height: 9.2mm;
+                        font-size: 7px;
+                        line-height: 1.08;
+                    }
+                    .w-date { width: 7.5%; }
+                    .w-liters { width: 7%; }
+                    .w-invoice { width: 7%; }
+                    .w-km { width: 11%; }
+                    .w-total { width: 9%; }
+                    .w-route { width: 15%; }
+                    .w-guides { width: 10.5%; }
+                    .w-sign { width: 7%; }
+                    .route-cell {
+                        font-size: 6px;
+                        line-height: 1.05;
+                    }
+                    .official-note {
+                        margin-top: 7px;
+                        font-size: 8px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                    }
+                    .official-signatures {
+                        width: 62%;
+                        margin: 8px auto 0;
+                        border-collapse: separate;
+                        border-spacing: 48px 0;
+                    }
+                    .official-signatures td { width: 50%; vertical-align: top; }
+                    .signature-box { border: 1px solid #8c8c8c; height: 27mm; }
+                    .signature-box-title { background: #d9dcdf; border-bottom: 1px solid #8c8c8c; text-align: center; font-size: 7px; font-weight: 700; text-transform: uppercase; padding: 4px 6px; height: 9mm; line-height: 1.15; }
+                    .signature-box-body { height: 18mm; }
+                    .text-center { text-align: center; }
+                    .text-right { text-align: right; }
+                </style>
+
+                <div class="official-wrap">
+                    <table class="official-top">
+                        <tr>
+                            <td class="official-brand-left">
+                                <div>ESTADO PLURINACIONAL</div>
+                                <div>OBRAS PUBLICAS,</div>
+                                <div>SERVICIOS Y VIVIENDA</div>
+                            </td>
+                            <td class="official-brand-center"></td>
+                            <td class="official-brand-right">
+                                @if($logoData)
+                                    <img src="{{ $logoData }}" alt="Correos de Bolivia">
+                                @else
+                                    <div style="font-size: 18px; font-weight: 700; color: #777;">CORREOS DE BOLIVIA</div>
+                                @endif
+                            </td>
+                        </tr>
+                    </table>
+
+                    <div class="official-title">Formulario de bitacora de control para provision de combustible</div>
+
+                    <table class="official-meta">
+                        <tr>
+                            <td style="width: 40%;">
+                                <span class="field-label">Conductor:</span>
+                                <div class="field-value">{{ $showDriver ? $driverLabel : '' }}</div>
+                            </td>
+                            <td style="width: 20%;">
+                                <span class="field-label">Placa:</span>
+                                <div class="field-value">{{ $showPlaca ? ($group['vehicle']?->placa ?? '') : '' }}</div>
+                            </td>
+                            <td style="width: 40%;">
+                                <span class="field-label">Vehiculo:</span>
+                                <div class="field-value">{{ $showVehiculo ? ($vehicleLabel !== '' ? $vehicleLabel : '-') : '' }}</div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table class="official-table">
+                        <thead>
+                            <tr>
+                                <th class="w-date" rowspan="2">Fecha</th>
+                                <th class="w-liters" rowspan="2">Cantidad de litros</th>
+                                <th class="w-invoice" rowspan="2">Numero de factura</th>
+                                <th class="w-km" colspan="2">Kilometraje</th>
+                                <th class="w-total" rowspan="2">Total recorrido (Km)</th>
+                                <th class="w-route" colspan="2">Recorrido</th>
+                                <th class="w-guides" rowspan="2">Cantidad de guias llevadas y/o recogidas</th>
+                                <th class="w-sign" rowspan="2">Firma</th>
+                            </tr>
+                            <tr class="subhead">
+                                <th>Salida</th>
+                                <th>Llegada</th>
+                                <th>Inicio</th>
+                                <th>Destino</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($chunkRows as $row)
+                                @php
+                                    $kmSalida = $row->kilometraje_salida !== null ? (float) $row->kilometraje_salida : null;
+                                    $kmLlegada = $row->kilometraje_llegada !== null ? (float) $row->kilometraje_llegada : null;
+                                    $kmRecorrido = $row->kilometraje_recorrido !== null
+                                        ? (float) $row->kilometraje_recorrido
+                                        : (($kmSalida !== null && $kmLlegada !== null) ? max(0, $kmLlegada - $kmSalida) : null);
+                                    $litros = $row->fuelLog?->cantidad ?? $row->fuelLog?->galones;
+                                    $invoiceNumber = trim((string) ($row->fuelLog?->invoice?->numero_factura ?? $row->fuelLog?->invoice?->numero ?? ''));
+                                    $packageCount = $row->cantidad_paquetes !== null ? (int) $row->cantidad_paquetes : null;
+                                    $hasSignature = trim((string) ($row->firma_digital ?? '')) !== '';
+                                @endphp
+                                <tr>
+                                    <td class="text-center">{{ $showFecha ? (optional($row->fecha)->format('d/m/y') ?? '-') : '' }}</td>
+                                    <td class="text-right">{{ $showCombustible && $litros !== null ? number_format((float) $litros, 2) : '' }}</td>
+                                    <td class="text-center">{{ $showCombustible ? ($invoiceNumber !== '' ? $invoiceNumber : '') : '' }}</td>
+                                    <td class="text-right">{{ $showKmSalida && $kmSalida !== null ? number_format($kmSalida, 2) : '' }}</td>
+                                    <td class="text-right">{{ $showKmLlegada && $kmLlegada !== null ? number_format($kmLlegada, 2) : '' }}</td>
+                                    <td class="text-right">{{ $showKmRecorrido && $kmRecorrido !== null ? number_format($kmRecorrido, 2) : '0' }}</td>
+                                    <td class="route-cell">{{ $showRecorrido ? (trim((string) ($row->recorrido_inicio ?? '')) !== '' ? $row->recorrido_inicio : '') : '' }}</td>
+                                    <td class="route-cell">{{ $showRecorrido ? (trim((string) ($row->recorrido_destino ?? '')) !== '' ? $row->recorrido_destino : '') : '' }}</td>
+                                    <td class="text-center">{{ $packageCount !== null ? $packageCount : '' }}</td>
+                                    <td class="text-center">{{ $hasSignature ? 'SI' : '' }}</td>
+                                </tr>
+                            @endforeach
+
+                            @for($i = 0; $i < $blankRows; $i++)
+                                <tr>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td class="text-center">0</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            @endfor
+                        </tbody>
+                    </table>
+
+                    <div class="official-note">Llenado por el conductor designado</div>
+
+                    <table class="official-signatures">
+                        <tr>
+                            <td>
+                                <div class="signature-box">
+                                    <div class="signature-box-title">Firma y sello del conductor designado</div>
+                                    <div class="signature-box-body"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="signature-box">
+                                    <div class="signature-box-title">Firma y sello del inmediato superior</div>
+                                    <div class="signature-box-body"></div>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
             </div>
         @endforeach
     @empty
         <div class="page">
-            <div class="legacy-subtitle">FORMULARIO DE BITÁCORA DE CONTROL PARA PROVISIÓN DE COMBUSTIBLE</div>
+            <div class="legacy-title">ANEXO 2</div>
+            <div class="legacy-subtitle">FORMULARIO DE BITACORA DE CONTROL PARA PROVISION DE COMBUSTIBLE</div>
             <p>No existen registros para los filtros seleccionados.</p>
         </div>
     @endforelse

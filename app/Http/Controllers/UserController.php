@@ -23,8 +23,6 @@ use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
-    private const ROLE_GUARD_WEB = 'web';
-
     public function index()
     {
         $users = User::withTrashed()->paginate();
@@ -41,7 +39,7 @@ class UserController extends Controller
     public function create()
     {
         $user = new User();
-        $roles = Role::query()->where('guard_name', self::ROLE_GUARD_WEB)->get();
+        $roles = Role::all();
         $empresas = Empresa::query()->orderBy('codigo_cliente')->get();
         $sucursales = Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get();
 
@@ -63,10 +61,7 @@ class UserController extends Controller
             'empresa_id' => 'nullable|integer|exists:empresa,id',
             'sucursal_id' => 'nullable|integer|exists:sucursales,id',
             'roles' => 'nullable|array',
-            'roles.*' => [
-                'integer',
-                Rule::exists('roles', 'id')->where(fn ($query) => $query->where('guard_name', self::ROLE_GUARD_WEB)),
-            ],
+            'roles.*' => 'integer|exists:roles,id',
         ]);
 
         $this->ensureAliasIsAvailable($normalizedAlias);
@@ -85,11 +80,7 @@ class UserController extends Controller
         $user->save();
 
         if ($request->filled('roles')) {
-            $roleNames = Role::query()
-                ->whereIn('id', $request->roles)
-                ->where('guard_name', self::ROLE_GUARD_WEB)
-                ->pluck('name')
-                ->toArray();
+            $roleNames = Role::whereIn('id', $request->roles)->pluck('name')->toArray();
             $user->syncRoles($roleNames);
         }
 
@@ -107,7 +98,7 @@ class UserController extends Controller
     public function edit($id)
     {
         $user = User::find($id);
-        $roles = Role::query()->where('guard_name', self::ROLE_GUARD_WEB)->get();
+        $roles = Role::all();
         $empresas = Empresa::query()->orderBy('codigo_cliente')->get();
         $sucursales = Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get();
 
@@ -128,10 +119,7 @@ class UserController extends Controller
             'empresa_id' => 'nullable|integer|exists:empresa,id',
             'sucursal_id' => 'nullable|integer|exists:sucursales,id',
             'roles' => 'nullable|array',
-            'roles.*' => [
-                'integer',
-                Rule::exists('roles', 'id')->where(fn ($query) => $query->where('guard_name', self::ROLE_GUARD_WEB)),
-            ],
+            'roles.*' => 'integer|exists:roles,id',
             'password' => 'nullable|min:8',
         ]);
 
@@ -156,11 +144,7 @@ class UserController extends Controller
         $user->save();
 
         $roleNames = $request->filled('roles')
-            ? Role::query()
-                ->whereIn('id', $request->roles)
-                ->where('guard_name', self::ROLE_GUARD_WEB)
-                ->pluck('name')
-                ->toArray()
+            ? Role::whereIn('id', $request->roles)->pluck('name')->toArray()
             : [];
         $user->syncRoles($roleNames);
 
@@ -272,11 +256,7 @@ class UserController extends Controller
             '',
         ], null, 'A2');
 
-        $roles = Role::query()
-            ->where('guard_name', self::ROLE_GUARD_WEB)
-            ->orderBy('name')
-            ->pluck('name')
-            ->values();
+        $roles = Role::query()->orderBy('name')->pluck('name')->values();
         $rolesSheet = $spreadsheet->createSheet();
         $rolesSheet->setTitle('Roles');
         $rolesSheet->setCellValue('A1', 'roles_disponibles');
@@ -421,11 +401,7 @@ class UserController extends Controller
                     'password' => ['required', 'string', 'min:8'],
                     'ciudad' => ['required', 'string', 'max:255'],
                     'ci' => ['nullable', 'string', 'max:255'],
-                    'rol' => [
-                        'required',
-                        'string',
-                        Rule::exists('roles', 'name')->where(fn ($query) => $query->where('guard_name', self::ROLE_GUARD_WEB)),
-                    ],
+                    'rol' => ['required', 'string', 'exists:roles,name'],
                     'empresa_codigo' => ['nullable', 'string', 'exists:empresa,codigo_cliente'],
                     'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
                 ]);

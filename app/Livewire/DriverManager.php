@@ -27,8 +27,6 @@ class DriverManager extends Component
     ];
 
     private const FIXED_EMAIL_DOMAIN = '@correos.gob.bo';
-    private const DRIVER_ROLE_NAME = 'conductor';
-    private const WEB_GUARD = 'web';
 
     public string $search = '';
     public string $statusFilter = 'activos';
@@ -150,7 +148,11 @@ class DriverManager extends Component
         $drivers = $query->paginate(10);
         $users = auth()->user()?->role === 'conductor'
             ? collect()
+<<<<<<< HEAD
             : $this->resolveSelectableUsers();
+=======
+            : $this->availableDriverUsers();
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         
         return view('livewire.driver-manager', [
             'drivers' => $drivers,
@@ -284,9 +286,16 @@ class DriverManager extends Component
             ]
         );
 
+<<<<<<< HEAD
         if (!$this->isUserSelectableForDriver((int) $this->user_id)) {
             $this->addError('user_id', 'Debe seleccionar un usuario con rol conductor que no este vinculado a otro conductor.');
             session()->flash('error', 'No se pudo registrar: el usuario no tiene rol conductor o ya esta vinculado.');
+=======
+        $selectedUser = User::query()->find((int) $this->user_id);
+        if (!$selectedUser || !$this->isDriverRoleUser($selectedUser)) {
+            $this->addError('user_id', 'Solo puede seleccionar usuarios con rol de conductor.');
+            session()->flash('error', 'No se pudo registrar: el usuario seleccionado no tiene rol de conductor.');
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
             return;
         }
 
@@ -570,6 +579,7 @@ class DriverManager extends Component
         return Driver::query()
             ->with('user')
             ->find($this->viewingDriverId);
+<<<<<<< HEAD
     }
 
     private function resolveSelectableUsers()
@@ -624,5 +634,7 @@ class DriverManager extends Component
             ->where('user_id', $userId)
             ->when($this->isEdit && $this->editingDriverId, fn ($query) => $query->where('id', '!=', $this->editingDriverId))
             ->exists();
+=======
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
     }
 }
