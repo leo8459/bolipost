@@ -414,9 +414,6 @@
                                 } elseif ($facturaEstado === 'PENDIENTE') {
                                     $consultActionLabel = 'Actualizar estado';
                                 }
-                                $showQrRefacturarActions = $isQrPayment
-                                    && in_array($facturaEstado, ['PENDIENTE', 'NO_APLICA', 'ERROR', 'RECHAZADA'], true)
-                                    && ($pageContext['scope'] ?? 'own') !== 'branch';
                             @endphp
                             <tr>
                                 <td class="text-center">
@@ -477,7 +474,7 @@
                                     @elseif($facturaEstado === 'RECHAZADA')
                                         <span class="ventas-status-chip ventas-status-chip--danger">RECHAZADA</span>
                                     @elseif($facturaEstado === 'ANULADA')
-                                        <span class="ventas-status-chip ventas-status-chip--danger">VENTA ANULADA</span>
+                                        <span class="ventas-status-chip ventas-status-chip--danger">ANULADA</span>
                                     @elseif($facturaEstado === 'PENDIENTE_ANULACION')
                                         <span class="ventas-status-chip ventas-status-chip--warning">PENDIENTE ANULACION</span>
                                     @elseif($facturaEstado === 'ANULACION_OBSERVADA')
@@ -518,8 +515,6 @@
                                         <div class="ventas-table__secondary mt-1">Pago QR pendiente de confirmacion.</div>
                                     @elseif($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'cancelado')
                                         <div class="ventas-table__secondary mt-1">El QR fue cerrado, cancelado o no completado.</div>
-                                    @elseif($facturaEstado === 'ANULADA')
-                                        <div class="ventas-table__secondary mt-1">Venta anulada localmente. No se contabiliza en caja ni en los totales operativos.</div>
                                     @endif
                                 </td>
                                 <td class="text-center">
@@ -559,38 +554,7 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="ventas-actions-grid">
-                                        @if($showQrRefacturarActions)
-                                            <form
-                                                method="POST"
-                                                action="{{ route('facturacion.cart.consultar') }}"
-                                                class="ventas-actions-grid__item"
-                                                data-pending-consult="true"
-                                            >
-                                                @csrf
-                                                <input type="hidden" name="cart_id" value="{{ $cartId }}">
-                                                <input type="hidden" name="codigo_seguimiento" value="{{ $referenciaConsulta }}">
-                                                <input type="hidden" name="auto_emit_invoice" value="1">
-                                                <input type="hidden" name="codigo_orden_mode" value="same">
-                                                <button type="submit" class="btn btn-xs btn-outline-secondary btn-block">
-                                                    Facturar mismo codigo
-                                                </button>
-                                            </form>
-                                            <form
-                                                method="POST"
-                                                action="{{ route('facturacion.cart.consultar') }}"
-                                                class="ventas-actions-grid__item"
-                                                data-pending-consult="true"
-                                            >
-                                                @csrf
-                                                <input type="hidden" name="cart_id" value="{{ $cartId }}">
-                                                <input type="hidden" name="codigo_seguimiento" value="{{ $referenciaConsulta }}">
-                                                <input type="hidden" name="auto_emit_invoice" value="1">
-                                                <input type="hidden" name="codigo_orden_mode" value="new">
-                                                <button type="submit" class="btn btn-xs btn-outline-primary btn-block">
-                                                    Facturar con otro codigo
-                                                </button>
-                                            </form>
-                                        @elseif($showConsultAction && ($pageContext['scope'] ?? 'own') !== 'branch')
+                                        @if($showConsultAction && ($pageContext['scope'] ?? 'own') !== 'branch')
                                             <form
                                                 method="POST"
                                                 action="{{ $isQrPayment && in_array($estadoPago, ['pendiente', 'cancelado'], true) ? route('facturacion.cart.ver-qr') : route('facturacion.cart.consultar') }}"

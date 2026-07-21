@@ -29,7 +29,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'single.mobile.session' => \App\Http\Middleware\EnsureSingleMobileSession::class,
             'empresa.contract.active' => \App\Http\Middleware\EnsureEmpresaContractUsersActive::class,
             'siop.api.token' => \App\Http\Middleware\EnsureSiopApiToken::class,
-            'external.api.jwt' => \App\Http\Middleware\EnsureExternalApiJwt::class,
         ]);
 
         $middleware->web(append: [
