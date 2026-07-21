@@ -86,7 +86,7 @@
                                     <td>{{ $contrato->cantidad ?: '-' }}</td>
                                     <td>
                                         @if (!empty($contrato->imagen))
-                                            <a href="{{ asset('storage/' . $contrato->imagen) }}"
+                                            <a href="{{ route('delivery-images.show', ['source' => 'contrato', 'id' => $contrato->id], false) }}"
                                                 target="_blank"
                                                 rel="noopener"
                                                 class="btn btn-sm btn-outline-info">

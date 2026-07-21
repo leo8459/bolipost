@@ -53,6 +53,7 @@ class User extends Authenticatable
         'email',
         'password',
         'ciudad',
+        'provincia_origen',
         'regionales',
         'ci',
         'empresa_id',
@@ -108,6 +109,35 @@ class User extends Authenticatable
         return $superAdminRole !== ''
             && method_exists($this, 'hasRole')
             && $this->hasRole($superAdminRole);
+    }
+
+    public function isGlobalDepartmentViewer(): bool
+    {
+        $roles = collect((array) config('acl.global_department_roles', ['administrador']))
+            ->map(fn ($role) => mb_strtolower(trim((string) $role)))
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($roles === [] || !method_exists($this, 'hasRole')) {
+            return false;
+        }
+
+        $assignedRoles = $this->getRoleNames()
+            ->map(fn ($role) => mb_strtolower(trim((string) $role)))
+            ->filter()
+            ->values()
+            ->all();
+
+        foreach ($roles as $role) {
+            if (in_array($role, $assignedRoles, true) || $this->hasRole($role)) {
+                return true;
+            }
+        }
+
+        $resolvedRole = mb_strtolower(trim((string) ($this->role ?? '')));
+
+        return $resolvedRole !== '' && in_array($resolvedRole, $roles, true);
     }
 
     public function driver(): HasOne

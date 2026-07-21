@@ -28,6 +28,7 @@ use App\Http\Controllers\VentanillaController;
 use App\Http\Controllers\DespachoController;
 use App\Http\Controllers\SacaController;
 use App\Http\Controllers\CarterosController;
+use App\Http\Controllers\DeliveryImageController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\EventoController;
@@ -133,6 +134,15 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
     Route::delete('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'removeItem'])->name('facturacion.cart.items.destroy');
   });
 
+Route::middleware(['auth', 'internal.only'])->get('/imagenes-entrega/{source}/{id}/{field?}', [DeliveryImageController::class, 'show'])
+    ->whereIn('source', ['cartero', 'ems', 'certi', 'ordi', 'contrato', 'solicitud'])
+    ->whereIn('field', ['imagen', 'imagen_devolucion'])
+    ->name('delivery-images.show');
+Route::middleware(['auth', 'internal.only'])->get('/imagenes-entrega-codigo/{source}/{field?}', [DeliveryImageController::class, 'showByCode'])
+    ->whereIn('source', ['ems', 'certi', 'ordi', 'contrato', 'solicitud'])
+    ->whereIn('field', ['imagen', 'imagen_devolucion'])
+    ->name('delivery-images.by-code');
+
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard');
@@ -231,6 +241,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');
     Route::put('/configuracion/aplicacion', [AppConfigController::class, 'update'])->name('configuracion.aplicacion.update');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/users/empresas', [UserController::class, 'empresas'])->name('users.empresas');
+    Route::get('/users/empresas/excel', [UserController::class, 'empresasExcel'])->name('users.empresas.excel');
+    Route::get('/users/empresas/pdf', [UserController::class, 'empresasPdf'])->name('users.empresas.pdf');
     Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
     Route::get('users/pdf', [UserController::class, 'pdf'])->name('users.pdf');
     Route::get('users/plantilla-excel', [UserController::class, 'templateExcel'])->name('users.template-excel');

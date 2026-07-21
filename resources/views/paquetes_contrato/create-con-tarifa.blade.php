@@ -112,6 +112,14 @@
                                     <input type="text" class="form-control origin-input" value="{{ $origen }}" readonly>
                                 </div>
                             </div>
+                            @if(!empty($provinciaOrigen))
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Provincia origen</label>
+                                        <input type="text" class="form-control origin-input" value="{{ $provinciaOrigen }}" readonly>
+                                    </div>
+                                </div>
+                            @endif
                             <div class="col-md-3">
                                 <div class="form-group">
                                     <label>Servicio<span class="required-star">*</span></label>

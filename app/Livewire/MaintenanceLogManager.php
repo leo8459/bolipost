@@ -244,16 +244,21 @@ class MaintenanceLogManager extends Component
                 return;
             }
         }
+            $canUseExistingRecordFlow = $this->isEdit
+                && (int) ($this->editingMaintenanceId ?? 0) > 0;
 
-        $this->tipo = (string) $selectedType->nombre;
-        if (trim($this->descripcion) === '') {
-            $this->descripcion = (string) ($selectedType->descripcion ?? '');
-        }
+            $this->tipo = (string) $selectedType->nombre;
 
-        if ($this->comprobante_file) {
-            $this->comprobante = (string) $this->comprobante_file->store('comprobantes-mantenimiento', 'public');
-        }
+            if (trim($this->descripcion) === '') {
+                $this->descripcion = (string) ($selectedType->descripcion ?? '');
+            }
 
+            if ($this->comprobante_file) {
+                $this->comprobante = (string) $this->comprobante_file->store(
+                    'comprobantes-mantenimiento',
+                    'public'
+                );
+            }
         $data = [
             'vehicle_id' => $this->vehicle_id,
             'tipo' => $this->tipo,

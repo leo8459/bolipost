@@ -340,7 +340,9 @@
 
                         @if ($contratoBuscado)
                             @php
-                                $contratoImagenUrl = !empty($contratoBuscado->imagen) ? asset('storage/' . $contratoBuscado->imagen) : null;
+                                $contratoImagenUrl = !empty($contratoBuscado->imagen)
+                                    ? route('delivery-images.show', ['source' => 'contrato', 'id' => $contratoBuscado->id], false)
+                                    : null;
                             @endphp
 
                             <div class="contrato-preview-grid">
@@ -398,7 +400,7 @@
                                             <a href="{{ $contratoImagenUrl }}" target="_blank" rel="noopener" class="btn btn-outline-azul">
                                                 Ver imagen
                                             </a>
-                                            <a href="{{ $contratoImagenUrl }}" download class="btn btn-azul">
+                                            <a href="{{ $contratoImagenUrl }}{{ str_contains($contratoImagenUrl, '?') ? '&' : '?' }}download=1" class="btn btn-azul">
                                                 Descargar imagen
                                             </a>
                                         </div>
@@ -472,7 +474,9 @@
                                     @if ($config['table'] === 'eventos_ems')
                                         <td>
                                             @php
-                                                $eventoImagenUrl = !empty($registro->imagen) ? asset('storage/' . ltrim($registro->imagen, '/')) : null;
+                                                $eventoImagenUrl = !empty($registro->imagen)
+                                                    ? route('delivery-images.by-code', ['source' => 'ems', 'codigo' => $registro->codigo], false)
+                                                    : null;
                                             @endphp
                                             @if ($eventoImagenUrl)
                                                 <a href="{{ $eventoImagenUrl }}" target="_blank" rel="noopener">

@@ -63,6 +63,7 @@
                 <th>Alias</th>
                 <th>Email</th>
                 <th>Regional</th>
+                <th>Provincia origen</th>
                 <th>CI</th>
                 <th>Empresa</th>
                 <th>Sucursal</th>
@@ -78,6 +79,7 @@
                     <td>{{ $user->alias ?: '-' }}</td>
                     <td>{{ $user->email }}</td>
                     <td>{{ $user->regionalesTexto() ?: '-' }}</td>
+                    <td>{{ $user->provincia_origen ?: '-' }}</td>
                     <td>{{ $user->ci ?: '-' }}</td>
                     <td>
                         @if ($user->empresa)
@@ -98,7 +100,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="10" class="center">No existen usuarios registrados.</td>
+                    <td colspan="11" class="center">No existen usuarios registrados.</td>
                 </tr>
             @endforelse
         </tbody>

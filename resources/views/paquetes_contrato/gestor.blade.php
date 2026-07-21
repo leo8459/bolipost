@@ -143,7 +143,7 @@
                                             </a>
                                         @endif
                                         @if (!empty($contrato->imagen))
-                                            <a href="{{ asset('storage/' . $contrato->imagen) }}"
+                                            <a href="{{ route('delivery-images.show', ['source' => 'contrato', 'id' => $contrato->id], false) }}"
                                                 target="_blank"
                                                 rel="noopener"
                                                 class="gestor-action-btn"

@@ -27,6 +27,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Global Department Viewer Roles
+    |--------------------------------------------------------------------------
+    |
+    | These roles keep their normal permissions, but department/regional filters
+    | treat them like administrators and allow them to see national data.
+    |
+    */
+    'global_department_roles' => [
+        'administrador',
+        'gestor',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Excluded Route Names
     |--------------------------------------------------------------------------
     |

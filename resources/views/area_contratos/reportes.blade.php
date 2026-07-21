@@ -121,7 +121,8 @@
                                     <tr>
                                         <th>Codigo</th>
                                         <th>Origen</th>
-                                        <th>Provincia</th>
+                                        <th>Provincia origen</th>
+                                        <th>Provincia destino</th>
                                         <th>Destino</th>
                                         <th>Remitente</th>
                                         <th>Destinatario</th>
@@ -136,6 +137,7 @@
                                         <tr>
                                             <td>{{ $contrato->codigo }}</td>
                                             <td>{{ $contrato->origen ?: '-' }}</td>
+                                            <td>{{ $contrato->provincia_origen ?: '-' }}</td>
                                             <td>{{ $contrato->provincia ?: '-' }}</td>
                                             <td>{{ $contrato->destino ?: '-' }}</td>
                                             <td>{{ $contrato->nombre_r ?: '-' }}</td>
@@ -152,7 +154,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="10" class="text-center py-4 text-muted">
+                                            <td colspan="11" class="text-center py-4 text-muted">
                                                 No hay contratos con los filtros seleccionados.
                                             </td>
                                         </tr>

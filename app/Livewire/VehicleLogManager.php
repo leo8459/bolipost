@@ -43,19 +43,18 @@ class VehicleLogManager extends Component
 
     #[Validate('required|numeric|min:0')]
     public ?float $kilometraje_recorrido = null;
+public ?float $kilometraje_llegada = null;
+public ?int $cantidad_paquetes = 0;
 
-    public ?float $kilometraje_llegada = null;
-    public ?int $cantidad_paquetes = null;
+#[Validate('required|string|max:255')]
+public string $recorrido_inicio = '';
+public ?float $latitud_inicio = null;
+public ?float $logitud_inicio = null;
 
-    #[Validate('required|string|max:255')]
-    public string $recorrido_inicio = '';
-    public ?float $latitud_inicio = null;
-    public ?float $logitud_inicio = null;
-
-    #[Validate('required|string|max:255')]
-    public string $recorrido_destino = '';
-    public ?float $latitud_destino = null;
-    public ?float $logitud_destino = null;
+#[Validate('required|string|max:255')]
+public string $recorrido_destino = '';
+public ?float $latitud_destino = null;
+public ?float $logitud_destino = null;
 
     public bool $abastecimiento_combustible = false;
     public ?string $firma_digital = null;
@@ -395,24 +394,23 @@ class VehicleLogManager extends Component
         $locationPayload = $this->resolveLocationPayload();
         $photoPath = $this->storeOdometroPhoto();
 
-        $data = [
-            ...$locationPayload,
-            'vehicles_id' => $this->vehicles_id,
-            'drivers_id' => $this->drivers_id,
-            'fuel_log_id' => $this->fuel_log_id,
-            'fecha' => $this->fecha,
-            'kilometraje_salida' => $this->kilometraje_salida,
-            'kilometraje_recorrido' => $this->kilometraje_recorrido,
-            'kilometraje_llegada' => $this->kilometraje_llegada,
-            'cantidad_paquetes' => $this->cantidad_paquetes !== null ? max(0, (int) $this->cantidad_paquetes) : null,
-            'recorrido_inicio' => $this->recorrido_inicio,
-            'recorrido_destino' => $this->recorrido_destino,
-            'abastecimiento_combustible' => $this->resolveAbastecimientoCombustible(),
-            'firma_digital' => $this->firma_digital,
-            'odometro_photo_path' => $photoPath,
-            'ruta_json' => $this->buildRoutePoints($locationPayload),
-        ];
-
+      $data = [
+    ...$locationPayload,
+    'vehicles_id' => $this->vehicles_id,
+    'drivers_id' => $this->drivers_id,
+    'fuel_log_id' => $this->fuel_log_id,
+    'fecha' => $this->fecha,
+    'kilometraje_salida' => $this->kilometraje_salida,
+    'kilometraje_recorrido' => $this->kilometraje_recorrido,
+    'kilometraje_llegada' => $this->kilometraje_llegada,
+    'cantidad_paquetes' => max(0, (int) ($this->cantidad_paquetes ?? 0)),
+    'recorrido_inicio' => $this->recorrido_inicio,
+    'recorrido_destino' => $this->recorrido_destino,
+    'abastecimiento_combustible' => $this->resolveAbastecimientoCombustible(),
+    'firma_digital' => $this->firma_digital,
+    'odometro_photo_path' => $photoPath,
+    'ruta_json' => $this->buildRoutePoints($locationPayload),
+];
         if ($this->isEdit && $this->editingLogId) {
             $log = VehicleLog::find($this->editingLogId);
             if ($log) {
@@ -438,41 +436,69 @@ class VehicleLogManager extends Component
     }
 
     public function edit(VehicleLog $log): void
-    {
-        if ($this->currentUser()?->role === 'conductor' || $this->isRegionalUser()) {
-            session()->flash('error', 'No tiene permiso para editar registros de bitacora.');
-            return;
-        }
-
-        $this->showForm = true;
-        $this->isEdit = true;
-        $this->editingLogId = $log->id;
-        $this->vehicles_id = $log->vehicles_id;
-        $this->drivers_id = $log->drivers_id;
-        $this->fuel_log_id = $log->fuel_log_id;
-        $this->fecha = optional($log->fecha)->format('Y-m-d');
-        $this->kilometraje_salida = $log->kilometraje_salida !== null ? (float) $log->kilometraje_salida : null;
-        $this->kilometraje_llegada = $log->kilometraje_llegada !== null ? (float) $log->kilometraje_llegada : null;
-        $this->kilometraje_recorrido = $log->kilometraje_recorrido !== null
-            ? (float) $log->kilometraje_recorrido
-            : (($this->kilometraje_llegada !== null && $this->kilometraje_salida !== null)
-                ? max(0, $this->kilometraje_llegada - $this->kilometraje_salida)
-                : null);
-        $this->cantidad_paquetes = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;
-        $this->recorrido_inicio = (string) $log->recorrido_inicio;
-        $this->recorrido_destino = (string) $log->recorrido_destino;
-        $this->latitud_inicio = $log->latitud_inicio !== null ? (float) $log->latitud_inicio : null;
-        $this->logitud_inicio = $log->logitud_inicio !== null ? (float) $log->logitud_inicio : null;
-        $this->latitud_destino = $log->latitud_destino !== null ? (float) $log->latitud_destino : null;
-        $this->logitud_destino = $log->logitud_destino !== null ? (float) $log->logitud_destino : null;
-        $this->abastecimiento_combustible = $this->resolveFuelLinkedFlag($log);
-        $this->firma_digital = $log->firma_digital;
-        $this->odometro_photo = null;
-        $this->currentOdometroPhotoPath = $log->odometro_photo_path;
-        $this->currentOdometroPhotoUrl = $log->odometro_photo_path
-            ? asset('storage/' . ltrim($log->odometro_photo_path, '/'))
-            : null;
+{
+    if ($this->currentUser()?->role === 'conductor' || $this->isRegionalUser()) {
+        session()->flash('error', 'No tiene permiso para editar registros de bitácora.');
+        return;
     }
+
+    $this->showForm = true;
+    $this->isEdit = true;
+    $this->editingLogId = $log->id;
+    $this->vehicles_id = $log->vehicles_id;
+    $this->drivers_id = $log->drivers_id;
+    $this->fuel_log_id = $log->fuel_log_id;
+    $this->fecha = optional($log->fecha)->format('Y-m-d');
+
+    $this->kilometraje_salida = $log->kilometraje_salida !== null
+        ? (float) $log->kilometraje_salida
+        : null;
+
+    $this->kilometraje_llegada = $log->kilometraje_llegada !== null
+        ? (float) $log->kilometraje_llegada
+        : null;
+
+    $this->kilometraje_recorrido = $log->kilometraje_recorrido !== null
+        ? (float) $log->kilometraje_recorrido
+        : (
+            $this->kilometraje_llegada !== null
+            && $this->kilometraje_salida !== null
+                ? max(
+                    0,
+                    $this->kilometraje_llegada - $this->kilometraje_salida
+                )
+                : null
+        );
+
+    $this->cantidad_paquetes = (int) ($log->cantidad_paquetes ?? 0);
+    $this->recorrido_inicio = (string) $log->recorrido_inicio;
+    $this->recorrido_destino = (string) $log->recorrido_destino;
+
+    $this->latitud_inicio = $log->latitud_inicio !== null
+        ? (float) $log->latitud_inicio
+        : null;
+
+    $this->logitud_inicio = $log->logitud_inicio !== null
+        ? (float) $log->logitud_inicio
+        : null;
+
+    $this->latitud_destino = $log->latitud_destino !== null
+        ? (float) $log->latitud_destino
+        : null;
+
+    $this->logitud_destino = $log->logitud_destino !== null
+        ? (float) $log->logitud_destino
+        : null;
+
+    $this->abastecimiento_combustible = $this->resolveFuelLinkedFlag($log);
+    $this->firma_digital = $log->firma_digital;
+    $this->odometro_photo = null;
+    $this->currentOdometroPhotoPath = $log->odometro_photo_path;
+
+    $this->currentOdometroPhotoUrl = $log->odometro_photo_path
+        ? asset('storage/' . ltrim($log->odometro_photo_path, '/'))
+        : null;
+}
 
     public function delete(VehicleLog $log): void
     {
@@ -485,33 +511,32 @@ class VehicleLogManager extends Component
         session()->flash('message', 'Registro de bitacora inactivado correctamente.');
     }
 
-    public function resetForm(): void
-    {
-        $this->vehicles_id = null;
-        $this->drivers_id = null;
-        $this->fuel_log_id = null;
-        $this->fecha = null;
-        $this->kilometraje_salida = null;
-        $this->kilometraje_recorrido = null;
-        $this->kilometraje_llegada = null;
-        $this->cantidad_paquetes = null;
-        $this->recorrido_inicio = '';
-        $this->recorrido_destino = '';
-        $this->latitud_inicio = null;
-        $this->logitud_inicio = null;
-        $this->latitud_destino = null;
-        $this->logitud_destino = null;
-        $this->abastecimiento_combustible = false;
-        $this->firma_digital = null;
-        $this->odometro_photo = null;
-        $this->currentOdometroPhotoPath = null;
-        $this->currentOdometroPhotoUrl = null;
-        $this->isEdit = false;
-        $this->editingLogId = null;
-        $this->showForm = false;
-        $this->resetListPages();
-    }
-
+ public function resetForm(): void
+{
+    $this->vehicles_id = null;
+    $this->drivers_id = null;
+    $this->fuel_log_id = null;
+    $this->fecha = null;
+    $this->kilometraje_salida = null;
+    $this->kilometraje_recorrido = null;
+    $this->kilometraje_llegada = null;
+    $this->cantidad_paquetes = 0;
+    $this->recorrido_inicio = '';
+    $this->recorrido_destino = '';
+    $this->latitud_inicio = null;
+    $this->logitud_inicio = null;
+    $this->latitud_destino = null;
+    $this->logitud_destino = null;
+    $this->abastecimiento_combustible = false;
+    $this->firma_digital = null;
+    $this->odometro_photo = null;
+    $this->currentOdometroPhotoPath = null;
+    $this->currentOdometroPhotoUrl = null;
+    $this->isEdit = false;
+    $this->editingLogId = null;
+    $this->showForm = false;
+    $this->resetListPages();
+}
     public function create(): void
     {
         $this->resetForm();
@@ -1027,104 +1052,140 @@ class VehicleLogManager extends Component
         return (bool) $log->abastecimiento_combustible;
     }
 
-    private function buildOperationalSummary($logs): array
-    {
-        $items = collect($logs->items());
-        $default = [
-            'plate_label' => 'Todas las placas',
-            'month_label' => 'Sin rango',
-            'date_label' => 'Sin fechas',
-            'fuel_total' => 0.0,
-            'package_total' => 0,
-            'guides_label' => 'Guias entregadas',
-        ];
+   private function buildOperationalSummary($logs): array
+{
+    $items = collect($logs->items());
 
-        if ($items->isEmpty()) {
-            return $default;
-        }
+    $default = [
+        'plate_label' => 'Todas las placas',
+        'month_label' => 'Sin rango',
+        'date_label' => 'Sin fechas',
+        'fuel_total' => 0.0,
+        'package_total' => 0,
+        'guides_label' => 'Guías entregadas',
+    ];
 
-        $driverUserIds = $items
-            ->map(fn ($log) => (int) ($log->driver?->user_id ?? 0))
-            ->filter(fn ($id) => $id > 0)
-            ->unique()
-            ->values();
-
-        $dates = $items
-            ->map(fn ($log) => optional($log->fecha)->format('Y-m-d'))
-            ->filter()
-            ->unique()
-            ->values();
-
-        $deliveryCounts = collect();
-        $deliveredStateIds = Estado::query()
-            ->whereRaw('UPPER(nombre_estado) LIKE ?', ['%ENTREGADO%'])
-            ->pluck('id');
-
-        if ($driverUserIds->isNotEmpty() && $dates->isNotEmpty() && $deliveredStateIds->isNotEmpty()) {
-            $minDate = $dates->min();
-            $maxDate = $dates->max();
-
-            $deliveryCounts = DB::table('cartero')
-                ->selectRaw('id_user, DATE(COALESCE(updated_at, created_at)) as event_date, COUNT(*) as delivered_count')
-                ->whereIn('id_user', $driverUserIds->all())
-                ->whereIn('id_estados', $deliveredStateIds->all())
-                ->whereBetween(DB::raw('DATE(COALESCE(updated_at, created_at))'), [$minDate, $maxDate])
-                ->groupBy('id_user', DB::raw('DATE(COALESCE(updated_at, created_at))'))
-                ->get()
-                ->mapWithKeys(fn ($row) => [
-                    ((int) $row->id_user) . '|' . (string) $row->event_date => (int) $row->delivered_count,
-                ]);
-        }
-
-        $items->transform(function ($log) use ($deliveryCounts) {
-            $userId = (int) ($log->driver?->user_id ?? 0);
-            $date = optional($log->fecha)->format('Y-m-d');
-            $derivedCount = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
-            $savedCount = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;
-            $log->package_count = $savedCount !== null ? $savedCount : $derivedCount;
-
-            return $log;
-        });
-
-        $logs->setCollection($items);
-
-        $selectedVehicle = $this->vehicle_filter_id
-            ? Vehicle::query()->find((int) $this->vehicle_filter_id)
-            : null;
-
-        $plateLabel = $selectedVehicle?->placa
-            ?: (($items->pluck('vehicle.placa')->filter()->unique()->count() === 1)
-                ? (string) $items->pluck('vehicle.placa')->filter()->first()
-                : 'Todas las placas');
-
-        $monthLabel = 'Sin rango';
-        if ($this->fecha_desde && $this->fecha_hasta) {
-            $from = Carbon::parse($this->fecha_desde);
-            $to = Carbon::parse($this->fecha_hasta);
-            $monthLabel = ucfirst($from->translatedFormat('F Y'));
-            if ($from->format('Y-m') !== $to->format('Y-m')) {
-                $monthLabel .= ' - ' . ucfirst($to->translatedFormat('F Y'));
-            }
-        } elseif ($this->fecha_desde) {
-            $monthLabel = ucfirst(Carbon::parse($this->fecha_desde)->translatedFormat('F Y'));
-        }
-
-        $dateLabel = 'Sin fechas';
-        if ($this->fecha_desde && $this->fecha_hasta) {
-            $dateLabel = Carbon::parse($this->fecha_desde)->format('d/m/Y') . ' - ' . Carbon::parse($this->fecha_hasta)->format('d/m/Y');
-        } elseif ($this->fecha_desde) {
-            $dateLabel = Carbon::parse($this->fecha_desde)->format('d/m/Y');
-        }
-
-        return [
-            'plate_label' => $plateLabel,
-            'month_label' => $monthLabel,
-            'date_label' => $dateLabel,
-            'fuel_total' => round((float) $items->sum(fn ($log) => (float) ($log->fuelLog?->cantidad ?? 0)), 2),
-            'package_total' => (int) $items->sum(fn ($log) => (int) ($log->package_count ?? 0)),
-            'guides_label' => 'Guias entregadas',
-        ];
+    if ($items->isEmpty()) {
+        return $default;
     }
+
+    $driverUserIds = $items
+        ->map(fn ($log) => (int) ($log->driver?->user_id ?? 0))
+        ->filter(fn ($id) => $id > 0)
+        ->unique()
+        ->values();
+
+    $dates = $items
+        ->map(fn ($log) => optional($log->fecha)->format('Y-m-d'))
+        ->filter()
+        ->unique()
+        ->values();
+
+    $deliveryCounts = collect();
+
+    $deliveredStateIds = Estado::query()
+        ->whereRaw('UPPER(nombre_estado) LIKE ?', ['%ENTREGADO%'])
+        ->pluck('id');
+
+    if (
+        $driverUserIds->isNotEmpty()
+        && $dates->isNotEmpty()
+        && $deliveredStateIds->isNotEmpty()
+    ) {
+        $minDate = $dates->min();
+        $maxDate = $dates->max();
+
+        $deliveryCounts = DB::table('cartero')
+            ->selectRaw(
+                'id_user, DATE(COALESCE(updated_at, created_at)) as event_date, COUNT(*) as delivered_count'
+            )
+            ->whereIn('id_user', $driverUserIds->all())
+            ->whereIn('id_estados', $deliveredStateIds->all())
+            ->whereBetween(
+                DB::raw('DATE(COALESCE(updated_at, created_at))'),
+                [$minDate, $maxDate]
+            )
+            ->groupBy(
+                'id_user',
+                DB::raw('DATE(COALESCE(updated_at, created_at))')
+            )
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                ((int) $row->id_user) . '|' . (string) $row->event_date
+                    => (int) $row->delivered_count,
+            ]);
+    }
+
+    $items->transform(function ($log) use ($deliveryCounts) {
+        $userId = (int) ($log->driver?->user_id ?? 0);
+        $date = optional($log->fecha)->format('Y-m-d');
+
+        $savedCount = (int) ($log->cantidad_paquetes ?? 0);
+        $derivedCount = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
+
+        $log->package_count = $savedCount > 0
+            ? $savedCount
+            : $derivedCount;
+
+        return $log;
+    });
+
+    $logs->setCollection($items);
+
+    $selectedVehicle = $this->vehicle_filter_id
+        ? Vehicle::query()->find((int) $this->vehicle_filter_id)
+        : null;
+
+    $plateLabel = $selectedVehicle?->placa
+        ?: (
+            $items->pluck('vehicle.placa')->filter()->unique()->count() === 1
+                ? (string) $items->pluck('vehicle.placa')->filter()->first()
+                : 'Todas las placas'
+        );
+
+    $monthLabel = 'Sin rango';
+
+    if ($this->fecha_desde && $this->fecha_hasta) {
+        $from = Carbon::parse($this->fecha_desde);
+        $to = Carbon::parse($this->fecha_hasta);
+
+        $monthLabel = ucfirst($from->translatedFormat('F Y'));
+
+        if ($from->format('Y-m') !== $to->format('Y-m')) {
+            $monthLabel .= ' - ' . ucfirst($to->translatedFormat('F Y'));
+        }
+    } elseif ($this->fecha_desde) {
+        $monthLabel = ucfirst(
+            Carbon::parse($this->fecha_desde)->translatedFormat('F Y')
+        );
+    }
+
+    $dateLabel = 'Sin fechas';
+
+    if ($this->fecha_desde && $this->fecha_hasta) {
+        $dateLabel = Carbon::parse($this->fecha_desde)->format('d/m/Y')
+            . ' - '
+            . Carbon::parse($this->fecha_hasta)->format('d/m/Y');
+    } elseif ($this->fecha_desde) {
+        $dateLabel = Carbon::parse($this->fecha_desde)->format('d/m/Y');
+    }
+
+    return [
+        'plate_label' => $plateLabel,
+        'month_label' => $monthLabel,
+        'date_label' => $dateLabel,
+        'fuel_total' => round(
+            (float) $items->sum(
+                fn ($log) => (float) ($log->fuelLog?->cantidad ?? 0)
+            ),
+            2
+        ),
+        'package_total' => (int) $items->sum(
+            fn ($log) => (int) ($log->package_count ?? 0)
+        ),
+        'guides_label' => 'Guías entregadas',
+    ];
+}
 
     private function currentUser(): ?User
     {
