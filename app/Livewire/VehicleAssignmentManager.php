@@ -449,6 +449,7 @@ class VehicleAssignmentManager extends Component
         ];
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         try {
             DB::transaction(function () use ($payload, $successMessage, &$aborted) {
                 if ($this->activo) {
@@ -508,6 +509,8 @@ class VehicleAssignmentManager extends Component
         if ($aborted) {
             return;
 =======
+=======
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         if ($this->isEdit && $this->editingId) {
             $assignment = VehicleAssignment::find($this->editingId);
             if ($assignment) {
@@ -548,6 +551,9 @@ class VehicleAssignmentManager extends Component
                 $this->syncOpenWorkshopsResponsibleDriverForVehicle((int) $assignment->vehicle_id);
             }
             session()->flash('message', $successMessage ?: 'Asignacion creada correctamente.');
+<<<<<<< HEAD
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
+=======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         }
 

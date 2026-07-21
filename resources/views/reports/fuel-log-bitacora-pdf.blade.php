@@ -139,7 +139,10 @@
         $showRecorrido = $visibleColumns->contains('recorrido');
         $showCombustible = $visibleColumns->contains('combustible');
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         $logoPath = public_path('images/AGBClogo1.png');
         $logoData = file_exists($logoPath)
             ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
@@ -353,6 +356,9 @@
                         </tr>
                     </table>
                 </div>
+<<<<<<< HEAD
+>>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
+=======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
             </div>
         @endforeach
