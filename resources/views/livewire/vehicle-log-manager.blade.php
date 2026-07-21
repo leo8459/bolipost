@@ -444,11 +444,8 @@
                                         <input type="number" min="0" step="1" id="cantidad_paquetes" wire:model="cantidad_paquetes" class="form-control @error('cantidad_paquetes') is-invalid @enderror">
                                         @error('cantidad_paquetes') <div class="invalid-feedback">{{ $message }}</div> @enderror
 <<<<<<< HEAD
-<<<<<<< HEAD
                                         <div class="form-text">Registra la cantidad real de paquetes entregados en esta bitacora.</div>                                    </div>
 =======
-=======
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
                                         <div class="form-text">Registra la cantidad real de paquetes entregados en esta bitacora.</div>
                                     </div>
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)

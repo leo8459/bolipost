@@ -246,11 +246,8 @@ class MaintenanceLogManager extends Component
         }
 
 <<<<<<< HEAD
-<<<<<<< HEAD
         $canUseExistingRecordFlow = $this->isEdit && (int) ($this->editingMaintenanceId ?? 0) > 0;
 
-=======
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         $this->tipo = (string) $selectedType->nombre;

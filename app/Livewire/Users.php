@@ -44,7 +44,6 @@ class Users extends Component
 
     protected $paginationTheme = 'bootstrap';
 <<<<<<< HEAD
-<<<<<<< HEAD
     private const ROLE_GUARD_WEB = 'web';
     private const EMPRESA_ROLE_NAME = 'empresa';
     private const REQUIRED_WEB_ROLE_NAMES = ['conductor', self::EMPRESA_ROLE_NAME];
@@ -54,8 +53,6 @@ class Users extends Component
         $this->empresaMode = $empresaMode;
         $this->showOnlyWithEmpresa = $empresaMode;
     }
-=======
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 
@@ -482,15 +479,11 @@ class Users extends Component
             'users' => $users,
             'groupedUsers' => $groupedUsers,
 <<<<<<< HEAD
-<<<<<<< HEAD
             'roles' => Role::query()
                 ->where('guard_name', self::ROLE_GUARD_WEB)
                 ->when($this->empresaMode, fn ($query) => $query->where('name', self::EMPRESA_ROLE_NAME))
                 ->orderBy('name')
                 ->get(),
-=======
-            'roles' => Role::query()->orderBy('name')->get(),
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
             'roles' => Role::query()->orderBy('name')->get(),
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)

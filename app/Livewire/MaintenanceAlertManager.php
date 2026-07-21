@@ -810,15 +810,9 @@ class MaintenanceAlertManager extends Component
     }
 
 <<<<<<< HEAD
-<<<<<<< HEAD
     private function openWorkshopStatuses(): array
     {
         return [
-=======
-    private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): void
-    {
-        $openStates = [
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
     private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): void
     {
@@ -832,14 +826,11 @@ class MaintenanceAlertManager extends Component
             Workshop::STATUS_READY,
         ];
 <<<<<<< HEAD
-<<<<<<< HEAD
     }
 
     private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): void
     {
         $openStates = $this->openWorkshopStatuses();
-=======
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 

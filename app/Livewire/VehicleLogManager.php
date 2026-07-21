@@ -46,11 +46,7 @@ class VehicleLogManager extends Component
 
     public ?float $kilometraje_llegada = null;
 <<<<<<< HEAD
-<<<<<<< HEAD
     public ?int $cantidad_paquetes = 0;
-=======
-    public ?int $cantidad_paquetes = null;
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
     public ?int $cantidad_paquetes = null;
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
@@ -413,11 +409,7 @@ class VehicleLogManager extends Component
             'kilometraje_recorrido' => $this->kilometraje_recorrido,
             'kilometraje_llegada' => $this->kilometraje_llegada,
 <<<<<<< HEAD
-<<<<<<< HEAD
             'cantidad_paquetes' => max(0, (int) ($this->cantidad_paquetes ?? 0)),
-=======
-            'cantidad_paquetes' => $this->cantidad_paquetes !== null ? max(0, (int) $this->cantidad_paquetes) : null,
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
             'cantidad_paquetes' => $this->cantidad_paquetes !== null ? max(0, (int) $this->cantidad_paquetes) : null,
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
@@ -475,11 +467,7 @@ class VehicleLogManager extends Component
                 ? max(0, $this->kilometraje_llegada - $this->kilometraje_salida)
                 : null);
 <<<<<<< HEAD
-<<<<<<< HEAD
         $this->cantidad_paquetes = (int) ($log->cantidad_paquetes ?? 0);
-=======
-        $this->cantidad_paquetes = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
         $this->cantidad_paquetes = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
@@ -519,11 +507,7 @@ class VehicleLogManager extends Component
         $this->kilometraje_recorrido = null;
         $this->kilometraje_llegada = null;
 <<<<<<< HEAD
-<<<<<<< HEAD
         $this->cantidad_paquetes = 0;
-=======
-        $this->cantidad_paquetes = null;
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
         $this->cantidad_paquetes = null;
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
@@ -1112,15 +1096,9 @@ class VehicleLogManager extends Component
             $userId = (int) ($log->driver?->user_id ?? 0);
             $date = optional($log->fecha)->format('Y-m-d');
 <<<<<<< HEAD
-<<<<<<< HEAD
             $savedCount = (int) ($log->cantidad_paquetes ?? 0);
             $derivedCount = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
             $log->package_count = $savedCount > 0 ? $savedCount : $derivedCount;
-=======
-            $derivedCount = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
-            $savedCount = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;
-            $log->package_count = $savedCount !== null ? $savedCount : $derivedCount;
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
             $derivedCount = (int) ($deliveryCounts[$userId . '|' . $date] ?? 0);
             $savedCount = $log->cantidad_paquetes !== null ? (int) $log->cantidad_paquetes : null;

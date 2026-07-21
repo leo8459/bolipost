@@ -149,11 +149,7 @@ class DriverManager extends Component
         $users = auth()->user()?->role === 'conductor'
             ? collect()
 <<<<<<< HEAD
-<<<<<<< HEAD
             : $this->resolveSelectableUsers();
-=======
-            : $this->availableDriverUsers();
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
             : $this->availableDriverUsers();
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
@@ -291,20 +287,14 @@ class DriverManager extends Component
         );
 
 <<<<<<< HEAD
-<<<<<<< HEAD
         if (!$this->isUserSelectableForDriver((int) $this->user_id)) {
             $this->addError('user_id', 'Debe seleccionar un usuario con rol conductor que no este vinculado a otro conductor.');
             session()->flash('error', 'No se pudo registrar: el usuario no tiene rol conductor o ya esta vinculado.');
 =======
-=======
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         $selectedUser = User::query()->find((int) $this->user_id);
         if (!$selectedUser || !$this->isDriverRoleUser($selectedUser)) {
             $this->addError('user_id', 'Solo puede seleccionar usuarios con rol de conductor.');
             session()->flash('error', 'No se pudo registrar: el usuario seleccionado no tiene rol de conductor.');
-<<<<<<< HEAD
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
-=======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
             return;
         }
@@ -590,7 +580,6 @@ class DriverManager extends Component
             ->with('user')
             ->find($this->viewingDriverId);
 <<<<<<< HEAD
-<<<<<<< HEAD
     }
 
     private function resolveSelectableUsers()
@@ -645,8 +634,6 @@ class DriverManager extends Component
             ->where('user_id', $userId)
             ->when($this->isEdit && $this->editingDriverId, fn ($query) => $query->where('id', '!=', $this->editingDriverId))
             ->exists();
-=======
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
     }

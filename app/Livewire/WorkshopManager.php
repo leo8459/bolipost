@@ -86,11 +86,8 @@ class WorkshopManager extends Component
     public function mount(): void
     {
 <<<<<<< HEAD
-<<<<<<< HEAD
         abort_unless($this->userHasAnyRole(['admin', 'recepcion', 'taller']), 403);
 =======
-=======
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         $user = auth()->user();
 
         abort_unless(
@@ -98,9 +95,6 @@ class WorkshopManager extends Component
                 || (method_exists($user, 'can') && $user->can('livewire.workshops')),
             403
         );
-<<<<<<< HEAD
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
-=======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         $this->ensurePartRow();
 
@@ -736,7 +730,6 @@ class WorkshopManager extends Component
         $payload = $this->filterWorkshopAttributes($payload);
 
 <<<<<<< HEAD
-<<<<<<< HEAD
         $updated = DB::transaction(function () use ($workshop, $payload) {
             if ($this->isWorkshopUser()) {
                 return Workshop::query()
@@ -748,8 +741,6 @@ class WorkshopManager extends Component
                             return;
                         }
 =======
-=======
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         if ($this->isWorkshopUser()) {
             $updated = Workshop::query()
                 ->where('id', (int) $workshop->id)
@@ -759,9 +750,6 @@ class WorkshopManager extends Component
                         $query->where('workshop_catalog_id', (int) $workshop->workshop_catalog_id);
                         return;
                     }
-<<<<<<< HEAD
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
-=======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 
                     $query->whereNull('workshop_catalog_id');
@@ -907,10 +895,7 @@ class WorkshopManager extends Component
         }
 
 <<<<<<< HEAD
-<<<<<<< HEAD
 =======
-=======
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         if (!empty($validated['maintenance_alert_id'])) {
             $existingOpenForAlert = Workshop::query()
                 ->where('maintenance_alert_id', (int) $validated['maintenance_alert_id'])
@@ -950,9 +935,6 @@ class WorkshopManager extends Component
             }
         }
 
-<<<<<<< HEAD
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
-=======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         $existingWorkshop = $this->isEdit && $this->editingId
             ? Workshop::query()->find($this->editingId)
@@ -1037,9 +1019,6 @@ class WorkshopManager extends Component
             ]);
         }
 
-<<<<<<< HEAD
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
-=======
 >>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
         $changes = collect($this->partChanges)
             ->map(fn (array $row) => [
@@ -1051,7 +1030,6 @@ class WorkshopManager extends Component
             ->filter(fn (array $row) => $row['codigo_pieza_antigua'] !== '' || $row['codigo_pieza_nueva'] !== '' || $row['descripcion'] !== '' || $row['costo'] !== null)
             ->values();
 
-<<<<<<< HEAD
 <<<<<<< HEAD
         try {
             $workshop = DB::transaction(function () use ($payload, $changes, $vehicle, $validated) {
@@ -1128,11 +1106,6 @@ class WorkshopManager extends Component
         } catch (\RuntimeException $exception) {
             $this->addError('vehicle_id', $exception->getMessage());
             return;
-=======
-        $workshop->partChanges()->delete();
-        foreach ($changes as $change) {
-            $workshop->partChanges()->create($change);
->>>>>>> parent of 053f070 (Finalizando bitacoras sus cambios para el packgo)
 =======
         $workshop->partChanges()->delete();
         foreach ($changes as $change) {
