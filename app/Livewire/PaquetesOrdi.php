@@ -18,6 +18,7 @@ class PaquetesOrdi extends Component
 {
     use WithPagination;
     private const DEFAULT_SERVICE_NAME = 'ORDINARIAS';
+    private const BAJA_PRECIO = 25.00;
 
     private const ROLE_VENTANILLA_MAP = [
         'auxiliar_urbano_dnd' => ['DND', 'CASILLA'],
@@ -532,7 +533,10 @@ class PaquetesOrdi extends Component
 
         PaqueteOrdi::query()
             ->whereIn('id', $idsActualizar)
-            ->update(['fk_estado' => $estadoEntregadoId]);
+            ->update([
+                'fk_estado' => $estadoEntregadoId,
+                'precio' => self::BAJA_PRECIO,
+            ]);
 
         $this->registrarEventosOrdiPorIds($idsActualizar, self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE);
 

@@ -32,6 +32,7 @@ class PaqueteCerti extends Component
     private const EVENTO_ID_PAQUETE_RETENIDO_PUNTO_ENTREGA = 183;
     private const EVENTO_ID_PAQUETE_RECIBIDO_OFICINA_ENTREGA = 172;
     private const EVENTO_ID_PAQUETE_MARCADO_ELIMINADO = 278;
+    private const BAJA_PRECIO = 25.00;
     private const ESTADO_VENTANILLA = 'VENTANILLA';
     private const ESTADO_RECIBIDO = 'RECIBIDO';
     private const ESTADO_ENTREGADO = 'ENTREGADO';
@@ -410,7 +411,10 @@ class PaqueteCerti extends Component
 
             PaqueteCertiModel::query()
                 ->whereIn('id', $ids)
-                ->update(['fk_estado' => $estadoEntregadoId]);
+                ->update([
+                    'fk_estado' => $estadoEntregadoId,
+                    'precio' => self::BAJA_PRECIO,
+                ]);
         });
         $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
 

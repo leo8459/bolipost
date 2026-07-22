@@ -776,8 +776,8 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Provincia origen{{ $empresaMode ? '' : ' (opcional)' }}@if($empresaMode)<span class="required-star">*</span>@endif</label>
-                                    <input type="text" wire:model.defer="provincia_origen" class="form-control text-uppercase" placeholder="Provincia origen" {{ $empresaMode ? 'required' : '' }}>
+                                    <label>Provincia origen (opcional)</label>
+                                    <input type="text" wire:model.defer="provincia_origen" class="form-control text-uppercase" placeholder="Provincia origen">
                                     <small class="text-muted">Se guardara siempre en mayuscula.</small>
                                     @error('provincia_origen') <small class="text-danger d-block">{{ $message }}</small> @enderror
                                 </div>
