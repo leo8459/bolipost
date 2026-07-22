@@ -16,7 +16,10 @@
             @if (session('new_token'))
                 <div class="alert alert-warning">
                     <label class="d-block">Token JWT generado</label>
-                    <textarea class="form-control" rows="4" readonly>{{ session('new_token') }}</textarea>
+                    <textarea id="new-token" class="form-control mb-2" rows="4" readonly>{{ session('new_token') }}</textarea>
+                    <button type="button" class="btn btn-sm btn-outline-dark js-copy-token" data-target="new-token">
+                        <i class="fas fa-copy mr-1"></i> Copiar token
+                    </button>
                 </div>
             @endif
 
@@ -88,15 +91,37 @@
                                         @endphp
 
                                         @if ($plainToken)
-                                            <textarea class="form-control form-control-sm" rows="3" readonly>{{ $plainToken }}</textarea>
+                                            <textarea id="token-{{ $token->id }}" class="form-control form-control-sm mb-2" rows="3" readonly>{{ $plainToken }}</textarea>
+                                            <button type="button" class="btn btn-sm btn-outline-primary js-copy-token" data-target="token-{{ $token->id }}">
+                                                <i class="fas fa-copy mr-1"></i> Copiar
+                                            </button>
                                         @else
-                                            <span class="text-muted">No se pudo leer el token cifrado.</span>
+                                            <div class="text-muted mb-2">
+                                                No se pudo leer el token cifrado. Regeneralo para obtener uno nuevo.
+                                            </div>
+                                            <form method="POST" action="{{ route('configuracion.apis.regenerate', $token) }}" class="d-inline">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="btn btn-sm btn-warning">
+                                                    <i class="fas fa-sync-alt mr-1"></i> Regenerar token
+                                                </button>
+                                            </form>
                                         @endif
                                     @else
-                                        <span class="text-muted">Token antiguo sin copia visible. Genera uno nuevo para verlo aqui.</span>
+                                        <span class="text-muted">
+                                            Sin token visible. Al activar se generara uno nuevo.
+                                        </span>
                                     @endif
                                 </td>
                                 <td class="text-right">
+                                    <form method="POST" action="{{ route('configuracion.apis.regenerate', $token) }}" class="d-inline">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="btn btn-sm btn-outline-warning mb-1">
+                                            <i class="fas fa-sync-alt mr-1"></i> Regenerar
+                                        </button>
+                                    </form>
+
                                     @if ($token->is_active)
                                         <form method="POST" action="{{ route('configuracion.apis.deactivate', $token) }}" class="d-inline">
                                             @csrf
@@ -132,4 +157,36 @@
 GET https://trackingbo.correos.gob.bo:8100/api/direcciones-destino/cantidad?desde=1&hasta=500</pre>
         </div>
     </div>
+@stop
+
+@section('js')
+    <script>
+        document.querySelectorAll('.js-copy-token').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const target = document.getElementById(button.dataset.target);
+                if (!target) {
+                    return;
+                }
+
+                const originalText = button.innerHTML;
+
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(target.value);
+                    } else {
+                        target.select();
+                        document.execCommand('copy');
+                        window.getSelection()?.removeAllRanges();
+                    }
+
+                    button.innerHTML = '<i class="fas fa-check mr-1"></i> Copiado';
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                    }, 1800);
+                } catch (error) {
+                    target.select();
+                }
+            });
+        });
+    </script>
 @stop

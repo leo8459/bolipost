@@ -234,6 +234,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/configuracion/apis', [ExternalApiTokenController::class, 'index'])->name('configuracion.apis.index');
     Route::post('/configuracion/apis', [ExternalApiTokenController::class, 'store'])->name('configuracion.apis.store');
     Route::get('/configuracion/apis/manual', [ExternalApiTokenController::class, 'downloadManual'])->name('configuracion.apis.manual');
+    Route::patch('/configuracion/apis/{token}/regenerar', [ExternalApiTokenController::class, 'regenerate'])->name('configuracion.apis.regenerate');
     Route::patch('/configuracion/apis/{token}/dar-baja', [ExternalApiTokenController::class, 'deactivate'])->name('configuracion.apis.deactivate');
     Route::patch('/configuracion/apis/{token}/activar', [ExternalApiTokenController::class, 'activate'])->name('configuracion.apis.activate');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

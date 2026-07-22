@@ -56,11 +56,32 @@ class ExternalApiTokenController extends Controller
     public function deactivate(ExternalApiToken $token)
     {
         $token->forceFill([
+            'token_hash' => hash('sha256', Str::random(80).now()->timestamp),
+            'token_encrypted' => null,
             'is_active' => false,
             'revoked_at' => now(),
         ])->save();
 
-        return back()->with('status', 'Token dado de baja. La API ya no aceptara ese token.');
+        return back()->with('status', 'Token dado de baja y eliminado. La API ya no aceptara ese token.');
+    }
+
+    public function regenerate(ExternalApiToken $token)
+    {
+        $token->forceFill([
+            'is_active' => true,
+            'revoked_at' => null,
+        ])->save();
+
+        $jwt = ExternalApiJwt::issue($token, null);
+        $token->forceFill([
+            'token_hash' => hash('sha256', $jwt),
+            'token_encrypted' => Crypt::encryptString($jwt),
+        ])->save();
+
+        return redirect()
+            ->route('configuracion.apis.index')
+            ->with('status', 'Token regenerado correctamente. El token anterior ya no sera aceptado.')
+            ->with('new_token', $jwt);
     }
 
     public function activate(ExternalApiToken $token)
@@ -70,7 +91,16 @@ class ExternalApiTokenController extends Controller
             'revoked_at' => null,
         ])->save();
 
-        return back()->with('status', 'Token activado nuevamente.');
+        $jwt = ExternalApiJwt::issue($token, null);
+        $token->forceFill([
+            'token_hash' => hash('sha256', $jwt),
+            'token_encrypted' => Crypt::encryptString($jwt),
+        ])->save();
+
+        return redirect()
+            ->route('configuracion.apis.index')
+            ->with('status', 'Token activado y generado nuevamente.')
+            ->with('new_token', $jwt);
     }
 
     public function downloadManual()
