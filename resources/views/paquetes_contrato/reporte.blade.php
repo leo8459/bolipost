@@ -235,7 +235,9 @@
         $departamentoDetalle .= ' - PROVINCIA: ' . strtoupper($provincia);
     }
     $fechaRecojo = optional($contrato->fecha_recojo ?? null)->format('d/m/Y H:i') ?: optional($contrato->created_at ?? null)->format('d/m/Y H:i');
-    $copias = ['ORIGINAL', 'COPIA 1', 'COPIA 2'];
+    $numeroCopias = max(1, min(3, (int) ($numeroCopias ?? request()->query('copias', 1))));
+    $copiasDisponibles = ['ORIGINAL', 'COPIA 1', 'COPIA 2'];
+    $copias = array_slice($copiasDisponibles, 0, $numeroCopias);
     $logoPath = public_path('images/AGBClogo1.png');
     $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
 @endphp
@@ -298,7 +300,12 @@
                             </td>
                             <td>
                                 <span class="section-label">Origen</span>
-                                <span class="small-value">{{ $contrato->origen }}</span>
+                                <span class="small-value">
+                                    {{ $contrato->origen }}
+                                    @if(!empty($contrato->provincia_origen))
+                                        - {{ $contrato->provincia_origen }}
+                                    @endif
+                                </span>
                             </td>
                             <td>
                                 <span class="section-label">Telefono destinatario</span>

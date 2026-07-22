@@ -345,6 +345,17 @@
                                         @endif
                                     </td>
                                     <td class="text-nowrap">
+                                        @if (!empty($registro->reprint_url))
+                                            <a
+                                                href="{{ $registro->reprint_url }}"
+                                                target="_blank"
+                                                rel="noopener"
+                                                class="btn btn-sm btn-outline-success"
+                                                title="Reimprimir"
+                                            >
+                                                <i class="fas fa-print"></i>
+                                            </a>
+                                        @endif
                                         @if ($canEventosEdit)
                                             <button
                                                 type="button"

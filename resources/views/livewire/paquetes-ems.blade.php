@@ -2715,6 +2715,15 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label>Provincia CN-33 (opcional)</label>
+                        <input
+                            type="text"
+                            wire:model.defer="regionalProvincia"
+                            class="form-control text-uppercase"
+                            oninput="this.value = this.value.toUpperCase()"
+                            placeholder="Escribe la provincia que saldra en el CN-33">
+                    </div>
+                    <div class="form-group">
                         <label>Modo de transporte</label>
                         <select wire:model.defer="regionalTransportMode" class="form-control">
                             <option value="TERRESTRE">TERRESTRE</option>
@@ -2857,6 +2866,15 @@
                                 <option value="{{ $ciudadOpt }}">{{ $ciudadOpt }}</option>
                             @endforeach
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Provincia CN-33 (opcional)</label>
+                        <input
+                            type="text"
+                            wire:model.defer="regionalProvinciaContrato"
+                            class="form-control text-uppercase"
+                            oninput="this.value = this.value.toUpperCase()"
+                            placeholder="Escribe la provincia que saldra en el CN-33">
                     </div>
                     <div class="form-group">
                         <label>Modo de transporte</label>

@@ -502,6 +502,27 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'users.empresas' => [
+            'users.empresas',
+            'feature.users.empresas.manage',
+            'users.index',
+        ],
+        'users.empresas.excel' => [
+            'users.empresas.excel',
+            'users.empresas',
+            'feature.users.empresas.export',
+            'feature.users.empresas.manage',
+            'users.index',
+            'feature.users.export',
+        ],
+        'users.empresas.pdf' => [
+            'users.empresas.pdf',
+            'users.empresas',
+            'feature.users.empresas.export',
+            'feature.users.empresas.manage',
+            'users.index',
+            'feature.users.export',
+        ],
         'users.excel' => [
             'users.excel',
             'users.index',
@@ -1799,6 +1820,12 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.create-con-tarifa.create' => 'Boton: Guardar contrato con tarifa',
             'feature.paquetes-contrato.entregados.print' => 'Boton: Reimprimir rotulo',
             'feature.paquetes-contrato.entregados.export' => 'Boton: Descargar imagen',
+            'feature.users.empresas.create' => 'Boton: Nuevo usuario empresa',
+            'feature.users.empresas.edit' => 'Botones: Editar y cambiar contrasena',
+            'feature.users.empresas.delete' => 'Boton: Dar de baja usuario empresa',
+            'feature.users.empresas.restore' => 'Boton: Reactivar usuario empresa',
+            'feature.users.empresas.export' => 'Botones: Excel y PDF',
+            'feature.users.empresas.manage' => 'Botones: Administrar usuarios empresa',
             'feature.empresas.create' => 'Boton: Nuevo',
             'feature.empresas.edit' => 'Boton: Editar',
             'feature.empresas.delete' => 'Boton: Eliminar',

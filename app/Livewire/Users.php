@@ -21,6 +21,7 @@ class Users extends Component
     public $groupByBillingSucursal = false;
     public $showOnlyWithEmpresa = false;
     public $filterEmpresaId = '';
+    public $empresaMode = false;
 
     public $editingId = null;
     public $name = '';
@@ -29,6 +30,7 @@ class Users extends Component
     public $password = '';
     public $ciudad = '';
     public $regionalesSeleccionadas = [];
+    public $provincia_origen = '';
     public $ci = '';
     public $empresa_id = '';
     public $sucursal_id = '';
@@ -42,6 +44,18 @@ class Users extends Component
 
     protected $paginationTheme = 'bootstrap';
 
+    private const EMPRESA_ROLE_NAME = 'empresa';
+
+    public function mount(bool $empresaMode = false): void
+    {
+        $this->empresaMode = $empresaMode;
+
+        if ($this->empresaMode) {
+            $this->showOnlyWithEmpresa = true;
+            $this->groupByBillingSucursal = false;
+        }
+    }
+
     public function searchUsers(): void
     {
         $this->searchQuery = trim((string) $this->search);
@@ -50,14 +64,15 @@ class Users extends Component
 
     public function openCreateModal(): void
     {
-        $this->authorizePermission('users.create');
+        $this->authorizePermission($this->permissionFor('create'));
         $this->resetUserForm();
+        $this->applyEmpresaRoleMode();
         $this->dispatch('openUserModal');
     }
 
     public function openEditModal(int $userId): void
     {
-        $this->authorizePermission('users.edit');
+        $this->authorizePermission($this->permissionFor('edit'));
 
         $user = User::query()->findOrFail($userId);
 
@@ -68,10 +83,12 @@ class Users extends Component
         $this->password = '';
         $this->regionalesSeleccionadas = $user->regionalesLista();
         $this->ciudad = (string) ($this->regionalesSeleccionadas[0] ?? $user->ciudad);
+        $this->provincia_origen = (string) ($user->provincia_origen ?? '');
         $this->ci = (string) $user->ci;
         $this->empresa_id = $user->empresa_id ? (string) $user->empresa_id : '';
         $this->sucursal_id = $user->sucursal_id ? (string) $user->sucursal_id : '';
         $this->roleIds = $user->roles()->pluck('roles.id')->map(fn ($id) => (string) $id)->all();
+        $this->applyEmpresaRoleMode();
 
         $this->resetValidation();
         $this->dispatch('openUserModal');
@@ -80,7 +97,7 @@ class Users extends Component
     public function saveUser(): void
     {
         if ($this->editingId) {
-            $this->authorizePermission('users.update');
+            $this->authorizePermission($this->permissionFor('update'));
             $this->alias = $this->normalizeAlias($this->alias);
             $this->validate($this->updateRules());
             $this->ensureAliasIsAvailable($this->alias, (int) $this->editingId);
@@ -93,10 +110,11 @@ class Users extends Component
             $user->email = trim($this->email);
             $user->ciudad = $regionales[0] ?? '';
             $user->regionales = $regionales;
+            $user->provincia_origen = $this->normalizeProvinciaOrigen();
             // If CI is left empty on edit, keep existing value.
             $user->ci = $ciValue !== '' ? $ciValue : $user->ci;
             $user->empresa_id = $this->empresa_id !== '' ? (int) $this->empresa_id : null;
-            $user->sucursal_id = $this->sucursal_id !== '' ? (int) $this->sucursal_id : null;
+            $user->sucursal_id = $this->empresaMode ? null : ($this->sucursal_id !== '' ? (int) $this->sucursal_id : null);
 
             if (trim($this->password) !== '') {
                 $user->password = Hash::make($this->password);
@@ -107,7 +125,7 @@ class Users extends Component
 
             session()->flash('success', 'Usuario actualizado correctamente.');
         } else {
-            $this->authorizePermission('users.store');
+            $this->authorizePermission($this->permissionFor('store'));
             $this->alias = $this->normalizeAlias($this->alias);
             $this->validate($this->createRules());
             $this->ensureAliasIsAvailable($this->alias);
@@ -121,9 +139,10 @@ class Users extends Component
             $user->password = Hash::make($this->password);
             $user->ciudad = $regionales[0] ?? '';
             $user->regionales = $regionales;
+            $user->provincia_origen = $this->normalizeProvinciaOrigen();
             $user->ci = $ciValue !== '' ? $ciValue : null;
             $user->empresa_id = $this->empresa_id !== '' ? (int) $this->empresa_id : null;
-            $user->sucursal_id = $this->sucursal_id !== '' ? (int) $this->sucursal_id : null;
+            $user->sucursal_id = $this->empresaMode ? null : ($this->sucursal_id !== '' ? (int) $this->sucursal_id : null);
             $user->save();
             $user->syncRoles($this->resolveRoleNames());
 
@@ -136,7 +155,7 @@ class Users extends Component
 
     public function openPasswordModal(int $userId): void
     {
-        $this->authorizePermission('users.update');
+        $this->authorizePermission($this->permissionFor('update'));
         $this->passwordUserId = $userId;
         $this->newPassword = '';
         $this->resetValidation();
@@ -145,7 +164,7 @@ class Users extends Component
 
     public function updatePassword(): void
     {
-        $this->authorizePermission('users.update');
+        $this->authorizePermission($this->permissionFor('update'));
 
         $this->validate([
             'newPassword' => 'required|string|min:8',
@@ -168,7 +187,7 @@ class Users extends Component
             return;
         }
 
-        $permission = $action === 'delete' ? 'users.destroy' : 'users.restore';
+        $permission = $action === 'delete' ? $this->permissionFor('destroy') : $this->permissionFor('restore');
         $this->authorizePermission($permission);
 
         $this->statusUserId = $userId;
@@ -182,7 +201,7 @@ class Users extends Component
             return;
         }
 
-        $permission = $this->statusAction === 'delete' ? 'users.destroy' : 'users.restore';
+        $permission = $this->statusAction === 'delete' ? $this->permissionFor('destroy') : $this->permissionFor('restore');
         $this->authorizePermission($permission);
 
         $user = User::withTrashed()->findOrFail((int) $this->statusUserId);
@@ -220,6 +239,11 @@ class Users extends Component
 
     public function showAllUsers(): void
     {
+        if ($this->empresaMode) {
+            $this->showOnlyWithEmpresa = true;
+            return;
+        }
+
         $this->showOnlyWithEmpresa = false;
         $this->filterEmpresaId = '';
         $this->resetPage();
@@ -249,7 +273,8 @@ class Users extends Component
             'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
             'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
             'ci' => ['nullable', 'string', 'max:255'],
-            'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
+            'provincia_origen' => [$this->empresaMode ? 'required' : 'nullable', 'string', 'max:255'],
+            'empresa_id' => [$this->empresaMode ? 'required' : 'nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],
@@ -268,7 +293,8 @@ class Users extends Component
             'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
             'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
             'ci' => ['nullable', 'string', 'max:255'],
-            'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
+            'provincia_origen' => [$this->empresaMode ? 'required' : 'nullable', 'string', 'max:255'],
+            'empresa_id' => [$this->empresaMode ? 'required' : 'nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],
@@ -277,6 +303,12 @@ class Users extends Component
 
     protected function resolveRoleNames(): array
     {
+        if ($this->empresaMode) {
+            $this->ensureEmpresaRoleExists();
+
+            return [self::EMPRESA_ROLE_NAME];
+        }
+
         $roleIds = collect($this->roleIds)
             ->filter(fn ($id) => $id !== null && $id !== '')
             ->map(fn ($id) => (int) $id)
@@ -298,6 +330,7 @@ class Users extends Component
         $this->password = '';
         $this->ciudad = '';
         $this->regionalesSeleccionadas = [];
+        $this->provincia_origen = '';
         $this->ci = '';
         $this->empresa_id = '';
         $this->sucursal_id = '';
@@ -305,13 +338,98 @@ class Users extends Component
         $this->resetValidation();
     }
 
+    protected function applyEmpresaRoleMode(): void
+    {
+        if (! $this->empresaMode) {
+            return;
+        }
+
+        $empresaRoleId = Role::query()->where('name', self::EMPRESA_ROLE_NAME)->value('id');
+        if (! $empresaRoleId) {
+            $empresaRoleId = $this->ensureEmpresaRoleExists()->id;
+        }
+
+        $this->roleIds = $empresaRoleId ? [(string) $empresaRoleId] : [];
+        $this->sucursal_id = '';
+        $this->showOnlyWithEmpresa = true;
+        $this->groupByBillingSucursal = false;
+    }
+
+    protected function normalizeProvinciaOrigen(): ?string
+    {
+        $provincia = trim((string) $this->provincia_origen);
+        $provincia = function_exists('mb_strtoupper') ? mb_strtoupper($provincia, 'UTF-8') : strtoupper($provincia);
+        $provincia = preg_replace('/\s+/', ' ', $provincia) ?: '';
+        $this->provincia_origen = $provincia;
+
+        return $provincia !== '' ? $provincia : null;
+    }
+
+    protected function permissionFor(string $action): string
+    {
+        if (! $this->empresaMode) {
+            return match ($action) {
+                'create' => 'users.create',
+                'store' => 'users.store',
+                'edit' => 'users.edit',
+                'update' => 'users.update',
+                'destroy' => 'users.destroy',
+                'restore' => 'users.restore',
+                default => 'users.index',
+            };
+        }
+
+        return match ($action) {
+            'create', 'store' => 'feature.users.empresas.create',
+            'edit', 'update' => 'feature.users.empresas.edit',
+            'destroy' => 'feature.users.empresas.delete',
+            'restore' => 'feature.users.empresas.restore',
+            default => 'users.empresas',
+        };
+    }
+
+    protected function ensureEmpresaRoleExists(): Role
+    {
+        return Role::query()->firstOrCreate([
+            'name' => self::EMPRESA_ROLE_NAME,
+            'guard_name' => 'web',
+        ]);
+    }
+
     protected function authorizePermission(string $permission): void
     {
         $user = auth()->user();
 
-        if (! $user || ! $user->can($permission)) {
+        $allowed = $user && $user->can($permission);
+
+        if (
+            ! $allowed
+            && str_starts_with($permission, 'feature.users.empresas.')
+            && $user?->can('feature.users.empresas.manage')
+        ) {
+            $allowed = true;
+        }
+
+        if (! $allowed && str_starts_with($permission, 'feature.users.empresas.')) {
+            $allowed = collect($this->empresaPermissionFallbacks($permission))
+                ->contains(fn (string $fallback) => $user?->can($fallback));
+        }
+
+        if (! $allowed) {
             abort(403, 'No tienes permiso para realizar esta accion.');
         }
+    }
+
+    protected function empresaPermissionFallbacks(string $permission): array
+    {
+        return match ($permission) {
+            'feature.users.empresas.create' => ['users.create', 'users.store'],
+            'feature.users.empresas.edit' => ['users.edit', 'users.update'],
+            'feature.users.empresas.delete' => ['users.destroy'],
+            'feature.users.empresas.restore' => ['users.restore'],
+            'feature.users.empresas.export' => ['users.excel', 'users.pdf'],
+            default => [],
+        };
     }
 
     protected function normalizeRegionalesSeleccionadas(): array
@@ -376,6 +494,7 @@ class Users extends Component
                     $inner->where('name', 'like', '%'.$q.'%')
                         ->orWhere('alias', 'like', '%'.$q.'%')
                         ->orWhere('email', 'like', '%'.$q.'%')
+                        ->orWhere('provincia_origen', 'like', '%'.$q.'%')
                         ->orWhere('ci', 'like', '%'.$q.'%')
                         ->orWhereHas('empresa', function ($empresaQuery) use ($q) {
                             $empresaQuery->where('nombre', 'like', '%'.$q.'%')
@@ -421,7 +540,10 @@ class Users extends Component
         return view('livewire.users', [
             'users' => $users,
             'groupedUsers' => $groupedUsers,
-            'roles' => Role::query()->orderBy('name')->get(),
+            'roles' => Role::query()
+                ->when($this->empresaMode, fn ($query) => $query->where('name', self::EMPRESA_ROLE_NAME))
+                ->orderBy('name')
+                ->get(),
             'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
             'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
             'regionales' => $this->regionalesDisponibles(),

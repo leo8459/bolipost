@@ -138,6 +138,12 @@ return [
         'feature.paquetes-ems.entregados.deliver',
         'feature.paquetes-ems.devolucion.deliver',
         'feature.paquetes-ems.devolucion.print',
+        'feature.users.empresas.create',
+        'feature.users.empresas.edit',
+        'feature.users.empresas.delete',
+        'feature.users.empresas.restore',
+        'feature.users.empresas.export',
+        'feature.users.empresas.manage',
         'feature.empresas.export',
         'log-viewer.index',
         'feature.paquetes-ems.solicitudes.index.create',
@@ -219,6 +225,7 @@ return [
         'regional',
         'taller',
         'conductor',
+        'empresa',
     ],
 
     /*
@@ -324,6 +331,7 @@ return [
     */
     'module_labels' => [
         'users' => 'Usuarios',
+        'users.empresas' => 'Usuarios empresas',
         'roles' => 'Roles',
         'permissions' => 'Permisos',
         'role-has-permissions' => 'Accesos',

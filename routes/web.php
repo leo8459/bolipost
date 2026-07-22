@@ -231,8 +231,11 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');
     Route::put('/configuracion/aplicacion', [AppConfigController::class, 'update'])->name('configuracion.aplicacion.update');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/users/empresas', [UserController::class, 'empresas'])->name('users.empresas');
     Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
     Route::get('users/pdf', [UserController::class, 'pdf'])->name('users.pdf');
+    Route::get('users/empresas/excel', [UserController::class, 'empresasExcel'])->name('users.empresas.excel');
+    Route::get('users/empresas/pdf', [UserController::class, 'empresasPdf'])->name('users.empresas.pdf');
     Route::get('users/plantilla-excel', [UserController::class, 'templateExcel'])->name('users.template-excel');
     Route::post('users/import', [UserController::class, 'import'])->name('users.import');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');

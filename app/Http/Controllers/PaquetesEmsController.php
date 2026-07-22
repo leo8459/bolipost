@@ -2373,7 +2373,10 @@ class PaquetesEmsController extends Controller
                     'origen' => (string) $contrato->origen,
                     'destino' => (string) $contrato->destino,
                     'empresa_id' => $empresaId ? (int) $empresaId : null,
-                    'reporte_url' => route('paquetes-contrato.reporte', $contrato->id),
+                    'reporte_url' => route('paquetes-contrato.reporte', [
+                        'contrato' => $contrato->id,
+                        'copias' => 1,
+                    ]),
                 ]);
 
                 $codigoEvento = trim((string) $contrato->codigo);

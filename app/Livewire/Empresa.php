@@ -29,8 +29,30 @@ class Empresa extends Component
     public $presupuesto = '';
     public $documento_pdf_file = null;
     public $documento_pdf_path = '';
+    public $openCreateModalOnLoad = false;
 
     protected $paginationTheme = 'bootstrap';
+
+    public function mount(): void
+    {
+        $this->openCreateModalOnLoad = request()->boolean('create');
+    }
+
+    public function rendered(): void
+    {
+        if (! $this->openCreateModalOnLoad) {
+            return;
+        }
+
+        $this->openCreateModalOnLoad = false;
+        if (! $this->canCreateEmpresa()) {
+            return;
+        }
+
+        $this->resetForm();
+        $this->editingId = null;
+        $this->dispatch('openEmpresaModal');
+    }
 
     public function searchEmpresas()
     {
@@ -189,5 +211,12 @@ class Empresa extends Component
         return view('livewire.empresa', [
             'empresas' => $empresas,
         ]);
+    }
+
+    private function canCreateEmpresa(): bool
+    {
+        $user = auth()->user();
+
+        return $user && ($user->can('feature.empresas.create') || $user->can('empresas.index'));
     }
 }

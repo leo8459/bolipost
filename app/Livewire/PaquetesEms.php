@@ -113,9 +113,11 @@ class PaquetesEms extends Component
     public $codEspecialDetalleRows = [];
     public $almacenEstadoFiltro = 'TODOS';
     public $regionalDestino = '';
+    public $regionalProvincia = '';
     public $regionalTransportMode = 'TERRESTRE';
     public $regionalTransportNumber = '';
     public $regionalDestinoContrato = '';
+    public $regionalProvinciaContrato = '';
     public $regionalTransportModeContrato = 'TERRESTRE';
     public $regionalTransportNumberContrato = '';
     public $contratoCodigoPeso = '';
@@ -2408,6 +2410,7 @@ class PaquetesEms extends Component
             'currentManifiesto' => $despacho,
             'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
             'destinationCity' => $destinationCity !== '' ? $destinationCity : 'N/A',
+            'destinationProvince' => '',
             'selectedTransport' => 'N/A',
             'numeroVuelo' => '-',
             'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
@@ -3110,6 +3113,7 @@ class PaquetesEms extends Component
 
         $generatedAt = now();
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
+        $regionalProvincia = $this->normalizeUpperOrNull($this->regionalProvincia);
         $updated = 0;
         $paquetes = collect();
         $paquetesIntExistentes = collect();
@@ -3393,6 +3397,7 @@ class PaquetesEms extends Component
             'currentManifiesto' => $manifiesto,
             'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
             'destinationCity' => $this->regionalDestino,
+            'destinationProvince' => $regionalProvincia,
             'selectedTransport' => $this->regionalTransportMode,
             'numeroVuelo' => $this->regionalTransportNumber,
             'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
@@ -3405,6 +3410,7 @@ class PaquetesEms extends Component
         $this->regionalMismatchItems = [];
         $this->regionalMismatchObservaciones = [];
         $this->regionalDestino = '';
+        $this->regionalProvincia = '';
         $this->regionalPesoZeroItems = [];
         $this->regionalPesoInputs = [];
         $this->showRegionalIntSection = false;
@@ -3553,12 +3559,14 @@ class PaquetesEms extends Component
 
         $loggedUserName = trim((string) optional(Auth::user())->name);
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
+        $regionalProvinciaContrato = $this->normalizeUpperOrNull($this->regionalProvinciaContrato);
         $pdf = Pdf::loadView('paquetes_ems.reporte-regional', [
             'paquetes' => $paquetesPdf,
             'generatedAt' => $generatedAt,
             'currentManifiesto' => $manifiesto,
             'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
             'destinationCity' => $this->regionalDestinoContrato,
+            'destinationProvince' => $regionalProvinciaContrato,
             'selectedTransport' => $this->regionalTransportModeContrato,
             'numeroVuelo' => $this->regionalTransportNumberContrato,
             'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
@@ -3568,6 +3576,7 @@ class PaquetesEms extends Component
         $this->regionalMismatchItems = [];
         $this->regionalMismatchObservaciones = [];
         $this->regionalDestinoContrato = '';
+        $this->regionalProvinciaContrato = '';
         $this->regionalPesoZeroItems = [];
         $this->regionalPesoInputs = [];
         $this->dispatch('closeRegionalContratoModal');
@@ -9312,6 +9321,15 @@ class PaquetesEms extends Component
             'codigo' => '',
             'peso' => '',
         ]];
+    }
+
+    protected function normalizeUpperOrNull(mixed $value): ?string
+    {
+        $normalized = trim((string) ($value ?? ''));
+        $normalized = function_exists('mb_strtoupper') ? mb_strtoupper($normalized, 'UTF-8') : strtoupper($normalized);
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?: '';
+
+        return $normalized !== '' ? $normalized : null;
     }
 
     protected function validatedRegionalIntRows(): ?array

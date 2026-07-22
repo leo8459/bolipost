@@ -364,7 +364,10 @@
         <div class="card users-card">
             <div class="users-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
                 <div>
-                    <h4 class="mb-0">Gestion de Usuarios</h4>
+                    <h4 class="mb-0">{{ $empresaMode ? 'Usuarios empresas' : 'Gestion de Usuarios' }}</h4>
+                    @if($empresaMode)
+                        <small class="d-block mt-1">Usuarios registrados con empresa y rol empresa.</small>
+                    @endif
                 </div>
 
                 <div class="d-flex flex-wrap align-items-center mt-3 mt-md-0" style="gap: 8px;">
@@ -377,26 +380,28 @@
                         style="min-width: 260px;"
                     >
                     <button wire:click="searchUsers" class="btn btn-outline-light2" type="button">Buscar</button>
-                    <button wire:click="toggleGroupByBillingSucursal" class="btn btn-outline-light2" type="button">
-                        {{ $groupByBillingSucursal ? 'Ver lista normal' : 'Agrupar por sucursal facturacion' }}
-                    </button>
-                    <div class="users-filter-toolbar">
-                        <button
-                            wire:click="showAllUsers"
-                            class="users-filter-btn {{ ! $showOnlyWithEmpresa ? 'is-active' : '' }}"
-                            type="button"
-                        >
-                            <i class="fas fa-users mr-1"></i> Mostrar usuarios
+                    @unless($empresaMode)
+                        <button wire:click="toggleGroupByBillingSucursal" class="btn btn-outline-light2" type="button">
+                            {{ $groupByBillingSucursal ? 'Ver lista normal' : 'Agrupar por sucursal facturacion' }}
                         </button>
-                        <button
-                            wire:click="showEmpresaUsers"
-                            class="users-filter-btn {{ $showOnlyWithEmpresa ? 'is-active' : '' }}"
-                            type="button"
-                        >
-                            <i class="fas fa-building mr-1"></i> Mostrar empresas
-                        </button>
-                    </div>
-                    @if($showOnlyWithEmpresa)
+                        <div class="users-filter-toolbar">
+                            <button
+                                wire:click="showAllUsers"
+                                class="users-filter-btn {{ ! $showOnlyWithEmpresa ? 'is-active' : '' }}"
+                                type="button"
+                            >
+                                <i class="fas fa-users mr-1"></i> Mostrar usuarios
+                            </button>
+                            <button
+                                wire:click="showEmpresaUsers"
+                                class="users-filter-btn {{ $showOnlyWithEmpresa ? 'is-active' : '' }}"
+                                type="button"
+                            >
+                                <i class="fas fa-building mr-1"></i> Mostrar empresas
+                            </button>
+                        </div>
+                    @endunless
+                    @if($showOnlyWithEmpresa || $empresaMode)
                         <select wire:model.live="filterEmpresaId" class="form-control users-company-select">
                             <option value="">Todas las empresas</option>
                             @foreach($empresas as $empresa)
@@ -405,13 +410,35 @@
                                 </option>
                             @endforeach
                         </select>
+                        @if(! $empresaMode && (auth()->user()?->can('feature.empresas.create') || auth()->user()?->can('empresas.index')))
+                            <a href="{{ route('empresas.index', ['create' => 1]) }}" class="btn btn-dorado">
+                                <i class="fas fa-building mr-1"></i> Crear empresa
+                            </a>
+                        @endif
                     @endif
-                    <a href="{{ route('users.excel') }}" class="btn btn-success">Excel</a>
-                    <a href="{{ route('users.pdf') }}" class="btn btn-danger">PDF</a>
-                    <a href="{{ route('users.template-excel') }}" class="btn btn-info">Plantilla</a>
-                    @can('users.create')
-                        <button type="button" class="btn btn-dorado" wire:click="openCreateModal">Nuevo Usuario</button>
-                    @endcan
+                    @if($empresaMode)
+                        @canany(['users.empresas.excel', 'users.excel', 'feature.users.empresas.export', 'feature.users.empresas.manage'])
+                            <a href="{{ route('users.empresas.excel', ['empresa_id' => $filterEmpresaId ?: null]) }}" class="btn btn-success">Excel</a>
+                        @endcanany
+                        @canany(['users.empresas.pdf', 'users.pdf', 'feature.users.empresas.export', 'feature.users.empresas.manage'])
+                            <a href="{{ route('users.empresas.pdf', ['empresa_id' => $filterEmpresaId ?: null]) }}" class="btn btn-danger">PDF</a>
+                        @endcanany
+                    @else
+                        <a href="{{ route('users.excel') }}" class="btn btn-success">Excel</a>
+                        <a href="{{ route('users.pdf') }}" class="btn btn-danger">PDF</a>
+                    @endif
+                    @unless($empresaMode)
+                        <a href="{{ route('users.template-excel') }}" class="btn btn-info">Plantilla</a>
+                    @endunless
+                    @if($empresaMode ? auth()->user()?->can('feature.users.empresas.create') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.create') : auth()->user()?->can('users.create'))
+                        <button type="button" class="btn btn-dorado" wire:click="openCreateModal">
+                            @if($empresaMode)
+                                <i class="fas fa-user-plus mr-1"></i> Nuevo usuario empresa
+                            @else
+                                Nuevo Usuario
+                            @endif
+                        </button>
+                    @endif
                 </div>
             </div>
 
@@ -433,6 +460,7 @@
             @endif
 
             <div class="card-body">
+                @unless($empresaMode)
                 <div class="users-import-box mb-3">
                     <form method="POST" action="{{ route('users.import') }}" enctype="multipart/form-data" id="users-import-form" class="d-flex flex-column flex-md-row align-items-md-center" style="gap: 10px;">
                         @csrf
@@ -464,6 +492,7 @@
                         </button>
                     </form>
                 </div>
+                @endunless
 
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="users-muted">
@@ -550,7 +579,10 @@
                                 <th>Alias</th>
                                 <th>Email</th>
                                 <th>Regional</th>
-                                <th>Sucursal</th>
+                                <th>Provincia origen</th>
+                                @unless($empresaMode)
+                                    <th>Sucursal</th>
+                                @endunless
                                 <th>Empresa</th>
                                 <th>CI</th>
                                 <th>Estado</th>
@@ -566,13 +598,16 @@
                                     <td><span class="badge badge-primary">{{ $user->alias ?? '-' }}</span></td>
                                     <td>{{ $user->email }}</td>
                                     <td>{{ $user->regionalesTexto() ?: '-' }}</td>
-                                    <td>
-                                        @if ($user->sucursal)
-                                            Suc. {{ $user->sucursal->codigoSucursal }} / PV {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}
-                                        @else
-                                            <span class="users-muted">Sin sucursal</span>
-                                        @endif
-                                    </td>
+                                    <td>{{ $user->provincia_origen ?: '-' }}</td>
+                                    @unless($empresaMode)
+                                        <td>
+                                            @if ($user->sucursal)
+                                                Suc. {{ $user->sucursal->codigoSucursal }} / PV {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}
+                                            @else
+                                                <span class="users-muted">Sin sucursal</span>
+                                            @endif
+                                        </td>
+                                    @endunless
                                     <td>
                                         @if ($user->empresa)
                                             {{ $user->empresa->codigo_cliente }} - {{ $user->empresa->nombre }} ({{ $user->empresa->sigla }})
@@ -596,7 +631,7 @@
                                     <td>
                                         <div class="btn-group" role="group">
                                             @if ($user->trashed())
-                                                @can('users.restore')
+                                                @if($empresaMode ? auth()->user()?->can('feature.users.empresas.restore') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.restore') : auth()->user()?->can('users.restore'))
                                                     <button
                                                         wire:click="confirmStatusAction({{ $user->id }}, 'restore')"
                                                         class="btn btn-sm btn-success"
@@ -605,9 +640,9 @@
                                                     >
                                                         <i class="fa fa-undo"></i>
                                                     </button>
-                                                @endcan
+                                                @endif
                                             @else
-                                                @can('users.edit')
+                                                @if($empresaMode ? auth()->user()?->can('feature.users.empresas.edit') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.edit') : auth()->user()?->can('users.edit'))
                                                     <button
                                                         wire:click="openEditModal({{ $user->id }})"
                                                         class="btn btn-sm btn-primary"
@@ -616,8 +651,8 @@
                                                     >
                                                         <i class="fa fa-edit"></i>
                                                     </button>
-                                                @endcan
-                                                @can('users.update')
+                                                @endif
+                                                @if($empresaMode ? auth()->user()?->can('feature.users.empresas.edit') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.update') : auth()->user()?->can('users.update'))
                                                     <button
                                                         wire:click="openPasswordModal({{ $user->id }})"
                                                         class="btn btn-sm btn-info"
@@ -626,8 +661,8 @@
                                                     >
                                                         <i class="fa fa-key"></i>
                                                     </button>
-                                                @endcan
-                                                @can('users.destroy')
+                                                @endif
+                                                @if($empresaMode ? auth()->user()?->can('feature.users.empresas.delete') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.destroy') : auth()->user()?->can('users.destroy'))
                                                     <button
                                                         wire:click="confirmStatusAction({{ $user->id }}, 'delete')"
                                                         class="btn btn-sm btn-warning"
@@ -636,14 +671,14 @@
                                                     >
                                                         <i class="fa fa-arrow-down"></i>
                                                     </button>
-                                                @endcan
+                                                @endif
                                             @endif
                                         </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-4 users-muted">No se encontraron usuarios.</td>
+                                    <td colspan="{{ $empresaMode ? 11 : 12 }}" class="text-center py-4 users-muted">No se encontraron usuarios.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -663,7 +698,13 @@
             <div class="modal-content">
                 <form wire:submit.prevent="saveUser">
                     <div class="modal-header">
-                        <h5 class="modal-title">{{ $editingId ? 'Editar usuario' : 'Nuevo usuario' }}</h5>
+                        <h5 class="modal-title">
+                            @if($empresaMode)
+                                {{ $editingId ? 'Editar usuario empresa' : 'Nuevo usuario empresa' }}
+                            @else
+                                {{ $editingId ? 'Editar usuario' : 'Nuevo usuario' }}
+                            @endif
+                        </h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
@@ -672,15 +713,15 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Nombre completo</label>
-                                    <input type="text" wire:model.defer="name" class="form-control" placeholder="Nombre completo">
+                                    <label>Nombre completo<span class="required-star">*</span></label>
+                                    <input type="text" wire:model.defer="name" class="form-control" placeholder="Nombre completo" required>
                                     @error('name') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Email</label>
-                                    <input type="email" wire:model.defer="email" class="form-control" placeholder="Correo electronico">
+                                    <label>Email<span class="required-star">*</span></label>
+                                    <input type="email" wire:model.defer="email" class="form-control" placeholder="Correo electronico" required>
                                     @error('email') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -707,7 +748,7 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Regional</label>
+                                    <label>Regional<span class="required-star">*</span></label>
                                     <div class="regional-picker">
                                         <div class="regional-picker-grid">
                                         @foreach($regionales as $regional)
@@ -735,6 +776,14 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
+                                    <label>Provincia origen{{ $empresaMode ? '' : ' (opcional)' }}@if($empresaMode)<span class="required-star">*</span>@endif</label>
+                                    <input type="text" wire:model.defer="provincia_origen" class="form-control text-uppercase" placeholder="Provincia origen" {{ $empresaMode ? 'required' : '' }}>
+                                    <small class="text-muted">Se guardara siempre en mayuscula.</small>
+                                    @error('provincia_origen') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
                                     <label>Carnet de identidad (opcional)</label>
                                     <input type="text" wire:model.defer="ci" class="form-control" placeholder="CI (opcional)">
                                     @error('ci') <small class="text-danger">{{ $message }}</small> @enderror
@@ -742,9 +791,9 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Empresa (opcional)</label>
-                                    <select wire:model.defer="empresa_id" class="form-control">
-                                        <option value="">Sin empresa</option>
+                                    <label>Empresa{{ $empresaMode ? '' : ' (opcional)' }}@if($empresaMode)<span class="required-star">*</span>@endif</label>
+                                    <select wire:model.defer="empresa_id" class="form-control" {{ $empresaMode ? 'required' : '' }}>
+                                        <option value="">{{ $empresaMode ? 'Selecciona una empresa' : 'Sin empresa' }}</option>
                                         @foreach($empresas as $empresa)
                                             <option value="{{ $empresa->id }}">
                                                 {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
@@ -754,6 +803,7 @@
                                     @error('empresa_id') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
+                            @unless($empresaMode)
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Sucursal de facturacion (opcional)</label>
@@ -769,26 +819,34 @@
                                     @error('sucursal_id') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
+                            @endunless
                         </div>
 
                         <div class="form-group mb-0">
                             <label>Roles</label>
-                            <div class="row">
-                                @foreach($roles as $role)
-                                    <div class="col-md-4 col-sm-6">
-                                        <div class="form-check">
-                                            <input
-                                                class="form-check-input"
-                                                type="checkbox"
-                                                wire:model.defer="roleIds"
-                                                id="role_{{ $role->id }}"
-                                                value="{{ $role->id }}"
-                                            >
-                                            <label class="form-check-label" for="role_{{ $role->id }}">{{ $role->name }}</label>
+                            @if($empresaMode)
+                                <div>
+                                    <span class="badge-role">empresa</span>
+                                    <small class="text-muted d-block mt-1">Los usuarios creados desde esta vista se registran solo con el rol empresa.</small>
+                                </div>
+                            @else
+                                <div class="row">
+                                    @foreach($roles as $role)
+                                        <div class="col-md-4 col-sm-6">
+                                            <div class="form-check">
+                                                <input
+                                                    class="form-check-input"
+                                                    type="checkbox"
+                                                    wire:model.defer="roleIds"
+                                                    id="role_{{ $role->id }}"
+                                                    value="{{ $role->id }}"
+                                                >
+                                                <label class="form-check-label" for="role_{{ $role->id }}">{{ $role->name }}</label>
+                                            </div>
                                         </div>
-                                    </div>
-                                @endforeach
-                            </div>
+                                    @endforeach
+                                </div>
+                            @endif
                             @error('roleIds') <small class="text-danger">{{ $message }}</small> @enderror
                             @error('roleIds.*') <small class="text-danger d-block">{{ $message }}</small> @enderror
                         </div>

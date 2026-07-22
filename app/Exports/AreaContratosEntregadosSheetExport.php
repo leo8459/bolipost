@@ -94,6 +94,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
         /** @var Model $model */
         $model = $row['row'];
+        $provinciaOrigen = $this->normalizeUpper((string) ($model->provincia_origen ?? ''));
         $provincia = trim((string) ($model->provincia ?? ''));
         $precio = (float) ($model->precio ?? 0);
 
@@ -102,8 +103,8 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             $this->formatDate($model->created_at),
             (string) ($model->codigo ?? ''),
             (string) ($model->origen ?? ''),
-            '',
-            'X',
+            $provinciaOrigen,
+            $provinciaOrigen === '' ? 'X' : '',
             (string) ($model->destino ?? ''),
             $provincia,
             $provincia === '' ? 'X' : '',
@@ -131,6 +132,14 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
         }
 
         return mb_substr($clean, 0, 31);
+    }
+
+    private function normalizeUpper(string $value): string
+    {
+        $value = trim($value);
+        $value = function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value);
+
+        return preg_replace('/\s+/', ' ', $value) ?: '';
     }
 
     public function registerEvents(): array

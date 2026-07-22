@@ -90,6 +90,14 @@
     </style>
 </head>
 <body>
+    @php
+        $destinationProvince = trim((string) ($destinationProvince ?? ''));
+        $destinationProvince = $destinationProvince !== '' ? strtoupper($destinationProvince) : '';
+        $destinationDisplay = (string) ($destinationCity ?? 'N/A');
+        if ($destinationProvince !== '') {
+            $destinationDisplay .= ' - ' . $destinationProvince;
+        }
+    @endphp
     <div class="header">
         @if (file_exists(public_path('images/ems.png')))
             <img src="{{ public_path('images/ems.png') }}" alt="" width="150" height="50"><br>
@@ -126,7 +134,7 @@
                 <td class="field" style="width: 15%;">Oficina de Origen:</td>
                 <td style="width: 25%;">{{ $loggedInUserCity }}</td>
                 <td class="field" style="width: 15%;">Oficina de Destino:</td>
-                <td style="width: 25%;">{{ $destinationCity }}</td>
+                <td style="width: 25%;">{{ $destinationDisplay }}</td>
             </tr>
             <tr>
                 <td class="field">DESPACHO:</td>
@@ -181,7 +189,7 @@
                 <tr>
                     <td>{{ $paquete->codigo }}</td>
                     <td>{{ $paquete->origen }}</td>
-                    <td>{{ $destinationCity }}</td>
+                    <td>{{ $destinationDisplay }}</td>
                     <td>{{ $cantidad }}</td>
                     <td></td>
                     <td>{{ number_format($peso, 3) }}</td>

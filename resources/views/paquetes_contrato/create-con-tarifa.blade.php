@@ -112,6 +112,14 @@
                                     <input type="text" class="form-control origin-input" value="{{ $origen }}" readonly>
                                 </div>
                             </div>
+                            @if(!empty($provinciaOrigen))
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Provincia origen</label>
+                                        <input type="text" class="form-control origin-input" value="{{ $provinciaOrigen }}" readonly>
+                                    </div>
+                                </div>
+                            @endif
                             <div class="col-md-3">
                                 <div class="form-group">
                                     <label>Servicio<span class="required-star">*</span></label>
@@ -222,6 +230,19 @@
                                 <div class="form-group mb-0">
                                     <label>Mapa (opcional)</label>
                                     <input type="text" name="mapa" class="form-control" value="{{ old('mapa') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group mb-0">
+                                    <label>Copias de guia</label>
+                                    <select name="numero_copias" class="form-control">
+                                        @for($i = 1; $i <= 3; $i++)
+                                            <option value="{{ $i }}" {{ (int) old('numero_copias', 1) === $i ? 'selected' : '' }}>
+                                                {{ $i }} {{ $i === 1 ? 'copia' : 'copias' }}
+                                            </option>
+                                        @endfor
+                                    </select>
+                                    <small class="form-text text-muted">Maximo 3 copias.</small>
                                 </div>
                             </div>
                         </div>

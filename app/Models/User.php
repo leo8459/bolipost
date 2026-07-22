@@ -54,6 +54,7 @@ class User extends Authenticatable
         'password',
         'ciudad',
         'regionales',
+        'provincia_origen',
         'ci',
         'empresa_id',
         'sucursal_id',

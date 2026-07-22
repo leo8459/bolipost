@@ -193,6 +193,7 @@ class EventosSiopTabla extends Component
         $registros->setCollection(
             $registros->getCollection()->map(function ($registro) {
                 $registro->imagen = $this->resolveImageForRecord($registro);
+                $registro->reprint_url = $this->resolveReprintUrlForRecord($registro);
 
                 return $registro;
             })
@@ -448,6 +449,88 @@ class EventosSiopTabla extends Component
             'eventos_tiktoker' => $this->resolveTiktokerImage($codigo),
             default => null,
         };
+    }
+
+    private function resolveReprintUrlForRecord(object $registro): ?string
+    {
+        $codigo = trim((string) ($registro->codigo ?? ''));
+        if ($codigo === '') {
+            return null;
+        }
+
+        if (($registro->source_table ?? '') === 'eventos_despacho') {
+            $despachoId = $this->resolveDespachoId($codigo);
+
+            return $despachoId ? route('despachos.expedicion.pdf', ['id' => $despachoId], false) : null;
+        }
+
+        $type = $this->packageTypeForSourceTable((string) ($registro->source_table ?? ''));
+        if ($type === null) {
+            return null;
+        }
+
+        $packageId = $this->resolvePackageId($type, $codigo);
+
+        return $packageId ? route('todos-paquetes.guia', ['type' => $type, 'id' => $packageId], false) : null;
+    }
+
+    private function packageTypeForSourceTable(string $sourceTable): ?string
+    {
+        return match ($sourceTable) {
+            'eventos_ems' => 'ems',
+            'eventos_certi' => 'certi',
+            'eventos_ordi' => 'ordi',
+            'eventos_contrato' => 'contrato',
+            'eventos_tiktoker' => 'solicitud',
+            default => null,
+        };
+    }
+
+    private function resolvePackageId(string $type, string $codigo): ?int
+    {
+        $rowId = match ($type) {
+            'ems' => DB::table('paquetes_ems')
+                ->whereRaw('TRIM(UPPER(COALESCE(codigo, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orderByDesc('id')
+                ->value('id'),
+            'certi' => DB::table('paquetes_certi')
+                ->whereRaw('TRIM(UPPER(COALESCE(codigo, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orderByDesc('id')
+                ->value('id'),
+            'ordi' => DB::table('paquetes_ordi')
+                ->whereRaw('TRIM(UPPER(COALESCE(codigo, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orderByDesc('id')
+                ->value('id'),
+            'contrato' => DB::table('paquetes_contrato')
+                ->whereRaw('TRIM(UPPER(COALESCE(codigo, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orderByDesc('id')
+                ->value('id'),
+            'solicitud' => DB::table('solicitud_clientes')
+                ->whereRaw('TRIM(UPPER(COALESCE(codigo_solicitud, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orWhereRaw('TRIM(UPPER(COALESCE(barcode, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                ->orderByDesc('id')
+                ->value('id'),
+            default => null,
+        };
+
+        return $rowId ? (int) $rowId : null;
+    }
+
+    private function resolveDespachoId(string $codigo): ?int
+    {
+        $rowId = DB::table('despacho')
+            ->whereRaw('TRIM(UPPER(COALESCE(identificador, \'\'))) = TRIM(UPPER(?))', [$codigo])
+            ->orWhereRaw('TRIM(UPPER(COALESCE(nro_despacho::text, \'\'))) = TRIM(UPPER(?))', [$codigo])
+            ->orWhereRaw('TRIM(UPPER(id::text)) = TRIM(UPPER(?))', [$codigo])
+            ->orderByDesc('id')
+            ->value('id');
+
+        return $rowId ? (int) $rowId : null;
     }
 
     private function resolveEmsImage(string $codigo): ?string

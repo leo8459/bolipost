@@ -351,9 +351,11 @@ class RecojoController extends Controller
             $origen = strtoupper(trim((string) ($user->name ?? '')));
         }
         $origen = $this->normalizeApiOrigen($origen);
+        $provinciaOrigen = $this->normalizeProvinciaOrigenUsuario($user);
 
         return view('paquetes_contrato.create', [
             'origen' => $origen,
+            'provinciaOrigen' => $provinciaOrigen,
             'departamentos' => self::DEPARTAMENTOS,
             'canContratoCreateSubmit' => $this->canSubmitContratoCreate($user),
             'canContratoCreateFrecuente' => $this->canManageContratoFrecuente($user),
@@ -374,6 +376,7 @@ class RecojoController extends Controller
             $origen = strtoupper(trim((string) ($user->name ?? '')));
         }
         $origen = $this->normalizeApiOrigen($origen);
+        $provinciaOrigen = $this->normalizeProvinciaOrigenUsuario($user);
 
         $empresaId = (int) ($user->empresa_id ?? 0);
         $serviciosTarifa = collect();
@@ -412,6 +415,7 @@ class RecojoController extends Controller
 
         return view('paquetes_contrato.create-con-tarifa', [
             'origen' => $origen,
+            'provinciaOrigen' => $provinciaOrigen,
             'departamentos' => self::DEPARTAMENTOS,
             'serviciosTarifa' => $serviciosTarifa,
             'provinciasPorDestino' => $provinciasPorDestino,
@@ -448,6 +452,7 @@ class RecojoController extends Controller
             'destino' => 'required|string|in:' . implode(',', self::DEPARTAMENTOS),
             'direccion' => 'required|string|max:255',
             'mapa' => 'nullable|string|max:500',
+            'numero_copias' => 'nullable|integer|min:1|max:3',
             'provincia' => [
                 'nullable',
                 'string',
@@ -482,6 +487,7 @@ class RecojoController extends Controller
             $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
         }
         $origen = $this->normalizeDepartamentoContrato($origen);
+        $provinciaOrigen = $this->normalizeProvinciaOrigenUsuario($user);
 
         $destino = $this->normalizeDepartamentoContrato((string) $data['destino']);
         $servicio = $this->normalizeServicioTarifa((string) $data['servicio']);
@@ -531,6 +537,7 @@ class RecojoController extends Controller
             $empresa,
             $codigoCliente,
             $origen,
+            $provinciaOrigen,
             $estadoSolicitudId,
             $destino,
             $provincia,
@@ -548,6 +555,7 @@ class RecojoController extends Controller
                 'cod_especial' => null,
                 'estados_id' => $estadoSolicitudId,
                 'origen' => $origen,
+                'provincia_origen' => $provinciaOrigen,
                 'destino' => $destino,
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
                 'telefono_r' => trim((string) $data['telefono_r']),
@@ -586,7 +594,10 @@ class RecojoController extends Controller
         return redirect()
             ->route('paquetes-contrato.index')
             ->with('success', 'GUARDADO CON TARIFA (PESO PENDIENTE)')
-            ->with('download_reporte_url', route('paquetes-contrato.reporte', $contrato->id, false));
+            ->with('download_reporte_url', route('paquetes-contrato.reporte', [
+                'contrato' => $contrato->id,
+                'copias' => $this->normalizeNumeroCopias($data['numero_copias'] ?? null),
+            ], false));
     }
 
     public function store(Request $request)
@@ -616,7 +627,10 @@ class RecojoController extends Controller
         return redirect()
             ->route('paquetes-contrato.index')
             ->with('success', 'GUARDADO')
-            ->with('download_reporte_url', route('paquetes-contrato.reporte', $contrato->id, false));
+            ->with('download_reporte_url', route('paquetes-contrato.reporte', [
+                'contrato' => $contrato->id,
+                'copias' => $this->normalizeNumeroCopias($data['numero_copias'] ?? null),
+            ], false));
     }
 
     public function storePublic(Request $request)
@@ -668,7 +682,10 @@ class RecojoController extends Controller
             'data' => [
                 'id' => $contrato->id,
                 'codigo' => $contrato->codigo,
-                'reporte_url' => route('paquetes-contrato.reporte', $contrato->id, false),
+                'reporte_url' => route('paquetes-contrato.reporte', [
+                    'contrato' => $contrato->id,
+                    'copias' => $this->normalizeNumeroCopias($data['numero_copias'] ?? null),
+                ], false),
             ],
         ], 201);
     }
@@ -678,10 +695,12 @@ class RecojoController extends Controller
         $this->authorizeAnyPermission(request(), $this->cn33PrintPermissions());
 
         $generatedAt = now();
+        $numeroCopias = $this->normalizeNumeroCopias(request()->query('copias', 1));
         $contrato->loadMissing(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla']);
         $pdf = Pdf::loadView('paquetes_contrato.reporte', [
             'contrato' => $contrato,
             'generatedAt' => $generatedAt,
+            'numeroCopias' => $numeroCopias,
             'verificationUrl' => $this->verificationUrlFor($contrato),
         ])->setPaper('letter', 'portrait');
 
@@ -1280,6 +1299,7 @@ class RecojoController extends Controller
             'mapa' => 'nullable|string|max:500',
             'provincia' => 'nullable|string|max:255',
             'peso' => 'nullable|numeric|min:0',
+            'numero_copias' => 'nullable|integer|min:1|max:3',
         ];
     }
 
@@ -1305,6 +1325,7 @@ class RecojoController extends Controller
             $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
         }
         $origen = $this->normalizeApiOrigen($origen);
+        $provinciaOrigen = $this->normalizeProvinciaOrigenUsuario($user);
 
         $estadoSolicitudId = (int) (Estado::query()
             ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
@@ -1323,7 +1344,7 @@ class RecojoController extends Controller
         }
 
         $contrato = null;
-        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $estadoSolicitudId, &$contrato) {
+        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $provinciaOrigen, $estadoSolicitudId, &$contrato) {
             $correlativo = $this->nextCorrelativo((int) $empresa->id, $codigoCliente);
             $codigo = $this->buildCodigo($codigoCliente, $correlativo);
             $empresaIdDetectada = $this->resolveEmpresaIdByCodigo($codigo) ?? (int) $empresa->id;
@@ -1335,6 +1356,7 @@ class RecojoController extends Controller
                 'cod_especial' => null,
                 'estados_id' => $estadoSolicitudId,
                 'origen' => $origen,
+                'provincia_origen' => $provinciaOrigen,
                 'destino' => $this->normalizeDepartamentoContrato((string) $data['destino']),
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
                 'telefono_r' => trim((string) $data['telefono_r']),
@@ -1375,6 +1397,20 @@ class RecojoController extends Controller
     protected function normalizeApiOrigen(string $origen): string
     {
         return $this->normalizeDepartamentoContrato($origen);
+    }
+
+    protected function normalizeProvinciaOrigenUsuario(?User $user): ?string
+    {
+        $provincia = trim((string) ($user?->provincia_origen ?? ''));
+        $provincia = function_exists('mb_strtoupper') ? mb_strtoupper($provincia, 'UTF-8') : strtoupper($provincia);
+        $provincia = preg_replace('/\s+/', ' ', $provincia) ?: '';
+
+        return $provincia !== '' ? $provincia : null;
+    }
+
+    protected function normalizeNumeroCopias(mixed $value): int
+    {
+        return max(1, min(3, (int) ($value ?: 1)));
     }
 
     protected function normalizeDepartamentoContrato(string $value): string

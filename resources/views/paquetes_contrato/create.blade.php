@@ -296,6 +296,7 @@
             <div class="card-body">
                 <form method="POST" action="{{ route('paquetes-contrato.store', [], false) }}" id="formContratoCreate">
                     @csrf
+                    <input type="hidden" name="numero_copias" id="numeroCopiasInput" value="{{ old('numero_copias', 1) }}">
 
                     <div id="envioFrecuenteStatus" class="alert d-none mb-3" role="alert"></div>
 
@@ -365,6 +366,15 @@
                                     <div class="origin-help">Este dato se toma del origen o departamento del usuario logueado.</div>
                                 </div>
                             </div>
+                            @if(!empty($provinciaOrigen))
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Provincia origen</label>
+                                        <input type="text" class="form-control origin-input" value="{{ $provinciaOrigen }}" readonly>
+                                        <div class="origin-help">Este dato se toma de la provincia origen del usuario logueado.</div>
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                         <div class="row">
                             <div class="col-md-6">
@@ -516,6 +526,37 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="copiasGuiaModal" tabindex="-1" role="dialog" aria-labelledby="copiasGuiaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="copiasGuiaModalLabel">Copias de guia</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group mb-0">
+                    <label for="numeroCopiasModalSelect">Cuantas copias quieres imprimir?</label>
+                    <select id="numeroCopiasModalSelect" class="form-control">
+                        @for($i = 1; $i <= 3; $i++)
+                            <option value="{{ $i }}" {{ (int) old('numero_copias', 1) === $i ? 'selected' : '' }}>
+                                {{ $i }} {{ $i === 1 ? 'copia' : 'copias' }}
+                            </option>
+                        @endfor
+                    </select>
+                    <small class="form-text text-muted">Puedes elegir hasta un maximo de 3 copias.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirmarCopiasGuiaBtn">Guardar contrato</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @section('js')
@@ -528,6 +569,10 @@
         const storageKeyBase = `paquetes_contrato_envios_frecuentes_${userId}`;
         const statusBox = document.getElementById('envioFrecuenteStatus');
         const savedModal = document.getElementById('envioFrecuenteSavedModal');
+        const copiasGuiaModal = document.getElementById('copiasGuiaModal');
+        const numeroCopiasInput = document.getElementById('numeroCopiasInput');
+        const numeroCopiasModalSelect = document.getElementById('numeroCopiasModalSelect');
+        const confirmarCopiasGuiaBtn = document.getElementById('confirmarCopiasGuiaBtn');
         const saveBtn = document.getElementById('btnGuardarFrecuente');
         const remitenteInput = document.getElementById('nombreRemitenteInput');
         const dropdown = document.getElementById('frecuentesDropdown');
@@ -818,9 +863,29 @@
             hideDropdown();
         });
 
-        if (form) {
-            form.addEventListener('submit', () => {
-                hideDropdown();
+        form.addEventListener('submit', (event) => {
+            hideDropdown();
+            if (form.dataset.copiasConfirmed === '1') {
+                return;
+            }
+
+            event.preventDefault();
+            if (typeof window.jQuery !== 'undefined' && copiasGuiaModal) {
+                window.jQuery(copiasGuiaModal).modal('show');
+            }
+        });
+
+        if (confirmarCopiasGuiaBtn) {
+            confirmarCopiasGuiaBtn.addEventListener('click', () => {
+                if (numeroCopiasInput && numeroCopiasModalSelect) {
+                    numeroCopiasInput.value = numeroCopiasModalSelect.value || '1';
+                }
+
+                form.dataset.copiasConfirmed = '1';
+                if (typeof window.jQuery !== 'undefined' && copiasGuiaModal) {
+                    window.jQuery(copiasGuiaModal).modal('hide');
+                }
+                form.requestSubmit();
             });
         }
 

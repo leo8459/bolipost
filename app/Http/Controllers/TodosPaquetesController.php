@@ -222,15 +222,51 @@ class TodosPaquetesController extends Controller
 
     public function reimprimirGuia(string $type, int $id)
     {
+        $config = $this->typeConfig($type);
+        $model = $this->findPackage($config, $id);
+        $generatedAt = now();
+
+        if ($type === 'ems') {
+            return redirect()->route('paquetes-ems.boleta', ['paquete' => $model->id]);
+        }
+
+        if ($type === 'solicitud') {
+            return redirect()->route('paquetes-ems.solicitudes.ticket', ['solicitud' => $model->id]);
+        }
+
+        if ($type === 'certi') {
+            $model->loadMissing(['estado', 'ventanillaRef']);
+
+            $pdf = Pdf::loadView('paquetes_certi.reporte_baja', [
+                'packages' => collect([$model]),
+            ])->setPaper('A4');
+
+            return response()->streamDownload(function () use ($pdf) {
+                echo $pdf->output();
+            }, 'formulario-entrega-' . $model->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+        }
+
+        if ($type === 'ordi') {
+            $model->loadMissing(['estado', 'ventanillaRef']);
+
+            $pdf = Pdf::loadView('paquetes_ordi.reporte_baja', [
+                'packages' => collect([$model]),
+            ])->setPaper('A4');
+
+            return response()->streamDownload(function () use ($pdf) {
+                echo $pdf->output();
+            }, 'formulario-entrega-' . $model->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+        }
+
         abort_unless($type === 'contrato', 404);
 
-        $contrato = Recojo::query()->findOrFail($id);
+        $contrato = $model;
         $contrato->loadMissing(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla']);
-        $generatedAt = now();
 
         $pdf = Pdf::loadView('paquetes_contrato.reporte', [
             'contrato' => $contrato,
             'generatedAt' => $generatedAt,
+            'numeroCopias' => 3,
             'verificationUrl' => route('paquetes-contrato.verificar-guia', [
                 't' => Crypt::encryptString((string) $contrato->getKey()),
             ]),
