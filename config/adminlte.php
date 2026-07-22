@@ -1141,6 +1141,11 @@ return [
                     'icon' => 'fas fa-chart-line',
                 ],
                 [
+                    'text' => 'APIS',
+                    'url' => '/configuracion/apis',
+                    'icon' => 'fas fa-key',
+                ],
+                [
                     'text' => 'Aplicación',
                     'url' => '/configuracion/aplicacion',
                     'icon' => 'fas fa-mobile-alt',

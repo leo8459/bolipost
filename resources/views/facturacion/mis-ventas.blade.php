@@ -474,7 +474,7 @@
                                     @elseif($facturaEstado === 'RECHAZADA')
                                         <span class="ventas-status-chip ventas-status-chip--danger">RECHAZADA</span>
                                     @elseif($facturaEstado === 'ANULADA')
-                                        <span class="ventas-status-chip ventas-status-chip--danger">ANULADA</span>
+                                        <span class="ventas-status-chip ventas-status-chip--danger">VENTA ANULADA</span>
                                     @elseif($facturaEstado === 'PENDIENTE_ANULACION')
                                         <span class="ventas-status-chip ventas-status-chip--warning">PENDIENTE ANULACION</span>
                                     @elseif($facturaEstado === 'ANULACION_OBSERVADA')
@@ -515,6 +515,8 @@
                                         <div class="ventas-table__secondary mt-1">Pago QR pendiente de confirmacion.</div>
                                     @elseif($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'cancelado')
                                         <div class="ventas-table__secondary mt-1">El QR fue cerrado, cancelado o no completado.</div>
+                                    @elseif($facturaEstado === 'ANULADA')
+                                        <div class="ventas-table__secondary mt-1">Venta anulada localmente. No se contabiliza en caja ni en los totales operativos.</div>
                                     @endif
                                 </td>
                                 <td class="text-center">
