@@ -1077,11 +1077,6 @@ return [
                             'icon' => 'fas fa-user',
                         ],
                         [
-                            'text' => 'Usuarios empresas',
-                            'url' => 'users/empresas',
-                            'icon' => 'fas fa-building',
-                        ],
-                        [
                             'text' => 'Roles',
                             'url' => 'roles',
                             'icon' => 'fas fa-users-cog',

@@ -21,7 +21,6 @@ class Users extends Component
     public $groupByBillingSucursal = false;
     public $showOnlyWithEmpresa = false;
     public $filterEmpresaId = '';
-    public $empresaMode = false;
 
     public $editingId = null;
     public $name = '';
@@ -29,7 +28,6 @@ class Users extends Component
     public $email = '';
     public $password = '';
     public $ciudad = '';
-    public $provincia_origen = '';
     public $regionalesSeleccionadas = [];
     public $ci = '';
     public $empresa_id = '';
@@ -42,20 +40,8 @@ class Users extends Component
     public $statusUserId = null;
     public $statusAction = '';
 
-   protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'bootstrap';
 
-private const ROLE_GUARD_WEB = 'web';
-private const EMPRESA_ROLE_NAME = 'empresa';
-private const REQUIRED_WEB_ROLE_NAMES = [
-    'conductor',
-    self::EMPRESA_ROLE_NAME,
-];
-
-public function mount(bool $empresaMode = false): void
-{
-    $this->empresaMode = $empresaMode;
-    $this->showOnlyWithEmpresa = $empresaMode;
-}
     public function searchUsers(): void
     {
         $this->searchQuery = trim((string) $this->search);
@@ -66,7 +52,6 @@ public function mount(bool $empresaMode = false): void
     {
         $this->authorizePermission('users.create');
         $this->resetUserForm();
-        $this->applyEmpresaRoleMode();
         $this->dispatch('openUserModal');
     }
 
@@ -83,12 +68,10 @@ public function mount(bool $empresaMode = false): void
         $this->password = '';
         $this->regionalesSeleccionadas = $user->regionalesLista();
         $this->ciudad = (string) ($this->regionalesSeleccionadas[0] ?? $user->ciudad);
-        $this->provincia_origen = (string) ($user->provincia_origen ?? '');
         $this->ci = (string) $user->ci;
         $this->empresa_id = $user->empresa_id ? (string) $user->empresa_id : '';
         $this->sucursal_id = $user->sucursal_id ? (string) $user->sucursal_id : '';
         $this->roleIds = $user->roles()->pluck('roles.id')->map(fn ($id) => (string) $id)->all();
-        $this->applyEmpresaRoleMode();
 
         $this->resetValidation();
         $this->dispatch('openUserModal');
@@ -109,7 +92,6 @@ public function mount(bool $empresaMode = false): void
             $user->alias = $this->alias;
             $user->email = trim($this->email);
             $user->ciudad = $regionales[0] ?? '';
-            $user->provincia_origen = $this->normalizeProvinciaOrigen();
             $user->regionales = $regionales;
             // If CI is left empty on edit, keep existing value.
             $user->ci = $ciValue !== '' ? $ciValue : $user->ci;
@@ -138,7 +120,6 @@ public function mount(bool $empresaMode = false): void
             $user->email = trim($this->email);
             $user->password = Hash::make($this->password);
             $user->ciudad = $regionales[0] ?? '';
-            $user->provincia_origen = $this->normalizeProvinciaOrigen();
             $user->regionales = $regionales;
             $user->ci = $ciValue !== '' ? $ciValue : null;
             $user->empresa_id = $this->empresa_id !== '' ? (int) $this->empresa_id : null;
@@ -239,13 +220,6 @@ public function mount(bool $empresaMode = false): void
 
     public function showAllUsers(): void
     {
-        if ($this->empresaMode) {
-            $this->showOnlyWithEmpresa = true;
-            $this->resetPage();
-
-            return;
-        }
-
         $this->showOnlyWithEmpresa = false;
         $this->filterEmpresaId = '';
         $this->resetPage();
@@ -274,9 +248,8 @@ public function mount(bool $empresaMode = false): void
             'password' => ['required', 'string', 'min:8'],
             'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
             'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
-            'provincia_origen' => [$this->empresaMode ? 'required' : 'nullable', 'string', 'max:255'],
             'ci' => ['nullable', 'string', 'max:255'],
-            'empresa_id' => [$this->empresaMode ? 'required' : 'nullable', 'integer', 'exists:empresa,id'],
+            'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],
@@ -294,9 +267,8 @@ public function mount(bool $empresaMode = false): void
             'password' => ['nullable', 'string', 'min:8'],
             'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
             'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
-            'provincia_origen' => [$this->empresaMode ? 'required' : 'nullable', 'string', 'max:255'],
             'ci' => ['nullable', 'string', 'max:255'],
-            'empresa_id' => [$this->empresaMode ? 'required' : 'nullable', 'integer', 'exists:empresa,id'],
+            'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],
@@ -305,10 +277,6 @@ public function mount(bool $empresaMode = false): void
 
     protected function resolveRoleNames(): array
     {
-        if ($this->empresaMode) {
-            return [self::EMPRESA_ROLE_NAME];
-        }
-
         $roleIds = collect($this->roleIds)
             ->filter(fn ($id) => $id !== null && $id !== '')
             ->map(fn ($id) => (int) $id)
@@ -329,28 +297,12 @@ public function mount(bool $empresaMode = false): void
         $this->email = '';
         $this->password = '';
         $this->ciudad = '';
-        $this->provincia_origen = '';
         $this->regionalesSeleccionadas = [];
         $this->ci = '';
         $this->empresa_id = '';
         $this->sucursal_id = '';
         $this->roleIds = [];
         $this->resetValidation();
-    }
-
-    protected function applyEmpresaRoleMode(): void
-    {
-        if (! $this->empresaMode) {
-            return;
-        }
-
-        $empresaRoleId = Role::query()
-            ->where('guard_name', self::ROLE_GUARD_WEB)
-            ->where('name', self::EMPRESA_ROLE_NAME)
-            ->value('id');
-
-        $this->roleIds = $empresaRoleId ? [(string) $empresaRoleId] : [];
-        $this->sucursal_id = '';
     }
 
     protected function authorizePermission(string $permission): void
@@ -376,14 +328,6 @@ public function mount(bool $empresaMode = false): void
         $this->ciudad = (string) ($regionales[0] ?? '');
 
         return $regionales;
-    }
-
-    protected function normalizeProvinciaOrigen(): ?string
-    {
-        $provincia = strtoupper(trim((string) $this->provincia_origen));
-        $this->provincia_origen = $provincia;
-
-        return $provincia !== '' ? $provincia : null;
     }
 
     protected function regionalesDisponibles(): array
@@ -432,7 +376,6 @@ public function mount(bool $empresaMode = false): void
                     $inner->where('name', 'like', '%'.$q.'%')
                         ->orWhere('alias', 'like', '%'.$q.'%')
                         ->orWhere('email', 'like', '%'.$q.'%')
-                        ->orWhere('provincia_origen', 'like', '%'.$q.'%')
                         ->orWhere('ci', 'like', '%'.$q.'%')
                         ->orWhereHas('empresa', function ($empresaQuery) use ($q) {
                             $empresaQuery->where('nombre', 'like', '%'.$q.'%')
@@ -475,32 +418,13 @@ public function mount(bool $empresaMode = false): void
             ? $baseQuery->orderByDesc('id')->paginate(10, ['*'], 'page', 1)
             : $baseQuery->orderByDesc('id')->paginate(10);
 
-      return view('livewire.users', [
-    'users' => $users,
-    'groupedUsers' => $groupedUsers,
-
-    'roles' => Role::query()
-        ->where('guard_name', self::ROLE_GUARD_WEB)
-        ->when(
-            $this->empresaMode,
-            fn ($query) => $query->where(
-                'name',
-                self::EMPRESA_ROLE_NAME
-            )
-        )
-        ->orderBy('name')
-        ->get(),
-
-    'empresas' => Empresa::query()
-        ->orderBy('codigo_cliente')
-        ->get(),
-
-    'sucursales' => Sucursal::query()
-        ->orderBy('codigoSucursal')
-        ->orderBy('puntoVenta')
-        ->get(),
-
-    'regionales' => $this->regionalesDisponibles(),
-]);
+        return view('livewire.users', [
+            'users' => $users,
+            'groupedUsers' => $groupedUsers,
+            'roles' => Role::query()->orderBy('name')->get(),
+            'empresas' => Empresa::query()->orderBy('codigo_cliente')->get(),
+            'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
+            'regionales' => $this->regionalesDisponibles(),
+        ]);
     }
 }

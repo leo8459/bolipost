@@ -351,11 +351,9 @@ class RecojoController extends Controller
             $origen = strtoupper(trim((string) ($user->name ?? '')));
         }
         $origen = $this->normalizeApiOrigen($origen);
-        $provinciaOrigen = $this->normalizeProvinciaOrigenUsuario($user);
 
         return view('paquetes_contrato.create', [
             'origen' => $origen,
-            'provinciaOrigen' => $provinciaOrigen,
             'departamentos' => self::DEPARTAMENTOS,
             'canContratoCreateSubmit' => $this->canSubmitContratoCreate($user),
             'canContratoCreateFrecuente' => $this->canManageContratoFrecuente($user),
@@ -376,7 +374,6 @@ class RecojoController extends Controller
             $origen = strtoupper(trim((string) ($user->name ?? '')));
         }
         $origen = $this->normalizeApiOrigen($origen);
-        $provinciaOrigen = $this->normalizeProvinciaOrigenUsuario($user);
 
         $empresaId = (int) ($user->empresa_id ?? 0);
         $serviciosTarifa = collect();
@@ -415,7 +412,6 @@ class RecojoController extends Controller
 
         return view('paquetes_contrato.create-con-tarifa', [
             'origen' => $origen,
-            'provinciaOrigen' => $provinciaOrigen,
             'departamentos' => self::DEPARTAMENTOS,
             'serviciosTarifa' => $serviciosTarifa,
             'provinciasPorDestino' => $provinciasPorDestino,
@@ -486,11 +482,10 @@ class RecojoController extends Controller
             $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
         }
         $origen = $this->normalizeDepartamentoContrato($origen);
-        $provinciaOrigen = $this->normalizeProvinciaOrigenUsuario($user);
 
         $destino = $this->normalizeDepartamentoContrato((string) $data['destino']);
         $servicio = $this->normalizeServicioTarifa((string) $data['servicio']);
-        $provincia = $this->normalizeNullableUppercase($data['provincia'] ?? null);
+        $provincia = !empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null;
 
         $tarifa = $this->resolveTarifaContrato(
             (int) $empresa->id,
@@ -536,7 +531,6 @@ class RecojoController extends Controller
             $empresa,
             $codigoCliente,
             $origen,
-            $provinciaOrigen,
             $estadoSolicitudId,
             $destino,
             $provincia,
@@ -554,7 +548,6 @@ class RecojoController extends Controller
                 'cod_especial' => null,
                 'estados_id' => $estadoSolicitudId,
                 'origen' => $origen,
-                'provincia_origen' => $provinciaOrigen,
                 'destino' => $destino,
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
                 'telefono_r' => trim((string) $data['telefono_r']),
@@ -1275,7 +1268,6 @@ class RecojoController extends Controller
     protected function storeRules(): array
     {
         return [
-            'tipo_envio' => 'required|string|in:periurbano,departamental,provincial',
             'nombre_r' => 'required|string|max:255',
             'telefono_r' => 'required|string|max:50',
             'contenido' => 'required|string',
@@ -1286,7 +1278,7 @@ class RecojoController extends Controller
             'destino' => 'required|string|in:' . implode(',', self::DEPARTAMENTOS),
             'direccion' => 'required|string|max:255',
             'mapa' => 'nullable|string|max:500',
-            'provincia' => 'required_if:tipo_envio,provincial|nullable|string|max:255',
+            'provincia' => 'nullable|string|max:255',
             'peso' => 'nullable|numeric|min:0',
         ];
     }
@@ -1313,7 +1305,6 @@ class RecojoController extends Controller
             $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
         }
         $origen = $this->normalizeApiOrigen($origen);
-        $provinciaOrigen = $this->normalizeProvinciaOrigenUsuario($user);
 
         $estadoSolicitudId = (int) (Estado::query()
             ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
@@ -1332,7 +1323,7 @@ class RecojoController extends Controller
         }
 
         $contrato = null;
-        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $provinciaOrigen, $estadoSolicitudId, &$contrato) {
+        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $estadoSolicitudId, &$contrato) {
             $correlativo = $this->nextCorrelativo((int) $empresa->id, $codigoCliente);
             $codigo = $this->buildCodigo($codigoCliente, $correlativo);
             $empresaIdDetectada = $this->resolveEmpresaIdByCodigo($codigo) ?? (int) $empresa->id;
@@ -1344,7 +1335,6 @@ class RecojoController extends Controller
                 'cod_especial' => null,
                 'estados_id' => $estadoSolicitudId,
                 'origen' => $origen,
-                'provincia_origen' => $provinciaOrigen,
                 'destino' => $this->normalizeDepartamentoContrato((string) $data['destino']),
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
                 'telefono_r' => trim((string) $data['telefono_r']),
@@ -1355,7 +1345,7 @@ class RecojoController extends Controller
                 'telefono_d' => trim((string) $data['telefono_d']),
                 'direccion_d' => strtoupper(trim((string) $data['direccion'])),
                 'mapa' => !empty($data['mapa']) ? trim((string) $data['mapa']) : null,
-                'provincia' => $this->normalizeNullableUppercase($data['provincia'] ?? null),
+                'provincia' => !empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null,
                 'peso' => $data['peso'] ?? 0,
                 'fecha_recojo' => null,
                 'observacion' => null,
@@ -1385,24 +1375,6 @@ class RecojoController extends Controller
     protected function normalizeApiOrigen(string $origen): string
     {
         return $this->normalizeDepartamentoContrato($origen);
-    }
-
-    protected function normalizeProvinciaOrigenUsuario(?User $user): ?string
-    {
-        $provincia = trim((string) ($user?->provincia_origen ?? ''));
-        $provincia = function_exists('mb_strtoupper') ? mb_strtoupper($provincia, 'UTF-8') : strtoupper($provincia);
-        $provincia = preg_replace('/\s+/', ' ', $provincia) ?: '';
-
-        return $provincia !== '' ? $provincia : null;
-    }
-
-    protected function normalizeNullableUppercase(mixed $value): ?string
-    {
-        $normalized = trim((string) ($value ?? ''));
-        $normalized = function_exists('mb_strtoupper') ? mb_strtoupper($normalized, 'UTF-8') : strtoupper($normalized);
-        $normalized = preg_replace('/\s+/', ' ', $normalized) ?: '';
-
-        return $normalized !== '' ? $normalized : null;
     }
 
     protected function normalizeDepartamentoContrato(string $value): string

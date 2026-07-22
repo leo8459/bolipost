@@ -19,7 +19,6 @@ class Recojo extends Model
         'cod_especial',
         'estados_id',
         'origen',
-        'provincia_origen',
         'destino',
         'nombre_r',
         'telefono_r',

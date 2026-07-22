@@ -158,26 +158,6 @@
             border:1px solid #dbe6f4;
             background:#eef3fb;
             box-shadow:0 8px 16px rgba(32,83,154,.09);
-            cursor:pointer;
-            display:block;
-        }
-
-        .siop-photo-link{
-            display:inline-flex;
-            flex-direction:column;
-            align-items:center;
-            gap:4px;
-            text-decoration:none;
-        }
-
-        .siop-photo-link span{
-            color:#20539A;
-            font-size:.72rem;
-            font-weight:800;
-        }
-
-        .siop-photo-link:hover span{
-            text-decoration:underline;
         }
 
         .siop-photo-empty{
@@ -341,23 +321,11 @@
                                     </td>
                                     <td>
                                         @php
-                                            $imagenSource = match ((string) ($registro->source_table ?? '')) {
-                                                'eventos_ems' => 'ems',
-                                                'eventos_certi' => 'certi',
-                                                'eventos_ordi' => 'ordi',
-                                                'eventos_contrato' => 'contrato',
-                                                'eventos_tiktoker' => 'solicitud',
-                                                default => null,
-                                            };
-                                            $imagenUrl = !empty($registro->imagen)
-                                                && $imagenSource
-                                                ? route('delivery-images.by-code', ['source' => $imagenSource, 'codigo' => $registro->codigo], false)
-                                                : null;
+                                            $imagenUrl = !empty($registro->imagen) ? asset('storage/' . ltrim($registro->imagen, '/')) : null;
                                         @endphp
                                         @if ($imagenUrl)
-                                            <a href="{{ $imagenUrl }}" target="_blank" rel="noopener" class="siop-photo-link" title="Ver imagen">
+                                            <a href="{{ $imagenUrl }}" target="_blank" rel="noopener">
                                                 <img src="{{ $imagenUrl }}" alt="Foto del evento" class="siop-photo">
-                                                <span>Ver imagen</span>
                                             </a>
                                         @else
                                             <span class="siop-photo-empty">Sin foto</span>

@@ -414,12 +414,7 @@ class EventosTabla extends Component
 
     private function authenticatedEmpresaId(): int
     {
-        $user = auth()->user();
-        if ($user && method_exists($user, 'isGlobalDepartmentViewer') && $user->isGlobalDepartmentViewer()) {
-            return 0;
-        }
-
-        return (int) ($user?->empresa_id ?? 0);
+        return (int) (auth()->user()?->empresa_id ?? 0);
     }
 
     private function authorizePermission(string $permission): void

@@ -145,19 +145,19 @@ class DriverManager extends Component
             }
         }
 
-    $drivers = $query->paginate(10);
+        $drivers = $query->paginate(10);
+        $users = auth()->user()?->role === 'conductor'
+            ? collect()
+            : $this->availableDriverUsers();
+        
+        return view('livewire.driver-manager', [
+            'drivers' => $drivers,
+            'users' => $users,
+            'driverProfile' => $driverProfile,
+            'licenseTypes' => self::LICENSE_TYPES,
+        ]);
+    }
 
-$users = auth()->user()?->role === 'conductor'
-    ? collect()
-    : $this->availableDriverUsers();
-
-return view('livewire.driver-manager', [
-    'drivers' => $drivers,
-    'users' => $users,
-    'driverProfile' => $driverProfile,
-    'licenseTypes' => self::LICENSE_TYPES,
-]);
-}
     public function updatedSearch(): void
     {
         $this->search = trim((string) preg_replace('/[^\pL\pN@\.\-\_\s]/u', '', $this->search));
@@ -281,19 +281,13 @@ return view('livewire.driver-manager', [
                 'activo.boolean' => 'El estado activo no es valido.',
             ]
         );
-if (!$this->isUserSelectableForDriver((int) $this->user_id)) {
-    $this->addError(
-        'user_id',
-        'Debe seleccionar un usuario con rol conductor que no esté vinculado a otro conductor.'
-    );
 
-    session()->flash(
-        'error',
-        'No se pudo registrar: el usuario no tiene rol conductor o ya está vinculado.'
-    );
-
-    return;
-}
+        $selectedUser = User::query()->find((int) $this->user_id);
+        if (!$selectedUser || !$this->isDriverRoleUser($selectedUser)) {
+            $this->addError('user_id', 'Solo puede seleccionar usuarios con rol de conductor.');
+            session()->flash('error', 'No se pudo registrar: el usuario seleccionado no tiene rol de conductor.');
+            return;
+        }
 
         if (trim($this->memorandum_path) === '' && !$this->memorandum_file) {
             $this->addError('memorandum_file', 'El memorandum es obligatorio.');
@@ -566,67 +560,38 @@ if (!$this->isUserSelectableForDriver((int) $this->user_id)) {
         );
     }
 
-   public function getViewingDriverProperty(): ?Driver
-{
-    if (!$this->viewingDriverId) {
-        return null;
-    }
-
-    return Driver::query()
-        ->with('user')
-        ->find($this->viewingDriverId);
-}
-    private function resolveSelectableUsers()
+    private function availableDriverUsers()
     {
         $query = User::query()
-            ->select(['id', 'name', 'email'])
-            ->whereHas('roles', function ($roleQuery) {
-                $roleQuery
-                    ->where('name', self::DRIVER_ROLE_NAME)
-                    ->where('guard_name', self::WEB_GUARD);
-            })
-            ->whereNotIn('id', function ($driverQuery) {
-                $driverQuery->select('user_id')
-                    ->from('drivers')
-                    ->whereNotNull('user_id');
-
-                if ($this->isEdit && $this->editingDriverId) {
-                    $driverQuery->where('id', '!=', $this->editingDriverId);
-                }
-            })
+            ->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'conductor'))
             ->orderBy('name');
 
-        // Si estamos editando y el usuario actual no cumple filtro, lo mantenemos visible.
-        if ($this->isEdit && $this->user_id) {
-            $query->orWhere('id', (int) $this->user_id);
+        $users = $query->get(['id', 'name', 'email']);
+
+        if ($this->user_id && !$users->contains('id', $this->user_id)) {
+            $selectedUser = User::query()->find($this->user_id, ['id', 'name', 'email']);
+            if ($selectedUser && $this->isDriverRoleUser($selectedUser)) {
+                $users->push($selectedUser);
+            }
         }
 
-        return $query->get();
+        return $users;
     }
 
-    private function isUserSelectableForDriver(int $userId): bool
+    private function isDriverRoleUser(User $user): bool
     {
-        if ($userId <= 0) {
-            return false;
+        return mb_strtolower(trim((string) ($user->role ?? ''))) === 'conductor'
+            || (method_exists($user, 'hasRole') && $user->hasRole('conductor'));
+    }
+
+    public function getViewingDriverProperty(): ?Driver
+    {
+        if (!$this->viewingDriverId) {
+            return null;
         }
 
-        $user = User::query()->find($userId);
-        if (!$user) {
-            return false;
-        }
-
-        $hasDriverRole = $user->roles()
-            ->where('name', self::DRIVER_ROLE_NAME)
-            ->where('guard_name', self::WEB_GUARD)
-            ->exists();
-
-        if (!$hasDriverRole) {
-            return false;
-        }
-
-        return !Driver::query()
-            ->where('user_id', $userId)
-            ->when($this->isEdit && $this->editingDriverId, fn ($query) => $query->where('id', '!=', $this->editingDriverId))
-            ->exists();
+        return Driver::query()
+            ->with('user')
+            ->find($this->viewingDriverId);
     }
 }

@@ -15,6 +15,7 @@ use App\Models\SolicitudCliente;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -25,9 +26,6 @@ use Illuminate\Validation\ValidationException;
 
 class CarterosController extends Controller
 {
-    private const DELIVERY_PHOTO_MAX_DIMENSION = 1600;
-    private const DELIVERY_PHOTO_TARGET_BYTES = 900000;
-    private const DELIVERY_PHOTO_MIN_QUALITY = 50;
     private const EVENTO_ID_PAQUETE_CAMINO_ENTREGA_FISICA = 184;
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
     private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
@@ -1550,7 +1548,7 @@ class CarterosController extends Controller
         );
         $imagenPath = $this->storeDeliveryPhoto($request, $asignacion->imagen ?? $asignacion->foto);
         $syncWarning = null;
-        $externalImage = $imagenPath;
+        $externalImage = $this->buildExternalImagePayload($request->file('foto'));
         $carteroNombre = trim((string) ($request->user()->name ?? ''));
 
         DB::transaction(function () use ($validated, $asignacion, $estadoEntregadoId, $userId, $eventoEntregaId, $imagenPath) {
@@ -2731,12 +2729,6 @@ class CarterosController extends Controller
                 $row['imagen'] = $asignacion->imagen ?? $asignacion->foto;
                 $row['foto'] = $asignacion->imagen ?? $asignacion->foto;
                 $row['imagen_devolucion'] = $asignacion->imagen_devolucion;
-                $row['imagen_url'] = !empty($row['imagen'])
-                    ? route('delivery-images.show', ['source' => 'cartero', 'id' => $asignacion->id, 'field' => 'imagen'], false)
-                    : null;
-                $row['imagen_devolucion_url'] = !empty($row['imagen_devolucion'])
-                    ? route('delivery-images.show', ['source' => 'cartero', 'id' => $asignacion->id, 'field' => 'imagen_devolucion'], false)
-                    : null;
             }
 
             return $row;
@@ -2749,133 +2741,29 @@ class CarterosController extends Controller
             return $currentPath;
         }
 
-        $newImage = $this->optimizedDeliveryPhotoBase64($request);
+        $newPath = $request->file('foto')->store('carteros/entregas', 'public');
 
-        if (
-            !empty($currentPath)
-            && !$this->isBase64Image($currentPath)
-            && Storage::disk('public')->exists($currentPath)
-        ) {
+        if (!empty($currentPath) && Storage::disk('public')->exists($currentPath)) {
             Storage::disk('public')->delete($currentPath);
         }
 
-        return $newImage;
+        return $newPath;
     }
 
-    private function optimizedDeliveryPhotoBase64(Request $request): string
+    private function buildExternalImagePayload(?UploadedFile $file): ?string
     {
-        $file = $request->file('foto');
         if (!$file) {
-            throw ValidationException::withMessages([
-                'foto' => 'La foto de entrega es obligatoria.',
-            ]);
+            return null;
         }
 
         $contents = @file_get_contents($file->getRealPath());
         if ($contents === false) {
-            throw ValidationException::withMessages([
-                'foto' => 'No se pudo leer la foto enviada.',
-            ]);
+            return null;
         }
 
-        $image = @imagecreatefromstring($contents);
-        if (!$image) {
-            if (strlen($contents) <= self::DELIVERY_PHOTO_TARGET_BYTES) {
-                $mimeType = trim((string) ($file->getMimeType() ?: 'image/jpeg'));
+        $mimeType = trim((string) ($file->getMimeType() ?: 'image/jpeg'));
 
-                return 'data:' . $mimeType . ';base64,' . base64_encode($contents);
-            }
-
-            throw ValidationException::withMessages([
-                'foto' => 'No se pudo optimizar la foto. Envia una imagen JPG, PNG o WEBP.',
-            ]);
-        }
-
-        $image = $this->orientImageFromExif($image, $file->getRealPath(), (string) $file->getMimeType());
-        $image = $this->resizeImageToMaxDimension($image, self::DELIVERY_PHOTO_MAX_DIMENSION);
-        $jpeg = $this->encodeJpegUnderTarget($image, self::DELIVERY_PHOTO_TARGET_BYTES);
-        imagedestroy($image);
-
-        return 'data:image/jpeg;base64,' . base64_encode($jpeg);
-    }
-
-    private function orientImageFromExif(\GdImage $image, string $path, string $mimeType): \GdImage
-    {
-        if (!function_exists('exif_read_data') || !str_contains(mb_strtolower($mimeType), 'jpeg')) {
-            return $image;
-        }
-
-        $exif = @exif_read_data($path);
-        $orientation = is_array($exif) ? (int) ($exif['Orientation'] ?? 0) : 0;
-        $rotated = match ($orientation) {
-            3 => imagerotate($image, 180, 0),
-            6 => imagerotate($image, -90, 0),
-            8 => imagerotate($image, 90, 0),
-            default => false,
-        };
-
-        if ($rotated instanceof \GdImage) {
-            imagedestroy($image);
-
-            return $rotated;
-        }
-
-        return $image;
-    }
-
-    private function resizeImageToMaxDimension(\GdImage $image, int $maxDimension): \GdImage
-    {
-        $width = imagesx($image);
-        $height = imagesy($image);
-        $largestSide = max($width, $height);
-
-        if ($largestSide <= $maxDimension) {
-            return $image;
-        }
-
-        $scale = $maxDimension / $largestSide;
-        $newWidth = max(1, (int) round($width * $scale));
-        $newHeight = max(1, (int) round($height * $scale));
-        $resized = imagecreatetruecolor($newWidth, $newHeight);
-
-        imagefill($resized, 0, 0, imagecolorallocate($resized, 255, 255, 255));
-        imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
-        imagedestroy($image);
-
-        return $resized;
-    }
-
-    private function encodeJpegUnderTarget(\GdImage $image, int $targetBytes): string
-    {
-        $quality = 82;
-        $jpeg = $this->encodeJpeg($image, $quality);
-
-        while (strlen($jpeg) > $targetBytes && $quality > self::DELIVERY_PHOTO_MIN_QUALITY) {
-            $quality -= 8;
-            $jpeg = $this->encodeJpeg($image, $quality);
-        }
-
-        return $jpeg;
-    }
-
-    private function encodeJpeg(\GdImage $image, int $quality): string
-    {
-        ob_start();
-        imagejpeg($image, null, max(1, min(100, $quality)));
-        $jpeg = ob_get_clean();
-
-        if (!is_string($jpeg) || $jpeg === '') {
-            throw ValidationException::withMessages([
-                'foto' => 'No se pudo convertir la foto a JPG optimizado.',
-            ]);
-        }
-
-        return $jpeg;
-    }
-
-    private function isBase64Image(string $value): bool
-    {
-        return str_starts_with($value, 'data:image/');
+        return 'data:' . $mimeType . ';base64,' . base64_encode($contents);
     }
 
     private function syncExternalSolicitudEntrega(
@@ -3827,10 +3715,6 @@ class CarterosController extends Controller
             return false;
         }
 
-        if (method_exists($actor, 'isGlobalDepartmentViewer') && $actor->isGlobalDepartmentViewer()) {
-            return true;
-        }
-
         $actorCity = $this->normalizeUserCity((string) ($actor->ciudad ?? ''));
         $assigneeCity = $this->normalizeUserCity((string) ($assignee->ciudad ?? ''));
 
@@ -3843,11 +3727,8 @@ class CarterosController extends Controller
 
     private function availableCarteroUsersForActor(?User $actor)
     {
-        $hasGlobalDepartmentAccess = $actor
-            && method_exists($actor, 'isGlobalDepartmentViewer')
-            && $actor->isGlobalDepartmentViewer();
         $actorCity = $this->normalizeUserCity((string) optional($actor)->ciudad);
-        if (!$hasGlobalDepartmentAccess && $actorCity === '') {
+        if ($actorCity === '') {
             return collect();
         }
 
@@ -3855,9 +3736,7 @@ class CarterosController extends Controller
             ->whereHas('roles', function ($query) {
                 $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
             })
-            ->when(!$hasGlobalDepartmentAccess, function ($query) use ($actorCity) {
-                $query->whereRaw('TRIM(UPPER(ciudad)) = ?', [$actorCity]);
-            })
+            ->whereRaw('TRIM(UPPER(ciudad)) = ?', [$actorCity])
             ->orderBy('name')
             ->get(['id', 'name', 'ciudad']);
     }

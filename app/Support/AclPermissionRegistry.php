@@ -502,22 +502,6 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
-        'users.empresas' => [
-            'users.empresas',
-            'users.index',
-        ],
-        'users.empresas.excel' => [
-            'users.empresas.excel',
-            'users.empresas',
-            'users.index',
-            'feature.users.export',
-        ],
-        'users.empresas.pdf' => [
-            'users.empresas.pdf',
-            'users.empresas',
-            'users.index',
-            'feature.users.export',
-        ],
         'users.excel' => [
             'users.excel',
             'users.index',

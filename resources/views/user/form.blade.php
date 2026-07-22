@@ -100,24 +100,6 @@
             @enderror
         </div>
 
-        {{-- Provincia origen --}}
-        <div class="form-group mb-3">
-            <label for="provincia_origen">Provincia origen</label>
-            <input
-                type="text"
-                id="provincia_origen"
-                name="provincia_origen"
-                value="{{ old('provincia_origen', $user->provincia_origen ?? '') }}"
-                class="form-control text-uppercase @error('provincia_origen') is-invalid @enderror"
-                placeholder="Ej: MURILLO"
-                style="text-transform: uppercase;"
-            >
-            <small class="text-muted">Se guardara automaticamente en mayusculas.</small>
-            @error('provincia_origen')
-                <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
-
         {{-- CI --}}
         <div class="form-group mb-3">
             <label for="ci">Carnet de Identidad</label>

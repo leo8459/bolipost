@@ -31,11 +31,6 @@ class UserController extends Controller
             ->with('i', (request()->input('page', 1) - 1) * $users->perPage());
     }
 
-    public function empresas()
-    {
-        return view('user.empresas');
-    }
-
     public function create()
     {
         $user = new User();
@@ -56,7 +51,6 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8',
             'ciudad' => 'required|string|max:255',
-            'provincia_origen' => 'nullable|string|max:255',
             'ci' => 'nullable|string|max:255',
             'empresa_id' => 'nullable|integer|exists:empresa,id',
             'sucursal_id' => 'nullable|integer|exists:sucursales,id',
@@ -72,7 +66,6 @@ class UserController extends Controller
         $user->email = $request->email;
         $user->password = bcrypt($request->password);
         $user->ciudad = strtoupper(trim((string) $request->ciudad));
-        $user->provincia_origen = $this->normalizeNullableUppercase($request->input('provincia_origen'));
         $user->regionales = [$user->ciudad];
         $user->ci = $request->filled('ci') ? trim((string) $request->ci) : null;
         $user->empresa_id = $request->filled('empresa_id') ? (int) $request->empresa_id : null;
@@ -114,7 +107,6 @@ class UserController extends Controller
             'alias' => 'required|string|max:255|unique:users,alias,' . $user->id,
             'email' => 'required|email|unique:users,email,' . $user->id,
             'ciudad' => 'required|string|max:255',
-            'provincia_origen' => 'nullable|string|max:255',
             'ci' => 'nullable|string|max:255',
             'empresa_id' => 'nullable|integer|exists:empresa,id',
             'sucursal_id' => 'nullable|integer|exists:sucursales,id',
@@ -129,7 +121,6 @@ class UserController extends Controller
         $user->alias = $normalizedAlias;
         $user->email = $request->email;
         $user->ciudad = strtoupper(trim((string) $request->ciudad));
-        $user->provincia_origen = $this->normalizeNullableUppercase($request->input('provincia_origen'));
         $user->regionales = [$user->ciudad];
         if ($request->filled('ci')) {
             $user->ci = trim((string) $request->ci);
@@ -170,19 +161,16 @@ class UserController extends Controller
             ->with('success', 'Usuario reactivado correctamente');
     }
 
-    public function excel(?bool $forceOnlyWithEmpresa = null)
+    public function excel()
     {
-        $onlyWithEmpresa = $forceOnlyWithEmpresa ?? request()->boolean('empresa');
-        $empresaId = request()->filled('empresa_id') ? (int) request()->query('empresa_id') : null;
-
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Usuarios');
 
-        $headers = ['#', 'Nombre', 'Alias', 'Email', 'Regional', 'Provincia origen', 'CI', 'Empresa', 'Sucursal', 'Roles', 'Estado'];
+        $headers = ['#', 'Nombre', 'Alias', 'Email', 'Regional', 'CI', 'Empresa', 'Sucursal', 'Roles', 'Estado'];
         $sheet->fromArray($headers, null, 'A1');
 
-        $users = $this->usersReportQuery($onlyWithEmpresa, $empresaId)->get();
+        $users = $this->usersReportQuery()->get();
         $row = 2;
 
         foreach ($users as $index => $user) {
@@ -192,7 +180,6 @@ class UserController extends Controller
                 $user->alias,
                 $user->email,
                 $user->regionalesTexto(),
-                $user->provincia_origen,
                 $user->ci,
                 $user->empresa ? trim($user->empresa->codigo_cliente . ' - ' . $user->empresa->nombre) : '',
                 $user->sucursal ? 'Suc. ' . $user->sucursal->codigoSucursal . ' / PV ' . $user->sucursal->puntoVenta . ' - ' . $user->sucursal->municipio : '',
@@ -202,18 +189,14 @@ class UserController extends Controller
             $row++;
         }
 
-        $this->styleWorksheet($sheet, 'A1:K' . max(1, $row - 1));
+        $this->styleWorksheet($sheet, 'A1:J' . max(1, $row - 1));
 
-        $prefix = $onlyWithEmpresa ? 'usuarios-empresas-' : 'usuarios-';
-
-        return $this->downloadSpreadsheet($spreadsheet, $prefix . now()->format('Ymd-His') . '.xlsx');
+        return $this->downloadSpreadsheet($spreadsheet, 'usuarios-' . now()->format('Ymd-His') . '.xlsx');
     }
 
-    public function pdf(?bool $forceOnlyWithEmpresa = null)
+    public function pdf()
     {
-        $onlyWithEmpresa = $forceOnlyWithEmpresa ?? request()->boolean('empresa');
-        $empresaId = request()->filled('empresa_id') ? (int) request()->query('empresa_id') : null;
-        $users = $this->usersReportQuery($onlyWithEmpresa, $empresaId)->get();
+        $users = $this->usersReportQuery()->get();
         $generatedAt = now();
 
         $pdf = Pdf::loadView('user.pdf', [
@@ -221,19 +204,7 @@ class UserController extends Controller
             'generatedAt' => $generatedAt,
         ])->setPaper('A4', 'landscape');
 
-        $prefix = $onlyWithEmpresa ? 'usuarios-empresas-' : 'usuarios-';
-
-        return $pdf->stream($prefix . $generatedAt->format('Ymd-His') . '.pdf');
-    }
-
-    public function empresasExcel()
-    {
-        return $this->excel(true);
-    }
-
-    public function empresasPdf()
-    {
-        return $this->pdf(true);
+        return $pdf->stream('usuarios-' . $generatedAt->format('Ymd-His') . '.pdf');
     }
 
     public function templateExcel()
@@ -458,18 +429,15 @@ class UserController extends Controller
         }
     }
 
-    private function usersReportQuery(bool $onlyWithEmpresa = false, ?int $empresaId = null)
+    private function usersReportQuery()
     {
         return User::withTrashed()
             ->with(['empresa', 'sucursal', 'roles'])
-            ->when($onlyWithEmpresa, fn ($query) => $query->whereNotNull('empresa_id'))
-            ->when($empresaId, fn ($query) => $query->where('empresa_id', $empresaId))
             ->orderBy('name');
     }
 
     private function styleWorksheet($sheet, string $range): void
     {
-        $sheet->setAutoFilter($range);
         $sheet->getStyle('1:1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF20539A']],
@@ -498,13 +466,6 @@ class UserController extends Controller
     private function normalizeAlias($alias): string
     {
         return strtolower(trim((string) $alias));
-    }
-
-    private function normalizeNullableUppercase($value): ?string
-    {
-        $normalized = strtoupper(trim((string) $value));
-
-        return $normalized !== '' ? $normalized : null;
     }
 
     private function ensureAliasIsAvailable(string $alias, ?int $ignoreUserId = null): void

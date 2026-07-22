@@ -90,9 +90,6 @@
     </style>
 </head>
 <body>
-    @php
-        $destinationProvince = strtoupper(trim((string) ($destinationProvince ?? '')));
-    @endphp
     <div class="header">
         @if (file_exists(public_path('images/ems.png')))
             <img src="{{ public_path('images/ems.png') }}" alt="" width="150" height="50"><br>
@@ -131,12 +128,6 @@
                 <td class="field" style="width: 15%;">Oficina de Destino:</td>
                 <td style="width: 25%;">{{ $destinationCity }}</td>
             </tr>
-            @if($destinationProvince !== '')
-            <tr>
-                <td class="field">Provincia destino:</td>
-                <td colspan="4">{{ $destinationProvince }}</td>
-            </tr>
-            @endif
             <tr>
                 <td class="field">DESPACHO:</td>
                 <td>{{ $currentManifiesto }}</td>

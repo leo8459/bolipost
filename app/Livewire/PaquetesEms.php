@@ -113,11 +113,9 @@ class PaquetesEms extends Component
     public $codEspecialDetalleRows = [];
     public $almacenEstadoFiltro = 'TODOS';
     public $regionalDestino = '';
-    public $regionalProvincia = '';
     public $regionalTransportMode = 'TERRESTRE';
     public $regionalTransportNumber = '';
     public $regionalDestinoContrato = '';
-    public $regionalProvinciaContrato = '';
     public $regionalTransportModeContrato = 'TERRESTRE';
     public $regionalTransportNumberContrato = '';
     public $contratoCodigoPeso = '';
@@ -1318,7 +1316,6 @@ class PaquetesEms extends Component
         }
 
         $this->regionalDestino = '';
-        $this->regionalProvincia = '';
         $this->regionalTransportMode = 'TERRESTRE';
         $this->regionalTransportNumber = '';
         $this->showRegionalIntSection = false;
@@ -1439,7 +1436,6 @@ class PaquetesEms extends Component
         }
 
         $this->regionalDestinoContrato = '';
-        $this->regionalProvinciaContrato = '';
         $this->regionalTransportModeContrato = 'TERRESTRE';
         $this->regionalTransportNumberContrato = '';
         $this->prepareRegionalPesoZeroData([], $ids, []);
@@ -3030,15 +3026,6 @@ class PaquetesEms extends Component
             return;
         }
 
-        if (trim((string) $this->regionalTransportMode) === '') {
-            session()->flash('error', 'Selecciona el modo de transporte.');
-            return;
-        }
-
-        $this->regionalProvincia = strtoupper(trim((string) $this->regionalProvincia));
-        $this->regionalTransportMode = strtoupper(trim((string) $this->regionalTransportMode));
-        $this->regionalTransportNumber = strtoupper(trim((string) $this->regionalTransportNumber));
-
         $idsEms = collect($this->selectedPaquetes)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -3406,7 +3393,6 @@ class PaquetesEms extends Component
             'currentManifiesto' => $manifiesto,
             'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
             'destinationCity' => $this->regionalDestino,
-            'destinationProvince' => $this->regionalProvincia,
             'selectedTransport' => $this->regionalTransportMode,
             'numeroVuelo' => $this->regionalTransportNumber,
             'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
@@ -3419,7 +3405,6 @@ class PaquetesEms extends Component
         $this->regionalMismatchItems = [];
         $this->regionalMismatchObservaciones = [];
         $this->regionalDestino = '';
-        $this->regionalProvincia = '';
         $this->regionalPesoZeroItems = [];
         $this->regionalPesoInputs = [];
         $this->showRegionalIntSection = false;
@@ -3441,15 +3426,6 @@ class PaquetesEms extends Component
             session()->flash('error', 'Selecciona la ciudad de destino para regional (contratos).');
             return;
         }
-
-        if (trim((string) $this->regionalTransportModeContrato) === '') {
-            session()->flash('error', 'Selecciona el modo de transporte.');
-            return;
-        }
-
-        $this->regionalProvinciaContrato = strtoupper(trim((string) $this->regionalProvinciaContrato));
-        $this->regionalTransportModeContrato = strtoupper(trim((string) $this->regionalTransportModeContrato));
-        $this->regionalTransportNumberContrato = strtoupper(trim((string) $this->regionalTransportNumberContrato));
 
         $ids = collect($this->selectedContratos)
             ->filter()
@@ -3583,7 +3559,6 @@ class PaquetesEms extends Component
             'currentManifiesto' => $manifiesto,
             'loggedInUserCity' => $loggedInUserCity !== '' ? $loggedInUserCity : 'N/A',
             'destinationCity' => $this->regionalDestinoContrato,
-            'destinationProvince' => $this->regionalProvinciaContrato,
             'selectedTransport' => $this->regionalTransportModeContrato,
             'numeroVuelo' => $this->regionalTransportNumberContrato,
             'loggedUserName' => $loggedUserName !== '' ? $loggedUserName : 'Usuario del sistema',
@@ -3593,7 +3568,6 @@ class PaquetesEms extends Component
         $this->regionalMismatchItems = [];
         $this->regionalMismatchObservaciones = [];
         $this->regionalDestinoContrato = '';
-        $this->regionalProvinciaContrato = '';
         $this->regionalPesoZeroItems = [];
         $this->regionalPesoInputs = [];
         $this->dispatch('closeRegionalContratoModal');
@@ -7655,7 +7629,7 @@ class PaquetesEms extends Component
 
     protected function hasGlobalDepartmentAccess(): bool
     {
-        return (bool) optional(Auth::user())->isGlobalDepartmentViewer();
+        return (bool) optional(Auth::user())->isSuperAdmin();
     }
 
     protected function normalizePerPage($value): int

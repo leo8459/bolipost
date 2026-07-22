@@ -91,11 +91,10 @@
                                     <td>{{ $paquete->descripcion ?: '-' }}</td>
                                     <td>
                                         @if (!empty($paquete->imagen))
-                                            <a href="{{ route('delivery-images.show', ['source' => strtolower((string) $paquete->tipo_paquete), 'id' => $paquete->id], false) }}"
+                                            <a href="{{ asset('storage/' . $paquete->imagen) }}"
                                                class="btn btn-sm btn-outline-primary"
-                                               target="_blank"
-                                               rel="noopener">
-                                                Ver imagen
+                                               download>
+                                                Descargar
                                             </a>
                                         @else
                                             -

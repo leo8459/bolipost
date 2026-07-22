@@ -329,8 +329,8 @@
                 body.innerHTML = rows.map(function(row) {
                     const key = rowKey(row);
                     const checked = selectedRows.has(key) ? ' checked' : '';
-                    const imageHtml = row.imagen_url
-                        ? '<a href="' + escapeHtml(row.imagen_url) + '" target="_blank" class="btn btn-sm btn-outline-secondary">Ver foto</a>'
+                    const imageHtml = row.imagen
+                        ? '<a href="/storage/' + encodeURIComponent(row.imagen).replace(/%2F/g, '/') + '" target="_blank" class="btn btn-sm btn-outline-secondary">Ver foto</a>'
                         : '<span class="text-muted small">Sin foto</span>';
                     return '<tr>' +
                         '<td class="domicilio-check-cell"><input type="checkbox" class="domicilio-row-check" data-key="' + escapeHtml(key) + '"' + checked + ' aria-label="Seleccionar paquete"></td>' +

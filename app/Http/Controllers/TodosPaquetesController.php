@@ -393,7 +393,7 @@ class TodosPaquetesController extends Controller
 
     private function carterosDisponibles(Request $request)
     {
-        $hasGlobalDepartmentAccess = (bool) optional($request->user())->isGlobalDepartmentViewer();
+        $hasGlobalDepartmentAccess = (bool) optional($request->user())->isSuperAdmin();
         $userCity = $this->normalizeCity((string) optional($request->user())->ciudad);
 
         if (!$hasGlobalDepartmentAccess && $userCity === '') {
@@ -423,7 +423,7 @@ class TodosPaquetesController extends Controller
 
     private function isSameCity($a, $b): bool
     {
-        if ((bool) optional($a)->isGlobalDepartmentViewer()) {
+        if ((bool) optional($a)->isSuperAdmin()) {
             return true;
         }
 

@@ -2188,7 +2188,6 @@ class PaquetesEmsController extends Controller
             'items' => 'required|array|min:1',
             'items.*.codigo' => 'required|string|max:50',
             'items.*.destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
-            'items.*.provincia_origen' => 'nullable|string|max:255',
             'items.*.provincia' => 'nullable|string|max:255',
             'items.*.cantidad' => 'nullable|string|max:255',
             'items.*.peso' => 'required|numeric|min:0.001',
@@ -2197,7 +2196,6 @@ class PaquetesEmsController extends Controller
             'items' => 'prelista',
             'items.*.codigo' => 'codigo',
             'items.*.destino' => 'destino',
-            'items.*.provincia_origen' => 'provincia origen',
             'items.*.provincia' => 'provincia',
             'items.*.cantidad' => 'cantidad',
             'items.*.peso' => 'peso',
@@ -2235,12 +2233,10 @@ class PaquetesEmsController extends Controller
             ->map(function (array $item) {
                 $codigo = strtoupper(trim((string) ($item['codigo'] ?? '')));
                 $codigo = preg_replace('/\s+/', '', $codigo) ?: '';
-                $provinciaOrigen = strtoupper(trim((string) ($item['provincia_origen'] ?? '')));
                 $provincia = strtoupper(trim((string) ($item['provincia'] ?? '')));
                 return [
                     'codigo' => $codigo,
                     'destino' => strtoupper(trim((string) ($item['destino'] ?? ''))),
-                    'provincia_origen' => $provinciaOrigen === '' ? null : $provinciaOrigen,
                     'provincia' => $provincia === '' ? null : $provincia,
                     'cantidad' => trim((string) ($item['cantidad'] ?? '')),
                     'peso' => (float) ($item['peso'] ?? 0),
@@ -2336,7 +2332,6 @@ class PaquetesEmsController extends Controller
                     'cod_especial' => null,
                     'estados_id' => $estadoAlmacenId,
                     'origen' => $origen,
-                    'provincia_origen' => $item['provincia_origen'],
                     'destino' => $item['destino'],
                     'nombre_r' => 'SIN REMITENTE',
                     'telefono_r' => '-',
@@ -2376,7 +2371,6 @@ class PaquetesEmsController extends Controller
                     'cantidad' => (string) ($contrato->cantidad ?? ''),
                     'peso' => (string) $contrato->peso,
                     'origen' => (string) $contrato->origen,
-                    'provincia_origen' => (string) ($contrato->provincia_origen ?? ''),
                     'destino' => (string) $contrato->destino,
                     'empresa_id' => $empresaId ? (int) $empresaId : null,
                     'reporte_url' => route('paquetes-contrato.reporte', $contrato->id),
@@ -2802,10 +2796,6 @@ class PaquetesEmsController extends Controller
             return false;
         }
 
-        if (method_exists($actor, 'isGlobalDepartmentViewer') && $actor->isGlobalDepartmentViewer()) {
-            return true;
-        }
-
         $actorCity = $this->normalizeEncargadoCity((string) ($actor->ciudad ?? ''));
         $assigneeCity = $this->normalizeEncargadoCity((string) ($assignee->ciudad ?? ''));
 
@@ -2825,20 +2815,13 @@ class PaquetesEmsController extends Controller
 
     private function shouldRestrictEncargadoToUserCity(?User $user): bool
     {
-        if ($user && method_exists($user, 'isGlobalDepartmentViewer') && $user->isGlobalDepartmentViewer()) {
-            return false;
-        }
-
         return $this->encargadoUserHasCarteroRole($user);
     }
 
     private function availableEncargadoCarteroUsersForActor(?User $actor)
     {
-        $hasGlobalDepartmentAccess = $actor
-            && method_exists($actor, 'isGlobalDepartmentViewer')
-            && $actor->isGlobalDepartmentViewer();
         $actorCity = $this->normalizeEncargadoCity((string) optional($actor)->ciudad);
-        if (!$hasGlobalDepartmentAccess && $actorCity === '') {
+        if ($actorCity === '') {
             return collect();
         }
 
@@ -2846,9 +2829,7 @@ class PaquetesEmsController extends Controller
             ->whereHas('roles', function ($query) {
                 $query->whereIn(DB::raw('LOWER(name)'), self::ENCARGADO_CARTERO_ROLES);
             })
-            ->when(!$hasGlobalDepartmentAccess, function ($query) use ($actorCity) {
-                $query->whereRaw('TRIM(UPPER(ciudad)) = ?', [$actorCity]);
-            })
+            ->whereRaw('TRIM(UPPER(ciudad)) = ?', [$actorCity])
             ->orderBy('name')
             ->get(['id', 'name', 'ciudad']);
     }

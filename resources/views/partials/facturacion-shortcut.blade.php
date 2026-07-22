@@ -1,7 +1,6 @@
 @once('facturacion-shortcut-global')
 @php
-    $hideFacturacionShortcut = request()->routeIs('users.empresas', 'users.empresas.*');
-    $canOpenFacturacionShortcut = ! $hideFacturacionShortcut && auth()->check() && (auth()->user()?->can('feature.dashboard.facturacion') ?? false);
+    $canOpenFacturacionShortcut = auth()->check() && (auth()->user()?->can('feature.dashboard.facturacion') ?? false);
     try {
         $facturacionContext = $canOpenFacturacionShortcut
             ? app(\App\Services\FacturacionCartService::class)->getRemoteContextForUser(auth()->user())

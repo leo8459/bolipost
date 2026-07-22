@@ -376,8 +376,8 @@
                 }
 
                 body.innerHTML = rows.map(function(row) {
-                    const imageHtml = row.imagen_devolucion_url
-                        ? '<a href="' + escapeHtml(row.imagen_devolucion_url) + '" target="_blank" class="btn btn-sm btn-outline-secondary">Ver foto</a>'
+                    const imageHtml = row.imagen_devolucion
+                        ? '<a href="/storage/' + encodeURIComponent(row.imagen_devolucion).replace(/%2F/g, '/') + '" target="_blank" class="btn btn-sm btn-outline-secondary">Ver foto</a>'
                         : '<span class="text-muted small">Sin foto</span>';
                     const actionHtml = canCarteroRestore
                         ? '<button class="btn btn-sm btn-carteros-primary btn-recuperar" data-id="' + row.id + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '">RECUPERAR</button>'

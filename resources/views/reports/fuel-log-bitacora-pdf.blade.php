@@ -351,7 +351,6 @@
                         </tr>
                     </table>
                 </div>
-
             </div>
         @endforeach
     @empty

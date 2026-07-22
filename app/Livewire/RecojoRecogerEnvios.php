@@ -38,7 +38,7 @@ class RecojoRecogerEnvios extends Component
     public function mandarSeleccionadosAlmacen()
     {
         $this->authorizePermission('feature.paquetes-contrato.recoger-envios.assign');
-        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isGlobalDepartmentViewer();
+        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isSuperAdmin();
 
         $actorUserId = (int) optional(Auth::user())->id;
         $ids = collect($this->selectedRecojos)
@@ -141,7 +141,7 @@ class RecojoRecogerEnvios extends Component
     {
         $this->searchQuery = $this->search;
         $this->resetPage();
-        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isGlobalDepartmentViewer();
+        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isSuperAdmin();
 
         if (!$seleccionarPorCodigo) {
             return;
@@ -192,7 +192,7 @@ class RecojoRecogerEnvios extends Component
     public function render()
     {
         $q = trim((string) $this->searchQuery);
-        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isGlobalDepartmentViewer();
+        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->isSuperAdmin();
         $selectedIds = collect($this->selectedRecojos)
             ->filter()
             ->map(fn ($id) => (int) $id)

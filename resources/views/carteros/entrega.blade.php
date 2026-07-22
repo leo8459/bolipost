@@ -168,27 +168,21 @@
                     @php
                         $imagenAsignacion = $asignacion?->imagen ?? $asignacion?->foto;
                         $imagenDevolucion = $asignacion?->imagen_devolucion;
-                        $imagenAsignacionUrl = !empty($imagenAsignacion)
-                            ? route('delivery-images.show', ['source' => 'cartero', 'id' => $asignacion->id, 'field' => 'imagen'], false)
-                            : null;
-                        $imagenDevolucionUrl = !empty($imagenDevolucion)
-                            ? route('delivery-images.show', ['source' => 'cartero', 'id' => $asignacion->id, 'field' => 'imagen_devolucion'], false)
-                            : null;
                     @endphp
-                    @if (!empty($imagenAsignacionUrl))
+                    @if (!empty($imagenAsignacion))
                         <div class="mt-4">
                             <small class="d-block text-muted mb-1">Ultima foto de entrega:</small>
-                            <a href="{{ $imagenAsignacionUrl }}" target="_blank" rel="noopener">
-                                <img src="{{ $imagenAsignacionUrl }}" class="foto-preview-img"
+                            <a href="{{ asset('storage/' . $imagenAsignacion) }}" target="_blank" rel="noopener">
+                                <img src="{{ asset('storage/' . $imagenAsignacion) }}" class="foto-preview-img"
                                     alt="Foto registrada">
                             </a>
                         </div>
                     @endif
-                    @if (!empty($imagenDevolucionUrl))
+                    @if (!empty($imagenDevolucion))
                         <div class="mt-4">
                             <small class="d-block text-muted mb-1">Ultima foto de devolucion/intento:</small>
-                            <a href="{{ $imagenDevolucionUrl }}" target="_blank" rel="noopener">
-                                <img src="{{ $imagenDevolucionUrl }}" class="foto-preview-img"
+                            <a href="{{ asset('storage/' . $imagenDevolucion) }}" target="_blank" rel="noopener">
+                                <img src="{{ asset('storage/' . $imagenDevolucion) }}" class="foto-preview-img"
                                     alt="Foto de devolucion">
                             </a>
                         </div>

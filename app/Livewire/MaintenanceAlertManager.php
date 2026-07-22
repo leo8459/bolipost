@@ -807,31 +807,23 @@ class MaintenanceAlertManager extends Component
             fn ($value, $key) => isset($columns[$key]),
             ARRAY_FILTER_USE_BOTH
         );
-    }private function openWorkshopStatuses(): array
-{
-    return [
-        Workshop::STATUS_PENDING,
-        Workshop::STATUS_DISPATCHED,
-        Workshop::STATUS_DIAGNOSIS,
-        Workshop::STATUS_APPROVED,
-        Workshop::STATUS_REPAIR,
-        Workshop::STATUS_READY,
-    ];
-}
+    }
 
-private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): void
-{
-    $openStates = $this->openWorkshopStatuses();
+    private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): void
+    {
+        $openStates = [
+            Workshop::STATUS_PENDING,
+            Workshop::STATUS_DISPATCHED,
+            Workshop::STATUS_DIAGNOSIS,
+            Workshop::STATUS_APPROVED,
+            Workshop::STATUS_REPAIR,
+            Workshop::STATUS_READY,
+        ];
 
-    $alerts->setCollection(
-        $alerts->getCollection()->map(
-            function (MaintenanceAlert $alert) use ($openStates) {
+        $alerts->setCollection(
+            $alerts->getCollection()->map(function (MaintenanceAlert $alert) use ($openStates) {
                 $activeWorkshop = $alert->workshops
-                    ->filter(
-                        fn (Workshop $workshop) =>
-                            (bool) $workshop->activo
-                            && in_array($workshop->estado, $openStates, true)
-                    )
+                    ->filter(fn (Workshop $workshop) => (bool) $workshop->activo && in_array($workshop->estado, $openStates, true))
                     ->sortByDesc('id')
                     ->first();
 
@@ -840,9 +832,8 @@ private function applyWorkshopStateToPaginator(LengthAwarePaginator $alerts): vo
                 $alert->open_workshop_status = $activeWorkshop?->estado;
 
                 return $alert;
-            }
-        )
-    );
-}
+            })
+        );
+    }
 
 }
