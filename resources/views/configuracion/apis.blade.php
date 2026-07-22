@@ -81,36 +81,34 @@
                                 <td>{{ optional($token->expires_at)->format('d/m/Y') ?? 'Sin vencimiento' }}</td>
                                 <td>{{ optional($token->created_at)->format('d/m/Y H:i') }}</td>
                                 <td style="min-width: 360px;">
-                                    @if ($token->token_encrypted)
-                                        @php
+                                    @php
+                                        $plainToken = $token->token_plain;
+
+                                        if (! $plainToken && $token->token_encrypted) {
                                             try {
                                                 $plainToken = \Illuminate\Support\Facades\Crypt::decryptString($token->token_encrypted);
                                             } catch (\Throwable $e) {
                                                 $plainToken = null;
                                             }
-                                        @endphp
+                                        }
+                                    @endphp
 
-                                        @if ($plainToken)
-                                            <textarea id="token-{{ $token->id }}" class="form-control form-control-sm mb-2" rows="3" readonly>{{ $plainToken }}</textarea>
-                                            <button type="button" class="btn btn-sm btn-outline-primary js-copy-token" data-target="token-{{ $token->id }}">
-                                                <i class="fas fa-copy mr-1"></i> Copiar
-                                            </button>
-                                        @else
-                                            <div class="text-muted mb-2">
-                                                No se pudo leer el token cifrado. Regeneralo para obtener uno nuevo.
-                                            </div>
-                                            <form method="POST" action="{{ route('configuracion.apis.regenerate', $token) }}" class="d-inline">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="btn btn-sm btn-warning">
-                                                    <i class="fas fa-sync-alt mr-1"></i> Regenerar token
-                                                </button>
-                                            </form>
-                                        @endif
+                                    @if ($plainToken)
+                                        <textarea id="token-{{ $token->id }}" class="form-control form-control-sm mb-2" rows="3" readonly>{{ $plainToken }}</textarea>
+                                        <button type="button" class="btn btn-sm btn-outline-primary js-copy-token" data-target="token-{{ $token->id }}">
+                                            <i class="fas fa-copy mr-1"></i> Copiar
+                                        </button>
                                     @else
-                                        <span class="text-muted">
-                                            Sin token visible. Al activar se generara uno nuevo.
-                                        </span>
+                                        <div class="text-muted mb-2">
+                                            Sin token visible. Activa o regenera para obtener uno nuevo.
+                                        </div>
+                                        <form method="POST" action="{{ route('configuracion.apis.regenerate', $token) }}" class="d-inline">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" class="btn btn-sm btn-warning">
+                                                <i class="fas fa-sync-alt mr-1"></i> Regenerar token
+                                            </button>
+                                        </form>
                                     @endif
                                 </td>
                                 <td class="text-right">

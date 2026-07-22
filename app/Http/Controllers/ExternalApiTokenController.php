@@ -45,6 +45,7 @@ class ExternalApiTokenController extends Controller
         $apiToken->forceFill([
             'token_hash' => hash('sha256', $jwt),
             'token_encrypted' => Crypt::encryptString($jwt),
+            'token_plain' => $jwt,
         ])->save();
 
         return redirect()
@@ -58,6 +59,7 @@ class ExternalApiTokenController extends Controller
         $token->forceFill([
             'token_hash' => hash('sha256', Str::random(80).now()->timestamp),
             'token_encrypted' => null,
+            'token_plain' => null,
             'is_active' => false,
             'revoked_at' => now(),
         ])->save();
@@ -76,6 +78,7 @@ class ExternalApiTokenController extends Controller
         $token->forceFill([
             'token_hash' => hash('sha256', $jwt),
             'token_encrypted' => Crypt::encryptString($jwt),
+            'token_plain' => $jwt,
         ])->save();
 
         return redirect()
@@ -95,6 +98,7 @@ class ExternalApiTokenController extends Controller
         $token->forceFill([
             'token_hash' => hash('sha256', $jwt),
             'token_encrypted' => Crypt::encryptString($jwt),
+            'token_plain' => $jwt,
         ])->save();
 
         return redirect()

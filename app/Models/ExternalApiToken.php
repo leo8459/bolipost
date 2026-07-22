@@ -12,6 +12,7 @@ class ExternalApiToken extends Model
         'jti',
         'token_hash',
         'token_encrypted',
+        'token_plain',
         'abilities',
         'is_active',
         'last_used_at',
