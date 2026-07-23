@@ -23,6 +23,11 @@
             'to' => $filters['to'],
             'per_page' => $filters['per_page'],
         ];
+        $canViewBranchVentas = auth()->user()?->can('ventas-sucursal.export.pdf') || auth()->user()?->can('ventas-sucursal.index');
+        $routeScope = (string) ($pageContext['route_scope'] ?? 'own');
+        $isBranchScope = ($pageContext['scope'] ?? 'own') === 'branch';
+        $ownViewParams = array_merge(request()->query(), ['scope' => 'own']);
+        $branchViewParams = array_merge(request()->query(), ['scope' => 'branch']);
         $firstVisible = $carts->total() > 0 ? (($carts->currentPage() - 1) * $carts->perPage()) + 1 : 0;
         $lastVisible = $carts->total() > 0 ? min($carts->currentPage() * $carts->perPage(), $carts->total()) : 0;
 
@@ -201,17 +206,17 @@
                 </div>
 
                 <div class="d-flex flex-wrap">
-                    @if(($pageContext['scope'] ?? 'own') === 'own' && auth()->user()?->can('ventas-sucursal.index'))
-                        <a href="{{ route('ventas-sucursal.index') }}" class="btn btn-outline-info mr-2 mb-2">
-                            <i class="fas fa-store mr-1"></i> Ventas sucursal
+                    @if($routeScope === 'own' && $canViewBranchVentas && !$isBranchScope)
+                        <a href="{{ route('mis-ventas.index', $branchViewParams) }}" class="btn btn-outline-info mr-2 mb-2">
+                            <i class="fas fa-store mr-1"></i> Ver ventas sucursal
                         </a>
-                    @elseif(($pageContext['scope'] ?? 'own') === 'branch' && auth()->user()?->can('feature.dashboard.facturacion'))
-                        <a href="{{ route('mis-ventas.index') }}" class="btn btn-outline-info mr-2 mb-2">
+                    @elseif($routeScope === 'own' && $canViewBranchVentas && $isBranchScope && auth()->user()?->can('feature.dashboard.facturacion'))
+                        <a href="{{ route('mis-ventas.index', $ownViewParams) }}" class="btn btn-outline-info mr-2 mb-2">
                             <i class="fas fa-user mr-1"></i> Mis ventas
                         </a>
                     @endif
                     <a href="{{ route($pageContext['export_route'], request()->query()) }}" target="_blank" rel="noopener" class="btn btn-outline-primary mr-2 mb-2">
-                        <i class="fas fa-file-pdf mr-1"></i> Reporte PDF
+                        <i class="fas fa-file-pdf mr-1"></i> {{ $isBranchScope ? 'Reporte PDF sucursal' : 'Reporte PDF' }}
                     </a>
                     <a href="{{ route($pageContext['filter_route']) }}" class="btn btn-outline-secondary mb-2">
                         <i class="fas fa-undo mr-1"></i> Reiniciar

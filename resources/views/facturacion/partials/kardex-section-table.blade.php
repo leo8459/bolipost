@@ -5,13 +5,11 @@
             <th style="width: 4%;">Nro.</th>
             <th style="width: 8%;">FECHA</th>
             <th style="width: 14%;">TIPO DE VENTA / ENVIO</th>
-            <th style="width: 10%;">EMISION</th>
             <th style="width: 10%;">ESTADO</th>
             <th style="width: 16%;">ORDEN / PAQUETES</th>
             <th style="width: 9%;">PESO TOTAL</th>
             <th style="width: 6%;">CANTIDAD</th>
             <th style="width: 8%;">Nro. FACTURA</th>
-            <th style="width: 12%;">CUF</th>
             <th style="width: 7%;">IMPORTE</th>
         </tr>
     </thead>
@@ -21,18 +19,16 @@
                 <td class="center">{{ $index + 1 }}</td>
                 <td class="center">{{ $row['fecha'] }}</td>
                 <td>{{ $row['tipo_envio'] }}</td>
-                <td>{{ $row['emision_label'] }}</td>
                 <td style="white-space: pre-line;">{{ $row['estado_label'] }}{{ !empty($row['estado_detalle']) ? "\n" . $row['estado_detalle'] : '' }}</td>
                 <td style="white-space: pre-line;">{{ $row['codigo_referencia'] ?? $row['codigo_item'] }}</td>
                 <td class="right">{{ number_format((float) $row['peso'], 3) }}</td>
                 <td class="center">{{ $row['cantidad'] }}</td>
                 <td class="center">{{ $row['numero_factura'] }}</td>
-                <td>{{ $row['cuf'] ?? '' }}</td>
                 <td class="right">{{ number_format((float) $row['importe_general'], 2) }}</td>
             </tr>
         @endforeach
         <tr>
-            <td colspan="10" class="right" style="font-weight: 700;">{{ $section['total_label'] }}</td>
+            <td colspan="8" class="right" style="font-weight: 700;">{{ $section['total_label'] }}</td>
             <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $sectionRows->sum(fn ($row) => (float) data_get($row, 'contabiliza_en_caja', true) ? (float) data_get($row, 'importe_general', 0) : 0), 2) }}</td>
         </tr>
     </tbody>

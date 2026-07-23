@@ -151,6 +151,20 @@
             text-transform: uppercase;
             background: #f4f6f9;
         }
+
+        .report-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            font-size: 9px;
+            color: #444;
+        }
+
+        .report-footer td {
+            border-top: 1px solid #cbd5e1;
+            padding-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -225,6 +239,20 @@
     $cashRows = collect($rows)->filter(fn ($row) => in_array((string) data_get($row, 'section_key', ''), $cashSectionKeys, true))->values();
     $annulledRows = collect($rows)->filter(fn ($row) => in_array((string) data_get($row, 'section_key', ''), $annulledSectionKeys, true))->values();
     $unpaidRows = collect($rows)->filter(fn ($row) => in_array((string) data_get($row, 'section_key', ''), $unpaidSectionKeys, true))->values();
+    $effectiveDetailRows = collect($rows)
+        ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) !== 'qr')
+        ->values();
+    $qrDetailRows = collect($rows)
+        ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) === 'qr')
+        ->values();
+    $preSummary = [
+        'total_ventas' => collect($rows)->count(),
+        'total_emitido' => round((float) collect($rows)->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+        'efectivo_cantidad' => $effectiveDetailRows->count(),
+        'efectivo_total' => round((float) $effectiveDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+        'qr_cantidad' => $qrDetailRows->count(),
+        'qr_total' => round((float) $qrDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+    ];
     $branchGroups = collect($rows)
         ->groupBy(fn ($row) => trim((string) data_get($row, 'origen_usuario_id', data_get($row, 'origen_usuario_email', 'sin-usuario'))))
         ->map(function ($groupRows) {
@@ -245,6 +273,9 @@
                 'total_caja' => round((float) $groupRows
                     ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', false))
                     ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+                'total_qr' => round((float) $groupRows
+                    ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) === 'qr')
+                    ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
             ];
         })
         ->sortByDesc('total')
@@ -261,91 +292,122 @@
     <tr>
         <td class="field">Oficina Postal:</td>
         <td class="value">{{ $oficinaPostal !== '' ? $oficinaPostal : '-' }}</td>
-        <td class="field">{{ $scope === 'branch' ? 'Encargado sucursal:' : 'Nombre Responsable:' }}</td>
+        <td class="field">{{ $scope === 'branch' ? 'Encargado regional:' : 'Nombre Responsable:' }}</td>
         <td class="value">{{ $user->name }}</td>
     </tr>
     <tr>
-        <td class="field">Ventanilla:</td>
-        <td class="value">{{ $ventanilla !== '' ? $ventanilla : '-' }}</td>
+        <td class="field">Sistema:</td>
+        <td class="value">SIOP</td>
         <td class="field">Fecha de recaudacion:</td>
         <td class="value">{{ $fechaRecaudacion }}</td>
     </tr>
 </table>
 
+<table class="summary-grid" style="margin-bottom: 10px;">
+    <tr>
+        <td style="width: 25%;"><strong>Total ventas: {{ number_format((int) $preSummary['total_ventas']) }}</strong></td>
+        <td style="width: 25%;"><strong>Total emitido: Bs {{ number_format((float) $preSummary['total_emitido'], 2) }}</strong></td>
+        <td style="width: 25%;"><strong>Efectivo: {{ number_format((int) $preSummary['efectivo_cantidad']) }} &nbsp; Bs {{ number_format((float) $preSummary['efectivo_total'], 2) }}</strong></td>
+        <td style="width: 25%;"><strong>QR: {{ number_format((int) $preSummary['qr_cantidad']) }} &nbsp; Bs {{ number_format((float) $preSummary['qr_total'], 2) }}</strong></td>
+    </tr>
+</table>
+
 @if($scope === 'branch')
-    <div class="section-title">Kardex agrupado por cajero</div>
-    <table class="summary-grid" style="margin-bottom: 10px;">
-        <tr>
-            <td class="summary-label" style="width: 25%;">Cajeros con ventas</td>
-            <td style="width: 25%;">{{ $branchGroups->count() }}</td>
-            <td class="summary-label" style="width: 25%;">Total ventas</td>
-            <td style="width: 25%;">{{ collect($rows)->count() }}</td>
-        </tr>
-        <tr>
-            <td class="summary-label">Total en caja</td>
-            <td>Bs {{ number_format((float) $cashRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
-            <td class="summary-label">Total emitido</td>
-            <td>Bs {{ number_format((float) collect($rows)->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
-        </tr>
+    <div class="section-title">Resumen por cajero</div>
+    <table class="grid" style="margin-bottom: 10px;">
+        <thead>
+            <tr>
+                <th style="width: 38%;">Cajero</th>
+                <th style="width: 12%;">Ventas</th>
+                <th style="width: 17%;">Total general</th>
+                <th style="width: 17%;">Total efectivo</th>
+                <th style="width: 16%;">Total QR</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($branchGroups as $group)
+                <tr>
+                    <td>{{ $group['nombre'] }}</td>
+                    <td class="center">{{ number_format((int) $group['ventas']) }}</td>
+                    <td class="right">Bs {{ number_format((float) $group['total'], 2) }}</td>
+                    <td class="right">Bs {{ number_format((float) $group['total_caja'], 2) }}</td>
+                    <td class="right">Bs {{ number_format((float) $group['total_qr'], 2) }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="5" class="center" style="padding: 12px;">No se encontraron cajeros con ventas en el rango consultado.</td>
+                </tr>
+            @endforelse
+        </tbody>
     </table>
 
-    @forelse($branchGroups as $cashierIndex => $group)
-        <div class="section-title">Cajero {{ $cashierIndex + 1 }}: {{ $group['nombre'] }}</div>
-        <table class="cashier-meta" style="margin-bottom: 6px;">
-            <tr>
-                <td style="width: 38%;">
-                    <div class="cashier-name">{{ $group['nombre'] }}</div>
-                    <div class="cashier-muted">{{ $group['email'] !== '' ? $group['email'] : 'Sin correo registrado' }}</div>
-                </td>
-                <td style="width: 14%;" class="center"><strong>{{ $group['ventas'] }}</strong><br>ventas</td>
-                <td style="width: 14%;" class="center"><strong>{{ $group['cobradas'] }}</strong><br>cobradas</td>
-                <td style="width: 14%;" class="center"><strong>{{ $group['pendientes'] }}</strong><br>pendientes</td>
-                <td style="width: 20%;" class="right"><strong>Bs {{ number_format((float) $group['total_caja'], 2) }}</strong><br>total en caja</td>
-            </tr>
-        </table>
+    @if($branchGroups->isNotEmpty())
+        @foreach($branchGroups as $cashierIndex => $group)
+            @php
+                $groupRows = collect($group['rows'] ?? [])->values();
+                $groupEffectiveRows = $groupRows
+                    ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) !== 'qr')
+                    ->values();
+                $groupQrRows = $groupRows
+                    ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) === 'qr')
+                    ->values();
+            @endphp
 
-        <table class="grid" style="margin-bottom: 10px;">
-            <thead>
+            <div class="section-title">Cajero {{ $cashierIndex + 1 }}: {{ strtoupper($group['nombre']) }}</div>
+            <table class="summary-grid" style="margin-bottom: 10px;">
                 <tr>
-                    <th style="width: 4%;">Nro.</th>
-                    <th style="width: 8%;">Fecha</th>
-                    <th style="width: 10%;">Orden</th>
-                    <th style="width: 12%;">Cliente</th>
-                    <th style="width: 20%;">Detalle</th>
-                    <th style="width: 15%;">Paquete / codigos</th>
-                    <th style="width: 7%;">Factura</th>
-                    <th style="width: 12%;">CUF</th>
-                    <th style="width: 5%;">Estado</th>
-                    <th style="width: 7%;">Importe</th>
+                    <td style="width: 25%;"><strong>Total ventas: {{ number_format((int) $group['ventas']) }}</strong></td>
+                    <td style="width: 25%;"><strong>Total emitido: Bs {{ number_format((float) $group['total'], 2) }}</strong></td>
+                    <td style="width: 25%;"><strong>Efectivo: {{ number_format((int) $groupEffectiveRows->count()) }} &nbsp; Bs {{ number_format((float) $group['total_caja'], 2) }}</strong></td>
+                    <td style="width: 25%;"><strong>QR: {{ number_format((int) $groupQrRows->count()) }} &nbsp; Bs {{ number_format((float) $group['total_qr'], 2) }}</strong></td>
                 </tr>
-            </thead>
-            <tbody>
-                @foreach($group['rows'] as $index => $row)
-                    <tr>
-                        <td class="center">{{ $index + 1 }}</td>
-                        <td class="center">{{ data_get($row, 'fecha_hora', data_get($row, 'fecha', '-')) }}</td>
-                        <td>{{ data_get($row, 'codigo_item', '-') }}</td>
-                        <td>{{ data_get($row, 'cliente', 'Sin cliente') }}</td>
-                        <td>
-                            <strong>{{ data_get($row, 'detalle_items', data_get($row, 'tipo_envio', 'Sin detalle')) }}</strong>
-                            @if((string) data_get($row, 'detalle_resumen', '') !== '')
-                                <br>{{ data_get($row, 'detalle_resumen') }}
-                            @endif
-                        </td>
-                        <td style="white-space: pre-line;">{{ data_get($row, 'codigo_referencia', '-') }}</td>
-                        <td class="center">{{ data_get($row, 'numero_factura', '-') }}</td>
-                        <td>{{ data_get($row, 'cuf', '') }}</td>
-                        <td class="center">{{ (bool) data_get($row, 'cobrada', false) ? 'Cobrada' : 'Pend.' }}</td>
-                        <td class="right">{{ number_format((float) data_get($row, 'importe_general', 0), 2) }}</td>
-                    </tr>
-                @endforeach
-                <tr>
-                    <td colspan="9" class="right" style="font-weight: 700;">SUBTOTAL {{ strtoupper($group['nombre']) }}</td>
-                    <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $group['total'], 2) }}</td>
-                </tr>
-            </tbody>
-        </table>
-    @empty
+            </table>
+
+            @foreach([
+                'Ventas efectivo' => [$groupEffectiveRows, (float) $group['total_caja']],
+                'Ventas QR' => [$groupQrRows, (float) $group['total_qr']],
+            ] as $detailTitle => [$detailRows, $detailTotal])
+                @continue($detailRows->isEmpty())
+                <div class="section-title">{{ strtoupper($detailTitle) }} - {{ number_format((int) $detailRows->count()) }} - Bs {{ number_format($detailTotal, 2) }}</div>
+                <table class="grid" style="margin-bottom: 10px;">
+                    <thead>
+                        <tr>
+                            <th style="width: 4%;">Nro.</th>
+                            <th style="width: 14%;">Fecha</th>
+                            <th style="width: 10%;">Peso</th>
+                            <th style="width: 40%;">Detalle</th>
+                            <th style="width: 8%;">Factura</th>
+                            <th style="width: 12%;">Estado</th>
+                            <th style="width: 12%;">Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($detailRows->values() as $index => $row)
+                            <tr>
+                                <td class="center">{{ $index + 1 }}</td>
+                                <td class="center">{{ data_get($row, 'fecha_hora', data_get($row, 'fecha', '-')) }}</td>
+                                <td class="right">{{ number_format((float) data_get($row, 'peso', 0), 3) }}</td>
+                                <td>
+                                    <strong>{{ data_get($row, 'detalle_items', data_get($row, 'tipo_envio', 'Sin detalle')) }}</strong>
+                                    @if((string) data_get($row, 'detalle_resumen', '') !== '')
+                                        <br>{{ data_get($row, 'detalle_resumen') }}
+                                    @endif
+                                    @if((string) data_get($row, 'codigo_referencia', '') !== '')
+                                        <br>Cod: {{ data_get($row, 'codigo_referencia') }}
+                                    @endif
+                                </td>
+                                <td class="center">{{ data_get($row, 'numero_factura', '-') }}</td>
+                                <td class="center" style="white-space: pre-line;">
+                                    {{ strtoupper(trim((string) data_get($row, 'estado_label', data_get($row, 'estado_emision', 'PENDIENTE')))) }}
+                                </td>
+                                <td class="right">Bs {{ number_format((float) data_get($row, 'importe_general', 0), 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endforeach
+        @endforeach
+    @else
         <table class="grid">
             <tbody>
                 <tr>
@@ -353,7 +415,7 @@
                 </tr>
             </tbody>
         </table>
-    @endforelse
+    @endif
 
     <table class="totals" style="margin-top: 4px;">
         <tr>
@@ -370,29 +432,66 @@
         </tr>
     </table>
 @else
-    <div class="section-title">Kardex de ventas cobradas</div>
-    @if($hasPaidRows)
-        @foreach($paidSectionKeys as $channelKey)
-            @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
-            @continue($sectionRows->isEmpty())
-            @include('facturacion.partials.kardex-section-table', ['section' => $sectionConfigs[$channelKey], 'sectionRows' => $sectionRows])
+    <div class="section-title">Detalle de todas las ventas</div>
+    @php
+        $detailGroups = [
+            'Ventas en efectivo' => $effectiveDetailRows,
+            'Ventas QR' => $qrDetailRows,
+        ];
+    @endphp
+    @if(collect($rows)->isNotEmpty())
+        @foreach($detailGroups as $detailTitle => $detailRows)
+            @continue($detailRows->isEmpty())
+            <div class="section-title">{{ $detailTitle }}</div>
+            <table class="grid" style="margin-bottom: 10px;">
+                <thead>
+                    <tr>
+                        <th style="width: 4%;">Nro.</th>
+                        <th style="width: 14%;">Fecha</th>
+                        <th style="width: 10%;">Peso total</th>
+                        <th style="width: 40%;">Detalle</th>
+                        <th style="width: 8%;">Factura</th>
+                        <th style="width: 12%;">Estado</th>
+                        <th style="width: 12%;">Importe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($detailRows->values() as $index => $row)
+                        <tr>
+                            <td class="center">{{ $index + 1 }}</td>
+                            <td class="center">{{ data_get($row, 'fecha_hora', data_get($row, 'fecha', '-')) }}</td>
+                            <td class="right">{{ number_format((float) data_get($row, 'peso', 0), 3) }}</td>
+                            <td>
+                                <strong>{{ data_get($row, 'detalle_items', data_get($row, 'tipo_envio', 'Sin detalle')) }}</strong>
+                                @if((string) data_get($row, 'detalle_resumen', '') !== '')
+                                    <br>{{ data_get($row, 'detalle_resumen') }}
+                                @endif
+                                @if((string) data_get($row, 'codigo_referencia', '') !== '')
+                                    <br>Cod: {{ data_get($row, 'codigo_referencia') }}
+                                @endif
+                            </td>
+                            <td class="center">{{ data_get($row, 'numero_factura', '-') }}</td>
+                            <td class="center" style="white-space: pre-line;">
+                                {{ strtoupper(trim((string) data_get($row, 'estado_label', data_get($row, 'estado_emision', 'PENDIENTE')))) }}
+                            </td>
+                            <td class="right">Bs {{ number_format((float) data_get($row, 'importe_general', 0), 2) }}</td>
+                        </tr>
+                    @endforeach
+                    <tr>
+                        <td colspan="6" class="right" style="font-weight: 700;">TOTAL {{ strtoupper($detailTitle) }}</td>
+                        <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $detailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+                    </tr>
+                </tbody>
+            </table>
         @endforeach
     @else
         <table class="grid">
             <tbody>
                 <tr>
-                    <td class="center" style="padding: 12px;">No se encontraron ventas cobradas con los filtros aplicados.</td>
+                    <td class="center" style="padding: 12px;">No se encontraron ventas con los filtros aplicados.</td>
                 </tr>
             </tbody>
         </table>
-    @endif
-
-    @if($hasAnnulledRows)
-        @foreach($annulledSectionKeys as $channelKey)
-            @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
-            @continue($sectionRows->isEmpty())
-            @include('facturacion.partials.kardex-section-table', ['section' => $sectionConfigs[$channelKey], 'sectionRows' => $sectionRows])
-        @endforeach
     @endif
 
     <table class="totals" style="margin-top: 0;">
@@ -412,27 +511,6 @@
             <td class="right">TOTAL VENTAS ANULADAS</td>
             <td class="right">Bs {{ number_format((float) $annulledRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
-    </table>
-
-    <div class="page-break"></div>
-    <div class="section-title">Kardex de ventas no cobradas</div>
-    @if($hasUnpaidRows)
-        @foreach($unpaidSectionKeys as $channelKey)
-            @php($sectionRows = $rowsByChannel->get($channelKey, collect())->values())
-            @continue($sectionRows->isEmpty())
-            @include('facturacion.partials.kardex-section-table', ['section' => $sectionConfigs[$channelKey], 'sectionRows' => $sectionRows])
-        @endforeach
-    @else
-        <table class="grid">
-            <tbody>
-                <tr>
-                    <td class="center" style="padding: 12px;">No se encontraron ventas no cobradas con los filtros aplicados.</td>
-                </tr>
-            </tbody>
-        </table>
-    @endif
-
-    <table class="totals" style="margin-top: 0;">
         <tr>
             <td style="width: 89%;" class="right">TOTAL VENTAS NO COBRADAS</td>
             <td style="width: 11%;" class="right">Bs {{ number_format((float) $unpaidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
@@ -451,6 +529,13 @@
                 </tr>
             </table>
         </td>
+    </tr>
+</table>
+
+<table class="report-footer">
+    <tr>
+        <td style="width: 50%;">Emitido por: {{ $user->name }}</td>
+        <td style="width: 50%;" class="right">Fecha y hora: {{ $generatedAt->format('d/m/Y h:i a') }}</td>
     </tr>
 </table>
 </body>

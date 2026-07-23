@@ -425,12 +425,6 @@ return [
                     'can' => 'feature.dashboard.facturacion',
                 ],
                 [
-                    'text' => 'Ventas sucursal',
-                    'url' => '/ventas-sucursal',
-                    'icon' => 'fas fa-store',
-                    'can' => 'ventas-sucursal.index',
-                ],
-                [
                     'text' => 'Reporte General',
                     'url' => '/reportes/general',
                     'icon' => 'fas fa-layer-group',

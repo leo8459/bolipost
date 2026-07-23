@@ -18,12 +18,13 @@ class MisVentasController extends Controller
 {
     public function index(Request $request, FacturacionCartService $service): View
     {
-        return $this->renderVentasPage($request, $service, 'own');
+        $effectiveScope = $this->resolveEffectiveOwnScope($request);
+        return $this->renderVentasPage($request, $service, $effectiveScope, 'own');
     }
 
     public function branchIndex(Request $request, FacturacionCartService $service): View
     {
-        return $this->renderVentasPage($request, $service, 'branch');
+        return $this->renderVentasPage($request, $service, 'branch', 'branch');
     }
 
     private function resolveCajaContext(FacturacionCartService $service, $user): array
@@ -41,15 +42,16 @@ class MisVentasController extends Controller
 
     public function exportPdf(Request $request, FacturacionCartService $service): Response
     {
-        return $this->exportVentasPdf($request, $service, 'own');
+        $effectiveScope = $this->resolveEffectiveOwnScope($request);
+        return $this->exportVentasPdf($request, $service, $effectiveScope, 'own');
     }
 
     public function branchExportPdf(Request $request, FacturacionCartService $service): Response
     {
-        return $this->exportVentasPdf($request, $service, 'branch');
+        return $this->exportVentasPdf($request, $service, 'branch', 'branch');
     }
 
-    private function renderVentasPage(Request $request, FacturacionCartService $service, string $scope): View
+    private function renderVentasPage(Request $request, FacturacionCartService $service, string $scope, string $routeScope = 'own'): View
     {
         [$user, $filters] = $this->resolveRequestContext($request, $scope);
         $cajaContext = $this->resolveCajaContext($service, $user);
@@ -72,12 +74,12 @@ class MisVentasController extends Controller
             'summary' => $summary,
             'filters' => $filters,
             'cajaContext' => $cajaContext,
-            'pageContext' => $this->pageContextForScope($scope),
+            'pageContext' => $this->pageContextForScope($scope, $routeScope),
             'branchCashierSummary' => $extra['branch_cashiers'] ?? collect(),
         ]);
     }
 
-    private function exportVentasPdf(Request $request, FacturacionCartService $service, string $scope): Response
+    private function exportVentasPdf(Request $request, FacturacionCartService $service, string $scope, string $routeScope = 'own'): Response
     {
         [$user, $filters] = $this->resolveRequestContext($request, $scope);
         $exportFilters = $filters;
@@ -105,7 +107,8 @@ class MisVentasController extends Controller
             'rows' => $rows,
             'totals' => $totals,
             'scope' => $scope,
-        ])->setPaper('a4', 'landscape');
+            'routeScope' => $routeScope,
+        ])->setPaper('a4', 'portrait');
 
         $filename = 'kardex-facturacion-' . now()->format('Ymd-His') . '.pdf';
 
@@ -193,12 +196,36 @@ class MisVentasController extends Controller
         ]];
     }
 
+    private function resolveEffectiveOwnScope(Request $request): string
+    {
+        $requestedScope = strtolower(trim((string) $request->query('scope', '')));
+        if ($requestedScope === 'own') {
+            return 'own';
+        }
+
+        $user = $request->user();
+        if ($requestedScope === 'branch' && $this->canAccessBranchVentas($user)) {
+            return 'branch';
+        }
+
+        return $this->canAccessBranchVentas($user) ? 'branch' : 'own';
+    }
+
+    private function canAccessBranchVentas(?User $user): bool
+    {
+        if (!$user || (int) ($user->sucursal_id ?? 0) <= 0) {
+            return false;
+        }
+
+        return $user->can('ventas-sucursal.export.pdf') || $user->can('ventas-sucursal.index');
+    }
+
     private function authorizeVentasViewer(?User $user, string $scope = 'own'): User
     {
         abort_unless($user, 403, 'No tienes permiso para ver ventas.');
 
         if ($scope === 'branch') {
-            abort_unless($user->can('ventas-sucursal.index'), 403, 'No tienes permiso para ver ventas de sucursal.');
+            abort_unless($this->canAccessBranchVentas($user), 403, 'No tienes permiso para ver ventas de sucursal.');
             abort_unless((int) ($user->sucursal_id ?? 0) > 0, 403, 'Tu cuenta no tiene una sucursal de facturacion asignada.');
 
             return $user;
@@ -209,17 +236,18 @@ class MisVentasController extends Controller
         return $user;
     }
 
-    private function pageContextForScope(string $scope): array
+    private function pageContextForScope(string $scope, string $routeScope = 'own'): array
     {
         if ($scope === 'branch') {
             return [
                 'page_title' => 'Ventas sucursal',
                 'panel_title' => 'Ventas de sucursal',
                 'panel_subtitle' => 'Ventas emitidas por los cajeros de tu sucursal de facturacion.',
-                'filter_route' => 'ventas-sucursal.index',
-                'export_route' => 'ventas-sucursal.export.pdf',
+                'filter_route' => $routeScope === 'branch' ? 'ventas-sucursal.index' : 'mis-ventas.index',
+                'export_route' => $routeScope === 'branch' ? 'ventas-sucursal.export.pdf' : 'mis-ventas.export.pdf',
                 'show_cashier_column' => true,
                 'scope' => 'branch',
+                'route_scope' => $routeScope,
             ];
         }
 
@@ -231,6 +259,7 @@ class MisVentasController extends Controller
             'export_route' => 'mis-ventas.export.pdf',
             'show_cashier_column' => false,
             'scope' => 'own',
+            'route_scope' => $routeScope,
         ];
     }
 
@@ -344,7 +373,7 @@ class MisVentasController extends Controller
     private function resolveSourceUserForRequest(Request $request, User $viewer): User
     {
         $sourceUserId = (int) $request->query('source_user_id', 0);
-        if ($sourceUserId <= 0 || ! $viewer->can('ventas-sucursal.index')) {
+        if ($sourceUserId <= 0 || ! $this->canAccessBranchVentas($viewer)) {
             return $viewer;
         }
 

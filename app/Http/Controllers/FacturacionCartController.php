@@ -907,16 +907,15 @@ class FacturacionCartController extends Controller
             ?? ''
         )));
         $autoFacturaError = trim((string) data_get($respuesta, 'auto_factura_error', ''));
-        $trackingLabel = $isQrFlow = $estado === 'NO_APLICA'
+        $isQrFlow = $estado === 'NO_APLICA'
             || trim((string) (
                 data_get($respuesta, 'transaction_id')
                 ?? data_get($respuesta, 'payment_status')
                 ?? data_get($respuesta, 'qr_url')
                 ?? data_get($respuesta, 'image_data')
                 ?? ''
-            )) !== ''
-                ? 'Referencia QR'
-                : 'Seguimiento';
+            )) !== '';
+        $trackingLabel = $isQrFlow ? 'Referencia QR' : 'Seguimiento';
         $feedbackMeta = $this->buildFeedbackMeta($estado, $numeroFactura, $codigoOrden, $codigoSeguimiento, $pdfUrl, $trackingLabel);
 
         if ($isQrFlow) {
