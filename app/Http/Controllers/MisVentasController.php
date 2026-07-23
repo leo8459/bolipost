@@ -217,7 +217,9 @@ class MisVentasController extends Controller
             return false;
         }
 
-        return $user->can('ventas-sucursal.export.pdf') || $user->can('ventas-sucursal.index');
+        return $user->can('feature.mis-ventas.index.branch-export')
+            || $user->can('ventas-sucursal.export.pdf')
+            || $user->can('ventas-sucursal.index');
     }
 
     private function authorizeVentasViewer(?User $user, string $scope = 'own'): User
