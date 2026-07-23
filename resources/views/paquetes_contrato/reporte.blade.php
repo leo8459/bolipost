@@ -99,6 +99,17 @@
             letter-spacing: .4px;
             color: #000;
         }
+        .reprint-mark {
+            display: inline-block;
+            margin-left: 7px;
+            padding-left: 7px;
+            border-left: 1px solid #000;
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: .2px;
+            text-transform: uppercase;
+            vertical-align: middle;
+        }
         .content {
             padding: 3px 6px 2px;
         }
@@ -236,6 +247,7 @@
     }
     $fechaRecojo = optional($contrato->fecha_recojo ?? null)->format('d/m/Y H:i') ?: optional($contrato->created_at ?? null)->format('d/m/Y H:i');
     $numeroCopias = max(1, min(3, (int) ($numeroCopias ?? request()->query('copias', 1))));
+    $esReimpresion = (bool) ($esReimpresion ?? request()->boolean('reimpreso'));
     $copiasDisponibles = ['ORIGINAL', 'COPIA 1', 'COPIA 2'];
     $copias = array_slice($copiasDisponibles, 0, $numeroCopias);
     $logoPath = public_path('images/AGBClogo1.png');
@@ -276,7 +288,12 @@
                             @elseif($codigo !== '' && class_exists('\DNS1D'))
                                 {!! DNS1D::getBarcodeHTML($codigo, 'C128', 1.05, 34) !!}
                             @endif
-                            <div class="barcode-code">{{ $codigo }}</div>
+                            <div class="barcode-code">
+                                {{ $codigo }}
+                                @if($esReimpresion)
+                                    <span class="reprint-mark">Reimpreso</span>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                 </table>

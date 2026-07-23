@@ -696,11 +696,13 @@ class RecojoController extends Controller
 
         $generatedAt = now();
         $numeroCopias = $this->normalizeNumeroCopias(request()->query('copias', 1));
+        $esReimpresion = request()->boolean('reimpreso');
         $contrato->loadMissing(['empresa:id,nombre,sigla', 'user.empresa:id,nombre,sigla']);
         $pdf = Pdf::loadView('paquetes_contrato.reporte', [
             'contrato' => $contrato,
             'generatedAt' => $generatedAt,
             'numeroCopias' => $numeroCopias,
+            'esReimpresion' => $esReimpresion,
             'verificationUrl' => $this->verificationUrlFor($contrato),
         ])->setPaper('letter', 'portrait');
 
