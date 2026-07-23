@@ -820,7 +820,45 @@ class AclPermissionRegistry
             'api.carteros.desasignar',
             'feature.carteros.asignados.unassign',
         ],
-        ];
+    ];
+
+    /**
+     * Export/download routes that should appear as button permissions inside a
+     * concrete menu window instead of as generic module-level permissions.
+     *
+     * @var array<string, string>
+     */
+    private const EXPORT_ROUTE_WINDOW_MODULES = [
+        'dashboard.export.excel' => 'dashboard',
+        'dashboard.export.pdf' => 'dashboard',
+        'dashboard.global-ingreso.excel' => 'dashboard.global-ingreso',
+        'dashboard.global-ingreso.pdf' => 'dashboard.global-ingreso',
+        'dashboard.global-por-servicio.excel' => 'dashboard.global-por-servicio',
+        'dashboard.global-por-servicio.pdf' => 'dashboard.global-por-servicio',
+        'dashboard.reimprimir-cn33.pdf' => 'dashboard.reimprimir-cn33',
+        'dashboard.reimprimir-cn33.despacho-excel' => 'dashboard.reimprimir-cn33',
+        'dashboard.reimprimir-cn33.excel' => 'dashboard.reimprimir-cn33',
+        'dashboard.comercial.rendimiento-servicios.excel' => 'dashboard.comercial.rendimiento-servicios',
+        'dashboard.comercial.rendimiento-servicios.pdf' => 'dashboard.comercial.rendimiento-servicios',
+        'entregas.export.excel' => 'entregas.index',
+        'performance.export.excel' => 'performance.index',
+        'performance.export.pdf' => 'performance.index',
+        'reportes.export.excel' => 'reportes.scope',
+        'reportes.export.pdf' => 'reportes.scope',
+        'reportes.resumen-administrativo.pdf' => 'reportes.resumen-administrativo',
+        'mis-ventas.export.pdf' => 'mis-ventas.index',
+        'ventas-sucursal.export.pdf' => 'ventas-sucursal.index',
+        'tarifario.pdf' => 'tarifario.index',
+        'tarifario-tiktoker.pdf' => 'tarifario-tiktoker.index',
+        'bitacoras.export-excel' => 'bitacoras.index',
+        'bitacoras.export-pdf' => 'bitacoras.index',
+        'area-contratos.reportes.excel' => 'area-contratos.reportes',
+        'vehicle-assignments.report.pdf' => 'livewire.vehicle-assignments',
+        'maintenance-incentives.export.pdf' => 'livewire.maintenance-incentives',
+        'maintenance-documents.report.pdf' => 'livewire.maintenance-documents',
+        'maintenance-appointments.approved-report.pdf' => 'livewire.maintenance-appointments',
+        'workshops.location-report.pdf' => 'livewire.workshops',
+    ];
 
     /**
      * @var array<int, string>|null
@@ -937,6 +975,14 @@ class AclPermissionRegistry
 
         [$moduleKey, $actionKey] = self::splitPermissionName($routePermission);
         $featureAction = self::canonicalFeatureAction($routePermission, $actionKey);
+        $windowModuleKey = self::windowModuleForExportRoute($routePermission, $featureAction);
+
+        if ($windowModuleKey !== null) {
+            return array_values(array_unique([
+                self::featurePermissionName($windowModuleKey, $featureAction),
+                self::featurePermissionName($windowModuleKey, 'manage'),
+            ]));
+        }
 
         return array_values(array_unique([
             self::featurePermissionName($moduleKey, $featureAction),
@@ -957,6 +1003,18 @@ class AclPermissionRegistry
 
         if (isset(self::ROUTE_ACCESS_PERMISSION_OVERRIDES[$routePermission])) {
             return array_values(array_unique(self::ROUTE_ACCESS_PERMISSION_OVERRIDES[$routePermission]));
+        }
+
+        [$moduleKey, $actionKey] = self::splitPermissionName($routePermission);
+        $featureAction = self::canonicalFeatureAction($routePermission, $actionKey);
+        $windowModuleKey = self::windowModuleForExportRoute($routePermission, $featureAction);
+
+        if ($windowModuleKey !== null) {
+            return array_values(array_unique([
+                $routePermission,
+                $windowModuleKey,
+                ...self::featurePermissionsForRoute($routePermission),
+            ]));
         }
 
         return [$routePermission];
@@ -1670,6 +1728,15 @@ class AclPermissionRegistry
             })
             ->values()
             ->all();
+    }
+
+    private static function windowModuleForExportRoute(string $routePermission, string $featureAction): ?string
+    {
+        if ($featureAction !== 'export') {
+            return null;
+        }
+
+        return self::EXPORT_ROUTE_WINDOW_MODULES[$routePermission] ?? null;
     }
 
     private static function featurePermissionName(string $moduleKey, string $featureAction): string
