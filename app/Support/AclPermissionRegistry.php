@@ -1996,6 +1996,7 @@ class AclPermissionRegistry
 
         $label = trim((string) ($item['text'] ?? ''));
         $submenu = $item['submenu'] ?? null;
+        $accessPermissions = self::menuItemAccessPermissions($item, $groupsByModule);
 
         if (is_array($submenu) && $submenu !== []) {
             $children = collect($submenu)
@@ -2004,13 +2005,14 @@ class AclPermissionRegistry
                 ->values()
                 ->all();
 
-            if ($children === []) {
+            if ($children === [] && $accessPermissions === []) {
                 return null;
             }
 
             return [
                 'label' => $label !== '' ? $label : 'Menu',
                 'level' => $isTopLevel ? 'tab' : 'submenu',
+                'access_permissions' => $accessPermissions,
                 'children' => $children,
             ];
         }
@@ -2064,6 +2066,40 @@ class AclPermissionRegistry
                 : ($moduleLabels[$routeName] ?? (is_array($group) ? ($group['module_label'] ?? self::humanize($moduleKey)) : self::humanize($moduleKey))),
             'actions' => $featurePermissions,
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<string, array<string, mixed>>  $groupsByModule
+     * @return array<int, array<string, mixed>>
+     */
+    private static function menuItemAccessPermissions(array $item, $groupsByModule): array
+    {
+        $can = $item['can'] ?? null;
+        $permissionNames = collect(is_array($can) ? $can : [$can])
+            ->filter(fn (mixed $permissionName): bool => is_string($permissionName) && trim($permissionName) !== '')
+            ->map(fn (string $permissionName): string => trim($permissionName))
+            ->unique()
+            ->values();
+
+        if ($permissionNames->isEmpty()) {
+            return [];
+        }
+
+        return $permissionNames
+            ->map(function (string $permissionName) use ($groupsByModule): ?array {
+                [$moduleKey] = self::splitPermissionName($permissionName);
+                $group = $groupsByModule->get($moduleKey);
+
+                if (! is_array($group)) {
+                    return null;
+                }
+
+                return collect($group['permissions'] ?? [])
+                    ->firstWhere('name', $permissionName);
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private static function resolveRouteNameFromMenuUrl(string $url): ?string

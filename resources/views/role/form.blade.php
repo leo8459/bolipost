@@ -436,6 +436,12 @@
                     $isSelectedPermission = fn (?string $permissionName): bool => is_string($permissionName) && in_array($permissionName, $selectedPermissions, true);
                     $menuNodeCounter = 0;
                     $nodeHasSelection = function (array $node) use (&$nodeHasSelection, $isSelectedPermission): bool {
+                        foreach (($node['access_permissions'] ?? []) as $permission) {
+                            if ($isSelectedPermission((string) ($permission['name'] ?? ''))) {
+                                return true;
+                            }
+                        }
+
                         if (($node['level'] ?? null) === 'window') {
                             $route = $node['route'] ?? null;
                             $routeName = is_array($route) ? ($route['name'] ?? ($node['route_name'] ?? '')) : ($node['route_name'] ?? '');
@@ -472,6 +478,23 @@
                             echo '<span>Ver submenu y ventanas</span>';
                             echo '</button>';
                             echo '<div id="'.$nodeId.'" class="menu-node-body '.($isOpen ? '' : 'd-none').'">';
+                            if (($node['access_permissions'] ?? []) !== []) {
+                                echo '<div class="menu-map-block-title">Acceso al menu</div>';
+                                echo '<div class="menu-map-list menu-map-access">';
+                                foreach (($node['access_permissions'] ?? []) as $permission) {
+                                    $permissionName = (string) ($permission['name'] ?? '');
+                                    $hint = trim((string) ($permission['hint'] ?? ''));
+                                    echo '<label class="menu-map-check">';
+                                    echo '<input type="checkbox" class="js-permission-proxy" data-target-permission="'.e($permissionName).'" '.($isSelectedPermission($permissionName) ? 'checked' : '').'>';
+                                    echo '<span class="menu-map-check-title">'.e($permission['action_label'] ?? $permissionName).'</span>';
+                                    if ($hint !== '') {
+                                        echo '<small class="text-primary">'.e($hint).'</small>';
+                                    }
+                                    echo '<small class="text-muted">'.e($permissionName).'</small>';
+                                    echo '</label>';
+                                }
+                                echo '</div>';
+                            }
                             foreach (($node['children'] ?? []) as $child) {
                                 $renderMenuNode($child, $depth + 1);
                             }
@@ -487,6 +510,23 @@
                             echo '<span>Ver ventanas</span>';
                             echo '</button>';
                             echo '<div id="'.$nodeId.'" class="menu-node-body '.($isOpen ? '' : 'd-none').'">';
+                            if (($node['access_permissions'] ?? []) !== []) {
+                                echo '<div class="menu-map-block-title">Acceso al menu</div>';
+                                echo '<div class="menu-map-list menu-map-access">';
+                                foreach (($node['access_permissions'] ?? []) as $permission) {
+                                    $permissionName = (string) ($permission['name'] ?? '');
+                                    $hint = trim((string) ($permission['hint'] ?? ''));
+                                    echo '<label class="menu-map-check">';
+                                    echo '<input type="checkbox" class="js-permission-proxy" data-target-permission="'.e($permissionName).'" '.($isSelectedPermission($permissionName) ? 'checked' : '').'>';
+                                    echo '<span class="menu-map-check-title">'.e($permission['action_label'] ?? $permissionName).'</span>';
+                                    if ($hint !== '') {
+                                        echo '<small class="text-primary">'.e($hint).'</small>';
+                                    }
+                                    echo '<small class="text-muted">'.e($permissionName).'</small>';
+                                    echo '</label>';
+                                }
+                                echo '</div>';
+                            }
                             foreach (($node['children'] ?? []) as $child) {
                                 $renderMenuNode($child, $depth + 1);
                             }
