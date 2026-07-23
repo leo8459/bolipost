@@ -38,6 +38,23 @@
             box-shadow:0 8px 18px rgba(32, 83, 154, .10);
         }
         .action-btn i{ font-size:16px; }
+        .print-copy-dropdown .dropdown-menu{
+            min-width:132px;
+            border-radius:12px;
+            border:1px solid rgba(52,68,124,.18);
+            box-shadow:0 12px 26px rgba(0,0,0,.12);
+            padding:6px;
+        }
+        .print-copy-dropdown .dropdown-item{
+            border-radius:9px;
+            color:var(--azul);
+            font-weight:800;
+            padding:8px 10px;
+        }
+        .print-copy-dropdown .dropdown-item:hover{
+            background:rgba(52,68,124,.08);
+            color:var(--azul);
+        }
         .table thead th{ background: rgba(52,68,124,.08); color: var(--azul); font-weight:900; border-bottom:2px solid rgba(52,68,124,.2); white-space: nowrap; }
         .pill-id{ background: rgba(52,68,124,.12); color: var(--azul); font-weight:900; padding:4px 10px; border-radius:999px; display:inline-block; }
         .muted{ color:var(--muted); }
@@ -190,12 +207,25 @@
                                             'codigo' => $recojo->codigo,
                                         ])
                                         @if ($canRecojoPrint)
-                                        <a href="{{ route('paquetes-contrato.reporte', $recojo->id, false) }}"
-                                            target="_blank"
-                                            class="btn btn-sm btn-outline-azul action-btn"
-                                            title="Reimprimir rotulo">
-                                            <i class="fas fa-print"></i>
-                                        </a>
+                                        <div class="dropdown print-copy-dropdown">
+                                            <button type="button"
+                                                class="btn btn-sm btn-outline-azul action-btn dropdown-toggle"
+                                                data-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                title="Reimprimir rotulo">
+                                                <i class="fas fa-print"></i>
+                                            </button>
+                                            <div class="dropdown-menu dropdown-menu-right">
+                                                @for ($i = 1; $i <= 3; $i++)
+                                                    <a class="dropdown-item"
+                                                       href="{{ route('paquetes-contrato.reporte', ['contrato' => $recojo->id, 'copias' => $i, 'reimpreso' => 1], false) }}"
+                                                       target="_blank">
+                                                        {{ $i }} {{ $i === 1 ? 'copia' : 'copias' }}
+                                                    </a>
+                                                @endfor
+                                            </div>
+                                        </div>
                                         @endif
                                         @if ($canRecojoEdit)
                                         <button wire:click="openEditModal({{ $recojo->id }})" class="btn btn-sm btn-azul action-btn" title="Editar">
