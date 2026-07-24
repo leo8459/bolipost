@@ -139,44 +139,70 @@ class BitacoraController extends Controller
             ->orderBy('provincia')
             ->pluck('provincia');
 
-        $pendingCn33Alert = $this->cn33Service->getPendingRegistrationAlert(regional: $regionalScope);
-        $reportRows = $this->buildDepartmentReportRows($latestIdsQuery);
-        $reportByOrigin = $reportRows
-            ->groupBy('origen_departamento')
-            ->map(function ($rows, $origin) {
-                return (object) [
-                    'departamento' => $origin,
-                    'total_registros' => (int) $rows->sum('total_registros'),
-                    'total_precio' => round((float) $rows->sum('total_precio'), 2),
-                    'total_peso' => round((float) $rows->sum('total_peso'), 3),
-                ];
-            })
-            ->sortByDesc('total_precio')
-            ->values();
+        $pendingCn33Alert = $paginate
+            ? [
+                'count' => 0,
+                'grace_hours' => 24,
+                'max_days_delay' => 0,
+                'regional' => $regionalScope,
+                'alert_start_date' => now(),
+                'rows' => collect(),
+            ]
+            : $this->cn33Service->getPendingRegistrationAlert(regional: $regionalScope);
 
-        $reportByDestination = $reportRows
-            ->groupBy('destino_departamento')
-            ->map(function ($rows, $destination) {
-                return (object) [
-                    'departamento' => $destination,
-                    'total_registros' => (int) $rows->sum('total_registros'),
-                    'total_precio' => round((float) $rows->sum('total_precio'), 2),
-                    'total_peso' => round((float) $rows->sum('total_peso'), 3),
-                ];
-            })
-            ->sortByDesc('total_precio')
-            ->values();
-
-        $reportByTransportadora = $this->buildTransportadoraRankingRows($latestIdsQuery);
-
+        $reportRows = collect();
+        $reportByOrigin = collect();
+        $reportByDestination = collect();
+        $reportByTransportadora = collect();
         $reportTotals = [
-            'total_registros' => (int) $reportRows->sum('total_registros'),
-            'total_precio' => round((float) $reportRows->sum('total_precio'), 2),
-            'total_peso' => round((float) $reportRows->sum('total_peso'), 3),
-            'origenes' => $reportByOrigin->count(),
-            'destinos' => $reportByDestination->count(),
-            'transportadoras' => $reportByTransportadora->count(),
+            'total_registros' => 0,
+            'total_precio' => 0,
+            'total_peso' => 0,
+            'origenes' => 0,
+            'destinos' => 0,
+            'transportadoras' => 0,
         ];
+        $reportPreviewAvailable = !$paginate;
+
+        if (!$paginate) {
+            $reportRows = $this->buildDepartmentReportRows($latestIdsQuery);
+            $reportByOrigin = $reportRows
+                ->groupBy('origen_departamento')
+                ->map(function ($rows, $origin) {
+                    return (object) [
+                        'departamento' => $origin,
+                        'total_registros' => (int) $rows->sum('total_registros'),
+                        'total_precio' => round((float) $rows->sum('total_precio'), 2),
+                        'total_peso' => round((float) $rows->sum('total_peso'), 3),
+                    ];
+                })
+                ->sortByDesc('total_precio')
+                ->values();
+
+            $reportByDestination = $reportRows
+                ->groupBy('destino_departamento')
+                ->map(function ($rows, $destination) {
+                    return (object) [
+                        'departamento' => $destination,
+                        'total_registros' => (int) $rows->sum('total_registros'),
+                        'total_precio' => round((float) $rows->sum('total_precio'), 2),
+                        'total_peso' => round((float) $rows->sum('total_peso'), 3),
+                    ];
+                })
+                ->sortByDesc('total_precio')
+                ->values();
+
+            $reportByTransportadora = $this->buildTransportadoraRankingRows($latestIdsQuery);
+
+            $reportTotals = [
+                'total_registros' => (int) $reportRows->sum('total_registros'),
+                'total_precio' => round((float) $reportRows->sum('total_precio'), 2),
+                'total_peso' => round((float) $reportRows->sum('total_peso'), 3),
+                'origenes' => $reportByOrigin->count(),
+                'destinos' => $reportByDestination->count(),
+                'transportadoras' => $reportByTransportadora->count(),
+            ];
+        }
 
         return compact(
             'bitacoras',
@@ -197,6 +223,7 @@ class BitacoraController extends Controller
             'reportByDestination',
             'reportByTransportadora',
             'reportTotals',
+            'reportPreviewAvailable',
             'cn33LocationsPorCodEspecial',
             'cn33PackagesPorCodEspecial'
         );
@@ -639,12 +666,12 @@ class BitacoraController extends Controller
             $request->all(),
             [
                 'cod_especial' => ['required', 'string', 'max:50'],
-                'transportadora' => ['nullable', 'string', 'max:255'],
+                'transportadora' => ['required', 'string', 'max:255'],
                 'provincia' => ['nullable', 'string', 'max:255'],
-                'factura' => ['nullable', 'string', 'max:255'],
-                'precio_total' => ['nullable', 'numeric', 'min:0'],
-                'peso' => ['nullable', 'numeric', 'min:0'],
-                'imagen_factura' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
+                'factura' => ['required', 'string', 'max:255'],
+                'precio_total' => ['required', 'numeric', 'min:0'],
+                'peso' => ['required', 'numeric', 'min:0'],
+                'imagen_factura' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             ],
             [],
             [

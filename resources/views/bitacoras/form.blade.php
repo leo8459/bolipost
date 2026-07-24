@@ -118,7 +118,7 @@
 
             <div class="form-group mb-3">
                 <div class="col-md-12">
-                    <label for="cod_especial">Cod Especial</label>
+                    <label for="cod_especial">Cod Especial <span class="text-danger">*</span></label>
                     <input
                         type="text"
                         id="cod_especial"
@@ -126,6 +126,7 @@
                         value="{{ old('cod_especial', $bitacora->cod_especial) }}"
                         class="form-control @error('cod_especial') is-invalid @enderror"
                         placeholder="Ej: LPZ00001 o codigo certificado"
+                        required
                     >
                     @error('cod_especial')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -137,7 +138,7 @@
             <div class="row">
                 <div class="col-md-4">
                     <div class="form-group mb-3">
-                        <label for="transportadora">Transportadora</label>
+                        <label for="transportadora">Transportadora <span class="text-danger">*</span></label>
                         <input
                             type="text"
                             id="transportadora"
@@ -145,6 +146,7 @@
                             value="{{ old('transportadora', $bitacora->transportadora) }}"
                             class="form-control text-uppercase-live @error('transportadora') is-invalid @enderror"
                             style="text-transform: uppercase;"
+                            required
                         >
                         @error('transportadora')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -154,7 +156,7 @@
 
                 <div class="col-md-4">
                     <div class="form-group mb-3">
-                        <label for="provincia">Provincia</label>
+                        <label for="provincia">Provincia <span class="text-muted">(opcional)</span></label>
                         <input
                             type="text"
                             id="provincia"
@@ -170,13 +172,14 @@
 
                 <div class="col-md-4">
                     <div class="form-group mb-3">
-                        <label for="factura">Factura</label>
+                        <label for="factura">Factura <span class="text-danger">*</span></label>
                         <input
                             type="text"
                             id="factura"
                             name="factura"
                             value="{{ old('factura', $bitacora->factura) }}"
                             class="form-control @error('factura') is-invalid @enderror"
+                            required
                         >
                         @error('factura')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -188,7 +191,7 @@
             <div class="row">
                 <div class="col-md-6">
                     <div class="form-group mb-3">
-                        <label for="precio_total">Precio Total</label>
+                        <label for="precio_total">Precio Total <span class="text-danger">*</span></label>
                         <input
                             type="number"
                             step="0.01"
@@ -197,7 +200,8 @@
                             name="precio_total"
                             value="{{ old('precio_total', $bitacora->precio_total) }}"
                             class="form-control @error('precio_total') is-invalid @enderror"
-                            placeholder="Si lo dejas vacio se calculara por cod_especial"
+                            placeholder="Ingresa el precio total"
+                            required
                         >
                         @error('precio_total')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -207,7 +211,7 @@
 
                 <div class="col-md-6">
                     <div class="form-group mb-3">
-                        <label for="peso">Peso</label>
+                        <label for="peso">Peso <span class="text-danger">*</span></label>
                         <input
                             type="number"
                             step="0.001"
@@ -216,7 +220,8 @@
                             name="peso"
                             value="{{ old('peso', $bitacora->peso) }}"
                             class="form-control @error('peso') is-invalid @enderror"
-                            placeholder="Si lo dejas vacio se calculara por cod_especial"
+                            placeholder="Ingresa el peso"
+                            required
                         >
                         @error('peso')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -251,13 +256,14 @@
 
         <div class="bitacora-photo-card">
             <div class="form-group mb-0">
-                <label for="imagen_factura">Foto o factura</label>
+                <label for="imagen_factura">Foto o factura @if(!$editOnlyPhoto)<span class="text-danger">*</span>@endif</label>
                 <input
                     type="file"
                     id="imagen_factura"
                     name="imagen_factura"
                     accept=".jpg,.jpeg,.png,.webp,.pdf"
                     class="form-control-file @error('imagen_factura') is-invalid @enderror"
+                    @if(!$editOnlyPhoto) required @endif
                 >
                 @error('imagen_factura')
                     <div class="invalid-feedback d-block">{{ $message }}</div>

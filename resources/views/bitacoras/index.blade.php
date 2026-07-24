@@ -420,12 +420,13 @@
                             <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
                                 <div>
                                     <strong>Registrar bitacora de envio nacional.</strong>
-                                    Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin registrar en bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas desde {{ optional(data_get($pendingCn33Alert, 'alert_start_date'))->format('d/m/Y') ?? '17/07/2026' }}.
+                                    Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin registrar en bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas desde su dia y hora de despacho.
                                     @if((string) data_get($pendingCn33Alert, 'regional', '') !== '')
                                         Solo se muestran registros de {{ data_get($pendingCn33Alert, 'regional') }}.
                                     @else
                                         Se muestran registros a nivel nacional.
                                     @endif
+                                    Se consideran despachos desde {{ optional(data_get($pendingCn33Alert, 'alert_start_date'))->format('d/m/Y') ?? '17/07/2026' }}.
                                     Retraso maximo: {{ number_format((int) data_get($pendingCn33Alert, 'max_days_delay', 0)) }} dia(s).
                                     @if($pendingCn33Departments->isNotEmpty())
                                         <div class="mt-2 d-flex flex-wrap">
@@ -478,7 +479,7 @@
                                                             <th class="text-right">Dias de retraso</th>
                                                             <th class="text-right">Peso</th>
                                                             <th class="text-right">Registros</th>
-                                                            <th>Primer registro</th>
+                                                            <th>Dia/Hora despacho</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -488,7 +489,7 @@
                                                                 <td class="text-right">{{ number_format((int) ($row->days_delay ?? 0)) }}</td>
                                                                 <td class="text-right">{{ number_format((float) ($row->peso_total ?? 0), 3) }}</td>
                                                                 <td class="text-right">{{ number_format((int) ($row->total_registros ?? 0)) }}</td>
-                                                                <td>{{ optional($row->first_created_at)->format('d/m/Y H:i') }}</td>
+                                                                <td>{{ optional($row->dispatch_created_at ?? $row->first_created_at)->format('d/m/Y H:i') }}</td>
                                                             </tr>
                                                         @endforeach
                                                     </tbody>
@@ -606,6 +607,11 @@
                                     </div>
                                 </div>
 
+                                @if(!($reportPreviewAvailable ?? false))
+                                    <div class="alert alert-light border mb-3">
+                                        El resumen completo se genera al exportar PDF o Excel para mantener rapida la lista paginada.
+                                    </div>
+                                @else
                                 <div class="row">
                                     <div class="col-lg-3 col-md-6 mb-3">
                                         <div class="bitacoras-metric-card">
@@ -769,6 +775,7 @@
                                         </div>
                                     </div>
                                 </div>
+                                @endif
                             </div>
 
                             <div class="bitacoras-table-wrap">

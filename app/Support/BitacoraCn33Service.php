@@ -10,6 +10,20 @@ use Illuminate\Support\Facades\DB;
 class BitacoraCn33Service
 {
     private const ALERT_START_DATE = '2026-07-17 00:00:00';
+    private const CN33_PREFIX_BY_REGIONAL = [
+        'LA PAZ' => 'LPZ',
+        'COCHABAMBA' => 'CBB',
+        'SANTA CRUZ' => 'SRZ',
+        'ORURO' => 'ORU',
+        'POTOSI' => 'POI',
+        'TARIJA' => 'TJA',
+        'SUCRE' => 'SRE',
+        'CHUQUISACA' => 'SRE',
+        'TRINIDAD' => 'TDD',
+        'BENI' => 'TDD',
+        'COBIJA' => 'CIJ',
+        'PANDO' => 'CIJ',
+    ];
 
     public function getDispatchSummary(string $codEspecial, ?string $regional = null): array
     {
@@ -35,6 +49,7 @@ class BitacoraCn33Service
                 count(*) as total_registros,
                 min(created_at) as first_created_at,
                 max(created_at) as last_created_at,
+                max(dispatch_created_at) as dispatch_created_at,
                 sum(coalesce(peso, 0)) as peso_total,
                 sum(coalesce(precio, 0)) as precio_total
             ')
@@ -45,27 +60,15 @@ class BitacoraCn33Service
             ->first();
 
         $firstCreatedAt = $summary?->first_created_at ? Carbon::parse($summary->first_created_at) : null;
+        $dispatchCreatedAt = $summary?->dispatch_created_at ? Carbon::parse($summary->dispatch_created_at) : $firstCreatedAt;
 
         return [
             'cod_especial' => $codigo,
             'exists' => (int) ($summary->total_registros ?? 0) > 0,
             'has_bitacora' => Bitacora::query()
                 ->whereRaw('trim(upper(cod_especial)) = ?', [$codigo])
-                ->when($regional !== null, function ($query) use ($regional) {
-                    $query->where(function ($sub) use ($regional) {
-                        $sub->whereHas('paqueteEms', function ($emsQuery) use ($regional) {
-                            $emsQuery->whereRaw('trim(upper(coalesce(origen, \'\'))) = ?', [$regional]);
-                        })
-                        ->orWhereHas('paqueteContrato', function ($contratoQuery) use ($regional) {
-                            $contratoQuery->whereRaw('trim(upper(coalesce(origen, \'\'))) = ?', [$regional]);
-                        })
-                        ->orWhereHas('paqueteOrdi', function ($ordiQuery) use ($regional) {
-                            $ordiQuery->whereRaw('trim(upper(coalesce(ciudad, \'\'))) = ?', [$regional]);
-                        })
-                        ->orWhereHas('paqueteCerti', function ($certiQuery) use ($regional) {
-                            $certiQuery->whereRaw('trim(upper(coalesce(cuidad, \'\'))) = ?', [$regional]);
-                        });
-                    });
+                ->when($regional !== null && $this->cn33PrefixForRegional($regional) !== null, function ($query) use ($regional) {
+                    $query->whereRaw('trim(upper(cod_especial)) like ?', [$this->cn33PrefixForRegional($regional) . '%']);
                 })
                 ->exists(),
             'total_registros' => (int) ($summary->total_registros ?? 0),
@@ -73,7 +76,8 @@ class BitacoraCn33Service
             'precio_total' => $summary && $summary->precio_total !== null ? number_format((float) $summary->precio_total, 2, '.', '') : null,
             'first_created_at' => $firstCreatedAt?->toDateTimeString(),
             'last_created_at' => $summary?->last_created_at ? Carbon::parse($summary->last_created_at)->toDateTimeString() : null,
-            'days_delay' => $firstCreatedAt ? max(0, $firstCreatedAt->diffInDays(now())) : 0,
+            'dispatch_created_at' => $dispatchCreatedAt?->toDateTimeString(),
+            'days_delay' => $dispatchCreatedAt ? max(0, $dispatchCreatedAt->diffInDays(now())) : 0,
         ];
     }
 
@@ -85,21 +89,8 @@ class BitacoraCn33Service
             ->selectRaw('trim(upper(cod_especial)) as cod_especial_normalizado, min(created_at) as bitacora_created_at')
             ->whereNotNull('cod_especial')
             ->whereRaw("trim(cod_especial) <> ''")
-            ->when($regional !== null, function ($query) use ($regional) {
-                $query->where(function ($sub) use ($regional) {
-                    $sub->whereHas('paqueteEms', function ($emsQuery) use ($regional) {
-                        $emsQuery->whereRaw('trim(upper(coalesce(origen, \'\'))) = ?', [$regional]);
-                    })
-                    ->orWhereHas('paqueteContrato', function ($contratoQuery) use ($regional) {
-                        $contratoQuery->whereRaw('trim(upper(coalesce(origen, \'\'))) = ?', [$regional]);
-                    })
-                    ->orWhereHas('paqueteOrdi', function ($ordiQuery) use ($regional) {
-                        $ordiQuery->whereRaw('trim(upper(coalesce(ciudad, \'\'))) = ?', [$regional]);
-                    })
-                    ->orWhereHas('paqueteCerti', function ($certiQuery) use ($regional) {
-                        $certiQuery->whereRaw('trim(upper(coalesce(cuidad, \'\'))) = ?', [$regional]);
-                    });
-                });
+            ->when($regional !== null && $this->cn33PrefixForRegional($regional) !== null, function ($query) use ($regional) {
+                $query->whereRaw('trim(upper(cod_especial)) like ?', [$this->cn33PrefixForRegional($regional) . '%']);
             })
             ->groupBy(DB::raw('trim(upper(cod_especial))'));
 
@@ -113,25 +104,27 @@ class BitacoraCn33Service
                 cn33_source.regional_normalizada as regional,
                 min(cn33_source.created_at) as first_created_at,
                 max(cn33_source.created_at) as last_created_at,
+                max(cn33_source.dispatch_created_at) as dispatch_created_at,
                 sum(coalesce(cn33_source.peso, 0)) as peso_total,
                 sum(coalesce(cn33_source.precio, 0)) as precio_total,
                 count(*) as total_registros
             ')
             ->whereNull('bitacoras_registradas.bitacora_created_at')
-            ->where('cn33_source.created_at', '>=', $alertStartDate)
+            ->where('cn33_source.dispatch_created_at', '>=', $alertStartDate)
             ->when($regional !== null, function ($query) use ($regional) {
                 $query->where('cn33_source.regional_normalizada', $regional);
             })
             ->groupBy('cn33_source.cod_especial_normalizado', 'cn33_source.regional_normalizada')
-            ->havingRaw('min(cn33_source.created_at) <= ?', [now()->subHours($graceHours)])
-            ->orderByRaw('min(cn33_source.created_at) asc');
+            ->havingRaw('max(cn33_source.dispatch_created_at) <= ?', [now()->subHours($graceHours)])
+            ->orderByRaw('max(cn33_source.dispatch_created_at) asc');
 
         $rows = (clone $pendingBaseQuery)
             ->limit($previewLimit)
             ->get()
             ->map(function ($row) {
                 $firstCreatedAt = Carbon::parse($row->first_created_at);
-                $daysDelay = max(1, $firstCreatedAt->diffInDays(now()));
+                $dispatchCreatedAt = !empty($row->dispatch_created_at) ? Carbon::parse($row->dispatch_created_at) : $firstCreatedAt;
+                $daysDelay = max(1, $dispatchCreatedAt->diffInDays(now()));
 
                 return (object) [
                     'cod_especial' => (string) ($row->cod_especial ?? ''),
@@ -139,6 +132,7 @@ class BitacoraCn33Service
                     'regional' => (string) ($row->regional ?? ''),
                     'first_created_at' => $firstCreatedAt,
                     'last_created_at' => !empty($row->last_created_at) ? Carbon::parse($row->last_created_at) : null,
+                    'dispatch_created_at' => $dispatchCreatedAt,
                     'peso_total' => round((float) ($row->peso_total ?? 0), 3),
                     'precio_total' => round((float) ($row->precio_total ?? 0), 2),
                     'total_registros' => (int) ($row->total_registros ?? 0),
@@ -177,6 +171,7 @@ class BitacoraCn33Service
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(origen, ''))) as regional_normalizada,
                 created_at,
+                updated_at as dispatch_created_at,
                 coalesce(peso, 0) as peso,
                 coalesce(precio, 0) as precio
             ")
@@ -188,6 +183,7 @@ class BitacoraCn33Service
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(origen, ''))) as regional_normalizada,
                 created_at,
+                updated_at as dispatch_created_at,
                 coalesce(peso, 0) as peso,
                 coalesce(precio, 0) as precio
             ")
@@ -199,6 +195,7 @@ class BitacoraCn33Service
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(ciudad, ''))) as regional_normalizada,
                 created_at,
+                updated_at as dispatch_created_at,
                 coalesce(peso, 0) as peso,
                 coalesce(precio, 0) as precio
             ")
@@ -210,6 +207,7 @@ class BitacoraCn33Service
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(cuidad, ''))) as regional_normalizada,
                 created_at,
+                updated_at as dispatch_created_at,
                 coalesce(peso, 0) as peso,
                 coalesce(precio, 0) as precio
             ")
@@ -225,11 +223,15 @@ class BitacoraCn33Service
 
     private function cn33SourceUnionQuery(): Builder
     {
+        $emsRegionalExpression = $this->cn33RegionalExpressionSql("trim(upper(coalesce(origen, '')))");
+        $contratoRegionalExpression = $this->cn33RegionalExpressionSql("trim(upper(coalesce(origen, '')))");
+
         $ems = DB::table('paquetes_ems')
             ->selectRaw("
                 trim(upper(cod_especial)) as cod_especial_normalizado,
-                trim(upper(coalesce(origen, ''))) as regional_normalizada,
+                {$emsRegionalExpression} as regional_normalizada,
                 created_at,
+                updated_at as dispatch_created_at,
                 coalesce(peso, 0) as peso,
                 coalesce(precio, 0) as precio
             ")
@@ -239,8 +241,9 @@ class BitacoraCn33Service
         $contratos = DB::table('paquetes_contrato')
             ->selectRaw("
                 trim(upper(cod_especial)) as cod_especial_normalizado,
-                trim(upper(coalesce(origen, ''))) as regional_normalizada,
+                {$contratoRegionalExpression} as regional_normalizada,
                 created_at,
+                updated_at as dispatch_created_at,
                 coalesce(peso, 0) as peso,
                 coalesce(precio, 0) as precio
             ")
@@ -262,5 +265,26 @@ class BitacoraCn33Service
         $value = strtoupper(trim((string) $regional));
 
         return $value !== '' ? $value : null;
+    }
+
+    private function cn33PrefixForRegional(string $regional): ?string
+    {
+        return self::CN33_PREFIX_BY_REGIONAL[strtoupper(trim($regional))] ?? null;
+    }
+
+    private function cn33RegionalExpressionSql(string $fallbackRegionalExpression): string
+    {
+        $codeExpression = 'trim(upper(cod_especial))';
+        $cases = [];
+
+        foreach (self::CN33_PREFIX_BY_REGIONAL as $regional => $prefix) {
+            if ($regional === 'CHUQUISACA' || $regional === 'BENI' || $regional === 'PANDO') {
+                continue;
+            }
+
+            $cases[] = "when {$codeExpression} like '{$prefix}%' then '{$regional}'";
+        }
+
+        return 'case ' . implode(' ', $cases) . " else {$fallbackRegionalExpression} end";
     }
 }
