@@ -82,16 +82,7 @@ class CarterosController extends Controller
             })
             ->values();
 
-        $ciudadesAsignadas = $carterosAsignados
-            ->pluck('city')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values()
-            ->map(fn ($city) => [
-                'value' => $city,
-                'label' => Str::title(mb_strtolower((string) $city)),
-            ]);
+        $ciudadesAsignadas = $this->assignedPackageDestinationCities($estadoCarteroId);
 
         return view('carteros.asignados', [
             'carterosAsignados' => $carterosAsignados,
@@ -1953,7 +1944,7 @@ class CarterosController extends Controller
         $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
         $search = trim((string) $request->query('search', ''));
         $assignedUserId = max(0, (int) $request->query('user_id', 0));
-        $assignedCity = $this->normalizeUserCity(trim((string) $request->query('ciudad', '')));
+        $packageCity = $this->normalizeUserCity(trim((string) $request->query('ciudad', '')));
         $codigo = trim((string) $request->query('codigo', ''));
         $cartero = trim((string) $request->query('cartero', ''));
         $nombre = trim((string) $request->query('nombre', ''));
@@ -2375,18 +2366,18 @@ class CarterosController extends Controller
                 ->values();
         }
 
-        if ($assignedUserId > 0 || $assignedCity !== '') {
+        if ($packageCity !== '') {
+            $all = $all
+                ->filter(fn ($row) => $this->normalizeUserCity((string) ($row['ciudad'] ?? '')) === $packageCity)
+                ->values();
+        }
+
+        if ($assignedUserId > 0) {
             $all = $this->attachCarteroData($all);
 
             if ($assignedUserId > 0) {
                 $all = $all
                     ->filter(fn ($row) => (int) ($row['user_id'] ?? 0) === $assignedUserId)
-                    ->values();
-            }
-
-            if ($assignedCity !== '') {
-                $all = $all
-                    ->filter(fn ($row) => $this->normalizeUserCity((string) ($row['asignado_ciudad'] ?? '')) === $assignedCity)
                     ->values();
             }
         }
@@ -3707,6 +3698,48 @@ class CarterosController extends Controller
         $city = preg_replace('/\s+/', ' ', $city) ?? $city;
 
         return $city;
+    }
+
+    private function assignedPackageDestinationCities(int $estadoCarteroId)
+    {
+        $base = Cartero::query()->where('id_estados', $estadoCarteroId);
+
+        $emsIds = (clone $base)
+            ->whereNotNull('id_paquetes_ems')
+            ->pluck('id_paquetes_ems')
+            ->all();
+        $certiIds = (clone $base)
+            ->whereNotNull('id_paquetes_certi')
+            ->pluck('id_paquetes_certi')
+            ->all();
+        $ordiIds = (clone $base)
+            ->whereNotNull('id_paquetes_ordi')
+            ->pluck('id_paquetes_ordi')
+            ->all();
+        $contratoIds = (clone $base)
+            ->whereNotNull('id_paquetes_contrato')
+            ->pluck('id_paquetes_contrato')
+            ->all();
+        $solicitudIds = (clone $base)
+            ->whereNotNull('id_solicitud_cliente')
+            ->pluck('id_solicitud_cliente')
+            ->all();
+
+        return collect()
+            ->merge(PaqueteEms::query()->whereIn('id', $emsIds ?: [0])->pluck('ciudad'))
+            ->merge(PaqueteCerti::query()->whereIn('id', $certiIds ?: [0])->pluck('cuidad'))
+            ->merge(PaqueteOrdi::query()->whereIn('id', $ordiIds ?: [0])->pluck('ciudad'))
+            ->merge(RecojoContrato::query()->whereIn('id', $contratoIds ?: [0])->pluck('destino'))
+            ->merge(SolicitudCliente::query()->whereIn('id', $solicitudIds ?: [0])->pluck('ciudad'))
+            ->map(fn ($city) => $this->normalizeUserCity((string) $city))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn ($city) => [
+                'value' => $city,
+                'label' => Str::title(mb_strtolower((string) $city)),
+            ]);
     }
 
     private function isSameUserCity(?User $actor, ?User $assignee): bool

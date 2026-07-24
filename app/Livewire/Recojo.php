@@ -316,20 +316,6 @@ class Recojo extends Component
             'user.empresa:id,nombre,sigla',
             'estadoRegistro:id,nombre_estado',
         ])
-
-        // ✅ FILTRO PRINCIPAL: solo registros de mi empresa
-        ->when(!$hasGlobalDepartmentAccess && $authEmpresaId > 0, function ($query) use ($authEmpresaId) {
-            $query->where('empresa_id', $authEmpresaId);
-        }, function ($query) use ($hasGlobalDepartmentAccess) {
-            if ($hasGlobalDepartmentAccess) {
-                return;
-            }
-
-            // si el usuario no tiene empresa_id, no mostrar nada
-            $query->whereRaw('1 = 0');
-        })
-
-        // Tu lógica existente de modos
         ->when(!$this->isAlmacenMode && !$hasGlobalDepartmentAccess, function ($query) use ($authUserId) {
             if ($authUserId > 0) {
                 $query->where('user_id', $authUserId);
@@ -337,8 +323,17 @@ class Recojo extends Component
             }
             $query->whereRaw('1 = 0');
         })
-        ->when($this->isAlmacenMode, function ($query) use ($hasGlobalDepartmentAccess) {
+        ->when($this->isAlmacenMode, function ($query) use ($hasGlobalDepartmentAccess, $authEmpresaId) {
             $query->where('estados_id', (int) $this->estadoAlmacenId)
+                ->when(!$hasGlobalDepartmentAccess && $authEmpresaId > 0, function ($sub) use ($authEmpresaId) {
+                    $sub->where('empresa_id', $authEmpresaId);
+                }, function ($sub) use ($hasGlobalDepartmentAccess) {
+                    if ($hasGlobalDepartmentAccess) {
+                        return;
+                    }
+
+                    $sub->whereRaw('1 = 0');
+                })
                 ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($sub) {
                     $sub->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
                 }, function ($sub) use ($hasGlobalDepartmentAccess) {
