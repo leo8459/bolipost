@@ -217,8 +217,7 @@ class MisVentasController extends Controller
             return false;
         }
 
-        return $user->can('feature.mis-ventas.index.branch-export')
-            || $user->can('ventas-sucursal.export.pdf')
+        return $user->can('ventas-sucursal.export.pdf')
             || $user->can('ventas-sucursal.index');
     }
 
@@ -1123,7 +1122,9 @@ class MisVentasController extends Controller
             if ($cantidadTotal <= 0) {
                 $cantidadTotal = max(1, $items->count());
             }
-            $packageItemsCount = $codigosPaquete->count();
+            $packageItemsCount = $items
+                ->filter(fn ($item) => $this->isPackageCartItem($item))
+                ->count();
             $serviceItemsCount = max(0, $cantidadTotal - $packageItemsCount);
             $detalleResumen = collect([
                 $packageItemsCount > 0 ? $packageItemsCount . ' paquete' . ($packageItemsCount === 1 ? '' : 's') : null,
@@ -1174,18 +1175,78 @@ class MisVentasController extends Controller
     {
         return $items
             ->flatMap(function ($item) {
+                if (! $this->isPackageCartItem($item)) {
+                    return [];
+                }
+
                 return [
+                    trim((string) data_get($item, 'codigo_paquete', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo_paquete', '')),
                     trim((string) data_get($item, 'codigo', '')),
                     trim((string) data_get($item, 'codigo_item', '')),
-                    trim((string) data_get($item, 'codigo_paquete', '')),
                     trim((string) data_get($item, 'resumen_origen.codigo', '')),
                     trim((string) data_get($item, 'resumen_origen.codigo_item', '')),
-                    trim((string) data_get($item, 'resumen_origen.codigo_paquete', '')),
                 ];
             })
             ->filter()
             ->unique()
             ->values();
+    }
+
+    private function isPackageCartItem(object|array $item): bool
+    {
+        $codigo = strtoupper(trim((string) data_get($item, 'codigo', '')));
+        $codigoItem = strtoupper(trim((string) data_get($item, 'codigo_item', '')));
+        $codigoPaquete = strtoupper(trim((string) data_get($item, 'codigo_paquete', '')));
+        $resumenCodigo = strtoupper(trim((string) data_get($item, 'resumen_origen.codigo', '')));
+        $resumenCodigoItem = strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_item', '')));
+        $resumenCodigoPaquete = strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_paquete', '')));
+
+        $references = collect([
+            $codigoPaquete,
+            $resumenCodigoPaquete,
+            $codigo,
+            $codigoItem,
+            $resumenCodigo,
+            $resumenCodigoItem,
+        ])->filter();
+
+        if ($references->isEmpty()) {
+            return false;
+        }
+
+        $originHints = strtoupper(trim(implode(' ', array_filter([
+            (string) data_get($item, 'origen_tipo', ''),
+            (string) data_get($item, 'titulo', ''),
+            (string) data_get($item, 'nombre_servicio', ''),
+            (string) data_get($item, 'resumen_origen.descripcion_servicio', ''),
+            (string) data_get($item, 'resumen_origen.servicio_nombre', ''),
+        ]))));
+
+        $hasPackageReference = $references->contains(function (string $reference): bool {
+            return ! $this->isServiceReferenceCode($reference);
+        });
+
+        if (! $hasPackageReference) {
+            return false;
+        }
+
+        return ! str_contains($originHints, 'SERVICIO')
+            && ! str_contains($originHints, 'ADMISION')
+            && ! str_contains($originHints, 'EXTRA');
+    }
+
+    private function isServiceReferenceCode(string $reference): bool
+    {
+        $reference = strtoupper(trim($reference));
+
+        if ($reference === '') {
+            return false;
+        }
+
+        return str_starts_with($reference, 'SRVE-')
+            || str_starts_with($reference, 'SERV-')
+            || str_starts_with($reference, 'SERVICIO-');
     }
 
     private function normalizeItems(mixed $items): Collection
