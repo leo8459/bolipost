@@ -207,6 +207,19 @@
             display:inline-block;
         }
 
+        .solicitudes-contact-name{
+            display:block;
+        }
+
+        .solicitudes-contact-phone{
+            display:block;
+            margin-top:4px;
+            color:var(--muted);
+            font-size:.86rem;
+            line-height:1.2;
+            white-space:nowrap;
+        }
+
         .solicitudes-footer{
             padding:0 20px 20px;
         }
@@ -357,8 +370,14 @@
                                         <td>{{ $solicitud->servicioExtra?->descripcion ?: ($solicitud->servicioExtra?->nombre ?? '-') }}</td>
                                         <td>{{ $solicitud->origen ?: '-' }}</td>
                                         <td>{{ $solicitud->destino?->nombre_destino ?: ($solicitud->ciudad ?: '-') }}</td>
-                                        <td>{{ $solicitud->nombre_remitente ?: '-' }}</td>
-                                        <td>{{ $solicitud->nombre_destinatario ?: '-' }}</td>
+                                        <td>
+                                            <span class="solicitudes-contact-name">{{ $solicitud->nombre_remitente ?: '-' }}</span>
+                                            <span class="solicitudes-contact-phone">{{ $solicitud->telefono_remitente ?: 'Sin telefono' }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="solicitudes-contact-name">{{ $solicitud->nombre_destinatario ?: '-' }}</span>
+                                            <span class="solicitudes-contact-phone">{{ $solicitud->telefono_destinatario ?: 'Sin telefono' }}</span>
+                                        </td>
                                         <td>{{ $solicitud->peso !== null ? number_format((float) $solicitud->peso, 3, '.', '') : '-' }}</td>
                                         <td>{{ $solicitud->precio !== null ? number_format((float) $solicitud->precio, 2, '.', '') : '-' }}</td>
                                         <td>
