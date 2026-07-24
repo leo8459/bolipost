@@ -28,6 +28,45 @@
         $isBranchScope = ($pageContext['scope'] ?? 'own') === 'branch';
         $ownViewParams = array_merge(request()->query(), ['scope' => 'own']);
         $branchViewParams = array_merge(request()->query(), ['scope' => 'branch']);
+        $isServiceReferenceCode = static function (?string $reference): bool {
+            $reference = strtoupper(trim((string) $reference));
+
+            return $reference !== ''
+                && (str_starts_with($reference, 'SRVE-')
+                    || str_starts_with($reference, 'SERV-')
+                    || str_starts_with($reference, 'SERVICIO-'));
+        };
+        $isPackageCartItem = static function ($item) use ($isServiceReferenceCode): bool {
+            $references = collect([
+                trim((string) data_get($item, 'codigo_paquete', '')),
+                trim((string) data_get($item, 'resumen_origen.codigo_paquete', '')),
+                trim((string) data_get($item, 'codigo', '')),
+                trim((string) data_get($item, 'codigo_item', '')),
+                trim((string) data_get($item, 'resumen_origen.codigo', '')),
+                trim((string) data_get($item, 'resumen_origen.codigo_item', '')),
+            ])->filter();
+
+            if ($references->isEmpty()) {
+                return false;
+            }
+
+            $originHints = strtoupper(trim(implode(' ', array_filter([
+                (string) data_get($item, 'origen_tipo', ''),
+                (string) data_get($item, 'titulo', ''),
+                (string) data_get($item, 'nombre_servicio', ''),
+                (string) data_get($item, 'resumen_origen.descripcion_servicio', ''),
+                (string) data_get($item, 'resumen_origen.servicio_nombre', ''),
+            ]))));
+
+            $hasPackageReference = $references->contains(
+                fn ($reference) => ! $isServiceReferenceCode($reference)
+            );
+
+            return $hasPackageReference
+                && ! str_contains($originHints, 'SERVICIO')
+                && ! str_contains($originHints, 'ADMISION')
+                && ! str_contains($originHints, 'EXTRA');
+        };
         $firstVisible = $carts->total() > 0 ? (($carts->currentPage() - 1) * $carts->perPage()) + 1 : 0;
         $lastVisible = $carts->total() > 0 ? min($carts->currentPage() * $carts->perPage(), $carts->total()) : 0;
 
@@ -316,18 +355,19 @@
                                     ->values();
 
                                 $packageCodes = $cartItems
+                                    ->filter(fn ($item) => $isPackageCartItem($item))
                                     ->map(function ($item) {
                                         return trim((string) (
-                                            data_get($item, 'codigo')
-                                            ?: data_get($item, 'codigo_paquete')
-                                            ?: data_get($item, 'resumen_origen.codigo')
+                                            data_get($item, 'codigo_paquete')
                                             ?: data_get($item, 'resumen_origen.codigo_paquete')
+                                            ?: data_get($item, 'codigo')
+                                            ?: data_get($item, 'resumen_origen.codigo')
                                         ));
                                     })
                                     ->filter()
                                     ->unique()
                                     ->values();
-                                $packageItemsCount = $packageCodes->count();
+                                $packageItemsCount = $cartItems->filter(fn ($item) => $isPackageCartItem($item))->count();
                                 $serviceItemsCount = max(0, $cartItems->count() - $packageItemsCount);
                                 $itemsBreakdown = collect([
                                     $packageItemsCount > 0 ? $packageItemsCount . ' paquete' . ($packageItemsCount === 1 ? '' : 's') : null,
@@ -625,18 +665,19 @@
                 ->filter(fn ($item) => is_object($item))
                 ->values();
             $packageCodes = $cartItems
+                ->filter(fn ($item) => $isPackageCartItem($item))
                 ->map(function ($item) {
                     return trim((string) (
-                        data_get($item, 'codigo')
-                        ?: data_get($item, 'codigo_paquete')
-                        ?: data_get($item, 'resumen_origen.codigo')
+                        data_get($item, 'codigo_paquete')
                         ?: data_get($item, 'resumen_origen.codigo_paquete')
+                        ?: data_get($item, 'codigo')
+                        ?: data_get($item, 'resumen_origen.codigo')
                     ));
                 })
                 ->filter()
                 ->unique()
                 ->values();
-            $packageItemsCount = $packageCodes->count();
+            $packageItemsCount = $cartItems->filter(fn ($item) => $isPackageCartItem($item))->count();
             $serviceItemsCount = max(0, $cartItems->count() - $packageItemsCount);
             $itemsBreakdown = collect([
                 $packageItemsCount > 0 ? $packageItemsCount . ' paquete' . ($packageItemsCount === 1 ? '' : 's') : null,
@@ -698,7 +739,7 @@
                                                 $itemMontoBase = (float) data_get($item, 'monto_base', 0);
                                                 $itemMontoExtras = (float) data_get($item, 'monto_extras', 0);
                                                 $itemTotalLinea = (float) data_get($item, 'total_linea', 0);
-                                                $itemHasPackageCode = $itemCodigo !== '' || $itemResumenCodigo !== '';
+                                                $itemHasPackageCode = $isPackageCartItem($item);
                                                 $itemTipoLabel = $itemHasPackageCode ? 'Paquete' : 'Servicio';
                                                 $itemReferencia = $itemCodigo !== ''
                                                     ? $itemCodigo
@@ -1511,12 +1552,40 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
 
+            const isServiceReferenceCode = (reference) => {
+                const normalized = String(reference || '').trim().toUpperCase();
+
+                return normalized !== ''
+                    && (normalized.startsWith('SRVE-')
+                        || normalized.startsWith('SERV-')
+                        || normalized.startsWith('SERVICIO-'));
+            };
+
             const classifyItem = (item) => {
-                const code = String(item.codigo || item.resumen_origen?.codigo || item.resumen_origen?.codigo_paquete || '').trim();
+                const references = [
+                    item.codigo_paquete,
+                    item.resumen_origen?.codigo_paquete,
+                    item.codigo,
+                    item.codigo_item,
+                    item.resumen_origen?.codigo,
+                    item.resumen_origen?.codigo_item,
+                ].map((value) => String(value || '').trim()).filter(Boolean);
+                const originHints = [
+                    item.origen_tipo,
+                    item.titulo,
+                    item.nombre_servicio,
+                    item.resumen_origen?.descripcion_servicio,
+                    item.resumen_origen?.servicio_nombre,
+                ].map((value) => String(value || '').trim().toUpperCase()).filter(Boolean).join(' ');
+                const packageReference = references.find((reference) => !isServiceReferenceCode(reference)) || '';
+                const isPackage = packageReference !== ''
+                    && !originHints.includes('SERVICIO')
+                    && !originHints.includes('ADMISION')
+                    && !originHints.includes('EXTRA');
 
                 return {
-                    kind: code !== '' ? 'Paquete' : 'Servicio',
-                    reference: code !== '' ? code : 'Sin codigo de paquete',
+                    kind: isPackage ? 'Paquete' : 'Servicio',
+                    reference: isPackage ? packageReference : 'Sin codigo de paquete',
                 };
             };
 

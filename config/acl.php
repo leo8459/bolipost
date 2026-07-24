@@ -139,7 +139,6 @@ return [
         'feature.paquetes-ems.entregados.deliver',
         'feature.paquetes-ems.devolucion.deliver',
         'feature.paquetes-ems.devolucion.print',
-        'feature.mis-ventas.index.branch-export',
         'feature.users.empresas.create',
         'feature.users.empresas.edit',
         'feature.users.empresas.delete',
