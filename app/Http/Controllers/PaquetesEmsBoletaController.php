@@ -18,6 +18,8 @@ class PaquetesEmsBoletaController extends Controller
             'feature.paquetes-ems.recibir-regional.print',
             'feature.paquetes-ems.en-transito.print',
             'feature.paquetes-ems.entregados.print',
+            'paquetes-ems.encargado',
+            'feature.paquetes-ems.encargado.print',
         ]);
 
         $paquete->load(['tarifario.destino', 'tarifario.servicio', 'tarifario.origen', 'tarifario.peso', 'formulario']);

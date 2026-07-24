@@ -48,6 +48,7 @@ class TodosPaquetesController extends Controller
                 'peso' => 'Peso',
                 'precio' => 'Precio',
                 'observacion' => 'Observacion',
+                'justificacion' => 'Justificacion',
             ],
             'numeric' => ['peso', 'precio'],
         ],
@@ -70,6 +71,7 @@ class TodosPaquetesController extends Controller
                 'peso' => 'Peso',
                 'precio' => 'Precio',
                 'observacion' => 'Observacion',
+                'justificacion' => 'Justificacion',
             ],
             'numeric' => ['peso', 'precio'],
         ],
@@ -130,6 +132,7 @@ class TodosPaquetesController extends Controller
                 'peso' => 'Peso',
                 'precio' => 'Precio',
                 'observacion' => 'Observacion',
+                'justificacion' => 'Justificacion',
             ],
             'numeric' => ['peso', 'precio'],
         ],
@@ -505,6 +508,7 @@ class TodosPaquetesController extends Controller
                 'telefono' => 'telefono_destinatario',
                 'peso' => 'peso',
                 'precio' => 'precio',
+                'justificacion' => 'justificacion',
             ]),
             $this->selectForContrato(),
             $this->selectFor('certi', 'paquetes_certi', 'fk_estado', [
@@ -518,6 +522,7 @@ class TodosPaquetesController extends Controller
                 'telefono' => 'telefono',
                 'peso' => 'peso',
                 'precio' => 'precio',
+                'justificacion' => null,
             ]),
             $this->selectFor('ordi', 'paquetes_ordi', 'fk_estado', [
                 'codigo' => 'codigo',
@@ -530,6 +535,7 @@ class TodosPaquetesController extends Controller
                 'telefono' => 'telefono',
                 'peso' => 'peso',
                 'precio' => 'precio',
+                'justificacion' => null,
             ]),
             $this->selectFor('solicitud', 'solicitud_clientes', 'estado_id', [
                 'codigo' => "COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO')",
@@ -542,6 +548,7 @@ class TodosPaquetesController extends Controller
                 'telefono' => 'telefono_destinatario',
                 'peso' => 'peso',
                 'precio' => 'precio',
+                'justificacion' => 'justificacion',
             ], true),
         ];
 
@@ -581,6 +588,9 @@ class TodosPaquetesController extends Controller
 
         $selects[] = DB::raw('COALESCE(' . $table . '.' . ($columns['peso'] ?? 'id') . "::text, '') as peso");
         $selects[] = DB::raw('COALESCE(' . $table . '.' . ($columns['precio'] ?? 'id') . "::text, '') as precio");
+        $selects[] = ($columns['justificacion'] ?? null)
+            ? DB::raw('COALESCE(' . $table . '.' . $columns['justificacion'] . "::text, '') as justificacion")
+            : DB::raw("'' as justificacion");
         $selects[] = DB::raw($table . '.' . $stateColumn . ' as estado_id');
         $selects[] = DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre");
         $selects[] = DB::raw($table . '.created_at as created_at');
@@ -617,6 +627,7 @@ class TodosPaquetesController extends Controller
                 DB::raw("COALESCE(" . $table . ".telefono_d::text, '') as telefono"),
                 DB::raw("COALESCE(" . $table . ".peso::text, '') as peso"),
                 DB::raw("COALESCE(" . $table . ".precio::text, '') as precio"),
+                DB::raw("COALESCE(" . $table . ".justificacion::text, '') as justificacion"),
                 DB::raw($table . '.estados_id as estado_id'),
                 DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
                 DB::raw($table . '.created_at as created_at'),
@@ -631,6 +642,7 @@ class TodosPaquetesController extends Controller
                     "COALESCE(" . $table . ".nombre_d::text, ''), " .
                     "COALESCE(" . $table . ".nombre_r::text, ''), " .
                     "COALESCE(" . $table . ".telefono_d::text, ''), " .
+                    "COALESCE(" . $table . ".justificacion::text, ''), " .
                     "COALESCE(estados.nombre_estado, '')" .
                     ")) as search_blob"
                 ),

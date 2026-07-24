@@ -93,6 +93,7 @@
                                 <th>Precio</th>
                                 <th>Reporte salida</th>
                                 <th>Estado</th>
+                                <th>Justificacion</th>
                                 <th>Actualizado</th>
                                 <th></th>
                             </tr>
@@ -155,6 +156,13 @@
                                                 @endforeach
                                             </select>
                                         </form>
+                                    </td>
+                                    <td style="min-width: 220px;">
+                                        @if($paquete->justificacion)
+                                            <span class="small">{{ \Illuminate\Support\Str::limit($paquete->justificacion, 120) }}</span>
+                                        @else
+                                            <span class="text-muted small">Sin justificacion</span>
+                                        @endif
                                     </td>
                                     <td>{{ $paquete->updated_at ? \Illuminate\Support\Carbon::parse($paquete->updated_at)->format('d/m/Y H:i') : '-' }}</td>
                                     <td class="text-right">
@@ -225,7 +233,7 @@
                                 @foreach($editing['fields'] as $field => $label)
                                     <div class="col-md-6 mb-3">
                                         <label class="small font-weight-bold">{{ $label }}</label>
-                                        @if(in_array($field, ['observacion', 'observaciones', 'direccion', 'direccion_d', 'referencia'], true))
+                                        @if(in_array($field, ['observacion', 'observaciones', 'direccion', 'direccion_d', 'referencia', 'justificacion'], true))
                                             <textarea name="{{ $field }}" rows="3" class="form-control @error($field) is-invalid @enderror">{{ old($field, $editing['values'][$field] ?? '') }}</textarea>
                                         @else
                                             <input

@@ -42,6 +42,7 @@ class SolicitudCliente extends Model
         'tarifario_tiktoker_id',
         'recepcionado_por',
         'observacion',
+        'justificacion',
         'imagen',
     ];
 

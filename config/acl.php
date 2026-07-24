@@ -135,6 +135,7 @@ return [
         'feature.paquetes-ems.encargado.returnwindow',
         'feature.paquetes-ems.encargado.updateweight',
         'feature.paquetes-ems.encargado.changecartero',
+        'feature.paquetes-ems.encargado.print',
         'feature.paquetes-ems.entregados.deliver',
         'feature.paquetes-ems.devolucion.deliver',
         'feature.paquetes-ems.devolucion.print',

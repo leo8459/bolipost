@@ -26,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -876,6 +877,11 @@ class PaquetesEmsController extends Controller
             'canUpdateWeightEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.updateweight'),
             'canChangeCarteroEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.changecartero')
                 || $this->userCan($user, 'feature.carteros.asignados.change'),
+            'canPrintEncargado' => $this->userCan($user, 'paquetes-ems.encargado')
+                || $this->userCan($user, 'feature.paquetes-ems.encargado.print')
+                || $this->userCan($user, 'feature.paquetes-ems.index.print')
+                || $this->userCan($user, 'feature.paquetes-ems.entregados.print')
+                || $this->userCan($user, 'todos-paquetes.guia'),
             'carterosDisponibles' => $this->availableEncargadoCarteroUsersForActor($user),
         ]);
     }
@@ -889,13 +895,17 @@ class PaquetesEmsController extends Controller
         $data = $request->validate([
             'id' => ['required', 'integer', 'min:1'],
             'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
+            'justificacion' => ['required', 'string', 'max:1000'],
             'q' => ['nullable', 'string'],
             'from' => ['nullable', 'string'],
             'to' => ['nullable', 'string'],
+        ], [
+            'justificacion.required' => 'Debe ingresar una justificacion para cancelar el envio.',
         ]);
 
         $id = (int) $data['id'];
         $servicio = mb_strtoupper(trim((string) $data['servicio']));
+        $justificacion = trim((string) $data['justificacion']);
         $actorUserId = (int) optional($request->user())->id;
         $actorName = $this->resolveActorDisplayName($request);
         $estadoCanceladoId = $this->findEstadoIdByNombre('CANCELADO');
@@ -913,7 +923,7 @@ class PaquetesEmsController extends Controller
                 ->with('error', 'No existe el estado CANCELADO en la tabla estados.');
         }
 
-        DB::transaction(function () use ($servicio, $id, $actorUserId, $actorName, $estadoCanceladoId, &$updated) {
+        DB::transaction(function () use ($servicio, $id, $actorUserId, $actorName, $estadoCanceladoId, $justificacion, &$updated) {
             $updated = match ($servicio) {
                 'EMS' => $this->moveEncargadoRecordAndRegisterEvent(
                     PaqueteEms::query()->whereKey($id)->first(),
@@ -921,7 +931,8 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.'
+                    'Envio cancelado por ' . $actorName . '.',
+                    $justificacion
                 ),
                 'CONTRATO' => $this->moveEncargadoRecordAndRegisterEvent(
                     RecojoContrato::query()->whereKey($id)->first(),
@@ -929,7 +940,8 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.'
+                    'Envio cancelado por ' . $actorName . '.',
+                    $justificacion
                 ),
                 'CERTI' => $this->moveEncargadoRecordAndRegisterEvent(
                     PaqueteCerti::query()->whereKey($id)->first(),
@@ -937,7 +949,8 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.'
+                    'Envio cancelado por ' . $actorName . '.',
+                    $justificacion
                 ),
                 'ORDI' => $this->moveEncargadoRecordAndRegisterEvent(
                     PaqueteOrdi::query()->whereKey($id)->first(),
@@ -945,7 +958,8 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.'
+                    'Envio cancelado por ' . $actorName . '.',
+                    $justificacion
                 ),
                 'SOLICITUD' => $this->moveEncargadoRecordAndRegisterEvent(
                     SolicitudCliente::query()->whereKey($id)->first(),
@@ -953,7 +967,8 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.'
+                    'Envio cancelado por ' . $actorName . '.',
+                    $justificacion
                 ),
                 default => 0,
             };
@@ -2515,13 +2530,17 @@ class PaquetesEmsController extends Controller
         int $targetState,
         string $servicio,
         int $userId,
-        int|string $eventReference
+        int|string $eventReference,
+        ?string $justificacion = null
     ): int {
         if (!$record) {
             return 0;
         }
 
         $record->{$stateColumn} = $targetState;
+        if ($justificacion !== null && Schema::hasColumn($record->getTable(), 'justificacion')) {
+            $record->justificacion = $justificacion;
+        }
         $record->updated_at = now();
         $saved = $record->save();
 

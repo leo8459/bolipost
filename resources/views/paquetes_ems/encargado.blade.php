@@ -21,7 +21,7 @@
                 </div>
             </div>
             <div class="card-body">
-                @if (session('success') || session('error'))
+                @if (session('success') || session('error') || $errors->has('justificacion'))
                     <div class="ems-alert-stack" id="emsAlertStack">
                         @if (session('success'))
                             <div class="ems-floating-alert is-success" data-alert-card>
@@ -30,7 +30,7 @@
                                     <div class="ems-floating-alert__title">Accion completada</div>
                                     <div class="ems-floating-alert__message">{{ session('success') }}</div>
                                 </div>
-                                <button type="button" class="ems-floating-alert__close" data-alert-close aria-label="Cerrar">×</button>
+                                <button type="button" class="ems-floating-alert__close" data-alert-close aria-label="Cerrar">&times;</button>
                                 <div class="ems-floating-alert__progress"></div>
                             </div>
                         @endif
@@ -42,7 +42,19 @@
                                     <div class="ems-floating-alert__title">Algo necesita revision</div>
                                     <div class="ems-floating-alert__message">{{ session('error') }}</div>
                                 </div>
-                                <button type="button" class="ems-floating-alert__close" data-alert-close aria-label="Cerrar">×</button>
+                                <button type="button" class="ems-floating-alert__close" data-alert-close aria-label="Cerrar">&times;</button>
+                                <div class="ems-floating-alert__progress"></div>
+                            </div>
+                        @endif
+
+                        @if ($errors->has('justificacion'))
+                            <div class="ems-floating-alert is-error" data-alert-card>
+                                <div class="ems-floating-alert__icon">!</div>
+                                <div class="ems-floating-alert__content">
+                                    <div class="ems-floating-alert__title">Justificacion requerida</div>
+                                    <div class="ems-floating-alert__message">{{ $errors->first('justificacion') }}</div>
+                                </div>
+                                <button type="button" class="ems-floating-alert__close" data-alert-close aria-label="Cerrar">&times;</button>
                                 <div class="ems-floating-alert__progress"></div>
                             </div>
                         @endif
@@ -171,6 +183,42 @@
                                     </td>
                                     <td>
                                         <div class="ems-action-stack">
+                                            @php
+                                                $reprintType = match ($paquete->servicio) {
+                                                    'EMS' => 'ems',
+                                                    'CONTRATO' => 'contrato',
+                                                    'CERTI' => 'certi',
+                                                    'ORDI' => 'ordi',
+                                                    'SOLICITUD' => 'solicitud',
+                                                    default => null,
+                                                };
+                                            @endphp
+
+                                            @if (($canPrintEncargado ?? false) && $reprintType)
+                                                @if ($paquete->servicio === 'EMS')
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm ems-btn-print ems-action-btn js-ems-print-options"
+                                                        data-termica="{{ route('paquetes-ems.boleta', $paquete->id, false) }}"
+                                                        data-carta="{{ route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'formato' => 'carta'], false) }}"
+                                                        title="Reimprimir boleta EMS"
+                                                    >
+                                                        <span>Reimprimir EMS</span>
+                                                        <small>Termica o carta</small>
+                                                    </button>
+                                                @else
+                                                    <a
+                                                        href="{{ route('todos-paquetes.guia', ['type' => $reprintType, 'id' => $paquete->id]) }}"
+                                                        class="btn btn-sm ems-btn-print ems-action-btn"
+                                                        target="_blank"
+                                                        title="Reimprimir guia"
+                                                    >
+                                                        <span>Reimprimir</span>
+                                                        <small>Guia / reporte</small>
+                                                    </a>
+                                                @endif
+                                            @endif
+
                                             @if ($canChangeCarteroEncargado)
                                                 <button
                                                     type="button"
@@ -197,6 +245,7 @@
                                                     <input type="hidden" name="from" value="{{ $fechaDesde }}">
                                                     <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                     <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+                                                    <input type="hidden" name="justificacion" value="">
                                                     <button type="submit" class="btn btn-sm ems-btn-danger ems-action-btn">
                                                         <span>Envio cancelado</span>
                                                         <small>Registra quien lo hizo</small>
@@ -285,6 +334,11 @@
             <div class="ems-confirm-modal__eyebrow">Confirmacion</div>
             <h4 class="ems-confirm-modal__title" id="emsConfirmTitle">Confirmar accion</h4>
             <p class="ems-confirm-modal__message" id="emsConfirmMessage">Confirma si deseas continuar con esta accion.</p>
+            <div class="ems-confirm-modal__field" id="emsCancelJustificationField" hidden>
+                <label for="emsCancelJustification" class="ems-confirm-modal__label">Justificacion</label>
+                <textarea id="emsCancelJustification" class="form-control ems-confirm-modal__textarea" rows="4" maxlength="1000" placeholder="Escriba por que esta cancelando este envio"></textarea>
+                <small class="ems-confirm-modal__hint" id="emsCancelJustificationHint">Este campo es obligatorio para cancelar.</small>
+            </div>
             <div class="ems-confirm-modal__actions">
                 <button type="button" class="ems-confirm-modal__btn is-secondary" data-confirm-close>Volver</button>
                 <button type="button" class="ems-confirm-modal__btn is-primary" id="emsConfirmAccept">Si, continuar</button>
@@ -328,6 +382,26 @@
                 <button type="submit" class="ems-confirm-modal__btn is-primary" @disabled(collect($carterosDisponibles ?? [])->isEmpty())>Cambiar cartero</button>
             </div>
         </form>
+    </div>
+
+    <div class="ems-confirm-modal" id="emsPrintOptionsModal" aria-hidden="true">
+        <div class="ems-confirm-modal__backdrop" data-print-options-close></div>
+        <div class="ems-confirm-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="emsPrintOptionsTitle">
+            <div class="ems-confirm-modal__eyebrow">Reimpresion</div>
+            <h4 class="ems-confirm-modal__title" id="emsPrintOptionsTitle">Elegir formato</h4>
+            <p class="ems-confirm-modal__message">Elige el formato para reimprimir la boleta EMS.</p>
+            <div class="ems-print-options">
+                <a href="#" target="_blank" class="ems-confirm-modal__btn is-secondary" id="emsPrintTermicaLink">
+                    Factura termica
+                </a>
+                <a href="#" target="_blank" class="ems-confirm-modal__btn is-secondary" id="emsPrintCartaLink">
+                    Diseno carta
+                </a>
+            </div>
+            <div class="ems-confirm-modal__actions">
+                <button type="button" class="ems-confirm-modal__btn is-primary" data-print-options-close>Cerrar</button>
+            </div>
+        </div>
     </div>
 @endsection
 
@@ -941,6 +1015,41 @@
             font-size: 1rem;
         }
 
+        .ems-confirm-modal__field {
+            margin-top: 1rem;
+        }
+
+        .ems-confirm-modal__label {
+            display: block;
+            margin-bottom: 0.4rem;
+            color: #162b4d;
+            font-weight: 900;
+        }
+
+        .ems-confirm-modal__textarea {
+            min-height: 108px;
+            resize: vertical;
+            border-radius: 14px;
+            border-color: #d8e2f1;
+        }
+
+        .ems-confirm-modal__textarea.is-invalid {
+            border-color: #d64545;
+            box-shadow: 0 0 0 0.16rem rgba(214, 69, 69, 0.14);
+        }
+
+        .ems-confirm-modal__hint {
+            display: block;
+            margin-top: 0.45rem;
+            color: #6a7790;
+            font-size: 0.86rem;
+        }
+
+        .ems-confirm-modal__hint.is-error {
+            color: #c83939;
+            font-weight: 800;
+        }
+
         .ems-confirm-modal__actions {
             display: flex;
             justify-content: flex-end;
@@ -983,6 +1092,23 @@
 
         .ems-confirm-modal__btn.is-primary.variant-info {
             background: linear-gradient(135deg, #256fd1 0%, #41a0ff 100%);
+        }
+
+        .ems-btn-print {
+            background: linear-gradient(135deg, #334a68 0%, #506b8f 100%);
+            color: #fff;
+        }
+
+        .ems-btn-print:hover {
+            color: #fff;
+            filter: brightness(.98);
+        }
+
+        .ems-print-options {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 1.1rem;
         }
 
         .ems-change-cartero-field {
@@ -1051,6 +1177,9 @@
             const confirmAccept = document.getElementById('emsConfirmAccept');
             const confirmCloseButtons = Array.from(document.querySelectorAll('[data-confirm-close]'));
             const confirmForms = Array.from(document.querySelectorAll('[data-confirm-form]'));
+            const cancelJustificationField = document.getElementById('emsCancelJustificationField');
+            const cancelJustificationInput = document.getElementById('emsCancelJustification');
+            const cancelJustificationHint = document.getElementById('emsCancelJustificationHint');
             const changeCarteroModal = document.getElementById('emsChangeCarteroModal');
             const changeCarteroButtons = Array.from(document.querySelectorAll('[data-change-cartero]'));
             const changeCarteroCloseButtons = Array.from(document.querySelectorAll('[data-change-cartero-close]'));
@@ -1059,6 +1188,10 @@
             const changeCarteroCodigo = document.getElementById('emsChangeCarteroCodigo');
             const changeCarteroActual = document.getElementById('emsChangeCarteroActual');
             const changeCarteroUser = document.getElementById('emsChangeCarteroUser');
+            const printOptionsModal = document.getElementById('emsPrintOptionsModal');
+            const printTermicaLink = document.getElementById('emsPrintTermicaLink');
+            const printCartaLink = document.getElementById('emsPrintCartaLink');
+            const printOptionsCloseButtons = Array.from(document.querySelectorAll('[data-print-options-close]'));
             let pendingForm = null;
 
             function closeAlert(card) {
@@ -1094,6 +1227,17 @@
                 confirmModal.setAttribute('aria-hidden', 'true');
                 pendingForm = null;
                 confirmAccept.classList.remove('variant-danger', 'variant-warning', 'variant-info');
+                if (cancelJustificationField) {
+                    cancelJustificationField.hidden = true;
+                }
+                if (cancelJustificationInput) {
+                    cancelJustificationInput.value = '';
+                    cancelJustificationInput.classList.remove('is-invalid');
+                }
+                if (cancelJustificationHint) {
+                    cancelJustificationHint.textContent = 'Este campo es obligatorio para cancelar.';
+                    cancelJustificationHint.classList.remove('is-error');
+                }
             }
 
             function openConfirmModal(form) {
@@ -1109,6 +1253,18 @@
                 const variant = form.getAttribute('data-confirm-variant');
                 if (variant) {
                     confirmAccept.classList.add('variant-' + variant);
+                }
+
+                const requiresJustification = form.querySelector('input[name="justificacion"]') !== null;
+                if (cancelJustificationField) {
+                    cancelJustificationField.hidden = !requiresJustification;
+                }
+                if (requiresJustification && cancelJustificationInput) {
+                    cancelJustificationInput.value = '';
+                    cancelJustificationInput.classList.remove('is-invalid');
+                    window.setTimeout(function () {
+                        cancelJustificationInput.focus();
+                    }, 80);
                 }
 
                 confirmModal.classList.add('is-open');
@@ -1136,10 +1292,65 @@
                     }
 
                     const targetForm = pendingForm;
+                    const targetJustification = targetForm.querySelector('input[name="justificacion"]');
+                    if (targetJustification) {
+                        const justification = (cancelJustificationInput?.value || '').trim();
+                        if (justification === '') {
+                            if (cancelJustificationInput) {
+                                cancelJustificationInput.classList.add('is-invalid');
+                                cancelJustificationInput.focus();
+                            }
+                            if (cancelJustificationHint) {
+                                cancelJustificationHint.textContent = 'Ingrese una justificacion antes de cancelar.';
+                                cancelJustificationHint.classList.add('is-error');
+                            }
+                            return;
+                        }
+
+                        targetJustification.value = justification;
+                    }
                     closeConfirmModal();
                     targetForm.submit();
                 });
             }
+
+            function closePrintOptionsModal() {
+                if (!printOptionsModal) {
+                    return;
+                }
+
+                printOptionsModal.classList.remove('is-open');
+                printOptionsModal.setAttribute('aria-hidden', 'true');
+            }
+
+            document.addEventListener('click', function (event) {
+                const button = event.target.closest('.js-ems-print-options');
+
+                if (!button) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                if (printTermicaLink) {
+                    printTermicaLink.href = button.dataset.termica || '#';
+                }
+
+                if (printCartaLink) {
+                    printCartaLink.href = button.dataset.carta || '#';
+                }
+
+                if (printOptionsModal) {
+                    printOptionsModal.classList.add('is-open');
+                    printOptionsModal.setAttribute('aria-hidden', 'false');
+                }
+            });
+
+            printOptionsCloseButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    closePrintOptionsModal();
+                });
+            });
 
             function closeChangeCarteroModal() {
                 if (!changeCarteroModal) {
