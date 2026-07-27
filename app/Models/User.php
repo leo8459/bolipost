@@ -112,6 +112,21 @@ class User extends Authenticatable
             && $this->hasRole($superAdminRole);
     }
 
+    public function hasGlobalDepartmentAccess(): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        if (! method_exists($this, 'getRoleNames')) {
+            return false;
+        }
+
+        return $this->getRoleNames()
+            ->map(fn ($role) => mb_strtolower(trim((string) $role)))
+            ->contains('gestor');
+    }
+
     public function driver(): HasOne
     {
         return $this->hasOne(Driver::class, 'user_id');

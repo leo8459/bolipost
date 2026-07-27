@@ -1802,6 +1802,6 @@ class PaquetesOrdi extends Component
 
     private function hasGlobalDepartmentAccess(): bool
     {
-        return (bool) optional(auth()->user())->isSuperAdmin();
+        return (bool) optional(auth()->user())->hasGlobalDepartmentAccess();
     }
 }

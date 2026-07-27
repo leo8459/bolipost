@@ -16,10 +16,12 @@ class UserLoginLog extends Model
         'user_agent',
         'session_id',
         'logged_in_at',
+        'logged_out_at',
     ];
 
     protected $casts = [
         'logged_in_at' => 'datetime',
+        'logged_out_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

@@ -15,7 +15,11 @@ class UserLoginLogController extends Controller
         $to = trim((string) $request->query('to', ''));
 
         $logs = UserLoginLog::query()
-            ->with('user:id,name,alias,email')
+            ->with([
+                'user:id,name,alias,email,empresa_id',
+                'user.empresa:id,nombre,sigla',
+                'user.roles:id,name',
+            ])
             ->when($search !== '', function ($query) use ($search) {
                 $like = '%'.mb_strtolower($search).'%';
 

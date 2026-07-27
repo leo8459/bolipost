@@ -329,7 +329,7 @@ class DashboardController extends Controller
         $agrupacion = $this->resolveAgrupacion($request);
         $departamento = $this->resolveDepartamentoFiltro($request);
         $authUser = Auth::user();
-        $hasGlobalDepartmentAccess = (bool) ($authUser?->isSuperAdmin() ?? false);
+        $hasGlobalDepartmentAccess = (bool) ($authUser?->hasGlobalDepartmentAccess() ?? false);
         $userCity = strtoupper(trim((string) optional($authUser)->ciudad));
         $allowedSoundRoles = ['encargado_ems', 'cartero_ems'];
         $roleNames = ($authUser && method_exists($authUser, 'getRoleNames'))
@@ -518,7 +518,7 @@ class DashboardController extends Controller
             return null;
         }
 
-        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+        if (method_exists($user, 'hasGlobalDepartmentAccess') && $user->hasGlobalDepartmentAccess()) {
             return null;
         }
 

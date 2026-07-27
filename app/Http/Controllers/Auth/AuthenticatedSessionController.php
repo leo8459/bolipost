@@ -63,6 +63,11 @@ class AuthenticatedSessionController extends Controller
 
         if ($user) {
             try {
+                UserLoginLog::query()
+                    ->where('user_id', $user->id)
+                    ->whereNull('logged_out_at')
+                    ->update(['logged_out_at' => now()]);
+
                 UserLoginLog::create([
                     'user_id' => $user->id,
                     'user_name' => $user->name,
@@ -90,6 +95,7 @@ class AuthenticatedSessionController extends Controller
     public function destroy(Request $request): RedirectResponse
     {
         $redirectTo = $this->logoutRedirectUrl($request->user());
+        $this->markCurrentLoginAsLoggedOut($request);
 
         Auth::guard('web')->logout();
 
@@ -104,6 +110,7 @@ class AuthenticatedSessionController extends Controller
     public function destroyViaGet(Request $request): RedirectResponse
     {
         $redirectTo = $this->logoutRedirectUrl($request->user());
+        $this->markCurrentLoginAsLoggedOut($request);
 
         if (Auth::guard('web')->check()) {
             Auth::guard('web')->logout();
@@ -114,6 +121,35 @@ class AuthenticatedSessionController extends Controller
         $request->session()->forget('url.intended');
 
         return redirect()->to($redirectTo);
+    }
+
+    private function markCurrentLoginAsLoggedOut(Request $request): void
+    {
+        $user = $request->user();
+        $sessionId = $request->session()->getId();
+
+        if (! $user || trim((string) $sessionId) === '') {
+            return;
+        }
+
+        try {
+            $loginLog = UserLoginLog::query()
+                ->where('user_id', $user->getAuthIdentifier())
+                ->where('session_id', $sessionId)
+                ->whereNull('logged_out_at')
+                ->latestLogin()
+                ->first();
+
+            if ($loginLog) {
+                $loginLog->update(['logged_out_at' => now()]);
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('No se pudo registrar la salida del usuario.', [
+                'user_id' => $user->getAuthIdentifier(),
+                'session_id' => $sessionId,
+                'message' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function firstAuthorizedUrl(?Authenticatable $user): string
