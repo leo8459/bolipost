@@ -14,6 +14,8 @@ class Empresa extends Component
     use WithFileUploads;
     use WithPagination;
 
+    private const DOCUMENTO_PDF_MAX_KB = 51200;
+
     public $search = '';
     public $searchQuery = '';
     public $editingId = null;
@@ -161,8 +163,16 @@ class Empresa extends Component
             'inicio_contrato' => 'required|date',
             'fin_contrato' => 'required|date|after_or_equal:inicio_contrato',
             'cobertura' => 'required|string|max:255',
-            'presupuesto' => 'required|numeric|min:0',
-            'documento_pdf_file' => 'nullable|file|mimes:pdf|max:10240',
+            'presupuesto' => 'nullable|numeric|min:0',
+            'documento_pdf_file' => 'nullable|file|mimes:pdf|max:' . self::DOCUMENTO_PDF_MAX_KB,
+        ];
+    }
+
+    protected function messages(): array
+    {
+        return [
+            'documento_pdf_file.max' => 'El documento PDF no debe superar los 50 MB.',
+            'documento_pdf_file.mimes' => 'El documento debe ser un archivo PDF.',
         ];
     }
 
@@ -187,9 +197,15 @@ class Empresa extends Component
         return strtoupper(trim((string) $value));
     }
 
-    protected function normalizeDecimal($value): float
+    protected function normalizeDecimal($value): ?float
     {
-        return (float) str_replace(',', '.', trim((string) $value));
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        return (float) str_replace(',', '.', $value);
     }
 
     public function render()

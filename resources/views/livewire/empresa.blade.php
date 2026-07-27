@@ -378,7 +378,7 @@
                                 <label>Documento PDF</label>
                                 <input type="file" wire:model="documento_pdf_file" class="form-control" accept="application/pdf">
                                 @error('documento_pdf_file') <small class="text-danger">{{ $message }}</small> @enderror
-                                <div class="muted small mt-2">Puedes subir un PDF de contrato, convenio o adenda.</div>
+                                <div class="muted small mt-2">Puedes subir un PDF de contrato, convenio o adenda. Tamano maximo: 50 MB.</div>
                                 @if ($documento_pdf_file)
                                     <div class="small text-info mt-1">PDF listo para guardar: {{ $documento_pdf_file->getClientOriginalName() }}</div>
                                 @elseif (!empty($documento_pdf_path))
