@@ -1692,7 +1692,7 @@ class PaquetesEmsController extends Controller
         ]);
 
         $data = $request->validate([
-            'empresa_id' => ['required', 'integer', 'exists:empresa,id'],
+            'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
             'origen' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
             'destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
             'direccion_r' => ['required', 'string', 'max:255'],
@@ -1700,6 +1700,7 @@ class PaquetesEmsController extends Controller
             'peso' => ['required', 'numeric', 'min:0.001'],
             'observacion' => ['nullable', 'string', 'max:1000'],
             'codigo_madre' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/'],
+            'ubicacion_paquete' => ['required', 'string', Rule::in(['origen', 'destino'])],
             'return_query' => ['nullable', 'string', 'max:255'],
         ], [], [
             'empresa_id' => 'empresa',
@@ -1710,9 +1711,22 @@ class PaquetesEmsController extends Controller
             'peso' => 'peso',
             'observacion' => 'observacion',
             'codigo_madre' => 'codigo madre',
+            'ubicacion_paquete' => 'ubicacion del paquete',
         ]);
 
-        $empresa = Empresa::query()->findOrFail((int) $data['empresa_id']);
+        $codigoMadre = strtoupper(trim((string) ($data['codigo_madre'] ?? '')));
+        $empresaDetectadaId = $codigoMadre !== ''
+            ? $this->resolveEmpresaIdByCodigoContrato($codigoMadre)
+            : null;
+        $empresaId = $empresaDetectadaId ?: (int) ($data['empresa_id'] ?? 0);
+
+        if ($empresaId <= 0) {
+            throw ValidationException::withMessages([
+                'empresa_id' => 'Selecciona una empresa o ingresa un codigo madre valido con codigo de empresa registrado.',
+            ]);
+        }
+
+        $empresa = Empresa::query()->findOrFail($empresaId);
         $user = Auth::user();
 
         if (! $user) {
@@ -1729,31 +1743,35 @@ class PaquetesEmsController extends Controller
                 ->with('error', 'La empresa seleccionada no tiene codigo_cliente valido para seguir el correlativo.');
         }
 
-        $estadoRecibidoId = (int) (Estado::query()
-            ->whereRaw('trim(upper(nombre_estado)) = ?', ['RECIBIDO'])
-            ->value('id') ?? 0);
+        $ubicacionPaquete = trim((string) $data['ubicacion_paquete']);
+        $estadoNombre = $ubicacionPaquete === 'origen' ? 'ALMACEN' : 'RECIBIDO';
+        $estadoDestinoId = $this->findEstadoIdByNombre($estadoNombre);
 
-        if ($estadoRecibidoId <= 0) {
+        if ($estadoDestinoId <= 0) {
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'No existe el estado RECIBIDO en la tabla estados.');
+                ->with('error', 'No existe el estado '.$estadoNombre.' en la tabla estados.');
         }
 
+        $eventoContratoId = $ubicacionPaquete === 'origen'
+            ? self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE
+            : self::EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO;
+
         $eventoExiste = DB::table('eventos')
-            ->where('id', self::EVENTO_ID_CONTRATO_RECIBIDO)
+            ->where('id', $eventoContratoId)
             ->exists();
 
         if (! $eventoExiste) {
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'No existe el evento con ID '.self::EVENTO_ID_CONTRATO_RECIBIDO.' en la tabla eventos.');
+                ->with('error', 'No existe el evento con ID '.$eventoContratoId.' en la tabla eventos.');
         }
 
         $contrato = null;
 
-        DB::transaction(function () use ($empresa, $user, $data, $codigoCliente, $estadoRecibidoId, &$contrato) {
+        DB::transaction(function () use ($empresa, $user, $data, $codigoCliente, $estadoDestinoId, $eventoContratoId, &$contrato) {
             $correlativo = $this->nextCorrelativoEmpresa((int) $empresa->id, $codigoCliente);
             $codigo = $this->buildCodigoEmpresa($codigoCliente, $correlativo);
             $codigoMadre = strtoupper(trim((string) ($data['codigo_madre'] ?? '')));
@@ -1764,7 +1782,7 @@ class PaquetesEmsController extends Controller
                 'codigo' => $codigo,
                 'codigo_madre' => $codigoMadre !== '' ? $codigoMadre : null,
                 'cod_especial' => null,
-                'estados_id' => $estadoRecibidoId,
+                'estados_id' => $estadoDestinoId,
                 'origen' => strtoupper(trim((string) $data['origen'])),
                 'destino' => strtoupper(trim((string) $data['destino'])),
                 'nombre_r' => strtoupper(trim((string) ($empresa->nombre ?: 'SIN REMITENTE'))),
@@ -1793,7 +1811,7 @@ class PaquetesEmsController extends Controller
 
             DB::table('eventos_contrato')->insert([
                 'codigo' => $codigo,
-                'evento_id' => self::EVENTO_ID_CONTRATO_RECIBIDO,
+                'evento_id' => $eventoContratoId,
                 'user_id' => (int) $user->id,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -2438,7 +2456,7 @@ class PaquetesEmsController extends Controller
             $codigoCliente = strtoupper(trim((string) ($matches[1] ?? '')));
             if ($codigoCliente !== '') {
                 $empresaIdPorCliente = Empresa::query()
-                    ->whereRaw('trim(upper(codigo_cliente)) = ?', [$codigoCliente])
+                    ->whereRaw("REPLACE(TRIM(UPPER(COALESCE(codigo_cliente, ''))), ' ', '') = ?", [$codigoCliente])
                     ->value('id');
 
                 if (!empty($empresaIdPorCliente)) {

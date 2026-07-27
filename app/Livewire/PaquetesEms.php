@@ -780,6 +780,8 @@ class PaquetesEms extends Component
 
     protected function almacenIntQueryBase()
     {
+        $searchMeta = $this->searchMeta(trim((string) $this->searchQuery));
+        $isEnTransitoCn33Search = $this->isEnTransitoEms && $this->isExactCn33Search($searchMeta);
         $userCity = $this->resolveLoggedUserOrigin();
         $hasEstadoId = Schema::hasColumn('paquetes_int', 'estado_id');
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
@@ -812,6 +814,10 @@ class PaquetesEms extends Component
         }
 
         if ($this->isEnTransitoEms) {
+            if ($isEnTransitoCn33Search) {
+                return $query;
+            }
+
             if ($estadoTransitoId) {
                 $query->where('paquetes_int.estado_id', (int) $estadoTransitoId);
             } else {
@@ -6450,10 +6456,17 @@ class PaquetesEms extends Component
         ];
     }
 
+    protected function isExactCn33Search(array $searchMeta): bool
+    {
+        return (bool) ($searchMeta['is_identifier'] ?? false)
+            && preg_match('/^[A-Z]{3}\d+$/', (string) ($searchMeta['upper'] ?? '')) === 1;
+    }
+
     protected function almacenUnificadoQuery()
     {
         $q = trim((string) $this->searchQuery);
         $searchMeta = $this->searchMeta($q);
+        $isEnTransitoCn33Search = $this->isEnTransitoEms && $this->isExactCn33Search($searchMeta);
         $userCity = trim((string) optional(Auth::user())->ciudad);
         $estadoSolicitudId = $this->findEstadoId('SOLICITUD');
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
@@ -6493,7 +6506,11 @@ class PaquetesEms extends Component
             ->selectRaw('paquetes_ems.cod_especial as cod_especial')
             ->selectRaw('paquetes_ems.created_at as created_at');
 
-        $emsQuery->when($isModoEnTransito, function ($query) use ($estadoTransitoId) {
+        $emsQuery->when($isModoEnTransito, function ($query) use ($estadoTransitoId, $isEnTransitoCn33Search) {
+            if ($isEnTransitoCn33Search) {
+                return;
+            }
+
             if (empty($estadoTransitoId)) {
                 $query->whereRaw('1 = 0');
                 return;
@@ -6650,7 +6667,11 @@ class PaquetesEms extends Component
             )
             ->selectRaw('paquetes_contrato.cod_especial as cod_especial')
             ->selectRaw('paquetes_contrato.created_at as created_at')
-            ->when($isModoEnTransito, function ($query) use ($estadoTransitoId) {
+            ->when($isModoEnTransito, function ($query) use ($estadoTransitoId, $isEnTransitoCn33Search) {
+                if ($isEnTransitoCn33Search) {
+                    return;
+                }
+
                 if (!empty($estadoTransitoId)) {
                     $query->where('paquetes_contrato.estados_id', (int) $estadoTransitoId);
                     return;
@@ -6817,7 +6838,11 @@ class PaquetesEms extends Component
             ->selectRaw("'CLIENTE' as empresa")
             ->selectRaw('solicitud_clientes.cod_especial as cod_especial')
             ->selectRaw('solicitud_clientes.created_at as created_at')
-            ->when($isModoEnTransito, function ($query) use ($estadoTransitoId) {
+            ->when($isModoEnTransito, function ($query) use ($estadoTransitoId, $isEnTransitoCn33Search) {
+                if ($isEnTransitoCn33Search) {
+                    return;
+                }
+
                 if (empty($estadoTransitoId)) {
                     $query->whereRaw('1 = 0');
                     return;
@@ -6964,8 +6989,14 @@ class PaquetesEms extends Component
             ->when($this->isEnTransitoEms && $this->filtroDestinoTransito !== '', function ($query) {
                 $query->whereIn(DB::raw('trim(upper(destino))'), $this->transitoDestinoAliases($this->filtroDestinoTransito));
             })
-            ->when($q !== '', function ($query) use ($q, $searchMeta) {
-                $query->where(function ($sub) use ($q, $searchMeta) {
+            ->when($q !== '', function ($query) use ($q, $searchMeta, $isEnTransitoCn33Search) {
+                $query->where(function ($sub) use ($q, $searchMeta, $isEnTransitoCn33Search) {
+                    if ($isEnTransitoCn33Search) {
+                        $sub->whereRaw('trim(upper(coalesce(cod_especial, \'\'))) = ?', [$searchMeta['upper']]);
+
+                        return;
+                    }
+
                     if ($searchMeta['is_identifier']) {
                         $prefix = $searchMeta['prefix_like'];
 
@@ -6990,6 +7021,12 @@ class PaquetesEms extends Component
             });
 
         if ($this->isEnTransitoEms) {
+            if ($isEnTransitoCn33Search) {
+                return $query
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('record_id');
+            }
+
             return DB::query()
                 ->fromSub(
                     $query
@@ -7638,7 +7675,7 @@ class PaquetesEms extends Component
 
     protected function hasGlobalDepartmentAccess(): bool
     {
-        return (bool) optional(Auth::user())->isSuperAdmin();
+        return (bool) optional(Auth::user())->hasGlobalDepartmentAccess();
     }
 
     protected function normalizePerPage($value): int

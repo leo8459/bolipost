@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 class BitacoraCn33Service
 {
     private const ALERT_START_DATE = '2026-07-17 00:00:00';
+    private const EVENTO_ID_SACA_INTERNA_CREADA_SALIDA = 240;
     private const CN33_PREFIX_BY_REGIONAL = [
         'LA PAZ' => 'LPZ',
         'COCHABAMBA' => 'CBB',
@@ -49,7 +50,7 @@ class BitacoraCn33Service
                 count(*) as total_registros,
                 min(created_at) as first_created_at,
                 max(created_at) as last_created_at,
-                max(dispatch_created_at) as dispatch_created_at,
+                coalesce(min(dispatch_created_at), min(created_at)) as dispatch_created_at,
                 sum(coalesce(peso, 0)) as peso_total,
                 sum(coalesce(precio, 0)) as precio_total
             ')
@@ -104,19 +105,19 @@ class BitacoraCn33Service
                 cn33_source.regional_normalizada as regional,
                 min(cn33_source.created_at) as first_created_at,
                 max(cn33_source.created_at) as last_created_at,
-                max(cn33_source.dispatch_created_at) as dispatch_created_at,
+                coalesce(min(cn33_source.dispatch_created_at), min(cn33_source.created_at)) as dispatch_created_at,
                 sum(coalesce(cn33_source.peso, 0)) as peso_total,
                 sum(coalesce(cn33_source.precio, 0)) as precio_total,
                 count(*) as total_registros
             ')
             ->whereNull('bitacoras_registradas.bitacora_created_at')
-            ->where('cn33_source.dispatch_created_at', '>=', $alertStartDate)
             ->when($regional !== null, function ($query) use ($regional) {
                 $query->where('cn33_source.regional_normalizada', $regional);
             })
             ->groupBy('cn33_source.cod_especial_normalizado', 'cn33_source.regional_normalizada')
-            ->havingRaw('max(cn33_source.dispatch_created_at) <= ?', [now()->subHours($graceHours)])
-            ->orderByRaw('max(cn33_source.dispatch_created_at) asc');
+            ->havingRaw('coalesce(min(cn33_source.dispatch_created_at), min(cn33_source.created_at)) >= ?', [$alertStartDate])
+            ->havingRaw('coalesce(min(cn33_source.dispatch_created_at), min(cn33_source.created_at)) <= ?', [now()->subHours($graceHours)])
+            ->orderByRaw('coalesce(min(cn33_source.dispatch_created_at), min(cn33_source.created_at)) asc');
 
         $rows = (clone $pendingBaseQuery)
             ->limit($previewLimit)
@@ -167,25 +168,31 @@ class BitacoraCn33Service
     private function sourceUnionQuery(): Builder
     {
         $ems = DB::table('paquetes_ems')
+            ->leftJoinSub($this->dispatchEventsSubquery('eventos_ems'), 'ems_dispatch_events', function ($join) {
+                $join->on('ems_dispatch_events.codigo_normalizado', '=', DB::raw('trim(upper(paquetes_ems.codigo))'));
+            })
             ->selectRaw("
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(origen, ''))) as regional_normalizada,
-                created_at,
-                updated_at as dispatch_created_at,
-                coalesce(peso, 0) as peso,
-                coalesce(precio, 0) as precio
+                paquetes_ems.created_at,
+                ems_dispatch_events.dispatch_created_at as dispatch_created_at,
+                coalesce(paquetes_ems.peso, 0) as peso,
+                coalesce(paquetes_ems.precio, 0) as precio
             ")
             ->whereNotNull('cod_especial')
             ->whereRaw("trim(cod_especial) <> ''");
 
         $contratos = DB::table('paquetes_contrato')
+            ->leftJoinSub($this->dispatchEventsSubquery('eventos_contrato'), 'contrato_dispatch_events', function ($join) {
+                $join->on('contrato_dispatch_events.codigo_normalizado', '=', DB::raw('trim(upper(paquetes_contrato.codigo))'));
+            })
             ->selectRaw("
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(origen, ''))) as regional_normalizada,
-                created_at,
-                updated_at as dispatch_created_at,
-                coalesce(peso, 0) as peso,
-                coalesce(precio, 0) as precio
+                paquetes_contrato.created_at,
+                contrato_dispatch_events.dispatch_created_at as dispatch_created_at,
+                coalesce(paquetes_contrato.peso, 0) as peso,
+                coalesce(paquetes_contrato.precio, 0) as precio
             ")
             ->whereNotNull('cod_especial')
             ->whereRaw("trim(cod_especial) <> ''");
@@ -195,7 +202,7 @@ class BitacoraCn33Service
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(ciudad, ''))) as regional_normalizada,
                 created_at,
-                updated_at as dispatch_created_at,
+                created_at as dispatch_created_at,
                 coalesce(peso, 0) as peso,
                 coalesce(precio, 0) as precio
             ")
@@ -207,7 +214,7 @@ class BitacoraCn33Service
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(cuidad, ''))) as regional_normalizada,
                 created_at,
-                updated_at as dispatch_created_at,
+                created_at as dispatch_created_at,
                 coalesce(peso, 0) as peso,
                 coalesce(precio, 0) as precio
             ")
@@ -227,25 +234,31 @@ class BitacoraCn33Service
         $contratoRegionalExpression = $this->cn33RegionalExpressionSql("trim(upper(coalesce(origen, '')))");
 
         $ems = DB::table('paquetes_ems')
+            ->leftJoinSub($this->dispatchEventsSubquery('eventos_ems'), 'ems_dispatch_events', function ($join) {
+                $join->on('ems_dispatch_events.codigo_normalizado', '=', DB::raw('trim(upper(paquetes_ems.codigo))'));
+            })
             ->selectRaw("
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 {$emsRegionalExpression} as regional_normalizada,
-                created_at,
-                updated_at as dispatch_created_at,
-                coalesce(peso, 0) as peso,
-                coalesce(precio, 0) as precio
+                paquetes_ems.created_at,
+                ems_dispatch_events.dispatch_created_at as dispatch_created_at,
+                coalesce(paquetes_ems.peso, 0) as peso,
+                coalesce(paquetes_ems.precio, 0) as precio
             ")
             ->whereNotNull('cod_especial')
             ->whereRaw("trim(cod_especial) <> ''");
 
         $contratos = DB::table('paquetes_contrato')
+            ->leftJoinSub($this->dispatchEventsSubquery('eventos_contrato'), 'contrato_dispatch_events', function ($join) {
+                $join->on('contrato_dispatch_events.codigo_normalizado', '=', DB::raw('trim(upper(paquetes_contrato.codigo))'));
+            })
             ->selectRaw("
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 {$contratoRegionalExpression} as regional_normalizada,
-                created_at,
-                updated_at as dispatch_created_at,
-                coalesce(peso, 0) as peso,
-                coalesce(precio, 0) as precio
+                paquetes_contrato.created_at,
+                contrato_dispatch_events.dispatch_created_at as dispatch_created_at,
+                coalesce(paquetes_contrato.peso, 0) as peso,
+                coalesce(paquetes_contrato.precio, 0) as precio
             ")
             ->whereNotNull('cod_especial')
             ->whereRaw("trim(cod_especial) <> ''");
@@ -286,5 +299,13 @@ class BitacoraCn33Service
         }
 
         return 'case ' . implode(' ', $cases) . " else {$fallbackRegionalExpression} end";
+    }
+
+    private function dispatchEventsSubquery(string $eventTable): Builder
+    {
+        return DB::table($eventTable)
+            ->selectRaw('trim(upper(codigo)) as codigo_normalizado, min(created_at) as dispatch_created_at')
+            ->where('evento_id', self::EVENTO_ID_SACA_INTERNA_CREADA_SALIDA)
+            ->groupBy(DB::raw('trim(upper(codigo))'));
     }
 }

@@ -14,7 +14,9 @@ class ApplySecurityHeaders
         /** @var \Symfony\Component\HttpFoundation\Response $response */
         $response = $next($request);
 
-        $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+        if (! app()->environment('local')) {
+            $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+        }
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
