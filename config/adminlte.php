@@ -1071,6 +1071,11 @@ return [
                             'icon' => 'fas fa-user',
                         ],
                         [
+                            'text' => 'Ingresos',
+                            'url' => 'ingresos',
+                            'icon' => 'fas fa-sign-in-alt',
+                        ],
+                        [
                             'text' => 'Usuarios empresas',
                             'url' => 'users/empresas',
                             'icon' => 'fas fa-building',

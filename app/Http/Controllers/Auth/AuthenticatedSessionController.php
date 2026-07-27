@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\UserLoginLog;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -59,6 +60,26 @@ class AuthenticatedSessionController extends Controller
             'user_id' => $request->user()?->id,
             'session_id_after_regenerate' => $request->session()->getId(),
         ]);
+
+        if ($user) {
+            try {
+                UserLoginLog::create([
+                    'user_id' => $user->id,
+                    'user_name' => $user->name,
+                    'user_alias' => $user->alias,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => (string) $request->userAgent(),
+                    'session_id' => $request->session()->getId(),
+                    'logged_in_at' => now(),
+                ]);
+            } catch (\Throwable $exception) {
+                Log::warning('No se pudo registrar el ingreso del usuario.', [
+                    'user_id' => $user->id,
+                    'ip' => $request->ip(),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
 
         return redirect()->intended($fallbackUrl);
     }

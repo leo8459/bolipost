@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QzSecurityController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserLoginLogController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleHasPermissionController;
@@ -238,6 +239,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::patch('/configuracion/apis/{token}/dar-baja', [ExternalApiTokenController::class, 'deactivate'])->name('configuracion.apis.deactivate');
     Route::patch('/configuracion/apis/{token}/activar', [ExternalApiTokenController::class, 'activate'])->name('configuracion.apis.activate');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/ingresos', [UserLoginLogController::class, 'index'])->name('ingresos.index');
     Route::get('/users/empresas', [UserController::class, 'empresas'])->name('users.empresas');
     Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
     Route::get('users/pdf', [UserController::class, 'pdf'])->name('users.pdf');
