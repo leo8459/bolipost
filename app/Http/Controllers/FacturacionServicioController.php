@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Cliente;
 use App\Models\ConceptoFacturacion;
+use App\Models\Empresa;
 use App\Services\FacturacionCartService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class FacturacionServicioController extends Controller
@@ -21,8 +23,35 @@ class FacturacionServicioController extends Controller
         $caja = $this->safeCajaContext($service, $user);
         $conceptos = ConceptoFacturacion::query()
             ->where('activo', true)
+            ->where(function ($query) {
+                $query->whereRaw("UPPER(TRIM(COALESCE(nombre, ''))) = ?", ['CONTRATOS'])
+                    ->orWhereRaw("UPPER(TRIM(COALESCE(codigo, ''))) = ?", ['SRVE-7']);
+            })
             ->orderBy('nombre')
             ->get();
+        $empresas = Empresa::query()
+            ->leftJoin('clientes as c', function ($join) {
+                $join->on(
+                    DB::raw("REPLACE(TRIM(UPPER(COALESCE(c.codigo_cliente, ''))), ' ', '')"),
+                    '=',
+                    DB::raw("REPLACE(TRIM(UPPER(COALESCE(empresa.codigo_cliente, ''))), ' ', '')")
+                );
+            })
+            ->whereRaw("TRIM(COALESCE(empresa.codigo_cliente, '')) <> ?", ['9999'])
+            ->orderBy('empresa.codigo_cliente')
+            ->orderBy('empresa.nombre')
+            ->get([
+                'empresa.id',
+                'empresa.nombre',
+                'empresa.sigla',
+                'empresa.codigo_cliente',
+                DB::raw('c.id as cliente_id'),
+                DB::raw('c.razon_social as cliente_razon_social'),
+                DB::raw('c.tipodocumentoidentidad as cliente_tipo_documento'),
+                DB::raw('c.numero_carnet as cliente_numero_documento'),
+                DB::raw('c.complemento as cliente_complemento'),
+                DB::raw('c.email as cliente_email'),
+            ]);
 
         $activeDraft = $context['draft'] ?? null;
         $activeDraftItems = collect($activeDraft?->items ?? []);
@@ -33,12 +62,18 @@ class FacturacionServicioController extends Controller
                 $concepto = $conceptos->firstWhere('id', (int) ($item['concepto_facturacion_id'] ?? 0));
                 $cantidad = max(1, (int) ($item['cantidad'] ?? 1));
                 $precioBase = round((float) ($item['precio'] ?? $concepto?->precio_base ?? 0), 2);
+                $descripcion = trim((string) ($item['descripcion'] ?? data_get(
+                    $concepto,
+                    'descripcion',
+                    $concepto?->nombre ?? ''
+                )));
 
                 return [
                     'concepto_facturacion_id' => (int) ($item['concepto_facturacion_id'] ?? 0),
                     'cantidad' => $cantidad,
                     'nombre' => $concepto?->nombre ?? 'Concepto no disponible',
                     'codigo' => $concepto?->codigo ?? '',
+                    'descripcion' => $descripcion,
                     'precio_base' => $precioBase,
                     'total' => round($precioBase * $cantidad, 2),
                 ];
@@ -47,6 +82,7 @@ class FacturacionServicioController extends Controller
 
         return view('facturacion.servicio-directo', [
             'conceptos' => $conceptos,
+            'empresas' => $empresas,
             'billingDocumentTypes' => Cliente::tiposDocumentoIdentidad(),
             'cajaContext' => $caja,
             'activeDraft' => $activeDraft,
@@ -62,10 +98,12 @@ class FacturacionServicioController extends Controller
         $this->authorizeFacturacionAccess($user);
 
         $validated = $request->validate([
+            'empresa_id' => ['required', 'integer', 'exists:empresa,id'],
             'conceptos' => ['required', 'array', 'min:1'],
             'conceptos.*.concepto_facturacion_id' => ['required', 'integer', 'exists:conceptos_facturacion,id'],
             'conceptos.*.cantidad' => ['required', 'integer', 'min:1', 'max:999'],
             'conceptos.*.codigo' => ['nullable', 'string', 'max:120'],
+            'conceptos.*.descripcion' => ['nullable', 'string', 'max:255'],
             'conceptos.*.precio' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'tipo_documento' => ['required', 'string', 'max:20', Rule::in(array_keys(Cliente::tiposDocumentoIdentidad()))],
             'numero_documento' => ['required', 'string', 'max:80'],
@@ -73,6 +111,10 @@ class FacturacionServicioController extends Controller
             'razon_social' => ['required', 'string', 'max:255'],
             'correo_facturacion' => ['nullable', 'email', 'max:50'],
         ]);
+
+        $empresa = Empresa::query()
+            ->whereKey((int) $validated['empresa_id'])
+            ->firstOrFail();
 
         $context = $this->safeRemoteContext($service, $user);
         $activeDraftItems = collect(($context['draft'] ?? null)?->items ?? []);
@@ -93,6 +135,7 @@ class FacturacionServicioController extends Controller
                     'concepto_facturacion_id' => (int) $item['concepto_facturacion_id'],
                     'cantidad' => max(1, (int) $item['cantidad']),
                     'codigo' => trim((string) ($item['codigo'] ?? '')),
+                    'descripcion' => trim((string) ($item['descripcion'] ?? '')),
                     'precio' => round((float) ($item['precio'] ?? 0), 2),
                 ];
             })
@@ -107,6 +150,13 @@ class FacturacionServicioController extends Controller
         $billingPayload = [
             'modalidad_facturacion' => 'con_datos',
             'canal_emision' => 'factura_electronica',
+            'canal_operativo' => 'contrato',
+            'contabiliza_en_caja' => false,
+            'es_cuenta_por_cobrar' => true,
+            'empresa_id' => (int) $empresa->id,
+            'empresa_codigo_cliente' => trim((string) ($empresa->codigo_cliente ?? '')),
+            'empresa_nombre' => trim((string) ($empresa->nombre ?? '')),
+            'empresa_sigla' => trim((string) ($empresa->sigla ?? '')),
             'tipo_documento' => (string) $validated['tipo_documento'],
             'numero_documento' => trim((string) $validated['numero_documento']),
             'complemento_documento' => trim((string) ($validated['complemento_documento'] ?? '')),
@@ -143,11 +193,14 @@ class FacturacionServicioController extends Controller
                         $cantidad = max(1, (int) ($linea['cantidad'] ?? 1));
                         $precio = round((float) ($linea['precio'] ?? $precioBaseConcepto), 2);
                         $codigo = trim((string) ($linea['codigo'] ?? $concepto->codigo ?? ''));
-                        $descripcion = trim((string) data_get(
-                            $service->normalizeConceptoFacturacionFiscalData($concepto),
-                            'descripcion_servicio',
-                            $concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'
-                        ));
+                        $descripcion = trim((string) ($linea['descripcion'] ?? ''));
+                        if ($descripcion === '') {
+                            $descripcion = trim((string) data_get(
+                                $service->normalizeConceptoFacturacionFiscalData($concepto),
+                                'descripcion_servicio',
+                                $concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'
+                            ));
+                        }
 
                         return collect(range(1, $cantidad))
                             ->map(fn () => [
@@ -159,7 +212,13 @@ class FacturacionServicioController extends Controller
                     ->values()
                     ->all();
 
-                if ($this->requiresGroupedCustomization($entries, $concepto, $precioBaseConcepto)) {
+                $baseDescription = trim((string) data_get(
+                    $service->normalizeConceptoFacturacionFiscalData($concepto),
+                    'descripcion_servicio',
+                    $concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'
+                ));
+
+                if ($this->requiresGroupedCustomization($entries, $concepto, $precioBaseConcepto, $baseDescription)) {
                     $service->customizeGroupedDraftItemUnits($user, (int) data_get($draftItem, 'id', 0), $entries);
                 }
             }
@@ -191,7 +250,9 @@ class FacturacionServicioController extends Controller
                         ? 'Factura emitida'
                         : 'Respuesta de facturacion',
                     'message' => trim((string) ($respuesta['mensaje'] ?? 'La operacion fue procesada.')),
-                    'detail' => 'Conceptos: ' . $resumenConceptos
+                    'detail' => 'Empresa: ' . trim((string) ($empresa->nombre ?? 'SIN EMPRESA'))
+                        . ' | Modalidad: Cuenta por cobrar'
+                        . ' | Conceptos: ' . $resumenConceptos
                         . ' | Orden: ' . trim((string) data_get($resultado, 'carrito.codigo_orden', '-'))
                         . ' | Factura: ' . ($facturaNumero !== '' ? $facturaNumero : 'S/N'),
                     'pdf_url' => $pdfUrl,
@@ -245,14 +306,20 @@ class FacturacionServicioController extends Controller
             });
     }
 
-    private function requiresGroupedCustomization(array $entries, ConceptoFacturacion $concepto, float $precioBase): bool
+    private function requiresGroupedCustomization(
+        array $entries,
+        ConceptoFacturacion $concepto,
+        float $precioBase,
+        string $baseDescription
+    ): bool
     {
         $baseCode = trim((string) ($concepto->codigo ?? ''));
 
         return collect($entries)
-            ->contains(function (array $entry) use ($precioBase, $baseCode) {
+            ->contains(function (array $entry) use ($precioBase, $baseCode, $baseDescription) {
                 return round((float) ($entry['precio'] ?? $precioBase), 2) !== round($precioBase, 2)
-                    || trim((string) ($entry['codigo'] ?? $baseCode)) !== $baseCode;
+                    || trim((string) ($entry['codigo'] ?? $baseCode)) !== $baseCode
+                    || trim((string) ($entry['descripcion_servicio'] ?? $baseDescription)) !== $baseDescription;
             });
     }
 }

@@ -3,17 +3,6 @@
 @section('title', 'Facturacion por servicio')
 
 @section('content_header')
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
-        <div>
-            <h1 class="mb-0">Facturacion por servicio</h1>
-            <small class="text-muted">Aqui puedes facturar servicios de forma rapida.</small>
-        </div>
-        <div class="mt-2 mt-md-0">
-            <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left mr-1"></i> Volver al panel
-            </a>
-        </div>
-    </div>
 @stop
 
 @section('content')
@@ -47,40 +36,71 @@
         <div class="col-lg-4 mb-4">
             <div class="card h-100">
                 <div class="card-header">
-                    <strong>Antes de empezar</strong>
+                    <strong>Elegir empresa</strong>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <div class="text-muted small">Estado de caja</div>
-                        <div class="font-weight-bold {{ $isCajaAbierta ? 'text-success' : 'text-warning' }}">
-                            {{ $isCajaAbierta ? 'Caja abierta' : 'Sin apertura' }}
-                        </div>
-                        <div class="small text-muted mt-1">
-                            {{ $cajaMensaje !== '' ? $cajaMensaje : ($isCajaAbierta ? 'Ya puedes facturar.' : 'Primero debes abrir caja para poder facturar.') }}
+                        <label for="empresa_selector" class="font-weight-bold">Empresa registrada</label>
+                        <select id="empresa_selector" class="form-control" {{ (!$isCajaAbierta || $hasBlockingDraft) ? 'disabled' : '' }}>
+                            <option value="">Selecciona una empresa</option>
+                            @foreach($empresas as $empresa)
+                                <option
+                                    value="{{ $empresa->id }}"
+                                    data-codigo-cliente="{{ (string) ($empresa->codigo_cliente ?? '') }}"
+                                    data-tipo-documento="{{ (string) ($empresa->cliente_tipo_documento ?? '') }}"
+                                    data-numero-documento="{{ (string) ($empresa->cliente_numero_documento ?? '') }}"
+                                    data-complemento="{{ (string) ($empresa->cliente_complemento ?? '') }}"
+                                    data-razon-social="{{ (string) ($empresa->cliente_razon_social ?? $empresa->nombre ?? '') }}"
+                                    data-correo="{{ (string) ($empresa->cliente_email ?? '') }}"
+                                >
+                                    {{ $empresa->codigo_cliente }} | {{ $empresa->nombre }} @if((string) ($empresa->sigla ?? '') !== '') | {{ $empresa->sigla }} @endif
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('empresa_id')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+                        <div class="small text-muted mt-2">
+                            Al elegir una empresa, se recupera su codigo cliente para emitir como cuenta por cobrar.
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <div class="text-muted small">Revision de venta pendiente</div>
-                        @if($hasBlockingDraft)
-                            <div class="font-weight-bold text-warning">Hay una venta pendiente</div>
-                            <div class="small text-muted mt-1">
-                                Tienes {{ $activeDraftItems->count() }} item(s) pendientes en la facturacion principal. Primero termina o limpia esa venta.
-                            </div>
-                        @else
-                            <div class="font-weight-bold text-success">Todo listo</div>
-                            <div class="small text-muted mt-1">
-                                Puedes hacer una nueva factura desde esta pantalla.
-                            </div>
-                        @endif
+                    <div class="border rounded p-3 bg-light">
+                        <div class="font-weight-bold mb-2">Datos recuperados</div>
+                        <div class="small text-muted mb-1">Codigo cliente</div>
+                        <div id="empresaPreviewCodigo">-</div>
+                        <div class="small text-muted mt-3 mb-1">Modalidad</div>
+                        <div>Cuenta por cobrar</div>
                     </div>
 
-                    <div class="alert alert-light border mb-0">
-                        <strong>Importante</strong>
-                        <div class="small mt-1">
-                            Esta pantalla sirve para hacer una factura rapida. No usa carrito.
+                    @if(!$isCajaAbierta)
+                        <div class="alert alert-warning mt-3 mb-3">
+                            Primero debes abrir caja para poder facturar.
                         </div>
-                    </div>
+                        <form method="POST" action="{{ route('facturacion.cart.caja.abrir') }}">
+                            @csrf
+                            <button type="submit" class="btn btn-warning btn-lg btn-block py-3 font-weight-bold">
+                                <i class="fas fa-lock-open mr-2"></i> Abrir caja
+                            </button>
+                        </form>
+                    @elseif($hasBlockingDraft)
+                        <div class="alert alert-warning mt-3 mb-0">
+                            Tienes {{ $activeDraftItems->count() }} item(s) pendientes en la facturacion principal.
+                        </div>
+                    @elseif($cajaMensaje !== '')
+                        <div class="small text-muted mt-3 mb-0">
+                            {{ $cajaMensaje }}
+                        </div>
+                    @endif
+
+                    @if($isCajaAbierta)
+                        <form method="POST" action="{{ route('facturacion.cart.caja.cerrar') }}" class="mt-3">
+                            @csrf
+                            <button type="submit" class="btn btn-outline-danger btn-lg btn-block py-3 font-weight-bold">
+                                <i class="fas fa-lock mr-2"></i> Cerrar caja
+                            </button>
+                        </form>
+                    @endif
                 </div>
             </div>
         </div>
@@ -92,9 +112,15 @@
                 </div>
                 <div class="card-body">
                     @if(!$isCajaAbierta)
-                        <div class="alert alert-warning">
+                        <div class="alert alert-warning mb-3">
                             Debes abrir caja antes de facturar.
                         </div>
+                        <form method="POST" action="{{ route('facturacion.cart.caja.abrir') }}" class="mb-4">
+                            @csrf
+                            <button type="submit" class="btn btn-warning btn-lg px-5 py-3 font-weight-bold">
+                                <i class="fas fa-lock-open mr-2"></i> Abrir caja
+                            </button>
+                        </form>
                     @endif
 
                     @if($hasBlockingDraft)
@@ -105,13 +131,24 @@
 
                     <form method="POST" action="{{ route('facturacion-servicio.store') }}">
                         @csrf
+                        <input type="hidden" id="empresa_id_hidden" name="empresa_id" value="{{ old('empresa_id') }}">
+                        <input type="hidden" id="empresa_codigo_cliente_hidden" name="empresa_codigo_cliente" value="">
+                        <input type="hidden" id="empresa_nombre_hidden" name="empresa_nombre" value="">
+                        <input type="hidden" id="empresa_sigla_hidden" name="empresa_sigla" value="">
                         <div class="row">
                             <div class="col-md-8 mb-3">
-                                <label for="concepto_facturacion_id" class="font-weight-bold">Servicio del combo</label>
+                                <label for="concepto_facturacion_id" class="font-weight-bold">Servicio</label>
                                 <select id="concepto_facturacion_id" name="concepto_facturacion_id" class="form-control @error('concepto_facturacion_id') is-invalid @enderror" {{ (!$isCajaAbierta || $hasBlockingDraft) ? 'disabled' : '' }}>
                                     <option value="">Selecciona un servicio facturable</option>
                                     @foreach($conceptos as $concepto)
-                                        <option value="{{ $concepto->id }}" data-precio="{{ number_format((float) $concepto->precio_base, 2, '.', '') }}" {{ (string) old('concepto_facturacion_id') === (string) $concepto->id ? 'selected' : '' }}>
+                                        <option
+                                            value="{{ $concepto->id }}"
+                                            data-precio="{{ number_format((float) $concepto->precio_base, 2, '.', '') }}"
+                                            data-codigo="{{ (string) ($concepto->codigo ?? '') }}"
+                                            data-nombre="{{ (string) ($concepto->nombre ?? '') }}"
+                                            data-descripcion="{{ (string) ($concepto->descripcion ?? $concepto->nombre ?? '') }}"
+                                            {{ ((string) old('concepto_facturacion_id') === (string) $concepto->id || (old('concepto_facturacion_id') === null && $conceptos->count() === 1)) ? 'selected' : '' }}
+                                        >
                                             {{ $concepto->nombre }} | {{ $concepto->codigo }} | Bs {{ number_format((float) $concepto->precio_base, 2) }}
                                         </option>
                                     @endforeach
@@ -127,6 +164,12 @@
                                 @error('cantidad')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label for="concepto_descripcion" class="font-weight-bold">Descripcion</label>
+                                <textarea id="concepto_descripcion" class="form-control" rows="2" {{ (!$isCajaAbierta || $hasBlockingDraft) ? 'disabled' : '' }}>{{ old('concepto_descripcion') }}</textarea>
+                                <div class="small text-muted mt-1">Este texto saldra en la factura y puedes ajustarlo antes de añadir el servicio.</div>
                             </div>
 
 
@@ -194,6 +237,7 @@
                                             <tr>
                                                 <th>Servicio</th>
                                                 <th class="text-center">Cantidad</th>
+                                                <th>Descripcion</th>
                                                 <th class="text-right">Precio</th>
                                                 <th class="text-right">Total</th>
                                                 <th class="text-center">Accion</th>
@@ -210,9 +254,13 @@
                                                         <input type="hidden" name="conceptos[{{ $index }}][concepto_facturacion_id]" value="{{ $item['concepto_facturacion_id'] }}">
                                                         <input type="hidden" name="conceptos[{{ $index }}][cantidad]" value="{{ $item['cantidad'] }}">
                                                         <input type="hidden" name="conceptos[{{ $index }}][codigo]" value="{{ $item['codigo'] }}">
+                                                        <input type="hidden" name="conceptos[{{ $index }}][descripcion]" value="{{ $item['descripcion'] ?? '' }}">
                                                         <input type="hidden" name="conceptos[{{ $index }}][precio]" value="{{ number_format((float) $item['precio_base'], 2, '.', '') }}">
                                                     </td>
                                                     <td class="text-center">{{ $item['cantidad'] }}</td>
+                                                    <td>
+                                                        <textarea class="form-control form-control-sm" rows="2" data-line-description {{ (!$isCajaAbierta || $hasBlockingDraft) ? 'disabled' : '' }}>{{ $item['descripcion'] ?? '' }}</textarea>
+                                                    </td>
                                                     <td class="text-right">
                                                         <input type="number" min="0" max="999999.99" step="0.01" class="form-control form-control-sm text-right" value="{{ number_format((float) $item['precio_base'], 2, '.', '') }}" data-line-price {{ (!$isCajaAbierta || $hasBlockingDraft) ? 'disabled' : '' }}>
                                                     </td>
@@ -225,7 +273,7 @@
                                                 </tr>
                                             @empty
                                                 <tr id="facturacionServicioEmptyRow">
-                                                    <td colspan="5" class="text-center text-muted py-3">Aun no añadiste servicios.</td>
+                                                    <td colspan="6" class="text-center text-muted py-3">Aun no añadiste servicios.</td>
                                                 </tr>
                                             @endforelse
                                         </tbody>
@@ -245,7 +293,7 @@
                                     @if($pendingConceptos->isNotEmpty())
                                         {{ $pendingConceptos->count() }} servicio(s) listos para emitir | Bs {{ number_format($pendingConceptosTotal, 2) }}
                                     @else
-                                        Selecciona un servicio del combo
+                                        Selecciona un servicio
                                     @endif
                                 </div>
                             </div>
@@ -324,8 +372,15 @@
 @section('js')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const empresaSelector = document.getElementById('empresa_selector');
+            const empresaPreviewCodigo = document.getElementById('empresaPreviewCodigo');
+            const empresaIdHidden = document.getElementById('empresa_id_hidden');
+            const empresaCodigoClienteHidden = document.getElementById('empresa_codigo_cliente_hidden');
+            const empresaNombreHidden = document.getElementById('empresa_nombre_hidden');
+            const empresaSiglaHidden = document.getElementById('empresa_sigla_hidden');
             const select = document.getElementById('concepto_facturacion_id');
             const quantity = document.getElementById('cantidad');
+            const descriptionInput = document.getElementById('concepto_descripcion');
             const preview = document.getElementById('facturacionServicioPreview');
             const addButton = document.getElementById('facturacionServicioAdd');
             const itemsBody = document.getElementById('facturacionServicioItemsBody');
@@ -339,11 +394,72 @@
             const confirmModal = document.getElementById('facturacionServicioConfirmModal');
             const resultModal = document.getElementById('facturacionServicioResultModal');
 
-            if (!select || !quantity || !preview || !addButton || !itemsBody || !itemsCount || !itemsTotal) {
+            if (!select || !quantity || !descriptionInput || !preview || !addButton || !itemsBody || !itemsCount || !itemsTotal) {
                 return;
             }
 
+            const syncEmpresaPreviewFromFields = () => {
+                if (empresaPreviewCodigo instanceof HTMLElement) {
+                    const selected = empresaSelector instanceof HTMLSelectElement
+                        ? empresaSelector.options[empresaSelector.selectedIndex]
+                        : null;
+                    empresaPreviewCodigo.textContent = String(selected?.dataset?.codigoCliente || '').trim() || '-';
+                }
+
+                if (empresaIdHidden instanceof HTMLInputElement) {
+                    empresaIdHidden.value = empresaSelector instanceof HTMLSelectElement
+                        ? String(empresaSelector.value || '').trim()
+                        : '';
+                }
+
+                if (empresaCodigoClienteHidden instanceof HTMLInputElement) {
+                    const selected = empresaSelector instanceof HTMLSelectElement
+                        ? empresaSelector.options[empresaSelector.selectedIndex]
+                        : null;
+                    empresaCodigoClienteHidden.value = String(selected?.dataset?.codigoCliente || '').trim();
+                }
+
+                if (empresaNombreHidden instanceof HTMLInputElement) {
+                    const selected = empresaSelector instanceof HTMLSelectElement
+                        ? empresaSelector.options[empresaSelector.selectedIndex]
+                        : null;
+                    const optionText = String(selected?.text || '');
+                    const parts = optionText.split('|').map((part) => part.trim()).filter(Boolean);
+                    empresaNombreHidden.value = parts.length >= 2 ? parts[1] : '';
+                }
+
+                if (empresaSiglaHidden instanceof HTMLInputElement) {
+                    const selected = empresaSelector instanceof HTMLSelectElement
+                        ? empresaSelector.options[empresaSelector.selectedIndex]
+                        : null;
+                    const optionText = String(selected?.text || '');
+                    const parts = optionText.split('|').map((part) => part.trim()).filter(Boolean);
+                    empresaSiglaHidden.value = parts.length >= 3 ? parts[2] : '';
+                }
+            };
+
+            const applyEmpresaSelection = () => {
+                if (!(empresaSelector instanceof HTMLSelectElement)) {
+                    syncEmpresaPreviewFromFields();
+                    return;
+                }
+
+                const selected = empresaSelector.options[empresaSelector.selectedIndex];
+                if (!selected || !selected.value) {
+                    syncEmpresaPreviewFromFields();
+                    return;
+                }
+
+                syncEmpresaPreviewFromFields();
+            };
+
             const formatMoney = (value) => `Bs ${Number(value || 0).toFixed(2)}`;
+            const escapeHtml = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
             const normalizePrice = (value) => {
                 const numeric = Number.parseFloat(String(value ?? '0').replace(',', '.'));
                 if (!Number.isFinite(numeric) || numeric < 0) {
@@ -351,6 +467,28 @@
                 }
 
                 return Number(numeric.toFixed(2));
+            };
+            const getCurrentTotal = () => Array.from(itemsBody.querySelectorAll('tr[data-line-index]')).reduce((carry, row) => {
+                const totalCell = row.children[4];
+                return carry + Number(String(totalCell?.textContent || '0').replace(/[^\d.-]/g, ''));
+            }, 0);
+            const getSelectedBaseDescription = () => {
+                const selected = select.options[select.selectedIndex];
+                return String(selected?.dataset?.descripcion || '').trim();
+            };
+            const canSubmitFacturacion = () => {
+                const hasEmpresa = empresaSelector instanceof HTMLSelectElement && String(empresaSelector.value || '').trim() !== '';
+                const totalLines = itemsBody.querySelectorAll('tr[data-line-index]').length;
+                const total = getCurrentTotal();
+
+                return hasEmpresa && totalLines > 0 && total > 0;
+            };
+            const syncSubmitAvailability = () => {
+                if (!(submitTrigger instanceof HTMLButtonElement)) {
+                    return;
+                }
+
+                submitTrigger.disabled = !canSubmitFacturacion();
             };
             const buildAlternateCode = (baseCode, position) => {
                 const trimmedBase = String(baseCode || '').trim();
@@ -370,13 +508,15 @@
                 const qtyInput = row.querySelector('input[name$="[cantidad]"]');
                 const codeInput = row.querySelector('input[name$="[codigo]"]');
                 const priceInput = row.querySelector('input[name$="[precio]"]');
-                const totalCell = row.children[3];
+                const descriptionInput = row.querySelector('input[name$="[descripcion]"]');
+                const totalCell = row.children[4];
 
                 return {
                     row,
                     conceptoId: Number(idInput?.value || 0),
                     cantidad: Number(qtyInput?.value || 0),
                     codigo: String(codeInput?.value || ''),
+                    descripcion: String(descriptionInput?.value || '').trim(),
                     precio: priceInput ? normalizePrice(priceInput.value) : 0,
                     total: Number(String(totalCell?.textContent || '0').replace(/[^\d.-]/g, '')),
                 };
@@ -426,7 +566,9 @@
                     const idInput = row.querySelector('input[name$="[concepto_facturacion_id]"]');
                     const qtyInput = row.querySelector('input[name$="[cantidad]"]');
                     const codeInput = row.querySelector('input[name$="[codigo]"]');
+                    const descriptionInput = row.querySelector('input[name$="[descripcion]"]');
                     const priceInput = row.querySelector('input[name$="[precio]"]');
+                    const descriptionEditor = row.querySelector('[data-line-description]');
                     const priceEditor = row.querySelector('[data-line-price]');
                     const removeButton = row.querySelector('[data-remove-line]');
 
@@ -439,8 +581,14 @@
                     if (codeInput) {
                         codeInput.name = `conceptos[${index}][codigo]`;
                     }
+                    if (descriptionInput) {
+                        descriptionInput.name = `conceptos[${index}][descripcion]`;
+                    }
                     if (priceInput) {
                         priceInput.name = `conceptos[${index}][precio]`;
+                    }
+                    if (descriptionEditor instanceof HTMLTextAreaElement && descriptionInput instanceof HTMLInputElement) {
+                        descriptionEditor.value = String(descriptionInput.value || '').trim();
                     }
                     if (priceEditor instanceof HTMLInputElement && priceInput instanceof HTMLInputElement) {
                         priceEditor.value = normalizePrice(priceInput.value).toFixed(2);
@@ -451,16 +599,13 @@
                 });
 
                 const totalLines = rows.length;
-                const grandTotal = rows.reduce((carry, row) => {
-                    const totalCell = row.children[3];
-                    return carry + Number(String(totalCell?.textContent || '0').replace(/[^\d.-]/g, ''));
-                }, 0);
+                const grandTotal = getCurrentTotal();
 
                 itemsCount.textContent = `${totalLines} item(s)`;
                 itemsTotal.textContent = formatMoney(grandTotal);
                 preview.textContent = totalLines > 0
                     ? `${totalLines} servicio(s) listos para emitir | ${formatMoney(grandTotal)}`
-                    : 'Selecciona un servicio del combo';
+                    : 'Selecciona un servicio';
 
                 const emptyRow = document.getElementById('facturacionServicioEmptyRow');
                 if (emptyRow) {
@@ -468,6 +613,7 @@
                 }
 
                 refreshVisibleCodes();
+                syncSubmitAvailability();
             };
 
             const syncPreview = () => {
@@ -475,6 +621,7 @@
                 const quantityValue = Math.max(1, parseInt(quantity.value || '1', 10) || 1);
                 const priceValue = normalizePrice(selected?.dataset?.precio || '0');
                 const label = String(selected?.text || '').trim();
+                const descriptionValue = String(descriptionInput.value || '').trim();
                 const totalLines = itemsBody.querySelectorAll('tr[data-line-index]').length;
 
                 if (totalLines > 0) {
@@ -483,29 +630,49 @@
                 }
 
                 if (!selected || !selected.value) {
-                    preview.textContent = 'Selecciona un servicio del combo';
+                    preview.textContent = 'Selecciona un servicio';
                     return;
                 }
 
-                preview.textContent = `${label} | Cantidad: ${quantityValue} | Precio: ${formatMoney(priceValue)} | Total: ${formatMoney(quantityValue * priceValue)}`;
+                preview.textContent = `${label} | Cantidad: ${quantityValue} | Precio: ${formatMoney(priceValue)} | Total: ${formatMoney(quantityValue * priceValue)}${descriptionValue !== '' ? ` | Descripcion: ${descriptionValue}` : ''}`;
             };
+
+            if (empresaSelector instanceof HTMLSelectElement) {
+                empresaSelector.addEventListener('change', function () {
+                    applyEmpresaSelection();
+                    syncSubmitAvailability();
+                });
+            }
+
+            syncEmpresaPreviewFromFields();
+
+            if (descriptionInput instanceof HTMLTextAreaElement && String(descriptionInput.value || '').trim() === '') {
+                descriptionInput.value = getSelectedBaseDescription();
+            }
 
             const addCurrentSelection = () => {
                 const selected = select.options[select.selectedIndex];
                 const conceptoId = Number(selected?.value || 0);
                 const cantidadValue = Math.max(1, parseInt(quantity.value || '1', 10) || 1);
                 const priceValue = normalizePrice(selected?.dataset?.precio || '0');
+                const codigoBase = String(selected?.dataset?.codigo || selected?.text.split('|')[1] || '').trim();
+                const nombreBase = String(selected?.dataset?.nombre || selected?.text.split('|')[0] || 'Servicio').trim();
+                const descripcionValue = String(descriptionInput.value || '').trim() || getSelectedBaseDescription();
 
                 if (!conceptoId) {
                     select.focus();
                     return;
                 }
 
-                const existingLine = readLines().find((line) => line.conceptoId === conceptoId && normalizePrice(line.precio) === priceValue);
+                const existingLine = readLines().find((line) =>
+                    line.conceptoId === conceptoId
+                    && normalizePrice(line.precio) === priceValue
+                    && String(line.descripcion || '').trim() === descripcionValue
+                );
                 if (existingLine) {
                     const qtyInput = existingLine.row.querySelector('input[name$="[cantidad]"]');
                     const qtyCell = existingLine.row.children[1];
-                    const totalCell = existingLine.row.children[3];
+                    const totalCell = existingLine.row.children[4];
                     const nextQty = existingLine.cantidad + cantidadValue;
                     const nextTotal = priceValue * nextQty;
 
@@ -523,20 +690,27 @@
                     return;
                 }
 
+                const descripcionEscapada = escapeHtml(descripcionValue);
+                const nombreEscapado = escapeHtml(nombreBase);
+                const codigoEscapado = escapeHtml(codigoBase);
                 const lineIndex = itemsBody.querySelectorAll('tr[data-line-index]').length;
                 const total = priceValue * cantidadValue;
                 const row = document.createElement('tr');
                 row.dataset.lineIndex = String(lineIndex);
                 row.innerHTML = `
                     <td>
-                        <strong>${selected.text.split('|')[0].trim()}</strong>
-                        <div class="small text-muted" data-base-code="${selected.text.split('|')[1]?.trim() || ''}">${selected.text.split('|')[1]?.trim() || ''}</div>
+                        <strong>${nombreEscapado}</strong>
+                        <div class="small text-muted" data-base-code="${codigoEscapado}">${codigoEscapado}</div>
                         <input type="hidden" name="conceptos[${lineIndex}][concepto_facturacion_id]" value="${conceptoId}">
                         <input type="hidden" name="conceptos[${lineIndex}][cantidad]" value="${cantidadValue}">
-                        <input type="hidden" name="conceptos[${lineIndex}][codigo]" value="${selected.text.split('|')[1]?.trim() || ''}">
+                        <input type="hidden" name="conceptos[${lineIndex}][codigo]" value="${codigoEscapado}">
+                        <input type="hidden" name="conceptos[${lineIndex}][descripcion]" value="${descripcionEscapada}">
                         <input type="hidden" name="conceptos[${lineIndex}][precio]" value="${priceValue.toFixed(2)}">
                     </td>
                     <td class="text-center">${cantidadValue}</td>
+                    <td>
+                        <textarea class="form-control form-control-sm" rows="2" data-line-description>${descripcionEscapada}</textarea>
+                    </td>
                     <td class="text-right">
                         <input type="number" min="0" max="999999.99" step="0.01" class="form-control form-control-sm text-right" value="${priceValue.toFixed(2)}" data-line-price>
                     </td>
@@ -557,13 +731,14 @@
                 Array.from(itemsBody.querySelectorAll('tr[data-line-index]')).forEach((row) => {
                     const idInput = row.querySelector('input[name$="[concepto_facturacion_id]"]');
                     const qtyInput = row.querySelector('input[name$="[cantidad]"]');
+                    const descriptionInput = row.querySelector('input[name$="[descripcion]"]');
                     const priceInput = row.querySelector('input[name$="[precio]"]');
 
                     if (!(idInput instanceof HTMLInputElement) || !(qtyInput instanceof HTMLInputElement) || !(priceInput instanceof HTMLInputElement)) {
                         return;
                     }
 
-                    const key = `${Number(idInput.value || 0)}|${normalizePrice(priceInput.value).toFixed(2)}`;
+                    const key = `${Number(idInput.value || 0)}|${normalizePrice(priceInput.value).toFixed(2)}|${String(descriptionInput?.value || '').trim()}`;
                     if (!seen.has(key)) {
                         seen.set(key, row);
                         return;
@@ -572,7 +747,7 @@
                     const targetRow = seen.get(key);
                     const targetQtyInput = targetRow?.querySelector('input[name$="[cantidad]"]');
                     const targetQtyCell = targetRow?.children[1];
-                    const targetTotalCell = targetRow?.children[3];
+                    const targetTotalCell = targetRow?.children[4];
                     const mergedQty = Number(targetQtyInput?.value || 0) + Number(qtyInput.value || 0);
                     const mergedPrice = normalizePrice(priceInput.value);
 
@@ -601,10 +776,12 @@
                 const codeElement = row.querySelector('td .small.text-muted');
                 const idInput = row.querySelector('input[name$="[concepto_facturacion_id]"]');
                 const qtyInput = row.querySelector('input[name$="[cantidad]"]');
+                const descriptionInput = row.querySelector('input[name$="[descripcion]"]');
+                const descriptionEditor = row.querySelector('[data-line-description]');
                 const priceInput = row.querySelector('input[name$="[precio]"]');
                 const priceEditor = row.querySelector('[data-line-price]');
                 const qtyCell = row.children[1];
-                const totalCell = row.children[3];
+                const totalCell = row.children[4];
 
                 if (!(idInput instanceof HTMLInputElement) || !(qtyInput instanceof HTMLInputElement) || !(priceInput instanceof HTMLInputElement) || !(priceEditor instanceof HTMLInputElement)) {
                     return;
@@ -613,6 +790,9 @@
                 const qty = Math.max(1, parseInt(qtyInput.value || '1', 10) || 1);
                 const originalPrice = normalizePrice(priceInput.value || '0');
                 const normalizedPrice = normalizePrice(priceEditor.value || priceInput.value || '0');
+                const currentDescription = descriptionEditor instanceof HTMLTextAreaElement
+                    ? String(descriptionEditor.value || '').trim()
+                    : String(descriptionInput?.value || '').trim();
 
                 if (normalizedPrice === originalPrice) {
                     priceEditor.value = normalizedPrice.toFixed(2);
@@ -637,18 +817,25 @@
                     }
 
                     const lineIndex = itemsBody.querySelectorAll('tr[data-line-index]').length;
+                    const nextTitle = escapeHtml(titleElement ? titleElement.textContent.trim() : 'Servicio');
+                    const nextBaseCode = escapeHtml(codeElement ? String(codeElement.dataset.baseCode || codeElement.textContent || '').trim() : '');
+                    const nextDescription = escapeHtml(currentDescription);
                     const newRow = document.createElement('tr');
                     newRow.dataset.lineIndex = String(lineIndex);
                     newRow.innerHTML = `
                         <td>
-                            <strong>${titleElement ? titleElement.textContent.trim() : 'Servicio'}</strong>
-                            <div class="small text-muted" data-base-code="${codeElement ? String(codeElement.dataset.baseCode || codeElement.textContent || '').trim() : ''}">${codeElement ? String(codeElement.dataset.baseCode || codeElement.textContent || '').trim() : ''}</div>
+                            <strong>${nextTitle}</strong>
+                            <div class="small text-muted" data-base-code="${nextBaseCode}">${nextBaseCode}</div>
                             <input type="hidden" name="conceptos[${lineIndex}][concepto_facturacion_id]" value="${Number(idInput.value || 0)}">
                             <input type="hidden" name="conceptos[${lineIndex}][cantidad]" value="1">
-                            <input type="hidden" name="conceptos[${lineIndex}][codigo]" value="${codeElement ? String(codeElement.dataset.baseCode || codeElement.textContent || '').trim() : ''}">
+                            <input type="hidden" name="conceptos[${lineIndex}][codigo]" value="${nextBaseCode}">
+                            <input type="hidden" name="conceptos[${lineIndex}][descripcion]" value="${nextDescription}">
                             <input type="hidden" name="conceptos[${lineIndex}][precio]" value="${normalizedPrice.toFixed(2)}">
                         </td>
                         <td class="text-center">1</td>
+                        <td>
+                            <textarea class="form-control form-control-sm" rows="2" data-line-description>${nextDescription}</textarea>
+                        </td>
                         <td class="text-right">
                             <input type="number" min="0" max="999999.99" step="0.01" class="form-control form-control-sm text-right" value="${normalizedPrice.toFixed(2)}" data-line-price>
                         </td>
@@ -674,8 +861,33 @@
                 mergeDuplicateLines();
             };
 
+            const syncRowDescription = (row) => {
+                if (!(row instanceof HTMLTableRowElement)) {
+                    return;
+                }
+
+                const descriptionInput = row.querySelector('input[name$="[descripcion]"]');
+                const descriptionEditor = row.querySelector('[data-line-description]');
+
+                if (!(descriptionInput instanceof HTMLInputElement) || !(descriptionEditor instanceof HTMLTextAreaElement)) {
+                    return;
+                }
+
+                descriptionInput.value = String(descriptionEditor.value || '').trim();
+                mergeDuplicateLines();
+            };
+
             select.addEventListener('change', syncPreview);
             quantity.addEventListener('input', syncPreview);
+            descriptionInput.addEventListener('input', syncPreview);
+            select.addEventListener('change', function () {
+                if (!(descriptionInput instanceof HTMLTextAreaElement)) {
+                    return;
+                }
+
+                descriptionInput.value = getSelectedBaseDescription();
+                syncPreview();
+            });
             addButton.addEventListener('click', addCurrentSelection);
             itemsBody.addEventListener('click', function (event) {
                 const trigger = event.target;
@@ -700,11 +912,27 @@
 
                 syncRowPrice(trigger.closest('tr[data-line-index]'));
             });
+            itemsBody.addEventListener('input', function (event) {
+                const trigger = event.target;
+                if (!(trigger instanceof HTMLTextAreaElement) || !trigger.matches('[data-line-description]')) {
+                    return;
+                }
+
+                syncRowDescription(trigger.closest('tr[data-line-index]'));
+            });
 
             if (submitTrigger instanceof HTMLButtonElement && submitReal instanceof HTMLButtonElement && confirmAccept instanceof HTMLButtonElement && confirmPreview instanceof HTMLElement && confirmTotal instanceof HTMLElement && confirmModal instanceof HTMLElement) {
                 submitTrigger.addEventListener('click', function () {
                     const totalLines = itemsBody.querySelectorAll('tr[data-line-index]').length;
-                    if (totalLines <= 0) {
+                    const total = getCurrentTotal();
+                    const hasEmpresa = empresaSelector instanceof HTMLSelectElement && String(empresaSelector.value || '').trim() !== '';
+
+                    if (!hasEmpresa) {
+                        empresaSelector?.focus();
+                        return;
+                    }
+
+                    if (totalLines <= 0 || total <= 0) {
                         preview.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         return;
                     }
@@ -730,6 +958,7 @@
 
             reindexLines();
             syncPreview();
+            syncSubmitAvailability();
         });
     </script>
 @stop

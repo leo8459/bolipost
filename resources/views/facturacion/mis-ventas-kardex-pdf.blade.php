@@ -241,13 +241,16 @@
     $unpaidRows = collect($rows)->filter(fn ($row) => in_array((string) data_get($row, 'section_key', ''), $unpaidSectionKeys, true))->values();
     $effectiveDetailRows = collect($rows)
         ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) !== 'qr')
+        ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))
         ->values();
     $qrDetailRows = collect($rows)
         ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) === 'qr')
         ->values();
     $preSummary = [
         'total_ventas' => collect($rows)->count(),
-        'total_emitido' => round((float) collect($rows)->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+        'total_emitido' => round((float) collect($rows)
+            ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))
+            ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
         'efectivo_cantidad' => $effectiveDetailRows->count(),
         'efectivo_total' => round((float) $effectiveDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
         'qr_cantidad' => $qrDetailRows->count(),
@@ -269,7 +272,9 @@
                 'ventas' => $groupRows->count(),
                 'cobradas' => $groupRows->filter(fn ($row) => (bool) data_get($row, 'cobrada', false))->count(),
                 'pendientes' => $groupRows->filter(fn ($row) => ! (bool) data_get($row, 'cobrada', false))->count(),
-                'total' => round((float) $groupRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+                'total' => round((float) $groupRows
+                    ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))
+                    ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
                 'total_caja' => round((float) $groupRows
                     ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', false))
                     ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
@@ -420,7 +425,7 @@
     <table class="totals" style="margin-top: 4px;">
         <tr>
             <td style="width: 89%;" class="right">TOTAL EN CAJA SUCURSAL</td>
-            <td style="width: 11%;" class="right">Bs {{ number_format((float) $cashRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+            <td style="width: 11%;" class="right">Bs {{ number_format((float) $cashRows->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL PENDIENTE / NO COBRADO</td>
@@ -428,7 +433,7 @@
         </tr>
         <tr>
             <td class="right">TOTAL GENERAL SUCURSAL</td>
-            <td class="right">Bs {{ number_format((float) collect($rows)->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+            <td class="right">Bs {{ number_format((float) collect($rows)->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
     </table>
 @else
@@ -497,11 +502,11 @@
     <table class="totals" style="margin-top: 0;">
         <tr>
             <td style="width: 89%;" class="right">TOTAL PARCIAL EN CAJA</td>
-            <td style="width: 11%;" class="right">Bs {{ number_format((float) $cashRows->sum(fn ($row) => (float) data_get($row, 'importe_parcial', 0)), 2) }}</td>
+            <td style="width: 11%;" class="right">Bs {{ number_format((float) $cashRows->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))->sum(fn ($row) => (float) data_get($row, 'importe_parcial', 0)), 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL GENERAL EN CAJA</td>
-            <td class="right">Bs {{ number_format((float) $cashRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+            <td class="right">Bs {{ number_format((float) $cashRows->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL QR REFERENCIAL NO SUMADO A CAJA</td>

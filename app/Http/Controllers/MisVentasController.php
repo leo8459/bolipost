@@ -362,7 +362,8 @@ class MisVentasController extends Controller
                     'cantidad_ventas' => $cashierRows->count(),
                     'total_vendido' => round((float) $cashierRows->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
                     'total_caja' => round((float) $cashierRows
-                        ->filter(fn ($row) => !$this->isQrPaymentRow($row)
+                        ->filter(fn ($row) => $this->contabilizaEnCaja($row)
+                            && !$this->isQrPaymentRow($row)
                             && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado')
                         ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
                 ];
@@ -432,10 +433,16 @@ class MisVentasController extends Controller
                 ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
             'montoTotal' => round((float) $rows
                 ->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'emitido'
+                    && $this->contabilizaEnCaja($row)
                     && !$this->isQrPaymentRow($row)
                     && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado')
                 ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
         ];
+    }
+
+    private function contabilizaEnCaja(object|array $row): bool
+    {
+        return (bool) data_get($row, 'contabiliza_en_caja', true);
     }
 
     private function emptySummary(): array
@@ -750,6 +757,11 @@ class MisVentasController extends Controller
             'modalidad_facturacion' => $isOficial ? 'registro_interno' : 'con_datos',
             'canal_emision' => $canalEmision,
             'metodo_pago' => $metodoPago,
+            'canal_operativo' => (string) data_get($venta, 'canal_operativo', 'normal'),
+            'contabiliza_en_caja' => (bool) data_get($venta, 'contabiliza_en_caja', true),
+            'es_cuenta_por_cobrar' => (bool) data_get($venta, 'es_cuenta_por_cobrar', false),
+            'empresa_nombre' => trim((string) data_get($venta, 'empresa_nombre', '')),
+            'empresa_codigo_cliente' => trim((string) data_get($venta, 'empresa_codigo_cliente', '')),
             'es_oficial' => $isOficial,
             'items' => $detalle,
             'respuesta_emision' => [
@@ -1083,11 +1095,21 @@ class MisVentasController extends Controller
             $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
             $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', '')));
             $mensajeEmision = trim((string) data_get($cart, 'mensaje_emision', ''));
-            $contabilizaEnCaja = $metodoPago !== 'qr';
+            $esCuentaPorCobrar = (bool) data_get($cart, 'es_cuenta_por_cobrar', false);
+            $empresaContrato = trim((string) data_get($cart, 'empresa_nombre', ''));
+            $contabilizaEnCaja = (bool) data_get($cart, 'contabiliza_en_caja', $metodoPago !== 'qr');
             $sectionKey = $this->resolvePdfSectionKey($cart);
             $estadoColumn = $this->resolvePdfEstadoColumn($sectionKey, $estadoEmision, $estadoPago, $mensajeEmision);
             $isAnnulled = $sectionKey === 'factura_anulada';
             $contabilizaEnCaja = $contabilizaEnCaja && ! $isAnnulled;
+            if ($esCuentaPorCobrar) {
+                $estadoColumn = [
+                    'label' => 'FACTURADA',
+                    'detalle' => 'Cuenta por cobrar'
+                        . ($empresaContrato !== '' ? ' a ' . $empresaContrato : '')
+                        . '. No suma a caja.',
+                ];
+            }
 
             $emisionLabel = match ($sectionKey) {
                 'qr_facturado' => 'QR pagado + facturado',
@@ -1162,6 +1184,8 @@ class MisVentasController extends Controller
                 'estado_label' => $estadoColumn['label'],
                 'estado_detalle' => $estadoColumn['detalle'],
                 'contabiliza_en_caja' => $contabilizaEnCaja,
+                'es_cuenta_por_cobrar' => $esCuentaPorCobrar,
+                'empresa_nombre' => $empresaContrato,
                 'cobrada' => ! $isAnnulled && in_array($sectionKey, ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'], true),
                 'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',
                 'cuf' => $cuf,

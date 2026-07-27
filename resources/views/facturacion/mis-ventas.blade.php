@@ -410,12 +410,16 @@
                                 }
                                 $isQrPayment = $metodoPago === 'qr' || trim((string) data_get($cart, 'qr_transaction_id', '')) !== '';
                                 $isQrFacturado = $isQrPayment && $facturaEstado === 'FACTURADA';
+                                $esCuentaPorCobrar = (bool) data_get($cart, 'es_cuenta_por_cobrar', false);
+                                $empresaContrato = trim((string) data_get($cart, 'empresa_nombre', ''));
 
                                 $canalBadgeLabel = $isQrPayment
                                     ? ($estadoPago === 'cancelado'
                                         ? 'QR ANULADO'
                                         : ($facturaEstado === 'FACTURADA' ? 'QR -> Factura electronica' : 'Pago QR'))
-                                    : ($canalEmision === 'oficial' ? 'Registro oficial' : 'Factura electronica');
+                                    : ($canalEmision === 'oficial'
+                                        ? 'Registro oficial'
+                                        : ($esCuentaPorCobrar ? 'Cuenta por cobrar' : 'Factura electronica'));
                                 $canalBadgeClass = $isQrPayment
                                     ? 'ventas-channel-chip--qr'
                                     : 'ventas-channel-chip--factura';
@@ -491,6 +495,11 @@
                                     <div class="ventas-table__secondary">
                                         <span class="ventas-channel-chip {{ $canalBadgeClass }}">{{ $canalBadgeLabel }}</span>
                                     </div>
+                                    @if($esCuentaPorCobrar)
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            Facturada como cuenta por cobrar{{ $empresaContrato !== '' ? ' para ' . $empresaContrato : '' }}. No suma a caja.
+                                        </div>
+                                    @endif
                                     @if($isQrFacturado)
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Cobrado por QR y transformado a factura. No suma a caja.
@@ -562,6 +571,8 @@
                                         <div class="ventas-table__secondary mt-1">El QR fue cerrado, cancelado o no completado.</div>
                                     @elseif($facturaEstado === 'ANULADA')
                                         <div class="ventas-table__secondary mt-1">Venta anulada localmente. No se contabiliza en caja ni en los totales operativos.</div>
+                                    @elseif($esCuentaPorCobrar)
+                                        <div class="ventas-table__secondary mt-1">Facturada y registrada como cuenta por cobrar. No se contabiliza en caja.</div>
                                     @endif
                                 </td>
                                 <td class="text-center">
@@ -597,6 +608,8 @@
                                     @endif
                                     @if($isQrFacturado)
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">QR facturado fuera de caja</div>
+                                    @elseif($esCuentaPorCobrar)
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">Cuenta por cobrar fuera de caja</div>
                                     @endif
                                 </td>
                                 <td class="text-center">
