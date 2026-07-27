@@ -154,14 +154,17 @@ class FacturacionCartService
 
         $paquete->loadMissing(['tarifario.servicio']);
         $servicioEms = optional(optional($paquete->tarifario)->servicio);
-        $servicio = $this->resolveFiscalServicio(
-            $servicioEms instanceof Servicio ? $servicioEms : null,
-            null
-        );
+        $servicioPresentacion = $servicioEms instanceof Servicio ? $servicioEms : null;
+        $servicioFiscal = $this->resolveFiscalServicio($servicioPresentacion, null);
         $montoBase = round((float) ($paquete->precio ?? 0), 2);
-        $tituloServicio = $this->resolveAdmisionesServicioTitulo($servicio);
-        $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicio);
-        $resumenOrigen = $this->buildPaqueteEmsResumenOrigen($paquete, $servicio, $descripcionServicio);
+        $tituloServicio = $this->resolveAdmisionesServicioTitulo($servicioPresentacion ?: $servicioFiscal);
+        $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicioPresentacion ?: $servicioFiscal);
+        $resumenOrigen = $this->buildPaqueteEmsResumenOrigen(
+            $paquete,
+            $servicioFiscal,
+            $descripcionServicio,
+            $tituloServicio
+        );
         $payload = array_merge(
             $this->originUserPayload($user),
             $this->originSucursalPayload($user),
@@ -219,15 +222,22 @@ class FacturacionCartService
         $user->loadMissing('sucursal');
         $paquete->loadMissing(['tarifario.servicio']);
         $servicioEms = optional(optional($paquete->tarifario)->servicio);
-        $servicio = $this->resolveFiscalServicio(
-            $servicioEms instanceof Servicio ? $servicioEms : null,
+        $servicioPresentacion = $servicioEms instanceof Servicio ? $servicioEms : null;
+        $servicioFiscal = $this->resolveFiscalServicio(
+            $servicioPresentacion,
             $this->resolveModuloServicio('EMS')
         );
-        if (!$servicio) {
+        if (!$servicioFiscal) {
             throw new \RuntimeException('No se encontro un servicio fiscal para registrar la venta OFICIAL.');
         }
 
-        $resumenOrigen = $this->buildPaqueteEmsResumenOrigen($paquete, $servicio);
+        $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicioPresentacion ?: $servicioFiscal);
+        $resumenOrigen = $this->buildPaqueteEmsResumenOrigen(
+            $paquete,
+            $servicioFiscal,
+            $descripcionServicio,
+            $this->resolveAdmisionesServicioTitulo($servicioPresentacion ?: $servicioFiscal)
+        );
         $fallbackEmail = trim((string) config('services.facturacion_bridge.fallback_email', 'sincorreo@agbc.bo'));
         if ($fallbackEmail === '' || !filter_var($fallbackEmail, FILTER_VALIDATE_EMAIL)) {
             $fallbackEmail = 'sincorreo@agbc.bo';
@@ -295,7 +305,12 @@ class FacturacionCartService
         return $body;
     }
 
-    private function buildPaqueteEmsResumenOrigen(PaqueteEms $paquete, ?Servicio $servicio, ?string $descripcionServicio = null): array
+    private function buildPaqueteEmsResumenOrigen(
+        PaqueteEms $paquete,
+        ?Servicio $servicio,
+        ?string $descripcionServicio = null,
+        ?string $nombreServicioPresentacion = null
+    ): array
     {
         return array_merge([
             'codigo' => (string) ($paquete->codigo ?? ''),
@@ -311,7 +326,7 @@ class FacturacionCartService
             'unidad_medida' => (int) ($servicio->unidadMedida ?? 0),
         ], $this->buildServicioAnalyticsResumen(
             $servicio,
-            (string) ($servicio->nombre_servicio ?? 'EMS'),
+            (string) ($nombreServicioPresentacion ?? $servicio->nombre_servicio ?? 'EMS'),
             (string) ($paquete->codigo ?? ''),
             (string) ($servicio->codigo ?? ''),
             'EMS'
@@ -3093,6 +3108,23 @@ class FacturacionCartService
                 'servicio_familia' => (string) ($resumen['servicio_familia'] ?? $this->normalizeServicioAnalyticsNombre((string) ($servicio->nombre_servicio ?? 'SERVICIO'))),
                 'codigo_producto_fiscal' => (string) ($resumen['codigo_producto_fiscal'] ?? $servicio->codigo ?? $resumen['codigo_producto'] ?? ''),
             ];
+
+            if (ltrim((string) ($item->origen_tipo ?? ''), '\\') === ltrim(PaqueteEms::class, '\\')) {
+                $paquete = PaqueteEms::query()->with('tarifario.servicio')->find((int) ($item->origen_id ?? 0));
+                $servicioPresentacion = optional(optional($paquete)->tarifario)->servicio;
+
+                if ($servicioPresentacion instanceof Servicio) {
+                    $tituloServicio = $this->resolveAdmisionesServicioTitulo($servicioPresentacion);
+                    $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicioPresentacion);
+
+                    $payload['titulo'] = $tituloServicio;
+                    $payload['nombre_servicio'] = $tituloServicio;
+                    $payload['descripcion_servicio'] = $descripcionServicio;
+                    $payload['codigo_servicio'] = (string) ($resumen['codigo_servicio'] ?? $this->buildServicioAnalyticsCodigo($tituloServicio, (string) ($servicio->codigo ?? '')));
+                    $payload['servicio_nombre'] = (string) ($resumen['servicio_nombre'] ?? $this->normalizeServicioAnalyticsNombre($tituloServicio));
+                    $payload['servicio_familia'] = (string) ($resumen['servicio_familia'] ?? 'EMS');
+                }
+            }
 
             try {
                 $this->updateDraftItem($user, (int) $item->id, $payload);
