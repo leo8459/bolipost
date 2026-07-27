@@ -48,6 +48,7 @@ use App\Http\Controllers\MisVentasController;
 use App\Http\Controllers\AclController;
 use App\Http\Controllers\BitacoraController;
 use App\Http\Controllers\FacturacionCartController;
+use App\Http\Controllers\FacturacionServicioController;
 use App\Http\Controllers\ClientManagementController;
 use App\Http\Controllers\ClientRoleController;
 use App\Http\Controllers\PreregistroController;
@@ -228,6 +229,12 @@ Route::get('/mis-ventas/{cart}/detail', [MisVentasController::class, 'detail'])
 Route::get('/mis-ventas/{cart}/ticket', [MisVentasController::class, 'ticket'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.ticket');
+Route::get('/facturacion-servicio', [FacturacionServicioController::class, 'index'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('facturacion-servicio.index');
+Route::post('/facturacion-servicio', [FacturacionServicioController::class, 'store'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('facturacion-servicio.store');
 
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
     Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');

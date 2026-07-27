@@ -914,6 +914,7 @@
                 <input type="hidden" id="facturacionEditItemDireccion" name="direccion">
                 <input type="hidden" id="facturacionEditItemCiudad" name="ciudad">
                 <input type="hidden" id="facturacionEditItemPeso" name="peso">
+                <input type="hidden" id="facturacionEditItemCantidad" name="cantidad" value="1">
                 <input type="hidden" id="facturacionEditItemActividadEconomica" name="actividad_economica">
                 <input type="hidden" id="facturacionEditItemCodigoSin" name="codigo_sin">
                 <input type="hidden" id="facturacionEditItemCodigoProducto" name="codigo_producto">
@@ -963,15 +964,24 @@
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="descripcion_servicio">
                         <label for="facturacionEditItemDescripcionServicio">Descripcion del item</label>
-                        <textarea id="facturacionEditItemDescripcionServicio" name="descripcion_servicio" rows="3" maxlength="255" placeholder="Describe el servicio que se enviara a facturacion"></textarea>
+                        <input type="hidden" id="facturacionEditItemDescripcionServicio" name="descripcion_servicio">
+                        <div
+                            id="facturacionEditItemDescripcionServicioLockedBox"
+                            data-description-lock-container
+                            class="global-shortcut-description-lock is-hidden"
+                        >
+                            <span class="global-shortcut-description-lock__label">Servicio base</span>
+                            <strong
+                                id="facturacionEditItemDescripcionServicioLocked"
+                                class="global-shortcut-description-lock__value"
+                            ></strong>
+                        </div>
+                        <textarea id="facturacionEditItemDescripcionServicioEditable" rows="3" maxlength="255" placeholder="Agrega el detalle complementario del servicio"></textarea>
+                        <small class="global-shortcut-field__hint">Aqui solo editas el detalle adicional.</small>
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="precio">
                         <label for="facturacionEditItemPrecio">Precio</label>
                         <input type="number" id="facturacionEditItemPrecio" name="precio" min="0" step="0.01" required>
-                    </div>
-                    <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="cantidad">
-                        <label for="facturacionEditItemCantidad">Cantidad a editar o separar</label>
-                        <input type="number" id="facturacionEditItemCantidad" name="cantidad" min="1" max="999" step="1" required>
                     </div>
                 </div>
                 <div class="global-shortcut-confirm__actions">
@@ -2757,6 +2767,31 @@
             resize: vertical;
             line-height: 1.45;
         }
+        .global-shortcut-description-lock {
+            display: grid;
+            gap: 6px;
+            margin: 0 0 10px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid #d7e3f7;
+            background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+        }
+        .global-shortcut-description-lock.is-hidden {
+            display: none;
+        }
+        .global-shortcut-description-lock__label {
+            color: #5f7697;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+        }
+        .global-shortcut-description-lock__value {
+            color: #18385f;
+            font-size: .96rem;
+            line-height: 1.4;
+            font-weight: 700;
+        }
         .global-shortcut-field input:focus,
         .global-shortcut-field select:focus,
         .global-shortcut-field textarea:focus {
@@ -3784,6 +3819,10 @@
             const facturacionItemEditBatch = document.getElementById('facturacionItemEditBatch');
             const facturacionItemEditSingleGrid = document.getElementById('facturacionItemEditSingleGrid');
             const facturacionItemEditSummary = document.getElementById('facturacionItemEditSummary');
+            const facturacionEditItemDescripcionServicioInput = document.getElementById('facturacionEditItemDescripcionServicio');
+            const facturacionEditItemDescripcionServicioEditable = document.getElementById('facturacionEditItemDescripcionServicioEditable');
+            const facturacionEditItemDescripcionServicioLocked = document.getElementById('facturacionEditItemDescripcionServicioLocked');
+            const facturacionEditItemDescripcionServicioLockedBox = document.getElementById('facturacionEditItemDescripcionServicioLockedBox');
             const facturacionItemEditPanel = facturacionItemEditModal
                 ? facturacionItemEditModal.querySelector('.global-shortcut-confirm__panel--wide')
                 : null;
@@ -3808,6 +3847,7 @@
             let facturacionConceptoSelect = document.getElementById('facturacionConceptoSelect');
             let facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
             let facturacionConceptoCantidad = document.getElementById('facturacionConceptoCantidad');
+            const FACTURACION_DESCRIPTION_LOCK_SEPARATOR = ' - ';
 
             if (facturacionActionConfirmEyebrow) {
                 facturacionActionConfirmEyebrow.textContent = FACTURACION_CONFIRM_DEFAULTS.eyebrow;
@@ -3815,6 +3855,73 @@
             if (facturacionActionConfirmTitle) {
                 facturacionActionConfirmTitle.textContent = FACTURACION_CONFIRM_DEFAULTS.title;
             }
+
+            const splitLockedFacturacionDescription = (value) => {
+                const description = String(value || '').trim();
+                const separatorIndex = description.indexOf(FACTURACION_DESCRIPTION_LOCK_SEPARATOR);
+
+                if (separatorIndex === -1) {
+                    return {
+                        lockedPart: description,
+                        editablePart: '',
+                    };
+                }
+
+                return {
+                    lockedPart: description.slice(0, separatorIndex).trimEnd(),
+                    editablePart: description.slice(separatorIndex + FACTURACION_DESCRIPTION_LOCK_SEPARATOR.length).trimStart(),
+                };
+            };
+
+            const buildLockedFacturacionDescription = (lockedPart, editablePart) => {
+                const locked = String(lockedPart || '').trim();
+                const editable = String(editablePart || '').trim();
+
+                if (locked !== '' && editable !== '') {
+                    return locked + FACTURACION_DESCRIPTION_LOCK_SEPARATOR + editable;
+                }
+
+                return locked !== '' ? locked : editable;
+            };
+
+            const applyLockedDescriptionField = (hiddenInput, editableInput, lockedNode, rawValue) => {
+                if (!(hiddenInput instanceof HTMLInputElement) || !(editableInput instanceof HTMLTextAreaElement)) {
+                    return;
+                }
+
+                const parts = splitLockedFacturacionDescription(rawValue);
+                editableInput.value = parts.editablePart;
+                editableInput.dataset.lockedPart = parts.lockedPart;
+                editableInput.dataset.baseDescription = buildLockedFacturacionDescription(parts.lockedPart, parts.editablePart);
+                hiddenInput.value = buildLockedFacturacionDescription(parts.lockedPart, parts.editablePart);
+
+                if (lockedNode instanceof HTMLElement) {
+                    const lockContainer = lockedNode.closest('[data-description-lock-container]');
+
+                    if (parts.lockedPart !== '') {
+                        lockedNode.textContent = parts.lockedPart;
+                        if (lockContainer instanceof HTMLElement) {
+                            lockContainer.classList.remove('is-hidden');
+                        }
+                    } else {
+                        lockedNode.textContent = '';
+                        if (lockContainer instanceof HTMLElement) {
+                            lockContainer.classList.add('is-hidden');
+                        }
+                    }
+                }
+            };
+
+            const syncLockedDescriptionField = (hiddenInput, editableInput) => {
+                if (!(hiddenInput instanceof HTMLInputElement) || !(editableInput instanceof HTMLTextAreaElement)) {
+                    return;
+                }
+
+                hiddenInput.value = buildLockedFacturacionDescription(
+                    editableInput.dataset.lockedPart || '',
+                    editableInput.value
+                );
+            };
             if (facturacionActionConfirmMessage) {
                 facturacionActionConfirmMessage.textContent = FACTURACION_CONFIRM_DEFAULTS.message;
             }
@@ -5945,7 +6052,9 @@
                             </div>
                             <div class="global-shortcut-field global-shortcut-field--description">
                                 <label>Descripcion</label>
-                                <textarea name="entries[${index}][descripcion_servicio]" rows="2" maxlength="255">${escapeFacturacionHtml(baseDescription)}</textarea>
+                                <input type="hidden" name="entries[${index}][descripcion_servicio]">
+                                <textarea rows="2" maxlength="255" data-description-editable="true"></textarea>
+                                <small class="global-shortcut-field__hint is-hidden" data-description-locked data-description-lock-container></small>
                             </div>
                             <p class="facturacion-item-edit-batch__help">Si el precio queda igual, el sistema intentara mantener este grupo junto. Si cambias precio o detalle, se individualizara automaticamente.</p>
                         </div>
@@ -5956,20 +6065,27 @@
                 facturacionItemEditBatch.querySelectorAll('.facturacion-item-edit-batch__card').forEach((card) => {
                     const priceInput = card.querySelector('input[name$="[precio]"]');
                     const codeInput = card.querySelector('input[name$="[codigo]"]');
-                    const descriptionInput = card.querySelector('textarea[name$="[descripcion_servicio]"]');
+                    const descriptionHiddenInput = card.querySelector('input[name$="[descripcion_servicio]"]');
+                    const descriptionInput = card.querySelector('textarea[data-description-editable="true"]');
+                    const descriptionLockedNode = card.querySelector('[data-description-locked]');
 
                     if (!(priceInput instanceof HTMLInputElement) || !(codeInput instanceof HTMLInputElement)) {
                         return;
                     }
 
+                    applyLockedDescriptionField(descriptionHiddenInput, descriptionInput, descriptionLockedNode, baseDescription);
+
                     const syncSuggestedCode = () => {
                         const basePriceValue = Number.parseFloat(priceInput.dataset.basePrice || '0');
                         const currentPriceValue = Number.parseFloat(priceInput.value || '0');
                         const baseDescriptionValue = descriptionInput instanceof HTMLTextAreaElement
-                            ? String(descriptionInput.defaultValue || '').trim()
+                            ? String(descriptionInput.dataset.baseDescription || '').trim()
                             : '';
                         const currentDescriptionValue = descriptionInput instanceof HTMLTextAreaElement
-                            ? String(descriptionInput.value || '').trim()
+                            ? buildLockedFacturacionDescription(
+                                descriptionInput.dataset.lockedPart || '',
+                                descriptionInput.value
+                            ).trim()
                             : '';
                         const hasDescriptionChanges = currentDescriptionValue !== baseDescriptionValue;
                         const hasPriceChanges = Number.isFinite(basePriceValue)
@@ -5988,8 +6104,12 @@
 
                     priceInput.addEventListener('input', syncSuggestedCode);
                     if (descriptionInput instanceof HTMLTextAreaElement) {
-                        descriptionInput.addEventListener('input', syncSuggestedCode);
+                        descriptionInput.addEventListener('input', () => {
+                            syncLockedDescriptionField(descriptionHiddenInput, descriptionInput);
+                            syncSuggestedCode();
+                        });
                     }
+                    syncLockedDescriptionField(descriptionHiddenInput, descriptionInput);
                     syncSuggestedCode();
                 });
             };
@@ -6045,6 +6165,13 @@
                         input.value = value;
                     }
                 });
+
+                applyLockedDescriptionField(
+                    facturacionEditItemDescripcionServicioInput,
+                    facturacionEditItemDescripcionServicioEditable,
+                    facturacionEditItemDescripcionServicioLocked,
+                    trigger.dataset.itemDescripcionServicio || ''
+                );
 
                 Object.entries(summaryMap).forEach(([fieldId, value]) => {
                     const summary = document.getElementById(fieldId);
@@ -6117,6 +6244,20 @@
                 if (facturacionItemEditBatch instanceof HTMLElement) {
                     facturacionItemEditBatch.innerHTML = '';
                     facturacionItemEditBatch.classList.add('is-hidden');
+                }
+                if (facturacionEditItemDescripcionServicioInput instanceof HTMLInputElement) {
+                    facturacionEditItemDescripcionServicioInput.value = '';
+                }
+                if (facturacionEditItemDescripcionServicioEditable instanceof HTMLTextAreaElement) {
+                    facturacionEditItemDescripcionServicioEditable.value = '';
+                    facturacionEditItemDescripcionServicioEditable.dataset.lockedPart = '';
+                    facturacionEditItemDescripcionServicioEditable.dataset.baseDescription = '';
+                }
+                if (facturacionEditItemDescripcionServicioLocked instanceof HTMLElement) {
+                    facturacionEditItemDescripcionServicioLocked.textContent = '';
+                }
+                if (facturacionEditItemDescripcionServicioLockedBox instanceof HTMLElement) {
+                    facturacionEditItemDescripcionServicioLockedBox.classList.add('is-hidden');
                 }
                 if (facturacionItemEditSingleGrid instanceof HTMLElement) {
                     facturacionItemEditSingleGrid.classList.remove('is-hidden');
@@ -6334,9 +6475,23 @@
                 facturacionItemEditCancel.addEventListener('click', closeFacturacionItemEditModal);
             }
 
+            if (facturacionEditItemDescripcionServicioEditable instanceof HTMLTextAreaElement) {
+                facturacionEditItemDescripcionServicioEditable.addEventListener('input', function () {
+                    syncLockedDescriptionField(
+                        facturacionEditItemDescripcionServicioInput,
+                        facturacionEditItemDescripcionServicioEditable
+                    );
+                });
+            }
+
             if (facturacionItemEditForm) {
                 facturacionItemEditForm.addEventListener('submit', async function (event) {
                     event.preventDefault();
+
+                    syncLockedDescriptionField(
+                        facturacionEditItemDescripcionServicioInput,
+                        facturacionEditItemDescripcionServicioEditable
+                    );
 
                     if (facturacionItemEditSubmit instanceof HTMLButtonElement) {
                         facturacionItemEditSubmit.disabled = true;
