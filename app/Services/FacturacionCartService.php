@@ -159,7 +159,9 @@ class FacturacionCartService
             null
         );
         $montoBase = round((float) ($paquete->precio ?? 0), 2);
-        $resumenOrigen = $this->buildPaqueteEmsResumenOrigen($paquete, $servicio);
+        $tituloServicio = $this->resolveAdmisionesServicioTitulo($servicio);
+        $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicio);
+        $resumenOrigen = $this->buildPaqueteEmsResumenOrigen($paquete, $servicio, $descripcionServicio);
         $payload = array_merge(
             $this->originUserPayload($user),
             $this->originSucursalPayload($user),
@@ -167,8 +169,8 @@ class FacturacionCartService
             'origen_tipo' => PaqueteEms::class,
             'origen_id' => (int) $paquete->id,
             'codigo' => (string) ($paquete->codigo ?? ''),
-            'titulo' => 'Admision EMS',
-            'nombre_servicio' => (string) ($servicio->nombre_servicio ?? ''),
+            'titulo' => $tituloServicio,
+            'nombre_servicio' => $tituloServicio,
             'nombre_destinatario' => (string) ($paquete->nombre_destinatario ?? ''),
             'servicios_extra' => [],
             'resumen_origen' => $resumenOrigen,
@@ -178,8 +180,27 @@ class FacturacionCartService
             'total_linea' => $montoBase,
         ]);
 
-        if ($cart = $this->incrementExistingDraftItemByOrigin($user, PaqueteEms::class, (int) $paquete->id, 1)) {
-            return $cart;
+        $ctx = $this->getRemoteContextForUser($user);
+        $existingItem = $this->findDraftItemByOrigin($ctx['draft'] ?? null, PaqueteEms::class, (int) $paquete->id);
+        if ($existingItem) {
+            $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
+            $montoBaseActual = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
+            $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+            $nuevaCantidad = $cantidadActual + 1;
+
+            return $this->updateDraftItem(
+                $user,
+                (int) data_get($existingItem, 'id'),
+                $this->buildDraftItemUpdatePayload($existingItem, [
+                    'titulo' => $tituloServicio,
+                    'nombre_servicio' => $tituloServicio,
+                    'cantidad' => $nuevaCantidad,
+                    'monto_base' => $montoBaseActual,
+                    'monto_extras' => $montoExtras,
+                    'total_linea' => round(($montoBaseActual + $montoExtras) * $nuevaCantidad, 2),
+                    'descripcion_servicio' => $descripcionServicio,
+                ])
+            );
         }
 
         $body = $this->request('POST', '/cart/items/upsert', $payload);
@@ -274,7 +295,7 @@ class FacturacionCartService
         return $body;
     }
 
-    private function buildPaqueteEmsResumenOrigen(PaqueteEms $paquete, ?Servicio $servicio): array
+    private function buildPaqueteEmsResumenOrigen(PaqueteEms $paquete, ?Servicio $servicio, ?string $descripcionServicio = null): array
     {
         return array_merge([
             'codigo' => (string) ($paquete->codigo ?? ''),
@@ -286,7 +307,7 @@ class FacturacionCartService
             'actividad_economica' => (string) ($servicio->actividadEconomica ?? ''),
             'codigo_sin' => (string) ($servicio->codigoSin ?? ''),
             'codigo_producto' => (string) ($servicio->codigo ?? ''),
-            'descripcion_servicio' => (string) ($servicio->descripcion ?? ''),
+            'descripcion_servicio' => (string) ($descripcionServicio ?? $servicio->descripcion ?? ''),
             'unidad_medida' => (int) ($servicio->unidadMedida ?? 0),
         ], $this->buildServicioAnalyticsResumen(
             $servicio,
@@ -295,6 +316,60 @@ class FacturacionCartService
             (string) ($servicio->codigo ?? ''),
             'EMS'
         ));
+    }
+
+    private function resolveAdmisionesServicioTitulo(?Servicio $servicio): string
+    {
+        $nombre = strtoupper(trim((string) ($servicio->nombre_servicio ?? '')));
+
+        return match ($nombre) {
+            'CERTIFICADAS' => 'Certificadas',
+            'ORDINARIAS' => 'Ordinarias',
+            'CIUDADES_INTERMEDIAS' => 'Ciudades Intermedias',
+            'CIUDADES_INTERMEDIAS_TRINIDAD_COBIJA' => 'Ciudades Intermedias Trinidad Cobija',
+            'ECA' => 'ECA',
+            'EMS_LOCAL_COBERTURA_1' => 'EMS Local Cobertura 1',
+            'EMS_LOCAL_COBERTURA_2' => 'EMS Local Cobertura 2',
+            'EMS_LOCAL_COBERTURA_3' => 'EMS Local Cobertura 3',
+            'EMS_LOCAL_COBERTURA_4' => 'EMS Local Cobertura 4',
+            'EMS_NACIONAL' => 'EMS Nacional',
+            'ENCOMIENDA' => 'Encomienda',
+            'INTERNACIONAL' => 'Internacional',
+            'SUPER_EXPRESS_NACIONAL' => 'Super Express Nacional',
+            'TRINIDAD_COBIJA' => 'Trinidad Cobija',
+            default => $this->humanizeServicioNombre($nombre !== '' ? $nombre : (string) ($servicio->nombre_servicio ?? 'Admision EMS')),
+        };
+    }
+
+    private function resolveAdmisionesServicioDescripcion(?Servicio $servicio): string
+    {
+        $titulo = $this->resolveAdmisionesServicioTitulo($servicio);
+
+        return $this->buildServicioEnvioDescripcion($titulo);
+    }
+
+    private function humanizeServicioNombre(string $nombre): string
+    {
+        $normalized = trim($nombre);
+        if ($normalized === '') {
+            return 'Admision EMS';
+        }
+
+        $value = str_replace('_', ' ', strtoupper($normalized));
+        $words = preg_split('/\s+/', $value) ?: [];
+        $formatted = array_map(function (string $word): string {
+            return match ($word) {
+                'EMS', 'ECA' => $word,
+                default => ucfirst(strtolower($word)),
+            };
+        }, array_filter($words));
+
+        return trim(implode(' ', $formatted));
+    }
+
+    private function buildServicioEnvioDescripcion(string $titulo): string
+    {
+        return 'Servicio ' . trim($titulo) . ' - Envio de paqueteria';
     }
 
     private function buildServicioAnalyticsResumen(
@@ -391,9 +466,30 @@ class FacturacionCartService
         $peso = (float) ($paquete->peso ?? 0);
         $montoBase = $this->resolveCertiMontoBase($paquete);
         $cantidadInicial = 1;
+        $tituloServicio = 'Certificadas';
+        $descripcionServicio = 'Servicio Certificadas - Entrega de paqueteria';
 
-        if ($cart = $this->incrementExistingDraftItemByOrigin($user, PaqueteCerti::class, (int) $paquete->id, $cantidadInicial)) {
-            return $cart;
+        $ctx = $this->getRemoteContextForUser($user);
+        $existingItem = $this->findDraftItemByOrigin($ctx['draft'] ?? null, PaqueteCerti::class, (int) $paquete->id);
+        if ($existingItem) {
+            $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
+            $montoBaseActual = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
+            $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+            $nuevaCantidad = $cantidadActual + $cantidadInicial;
+
+            return $this->updateDraftItem(
+                $user,
+                (int) data_get($existingItem, 'id'),
+                $this->buildDraftItemUpdatePayload($existingItem, [
+                    'titulo' => $tituloServicio,
+                    'nombre_servicio' => $tituloServicio,
+                    'cantidad' => $nuevaCantidad,
+                    'monto_base' => $montoBaseActual,
+                    'monto_extras' => $montoExtras,
+                    'total_linea' => round(($montoBaseActual + $montoExtras) * $nuevaCantidad, 2),
+                    'descripcion_servicio' => $descripcionServicio,
+                ])
+            );
         }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
@@ -403,8 +499,8 @@ class FacturacionCartService
             'origen_tipo' => PaqueteCerti::class,
             'origen_id' => (int) $paquete->id,
             'codigo' => (string) ($paquete->codigo ?? ''),
-            'titulo' => (string) ($servicio->nombre_servicio ?? 'Envio correspondencia'),
-            'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'ENVIO CORRESPONDENCIA'),
+            'titulo' => $tituloServicio,
+            'nombre_servicio' => $tituloServicio,
             'nombre_destinatario' => (string) ($paquete->destinatario ?? ''),
             'servicios_extra' => [],
             'resumen_origen' => array_merge([
@@ -417,11 +513,11 @@ class FacturacionCartService
                 'actividad_economica' => (string) ($servicio->actividadEconomica ?? ''),
                 'codigo_sin' => (string) ($servicio->codigoSin ?? ''),
                 'codigo_producto' => (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
-                'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? 'ENVIO CORRESPONDENCIA'),
+                'descripcion_servicio' => $descripcionServicio,
                 'unidad_medida' => $servicio->unidadMedida ?? 58,
             ], $this->buildServicioAnalyticsResumen(
                 $servicio,
-                (string) ($servicio->nombre_servicio ?? 'CERTIFICADAS'),
+                $tituloServicio,
                 (string) ($paquete->codigo ?? ''),
                 (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
                 'CERTIFICADAS'
@@ -579,18 +675,21 @@ class FacturacionCartService
         return $cart;
     }
 
-    public function addConceptoFacturacion(User $user, ConceptoFacturacion $concepto, int $cantidad = 1): object
+    public function addConceptoFacturacion(User $user, ConceptoFacturacion $concepto, int $cantidad = 1, ?float $precioUnitario = null): object
     {
         $this->assertFacturacionPermission($user);
         $cantidad = max(1, $cantidad);
+        $precioUnitario = $precioUnitario !== null ? round(max(0, $precioUnitario), 2) : null;
 
         $ctx = $this->getRemoteContextForUser($user);
         $draft = $ctx['draft'] ?? null;
-        $existingItem = $this->findEquivalentConceptoDraftItem($draft, $concepto);
+        $existingItem = $this->findEquivalentConceptoDraftItem($draft, $concepto, $precioUnitario);
 
         if ($existingItem) {
             $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
-            $montoBase = round((float) data_get($existingItem, 'monto_base', $concepto->precio_base ?? 0), 2);
+            $montoBase = $precioUnitario !== null
+                ? $precioUnitario
+                : round((float) data_get($existingItem, 'monto_base', $concepto->precio_base ?? 0), 2);
             $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
             $nuevaCantidad = $cantidadActual + $cantidad;
 
@@ -617,7 +716,8 @@ class FacturacionCartService
             $this->buildConceptoDraftPayload(
                 $concepto,
                 $this->resolveConceptoDraftOriginId($draft, $concepto),
-                $cantidad
+                $cantidad,
+                $precioUnitario
             )
         ));
 
@@ -852,11 +952,42 @@ class FacturacionCartService
             ?? optional($solicitud->tarifarioTiktoker)->servicioExtra->nombre
             ?? 'EMS'
         ));
-        $fiscalData = $this->resolveSolicitudEmsFiscalData($nombreServicio);
+        $tituloSolicitud = $this->resolveSolicitudEmsTitulo($nombreServicio);
+        $nombreServicioFacturacion = $this->resolveSolicitudEmsNombreServicio($nombreServicio, $tituloSolicitud);
+        $fiscalData = $this->resolveSolicitudEmsFiscalData($nombreServicio, $tituloSolicitud);
         $cantidadInicial = max(1, (int) ($solicitud->cantidad ?? 1));
 
-        if ($cart = $this->incrementExistingDraftItemByOrigin($user, SolicitudCliente::class, (int) $solicitud->id, $cantidadInicial)) {
-            return $cart;
+        $ctx = $this->getRemoteContextForUser($user);
+        $existingItem = $this->findDraftItemByOrigin($ctx['draft'] ?? null, SolicitudCliente::class, (int) $solicitud->id);
+        if ($existingItem) {
+            $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
+            $montoBase = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
+            $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+            $nuevaCantidad = $cantidadActual + $cantidadInicial;
+
+            return $this->updateDraftItem(
+                $user,
+                (int) data_get($existingItem, 'id'),
+                $this->buildDraftItemUpdatePayload($existingItem, [
+                    'titulo' => $tituloSolicitud,
+                    'nombre_servicio' => $nombreServicioFacturacion,
+                    'cantidad' => $nuevaCantidad,
+                    'monto_base' => $montoBase,
+                    'monto_extras' => $montoExtras,
+                    'total_linea' => round(($montoBase + $montoExtras) * $nuevaCantidad, 2),
+                    'actividad_economica' => $fiscalData['actividad_economica'],
+                    'codigo_sin' => $fiscalData['codigo_sin'],
+                    'codigo_producto' => $fiscalData['codigo_producto'],
+                    'descripcion_servicio' => $fiscalData['descripcion_servicio'],
+                    'unidad_medida' => $fiscalData['unidad_medida'],
+                    'codigo_paquete' => (string) ($solicitud->codigo_solicitud ?? ''),
+                    'codigo_detalle_enviado' => (string) ($solicitud->codigo_solicitud ?? ''),
+                    'codigo_servicio' => $this->buildServicioAnalyticsCodigo($nombreServicio, (string) $fiscalData['codigo_producto']),
+                    'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($nombreServicio),
+                    'servicio_familia' => 'EMS',
+                    'codigo_producto_fiscal' => (string) $fiscalData['codigo_producto'],
+                ])
+            );
         }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
@@ -866,8 +997,8 @@ class FacturacionCartService
                 'origen_tipo' => SolicitudCliente::class,
                 'origen_id' => (int) $solicitud->id,
                 'codigo' => (string) ($solicitud->codigo_solicitud ?? ''),
-                'titulo' => 'Solicitud EMS',
-                'nombre_servicio' => $nombreServicio,
+                'titulo' => $tituloSolicitud,
+                'nombre_servicio' => $nombreServicioFacturacion,
                 'nombre_destinatario' => (string) ($solicitud->nombre_destinatario ?? ''),
                 'servicios_extra' => [],
                 'resumen_origen' => array_merge([
@@ -905,7 +1036,18 @@ class FacturacionCartService
         return $cart;
     }
 
-    private function resolveSolicitudEmsFiscalData(?string $nombreServicioExtra): array
+    private function resolveSolicitudEmsTitulo(?string $nombreServicio): string
+    {
+        $normalized = strtoupper(trim((string) $nombreServicio));
+
+        if ($this->isSolicitudDeliveryExpress($normalized)) {
+            return 'Delivery Express';
+        }
+
+        return 'Solicitud';
+    }
+
+    private function resolveSolicitudEmsFiscalData(?string $nombreServicioExtra, ?string $tituloSolicitud = null): array
     {
         $nombre = strtoupper(trim((string) $nombreServicioExtra));
         $codigoProducto = 'SRVE-01';
@@ -916,7 +1058,53 @@ class FacturacionCartService
 
         return array_merge(self::EMS_SOLICITUD_FISCAL_DATA, [
             'codigo_producto' => $codigoProducto,
+            'descripcion_servicio' => $this->resolveSolicitudEmsDescripcion($nombreServicioExtra, $tituloSolicitud),
         ]);
+    }
+
+    private function resolveSolicitudEmsNombreServicio(?string $nombreServicio, ?string $tituloSolicitud = null): string
+    {
+        $normalized = strtoupper(trim((string) $nombreServicio));
+
+        if ($this->isSolicitudDeliveryExpress($normalized)) {
+            return trim((string) ($tituloSolicitud ?: 'Delivery Express'));
+        }
+
+        return trim((string) $nombreServicio);
+    }
+
+    private function resolveSolicitudEmsDescripcion(?string $nombreServicio, ?string $tituloSolicitud = null): string
+    {
+        $normalized = strtoupper(trim((string) $nombreServicio));
+
+        if (str_contains($normalized, 'PUERTA A PUERTA')) {
+            return 'Servicio de puerta a puerta - Envio paqueteria';
+        }
+
+        if (str_contains($normalized, 'PUERTA A VENTANILLA')) {
+            return 'Servicio de puerta a ventanilla - Envio paqueteria';
+        }
+
+        if (str_contains($normalized, 'VENTANILLA A VENTANILLA')) {
+            return 'Servicio de ventanilla a ventanilla - Envio paqueteria';
+        }
+
+        if ($this->isSolicitudDeliveryExpress($normalized)) {
+            return 'Delivery Express - Envio paqueteria';
+        }
+
+        return trim((string) ($tituloSolicitud ?: 'Solicitud')) . ' - Envio paqueteria';
+    }
+
+    private function isSolicitudDeliveryExpress(string $normalizedServiceName): bool
+    {
+        return $normalizedServiceName !== ''
+            && (
+                str_contains($normalizedServiceName, 'DELIVERY')
+                || str_contains($normalizedServiceName, 'PUERTA A PUERTA')
+                || str_contains($normalizedServiceName, 'PUERTA A VENTANILLA')
+                || str_contains($normalizedServiceName, 'VENTANILLA A VENTANILLA')
+            );
     }
 
     public function addPaqueteOrdi(User $user, PaqueteOrdi $paquete): object
@@ -930,9 +1118,30 @@ class FacturacionCartService
         $peso = $this->toFloatNumber($paquete->peso ?? 0);
         $montoBase = $this->resolveOrdiMontoBase($paquete);
         $cantidadInicial = 1;
+        $tituloServicio = 'Ordinarias';
+        $descripcionServicio = 'Servicio Ordinarias - Entrega de paqueteria';
 
-        if ($cart = $this->incrementExistingDraftItemByOrigin($user, PaqueteOrdi::class, (int) $paquete->id, $cantidadInicial)) {
-            return $cart;
+        $ctx = $this->getRemoteContextForUser($user);
+        $existingItem = $this->findDraftItemByOrigin($ctx['draft'] ?? null, PaqueteOrdi::class, (int) $paquete->id);
+        if ($existingItem) {
+            $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
+            $montoBaseActual = $this->resolveOrdiMontoBase($paquete);
+            $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+            $nuevaCantidad = $cantidadActual + $cantidadInicial;
+
+            return $this->updateDraftItem(
+                $user,
+                (int) data_get($existingItem, 'id'),
+                $this->buildDraftItemUpdatePayload($existingItem, [
+                    'titulo' => $tituloServicio,
+                    'nombre_servicio' => $tituloServicio,
+                    'cantidad' => $nuevaCantidad,
+                    'monto_base' => $montoBaseActual,
+                    'monto_extras' => $montoExtras,
+                    'total_linea' => round(($montoBaseActual + $montoExtras) * $nuevaCantidad, 2),
+                    'descripcion_servicio' => $descripcionServicio,
+                ])
+            );
         }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
@@ -942,8 +1151,8 @@ class FacturacionCartService
             'origen_tipo' => PaqueteOrdi::class,
             'origen_id' => (int) $paquete->id,
             'codigo' => (string) ($paquete->codigo ?? ''),
-            'titulo' => (string) ($servicio->nombre_servicio ?? 'Envio correspondencia'),
-            'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'ENVIO CORRESPONDENCIA'),
+            'titulo' => $tituloServicio,
+            'nombre_servicio' => $tituloServicio,
             'nombre_destinatario' => (string) ($paquete->destinatario ?? ''),
             'servicios_extra' => [],
             'resumen_origen' => array_merge([
@@ -956,11 +1165,11 @@ class FacturacionCartService
                 'actividad_economica' => (string) ($servicio->actividadEconomica ?? ''),
                 'codigo_sin' => (string) ($servicio->codigoSin ?? ''),
                 'codigo_producto' => (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
-                'descripcion_servicio' => (string) ($servicio->descripcion ?? $servicio->nombre_servicio ?? 'ENVIO CORRESPONDENCIA'),
+                'descripcion_servicio' => $descripcionServicio,
                 'unidad_medida' => $servicio->unidadMedida ?? 58,
             ], $this->buildServicioAnalyticsResumen(
                 $servicio,
-                (string) ($servicio->nombre_servicio ?? 'ORDINARIAS'),
+                $tituloServicio,
                 (string) ($paquete->codigo ?? ''),
                 (string) ($servicio->codigo ?? ($paquete->codigo ?? '')),
                 'ORDINARIAS'
@@ -2151,20 +2360,23 @@ class FacturacionCartService
         return (object) $data;
     }
 
-    private function buildConceptoDraftPayload(ConceptoFacturacion $concepto, ?int $originId = null, int $cantidad = 1): array
+    private function buildConceptoDraftPayload(ConceptoFacturacion $concepto, ?int $originId = null, int $cantidad = 1, ?float $precioUnitario = null): array
     {
-        $montoBase = round((float) ($concepto->precio_base ?? 0), 2);
+        $montoBase = $precioUnitario !== null
+            ? round(max(0, $precioUnitario), 2)
+            : round((float) ($concepto->precio_base ?? 0), 2);
         $resolvedOriginId = $originId !== null && $originId > 0
             ? $originId
             : (int) $concepto->id;
         $cantidad = max(1, $cantidad);
+        $conceptoNormalizado = $this->normalizeConceptoFacturacionFiscalData($concepto);
 
         return [
             'origen_tipo' => ConceptoFacturacion::class,
             'origen_id' => $resolvedOriginId,
             'codigo' => (string) ($concepto->codigo ?? ''),
-            'titulo' => (string) ($concepto->nombre ?? 'Cobro adicional'),
-            'nombre_servicio' => (string) ($concepto->nombre ?? 'COBRO ADICIONAL'),
+            'titulo' => $conceptoNormalizado['titulo'],
+            'nombre_servicio' => $conceptoNormalizado['nombre_servicio'],
             'nombre_destinatario' => '',
             'servicios_extra' => [],
             'resumen_origen' => [
@@ -2177,13 +2389,13 @@ class FacturacionCartService
                 'actividad_economica' => (string) ($concepto->actividad_economica ?? ''),
                 'codigo_sin' => (string) ($concepto->codigo_sin ?? ''),
                 'codigo_producto' => (string) ($concepto->codigo ?? ''),
-                'descripcion_servicio' => (string) ($concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'),
+                'descripcion_servicio' => $conceptoNormalizado['descripcion_servicio'],
                 'unidad_medida' => (int) ($concepto->unidad_medida ?? 58),
                 'concepto_facturacion_id' => (int) $concepto->id,
                 'codigo_paquete' => (string) ($concepto->codigo ?? ''),
                 'codigo_detalle_enviado' => (string) ($concepto->codigo ?? ''),
-                'codigo_servicio' => $this->buildServicioAnalyticsCodigo((string) ($concepto->nombre ?? 'COBRO ADICIONAL'), (string) ($concepto->codigo ?? '')),
-                'servicio_nombre' => $this->normalizeServicioAnalyticsNombre((string) ($concepto->nombre ?? 'COBRO ADICIONAL')),
+                'codigo_servicio' => $this->buildServicioAnalyticsCodigo($conceptoNormalizado['nombre_servicio'], (string) ($concepto->codigo ?? '')),
+                'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($conceptoNormalizado['nombre_servicio']),
                 'servicio_familia' => 'CONCEPTO_FACTURABLE',
                 'codigo_producto_fiscal' => (string) ($concepto->codigo ?? ''),
             ],
@@ -2194,18 +2406,20 @@ class FacturacionCartService
         ];
     }
 
-    private function findEquivalentConceptoDraftItem(?object $draft, ConceptoFacturacion $concepto): ?object
+    private function findEquivalentConceptoDraftItem(?object $draft, ConceptoFacturacion $concepto, ?float $precioUnitario = null): ?object
     {
         if (!$draft) {
             return null;
         }
 
-        $expectedPayload = $this->buildConceptoDraftPayload($concepto);
-        $expectedResumen = $this->normalizeFacturacionResumenOrigenForMatch($expectedPayload['resumen_origen'] ?? []);
+        $expectedPayload = $this->buildConceptoDraftPayload($concepto, null, 1, $precioUnitario);
         $expectedMontoBase = round((float) ($expectedPayload['monto_base'] ?? 0), 2);
+        $expectedMontoExtras = round((float) ($expectedPayload['monto_extras'] ?? 0), 2);
+        $expectedTitulo = trim((string) ($expectedPayload['titulo'] ?? ''));
+        $expectedNombreServicio = trim((string) ($expectedPayload['nombre_servicio'] ?? ''));
 
         return collect($draft->items ?? [])
-            ->first(function ($item) use ($concepto, $expectedPayload, $expectedResumen, $expectedMontoBase) {
+            ->first(function ($item) use ($concepto, $expectedTitulo, $expectedNombreServicio, $expectedMontoBase, $expectedMontoExtras) {
                 $itemConceptoId = (int) data_get(
                     $item,
                     'resumen_origen.concepto_facturacion_id',
@@ -2214,11 +2428,10 @@ class FacturacionCartService
 
                 return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
                     && $itemConceptoId === (int) $concepto->id
-                    && trim((string) data_get($item, 'codigo', '')) === trim((string) ($expectedPayload['codigo'] ?? ''))
-                    && trim((string) data_get($item, 'titulo', '')) === trim((string) ($expectedPayload['titulo'] ?? ''))
-                    && trim((string) data_get($item, 'nombre_servicio', '')) === trim((string) ($expectedPayload['nombre_servicio'] ?? ''))
+                    && trim((string) data_get($item, 'titulo', '')) === $expectedTitulo
+                    && trim((string) data_get($item, 'nombre_servicio', '')) === $expectedNombreServicio
                     && round((float) data_get($item, 'monto_base', 0), 2) === $expectedMontoBase
-                    && $this->normalizeFacturacionResumenOrigenForMatch((array) data_get($item, 'resumen_origen', [])) === $expectedResumen;
+                    && round((float) data_get($item, 'monto_extras', 0), 2) === $expectedMontoExtras;
             });
     }
 
@@ -2963,7 +3176,95 @@ class FacturacionCartService
             throw new \RuntimeException('No se pudo normalizar el carrito remoto.');
         }
 
+        $cart = $this->mergeEquivalentConceptoDraftItems($user, $cart);
+
         if (!$this->ensureDraftItemCodesUnique($user, $cart)) {
+            return $cart;
+        }
+
+        $refreshed = $this->fetchVentaById($user, (int) ($cart->id ?? 0));
+
+        return $refreshed ?: $cart;
+    }
+
+    private function mergeEquivalentConceptoDraftItems(User $user, object $cart): object
+    {
+        $conceptoGroups = collect($cart->items ?? [])
+            ->filter(function ($item) {
+                return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\');
+            })
+            ->groupBy(function ($item) {
+                $conceptoId = (int) data_get(
+                    $item,
+                    'resumen_origen.concepto_facturacion_id',
+                    data_get($item, 'origen_id', 0)
+                );
+                $montoBase = round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2);
+                $montoExtras = round((float) data_get($item, 'monto_extras', 0), 2);
+                $titulo = trim((string) data_get($item, 'titulo', ''));
+                $nombreServicio = trim((string) data_get($item, 'nombre_servicio', ''));
+
+                return implode('|', [
+                    $conceptoId,
+                    number_format($montoBase, 2, '.', ''),
+                    number_format($montoExtras, 2, '.', ''),
+                    $titulo,
+                    $nombreServicio,
+                ]);
+            })
+            ->filter(fn ($group) => $group->count() > 1);
+
+        if ($conceptoGroups->isEmpty()) {
+            return $cart;
+        }
+
+        $changed = false;
+
+        foreach ($conceptoGroups as $group) {
+            $sortedItems = $group
+                ->sortBy(fn ($item) => (int) data_get($item, 'id', 0))
+                ->values();
+
+            $primaryItem = $sortedItems->first();
+            if (!$primaryItem) {
+                continue;
+            }
+
+            $totalQuantity = $sortedItems
+                ->sum(fn ($item) => $this->resolveEffectiveDraftItemQuantity($item));
+
+            $primaryQuantity = $this->resolveEffectiveDraftItemQuantity($primaryItem);
+            $montoBase = round((float) data_get($primaryItem, 'monto_base', data_get($primaryItem, 'precio', 0)), 2);
+            $montoExtras = round((float) data_get($primaryItem, 'monto_extras', 0), 2);
+
+            if ($totalQuantity !== $primaryQuantity) {
+                $this->updateDraftItem(
+                    $user,
+                    (int) data_get($primaryItem, 'id'),
+                    $this->buildDraftItemUpdatePayload($primaryItem, [
+                        'cantidad' => $totalQuantity,
+                        'monto_base' => $montoBase,
+                        'monto_extras' => $montoExtras,
+                        'total_linea' => round(($montoBase + $montoExtras) * $totalQuantity, 2),
+                    ]),
+                    false
+                );
+                $changed = true;
+            }
+
+            foreach ($sortedItems->slice(1) as $duplicateItem) {
+                try {
+                    $this->request('DELETE', '/cart/items/' . (int) data_get($duplicateItem, 'id'), [
+                        'origen_usuario_id' => (string) $user->id,
+                    ]);
+                    $changed = true;
+                } catch (\Throwable) {
+                    // keep flow resilient; duplicates can still be corrected manually in UI
+                }
+            }
+        }
+
+        if (!$changed) {
             return $cart;
         }
 
@@ -3046,17 +3347,68 @@ class FacturacionCartService
                 return null;
             }
 
+            $conceptoNormalizado = $this->normalizeConceptoFacturacionFiscalData($concepto);
+
             return new Servicio([
-                'nombre_servicio' => (string) ($concepto->nombre ?? ''),
+                'nombre_servicio' => $conceptoNormalizado['nombre_servicio'],
                 'actividadEconomica' => (string) ($concepto->actividad_economica ?? ''),
                 'codigoSin' => (string) ($concepto->codigo_sin ?? ''),
                 'codigo' => (string) ($concepto->codigo ?? ''),
-                'descripcion' => (string) ($concepto->descripcion ?? $concepto->nombre ?? ''),
+                'descripcion' => $conceptoNormalizado['descripcion_servicio'],
                 'unidadMedida' => (int) ($concepto->unidad_medida ?? 58),
             ]);
         }
 
         return null;
+    }
+
+    public function normalizeConceptoFacturacionFiscalData(ConceptoFacturacion $concepto): array
+    {
+        $nombre = trim((string) ($concepto->nombre ?? ''));
+        $normalizedName = strtoupper(preg_replace('/\s+/', ' ', $nombre) ?? '');
+
+        return match ($normalizedName) {
+            'AEROLINEA' => [
+                'titulo' => 'Aerolinea',
+                'nombre_servicio' => 'Aerolinea',
+                'descripcion_servicio' => 'Servicio Aerolinea - Pago de envio',
+            ],
+            'CASILLA' => [
+                'titulo' => 'Casilla',
+                'nombre_servicio' => 'Casilla',
+                'descripcion_servicio' => 'Servicio Casilla - Pago casilla',
+            ],
+            'EMS INTERNACIONAL' => [
+                'titulo' => 'EMS Internacional',
+                'nombre_servicio' => 'EMS Internacional',
+                'descripcion_servicio' => 'Servicio EMS Internacional - Entrega/Envio de Paqueteria',
+            ],
+            'ENCOMIENDA INTERNACIONAL' => [
+                'titulo' => 'Encomienda Internacional',
+                'nombre_servicio' => 'Encomienda Internacional',
+                'descripcion_servicio' => 'Servicio Encomienda Internacional - Entrega/Envio de Paqueteria',
+            ],
+            'ESTAMPILLAS' => [
+                'titulo' => 'Estampillas',
+                'nombre_servicio' => 'Estampillas',
+                'descripcion_servicio' => 'Servicio Venta de Estampillas - Venta',
+            ],
+            'ORDINARIAS INTERNACIONAL' => [
+                'titulo' => 'Ordinarias Internacional',
+                'nombre_servicio' => 'Ordinarias Internacional',
+                'descripcion_servicio' => 'Servicio Ordinaria Internacional - Entrega/Envio de Paqueteria',
+            ],
+            'TARJETA POSTAL' => [
+                'titulo' => 'Tarjeta postal',
+                'nombre_servicio' => 'Tarjeta postal',
+                'descripcion_servicio' => 'Servicio Venta de Tarjeta Postal - Venta',
+            ],
+            default => [
+                'titulo' => $nombre !== '' ? $nombre : 'Cobro adicional',
+                'nombre_servicio' => $nombre !== '' ? $nombre : 'Cobro adicional',
+                'descripcion_servicio' => trim((string) ($concepto->descripcion ?? $nombre ?: 'Cobro adicional')),
+            ],
+        };
     }
 
     private function assertFacturacionPermission(User $user): void

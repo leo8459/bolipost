@@ -502,6 +502,10 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'facturacion-servicio.store' => [
+            'facturacion-servicio.store',
+            'facturacion-servicio.index',
+        ],
         'users.empresas' => [
             'users.empresas',
             'feature.users.empresas.manage',
@@ -1825,6 +1829,8 @@ class AclPermissionRegistry
             'feature.malencaminados.report' => 'Boton: Ver reporte / Generar reporte',
             'feature.malencaminados.export' => 'Boton: Exportar PDF',
             'feature.dashboard.facturacion' => 'Boton: Acceso rapido Facturacion',
+            'facturacion-servicio.index' => 'Ventana: Facturacion por servicio',
+            'facturacion-servicio.store' => 'Accion: Emitir Facturacion por servicio',
             'dashboard.dir-operaciones' => 'Menu: Dir. Operaciones',
             'dashboard.dir-comercial' => 'Menu: Dir. Comercial',
             'dashboard.dir-financiera' => 'Menu: Dir. Financiera',
@@ -2176,6 +2182,8 @@ class AclPermissionRegistry
             'feature.malencaminados.report' => 'Controla el boton Ver reporte y Generar reporte dentro del modulo Malencaminados.',
             'feature.malencaminados.export' => 'Controla el boton Exportar PDF dentro del reporte de Malencaminados.',
             'feature.dashboard.facturacion' => 'Controla el boton flotante Facturacion del dashboard y sus accesos rapidos a pantallas de tarifas.',
+            'facturacion-servicio.index' => 'Controla el acceso a la ventana Facturacion por servicio dentro del menu Reportes.',
+            'facturacion-servicio.store' => 'Controla la emision desde la ventana Facturacion por servicio. Usa el mismo acceso principal de la ventana.',
             'dashboard.dir-operaciones' => 'Controla la visibilidad del menu Dir. Operaciones en la barra lateral.',
             'dashboard.dir-comercial' => 'Controla la visibilidad del menu Dir. Comercial en la barra lateral.',
             'dashboard.dir-financiera' => 'Controla la visibilidad del menu Dir. Financiera en la barra lateral.',
