@@ -1772,7 +1772,7 @@
                         <tbody>
                             @if ($this->isEnTransitoEms)
                                 @forelse ($paquetes as $row)
-                                    <tr>
+                                    <tr wire:key="en-transito-row-{{ $row->record_type ?? 'row' }}-{{ $row->record_id ?? $loop->index }}">
                                         <td><span class="pill-id">{{ $row->codigo }}</span></td>
                                         <td>{{ $row->origen ?: '-' }}</td>
                                         <td>{{ $row->destino ?: '-' }}</td>
@@ -1802,7 +1802,7 @@
                                 @endforelse
                             @elseif ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                 @forelse ($paquetes as $row)
-                                    <tr>
+                                    <tr wire:key="almacen-row-{{ $row->record_type ?? 'row' }}-{{ $row->record_id ?? $loop->index }}">
                                         @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                             <td>
                                                 @if (($row->record_type ?? '') === 'EMS')

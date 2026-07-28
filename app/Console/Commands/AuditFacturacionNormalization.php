@@ -286,7 +286,11 @@ class AuditFacturacionNormalization extends Command
                 'confianza' => 'alta',
             ],
             $originType === 'ConceptoFacturacion' => array_merge(
-                $this->normalizeConceptoByName($serviceName),
+                $this->normalizeConceptoActual(
+                    $title !== '' ? $title : $serviceName,
+                    $service !== '' ? $service : $title,
+                    $description
+                ),
                 ['regla' => 'concepto_facturable', 'confianza' => 'alta']
             ),
             $originType === 'PaqueteInt' => [
@@ -334,52 +338,17 @@ class AuditFacturacionNormalization extends Command
         };
     }
 
-    private function normalizeConceptoByName(string $name): array
+    private function normalizeConceptoActual(string $title, string $service, string $description): array
     {
-        $normalized = strtoupper(trim(preg_replace('/\s+/', ' ', $name) ?? ''));
+        $resolvedTitle = trim($title) !== '' ? trim($title) : (trim($service) !== '' ? trim($service) : 'Cobro adicional');
+        $resolvedService = trim($service) !== '' ? trim($service) : $resolvedTitle;
+        $resolvedDescription = trim($description) !== '' ? trim($description) : $resolvedService;
 
-        return match ($normalized) {
-            'AEROLINEA' => [
-                'titulo' => 'Aerolinea',
-                'nombre_servicio' => 'Aerolinea',
-                'descripcion_servicio' => 'Servicio Aerolinea - Pago de envio',
-            ],
-            'CASILLA' => [
-                'titulo' => 'Casilla',
-                'nombre_servicio' => 'Casilla',
-                'descripcion_servicio' => 'Servicio Casilla - Pago casilla',
-            ],
-            'EMS INTERNACIONAL' => [
-                'titulo' => 'EMS Internacional',
-                'nombre_servicio' => 'EMS Internacional',
-                'descripcion_servicio' => 'Servicio EMS Internacional - Entrega/Envio de Paqueteria',
-            ],
-            'ENCOMIENDA INTERNACIONAL' => [
-                'titulo' => 'Encomienda Internacional',
-                'nombre_servicio' => 'Encomienda Internacional',
-                'descripcion_servicio' => 'Servicio Encomienda Internacional - Entrega/Envio de Paqueteria',
-            ],
-            'ESTAMPILLAS' => [
-                'titulo' => 'Estampillas',
-                'nombre_servicio' => 'Estampillas',
-                'descripcion_servicio' => 'Servicio Venta de Estampillas - Venta',
-            ],
-            'ORDINARIAS INTERNACIONAL' => [
-                'titulo' => 'Ordinarias Internacional',
-                'nombre_servicio' => 'Ordinarias Internacional',
-                'descripcion_servicio' => 'Servicio Ordinaria Internacional - Entrega/Envio de Paqueteria',
-            ],
-            'TARJETA POSTAL' => [
-                'titulo' => 'Tarjeta postal',
-                'nombre_servicio' => 'Tarjeta postal',
-                'descripcion_servicio' => 'Servicio Venta de Tarjeta Postal - Venta',
-            ],
-            default => [
-                'titulo' => $name,
-                'nombre_servicio' => $name,
-                'descripcion_servicio' => $name,
-            ],
-        };
+        return [
+            'titulo' => $resolvedTitle,
+            'nombre_servicio' => $resolvedService,
+            'descripcion_servicio' => $resolvedDescription,
+        ];
     }
 
     private function writeCsv(string $path, Collection $rows): void

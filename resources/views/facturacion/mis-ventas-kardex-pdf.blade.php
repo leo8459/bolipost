@@ -248,14 +248,12 @@
         ->values();
     $preSummary = [
         'total_ventas' => collect($rows)->count(),
-        'total_emitido' => round((float) collect($rows)
-            ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))
-            ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
         'efectivo_cantidad' => $effectiveDetailRows->count(),
         'efectivo_total' => round((float) $effectiveDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
         'qr_cantidad' => $qrDetailRows->count(),
         'qr_total' => round((float) $qrDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
     ];
+    $preSummary['total_emitido'] = round((float) $preSummary['efectivo_total'] + (float) $preSummary['qr_total'], 2);
     $branchGroups = collect($rows)
         ->groupBy(fn ($row) => trim((string) data_get($row, 'origen_usuario_id', data_get($row, 'origen_usuario_email', 'sin-usuario'))))
         ->map(function ($groupRows) {
@@ -263,6 +261,14 @@
                 ->sortBy(fn ($row) => (int) data_get($row, 'fecha_sort', 0))
                 ->values();
             $first = $groupRows->first();
+            $groupEffectiveRows = $groupRows
+                ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) !== 'qr')
+                ->values();
+            $groupQrRows = $groupRows
+                ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) === 'qr')
+                ->values();
+            $groupCashTotal = round((float) $groupEffectiveRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2);
+            $groupQrTotal = round((float) $groupQrRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2);
 
             return [
                 'usuario_id' => trim((string) data_get($first, 'origen_usuario_id', '')),
@@ -272,15 +278,9 @@
                 'ventas' => $groupRows->count(),
                 'cobradas' => $groupRows->filter(fn ($row) => (bool) data_get($row, 'cobrada', false))->count(),
                 'pendientes' => $groupRows->filter(fn ($row) => ! (bool) data_get($row, 'cobrada', false))->count(),
-                'total' => round((float) $groupRows
-                    ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))
-                    ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
-                'total_caja' => round((float) $groupRows
-                    ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', false))
-                    ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
-                'total_qr' => round((float) $groupRows
-                    ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) === 'qr')
-                    ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+                'total' => round((float) $groupCashTotal + (float) $groupQrTotal, 2),
+                'total_caja' => $groupCashTotal,
+                'total_qr' => $groupQrTotal,
             ];
         })
         ->sortByDesc('total')
@@ -433,7 +433,7 @@
         </tr>
         <tr>
             <td class="right">TOTAL GENERAL SUCURSAL</td>
-            <td class="right">Bs {{ number_format((float) collect($rows)->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+            <td class="right">Bs {{ number_format((float) $preSummary['total_emitido'], 2) }}</td>
         </tr>
     </table>
 @else

@@ -3397,50 +3397,13 @@ class FacturacionCartService
     public function normalizeConceptoFacturacionFiscalData(ConceptoFacturacion $concepto): array
     {
         $nombre = trim((string) ($concepto->nombre ?? ''));
-        $normalizedName = strtoupper(preg_replace('/\s+/', ' ', $nombre) ?? '');
+        $descripcion = trim((string) ($concepto->descripcion ?? ''));
 
-        return match ($normalizedName) {
-            'AEROLINEA' => [
-                'titulo' => 'Aerolinea',
-                'nombre_servicio' => 'Aerolinea',
-                'descripcion_servicio' => 'Servicio Aerolinea - Pago de envio',
-            ],
-            'CASILLA' => [
-                'titulo' => 'Casilla',
-                'nombre_servicio' => 'Casilla',
-                'descripcion_servicio' => 'Servicio Casilla - Pago casilla',
-            ],
-            'EMS INTERNACIONAL' => [
-                'titulo' => 'EMS Internacional',
-                'nombre_servicio' => 'EMS Internacional',
-                'descripcion_servicio' => 'Servicio EMS Internacional - Entrega/Envio de Paqueteria',
-            ],
-            'ENCOMIENDA INTERNACIONAL' => [
-                'titulo' => 'Encomienda Internacional',
-                'nombre_servicio' => 'Encomienda Internacional',
-                'descripcion_servicio' => 'Servicio Encomienda Internacional - Entrega/Envio de Paqueteria',
-            ],
-            'ESTAMPILLAS' => [
-                'titulo' => 'Estampillas',
-                'nombre_servicio' => 'Estampillas',
-                'descripcion_servicio' => 'Servicio Venta de Estampillas - Venta',
-            ],
-            'ORDINARIAS INTERNACIONAL' => [
-                'titulo' => 'Ordinarias Internacional',
-                'nombre_servicio' => 'Ordinarias Internacional',
-                'descripcion_servicio' => 'Servicio Ordinaria Internacional - Entrega/Envio de Paqueteria',
-            ],
-            'TARJETA POSTAL' => [
-                'titulo' => 'Tarjeta postal',
-                'nombre_servicio' => 'Tarjeta postal',
-                'descripcion_servicio' => 'Servicio Venta de Tarjeta Postal - Venta',
-            ],
-            default => [
-                'titulo' => $nombre !== '' ? $nombre : 'Cobro adicional',
-                'nombre_servicio' => $nombre !== '' ? $nombre : 'Cobro adicional',
-                'descripcion_servicio' => trim((string) ($concepto->descripcion ?? $nombre ?: 'Cobro adicional')),
-            ],
-        };
+        return [
+            'titulo' => $nombre !== '' ? $nombre : 'Cobro adicional',
+            'nombre_servicio' => $nombre !== '' ? $nombre : 'Cobro adicional',
+            'descripcion_servicio' => $descripcion !== '' ? $descripcion : ($nombre !== '' ? $nombre : 'Cobro adicional'),
+        ];
     }
 
     private function assertFacturacionPermission(User $user): void
