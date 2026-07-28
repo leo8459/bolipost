@@ -196,7 +196,7 @@ class FacturacionServicioController extends Controller
                         $descripcion = trim((string) ($linea['descripcion'] ?? ''));
                         if ($descripcion === '') {
                             $descripcion = trim((string) data_get(
-                                $service->normalizeConceptoFacturacionFiscalData($concepto),
+                                $service->normalizeConceptoFacturacionFiscalData($concepto, $codigo),
                                 'descripcion_servicio',
                                 $concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'
                             ));
@@ -213,7 +213,7 @@ class FacturacionServicioController extends Controller
                     ->all();
 
                 $baseDescription = trim((string) data_get(
-                    $service->normalizeConceptoFacturacionFiscalData($concepto),
+                    $service->normalizeConceptoFacturacionFiscalData($concepto, (string) ($concepto->codigo ?? '')),
                     'descripcion_servicio',
                     $concepto->descripcion ?? $concepto->nombre ?? 'COBRO ADICIONAL'
                 ));

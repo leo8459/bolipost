@@ -153,12 +153,15 @@ class FacturacionCartService
         $this->assertFacturacionPermission($user);
 
         $paquete->loadMissing(['tarifario.servicio']);
-        $servicioEms = optional(optional($paquete->tarifario)->servicio);
+        $servicioEms = optional($paquete->tarifario)->servicio;
         $servicioPresentacion = $servicioEms instanceof Servicio ? $servicioEms : null;
-        $servicioFiscal = $this->resolveFiscalServicio($servicioPresentacion, null);
+        $servicioFiscal = $this->resolvePaqueteEmsServicioFiscal($paquete, $servicioPresentacion);
+        if (!$servicioFiscal) {
+            throw new \RuntimeException('No se pudo resolver el servicio fiscal real del paquete EMS para facturacion.');
+        }
         $montoBase = round((float) ($paquete->precio ?? 0), 2);
-        $tituloServicio = $this->resolveAdmisionesServicioTitulo($servicioPresentacion ?: $servicioFiscal);
-        $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicioPresentacion ?: $servicioFiscal);
+        $tituloServicio = $this->resolveAdmisionesServicioTitulo($servicioFiscal);
+        $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicioFiscal);
         $resumenOrigen = $this->buildPaqueteEmsResumenOrigen(
             $paquete,
             $servicioFiscal,
@@ -221,22 +224,19 @@ class FacturacionCartService
 
         $user->loadMissing('sucursal');
         $paquete->loadMissing(['tarifario.servicio']);
-        $servicioEms = optional(optional($paquete->tarifario)->servicio);
+        $servicioEms = optional($paquete->tarifario)->servicio;
         $servicioPresentacion = $servicioEms instanceof Servicio ? $servicioEms : null;
-        $servicioFiscal = $this->resolveFiscalServicio(
-            $servicioPresentacion,
-            $this->resolveModuloServicio('EMS')
-        );
+        $servicioFiscal = $this->resolvePaqueteEmsServicioFiscal($paquete, $servicioPresentacion);
         if (!$servicioFiscal) {
             throw new \RuntimeException('No se encontro un servicio fiscal para registrar la venta OFICIAL.');
         }
 
-        $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicioPresentacion ?: $servicioFiscal);
+        $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicioFiscal);
         $resumenOrigen = $this->buildPaqueteEmsResumenOrigen(
             $paquete,
             $servicioFiscal,
             $descripcionServicio,
-            $this->resolveAdmisionesServicioTitulo($servicioPresentacion ?: $servicioFiscal)
+            $this->resolveAdmisionesServicioTitulo($servicioFiscal)
         );
         $fallbackEmail = trim((string) config('services.facturacion_bridge.fallback_email', 'sincorreo@agbc.bo'));
         if ($fallbackEmail === '' || !filter_var($fallbackEmail, FILTER_VALIDATE_EMAIL)) {
@@ -2375,7 +2375,7 @@ class FacturacionCartService
         return (object) $data;
     }
 
-    private function buildConceptoDraftPayload(ConceptoFacturacion $concepto, ?int $originId = null, int $cantidad = 1, ?float $precioUnitario = null): array
+    private function buildConceptoDraftPayload(ConceptoFacturacion $concepto, ?int $originId = null, int $cantidad = 1, ?float $precioUnitario = null, ?string $draftCode = null): array
     {
         $montoBase = $precioUnitario !== null
             ? round(max(0, $precioUnitario), 2)
@@ -2384,18 +2384,19 @@ class FacturacionCartService
             ? $originId
             : (int) $concepto->id;
         $cantidad = max(1, $cantidad);
-        $conceptoNormalizado = $this->normalizeConceptoFacturacionFiscalData($concepto);
+        $resolvedCode = trim((string) ($draftCode ?? $concepto->codigo ?? ''));
+        $conceptoNormalizado = $this->normalizeConceptoFacturacionFiscalData($concepto, $resolvedCode);
 
         return [
             'origen_tipo' => ConceptoFacturacion::class,
             'origen_id' => $resolvedOriginId,
-            'codigo' => (string) ($concepto->codigo ?? ''),
+            'codigo' => $resolvedCode,
             'titulo' => $conceptoNormalizado['titulo'],
             'nombre_servicio' => $conceptoNormalizado['nombre_servicio'],
             'nombre_destinatario' => '',
             'servicios_extra' => [],
             'resumen_origen' => [
-                'codigo' => (string) ($concepto->codigo ?? ''),
+                'codigo' => $resolvedCode,
                 'contenido' => 'COBRO ADICIONAL',
                 'peso' => 0,
                 'destinatario' => '',
@@ -2408,7 +2409,7 @@ class FacturacionCartService
                 'unidad_medida' => (int) ($concepto->unidad_medida ?? 58),
                 'concepto_facturacion_id' => (int) $concepto->id,
                 'codigo_paquete' => (string) ($concepto->codigo ?? ''),
-                'codigo_detalle_enviado' => (string) ($concepto->codigo ?? ''),
+                'codigo_detalle_enviado' => $resolvedCode,
                 'codigo_servicio' => $this->buildServicioAnalyticsCodigo($conceptoNormalizado['nombre_servicio'], (string) ($concepto->codigo ?? '')),
                 'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($conceptoNormalizado['nombre_servicio']),
                 'servicio_familia' => 'CONCEPTO_FACTURABLE',
@@ -3036,6 +3037,55 @@ class FacturacionCartService
             ->first();
     }
 
+    private function resolvePaqueteEmsServicioFiscal(?PaqueteEms $paquete, ?Servicio $servicioPresentacion = null): ?Servicio
+    {
+        $servicio = $servicioPresentacion;
+
+        if (!$servicio && $paquete) {
+            $paquete->loadMissing(['tarifario.servicio']);
+            $loadedServicio = optional($paquete->tarifario)->servicio;
+            $servicio = $loadedServicio instanceof Servicio ? $loadedServicio : null;
+        }
+
+        if ($this->hasServicioFiscalData($servicio)) {
+            return $servicio;
+        }
+
+        if (!$servicio) {
+            return null;
+        }
+
+        $servicioId = (int) ($servicio->getKey() ?? 0);
+        if ($servicioId > 0) {
+            $strictById = Servicio::query()->find($servicioId);
+            if ($this->hasServicioFiscalData($strictById)) {
+                return $strictById;
+            }
+        }
+
+        $servicioCodigo = trim((string) ($servicio->codigo ?? ''));
+        if ($servicioCodigo !== '') {
+            $strictByCode = Servicio::query()
+                ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$servicioCodigo])
+                ->first();
+            if ($this->hasServicioFiscalData($strictByCode)) {
+                return $strictByCode;
+            }
+        }
+
+        $servicioNombre = trim((string) ($servicio->nombre_servicio ?? ''));
+        if ($servicioNombre !== '') {
+            $strictByName = Servicio::query()
+                ->whereRaw('trim(upper(nombre_servicio)) = trim(upper(?))', [$servicioNombre])
+                ->first();
+            if ($this->hasServicioFiscalData($strictByName)) {
+                return $strictByName;
+            }
+        }
+
+        return null;
+    }
+
     private function resolveFiscalServicio(?Servicio ...$candidatos): ?Servicio
     {
         foreach ($candidatos as $servicio) {
@@ -3382,10 +3432,12 @@ class FacturacionCartService
 
         if ($origenTipo === ltrim(PaqueteEms::class, '\\')) {
             $paquete = PaqueteEms::query()->with('tarifario.servicio')->find($origenId);
-            $servicio = optional(optional($paquete)->tarifario)->servicio;
-            if ($servicio instanceof Servicio) {
-                return $this->resolveFiscalServicio($servicio);
-            }
+            return $this->resolvePaqueteEmsServicioFiscal(
+                $paquete,
+                optional($paquete?->tarifario)->servicio instanceof Servicio
+                    ? optional($paquete?->tarifario)->servicio
+                    : null
+            );
         }
 
         if ($origenTipo === ltrim(Recojo::class, '\\')) {
@@ -3407,7 +3459,10 @@ class FacturacionCartService
                 return null;
             }
 
-            $conceptoNormalizado = $this->normalizeConceptoFacturacionFiscalData($concepto);
+            $conceptoNormalizado = $this->normalizeConceptoFacturacionFiscalData(
+                $concepto,
+                (string) data_get($item, 'codigo', $concepto->codigo ?? '')
+            );
 
             return new Servicio([
                 'nombre_servicio' => $conceptoNormalizado['nombre_servicio'],
@@ -3422,10 +3477,16 @@ class FacturacionCartService
         return null;
     }
 
-    public function normalizeConceptoFacturacionFiscalData(ConceptoFacturacion $concepto): array
+    public function normalizeConceptoFacturacionFiscalData(ConceptoFacturacion $concepto, ?string $draftCode = null): array
     {
         $nombre = trim((string) ($concepto->nombre ?? ''));
         $descripcion = trim((string) ($concepto->descripcion ?? ''));
+        $codigoConcepto = strtoupper(trim((string) ($concepto->codigo ?? '')));
+        $codigoUsado = strtoupper(trim((string) ($draftCode ?? $concepto->codigo ?? '')));
+
+        if ($codigoConcepto === 'SRVE-4' && ($codigoUsado === '' || $codigoUsado === 'SRVE-4')) {
+            $descripcion = 'PAQUETERIA ENCOMIENDA INTERNACIONAL- ENTREGA';
+        }
 
         return [
             'titulo' => $nombre !== '' ? $nombre : 'Cobro adicional',

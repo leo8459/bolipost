@@ -394,7 +394,9 @@ class MisVentasController extends Controller
             'totalBorradores' => 0,
             'facturadas' => (int) ($resumen['facturadas'] ?? 0),
             'pendientes' => (int) ($resumen['pendientes'] ?? 0),
+            'anuladas' => (int) ($resumen['anuladas'] ?? 0),
             'rechazadas' => (int) ($resumen['observadas'] ?? 0),
+            'montoAnulado' => (float) ($resumen['totalAnulado'] ?? 0),
             'montoTotal' => (float) ($resumen['totalVendido'] ?? 0),
         ];
     }
@@ -408,6 +410,8 @@ class MisVentasController extends Controller
             'totalBorradores' => $rows->filter(fn ($row) => (string) data_get($row, 'estado', '') === 'borrador')->count(),
             'facturadas' => $rows->filter(fn ($row) => in_array(strtoupper((string) data_get($row, 'estado_emision', '')), $paidStatuses, true))->count(),
             'pendientes' => $rows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'PENDIENTE')->count(),
+            'anuladas' => $rows->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'anulado'
+                || in_array(strtoupper((string) data_get($row, 'estado_emision', '')), ['ANULADA', 'ANULADO'], true))->count(),
             'rechazadas' => $rows->filter(function ($row) {
                 $estadoEmision = strtoupper((string) data_get($row, 'estado_emision', ''));
                 $isQrPayment = $this->isQrPaymentRow($row);
@@ -431,6 +435,10 @@ class MisVentasController extends Controller
                     && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
                     && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado')
                 ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
+            'montoAnulado' => round((float) $rows
+                ->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'anulado'
+                    || in_array(strtoupper((string) data_get($row, 'estado_emision', '')), ['ANULADA', 'ANULADO'], true))
+                ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
             'montoTotal' => round((float) $rows
                 ->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'emitido'
                     && $this->contabilizaEnCaja($row)
@@ -452,11 +460,13 @@ class MisVentasController extends Controller
             'totalBorradores' => 0,
             'facturadas' => 0,
             'pendientes' => 0,
+            'anuladas' => 0,
             'rechazadas' => 0,
             'qrPagados' => 0,
             'qrFacturados' => 0,
             'qrPendientes' => 0,
             'montoQr' => 0.0,
+            'montoAnulado' => 0.0,
             'montoTotal' => 0.0,
         ];
     }

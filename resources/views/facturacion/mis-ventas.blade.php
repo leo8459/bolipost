@@ -104,6 +104,14 @@
                 'accent' => true,
             ],
             [
+                'label' => 'Anuladas',
+                'value' => number_format($summary['anuladas'] ?? 0),
+                'meta' => 'Bs ' . number_format((float) ($summary['montoAnulado'] ?? 0), 2),
+                'params' => array_merge($baseFilterParams, ['estado' => 'all', 'estado_emision' => 'ANULADA']),
+                'active' => $filters['estado'] === 'all' && $filters['estado_emision'] === 'ANULADA',
+                'accent' => false,
+            ],
+            [
                 'label' => 'Rechazadas',
                 'value' => number_format($summary['rechazadas']),
                 'meta' => '',

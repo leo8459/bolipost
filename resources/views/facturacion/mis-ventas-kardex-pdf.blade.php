@@ -252,8 +252,11 @@
         'efectivo_total' => round((float) $effectiveDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
         'qr_cantidad' => $qrDetailRows->count(),
         'qr_total' => round((float) $qrDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+        'anuladas_cantidad' => $annulledRows->count(),
+        'anuladas_total' => round((float) $annulledRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
     ];
-    $preSummary['total_emitido'] = round((float) $preSummary['efectivo_total'] + (float) $preSummary['qr_total'], 2);
+    $preSummary['total_emitido'] = round((float) $paidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2);
+    $preSummary['total_no_cobrado'] = round((float) $unpaidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2);
     $branchGroups = collect($rows)
         ->groupBy(fn ($row) => trim((string) data_get($row, 'origen_usuario_id', data_get($row, 'origen_usuario_email', 'sin-usuario'))))
         ->map(function ($groupRows) {
@@ -313,7 +316,7 @@
         <td style="width: 25%;"><strong>Total ventas: {{ number_format((int) $preSummary['total_ventas']) }}</strong></td>
         <td style="width: 25%;"><strong>Total emitido: Bs {{ number_format((float) $preSummary['total_emitido'], 2) }}</strong></td>
         <td style="width: 25%;"><strong>Efectivo: {{ number_format((int) $preSummary['efectivo_cantidad']) }} &nbsp; Bs {{ number_format((float) $preSummary['efectivo_total'], 2) }}</strong></td>
-        <td style="width: 25%;"><strong>QR: {{ number_format((int) $preSummary['qr_cantidad']) }} &nbsp; Bs {{ number_format((float) $preSummary['qr_total'], 2) }}</strong></td>
+        <td style="width: 25%;"><strong>Anuladas: {{ number_format((int) $preSummary['anuladas_cantidad']) }} &nbsp; Bs {{ number_format((float) $preSummary['anuladas_total'], 2) }}</strong></td>
     </tr>
 </table>
 
@@ -429,7 +432,11 @@
         </tr>
         <tr>
             <td class="right">TOTAL PENDIENTE / NO COBRADO</td>
-            <td class="right">Bs {{ number_format((float) $unpaidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+            <td class="right">Bs {{ number_format((float) $preSummary['total_no_cobrado'], 2) }}</td>
+        </tr>
+        <tr>
+            <td class="right">TOTAL VENTAS ANULADAS</td>
+            <td class="right">Bs {{ number_format((float) $preSummary['anuladas_total'], 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL GENERAL SUCURSAL</td>
