@@ -343,11 +343,11 @@ class FacturacionCartService
             'CIUDADES_INTERMEDIAS' => 'Ciudades Intermedias',
             'CIUDADES_INTERMEDIAS_TRINIDAD_COBIJA' => 'Ciudades Intermedias Trinidad Cobija',
             'ECA' => 'ECA',
-            'EMS_LOCAL_COBERTURA_1' => 'EMS Local Cobertura 1',
-            'EMS_LOCAL_COBERTURA_2' => 'EMS Local Cobertura 2',
-            'EMS_LOCAL_COBERTURA_3' => 'EMS Local Cobertura 3',
-            'EMS_LOCAL_COBERTURA_4' => 'EMS Local Cobertura 4',
-            'EMS_NACIONAL' => 'EMS Nacional',
+            'EMS_LOCAL_COBERTURA_1' => 'Ems Local Cobertura 1',
+            'EMS_LOCAL_COBERTURA_2' => 'Ems Local Cobertura 2',
+            'EMS_LOCAL_COBERTURA_3' => 'Ems Local Cobertura 3',
+            'EMS_LOCAL_COBERTURA_4' => 'Ems Local Cobertura 4',
+            'EMS_NACIONAL' => 'Ems Nacional',
             'ENCOMIENDA' => 'Encomienda',
             'INTERNACIONAL' => 'Internacional',
             'SUPER_EXPRESS_NACIONAL' => 'Super Express Nacional',
@@ -3072,11 +3072,45 @@ class FacturacionCartService
             }
 
             $resumen = (array) ($item->resumen_origen ?? []);
+            $origenTipo = ltrim((string) ($item->origen_tipo ?? ''), '\\');
+            $paqueteEms = null;
+            $servicioPresentacion = null;
+            $expectedTituloServicio = null;
+            $expectedDescripcionServicio = null;
+            $expectedCodigoProducto = null;
+            $expectedCodigoServicio = null;
+            $expectedServicioNombre = null;
+            $expectedServicioFamilia = null;
+
             $needSync = trim((string) ($resumen['actividad_economica'] ?? '')) === ''
                 || trim((string) ($resumen['codigo_sin'] ?? '')) === ''
                 || trim((string) ($resumen['codigo_producto'] ?? '')) === ''
                 || trim((string) ($resumen['descripcion_servicio'] ?? '')) === ''
                 || (int) ($resumen['unidad_medida'] ?? 0) <= 0;
+
+            if ($origenTipo === ltrim(PaqueteEms::class, '\\')) {
+                $paqueteEms = PaqueteEms::query()->with('tarifario.servicio')->find((int) ($item->origen_id ?? 0));
+                $servicioPresentacion = optional(optional($paqueteEms)->tarifario)->servicio;
+
+                if ($servicioPresentacion instanceof Servicio) {
+                    $expectedTituloServicio = $this->resolveAdmisionesServicioTitulo($servicioPresentacion);
+                    $expectedDescripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicioPresentacion);
+                    $expectedCodigoProducto = trim((string) ($servicioPresentacion->codigo ?? ''));
+                    $expectedCodigoServicio = $this->buildServicioAnalyticsCodigo($expectedTituloServicio, $expectedCodigoProducto);
+                    $expectedServicioNombre = $this->normalizeServicioAnalyticsNombre($expectedTituloServicio);
+                    $expectedServicioFamilia = 'EMS';
+
+                    $needSync = $needSync
+                        || trim((string) ($item->titulo ?? '')) !== $expectedTituloServicio
+                        || trim((string) ($item->nombre_servicio ?? '')) !== $expectedTituloServicio
+                        || trim((string) ($resumen['descripcion_servicio'] ?? '')) !== $expectedDescripcionServicio
+                        || trim((string) ($resumen['codigo_producto'] ?? '')) !== $expectedCodigoProducto
+                        || trim((string) ($resumen['codigo_producto_fiscal'] ?? '')) !== $expectedCodigoProducto
+                        || trim((string) ($resumen['codigo_servicio'] ?? '')) !== $expectedCodigoServicio
+                        || trim((string) ($resumen['servicio_nombre'] ?? '')) !== $expectedServicioNombre
+                        || trim((string) ($resumen['servicio_familia'] ?? '')) !== $expectedServicioFamilia;
+                }
+            }
 
             if (!$needSync) {
                 continue;
@@ -3109,21 +3143,15 @@ class FacturacionCartService
                 'codigo_producto_fiscal' => (string) ($resumen['codigo_producto_fiscal'] ?? $servicio->codigo ?? $resumen['codigo_producto'] ?? ''),
             ];
 
-            if (ltrim((string) ($item->origen_tipo ?? ''), '\\') === ltrim(PaqueteEms::class, '\\')) {
-                $paquete = PaqueteEms::query()->with('tarifario.servicio')->find((int) ($item->origen_id ?? 0));
-                $servicioPresentacion = optional(optional($paquete)->tarifario)->servicio;
-
-                if ($servicioPresentacion instanceof Servicio) {
-                    $tituloServicio = $this->resolveAdmisionesServicioTitulo($servicioPresentacion);
-                    $descripcionServicio = $this->resolveAdmisionesServicioDescripcion($servicioPresentacion);
-
-                    $payload['titulo'] = $tituloServicio;
-                    $payload['nombre_servicio'] = $tituloServicio;
-                    $payload['descripcion_servicio'] = $descripcionServicio;
-                    $payload['codigo_servicio'] = (string) ($resumen['codigo_servicio'] ?? $this->buildServicioAnalyticsCodigo($tituloServicio, (string) ($servicio->codigo ?? '')));
-                    $payload['servicio_nombre'] = (string) ($resumen['servicio_nombre'] ?? $this->normalizeServicioAnalyticsNombre($tituloServicio));
-                    $payload['servicio_familia'] = (string) ($resumen['servicio_familia'] ?? 'EMS');
-                }
+            if ($origenTipo === ltrim(PaqueteEms::class, '\\') && $servicioPresentacion instanceof Servicio) {
+                $payload['titulo'] = (string) $expectedTituloServicio;
+                $payload['nombre_servicio'] = (string) $expectedTituloServicio;
+                $payload['descripcion_servicio'] = (string) $expectedDescripcionServicio;
+                $payload['codigo_producto'] = (string) $expectedCodigoProducto;
+                $payload['codigo_producto_fiscal'] = (string) $expectedCodigoProducto;
+                $payload['codigo_servicio'] = (string) $expectedCodigoServicio;
+                $payload['servicio_nombre'] = (string) $expectedServicioNombre;
+                $payload['servicio_familia'] = (string) $expectedServicioFamilia;
             }
 
             try {
