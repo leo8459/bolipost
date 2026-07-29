@@ -358,6 +358,11 @@ return [
                     'icon' => 'fas fa-stream',
                 ],
                 [
+                    'text' => 'Envios Oficiales',
+                    'url' => '/dir-operaciones/envios-oficiales',
+                    'icon' => 'fas fa-stamp',
+                ],
+                [
                     'text' => 'Reimprimir CN-33',
                     'url' => '/dir-operaciones/reimprimir-cn33',
                     'icon' => 'fas fa-file-excel',

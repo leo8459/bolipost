@@ -369,6 +369,15 @@
                 body.innerHTML = '<tr><td colspan="14" class="text-center text-danger py-4">Error cargando datos.</td></tr>';
             }
 
+            function imageUrl(value) {
+                const raw = String(value || '').trim();
+                if (!raw) return '';
+                if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(raw) || /^https?:\/\//i.test(raw)) {
+                    return raw;
+                }
+                return '/storage/' + encodeURIComponent(raw).replace(/%2F/g, '/');
+            }
+
             function renderRows(rows) {
                 if (!rows.length) {
                     body.innerHTML = '<tr><td colspan="14" class="text-center py-4">No hay paquetes en DEVOLUCION para este usuario.</td></tr>';
@@ -376,8 +385,9 @@
                 }
 
                 body.innerHTML = rows.map(function(row) {
-                    const imageHtml = row.imagen_devolucion
-                        ? '<a href="/storage/' + encodeURIComponent(row.imagen_devolucion).replace(/%2F/g, '/') + '" target="_blank" class="btn btn-sm btn-outline-secondary">Ver foto</a>'
+                    const fotoUrl = imageUrl(row.imagen_devolucion);
+                    const imageHtml = fotoUrl
+                        ? '<a href="' + fotoUrl + '" target="_blank" class="btn btn-sm btn-outline-secondary">Ver foto</a>'
                         : '<span class="text-muted small">Sin foto</span>';
                     const actionHtml = canCarteroRestore
                         ? '<button class="btn btn-sm btn-carteros-primary btn-recuperar" data-id="' + row.id + '" data-tipo="' + escapeHtml(row.tipo_paquete) + '">RECUPERAR</button>'

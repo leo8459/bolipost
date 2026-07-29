@@ -90,12 +90,24 @@
                                     <td>{{ $paquete->recibido_por ?: '-' }}</td>
                                     <td>{{ $paquete->descripcion ?: '-' }}</td>
                                     <td>
-                                        @if (!empty($paquete->imagen))
-                                            <a href="{{ asset('storage/' . $paquete->imagen) }}"
-                                               class="btn btn-sm btn-outline-primary"
-                                               download>
-                                                Descargar
-                                            </a>
+                                        @php
+                                            $imagenUrl = \App\Support\StoredImage::url($paquete->imagen ?? null);
+                                            $imagenOpenUrl = route('delivery-images.package', [
+                                                'type' => strtolower((string) ($paquete->tipo_paquete ?? 'ems')),
+                                                'id' => $paquete->id,
+                                                'kind' => 'entrega',
+                                            ]);
+                                            $imagenDownloadUrl = route('delivery-images.package.download', [
+                                                'type' => strtolower((string) ($paquete->tipo_paquete ?? 'ems')),
+                                                'id' => $paquete->id,
+                                                'kind' => 'entrega',
+                                            ]);
+                                        @endphp
+                                        @if ($imagenUrl)
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{{ $imagenOpenUrl }}" target="_blank" rel="noopener" class="btn btn-outline-primary">Ver imagen</a>
+                                                <a href="{{ $imagenDownloadUrl }}" class="btn btn-outline-success">Descargar</a>
+                                            </div>
                                         @else
                                             -
                                         @endif

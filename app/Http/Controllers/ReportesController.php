@@ -94,6 +94,102 @@ class ReportesController extends Controller
         return view('reportes.global-por-servicio', $data);
     }
 
+    public function enviosOficiales(Request $request)
+    {
+        $search = trim((string) $request->query('q', ''));
+        $from = trim((string) $request->query('from', ''));
+        $to = trim((string) $request->query('to', ''));
+        $origen = trim((string) $request->query('origen', ''));
+        $destino = trim((string) $request->query('destino', ''));
+
+        $baseQuery = DB::table('paquetes_ems as ems')
+            ->leftJoin('paquetes_ems_formulario as formulario', 'formulario.paquete_ems_id', '=', 'ems.id')
+            ->leftJoin('estados as estado', 'estado.id', '=', 'ems.estado_id')
+            ->leftJoin('users as usuario', 'usuario.id', '=', 'ems.user_id')
+            ->whereRaw("trim(upper(coalesce(formulario.tipo_correspondencia, ems.tipo_correspondencia, ''))) = 'OFICIAL'");
+
+        $origenOptions = (clone $baseQuery)
+            ->selectRaw("distinct trim(coalesce(ems.origen, '')) as origen")
+            ->whereRaw("trim(coalesce(ems.origen, '')) <> ''")
+            ->orderBy('origen')
+            ->pluck('origen');
+
+        $destinoOptions = (clone $baseQuery)
+            ->selectRaw("distinct trim(coalesce(ems.ciudad, '')) as destino")
+            ->whereRaw("trim(coalesce(ems.ciudad, '')) <> ''")
+            ->orderBy('destino')
+            ->pluck('destino');
+
+        $query = (clone $baseQuery)
+            ->when($search !== '', function (Builder $query) use ($search) {
+                $like = '%' . strtolower($search) . '%';
+                $query->where(function (Builder $sub) use ($like) {
+                    foreach ([
+                        'ems.codigo',
+                        'ems.cod_especial',
+                        'ems.origen',
+                        'ems.ciudad',
+                        'ems.nombre_remitente',
+                        'ems.nombre_destinatario',
+                        'ems.direccion',
+                        'estado.nombre_estado',
+                        'usuario.name',
+                    ] as $column) {
+                        $sub->orWhereRaw("LOWER(COALESCE(CAST($column AS TEXT), '')) LIKE ?", [$like]);
+                    }
+                });
+            })
+            ->when($from !== '', function (Builder $query) use ($from) {
+                $query->whereDate('ems.created_at', '>=', $from);
+            })
+            ->when($to !== '', function (Builder $query) use ($to) {
+                $query->whereDate('ems.created_at', '<=', $to);
+            })
+            ->when($origen !== '', function (Builder $query) use ($origen) {
+                $query->whereRaw('trim(upper(coalesce(ems.origen, ?))) = ?', ['', strtoupper($origen)]);
+            })
+            ->when($destino !== '', function (Builder $query) use ($destino) {
+                $query->whereRaw('trim(upper(coalesce(ems.ciudad, ?))) = ?', ['', strtoupper($destino)]);
+            })
+            ->select([
+                'ems.id',
+                'ems.codigo',
+                'ems.cod_especial',
+                'ems.origen',
+                DB::raw("coalesce(ems.ciudad, '-') as destino"),
+                DB::raw("coalesce(ems.nombre_remitente, '-') as remitente"),
+                DB::raw("coalesce(ems.nombre_destinatario, '-') as destinatario"),
+                DB::raw("coalesce(ems.direccion, '-') as direccion"),
+                DB::raw("coalesce(estado.nombre_estado, '-') as estado"),
+                DB::raw("coalesce(usuario.name, '-') as usuario"),
+                DB::raw('coalesce(ems.peso, 0) as peso'),
+                DB::raw('coalesce(ems.precio, 0) as precio'),
+                'ems.created_at',
+                'ems.updated_at',
+            ]);
+
+        $summaryRows = (clone $query)->get();
+        $envios = (clone $query)
+            ->orderByDesc('ems.created_at')
+            ->orderByDesc('ems.id')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('reportes.envios-oficiales', [
+            'envios' => $envios,
+            'search' => $search,
+            'from' => $from,
+            'to' => $to,
+            'origen' => $origen,
+            'destino' => $destino,
+            'origenOptions' => $origenOptions,
+            'destinoOptions' => $destinoOptions,
+            'totalOficiales' => $summaryRows->count(),
+            'pesoTotal' => (float) $summaryRows->sum('peso'),
+            'precioTotal' => (float) $summaryRows->sum('precio'),
+        ]);
+    }
+
     public function exportGlobalPorServicioExcel(Request $request)
     {
         @set_time_limit(300);

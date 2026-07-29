@@ -7,6 +7,7 @@ use App\Models\Empresa;
 use App\Models\Estado;
 use App\Models\Recojo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
 class AreaContratosController extends Controller
@@ -167,6 +168,23 @@ class AreaContratosController extends Controller
             ]),
             $filename
         );
+    }
+
+    public function downloadImagenEntrega(Recojo $contrato)
+    {
+        $imagePath = trim((string) ($contrato->imagen ?? ''));
+
+        abort_if($imagePath === '', 404);
+        abort_if(!Storage::disk('public')->exists($imagePath), 404);
+
+        $extension = pathinfo($imagePath, PATHINFO_EXTENSION);
+        $code = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($contrato->codigo ?: $contrato->id)) ?: (string) $contrato->id;
+        $filename = 'imagen-entrega-' . trim($code, '-');
+        if ($extension !== '') {
+            $filename .= '.' . $extension;
+        }
+
+        return Storage::disk('public')->download($imagePath, $filename);
     }
 
     private function buildEntregadosQuery(string $search, array $estadoIds)

@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Support\TiktokerTariffPriceCalculator;
 use App\Services\FacturacionCartService;
 use App\Support\SolicitudCode;
+use App\Support\StoredImage;
 use App\Support\TiktokerEvent;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -2196,7 +2197,7 @@ class PaquetesEmsController extends Controller
             return null;
         }
 
-        return $request->file('foto')->store('carteros/entregas', 'public');
+        return StoredImage::fromUploadedFile($request->file('foto'));
     }
 
     public function storeRegistroRapidoContrato(Request $request)

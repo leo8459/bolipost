@@ -142,13 +142,31 @@
                                                 <i class="fas fa-print"></i>
                                             </a>
                                         @endif
-                                        @if (!empty($contrato->imagen))
-                                            <a href="{{ asset('storage/' . $contrato->imagen) }}"
+                                        @php
+                                            $imagenUrl = \App\Support\StoredImage::url($contrato->imagen ?? null);
+                                            $imagenOpenUrl = route('delivery-images.package', [
+                                                'type' => 'contrato',
+                                                'id' => $contrato->id,
+                                                'kind' => 'entrega',
+                                            ]);
+                                            $imagenDownloadUrl = route('delivery-images.package.download', [
+                                                'type' => 'contrato',
+                                                'id' => $contrato->id,
+                                                'kind' => 'entrega',
+                                            ]);
+                                        @endphp
+                                        @if ($imagenUrl)
+                                            <a href="{{ $imagenOpenUrl }}"
                                                 target="_blank"
                                                 rel="noopener"
                                                 class="gestor-action-btn"
                                                 title="Ver imagen">
                                                 <i class="fas fa-image"></i>
+                                            </a>
+                                            <a href="{{ $imagenDownloadUrl }}"
+                                                class="gestor-action-btn"
+                                                title="Descargar imagen">
+                                                <i class="fas fa-download"></i>
                                             </a>
                                         @endif
                                     </td>

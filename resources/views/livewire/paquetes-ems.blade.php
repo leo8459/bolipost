@@ -1200,6 +1200,10 @@
 
                         <div class="section-block">
                             <div class="section-title">Datos generales</div>
+                            @php
+                                $tipoCorrespondenciaActual = strtoupper(trim((string) $tipo_correspondencia));
+                                $observacionOficialRequerida = $tipoCorrespondenciaActual !== '' && str_contains($tipoCorrespondenciaActual, 'OFICIAL');
+                            @endphp
 
                             <div class="form-row">
                                 <div class="form-group col-md-6">
@@ -1225,16 +1229,22 @@
                             </div>
 
                             <div class="form-row">
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-4">
                                     <label>Origen (automatico)</label>
                                     <input type="text" wire:model.defer="origen" class="form-control" readonly>
                                     @error('origen') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-4">
                                     <label>Tipo de correspondencia</label>
-                                    <input type="text" wire:model.defer="tipo_correspondencia" class="form-control">
+                                    <input type="text" wire:model.live="tipo_correspondencia" class="form-control">
                                     @error('tipo_correspondencia') <small class="text-danger">{{ $message }}</small> @enderror
                                     <small class="text-muted">Si es OFICIAL, se registra sin precio ni tarifario y se envia directo a facturacion como venta, sin pasar por el carrito.</small>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label>Observacion: que se esta mandando @if($observacionOficialRequerida)<span class="required-star">*</span>@endif</label>
+                                    <input type="text" wire:model.defer="observacion" class="form-control" placeholder="Que se esta mandando">
+                                    @error('observacion') <small class="text-danger">{{ $message }}</small> @enderror
+                                    <small class="text-muted">Obligatorio cuando el tipo de correspondencia es OFICIAL.</small>
                                 </div>
                             </div>
 
@@ -3141,10 +3151,16 @@
                         @error('oficialNombreDestinatario') <small class="text-danger">{{ $message }}</small> @enderror
                     </div>
 
-                    <div class="form-group mb-0">
+                    <div class="form-group">
                         <label>Direccion destinatario</label>
                         <input type="text" class="form-control" wire:model.defer="oficialDireccionDestinatario" placeholder="Ej: Av. Principal #123">
                         @error('oficialDireccionDestinatario') <small class="text-danger">{{ $message }}</small> @enderror
+                    </div>
+
+                    <div class="form-group mb-0">
+                        <label>Observacion: que se esta mandando <span class="required-star">*</span></label>
+                        <input type="text" class="form-control" wire:model.defer="oficialObservacion" placeholder="Que se esta mandando">
+                        @error('oficialObservacion') <small class="text-danger">{{ $message }}</small> @enderror
                     </div>
                 </div>
                 <div class="modal-footer">

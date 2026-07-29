@@ -176,6 +176,10 @@
             padding:8px;
         }
 
+        .siop-photo-cell{
+            min-width:84px;
+        }
+
         .siop-muted{
             color:var(--siop-muted);
         }
@@ -296,7 +300,8 @@
                                 <th>Codigo</th>
                                 <th>Evento</th>
                                 <th>Actor</th>
-                                <th>Foto</th>
+                                <th>Foto entrega</th>
+                                <th>Foto devolucion</th>
                                 <th>Fecha</th>
                                 <th>Acciones</th>
                             </tr>
@@ -321,12 +326,50 @@
                                     </td>
                                     <td>
                                         @php
-                                            $imagenUrl = !empty($registro->imagen) ? asset('storage/' . ltrim($registro->imagen, '/')) : null;
+                                            $imagenUrl = \App\Support\StoredImage::url($registro->imagen_entrega ?? null);
+                                            $imagenOpenUrl = route('delivery-images.event', [
+                                                'source' => $registro->source_table,
+                                                'codigo' => $registro->codigo,
+                                                'kind' => 'entrega',
+                                            ]);
+                                            $imagenDownloadUrl = route('delivery-images.event.download', [
+                                                'source' => $registro->source_table,
+                                                'codigo' => $registro->codigo,
+                                                'kind' => 'entrega',
+                                            ]);
                                         @endphp
                                         @if ($imagenUrl)
-                                            <a href="{{ $imagenUrl }}" target="_blank" rel="noopener">
-                                                <img src="{{ $imagenUrl }}" alt="Foto del evento" class="siop-photo">
+                                            <a href="{{ $imagenOpenUrl }}" target="_blank" rel="noopener">
+                                                <img src="{{ $imagenUrl }}" alt="Foto de entrega" class="siop-photo">
                                             </a>
+                                            <div class="mt-1">
+                                                <a href="{{ $imagenDownloadUrl }}" class="btn btn-xs btn-outline-success">Descargar</a>
+                                            </div>
+                                        @else
+                                            <span class="siop-photo-empty">Sin foto</span>
+                                        @endif
+                                    </td>
+                                    <td class="siop-photo-cell">
+                                        @php
+                                            $imagenDevolucionUrl = \App\Support\StoredImage::url($registro->imagen_devolucion ?? null);
+                                            $imagenDevolucionOpenUrl = route('delivery-images.event', [
+                                                'source' => $registro->source_table,
+                                                'codigo' => $registro->codigo,
+                                                'kind' => 'devolucion',
+                                            ]);
+                                            $imagenDevolucionDownloadUrl = route('delivery-images.event.download', [
+                                                'source' => $registro->source_table,
+                                                'codigo' => $registro->codigo,
+                                                'kind' => 'devolucion',
+                                            ]);
+                                        @endphp
+                                        @if ($imagenDevolucionUrl)
+                                            <a href="{{ $imagenDevolucionOpenUrl }}" target="_blank" rel="noopener">
+                                                <img src="{{ $imagenDevolucionUrl }}" alt="Foto de devolucion" class="siop-photo">
+                                            </a>
+                                            <div class="mt-1">
+                                                <a href="{{ $imagenDevolucionDownloadUrl }}" class="btn btn-xs btn-outline-success">Descargar</a>
+                                            </div>
                                         @else
                                             <span class="siop-photo-empty">Sin foto</span>
                                         @endif
@@ -379,7 +422,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="text-center py-5">
+                                    <td colspan="8" class="text-center py-5">
                                         <div class="font-weight-bold" style="color:var(--siop-azul);">No hay eventos para mostrar</div>
                                         <div class="siop-muted">Prueba con otro codigo o quita algun filtro.</div>
                                     </td>

@@ -27,6 +27,7 @@ use App\Http\Controllers\PaquetesCertiController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\VentanillaController;
 use App\Http\Controllers\DespachoController;
+use App\Http\Controllers\DeliveryImageController;
 use App\Http\Controllers\SacaController;
 use App\Http\Controllers\CarterosController;
 use App\Http\Controllers\BackupController;
@@ -106,6 +107,24 @@ Route::get('/api/busqueda/captcha', [BusquedaController::class, 'captchaTracking
     ->name('api.busqueda.captcha');
 Route::get('/maintenance-request-form/download', [MaintenanceRequestFormController::class, 'download'])
     ->name('maintenance-request-form.download');
+Route::get('/area-contratos/imagen-entrega/{contrato}/descargar', [AreaContratosController::class, 'downloadImagenEntrega'])
+    ->name('area-contratos.imagen-entrega.download');
+Route::get('/imagenes-entrega/paquete/{type}/{id}/{kind?}', [DeliveryImageController::class, 'package'])
+    ->middleware(['auth', 'internal.only'])
+    ->where('kind', 'entrega|devolucion')
+    ->name('delivery-images.package');
+Route::get('/imagenes-entrega/paquete/{type}/{id}/{kind?}/descargar', [DeliveryImageController::class, 'downloadPackage'])
+    ->middleware(['auth', 'internal.only'])
+    ->where('kind', 'entrega|devolucion')
+    ->name('delivery-images.package.download');
+Route::get('/imagenes-entrega/evento/{source}/{codigo}/{kind?}', [DeliveryImageController::class, 'event'])
+    ->middleware(['auth', 'internal.only'])
+    ->where('kind', 'entrega|devolucion')
+    ->name('delivery-images.event');
+Route::get('/imagenes-entrega/evento/{source}/{codigo}/{kind?}/descargar', [DeliveryImageController::class, 'downloadEvent'])
+    ->middleware(['auth', 'internal.only'])
+    ->where('kind', 'entrega|devolucion')
+    ->name('delivery-images.event.download');
 
 Route::get('/api/public/zona-paquete', [ZonaPaqueteController::class, 'buscar'])
     ->name('api.public.zona-paquete');
@@ -166,6 +185,9 @@ Route::get('/dir-operaciones/global-por-servicio/export/excel', [ReportesControl
 Route::get('/dir-operaciones/global-por-servicio/export/pdf', [ReportesController::class, 'exportGlobalPorServicioPdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.global-por-servicio.pdf');
+Route::get('/dir-operaciones/envios-oficiales', [ReportesController::class, 'enviosOficiales'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.envios-oficiales');
 Route::get('/dir-comercial/rendimiento-servicios', [ReportesController::class, 'commercialPerformance'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.comercial.rendimiento-servicios');

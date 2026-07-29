@@ -222,6 +222,23 @@
             background:#f8fafc;
             line-height:1.2;
         }
+        .evento-fotos{
+            display:flex;
+            gap:8px;
+            flex-wrap:wrap;
+        }
+        .evento-foto-box{
+            display:flex;
+            flex-direction:column;
+            gap:4px;
+            align-items:flex-start;
+        }
+        .evento-foto-label{
+            color:#64748b;
+            font-size:.7rem;
+            font-weight:800;
+            text-transform:uppercase;
+        }
 
         @media (max-width: 767.98px){
             .contrato-preview-grid{
@@ -340,13 +357,19 @@
 
                         @if ($contratoBuscado)
                             @php
-                                $contratoImagenUrl = !empty($contratoBuscado->imagen) ? asset('storage/' . $contratoBuscado->imagen) : null;
+                                $contratoImagenUrl = \App\Support\StoredImage::url($contratoBuscado->imagen ?? null);
+                                $contratoImagenOpenUrl = $contratoBuscado
+                                    ? route('delivery-images.package', ['type' => 'contrato', 'id' => $contratoBuscado->id, 'kind' => 'entrega'])
+                                    : null;
+                                $contratoImagenDownloadUrl = $contratoBuscado
+                                    ? route('delivery-images.package.download', ['type' => 'contrato', 'id' => $contratoBuscado->id, 'kind' => 'entrega'])
+                                    : null;
                             @endphp
 
                             <div class="contrato-preview-grid">
                                 <div>
                                     @if ($contratoImagenUrl)
-                                        <a href="{{ $contratoImagenUrl }}" target="_blank" rel="noopener">
+                                        <a href="{{ $contratoImagenOpenUrl }}" target="_blank" rel="noopener">
                                             <img src="{{ $contratoImagenUrl }}" alt="Imagen del paquete contrato" class="contrato-preview-image">
                                         </a>
                                     @else
@@ -395,10 +418,10 @@
 
                                     @if ($contratoImagenUrl)
                                         <div class="contrato-preview-actions">
-                                            <a href="{{ $contratoImagenUrl }}" target="_blank" rel="noopener" class="btn btn-outline-azul">
+                                            <a href="{{ $contratoImagenOpenUrl }}" target="_blank" rel="noopener" class="btn btn-outline-azul">
                                                 Ver imagen
                                             </a>
-                                            <a href="{{ $contratoImagenUrl }}" download class="btn btn-azul">
+                                            <a href="{{ $contratoImagenDownloadUrl }}" class="btn btn-azul">
                                                 Descargar imagen
                                             </a>
                                         </div>
@@ -450,8 +473,9 @@
                                 <th>Codigo</th>
                                 <th>Evento</th>
                                 <th>{{ $supportsClienteId ? 'Actor' : 'Usuario' }}</th>
-                                @if ($config['table'] === 'eventos_ems')
-                                    <th>Foto</th>
+                                @if ($config['table'] !== 'eventos_despacho')
+                                    <th>Foto entrega</th>
+                                    <th>Foto devolucion</th>
                                 @endif
                                 <th>Momento de creacion</th>
                                 <th>Acciones</th>
@@ -469,15 +493,53 @@
                                             {{ $registro->usuario_nombre ?? ('#' . $registro->user_id) }}
                                         @endif
                                     </td>
-                                    @if ($config['table'] === 'eventos_ems')
+                                    @if ($config['table'] !== 'eventos_despacho')
                                         <td>
                                             @php
-                                                $eventoImagenUrl = !empty($registro->imagen) ? asset('storage/' . ltrim($registro->imagen, '/')) : null;
+                                                $eventoImagenUrl = \App\Support\StoredImage::url($registro->imagen_entrega ?? null);
+                                                $eventoImagenOpenUrl = route('delivery-images.event', [
+                                                    'source' => $config['table'],
+                                                    'codigo' => $registro->codigo,
+                                                    'kind' => 'entrega',
+                                                ]);
+                                                $eventoImagenDownloadUrl = route('delivery-images.event.download', [
+                                                    'source' => $config['table'],
+                                                    'codigo' => $registro->codigo,
+                                                    'kind' => 'entrega',
+                                                ]);
                                             @endphp
                                             @if ($eventoImagenUrl)
-                                                <a href="{{ $eventoImagenUrl }}" target="_blank" rel="noopener">
-                                                    <img src="{{ $eventoImagenUrl }}" alt="Foto del evento EMS" class="evento-foto-thumb">
+                                                <a href="{{ $eventoImagenOpenUrl }}" target="_blank" rel="noopener" title="Ver imagen">
+                                                    <img src="{{ $eventoImagenUrl }}" alt="Foto de entrega" class="evento-foto-thumb">
                                                 </a>
+                                                <div class="mt-1">
+                                                    <a href="{{ $eventoImagenDownloadUrl }}" class="btn btn-xs btn-outline-success">Descargar</a>
+                                                </div>
+                                            @else
+                                                <span class="evento-foto-empty">Sin foto</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @php
+                                                $eventoImagenDevolucionUrl = \App\Support\StoredImage::url($registro->imagen_devolucion ?? null);
+                                                $eventoImagenDevolucionOpenUrl = route('delivery-images.event', [
+                                                    'source' => $config['table'],
+                                                    'codigo' => $registro->codigo,
+                                                    'kind' => 'devolucion',
+                                                ]);
+                                                $eventoImagenDevolucionDownloadUrl = route('delivery-images.event.download', [
+                                                    'source' => $config['table'],
+                                                    'codigo' => $registro->codigo,
+                                                    'kind' => 'devolucion',
+                                                ]);
+                                            @endphp
+                                            @if ($eventoImagenDevolucionUrl)
+                                                <a href="{{ $eventoImagenDevolucionOpenUrl }}" target="_blank" rel="noopener" title="Ver imagen">
+                                                    <img src="{{ $eventoImagenDevolucionUrl }}" alt="Foto de devolucion" class="evento-foto-thumb">
+                                                </a>
+                                                <div class="mt-1">
+                                                    <a href="{{ $eventoImagenDevolucionDownloadUrl }}" class="btn btn-xs btn-outline-success">Descargar</a>
+                                                </div>
                                             @else
                                                 <span class="evento-foto-empty">Sin foto</span>
                                             @endif
@@ -516,7 +578,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $config['table'] === 'eventos_ems' ? 6 : 5 }}" class="text-center py-5">
+                                    <td colspan="{{ $config['table'] !== 'eventos_despacho' ? 7 : 5 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

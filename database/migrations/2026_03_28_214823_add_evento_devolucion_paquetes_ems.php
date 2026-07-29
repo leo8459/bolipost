@@ -5,10 +5,18 @@ use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
-    private const NOMBRE_EVENTO = 'Paquete enviado a devolucion.';
+    private const NOMBRE_EVENTO = 'PAQUETE DEVUELVO';
+    private const NOMBRE_EVENTO_ANTERIOR = 'Paquete enviado a devolucion.';
 
     public function up(): void
     {
+        DB::table('eventos')
+            ->where('nombre_evento', self::NOMBRE_EVENTO_ANTERIOR)
+            ->update([
+                'nombre_evento' => self::NOMBRE_EVENTO,
+                'updated_at' => now(),
+            ]);
+
         DB::table('eventos')->updateOrInsert(
             ['nombre_evento' => self::NOMBRE_EVENTO],
             [

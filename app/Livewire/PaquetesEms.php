@@ -23,6 +23,7 @@ use App\Models\Tarifario;
 use App\Models\TarifarioTiktoker;
 use App\Support\TiktokerTariffPriceCalculator;
 use App\Support\TiktokerEvent;
+use App\Support\StoredImage;
 use App\Services\FacturacionCartService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
@@ -46,7 +47,7 @@ class PaquetesEms extends Component
     private const EVENTO_ID_SACA_INTERNA_CREADA_SALIDA = 240;
     private const EVENTO_ID_PAQUETE_ENVIADO_VENTANILLA_EMS = 312;
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
-    private const EVENTO_NOMBRE_PAQUETE_ENVIADO_DEVOLUCION = 'Paquete enviado a devolucion.';
+    private const EVENTO_NOMBRE_PAQUETE_ENVIADO_DEVOLUCION = 'PAQUETE DEVUELVO';
     private const SPECIAL_CODE_PREFIX_BY_CITY = [
         'LA PAZ' => 'LPZ',
         'COCHABAMBA' => 'CBB',
@@ -139,6 +140,7 @@ class PaquetesEms extends Component
     public $oficialNombreRemitente = '';
     public $oficialNombreDestinatario = '';
     public $oficialDireccionDestinatario = '';
+    public $oficialObservacion = '';
     public $paqueteIntCodigo = '';
     public $paqueteIntOrigen = '';
     public $paqueteIntPeso = '';
@@ -228,6 +230,7 @@ class PaquetesEms extends Component
     public $telefono_destinatario = '';
     public $direccion = '';
     public $referencia = '';
+    public $observacion = '';
     public $ciudad = '';
     public $servicio_id = '';
     public $tarifario_id = '';
@@ -1051,12 +1054,14 @@ class PaquetesEms extends Component
         $this->oficialNombreRemitente = '';
         $this->oficialNombreDestinatario = '';
         $this->oficialDireccionDestinatario = '';
+        $this->oficialObservacion = '';
         $this->resetValidation([
             'oficialDestino',
             'oficialPeso',
             'oficialNombreRemitente',
             'oficialNombreDestinatario',
             'oficialDireccionDestinatario',
+            'oficialObservacion',
         ]);
 
         $this->dispatch('openEnvioOficialModal');
@@ -1221,12 +1226,14 @@ class PaquetesEms extends Component
             'oficialNombreRemitente' => 'required|string|max:255',
             'oficialNombreDestinatario' => 'required|string|max:255',
             'oficialDireccionDestinatario' => 'required|string|max:255',
+            'oficialObservacion' => 'required|string|max:1000',
         ], [], [
             'oficialDestino' => 'destino',
             'oficialPeso' => 'peso',
             'oficialNombreRemitente' => 'nombre del remitente',
             'oficialNombreDestinatario' => 'nombre destinatario',
             'oficialDireccionDestinatario' => 'direccion destinatario',
+            'oficialObservacion' => 'observacion de que se esta mandando',
         ]);
 
         $user = Auth::user();
@@ -1264,6 +1271,7 @@ class PaquetesEms extends Component
         $this->telefono_destinatario = '';
         $this->direccion = trim((string) $validated['oficialDireccionDestinatario']);
         $this->referencia = '';
+        $this->observacion = trim((string) $validated['oficialObservacion']);
         $this->ciudad = $this->normalizeDestinoNombre((string) $validated['oficialDestino']);
 
         $paquete = null;
@@ -1279,6 +1287,7 @@ class PaquetesEms extends Component
         $this->oficialNombreRemitente = '';
         $this->oficialNombreDestinatario = '';
         $this->oficialDireccionDestinatario = '';
+        $this->oficialObservacion = '';
         $this->dispatch('closeEnvioOficialModal');
 
         session()->flash('success', 'Envio oficial generado correctamente. Codigo: ' . ($paquete->codigo ?? 'SIN CODIGO') . '.');
@@ -2608,6 +2617,7 @@ class PaquetesEms extends Component
         $this->telefono_destinatario = $formulario->telefono_destinatario ?? $paquete->telefono_destinatario;
         $this->direccion = $formulario->direccion ?? $paquete->direccion;
         $this->referencia = $formulario->referencia ?? $paquete->referencia ?? '';
+        $this->observacion = (string) ($paquete->observacion ?? '');
         $this->ciudad = $this->normalizeDestinoNombre((string) ($formulario->ciudad ?? $paquete->ciudad));
         $this->tarifario_id = $formulario->tarifario_id ?? $paquete->tarifario_id;
         $this->estado_id = $paquete->estado_id;
@@ -5409,6 +5419,7 @@ class PaquetesEms extends Component
             'telefono_destinatario',
             'direccion',
             'referencia',
+            'observacion',
             'ciudad',
             'servicio_id',
             'tarifario_id',
@@ -5432,6 +5443,9 @@ class PaquetesEms extends Component
             $telefonoRemitenteRules[] = 'regex:/^[0-9]+$/';
             $telefonoDestinatarioRules[] = 'regex:/^[0-9]*$/';
         }
+        $observacionRules = $this->isOficialShipment()
+            ? 'required|string|max:1000'
+            : 'nullable|string|max:1000';
 
         return [
             'origen' => 'nullable|string|max:255',
@@ -5455,6 +5469,7 @@ class PaquetesEms extends Component
             'telefono_destinatario' => $telefonoDestinatarioRules,
             'direccion' => 'required|string|max:255',
             'referencia' => 'nullable|string|max:255',
+            'observacion' => $observacionRules,
             'ciudad' => ['nullable', 'string', 'max:255'],
             'servicio_id' => ['required', 'integer', Rule::exists('servicio', 'id')],
             'destino_id' => ['required', 'integer', Rule::exists('destino', 'id')],
@@ -5494,6 +5509,7 @@ class PaquetesEms extends Component
             'telefono_destinatario' => $this->telefono_destinatario,
             'direccion' => $this->direccion,
             'referencia' => $this->referencia,
+            'observacion' => trim((string) $this->observacion) !== '' ? trim((string) $this->observacion) : null,
             'ciudad' => $this->normalizeDestinoNombre((string) $this->ciudad),
             'tarifario_id' => $this->tarifario_id ?: null,
             'estado_id' => $this->estado_id ?? null,
@@ -7985,6 +8001,10 @@ class PaquetesEms extends Component
             $this->applyTarifarioMatch();
         }
 
+        if ($name === 'tipo_correspondencia') {
+            $this->applyTarifarioMatch();
+        }
+
         if ($name === 'anadir_recargo_30') {
             $this->anadir_recargo_30 = (bool) $value;
             $this->applyTarifarioMatch();
@@ -8420,7 +8440,7 @@ class PaquetesEms extends Component
             return null;
         }
 
-        return (string) $image->store('carteros/entregas', 'public');
+        return StoredImage::fromUploadedFile($image);
     }
 
     protected function storeEntregaImage(?TemporaryUploadedFile $image): ?string
@@ -8429,7 +8449,7 @@ class PaquetesEms extends Component
             return null;
         }
 
-        return (string) $image->store('carteros/entregas', 'public');
+        return StoredImage::fromUploadedFile($image);
     }
 
     protected function resolveRegionalEstado(): array

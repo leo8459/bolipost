@@ -264,6 +264,17 @@ class EventosTabla extends Component
             ->orderByDesc('t.id')
             ->paginate(100);
 
+        $registros->setCollection(
+            $registros->getCollection()->map(function ($registro) {
+                $imagenes = $this->resolveImagesForCodigo((string) ($registro->codigo ?? ''));
+                $registro->imagen_entrega = $imagenes['entrega'];
+                $registro->imagen_devolucion = $imagenes['devolucion'];
+                $registro->imagen = $imagenes['principal'];
+
+                return $registro;
+            })
+        );
+
         if ($this->tipo === 'contrato' && $q !== '') {
             $contratoBuscado = DB::table('paquetes_contrato as p')
                 ->leftJoin('empresa as emp', 'emp.id', '=', 'p.empresa_id')
@@ -415,6 +426,83 @@ class EventosTabla extends Component
     private function authenticatedEmpresaId(): int
     {
         return (int) (auth()->user()?->empresa_id ?? 0);
+    }
+
+    private function resolveImagesForCodigo(string $codigo): array
+    {
+        $codigo = trim($codigo);
+
+        if ($codigo === '' || $this->tipo === 'despacho') {
+            return $this->emptyImages();
+        }
+
+        $row = match ($this->tipo) {
+            'ems' => $this->resolvePackageImages('paquetes_ems', 'id_paquetes_ems', $codigo),
+            'certi' => $this->resolvePackageImages('paquetes_certi', 'id_paquetes_certi', $codigo),
+            'ordi' => $this->resolvePackageImages('paquetes_ordi', 'id_paquetes_ordi', $codigo),
+            'contrato' => $this->resolvePackageImages('paquetes_contrato', 'id_paquetes_contrato', $codigo),
+            'tiktoker' => $this->resolveSolicitudImages($codigo),
+            default => null,
+        };
+
+        return $this->normalizeImageRow($row);
+    }
+
+    private function resolvePackageImages(string $packageTable, string $carteroColumn, string $codigo): ?object
+    {
+        if (! Schema::hasTable($packageTable) || ! Schema::hasColumn($packageTable, 'imagen')) {
+            return null;
+        }
+
+        return DB::table($packageTable . ' as p')
+            ->leftJoin('cartero as c', 'c.' . $carteroColumn, '=', 'p.id')
+            ->whereRaw('TRIM(UPPER(p.codigo)) = TRIM(UPPER(?))', [$codigo])
+            ->orderByRaw('c.updated_at DESC NULLS LAST, c.id DESC, p.id DESC')
+            ->selectRaw('COALESCE(c.imagen, p.imagen) as entrega, c.imagen_devolucion as devolucion')
+            ->first();
+    }
+
+    private function resolveSolicitudImages(string $codigo): ?object
+    {
+        if (! Schema::hasTable('solicitud_clientes') || ! Schema::hasColumn('solicitud_clientes', 'imagen')) {
+            return null;
+        }
+
+        return DB::table('solicitud_clientes as s')
+            ->leftJoin('cartero as c', 'c.id_solicitud_cliente', '=', 's.id')
+            ->where(function ($query) use ($codigo) {
+                $query->whereRaw('TRIM(UPPER(COALESCE(s.codigo_solicitud, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(s.barcode, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(s.cod_especial, \'\'))) = TRIM(UPPER(?))', [$codigo]);
+            })
+            ->orderByRaw('c.updated_at DESC NULLS LAST, c.id DESC, s.id DESC')
+            ->selectRaw('COALESCE(c.imagen, s.imagen) as entrega, c.imagen_devolucion as devolucion')
+            ->first();
+    }
+
+    private function normalizeImageRow(?object $row): array
+    {
+        if (! $row) {
+            return $this->emptyImages();
+        }
+
+        $entrega = trim((string) ($row->entrega ?? ''));
+        $devolucion = trim((string) ($row->devolucion ?? ''));
+
+        return [
+            'entrega' => $entrega !== '' ? $entrega : null,
+            'devolucion' => $devolucion !== '' ? $devolucion : null,
+            'principal' => $devolucion !== '' ? $devolucion : ($entrega !== '' ? $entrega : null),
+        ];
+    }
+
+    private function emptyImages(): array
+    {
+        return [
+            'entrega' => null,
+            'devolucion' => null,
+            'principal' => null,
+        ];
     }
 
     private function authorizePermission(string $permission): void

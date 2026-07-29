@@ -5,6 +5,7 @@ namespace App\Exports;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithEvents;
@@ -15,6 +16,7 @@ use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
 class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithTitle, WithEvents
@@ -82,6 +84,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 'A QUIEN SE ENTREGO',
                 'NOMBRE DEL CARTERO',
                 'OBSERVACIONES',
+                'IMAGEN DE ENTREGA',
             ],
         ];
     }
@@ -119,6 +122,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             (string) ($model->nombre_d ?? ''),
             (string) optional($model->user)->name,
             (string) ($model->observacion ?? ''),
+            $this->resolveDeliveryImageUrl($model) !== null ? 'Descargar imagen' : '',
         ];
     }
 
@@ -147,7 +151,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
         return [
             AfterSheet::class => function (AfterSheet $event): void {
                 $sheet = $event->sheet->getDelegate();
-                $lastColumn = 'T';
+                $lastColumn = 'U';
                 $dataCount = $this->rows->count();
                 $highestRow = max(1, $sheet->getHighestDataRow());
                 $headerImagePath = $this->resolveHeaderImagePath();
@@ -183,7 +187,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 $sheet->mergeCells('D11:F11');
                 $sheet->mergeCells('G11:I11');
                 $sheet->mergeCells('L11:O11');
-                $sheet->mergeCells('P11:T11');
+                $sheet->mergeCells('P11:U11');
                 $sheet->mergeCells('A11:A12');
                 $sheet->mergeCells('B11:B12');
                 $sheet->mergeCells('C11:C12');
@@ -226,7 +230,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                     ],
                 ]);
 
-                $sheet->getStyle("P{$headerTopRow}:T{$headerBottomRow}")->applyFromArray([
+                $sheet->getStyle("P{$headerTopRow}:U{$headerBottomRow}")->applyFromArray([
                     'font' => [
                         'bold' => true,
                         'color' => ['rgb' => 'FFFFFF'],
@@ -267,6 +271,8 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                     $sheet->getStyle("O{$dataStartRow}:O{$highestRow}")
                         ->getNumberFormat()
                         ->setFormatCode('#,##0.00');
+
+                    $this->applyDeliveryImageLinks($sheet, $dataStartRow);
                 }
 
                 $totalRow = max($dataStartRow, $highestRow + 1);
@@ -276,7 +282,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 $sheet->setCellValue("M{$totalRow}", (float) $this->rows->sum('precio'));
                 $sheet->setCellValue("O{$totalRow}", (float) $this->rows->sum('precio'));
 
-                $sheet->getStyle("A{$totalRow}:T{$totalRow}")->applyFromArray([
+                $sheet->getStyle("A{$totalRow}:U{$totalRow}")->applyFromArray([
                     'font' => [
                         'bold' => true,
                     ],
@@ -376,5 +382,55 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
         $path = public_path('images/encabezado_contratos.jpeg');
 
         return is_file($path) ? $path : null;
+    }
+
+    private function resolveDeliveryImageUrl(Model $model): ?string
+    {
+        $imagePath = trim((string) ($model->imagen ?? ''));
+        if ($imagePath === '' || !isset($model->id)) {
+            return null;
+        }
+
+        if (!Storage::disk('public')->exists($imagePath)) {
+            return null;
+        }
+
+        $path = route('area-contratos.imagen-entrega.download', ['contrato' => $model->id], false);
+        $baseUrl = (string) (config('app.public_download_url') ?: request()->getSchemeAndHttpHost() ?: config('app.url'));
+        $baseUrl = rtrim($baseUrl, '/');
+
+        return $baseUrl . $path;
+    }
+
+    private function applyDeliveryImageLinks($sheet, int $dataStartRow): void
+    {
+        foreach ($this->rows->values() as $index => $model) {
+            if (!$model instanceof Model) {
+                continue;
+            }
+
+            $url = $this->resolveDeliveryImageUrl($model);
+            if ($url === null) {
+                continue;
+            }
+
+            $cell = 'U' . ($dataStartRow + $index);
+            $sheet->getCell($cell)->getHyperlink()->setUrl($url);
+            $sheet->getStyle($cell)->applyFromArray([
+                'font' => [
+                    'color' => ['rgb' => 'FFFFFF'],
+                    'bold' => true,
+                    'underline' => Font::UNDERLINE_NONE,
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '2F75B5'],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ]);
+        }
     }
 }

@@ -105,7 +105,10 @@ class EventosSiopApiController extends Controller
             ->limit($limit)
             ->get()
             ->map(function (object $row) {
-                $row->foto = $this->resolveImageForRecord($row->tabla, (string) $row->codigo);
+                $imagenes = $this->resolveImagesForRecord($row->tabla, (string) $row->codigo);
+                $row->foto_entrega = $imagenes['entrega'];
+                $row->foto_devolucion = $imagenes['devolucion'];
+                $row->foto = $imagenes['principal'];
 
                 return $row;
             });
@@ -123,50 +126,80 @@ class EventosSiopApiController extends Controller
         ];
     }
 
-    private function resolveImageForRecord(string $sourceTable, string $codigo): ?string
+    private function resolveImagesForRecord(string $sourceTable, string $codigo): array
     {
         $codigo = trim($codigo);
 
         if ($codigo === '') {
+            return $this->emptyImages();
+        }
+
+        $row = match ($sourceTable) {
+            'eventos_ems' => $this->resolvePackageImages('paquetes_ems', 'id_paquetes_ems', $codigo),
+            'eventos_certi' => $this->resolvePackageImages('paquetes_certi', 'id_paquetes_certi', $codigo),
+            'eventos_ordi' => $this->resolvePackageImages('paquetes_ordi', 'id_paquetes_ordi', $codigo),
+            'eventos_contrato' => $this->resolvePackageImages('paquetes_contrato', 'id_paquetes_contrato', $codigo),
+            'eventos_tiktoker' => $this->resolveSolicitudImages($codigo),
+            default => null,
+        };
+
+        return $this->normalizeImageRow($row);
+    }
+
+    private function resolvePackageImages(string $packageTable, string $carteroColumn, string $codigo): ?object
+    {
+        if (! Schema::hasTable($packageTable) || ! Schema::hasColumn($packageTable, 'imagen')) {
             return null;
         }
 
-        return match ($sourceTable) {
-            'eventos_ems' => $this->resolveEmsImage($codigo),
-            'eventos_certi' => $this->resolveSimpleImage('paquetes_certi', $codigo),
-            'eventos_ordi' => $this->resolveSimpleImage('paquetes_ordi', $codigo),
-            'eventos_contrato' => $this->resolveSimpleImage('paquetes_contrato', $codigo),
-            'eventos_tiktoker' => $this->resolveTiktokerImage($codigo),
-            default => null,
-        };
+        return DB::table($packageTable . ' as p')
+            ->leftJoin('cartero as c', 'c.' . $carteroColumn, '=', 'p.id')
+            ->whereRaw('TRIM(UPPER(p.codigo)) = TRIM(UPPER(?))', [$codigo])
+            ->orderByRaw('c.updated_at DESC NULLS LAST, c.id DESC, p.id DESC')
+            ->selectRaw('COALESCE(c.imagen, p.imagen) as entrega, c.imagen_devolucion as devolucion')
+            ->first();
     }
 
-    private function resolveEmsImage(string $codigo): ?string
+    private function resolveSolicitudImages(string $codigo): ?object
     {
-        return DB::table('paquetes_ems as pe')
-            ->leftJoin('cartero as c', 'c.id_paquetes_ems', '=', 'pe.id')
-            ->whereRaw('TRIM(UPPER(pe.codigo)) = TRIM(UPPER(?))', [$codigo])
-            ->orderByRaw('c.updated_at DESC NULLS LAST, c.id DESC, pe.id DESC')
-            ->value(DB::raw('COALESCE(c.imagen_devolucion, c.imagen, pe.imagen)'));
-    }
+        if (! Schema::hasTable('solicitud_clientes') || ! Schema::hasColumn('solicitud_clientes', 'imagen')) {
+            return null;
+        }
 
-    private function resolveSimpleImage(string $table, string $codigo): ?string
-    {
-        return DB::table($table)
-            ->whereRaw('TRIM(UPPER(codigo)) = TRIM(UPPER(?))', [$codigo])
-            ->orderByDesc('id')
-            ->value('imagen');
-    }
-
-    private function resolveTiktokerImage(string $codigo): ?string
-    {
-        return DB::table('solicitud_clientes')
+        return DB::table('solicitud_clientes as s')
+            ->leftJoin('cartero as c', 'c.id_solicitud_cliente', '=', 's.id')
             ->where(function ($query) use ($codigo) {
-                $query->whereRaw('TRIM(UPPER(COALESCE(codigo_solicitud, \'\'))) = TRIM(UPPER(?))', [$codigo])
-                    ->orWhereRaw('TRIM(UPPER(COALESCE(barcode, \'\'))) = TRIM(UPPER(?))', [$codigo])
-                    ->orWhereRaw('TRIM(UPPER(COALESCE(cod_especial, \'\'))) = TRIM(UPPER(?))', [$codigo]);
+                $query->whereRaw('TRIM(UPPER(COALESCE(s.codigo_solicitud, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(s.barcode, \'\'))) = TRIM(UPPER(?))', [$codigo])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(s.cod_especial, \'\'))) = TRIM(UPPER(?))', [$codigo]);
             })
-            ->orderByDesc('id')
-            ->value('imagen');
+            ->orderByRaw('c.updated_at DESC NULLS LAST, c.id DESC, s.id DESC')
+            ->selectRaw('COALESCE(c.imagen, s.imagen) as entrega, c.imagen_devolucion as devolucion')
+            ->first();
+    }
+
+    private function normalizeImageRow(?object $row): array
+    {
+        if (! $row) {
+            return $this->emptyImages();
+        }
+
+        $entrega = trim((string) ($row->entrega ?? ''));
+        $devolucion = trim((string) ($row->devolucion ?? ''));
+
+        return [
+            'entrega' => $entrega !== '' ? $entrega : null,
+            'devolucion' => $devolucion !== '' ? $devolucion : null,
+            'principal' => $devolucion !== '' ? $devolucion : ($entrega !== '' ? $entrega : null),
+        ];
+    }
+
+    private function emptyImages(): array
+    {
+        return [
+            'entrega' => null,
+            'devolucion' => null,
+            'principal' => null,
+        ];
     }
 }

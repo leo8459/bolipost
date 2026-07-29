@@ -13,6 +13,7 @@ use App\Models\PaqueteOrdi;
 use App\Models\Recojo as RecojoContrato;
 use App\Models\SolicitudCliente;
 use App\Models\User;
+use App\Support\StoredImage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -2732,9 +2733,9 @@ class CarterosController extends Controller
             return $currentPath;
         }
 
-        $newPath = $request->file('foto')->store('carteros/entregas', 'public');
+        $newPath = StoredImage::fromUploadedFile($request->file('foto'));
 
-        if (!empty($currentPath) && Storage::disk('public')->exists($currentPath)) {
+        if (!empty($currentPath) && StoredImage::isStoragePath($currentPath) && Storage::disk('public')->exists($currentPath)) {
             Storage::disk('public')->delete($currentPath);
         }
 

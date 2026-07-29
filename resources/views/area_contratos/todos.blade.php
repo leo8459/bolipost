@@ -85,13 +85,24 @@
                                     </td>
                                     <td>{{ $contrato->cantidad ?: '-' }}</td>
                                     <td>
-                                        @if (!empty($contrato->imagen))
-                                            <a href="{{ asset('storage/' . $contrato->imagen) }}"
-                                                target="_blank"
-                                                rel="noopener"
-                                                class="btn btn-sm btn-outline-info">
-                                                Ver imagen
-                                            </a>
+                                        @php
+                                            $imagenUrl = \App\Support\StoredImage::url($contrato->imagen ?? null);
+                                            $imagenOpenUrl = route('delivery-images.package', [
+                                                'type' => 'contrato',
+                                                'id' => $contrato->id,
+                                                'kind' => 'entrega',
+                                            ]);
+                                            $imagenDownloadUrl = route('delivery-images.package.download', [
+                                                'type' => 'contrato',
+                                                'id' => $contrato->id,
+                                                'kind' => 'entrega',
+                                            ]);
+                                        @endphp
+                                        @if ($imagenUrl)
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{{ $imagenOpenUrl }}" target="_blank" rel="noopener" class="btn btn-outline-info">Ver imagen</a>
+                                                <a href="{{ $imagenDownloadUrl }}" class="btn btn-outline-success">Descargar</a>
+                                            </div>
                                         @else
                                             <span class="text-muted">Sin imagen</span>
                                         @endif

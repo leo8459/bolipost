@@ -94,8 +94,24 @@
                                     <td>{{ optional($c->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                     <td>{{ number_format((float) ($c->peso ?? 0), 3) }}</td>
                                     <td>
-                                        @if (!empty($c->imagen) && ($canContratoEntregadoExport ?? false))
-                                            <a href="{{ asset('storage/' . $c->imagen) }}" class="btn btn-sm btn-outline-azul" download>Descargar</a>
+                                        @php
+                                            $imagenUrl = \App\Support\StoredImage::url($c->imagen ?? null);
+                                            $imagenOpenUrl = route('delivery-images.package', [
+                                                'type' => 'contrato',
+                                                'id' => $c->id,
+                                                'kind' => 'entrega',
+                                            ]);
+                                            $imagenDownloadUrl = route('delivery-images.package.download', [
+                                                'type' => 'contrato',
+                                                'id' => $c->id,
+                                                'kind' => 'entrega',
+                                            ]);
+                                        @endphp
+                                        @if ($imagenUrl && ($canContratoEntregadoExport ?? false))
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{{ $imagenOpenUrl }}" target="_blank" rel="noopener" class="btn btn-outline-azul">Ver imagen</a>
+                                                <a href="{{ $imagenDownloadUrl }}" class="btn btn-outline-success">Descargar</a>
+                                            </div>
                                         @else
                                             <span class="muted">-</span>
                                         @endif
