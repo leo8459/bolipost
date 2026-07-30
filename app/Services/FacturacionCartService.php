@@ -358,6 +358,11 @@ class FacturacionCartService
 
     private function resolveAdmisionesServicioDescripcion(?Servicio $servicio): string
     {
+        $descripcion = trim((string) ($servicio->descripcion ?? ''));
+        if ($descripcion !== '') {
+            return $descripcion;
+        }
+
         $titulo = $this->resolveAdmisionesServicioTitulo($servicio);
 
         return $this->buildServicioEnvioDescripcion($titulo);
@@ -482,7 +487,10 @@ class FacturacionCartService
         $montoBase = $this->resolveCertiMontoBase($paquete);
         $cantidadInicial = 1;
         $tituloServicio = 'Certificadas';
-        $descripcionServicio = 'Servicio Certificadas - Entrega de paqueteria';
+        $descripcionServicio = trim((string) ($servicio->descripcion ?? ''));
+        if ($descripcionServicio === '') {
+            $descripcionServicio = 'Servicio Certificadas - Entrega de paquete';
+        }
 
         $ctx = $this->getRemoteContextForUser($user);
         $existingItem = $this->findDraftItemByOrigin($ctx['draft'] ?? null, PaqueteCerti::class, (int) $paquete->id);
@@ -572,9 +580,13 @@ class FacturacionCartService
         $descripcionServicio = (string) (
             $servicioPresentacion->descripcion
             ?? $servicioFiscal->descripcion
-            ?? $servicioPresentacion->nombre_servicio
-            ?? $servicioFiscal->nombre_servicio
-            ?? 'ENVIOS DE PAQUETERIA INTERNACIONAL'
+            ?? $this->buildServicioEnvioDescripcion(
+                (string) (
+                    $servicioPresentacion->nombre_servicio
+                    ?? $servicioFiscal->nombre_servicio
+                    ?? 'Internacional'
+                )
+            )
         );
 
         $payload = array_merge(
@@ -962,14 +974,20 @@ class FacturacionCartService
 
         $solicitud->loadMissing(['servicioExtra', 'tarifarioTiktoker.servicioExtra']);
         $montoBase = round((float) ($solicitud->precio ?? 0), 2);
-        $nombreServicio = trim((string) (
+        $servicioExtraNombre = trim((string) (
             $solicitud->servicioExtra->nombre
             ?? optional($solicitud->tarifarioTiktoker)->servicioExtra->nombre
             ?? 'EMS'
         ));
+        $servicioExtraDescripcion = trim((string) (
+            $solicitud->servicioExtra->descripcion
+            ?? optional($solicitud->tarifarioTiktoker)->servicioExtra->descripcion
+            ?? ''
+        ));
+        $nombreServicio = $servicioExtraNombre;
         $tituloSolicitud = $this->resolveSolicitudEmsTitulo($nombreServicio);
         $nombreServicioFacturacion = $this->resolveSolicitudEmsNombreServicio($nombreServicio, $tituloSolicitud);
-        $fiscalData = $this->resolveSolicitudEmsFiscalData($nombreServicio, $tituloSolicitud);
+        $fiscalData = $this->resolveSolicitudEmsFiscalData($nombreServicio, $tituloSolicitud, $servicioExtraDescripcion);
         $cantidadInicial = max(1, (int) ($solicitud->cantidad ?? 1));
 
         $ctx = $this->getRemoteContextForUser($user);
@@ -1062,7 +1080,11 @@ class FacturacionCartService
         return 'Solicitud';
     }
 
-    private function resolveSolicitudEmsFiscalData(?string $nombreServicioExtra, ?string $tituloSolicitud = null): array
+    private function resolveSolicitudEmsFiscalData(
+        ?string $nombreServicioExtra,
+        ?string $tituloSolicitud = null,
+        ?string $descripcionServicioExtra = null
+    ): array
     {
         $nombre = strtoupper(trim((string) $nombreServicioExtra));
         $codigoProducto = 'SRVE-01';
@@ -1073,7 +1095,11 @@ class FacturacionCartService
 
         return array_merge(self::EMS_SOLICITUD_FISCAL_DATA, [
             'codigo_producto' => $codigoProducto,
-            'descripcion_servicio' => $this->resolveSolicitudEmsDescripcion($nombreServicioExtra, $tituloSolicitud),
+            'descripcion_servicio' => $this->resolveSolicitudEmsDescripcion(
+                $nombreServicioExtra,
+                $tituloSolicitud,
+                $descripcionServicioExtra
+            ),
         ]);
     }
 
@@ -1088,9 +1114,18 @@ class FacturacionCartService
         return trim((string) $nombreServicio);
     }
 
-    private function resolveSolicitudEmsDescripcion(?string $nombreServicio, ?string $tituloSolicitud = null): string
+    private function resolveSolicitudEmsDescripcion(
+        ?string $nombreServicio,
+        ?string $tituloSolicitud = null,
+        ?string $descripcionServicioExtra = null
+    ): string
     {
         $normalized = strtoupper(trim((string) $nombreServicio));
+        $descripcionReal = trim((string) $descripcionServicioExtra);
+
+        if ($descripcionReal !== '') {
+            return $descripcionReal;
+        }
 
         if (str_contains($normalized, 'PUERTA A PUERTA')) {
             return 'Servicio de puerta a puerta - Envio paqueteria';
@@ -1134,7 +1169,10 @@ class FacturacionCartService
         $montoBase = $this->resolveOrdiMontoBase($paquete);
         $cantidadInicial = 1;
         $tituloServicio = 'Ordinarias';
-        $descripcionServicio = 'Servicio Ordinarias - Entrega de paqueteria';
+        $descripcionServicio = trim((string) ($servicio->descripcion ?? ''));
+        if ($descripcionServicio === '') {
+            $descripcionServicio = 'Servicio Ordinarias - Entrega de paquete';
+        }
 
         $ctx = $this->getRemoteContextForUser($user);
         $existingItem = $this->findDraftItemByOrigin($ctx['draft'] ?? null, PaqueteOrdi::class, (int) $paquete->id);
@@ -3481,12 +3519,6 @@ class FacturacionCartService
     {
         $nombre = trim((string) ($concepto->nombre ?? ''));
         $descripcion = trim((string) ($concepto->descripcion ?? ''));
-        $codigoConcepto = strtoupper(trim((string) ($concepto->codigo ?? '')));
-        $codigoUsado = strtoupper(trim((string) ($draftCode ?? $concepto->codigo ?? '')));
-
-        if ($codigoConcepto === 'SRVE-4' && ($codigoUsado === '' || $codigoUsado === 'SRVE-4')) {
-            $descripcion = 'PAQUETERIA ENCOMIENDA INTERNACIONAL- ENTREGA';
-        }
 
         return [
             'titulo' => $nombre !== '' ? $nombre : 'Cobro adicional',
