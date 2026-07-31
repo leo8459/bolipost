@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -250,6 +251,32 @@ class EventosTabla extends Component
                 });
             });
 
+        if ($this->tipo === 'contrato' && Schema::hasTable('paquetes_contrato')) {
+            $rutasContrato = DB::table('paquetes_contrato')
+                ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+                ->selectRaw("MAX(NULLIF(TRIM(origen), '')) as origen")
+                ->selectRaw("MAX(NULLIF(TRIM(provincia_origen), '')) as provincia_origen")
+                ->selectRaw("MAX(NULLIF(TRIM(destino), '')) as destino")
+                ->selectRaw("MAX(NULLIF(TRIM(provincia), '')) as provincia_destino")
+                ->groupByRaw('TRIM(UPPER(codigo))');
+
+            $registrosQuery
+                ->leftJoinSub($rutasContrato, 'ruta_contrato', function ($join) {
+                    $join->on(
+                        DB::raw('TRIM(UPPER(t.codigo))'),
+                        '=',
+                        'ruta_contrato.codigo_normalizado'
+                    );
+                })
+                ->addSelect([
+                    'ruta_contrato.origen as paquete_origen',
+                    'ruta_contrato.provincia_origen as paquete_provincia_origen',
+                    'ruta_contrato.destino as paquete_destino',
+                    'ruta_contrato.provincia_destino as paquete_provincia_destino',
+                    'u.ciudad as usuario_ciudad',
+                ]);
+        }
+
         if ($supportsClienteId) {
             $registrosQuery
                 ->leftJoin('clientes as c', 'c.id', '=', 't.cliente_id')
@@ -271,6 +298,12 @@ class EventosTabla extends Component
                 $registro->imagen_devolucion = $imagenes['devolucion'];
                 $registro->imagen = $imagenes['principal'];
 
+                if ($this->tipo === 'contrato') {
+                    $contexto = $this->buildContratoEventContext($registro);
+                    $registro->evento_nombre_mostrado = $contexto['evento'];
+                    $registro->ubicacion_evento = $contexto['ubicacion'];
+                }
+
                 return $registro;
             })
         );
@@ -285,7 +318,10 @@ class EventosTabla extends Component
                     'p.cod_especial',
                     'p.nombre_r',
                     'p.nombre_d',
+                    'p.origen',
+                    'p.provincia_origen',
                     'p.destino',
+                    'p.provincia',
                     'p.telefono_d',
                     'p.imagen',
                     'p.updated_at',
@@ -502,6 +538,97 @@ class EventosTabla extends Component
             'entrega' => null,
             'devolucion' => null,
             'principal' => null,
+        ];
+    }
+
+    private function buildContratoEventContext(object $registro): array
+    {
+        $evento = trim((string) ($registro->evento_nombre ?? ('#' . ($registro->evento_id ?? ''))));
+        $eventoNormalizado = mb_strtolower(Str::ascii($evento));
+        $origen = trim((string) ($registro->paquete_origen ?? ''));
+        $provinciaOrigen = trim((string) ($registro->paquete_provincia_origen ?? ''));
+        $destino = trim((string) ($registro->paquete_destino ?? ''));
+        $provinciaDestino = trim((string) ($registro->paquete_provincia_destino ?? ''));
+        $ciudadUsuario = trim((string) ($registro->usuario_ciudad ?? ''));
+        $origenDetalle = $origen . ($provinciaOrigen !== '' ? ' (' . $provinciaOrigen . ')' : '');
+        $destinoDetalle = $destino . ($provinciaDestino !== '' ? ' (' . $provinciaDestino . ')' : '');
+
+        $esSacaCreada = (int) ($registro->evento_id ?? 0) === 240
+            || (str_contains($eventoNormalizado, 'saca') && str_contains($eventoNormalizado, 'cread'));
+        $esMovimientoEnSaca = $esSacaCreada
+            || (str_contains($eventoNormalizado, 'saca') && (
+                str_contains($eventoNormalizado, 'enviad')
+                || str_contains($eventoNormalizado, 'incluid')
+                || str_contains($eventoNormalizado, 'cerrad')
+            ));
+
+        if ($esSacaCreada) {
+            $evento = 'Saca creada';
+        }
+
+        if ($esMovimientoEnSaca) {
+            return [
+                'evento' => $evento,
+                'ubicacion' => $destino !== ''
+                    ? 'Camino a ' . $destinoDetalle
+                    : 'En tránsito hacia el destino',
+            ];
+        }
+
+        $esRecibido = str_contains($eventoNormalizado, 'recibid');
+        if ($esRecibido) {
+            if ($ciudadUsuario !== '') {
+                $ciudadNormalizada = mb_strtoupper(Str::ascii($ciudadUsuario));
+                $origenNormalizado = mb_strtoupper(Str::ascii($origen));
+                $destinoNormalizado = mb_strtoupper(Str::ascii($destino));
+
+                if ($destinoNormalizado !== '' && $ciudadNormalizada === $destinoNormalizado) {
+                    return ['evento' => $evento, 'ubicacion' => 'Recibido en destino: ' . $destinoDetalle];
+                }
+
+                if ($origenNormalizado !== '' && $ciudadNormalizada === $origenNormalizado) {
+                    return ['evento' => $evento, 'ubicacion' => 'Recibido en origen: ' . $origenDetalle];
+                }
+            }
+
+            if (str_contains($eventoNormalizado, 'origen') || str_contains($eventoNormalizado, 'cliente')) {
+                return [
+                    'evento' => $evento,
+                    'ubicacion' => $origen !== '' ? 'Recibido en origen: ' . $origenDetalle : 'Recibido en origen',
+                ];
+            }
+
+            if (str_contains($eventoNormalizado, 'destino') || str_contains($eventoNormalizado, 'entrega')) {
+                return [
+                    'evento' => $evento,
+                    'ubicacion' => $destino !== '' ? 'Recibido en destino: ' . $destinoDetalle : 'Recibido en destino',
+                ];
+            }
+
+            if ($ciudadUsuario !== '') {
+                return ['evento' => $evento, 'ubicacion' => 'Recibido en: ' . $ciudadUsuario];
+            }
+
+            return ['evento' => $evento, 'ubicacion' => 'Ubicación de recepción no registrada'];
+        }
+
+        if (str_contains($eventoNormalizado, 'entregado')) {
+            return [
+                'evento' => $evento,
+                'ubicacion' => $destino !== '' ? 'Entregado en destino: ' . $destinoDetalle : 'Entregado en destino',
+            ];
+        }
+
+        if (str_contains($eventoNormalizado, 'camino') || str_contains($eventoNormalizado, 'reparto')) {
+            return [
+                'evento' => $evento,
+                'ubicacion' => $destino !== '' ? 'En reparto en: ' . $destinoDetalle : 'En reparto',
+            ];
+        }
+
+        return [
+            'evento' => $evento,
+            'ubicacion' => $ciudadUsuario !== '' ? 'Registrado en: ' . $ciudadUsuario : null,
         ];
     }
 

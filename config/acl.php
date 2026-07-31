@@ -183,6 +183,7 @@ return [
         'feature.bitacoras.index.export',
         'feature.bitacoras.create.create',
         'feature.bitacoras.create.save',
+        'feature.todos-paquetes.index.create',
         'dashboard.dir-operaciones',
         'dashboard.dir-comercial',
         'dashboard.dir-financiera',

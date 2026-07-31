@@ -418,6 +418,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/importar/paquets', [ImportController::class, 'importPaquets'])->name('importar.paquets.store');
     Route::get('/importar/paquets/plantilla-excel', [ImportController::class, 'downloadPaquetsTemplateExcel'])->name('importar.paquets.template-excel');
     Route::get('/todos-paquetes', [TodosPaquetesController::class, 'index'])->name('todos-paquetes.index');
+    Route::post('/todos-paquetes', [TodosPaquetesController::class, 'store'])->name('todos-paquetes.store');
     Route::get('/todos-paquetes/{type}/{id}/guia', [TodosPaquetesController::class, 'reimprimirGuia'])->name('todos-paquetes.guia');
     Route::get('/todos-paquetes/reporte-salida/{codigo}', [TodosPaquetesController::class, 'reporteSalida'])->name('todos-paquetes.reporte-salida');
     Route::post('/todos-paquetes/reporte-salida/{codigo}/cambiar-cartero', [TodosPaquetesController::class, 'cambiarCarteroReporte'])->name('todos-paquetes.reporte-salida.cambiar-cartero');

@@ -239,6 +239,26 @@
             font-weight:800;
             text-transform:uppercase;
         }
+        .evento-ruta{
+            min-width:190px;
+            line-height:1.25;
+        }
+        .evento-ruta-trayecto{
+            color:#475569;
+            font-size:.8rem;
+            margin-bottom:6px;
+        }
+        .evento-ubicacion{
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+            border-radius:999px;
+            padding:5px 9px;
+            background:rgba(32,83,154,.1);
+            color:var(--azul);
+            font-size:.78rem;
+            font-weight:800;
+        }
 
         @media (max-width: 767.98px){
             .contrato-preview-grid{
@@ -402,8 +422,22 @@
                                             <div class="contrato-preview-value">{{ $contratoBuscado->telefono_d ?: '-' }}</div>
                                         </div>
                                         <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Origen</div>
+                                            <div class="contrato-preview-value">{{ $contratoBuscado->origen ?: '-' }}</div>
+                                        </div>
+                                        @if (!empty(trim((string) ($contratoBuscado->provincia_origen ?? ''))))
+                                            <div class="contrato-preview-item">
+                                                <div class="contrato-preview-label">Provincia de origen</div>
+                                                <div class="contrato-preview-value">{{ $contratoBuscado->provincia_origen }}</div>
+                                            </div>
+                                        @endif
+                                        <div class="contrato-preview-item">
                                             <div class="contrato-preview-label">Destino</div>
                                             <div class="contrato-preview-value">{{ $contratoBuscado->destino ?: '-' }}</div>
+                                        </div>
+                                        <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Provincia de destino</div>
+                                            <div class="contrato-preview-value">{{ $contratoBuscado->provincia ?: '-' }}</div>
                                         </div>
                                         <div class="contrato-preview-item">
                                             <div class="contrato-preview-label">Empresa</div>
@@ -472,6 +506,9 @@
                             <tr>
                                 <th>Codigo</th>
                                 <th>Evento</th>
+                                @if ($config['table'] === 'eventos_contrato')
+                                    <th>Ruta / ubicación</th>
+                                @endif
                                 <th>{{ $supportsClienteId ? 'Actor' : 'Usuario' }}</th>
                                 @if ($config['table'] !== 'eventos_despacho')
                                     <th>Foto entrega</th>
@@ -485,7 +522,28 @@
                             @forelse ($registros as $registro)
                                 <tr>
                                     <td><span class="pill-id">{{ $registro->codigo }}</span></td>
-                                    <td>{{ $registro->evento_nombre ?? ('#' . $registro->evento_id) }}</td>
+                                    <td>{{ $registro->evento_nombre_mostrado ?? $registro->evento_nombre ?? ('#' . $registro->evento_id) }}</td>
+                                    @if ($config['table'] === 'eventos_contrato')
+                                        <td class="evento-ruta">
+                                            <div class="evento-ruta-trayecto">
+                                                <strong>{{ $registro->paquete_origen ?: 'Origen no registrado' }}</strong>
+                                                @if (!empty($registro->paquete_provincia_origen))
+                                                    <span>({{ $registro->paquete_provincia_origen }})</span>
+                                                @endif
+                                                <span aria-hidden="true">→</span>
+                                                <strong>{{ $registro->paquete_destino ?: 'Destino no registrado' }}</strong>
+                                                @if (!empty($registro->paquete_provincia_destino))
+                                                    <span>({{ $registro->paquete_provincia_destino }})</span>
+                                                @endif
+                                            </div>
+                                            @if (!empty($registro->ubicacion_evento))
+                                                <span class="evento-ubicacion">
+                                                    <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                                                    {{ $registro->ubicacion_evento }}
+                                                </span>
+                                            @endif
+                                        </td>
+                                    @endif
                                     <td>
                                         @if ($supportsClienteId)
                                             {{ $registro->actor_nombre ?? ($registro->user_id ? ('#' . $registro->user_id) : ($registro->cliente_id ? ('Cliente #' . $registro->cliente_id) : '-')) }}
@@ -578,7 +636,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $config['table'] !== 'eventos_despacho' ? 7 : 5 }}" class="text-center py-5">
+                                    <td colspan="{{ ($config['table'] !== 'eventos_despacho' ? 7 : 5) + ($config['table'] === 'eventos_contrato' ? 1 : 0) }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>

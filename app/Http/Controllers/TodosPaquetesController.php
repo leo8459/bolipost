@@ -21,6 +21,18 @@ use Illuminate\Validation\Rule;
 
 class TodosPaquetesController extends Controller
 {
+    private const DEPARTAMENTOS = [
+        'BENI',
+        'CHUQUISACA',
+        'COCHABAMBA',
+        'LA PAZ',
+        'ORURO',
+        'PANDO',
+        'POTOSI',
+        'SANTA CRUZ',
+        'TARIJA',
+    ];
+
     private const DISTRIBUTION_ASSIGNEE_ROLES = [
         'auxiliar_urbano',
         'auxiliar_urbano_dnd',
@@ -163,11 +175,38 @@ class TodosPaquetesController extends Controller
             'estados' => $estados,
             'types' => self::TYPES,
             'carteros' => $this->carterosDisponibles($request),
+            'departamentos' => self::DEPARTAMENTOS,
+            'servicios' => DB::table('servicio')->orderBy('nombre_servicio')->get(['id', 'nombre_servicio']),
+            'ventanillas' => DB::table('ventanilla')->orderBy('nombre_ventanilla')->get(['id', 'nombre_ventanilla']),
+            'empresas' => DB::table('empresa')->orderBy('nombre')->get(['id', 'nombre']),
             'search' => $search,
             'type' => $type,
             'estadoId' => $estadoId,
             'editing' => $editing,
+            'showCreateModal' => $request->boolean('create') || old('package_type') !== null,
         ]);
+    }
+
+    public function store(Request $request)
+    {
+        $typeData = $request->validate([
+            'package_type' => ['required', Rule::in(array_keys(self::TYPES))],
+        ], [], [
+            'package_type' => 'tipo de servicio',
+        ]);
+
+        $type = (string) $typeData['package_type'];
+        $data = $request->validate($this->createRules($type), [], $this->createAttributes());
+        $modelClass = self::TYPES[$type]['model'];
+        $payload = $this->createPayload($type, $data, $request);
+
+        DB::transaction(function () use ($modelClass, $payload) {
+            $modelClass::query()->create($payload);
+        });
+
+        return redirect()
+            ->route('todos-paquetes.index', $request->only(['q', 'type', 'estado_id', 'page']))
+            ->with('success', self::TYPES[$type]['label'].' creado correctamente.');
     }
 
     public function updateEstado(Request $request, string $type, int $id)
@@ -704,6 +743,187 @@ class TodosPaquetesController extends Controller
         $modelClass = $config['model'];
 
         return $modelClass::query()->findOrFail($id);
+    }
+
+    private function createRules(string $type): array
+    {
+        $departmentRule = ['required', 'string', Rule::in(self::DEPARTAMENTOS)];
+        $nullableText = ['nullable', 'string', 'max:1000'];
+        $requiredText = ['required', 'string', 'max:1000'];
+
+        return match ($type) {
+            'ems' => [
+                'codigo' => ['required', 'string', 'max:255', Rule::unique('paquetes_ems', 'codigo')],
+                'cod_especial' => $nullableText,
+                'origen' => $departmentRule,
+                'ciudad' => $departmentRule,
+                'tipo_correspondencia' => $nullableText,
+                'servicio_especial' => $nullableText,
+                'contenido' => $nullableText,
+                'cantidad' => ['nullable', 'integer', 'min:1'],
+                'peso' => ['nullable', 'numeric', 'min:0'],
+                'precio' => ['nullable', 'numeric', 'min:0'],
+                'nombre_remitente' => $nullableText,
+                'nombre_envia' => $nullableText,
+                'carnet' => $nullableText,
+                'telefono_remitente' => $nullableText,
+                'nombre_destinatario' => $nullableText,
+                'telefono_destinatario' => $nullableText,
+                'direccion' => $nullableText,
+                'referencia' => $nullableText,
+                'observacion' => $nullableText,
+                'justificacion' => $nullableText,
+                'estado_id' => ['nullable', 'integer', Rule::exists('estados', 'id')],
+            ],
+            'contrato' => [
+                'codigo' => ['required', 'string', 'max:255', Rule::unique('paquetes_contrato', 'codigo')],
+                'codigo_madre' => $nullableText,
+                'cod_especial' => $nullableText,
+                'origen' => $departmentRule,
+                'destino' => $departmentRule,
+                'provincia_origen' => $nullableText,
+                'provincia' => $nullableText,
+                'nombre_r' => $requiredText,
+                'telefono_r' => $requiredText,
+                'contenido' => $requiredText,
+                'cantidad' => ['nullable', 'integer', 'min:1'],
+                'direccion_r' => $requiredText,
+                'nombre_d' => $requiredText,
+                'telefono_d' => $nullableText,
+                'direccion_d' => $requiredText,
+                'mapa' => $nullableText,
+                'peso' => ['required', 'numeric', 'min:0'],
+                'precio' => ['nullable', 'numeric', 'min:0'],
+                'observacion' => $nullableText,
+                'justificacion' => $nullableText,
+                'estados_id' => ['nullable', 'integer', Rule::exists('estados', 'id')],
+                'empresa_id' => ['nullable', 'integer', Rule::exists('empresa', 'id')],
+            ],
+            'certi' => [
+                'codigo' => ['required', 'string', 'max:255', Rule::unique('paquetes_certi', 'codigo')],
+                'cod_especial' => $nullableText,
+                'destinatario' => $requiredText,
+                'telefono' => ['nullable', 'integer', 'min:0', 'max:2147483647'],
+                'cuidad' => $departmentRule,
+                'zona' => $nullableText,
+                'peso' => ['required', 'numeric', 'min:0'],
+                'precio' => ['nullable', 'numeric', 'min:0'],
+                'tipo' => $requiredText,
+                'aduana' => $requiredText,
+                'observaciones' => $nullableText,
+                'fk_estado' => ['required', 'integer', Rule::exists('estados', 'id')],
+                'fk_ventanilla' => ['required', 'integer', Rule::exists('ventanilla', 'id')],
+                'servicio_id' => ['nullable', 'integer', Rule::exists('servicio', 'id')],
+            ],
+            'ordi' => [
+                'codigo' => ['required', 'string', 'max:255', Rule::unique('paquetes_ordi', 'codigo')],
+                'cod_especial' => $nullableText,
+                'destinatario' => $requiredText,
+                'telefono' => $requiredText,
+                'ciudad' => $departmentRule,
+                'zona' => $requiredText,
+                'peso' => ['required', 'numeric', 'min:0'],
+                'precio' => ['nullable', 'numeric', 'min:0'],
+                'tipo' => $nullableText,
+                'pais' => $nullableText,
+                'iso' => $nullableText,
+                'aduana' => $requiredText,
+                'observaciones' => $nullableText,
+                'factura' => $nullableText,
+                'manifiesto' => $nullableText,
+                'fk_estado' => ['required', 'integer', Rule::exists('estados', 'id')],
+                'fk_ventanilla' => ['required', 'integer', Rule::exists('ventanilla', 'id')],
+                'servicio_id' => ['nullable', 'integer', Rule::exists('servicio', 'id')],
+            ],
+            'solicitud' => [
+                'codigo_solicitud' => ['nullable', 'string', 'max:255', Rule::unique('solicitud_clientes', 'codigo_solicitud')],
+                'barcode' => $nullableText,
+                'cod_especial' => $nullableText,
+                'origen' => $departmentRule,
+                'ciudad' => $departmentRule,
+                'tipo_correspondencia' => $nullableText,
+                'servicio_especial' => $nullableText,
+                'contenido' => $requiredText,
+                'cantidad' => ['required', 'integer', 'min:1'],
+                'peso' => ['nullable', 'numeric', 'min:0'],
+                'precio' => ['nullable', 'numeric', 'min:0'],
+                'pago_destinatario' => ['nullable', 'boolean'],
+                'nombre_remitente' => $requiredText,
+                'nombre_envia' => $nullableText,
+                'carnet' => $requiredText,
+                'telefono_remitente' => $nullableText,
+                'nombre_destinatario' => $requiredText,
+                'telefono_destinatario' => $nullableText,
+                'direccion_recojo' => $nullableText,
+                'direccion' => $requiredText,
+                'observacion' => $nullableText,
+                'justificacion' => $nullableText,
+                'estado_id' => ['nullable', 'integer', Rule::exists('estados', 'id')],
+                'servicio_id' => ['nullable', 'integer', Rule::exists('servicio', 'id')],
+            ],
+            default => abort(404),
+        };
+    }
+
+    private function createPayload(string $type, array $data, Request $request): array
+    {
+        $payload = collect($data)
+            ->map(fn ($value) => is_string($value) ? trim($value) : $value)
+            ->all();
+
+        foreach (['origen', 'ciudad', 'cuidad', 'destino'] as $departmentField) {
+            if (isset($payload[$departmentField])) {
+                $payload[$departmentField] = mb_strtoupper((string) $payload[$departmentField]);
+            }
+        }
+
+        if ($type === 'ems') {
+            $payload['user_id'] = (int) $request->user()->id;
+        }
+
+        if ($type === 'contrato') {
+            $payload['user_id'] = (int) $request->user()->id;
+            $payload['cantidad'] = (string) ($payload['cantidad'] ?? 1);
+        }
+
+        if ($type === 'certi') {
+            $payload['ventanilla'] = (string) DB::table('ventanilla')
+                ->where('id', (int) $payload['fk_ventanilla'])
+                ->value('nombre_ventanilla');
+        }
+
+        if ($type === 'solicitud') {
+            $destinoId = (int) (DB::table('destino')
+                ->whereRaw('TRIM(UPPER(nombre_destino)) = ?', [$payload['ciudad']])
+                ->value('id') ?? 0);
+
+            abort_if($destinoId <= 0, 422, 'El departamento de destino no esta configurado.');
+            $payload['destino_id'] = $destinoId;
+            $payload['pago_destinatario'] = (bool) ($payload['pago_destinatario'] ?? false);
+        }
+
+        return $payload;
+    }
+
+    private function createAttributes(): array
+    {
+        return [
+            'codigo' => 'codigo',
+            'codigo_solicitud' => 'codigo de solicitud',
+            'cod_especial' => 'codigo especial',
+            'estado_id' => 'estado',
+            'estados_id' => 'estado',
+            'fk_estado' => 'estado',
+            'fk_ventanilla' => 'ventanilla',
+            'servicio_id' => 'servicio',
+            'empresa_id' => 'empresa',
+            'cuidad' => 'destino',
+            'ciudad' => 'destino',
+            'nombre_r' => 'remitente',
+            'nombre_d' => 'destinatario',
+            'direccion_r' => 'direccion del remitente',
+            'direccion_d' => 'direccion del destinatario',
+        ];
     }
 
 }

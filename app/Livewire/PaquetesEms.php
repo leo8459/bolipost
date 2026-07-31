@@ -2936,10 +2936,16 @@ class PaquetesEms extends Component
             return;
         }
 
+        $cn33Destino = $this->resolveCn33Destino($codEspecial);
+        if ($cn33Destino === null) {
+            session()->flash('error', 'No se encontro el destino del CN-33 ' . $codEspecial . '. Verifica que el codigo ya tenga paquetes asignados.');
+            return;
+        }
+
         $updated = 0;
         $actorUserId = (int) (auth()->id() ?? 0);
 
-        DB::transaction(function () use ($idsEms, $idsInt, $idsContratos, $idsSolicitudes, $eligibleEstadoIds, $estadoTransitoId, $codEspecial, $eventoSacaInternaSalidaId, $actorUserId, &$updated) {
+        DB::transaction(function () use ($idsEms, $idsInt, $idsContratos, $idsSolicitudes, $eligibleEstadoIds, $estadoTransitoId, $codEspecial, $cn33Destino, $eventoSacaInternaSalidaId, $actorUserId, &$updated) {
             if (!empty($idsEms)) {
                 $paquetes = PaqueteEms::query()
                     ->whereIn('id', $idsEms)
@@ -2954,6 +2960,14 @@ class PaquetesEms extends Component
                         ->update([
                             'cod_especial' => $codEspecial,
                             'estado_id' => (int) $estadoTransitoId,
+                            'ciudad' => $cn33Destino,
+                            'updated_at' => now(),
+                        ]);
+
+                    DB::table('paquetes_ems_formulario')
+                        ->whereIn('paquete_ems_id', $paquetes->pluck('id')->all())
+                        ->update([
+                            'ciudad' => $cn33Destino,
                             'updated_at' => now(),
                         ]);
 
@@ -2975,6 +2989,7 @@ class PaquetesEms extends Component
                         ->update([
                             'cod_especial' => $codEspecial,
                             'estado_id' => (int) $estadoTransitoId,
+                            'destino' => $cn33Destino,
                             'updated_at' => now(),
                         ]);
                 }
@@ -2994,6 +3009,7 @@ class PaquetesEms extends Component
                         ->update([
                             'cod_especial' => $codEspecial,
                             'estados_id' => (int) $estadoTransitoId,
+                            'destino' => $cn33Destino,
                             'updated_at' => now(),
                         ]);
 
@@ -3015,6 +3031,7 @@ class PaquetesEms extends Component
                         ->update([
                             'cod_especial' => $codEspecial,
                             'estado_id' => (int) $estadoTransitoId,
+                            'ciudad' => $cn33Destino,
                             'updated_at' => now(),
                         ]);
 
@@ -3028,7 +3045,7 @@ class PaquetesEms extends Component
             return;
         }
 
-        session()->flash('success', 'cod_especial ' . $codEspecial . ' asignado y enviado a TRANSITO: ' . $updated . ' registro(s).');
+        session()->flash('success', 'cod_especial ' . $codEspecial . ' asignado con destino ' . $cn33Destino . ' y enviado a TRANSITO: ' . $updated . ' registro(s).');
         $this->cn33ManualCodigo = '';
         $this->selectedPaquetes = [];
         $this->selectedPaquetesInt = [];
@@ -5676,7 +5693,10 @@ class PaquetesEms extends Component
                 ->selectRaw('p.id as record_id')
                 ->selectRaw("coalesce(nullif(trim(f.codigo), ''), p.codigo) as codigo")
                 ->selectRaw("coalesce(f.nombre_destinatario, p.nombre_destinatario, '-') as destinatario")
+                ->selectRaw("coalesce(p.origen, '-') as origen")
                 ->selectRaw("coalesce(f.ciudad, p.ciudad, '-') as destino")
+                ->selectRaw("'-' as direccion_r")
+                ->selectRaw("coalesce(f.direccion, p.direccion, '-') as direccion_d")
                 ->selectRaw('coalesce(f.peso, p.peso, 0) as peso')
                 ->get();
 
@@ -5690,7 +5710,10 @@ class PaquetesEms extends Component
                 ->selectRaw('id as record_id')
                 ->selectRaw("coalesce(codigo, 'SIN CODIGO') as codigo")
                 ->selectRaw("'-' as destinatario")
+                ->selectRaw("coalesce(origen, '-') as origen")
                 ->selectRaw("coalesce(destino, '-') as destino")
+                ->selectRaw("'-' as direccion_r")
+                ->selectRaw("'-' as direccion_d")
                 ->selectRaw('coalesce(peso, 0) as peso')
                 ->get();
 
@@ -5704,7 +5727,10 @@ class PaquetesEms extends Component
                 ->selectRaw('id as record_id')
                 ->selectRaw('codigo')
                 ->selectRaw("coalesce(nombre_d, '-') as destinatario")
+                ->selectRaw("coalesce(origen, '-') as origen")
                 ->selectRaw("coalesce(destino, '-') as destino")
+                ->selectRaw("coalesce(direccion_r, '-') as direccion_r")
+                ->selectRaw("coalesce(direccion_d, '-') as direccion_d")
                 ->selectRaw('coalesce(peso, 0) as peso')
                 ->get();
 
@@ -5718,7 +5744,10 @@ class PaquetesEms extends Component
                 ->selectRaw('id as record_id')
                 ->selectRaw("coalesce(nullif(trim(codigo_solicitud), ''), nullif(trim(barcode), ''), 'SIN CODIGO') as codigo")
                 ->selectRaw("coalesce(nombre_destinatario, '-') as destinatario")
+                ->selectRaw("coalesce(origen, '-') as origen")
                 ->selectRaw("coalesce(ciudad, '-') as destino")
+                ->selectRaw("coalesce(direccion_recojo, '-') as direccion_r")
+                ->selectRaw("coalesce(direccion, '-') as direccion_d")
                 ->selectRaw('coalesce(peso, 0) as peso')
                 ->get();
 
@@ -6518,6 +6547,8 @@ class PaquetesEms extends Component
             ->selectRaw("coalesce(formulario.telefono_destinatario, paquetes_ems.telefono_destinatario, '-') as telefono_d")
             ->selectRaw("coalesce(formulario.ciudad, paquetes_ems.ciudad, '-') as ciudad")
             ->selectRaw("coalesce(paquetes_ems.origen, '-') as origen")
+            ->selectRaw("'-' as direccion_r")
+            ->selectRaw("coalesce(formulario.direccion, paquetes_ems.direccion, '-') as direccion_d")
             ->selectRaw("'-' as empresa")
             ->selectRaw('paquetes_ems.cod_especial as cod_especial')
             ->selectRaw('paquetes_ems.created_at as created_at');
@@ -6673,6 +6704,8 @@ class PaquetesEms extends Component
             ->selectRaw("coalesce(paquetes_contrato.telefono_d, '-') as telefono_d")
             ->selectRaw("coalesce(paquetes_contrato.destino, '-') as ciudad")
             ->selectRaw("coalesce(paquetes_contrato.origen, '-') as origen")
+            ->selectRaw("coalesce(paquetes_contrato.direccion_r, '-') as direccion_r")
+            ->selectRaw("coalesce(paquetes_contrato.direccion_d, '-') as direccion_d")
             ->selectRaw(
                 "coalesce(empresa_directa.nombre, empresa_usuario.nombre, '-') ||
                 case
@@ -6851,6 +6884,8 @@ class PaquetesEms extends Component
             ->selectRaw("coalesce(solicitud_clientes.telefono_destinatario, '-') as telefono_d")
             ->selectRaw("coalesce(solicitud_clientes.ciudad, destino.nombre_destino, '-') as ciudad")
             ->selectRaw("coalesce(solicitud_clientes.origen, '-') as origen")
+            ->selectRaw("coalesce(solicitud_clientes.direccion_recojo, '-') as direccion_r")
+            ->selectRaw("coalesce(solicitud_clientes.direccion, '-') as direccion_d")
             ->selectRaw("'CLIENTE' as empresa")
             ->selectRaw('solicitud_clientes.cod_especial as cod_especial')
             ->selectRaw('solicitud_clientes.created_at as created_at')
@@ -6988,6 +7023,8 @@ class PaquetesEms extends Component
             ->selectRaw("'-' as telefono_d")
             ->selectRaw("coalesce(paquetes_int.destino, '-') as ciudad")
             ->selectRaw("coalesce(paquetes_int.origen, '-') as origen")
+            ->selectRaw("'-' as direccion_r")
+            ->selectRaw("'-' as direccion_d")
             ->selectRaw("'-' as empresa")
             ->selectRaw('paquetes_int.cod_especial as cod_especial')
             ->selectRaw('paquetes_int.created_at as created_at');
@@ -7028,6 +7065,8 @@ class PaquetesEms extends Component
                         ->orWhere('servicio_especial', 'ILIKE', "%{$q}%")
                         ->orWhere('origen', 'ILIKE', "%{$q}%")
                         ->orWhere('destino', 'ILIKE', "%{$q}%")
+                        ->orWhere('direccion_r', 'ILIKE', "%{$q}%")
+                        ->orWhere('direccion_d', 'ILIKE', "%{$q}%")
                         ->orWhere('contenido', 'ILIKE', "%{$q}%")
                         ->orWhere('remitente', 'ILIKE', "%{$q}%")
                         ->orWhere('destinatario', 'ILIKE', "%{$q}%")
@@ -8771,6 +8810,37 @@ class PaquetesEms extends Component
             ->unique()
             ->values()
             ->all();
+    }
+
+    protected function resolveCn33Destino(string $codEspecial): ?string
+    {
+        $codigoNormalizado = strtoupper(trim($codEspecial));
+        if ($codigoNormalizado === '') {
+            return null;
+        }
+
+        $sources = [
+            [PaqueteEms::class, 'ciudad'],
+            [RecojoContrato::class, 'destino'],
+            [SolicitudCliente::class, 'ciudad'],
+            [PaqueteInt::class, 'destino'],
+        ];
+
+        foreach ($sources as [$model, $destinationColumn]) {
+            $destino = $model::query()
+                ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigoNormalizado])
+                ->whereNotNull($destinationColumn)
+                ->whereRaw('trim(' . $destinationColumn . ") <> ''")
+                ->orderBy('id')
+                ->value($destinationColumn);
+
+            $destino = trim((string) $destino);
+            if ($destino !== '') {
+                return strtoupper($destino);
+            }
+        }
+
+        return null;
     }
 
     protected function regionalMismatchItemsForSelection(

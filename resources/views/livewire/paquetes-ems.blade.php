@@ -1488,15 +1488,15 @@
                                     type="text"
                                     class="form-control"
                                     placeholder="Ingresa cod_especial (ej: SRZ00001)"
-                                    wire:model.defer="cn33ManualCodigo"
+                                    wire:model.live.debounce.300ms="cn33ManualCodigo"
                                 >
                             </div>
                             <div class="form-group col-md-6 mb-2 d-flex gap-2">
                                 <button
                                     class="btn btn-azul"
                                     type="button"
-                                    wire:click="anadirSeleccionadosCn33"
-                                    onclick="return confirm('Asignar este cod_especial a los seleccionados y cambiarlos a TRANSITO?')"
+                                    data-toggle="modal"
+                                    data-target="#confirmarCn33Modal"
                                 >
                                     Confirmar
                                 </button>
@@ -1634,7 +1634,10 @@
                                     $haystack = mb_strtolower(
                                         trim((string) ($row->codigo ?? '')) . ' ' .
                                         trim((string) ($row->destinatario ?? '')) . ' ' .
-                                        trim((string) ($row->destino ?? ''))
+                                        trim((string) ($row->origen ?? '')) . ' ' .
+                                        trim((string) ($row->destino ?? '')) . ' ' .
+                                        trim((string) ($row->direccion_r ?? '')) . ' ' .
+                                        trim((string) ($row->direccion_d ?? ''))
                                     );
                                     return str_contains($haystack, $needle);
                                 });
@@ -1672,7 +1675,7 @@
                                     wire:model.live.debounce.300ms="selectedPreviewSearch"
                                     class="form-control"
                                     style="max-width: 520px;"
-                                    placeholder="Filtrar en prelista (codigo, destinatario, destino)"
+                                    placeholder="Filtrar por código, destinatario, ruta o dirección"
                                 >
                             </div>
                             <div class="prelist-table-wrap">
@@ -1682,7 +1685,8 @@
                                             <th>Tipo</th>
                                             <th>Codigo</th>
                                             <th>Destinatario</th>
-                                            <th>Destino</th>
+                                            <th>Ruta</th>
+                                            <th>Direcciones</th>
                                             <th>Peso</th>
                                             <th>Accion</th>
                                         </tr>
@@ -1693,7 +1697,18 @@
                                                 <td>{{ $item->tipo ?? '-' }}</td>
                                                 <td><span class="pill-id">{{ $item->codigo ?? '-' }}</span></td>
                                                 <td>{{ $item->destinatario ?? '-' }}</td>
-                                                <td>{{ $item->destino ?? '-' }}</td>
+                                                <td>
+                                                    <small class="d-block text-muted">Origen</small>
+                                                    <strong>{{ $item->origen ?? '-' }}</strong>
+                                                    <small class="d-block text-muted mt-1">Destino</small>
+                                                    <strong>{{ $item->destino ?? '-' }}</strong>
+                                                </td>
+                                                <td>
+                                                    <small class="d-block text-muted">Remitente</small>
+                                                    <span>{{ !empty($item->direccion_r) && $item->direccion_r !== '-' ? $item->direccion_r : 'Sin dirección registrada' }}</span>
+                                                    <small class="d-block text-muted mt-1">Destinatario</small>
+                                                    <span>{{ !empty($item->direccion_d) && $item->direccion_d !== '-' ? $item->direccion_d : 'Sin dirección registrada' }}</span>
+                                                </td>
                                                 <td>{{ $item->peso ?? '-' }}</td>
                                                 <td>
                                                     <button
@@ -1708,7 +1723,7 @@
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="6" class="text-center py-3 text-muted">No hay elementos para ese filtro.</td>
+                                                <td colspan="7" class="text-center py-3 text-muted">No hay elementos para ese filtro.</td>
                                             </tr>
                                         @endforelse
                                     </tbody>
@@ -1737,19 +1752,27 @@
                                     @endif
                                     <th>Codigo</th>
                                     <th>Tipo</th>
-                                    <th>Servicio</th>
-                                    <th>Serv. especial</th>
-                                    <th>Destino</th>
-                                    <th>Contenido</th>
-                                    <th>Cantidad</th>
-                                    <th>Peso</th>
-                                    <th>Remitente</th>
-                                    <th>Destinatario</th>
-                                    <th>Empresa</th>
-                                    <th>Telefono R</th>
-                                    <th>Telefono D</th>
-                                    <th>Creado</th>
-                                    @if (!$this->isAlmacenEms)
+                                    @if ($this->isAlmacenEms)
+                                        <th>Servicio</th>
+                                        <th>Ruta</th>
+                                        <th>Direcciones</th>
+                                        <th>Peso</th>
+                                        <th>Destinatario</th>
+                                        <th>Creado</th>
+                                    @else
+                                        <th>Servicio</th>
+                                        <th>Serv. especial</th>
+                                        <th>Origen</th>
+                                        <th>Destino</th>
+                                        <th>Contenido</th>
+                                        <th>Cantidad</th>
+                                        <th>Peso</th>
+                                        <th>Remitente</th>
+                                        <th>Destinatario</th>
+                                        <th>Empresa</th>
+                                        <th>Telefono R</th>
+                                        <th>Telefono D</th>
+                                        <th>Creado</th>
                                         <th>Traspaso</th>
                                     @endif
                                     <th class="text-center action-cell">Acciones</th>
@@ -1828,19 +1851,42 @@
                                         @endif
                                         <td><span class="pill-id">{{ $row->codigo }}</span></td>
                                         <td>{{ $row->tipo }}</td>
-                                        <td>{{ $row->servicio }}</td>
-                                        <td>{{ $row->servicio_especial }}</td>
-                                        <td>{{ $row->destino }}</td>
-                                        <td>{{ $row->contenido }}</td>
-                                        <td>{{ $row->cantidad }}</td>
-                                        <td>{{ $row->peso }}</td>
-                                        <td>{{ $row->remitente }}</td>
-                                        <td>{{ $row->destinatario }}</td>
-                                        <td>{{ $row->empresa }}</td>
-                                        <td>{{ $row->telefono_r }}</td>
-                                        <td>{{ $row->telefono_d }}</td>
-                                        <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
-                                        @if (!$this->isAlmacenEms)
+                                        @if ($this->isAlmacenEms)
+                                            <td>
+                                                <span>{{ $row->servicio ?: '-' }}</span>
+                                                @if (!empty($row->servicio_especial) && $row->servicio_especial !== '-')
+                                                    <small class="d-block text-muted">{{ $row->servicio_especial }}</small>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <small class="d-block text-muted">Origen</small>
+                                                <strong>{{ $row->origen ?: '-' }}</strong>
+                                                <small class="d-block text-muted mt-1">Destino</small>
+                                                <strong>{{ $row->destino ?: '-' }}</strong>
+                                            </td>
+                                            <td>
+                                                <small class="d-block text-muted">Remitente</small>
+                                                <span>{{ !empty($row->direccion_r) && $row->direccion_r !== '-' ? $row->direccion_r : 'Sin dirección registrada' }}</span>
+                                                <small class="d-block text-muted mt-1">Destinatario</small>
+                                                <span>{{ !empty($row->direccion_d) && $row->direccion_d !== '-' ? $row->direccion_d : 'Sin dirección registrada' }}</span>
+                                            </td>
+                                            <td>{{ $row->peso }}</td>
+                                            <td>{{ $row->destinatario ?: '-' }}</td>
+                                            <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
+                                        @else
+                                            <td>{{ $row->servicio }}</td>
+                                            <td>{{ $row->servicio_especial }}</td>
+                                            <td>{{ $row->origen ?: '-' }}</td>
+                                            <td>{{ $row->destino }}</td>
+                                            <td>{{ $row->contenido }}</td>
+                                            <td>{{ $row->cantidad }}</td>
+                                            <td>{{ $row->peso }}</td>
+                                            <td>{{ $row->remitente }}</td>
+                                            <td>{{ $row->destinatario }}</td>
+                                            <td>{{ $row->empresa }}</td>
+                                            <td>{{ $row->telefono_r }}</td>
+                                            <td>{{ $row->telefono_d }}</td>
+                                            <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
                                             <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
                                         @endif
                                         <td class="action-cell">
@@ -1901,7 +1947,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ $this->isAlmacenEms ? 16 : (($this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms) ? 17 : 16) }}" class="text-center py-5">
+                                        <td colspan="{{ $this->isAlmacenEms ? 10 : (($this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms) ? 18 : 17) }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -2404,6 +2450,80 @@
         </div>
     </div>
     @endunless
+
+    @if ($this->isAlmacenEms && $canEmsSendRegional)
+    @php
+        $cn33SelectedTotal = count($selectedPaquetes)
+            + count($selectedPaquetesInt)
+            + count($selectedContratos)
+            + count($selectedSolicitudes);
+        $cn33CodigoConfirmacion = strtoupper(trim((string) $cn33ManualCodigo));
+    @endphp
+    <div class="modal fade" id="confirmarCn33Modal" tabindex="-1" aria-labelledby="confirmarCn33ModalLabel" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmarCn33ModalLabel">
+                        Confirmar actualización de paquete
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">
+                        Se aplicarán los siguientes cambios a
+                        <strong>{{ $cn33SelectedTotal }} {{ $cn33SelectedTotal === 1 ? 'registro seleccionado' : 'registros seleccionados' }}</strong>:
+                    </p>
+
+                    <div class="border rounded p-3 bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Estado</span>
+                            <strong>TRÁNSITO</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Se añadirá al CN-33</span>
+                            <strong>{{ $cn33CodigoConfirmacion !== '' ? $cn33CodigoConfirmacion : 'SIN CÓDIGO' }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Nuevo destino</span>
+                            <strong>RAFOVAR</strong>
+                        </div>
+                    </div>
+
+                    <p class="mb-0 mt-3 text-muted">
+                        Verifica la información antes de continuar.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        data-dismiss="modal"
+                        wire:loading.attr="disabled"
+                        wire:target="anadirSeleccionadosCn33"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-azul"
+                        wire:click="anadirSeleccionadosCn33"
+                        data-dismiss="modal"
+                        wire:loading.attr="disabled"
+                        wire:target="anadirSeleccionadosCn33"
+                    >
+                        <span wire:loading.remove wire:target="anadirSeleccionadosCn33">Sí, confirmar cambios</span>
+                        <span wire:loading.inline-flex wire:target="anadirSeleccionadosCn33" class="align-items-center">
+                            <span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
+                            Procesando...
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 
     <div
         class="modal fade @if($showPaqueteConfirmModal) show d-block @endif"

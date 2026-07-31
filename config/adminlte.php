@@ -343,6 +343,23 @@ return [
             'icon' => 'fas fa-tachometer-alt',
         ],
         [
+            'text' => 'Administrador',
+            'icon' => 'fas fa-user-shield',
+            'can' => 'admin-only-menu',
+            'submenu' => [
+                [
+                    'text' => 'Roles',
+                    'url' => 'roles',
+                    'icon' => 'fas fa-users-cog',
+                ],
+                [
+                    'text' => 'Todos los paquetes',
+                    'url' => 'todos-paquetes',
+                    'icon' => 'fas fa-layer-group',
+                ],
+            ],
+        ],
+        [
             'text' => 'Dir. Operaciones',
             'icon' => 'fas fa-chart-line',
             'can' => 'dashboard.dir-operaciones',
@@ -1007,11 +1024,6 @@ return [
                             'icon' => 'fas fa-boxes',
                             'submenu' => [
                                 [
-                                    'text' => 'Todos los paquetes',
-                                    'url' => 'todos-paquetes',
-                                    'icon' => 'fas fa-layer-group',
-                                ],
-                                [
                                     'text' => 'Importacion de Paquetes',
                                     'url' => 'importar/paquets',
                                     'icon' => 'fas fa-upload',
@@ -1095,11 +1107,6 @@ return [
                             'text' => 'Empresas',
                             'url' => 'empresas',
                             'icon' => 'fas fa-building',
-                        ],
-                        [
-                            'text' => 'Roles',
-                            'url' => 'roles',
-                            'icon' => 'fas fa-users-cog',
                         ],
                         [
                             'text' => 'Permisos',

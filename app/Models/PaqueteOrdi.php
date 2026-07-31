@@ -26,6 +26,11 @@ class PaqueteOrdi extends Model
         'fk_ventanilla',
         'fk_estado',
         'imagen',
+        'pais',
+        'iso',
+        'tipo',
+        'factura',
+        'manifiesto',
     ];
 
     public function estado()

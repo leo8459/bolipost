@@ -334,7 +334,7 @@ class AclPermissionRegistry
         'paquetes-certificados.inventario' => ['edit', 'delete', 'assign', 'export'],
         'paquetes-certificados.rezago' => ['edit', 'delete', 'assign'],
         'paquetes-certificados.todos' => ['edit', 'delete'],
-        'todos-paquetes.index' => ['edit', 'assign', 'print'],
+        'todos-paquetes.index' => ['create', 'edit', 'assign', 'print'],
         'bitacoras.index' => ['create', 'save', 'edit', 'delete', 'export'],
         'bitacoras.create' => ['create', 'save'],
         'tarifa-contrato.index' => ['create', 'duplicate', 'edit', 'delete', 'save', 'import', 'export', 'report'],
@@ -624,6 +624,10 @@ class AclPermissionRegistry
             'feature.todos-paquetes.index.edit',
             'paquetes-ems.encargado',
             'feature.paquetes-ems.encargado.print',
+        ],
+        'todos-paquetes.store' => [
+            'todos-paquetes.store',
+            'feature.todos-paquetes.index.create',
         ],
         'todos-paquetes.reporte-salida' => [
             'todos-paquetes.reporte-salida',
